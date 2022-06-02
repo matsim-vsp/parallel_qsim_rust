@@ -1,3 +1,6 @@
+mod super_simple_link_automat;
+
+
 fn main() {
-    println!("Hello, world!");
+    super_simple_link_automat::run();
 }
