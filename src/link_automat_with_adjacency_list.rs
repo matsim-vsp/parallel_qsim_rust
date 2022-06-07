@@ -64,7 +64,7 @@ fn move_nodes(nodes: Iter<Node>, links: &mut Vec<Link>) {
     for node in nodes {
         for in_link in &node.in_links {
             // we assume that this link is present, because we know the index
-            let mut link = links.get_mut(*in_link).unwrap();
+            let link = links.get_mut(*in_link).unwrap();
 
             match link.buffer.pop_front() {
                 None => { println!("Link #{} has no vehicles in the buffer", link.id) }
@@ -74,7 +74,7 @@ fn move_nodes(nodes: Iter<Node>, links: &mut Vec<Link>) {
                             println!("Node #{} has no out link. Vehicle #{}'s journey ends", node.id, vehicle.id);
                         }
                         Some(out_link_index) => {
-                            let mut out_link = links.get_mut(*out_link_index).unwrap();
+                            let out_link = links.get_mut(*out_link_index).unwrap();
                             println!("Pushing vehicle #{} to link #{}", vehicle.id, out_link.id);
                             out_link.q.push_back(vehicle);
                         }
@@ -82,5 +82,15 @@ fn move_nodes(nodes: Iter<Node>, links: &mut Vec<Link>) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::link_automat_with_adjacency_list::run;
+
+    #[test]
+    fn test_run() {
+        run();
     }
 }

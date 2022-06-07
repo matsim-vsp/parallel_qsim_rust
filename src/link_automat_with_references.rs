@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::slice::{Iter, IterMut};
+use std::slice::{IterMut};
 
 struct Vehicle {
     id: i32,
@@ -11,7 +11,6 @@ struct Link {
 }
 
 type Q = VecDeque<Vehicle>;
-type Node = (Option<Q>, Option<Q>, i32);
 
 pub fn run() {
     let mut link1 = Link { main_q: VecDeque::new(), buffer: VecDeque::new() };
@@ -64,5 +63,15 @@ fn move_nodes(nodes_iter: IterMut<(Option<&mut Q>, Option<&mut Q>, i32)>) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::link_automat_with_references::run;
+
+    #[test]
+    fn test_run() {
+        run()
     }
 }
