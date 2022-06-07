@@ -11,7 +11,7 @@ struct Link {
 
 #[cfg(test)]
 mod tests {
-    use petgraph::{Direction, EdgeDirection, Graph};
+    use petgraph::{Direction, Graph};
 
     use crate::graph_network::{Link, Node};
 
@@ -21,7 +21,7 @@ mod tests {
 
         let from = graph.add_node(Node { id: "from".to_string(), value: 10 });
         let to = graph.add_node(Node { id: "to".to_string(), value: 20 });
-        let link = graph.add_edge(from, to, Link { id: "link".to_string(), freespeed: 36.6 });
+        graph.add_edge(from, to, Link { id: "link".to_string(), freespeed: 36.6 });
 
         for i in graph.node_indices() {
             let node_data = graph.node_weight(i).unwrap();
