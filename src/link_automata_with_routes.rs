@@ -11,7 +11,6 @@ struct Vehicle {
 }
 
 impl Vehicle {
-
     fn update_route_state(&mut self, current_link: usize, exit_time: u32) {
         self.current_link = current_link;
         self.exit_time = exit_time;
@@ -28,10 +27,9 @@ struct Link {
 }
 
 impl Link {
-
     fn pop_first_vehicle(&mut self, now: u32) -> Option<Vehicle> {
         match self.q.front() {
-            None => { None },
+            None => None,
             Some(vehicle) => {
                 if vehicle.exit_time <= now {
                     self.q.pop_front()
@@ -54,23 +52,22 @@ struct Node {
 }
 
 impl Node {
-
     fn move_vehicles(&self, links: &mut Vec<Link>, now: u32) {
         for in_link_index in &self.in_links {
             let in_link = links.get_mut(*in_link_index).unwrap();
 
             match in_link.pop_first_vehicle(now) {
-                None => { () }
+                None => (),
                 Some(mut vehicle) => {
-
                     // increase the pointer into the route's link list by one.
                     let next_route_element = vehicle.current_link + 1;
 
                     // fetch the next link id of the vehicle's route. If None, the vehicle's trip is over
                     match vehicle.route.link_ids.get(next_route_element) {
-                        None => {println!("Vehicle #{} has reached its destination on link #{}. It will dissapear now. ", vehicle.id, in_link.id)}
+                        None => {
+                            println!("Vehicle #{} has reached its destination on link #{}. It will dissapear now. ", vehicle.id, in_link.id)
+                        }
                         Some(out_index) => {
-
                             // fetch the next link of the route.
                             let out_link = links.get_mut(*out_index).unwrap();
                             let out_index_copy = *out_index;
@@ -85,7 +82,10 @@ impl Node {
                             let im_in_link = links.get(*in_link_index).unwrap();
                             let im_out_link = links.get(out_index_copy).unwrap();
                             let im_veh = im_out_link.q.back().unwrap();
-                            println!("Pushing vehicle #{} from link #{} to link #{} via node #{}", &im_veh.id, &im_in_link.id, &im_out_link.id, self.id);
+                            println!(
+                                "Pushing vehicle #{} from link #{} to link #{} via node #{}",
+                                &im_veh.id, &im_in_link.id, &im_out_link.id, self.id
+                            );
                         }
                     }
                 }
@@ -95,7 +95,6 @@ impl Node {
 }
 
 pub fn run() {
-
     // have a network in the form of below.
     //        0
     //      /  \
@@ -105,23 +104,79 @@ pub fn run() {
     //
     // also, have one vehicle travel the upper one the lower route.
 
-    let vehicle1 = Vehicle { id: 1, route: NetworkRoute { link_ids: Vec::from([0, 1, 2, 5]) }, current_link: 0, exit_time: 1 };
-    let vehicle2 = Vehicle { id: 2, route: NetworkRoute { link_ids: Vec::from([0, 3, 4, 5]) }, current_link: 0, exit_time: 2 };
+    let vehicle1 = Vehicle {
+        id: 1,
+        route: NetworkRoute {
+            link_ids: Vec::from([0, 1, 2, 5]),
+        },
+        current_link: 0,
+        exit_time: 1,
+    };
+    let vehicle2 = Vehicle {
+        id: 2,
+        route: NetworkRoute {
+            link_ids: Vec::from([0, 3, 4, 5]),
+        },
+        current_link: 0,
+        exit_time: 2,
+    };
 
-    let link1 = Link { q: VecDeque::from([vehicle1, vehicle2]), id: 1};
-    let link2 = Link { q: VecDeque::new(), id: 2};
-    let link3 = Link { q: VecDeque::new(), id: 3};
-    let link4 = Link { q: VecDeque::new(), id: 4};
-    let link5 = Link { q: VecDeque::new(), id: 5};
-    let link6 = Link { q: VecDeque::new(), id: 6};
+    let link1 = Link {
+        q: VecDeque::from([vehicle1, vehicle2]),
+        id: 1,
+    };
+    let link2 = Link {
+        q: VecDeque::new(),
+        id: 2,
+    };
+    let link3 = Link {
+        q: VecDeque::new(),
+        id: 3,
+    };
+    let link4 = Link {
+        q: VecDeque::new(),
+        id: 4,
+    };
+    let link5 = Link {
+        q: VecDeque::new(),
+        id: 5,
+    };
+    let link6 = Link {
+        q: VecDeque::new(),
+        id: 6,
+    };
     let mut links = vec![link1, link2, link3, link4, link5, link6];
 
-    let node1 = Node { id: 1, in_links: Vec::new(), out_links: Vec::from([0])};
-    let node2 = Node { id: 2, in_links: Vec::from([0]), out_links: Vec::from([1, 3])};
-    let node3 = Node { id: 3, in_links: Vec::from([1]), out_links: Vec::from([2])};
-    let node4 = Node { id: 4, in_links: Vec::from([3]), out_links: Vec::from([4])};
-    let node5 = Node { id: 5, in_links: Vec::from([2, 4]), out_links: Vec::from([5])};
-    let node6 = Node { id: 5, in_links: Vec::from([5]), out_links: Vec::new()};
+    let node1 = Node {
+        id: 1,
+        in_links: Vec::new(),
+        out_links: Vec::from([0]),
+    };
+    let node2 = Node {
+        id: 2,
+        in_links: Vec::from([0]),
+        out_links: Vec::from([1, 3]),
+    };
+    let node3 = Node {
+        id: 3,
+        in_links: Vec::from([1]),
+        out_links: Vec::from([2]),
+    };
+    let node4 = Node {
+        id: 4,
+        in_links: Vec::from([3]),
+        out_links: Vec::from([4]),
+    };
+    let node5 = Node {
+        id: 5,
+        in_links: Vec::from([2, 4]),
+        out_links: Vec::from([5]),
+    };
+    let node6 = Node {
+        id: 5,
+        in_links: Vec::from([5]),
+        out_links: Vec::new(),
+    };
     let nodes = vec![node1, node2, node3, node4, node5, node6];
 
     for i in 0..10 {
@@ -144,6 +199,4 @@ mod tests {
     fn test_run() {
         run();
     }
-
 }
-
