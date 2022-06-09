@@ -1,4 +1,8 @@
+use flate2::bufread::GzDecoder;
+use quick_xml::de::from_reader;
 use serde::Deserialize;
+use std::fs::File;
+use std::io::BufReader;
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Node {
@@ -13,9 +17,9 @@ struct Link {
     from: String,
     to: String,
     length: f32,
-    capacity: i32,
+    capacity: f32,
     freespeed: f32,
-    permlanes: i32,
+    permlanes: f32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -45,18 +49,34 @@ impl Network {
     fn links(&self) -> &Vec<Link> {
         &self.links.links
     }
+
+    fn from_file(file_path: &str) -> Network {
+        // use unwrap on all the results here, since we want to crash if something goes wrong.
+        let file = File::open(file_path).unwrap();
+        let buffered_reader = BufReader::new(file);
+
+        // I guess this could be prettier, but I don't know how to achieve this in Rust yet :-/
+        return if file_path.ends_with(".xml.gz") {
+            let decoder = GzDecoder::new(buffered_reader);
+            let buffered_decoder = BufReader::new(decoder);
+            let network: Network = from_reader(buffered_decoder).unwrap();
+            network
+        } else {
+            let network: Network = from_reader(buffered_reader).unwrap();
+            network
+        };
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
-
     use quick_xml::de::from_str;
+    use std::error::Error;
 
     use crate::network::Network;
 
     #[test]
-    fn read_example_network() -> Result<(), Box<dyn Error>> {
+    fn read_simple_network() -> Result<(), Box<dyn Error>> {
         let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
                 <!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v1.dtd\">
                 <network name=\"test network\">
@@ -88,10 +108,29 @@ mod tests {
         assert_eq!("15", link.from);
         assert_eq!("1", link.to);
         assert_eq!(10000.0, link.length);
-        assert_eq!(36000, link.capacity);
+        assert_eq!(36000.0, link.capacity);
         assert_eq!(27.78, link.freespeed);
-        assert_eq!(1, link.permlanes);
+        assert_eq!(1.0, link.permlanes);
 
         Ok(())
+    }
+
+    #[test]
+    fn read_example_file() {
+        let file_path = "./assets/network.xml";
+        let network: Network = Network::from_file(file_path);
+
+        // only test some metadata here
+        assert_eq!("equil test network", network.name.as_ref().unwrap());
+        assert_eq!(15, network.nodes().len());
+        assert_eq!(23, network.links().len());
+    }
+
+    #[test]
+    fn read_example_file_gzipped() {
+        let network: Network = Network::from_file("./assets/andorra-network.xml.gz");
+
+        assert_eq!(2259, network.nodes().len());
+        assert_eq!(4288, network.links().len());
     }
 }
