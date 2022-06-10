@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 #[derive(Debug)]
-struct QNetwork {
+pub struct QNetwork {
     links: Vec<QLink>,
     nodes: Vec<QNode>,
 }
@@ -43,7 +43,7 @@ impl QNetwork {
         next_id
     }
 
-    fn from_container(network: &Network) -> QNetwork {
+    pub fn from_container(network: &Network) -> QNetwork {
         let mut result = QNetwork::new();
 
         let node_id_map: HashMap<&String, usize> = network

@@ -55,13 +55,13 @@ struct Person {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Population {
+pub struct Population {
     #[serde(rename = "person")]
     persons: Vec<Person>,
 }
 
 impl Population {
-    fn from_file(file_path: &str) -> Population {
+    pub fn from_file(file_path: &str) -> Population {
         xml_reader::read(file_path)
     }
 }
