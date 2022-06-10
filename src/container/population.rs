@@ -1,4 +1,4 @@
-use crate::xml_reader;
+use crate::container::xml_reader;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -68,7 +68,7 @@ impl Population {
 
 #[cfg(test)]
 mod tests {
-    use crate::population::{PlanElement, Population};
+    use crate::container::population::{PlanElement, Population};
     use quick_xml::de::from_str;
 
     /**

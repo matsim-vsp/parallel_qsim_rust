@@ -1,22 +1,22 @@
-use crate::xml_reader;
+use crate::container::xml_reader;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Node {
-    id: String,
-    x: f32,
-    y: f32,
+pub struct Node {
+    pub id: String,
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Link {
-    id: String,
-    from: String,
-    to: String,
-    length: f32,
-    capacity: f32,
-    freespeed: f32,
-    permlanes: f32,
+pub struct Link {
+    pub id: String,
+    pub from: String,
+    pub to: String,
+    pub length: f32,
+    pub capacity: f32,
+    pub freespeed: f32,
+    pub permlanes: f32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -32,22 +32,22 @@ struct Links {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Network {
+pub struct Network {
     name: Option<String>,
     nodes: Nodes,
     links: Links,
 }
 
 impl Network {
-    fn nodes(&self) -> &Vec<Node> {
+    pub fn nodes(&self) -> &Vec<Node> {
         &self.nodes.nodes
     }
 
-    fn links(&self) -> &Vec<Link> {
+    pub fn links(&self) -> &Vec<Link> {
         &self.links.links
     }
 
-    fn from_file(file_path: &str) -> Network {
+    pub fn from_file(file_path: &str) -> Network {
         xml_reader::read(file_path)
     }
 }
@@ -57,7 +57,7 @@ mod tests {
     use quick_xml::de::from_str;
     use std::error::Error;
 
-    use crate::network::Network;
+    use crate::container::network::Network;
 
     #[test]
     fn read_simple_network() -> Result<(), Box<dyn Error>> {
