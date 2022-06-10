@@ -1,8 +1,5 @@
-use flate2::bufread::GzDecoder;
-use quick_xml::de::from_reader;
+use crate::xml_reader;
 use serde::Deserialize;
-use std::fs::File;
-use std::io::BufReader;
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Node {
@@ -51,20 +48,7 @@ impl Network {
     }
 
     fn from_file(file_path: &str) -> Network {
-        // use unwrap on all the results here, since we want to crash if something goes wrong.
-        let file = File::open(file_path).unwrap();
-        let buffered_reader = BufReader::new(file);
-
-        // I guess this could be prettier, but I don't know how to achieve this in Rust yet :-/
-        return if file_path.ends_with(".xml.gz") {
-            let decoder = GzDecoder::new(buffered_reader);
-            let buffered_decoder = BufReader::new(decoder);
-            let network: Network = from_reader(buffered_decoder).unwrap();
-            network
-        } else {
-            let network: Network = from_reader(buffered_reader).unwrap();
-            network
-        };
+        xml_reader::read(file_path)
     }
 }
 

@@ -6,3 +6,4 @@ mod link_automata_with_routes;
 mod network;
 mod population;
 mod super_simple_link_automat;
+mod xml_reader;
