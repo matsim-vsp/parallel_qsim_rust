@@ -1,37 +1,41 @@
-use crate::container::network::Node;
 use crate::container::network::{Link, Network};
 use crate::simulation::q_vehicle::QVehicle;
 use std::collections::HashMap;
-use std::hash::Hash;
 
 #[derive(Debug)]
-pub struct QNetwork {
+pub struct QNetwork<'net> {
     links: Vec<QLink>,
     nodes: Vec<QNode>,
+    link_id_mapping: HashMap<&'net str, usize>,
+    node_id_mapping: HashMap<&'net str, usize>,
 }
 
-impl QNetwork {
-    fn new() -> QNetwork {
+impl<'net> QNetwork<'net> {
+    fn new() -> QNetwork<'net> {
         QNetwork {
             links: Vec::new(),
             nodes: Vec::new(),
+            link_id_mapping: HashMap::new(),
+            node_id_mapping: HashMap::new(),
         }
     }
 
-    fn add_node(&mut self) -> usize {
+    fn add_node(&mut self, node_id: &'net str) -> usize {
         // create a node with an id. The in and out links will be set once links are inserted
         // into the network
         let next_id = self.nodes.len();
         let q_node = QNode::new(next_id);
         self.nodes.push(q_node);
+        self.node_id_mapping.insert(node_id, next_id);
         next_id
     }
 
-    fn add_link(&mut self, link: &Link, from_id: usize, to_id: usize) -> usize {
+    fn add_link(&mut self, link: &'net Link, from_id: usize, to_id: usize) -> usize {
         // create a new link and push it onto the link vec
         let next_id = self.links.len();
         let q_link = QLink::new(next_id, link.length, link.capacity, link.freespeed);
         self.links.push(q_link);
+        self.link_id_mapping.insert(&link.id, next_id);
 
         // wire up with the from and to node
         let from = self.nodes.get_mut(from_id).unwrap();
@@ -46,18 +50,13 @@ impl QNetwork {
     pub fn from_container(network: &Network) -> QNetwork {
         let mut result = QNetwork::new();
 
-        let node_id_map: HashMap<&String, usize> = network
-            .nodes()
-            .iter()
-            .map(|node| {
-                let internal_id = result.add_node();
-                (&node.id, internal_id)
-            })
-            .collect();
+        for node in network.nodes() {
+            result.add_node(&node.id);
+        }
 
         for link in network.links() {
-            let from_id = node_id_map.get(&link.from).unwrap();
-            let to_id = node_id_map.get(&link.to).unwrap();
+            let from_id = result.node_id_mapping.get(link.from.as_str()).unwrap();
+            let to_id = result.node_id_mapping.get(link.to.as_str()).unwrap();
             result.add_link(link, *from_id, *to_id);
         }
 
@@ -113,12 +112,14 @@ mod tests {
         let network = Network::from_file("./assets/network.xml");
         let q_network = QNetwork::from_container(&network);
 
+        println!("{q_network:#?}");
         // check the overall structure
         assert_eq!(network.nodes().len(), q_network.nodes.len());
         assert_eq!(network.links().len(), q_network.links.len());
 
         // check node "2", which should have index 1 now. It should have 1 in_link and 9 out_links
-        let node2 = q_network.nodes.get(1).unwrap();
+        let internal_id_for_node2 = q_network.node_id_mapping.get("2").unwrap();
+        let node2 = q_network.nodes.get(*internal_id_for_node2).unwrap();
         assert_eq!(1, node2.id);
         assert_eq!(1, node2.in_links.len());
         assert_eq!(9, node2.out_links.len());
