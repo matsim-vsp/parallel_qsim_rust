@@ -3,12 +3,13 @@ use crate::container::population::Population;
 use crate::simulation::q_network::QNetwork;
 
 mod q_network;
+mod q_population;
 mod q_vehicle;
 
 pub fn run() {
     // read in some input data
     // 1. input network
-    let network = Network::from_file("./assets/network.xml");
+    let network = Network::from_file("./assets/equil-network.xml");
     // 2. input population
     let population = Population::from_file("./assets/population-v6-34-persons.xml"); // this will not work. Population and network don't go together. maybe use output population from equi scenario
 

@@ -6,8 +6,8 @@ use std::collections::HashMap;
 pub struct QNetwork<'net> {
     links: Vec<QLink>,
     nodes: Vec<QNode>,
-    link_id_mapping: HashMap<&'net str, usize>,
-    node_id_mapping: HashMap<&'net str, usize>,
+    pub link_id_mapping: HashMap<&'net str, usize>,
+    pub node_id_mapping: HashMap<&'net str, usize>,
 }
 
 impl<'net> QNetwork<'net> {
@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn create_q_network_from_container_network() {
-        let network = Network::from_file("./assets/network.xml");
+        let network = Network::from_file("./assets/equil-network.xml");
         let q_network = QNetwork::from_container(&network);
 
         println!("{q_network:#?}");

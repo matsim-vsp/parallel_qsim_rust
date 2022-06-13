@@ -2,7 +2,7 @@ use crate::container::xml_reader;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Route {
+pub struct Route {
     r#type: String,
     start_link: String,
     end_link: String,
@@ -18,7 +18,7 @@ struct Route {
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-enum PlanElement {
+pub enum PlanElement {
     // the current matsim implementation has more logic with facility-id, link-id and coord.
     // This prototype assumes a fully specified activity with coord and link-id. We don't care about
     // Facilities at this stage.
@@ -40,24 +40,30 @@ enum PlanElement {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Plan {
-    selected: bool,
+pub struct Plan {
+    pub selected: bool,
     // https://users.rust-lang.org/t/serde-deserializing-a-vector-of-enums/51647/2
     #[serde(rename = "$value")]
-    elements: Vec<PlanElement>,
+    pub elements: Vec<PlanElement>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Person {
-    id: String,
+pub struct Person {
+    pub id: String,
     #[serde(rename = "plan")]
-    plans: Vec<Plan>,
+    pub plans: Vec<Plan>,
+}
+
+impl Person {
+    pub fn selected_plan(&self) -> &Plan {
+        self.plans.iter().find(|p| p.selected).unwrap()
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Population {
     #[serde(rename = "person")]
-    persons: Vec<Person>,
+    pub persons: Vec<Person>,
 }
 
 impl Population {

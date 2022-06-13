@@ -1,4 +1,5 @@
 extern crate core;
+extern crate core;
 
 mod link_automat_with_adjacency_list;
 mod link_automat_with_references;
