@@ -3,20 +3,20 @@ use std::collections::BinaryHeap;
 
 use crate::simulation::q_population::{Agent, SimPlanElement};
 
-pub struct ActivityQ<'a> {
-    q: BinaryHeap<QEntry<'a>>,
-    next_wakeup_time: i32,
+pub struct ActivityQ {
+    q: BinaryHeap<QEntry>,
+    pub next_wakeup_time: i32,
 }
 
-impl<'a> ActivityQ<'a> {
-    pub fn new() -> ActivityQ<'a> {
+impl ActivityQ {
+    pub fn new() -> ActivityQ {
         ActivityQ {
             q: BinaryHeap::new(),
             next_wakeup_time: i32::MAX,
         }
     }
 
-    pub fn add(&mut self, agent: &'a Agent, now: i32) {
+    pub fn add(&mut self, agent: &Agent, now: i32) {
         let entry = QEntry::new(agent, now);
         if entry.wakeup_time < self.next_wakeup_time {
             self.next_wakeup_time = entry.wakeup_time;
@@ -24,13 +24,13 @@ impl<'a> ActivityQ<'a> {
         self.q.push(entry);
     }
 
-    pub fn wakeup(&mut self, now: i32) -> Vec<&'a Agent> {
-        let mut result: Vec<&Agent> = Vec::new();
+    pub fn wakeup(&mut self, now: i32) -> Vec<usize> {
+        let mut result: Vec<usize> = Vec::new();
 
         while let Some(entry) = self.q.peek() {
             if entry.wakeup_time <= now {
-                let entry = self.q.pop().unwrap();
-                result.push(entry.agent);
+                result.push(entry.agent_id);
+                self.q.pop();
             } else {
                 self.next_wakeup_time = entry.wakeup_time;
                 break;
@@ -40,24 +40,27 @@ impl<'a> ActivityQ<'a> {
     }
 }
 
-struct QEntry<'a> {
+struct QEntry {
     wakeup_time: i32,
-    agent: &'a Agent,
+    agent_id: usize,
 }
 
-impl<'a> QEntry<'a> {
+impl QEntry {
     fn new(agent: &Agent, now: i32) -> QEntry {
         let element = agent.current_plan_element();
         if let SimPlanElement::Activity(act) = element {
             let wakeup_time = act.end_time(now);
-            QEntry { agent, wakeup_time }
+            QEntry {
+                agent_id: agent.id,
+                wakeup_time,
+            }
         } else {
             panic!("Current plan element must be an activity if this agent is inserted into ActivityQ.")
         }
     }
 }
 
-impl<'a> PartialOrd for QEntry<'a> {
+impl PartialOrd for QEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -67,7 +70,7 @@ impl<'a> PartialOrd for QEntry<'a> {
 This orders entries in reverse orders according to their wakeup time. The element with the earlier
 wakeup time is considered to be greater.
  */
-impl<'a> Ord for QEntry<'a> {
+impl Ord for QEntry {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.wakeup_time > other.wakeup_time {
             Ordering::Less
@@ -79,13 +82,13 @@ impl<'a> Ord for QEntry<'a> {
     }
 }
 
-impl<'a> PartialEq<Self> for QEntry<'a> {
+impl PartialEq<Self> for QEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.agent.id == other.agent.id
+        self.agent_id == other.agent_id
     }
 }
 
-impl<'a> Eq for QEntry<'a> {}
+impl Eq for QEntry {}
 
 #[cfg(test)]
 mod tests {
@@ -130,8 +133,8 @@ mod tests {
         // agent 2 should not wake up though
         let result1 = act_q.wakeup(25);
         assert_eq!(2, result1.len());
-        assert_eq!(agent1.id, result1.get(0).unwrap().id);
-        assert_eq!(agent3.id, result1.get(1).unwrap().id);
+        assert_eq!(agent1.id, *result1.get(0).unwrap());
+        assert_eq!(agent3.id, *result1.get(1).unwrap());
         assert_eq!(1, act_q.q.len());
     }
 

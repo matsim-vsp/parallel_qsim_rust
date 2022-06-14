@@ -45,6 +45,17 @@ impl Agent {
     pub fn current_plan_element(&self) -> &SimPlanElement {
         self.plan.elements.get(self.current_element).unwrap()
     }
+
+    pub fn advance_plan(&mut self) {
+        let next_element = self.current_element + 1;
+        if self.plan.elements.len() == next_element {
+            panic!(
+                "Advance plan was called on agent #{}, but no element is remaining.",
+                self.id
+            )
+        }
+        self.current_element = next_element;
+    }
 }
 
 #[derive(Debug)]
@@ -198,8 +209,8 @@ impl GenericRoute {
 
 #[derive(Debug)]
 pub struct NetworkRoute {
-    vehicle_id: String,
-    route: Vec<usize>,
+    pub vehicle_id: String,
+    pub route: Vec<usize>,
 }
 
 impl NetworkRoute {

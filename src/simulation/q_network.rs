@@ -1,17 +1,17 @@
 use crate::container::network::{Link, Network};
 use crate::simulation::q_vehicle::QVehicle;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug)]
-pub struct QNetwork<'net> {
-    links: Vec<QLink>,
-    nodes: Vec<QNode>,
+pub struct QNetwork<'net, 'veh> {
+    pub links: Vec<QLink<'veh>>,
+    pub nodes: Vec<QNode>,
     pub link_id_mapping: HashMap<&'net str, usize>,
     pub node_id_mapping: HashMap<&'net str, usize>,
 }
 
-impl<'net> QNetwork<'net> {
-    fn new() -> QNetwork<'net> {
+impl<'net, 'veh> QNetwork<'net, 'veh> {
+    fn new() -> QNetwork<'net, 'veh> {
         QNetwork {
             links: Vec::new(),
             nodes: Vec::new(),
@@ -65,28 +65,42 @@ impl<'net> QNetwork<'net> {
 }
 
 #[derive(Debug)]
-struct QLink {
+pub struct QLink<'veh> {
     id: usize,
-    q: Vec<QVehicle>,
+    q: VecDeque<QVehicle<'veh>>,
     length: f32,
     capacity: f32,
     freespeed: f32,
 }
 
-impl QLink {
-    fn new(id: usize, length: f32, capacity: f32, freespeed: f32) -> QLink {
+impl<'veh> QLink<'veh> {
+    fn new(id: usize, length: f32, capacity: f32, freespeed: f32) -> QLink<'veh> {
         QLink {
             id,
             length,
             capacity,
             freespeed,
-            q: Vec::new(),
+            q: VecDeque::new(),
         }
+    }
+
+    pub fn push_vehicle(&mut self, vehicle: QVehicle<'veh>) {
+        self.q.push_back(vehicle);
+    }
+
+    pub fn pop_first_vehicle(&mut self, now: u32) -> Option<QVehicle> {
+        if let Some(vehicle) = self.q.front() {
+            if vehicle.exit_time <= now {
+                return self.q.pop_front();
+            }
+        }
+
+        None
     }
 }
 
 #[derive(Debug)]
-struct QNode {
+pub struct QNode {
     id: usize,
     in_links: Vec<usize>,
     out_links: Vec<usize>,
@@ -99,6 +113,29 @@ impl QNode {
             in_links: Vec::new(),
             out_links: Vec::new(),
         }
+    }
+
+    pub fn move_vehicles<'net>(&self, links: &'net mut Vec<QLink<'net>>, now: u32) {
+        //let mut at_end_of_route = Vec::new();
+
+        for in_link_index in &self.in_links {
+            let in_link = links.get_mut(*in_link_index).unwrap();
+
+            if let Some(mut vehicle) = in_link.pop_first_vehicle(now) {
+                vehicle.advance_route_index();
+                match vehicle.current_link_id() {
+                    None => { // nothing so far
+                    } //at_end_of_route.push(vehicle),
+                    Some(out_link_id) => {
+                        let out_link = links.get_mut(*out_link_id).unwrap();
+                        vehicle.exit_time = (out_link.length / out_link.freespeed) as u32;
+                        out_link.push_vehicle(vehicle);
+                    }
+                }
+            }
+        }
+
+        //at_end_of_route
     }
 }
 
