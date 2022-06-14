@@ -66,7 +66,7 @@ impl<'a> PartialOrd for QEntry<'a> {
 /**
 This orders entries in reverse orders according to their wakeup time. The element with the earlier
 wakeup time is considered to be greater.
-*/
+ */
 impl<'a> Ord for QEntry<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.wakeup_time > other.wakeup_time {
