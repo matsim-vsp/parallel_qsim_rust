@@ -1,19 +1,14 @@
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
-
 use crate::container::population::{Activity, Leg, Person, Plan, PlanElement, Population, Route};
 use crate::simulation::q_network::QNetwork;
 
 #[derive(Debug)]
-struct QPopulation {
-    persons: BinaryHeap<Agent>,
+pub struct QPopulation {
+    pub agents: Vec<Agent>,
 }
 
 impl QPopulation {
     fn new() -> QPopulation {
-        QPopulation {
-            persons: BinaryHeap::new(),
-        }
+        QPopulation { agents: Vec::new() }
     }
 
     pub fn from_container(population: &Population, q_network: &QNetwork) -> QPopulation {
@@ -21,67 +16,40 @@ impl QPopulation {
 
         // go over all the persons
         for person in &population.persons {
-            let next_id = result.persons.len();
+            let next_id = result.agents.len();
             let agent = Agent::from_container(person, next_id, q_network);
-            result.persons.push(agent);
+            result.agents.push(agent);
         }
         result
     }
 }
 
 #[derive(Debug)]
-struct Agent {
-    id: usize,
-    plan: SimPlan,
-    current_plan_element: usize,
-    next_wakeup_time: i32,
+pub struct Agent {
+    pub id: usize,
+    pub plan: SimPlan,
+    pub current_element: usize,
 }
 
 impl Agent {
     fn from_container(person: &Person, id: usize, q_network: &QNetwork) -> Agent {
         let plan = SimPlan::from_container(person.selected_plan(), q_network);
-        let current_plan_element: usize = 0;
-
-        // now, figure out the first wakeup time
-        let first_element = plan.elements.get(0).unwrap();
-
-        let wakeup_time = match first_element {
-            SimPlanElement::Activity(act) => act.end_time(0),
-            _ => panic!("First element was a Leg. This is not allowed."),
-        };
 
         Agent {
-            id: id,
+            id,
             plan,
-            current_plan_element: 0,
-            next_wakeup_time: wakeup_time,
+            current_element: 0,
         }
     }
-}
 
-impl PartialOrd for Agent {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.next_wakeup_time.cmp(&other.next_wakeup_time))
+    pub fn current_plan_element(&self) -> &SimPlanElement {
+        self.plan.elements.get(self.current_element).unwrap()
     }
 }
-
-impl Ord for Agent {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.next_wakeup_time.cmp(&other.next_wakeup_time)
-    }
-}
-
-impl PartialEq for Agent {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for Agent {}
 
 #[derive(Debug)]
-struct SimPlan {
-    elements: Vec<SimPlanElement>,
+pub struct SimPlan {
+    pub elements: Vec<SimPlanElement>,
 }
 
 impl SimPlan {
@@ -115,20 +83,20 @@ impl SimPlan {
 }
 
 #[derive(Debug)]
-enum SimPlanElement {
+pub enum SimPlanElement {
     Activity(SimActivity),
     Leg(SimLeg),
 }
 
 #[derive(Debug)]
-struct SimActivity {
-    act_type: String,
-    link_id: usize,
-    x: f32,
-    y: f32,
-    start_time: Option<i32>,
-    end_time: Option<i32>,
-    max_dur: Option<i32>,
+pub struct SimActivity {
+    pub act_type: String,
+    pub link_id: usize,
+    pub x: f32,
+    pub y: f32,
+    pub start_time: Option<i32>,
+    pub end_time: Option<i32>,
+    pub max_dur: Option<i32>,
 }
 
 impl SimActivity {
@@ -152,7 +120,7 @@ impl SimActivity {
     Calculates the end time of this activity. This only implements
     org.matsim.core.config.groups.PlansConfigGroup.ActivityDurationInterpretation.tryEndTimeThenDuration
      */
-    fn end_time(&self, now: i32) -> i32 {
+    pub fn end_time(&self, now: i32) -> i32 {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {
@@ -165,11 +133,11 @@ impl SimActivity {
 }
 
 #[derive(Debug)]
-struct SimLeg {
-    mode: String,
-    dep_time: Option<i32>,
-    trav_time: Option<i32>,
-    route: SimRoute,
+pub struct SimLeg {
+    pub mode: String,
+    pub dep_time: Option<i32>,
+    pub trav_time: Option<i32>,
+    pub route: SimRoute,
 }
 
 impl SimLeg {
@@ -194,17 +162,17 @@ impl SimLeg {
 }
 
 #[derive(Debug)]
-enum SimRoute {
+pub enum SimRoute {
     NetworkRoute(NetworkRoute),
     GenericRoute(GenericRoute),
 }
 
 #[derive(Debug)]
-struct GenericRoute {
-    start_link: usize,
-    end_link: usize,
-    trav_time: i32,
-    distance: f32,
+pub struct GenericRoute {
+    pub start_link: usize,
+    pub end_link: usize,
+    pub trav_time: i32,
+    pub distance: f32,
 }
 
 impl GenericRoute {
@@ -229,7 +197,7 @@ impl GenericRoute {
 }
 
 #[derive(Debug)]
-struct NetworkRoute {
+pub struct NetworkRoute {
     vehicle_id: String,
     route: Vec<usize>,
 }
