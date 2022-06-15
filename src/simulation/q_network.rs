@@ -131,16 +131,7 @@ impl QNode {
                 match vehicle.current_link_id() {
                     None => at_end_of_route.push(vehicle),
                     Some(out_link_id) => {
-                        let out_link = links.get_mut(*out_link_id).unwrap();
-                        let exit_time = now + (out_link.length / out_link.freespeed) as u32;
-
-                        println!(
-                            "Time: {now}. Moving vehicle #{} from link #{in_link_index} to #{out_link_id}. Exit time is: {exit_time}",
-                            vehicle.id
-                        );
-
-                        vehicle.exit_time = exit_time;
-                        out_link.push_vehicle(vehicle);
+                        self.move_vehicle(links, *out_link_id, vehicle, now);
                     }
                 }
             }
@@ -149,8 +140,23 @@ impl QNode {
         at_end_of_route
     }
 
-    fn move_vehicle(&self, links: &mut Vec<QLink>, now: u32, vehicle: QVehicle) {
-        println!("hui");
+    fn move_vehicle(
+        &self,
+        links: &mut Vec<QLink>,
+        out_link_id: usize,
+        mut vehicle: QVehicle,
+        now: u32,
+    ) {
+        let out_link = links.get_mut(out_link_id).unwrap();
+        let exit_time = now + (out_link.length / out_link.freespeed) as u32;
+
+        println!(
+                    "Time: {now}. Moving vehicle #{} to #{out_link_id}. Exit time is: {exit_time}",
+                    vehicle.id
+                );
+
+        vehicle.exit_time = exit_time;
+        out_link.push_vehicle(vehicle);
     }
 }
 
