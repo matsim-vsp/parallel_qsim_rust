@@ -88,14 +88,18 @@ impl QLink {
         self.q.push_back(vehicle);
     }
 
-    pub fn pop_first_vehicle(&mut self, now: u32) -> Option<QVehicle> {
-        if let Some(vehicle) = self.q.front() {
+    pub fn pop_front(&mut self, now: u32) -> Vec<QVehicle> {
+        let mut vehicles: Vec<QVehicle> = Vec::new();
+        while let Some(vehicle) = self.q.front() {
             if vehicle.exit_time <= now {
-                return self.q.pop_front();
+                let vehicle = self.q.pop_front().unwrap();
+                vehicles.push(vehicle);
+            } else {
+                break;
             }
         }
 
-        None
+        vehicles
     }
 }
 
@@ -120,8 +124,9 @@ impl QNode {
 
         for in_link_index in &self.in_links {
             let in_link = links.get_mut(*in_link_index).unwrap();
+            let vehicles = in_link.pop_front(now);
 
-            if let Some(mut vehicle) = in_link.pop_first_vehicle(now) {
+            for mut vehicle in vehicles {
                 vehicle.advance_route_index();
                 match vehicle.current_link_id() {
                     None => at_end_of_route.push(vehicle),
@@ -130,7 +135,7 @@ impl QNode {
                         let exit_time = now + (out_link.length / out_link.freespeed) as u32;
 
                         println!(
-                            "Moving vehicle #{} from link #{in_link_index} to #{out_link_id}. Exit time is: {exit_time}",
+                            "Time: {now}. Moving vehicle #{} from link #{in_link_index} to #{out_link_id}. Exit time is: {exit_time}",
                             vehicle.id
                         );
 
@@ -143,12 +148,17 @@ impl QNode {
 
         at_end_of_route
     }
+
+    fn move_vehicle(&self, links: &mut Vec<QLink>, now: u32, vehicle: QVehicle) {
+        println!("hui");
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::container::network::Network;
-    use crate::simulation::q_network::QNetwork;
+    use crate::simulation::q_network::{QLink, QNetwork};
+    use crate::simulation::q_vehicle::QVehicle;
 
     #[test]
     fn create_q_network_from_container_network() {
@@ -177,4 +187,7 @@ mod tests {
             index = index + 1;
         }
     }
+
+    #[test]
+    fn pop_vehicle_from_link() {}
 }

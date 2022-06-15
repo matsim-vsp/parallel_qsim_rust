@@ -29,7 +29,7 @@ pub fn run(network: &Network, population: &Population) {
 
     // calculate the start time
     let start_time = activity_q.next_wakeup();
-    let end_time = start_time + 100;
+    let end_time = start_time + 1000;
     println!(
         "Start the simulation at timestep {}. Last timestep is set to {}",
         start_time, end_time
@@ -37,7 +37,7 @@ pub fn run(network: &Network, population: &Population) {
 
     // start simulation loop
     for now in start_time..end_time {
-        println!("\n ####### Timestep {} ########\n", now);
+        // println!("\n ####### Timestep {} ########\n", now);
         // for each timestep it should check whether anybody should be put onto the network
         // this is part of the move link code in the original qsim.
         let agents_2_link = activity_q.wakeup(now);
@@ -65,7 +65,7 @@ pub fn run(network: &Network, population: &Population) {
             }
         }
         // for each timestep it should iterate each node and execute move_node on it.
-        println!("Starting move node step.");
+        //println!("Starting move node step.");
         for node in &q_network.nodes {
             // move vehicles over nodes and collect the agents which are at the end of their route
             let vehicles_at_end_of_route = node.move_vehicles(&mut q_network.links, now);
@@ -78,6 +78,7 @@ pub fn run(network: &Network, population: &Population) {
                     .find(|a| a.id == vehicle.id)
                     .unwrap();
 
+                println!("Vehicle #{} has arrived at activity.", vehicle.id);
                 agent.advance_plan();
 
                 activity_q.add(agent, now);
