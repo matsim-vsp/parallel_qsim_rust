@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn read_example_file_gzipped() {
-        let network: Network = Network::from_file("./assets/andorra-equil-network.xml.gz");
+        let network: Network = Network::from_file("./assets/andorra-network.xml.gz");
 
         assert_eq!(2259, network.nodes().len());
         assert_eq!(4288, network.links().len());
