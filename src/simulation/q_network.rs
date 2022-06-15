@@ -3,15 +3,15 @@ use crate::simulation::q_vehicle::QVehicle;
 use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug)]
-pub struct QNetwork<'net, 'veh> {
-    pub links: Vec<QLink<'veh>>,
+pub struct QNetwork<'net> {
+    pub links: Vec<QLink>,
     pub nodes: Vec<QNode>,
     pub link_id_mapping: HashMap<&'net str, usize>,
     pub node_id_mapping: HashMap<&'net str, usize>,
 }
 
-impl<'net, 'veh> QNetwork<'net, 'veh> {
-    fn new() -> QNetwork<'net, 'veh> {
+impl<'net> QNetwork<'net> {
+    fn new() -> QNetwork<'net> {
         QNetwork {
             links: Vec::new(),
             nodes: Vec::new(),
@@ -65,16 +65,16 @@ impl<'net, 'veh> QNetwork<'net, 'veh> {
 }
 
 #[derive(Debug)]
-pub struct QLink<'veh> {
+pub struct QLink {
     id: usize,
-    q: VecDeque<QVehicle<'veh>>,
+    q: VecDeque<QVehicle>,
     length: f32,
     capacity: f32,
     freespeed: f32,
 }
 
-impl<'veh> QLink<'veh> {
-    fn new(id: usize, length: f32, capacity: f32, freespeed: f32) -> QLink<'veh> {
+impl QLink {
+    fn new(id: usize, length: f32, capacity: f32, freespeed: f32) -> QLink {
         QLink {
             id,
             length,
@@ -84,7 +84,7 @@ impl<'veh> QLink<'veh> {
         }
     }
 
-    pub fn push_vehicle(&mut self, vehicle: QVehicle<'veh>) {
+    pub fn push_vehicle(&mut self, vehicle: QVehicle) {
         self.q.push_back(vehicle);
     }
 
@@ -115,8 +115,8 @@ impl QNode {
         }
     }
 
-    pub fn move_vehicles<'net>(&self, links: &'net mut Vec<QLink<'net>>, now: u32) {
-        //let mut at_end_of_route = Vec::new();
+    pub fn move_vehicles(&self, links: &mut Vec<QLink>, now: u32) -> Vec<QVehicle> {
+        let mut at_end_of_route = Vec::new();
 
         for in_link_index in &self.in_links {
             let in_link = links.get_mut(*in_link_index).unwrap();
@@ -124,18 +124,24 @@ impl QNode {
             if let Some(mut vehicle) = in_link.pop_first_vehicle(now) {
                 vehicle.advance_route_index();
                 match vehicle.current_link_id() {
-                    None => { // nothing so far
-                    } //at_end_of_route.push(vehicle),
+                    None => at_end_of_route.push(vehicle),
                     Some(out_link_id) => {
                         let out_link = links.get_mut(*out_link_id).unwrap();
-                        vehicle.exit_time = (out_link.length / out_link.freespeed) as u32;
+                        let exit_time = now + (out_link.length / out_link.freespeed) as u32;
+
+                        println!(
+                            "Moving vehicle #{} from link #{in_link_index} to #{out_link_id}. Exit time is: {exit_time}",
+                            vehicle.id
+                        );
+
+                        vehicle.exit_time = exit_time;
                         out_link.push_vehicle(vehicle);
                     }
                 }
             }
         }
 
-        //at_end_of_route
+        at_end_of_route
     }
 }
 

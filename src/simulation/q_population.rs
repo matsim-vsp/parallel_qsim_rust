@@ -54,6 +54,10 @@ impl Agent {
                 self.id
             )
         }
+        println!(
+            "Agent #{} advancing plan from index {} to index {}",
+            self.id, self.current_element, next_element
+        );
         self.current_element = next_element;
     }
 }
@@ -105,9 +109,9 @@ pub struct SimActivity {
     pub link_id: usize,
     pub x: f32,
     pub y: f32,
-    pub start_time: Option<i32>,
-    pub end_time: Option<i32>,
-    pub max_dur: Option<i32>,
+    pub start_time: Option<u32>,
+    pub end_time: Option<u32>,
+    pub max_dur: Option<u32>,
 }
 
 impl SimActivity {
@@ -131,14 +135,14 @@ impl SimActivity {
     Calculates the end time of this activity. This only implements
     org.matsim.core.config.groups.PlansConfigGroup.ActivityDurationInterpretation.tryEndTimeThenDuration
      */
-    pub fn end_time(&self, now: i32) -> i32 {
+    pub fn end_time(&self, now: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {
             now + max_dur
         } else {
             // supposed to be an equivalent for OptionalTime.undefined() in the java code
-            i32::MAX
+            u32::MAX
         }
     }
 }
@@ -146,8 +150,8 @@ impl SimActivity {
 #[derive(Debug)]
 pub struct SimLeg {
     pub mode: String,
-    pub dep_time: Option<i32>,
-    pub trav_time: Option<i32>,
+    pub dep_time: Option<u32>,
+    pub trav_time: Option<u32>,
     pub route: SimRoute,
 }
 
@@ -182,7 +186,7 @@ pub enum SimRoute {
 pub struct GenericRoute {
     pub start_link: usize,
     pub end_link: usize,
-    pub trav_time: i32,
+    pub trav_time: u32,
     pub distance: f32,
 }
 
@@ -201,7 +205,7 @@ impl GenericRoute {
         GenericRoute {
             start_link: *start_link_id,
             end_link: *end_link_id,
-            trav_time: trav_time,
+            trav_time,
             distance: route.distance,
         }
     }
@@ -232,20 +236,20 @@ impl NetworkRoute {
     }
 }
 
-fn parse_time_opt(value: &Option<String>) -> Option<i32> {
+fn parse_time_opt(value: &Option<String>) -> Option<u32> {
     match value {
         None => None,
         Some(value) => Some(parse_time(value)),
     }
 }
 
-fn parse_time(value: &str) -> i32 {
+fn parse_time(value: &str) -> u32 {
     let split: Vec<&str> = value.split(':').collect();
     assert_eq!(3, split.len());
 
-    let hour: i32 = split.get(0).unwrap().parse().unwrap();
-    let minutes: i32 = split.get(1).unwrap().parse().unwrap();
-    let seconds: i32 = split.get(2).unwrap().parse().unwrap();
+    let hour: u32 = split.get(0).unwrap().parse().unwrap();
+    let minutes: u32 = split.get(1).unwrap().parse().unwrap();
+    let seconds: u32 = split.get(2).unwrap().parse().unwrap();
 
     hour * 3600 + minutes * 60 + seconds
 }

@@ -5,26 +5,21 @@ use crate::simulation::q_population::{Agent, SimPlanElement};
 
 pub struct ActivityQ {
     q: BinaryHeap<QEntry>,
-    pub next_wakeup_time: i32,
 }
 
 impl ActivityQ {
     pub fn new() -> ActivityQ {
         ActivityQ {
             q: BinaryHeap::new(),
-            next_wakeup_time: i32::MAX,
         }
     }
 
-    pub fn add(&mut self, agent: &Agent, now: i32) {
+    pub fn add(&mut self, agent: &Agent, now: u32) {
         let entry = QEntry::new(agent, now);
-        if entry.wakeup_time < self.next_wakeup_time {
-            self.next_wakeup_time = entry.wakeup_time;
-        }
         self.q.push(entry);
     }
 
-    pub fn wakeup(&mut self, now: i32) -> Vec<usize> {
+    pub fn wakeup(&mut self, now: u32) -> Vec<usize> {
         let mut result: Vec<usize> = Vec::new();
 
         while let Some(entry) = self.q.peek() {
@@ -32,24 +27,31 @@ impl ActivityQ {
                 result.push(entry.agent_id);
                 self.q.pop();
             } else {
-                self.next_wakeup_time = entry.wakeup_time;
                 break;
             }
         }
         result
     }
+
+    pub fn next_wakeup(&self) -> u32 {
+        self.q.peek().unwrap().wakeup_time
+    }
 }
 
 struct QEntry {
-    wakeup_time: i32,
+    wakeup_time: u32,
     agent_id: usize,
 }
 
 impl QEntry {
-    fn new(agent: &Agent, now: i32) -> QEntry {
+    fn new(agent: &Agent, now: u32) -> QEntry {
         let element = agent.current_plan_element();
         if let SimPlanElement::Activity(act) = element {
             let wakeup_time = act.end_time(now);
+            println!(
+                "Create AgentQ.QEntry for #{} and activity: {} with wakeup_time: {wakeup_time}",
+                agent.id, act.act_type
+            );
             QEntry {
                 agent_id: agent.id,
                 wakeup_time,
@@ -127,7 +129,7 @@ mod tests {
         act_q.add(&agent2, 0);
         act_q.add(&agent3, 0);
 
-        assert_eq!(10, act_q.next_wakeup_time);
+        assert_eq!(10, act_q.next_wakeup());
 
         // at timestep 25, agent1 and 3 should wake up, since their activity's end time has passed.
         // agent 2 should not wake up though
@@ -161,7 +163,7 @@ mod tests {
         activity_q.add(&agent, 0);
     }
 
-    fn create_activity(end_time: i32) -> SimActivity {
+    fn create_activity(end_time: u32) -> SimActivity {
         SimActivity {
             x: 0.0,
             y: 0.0,
