@@ -1,5 +1,3 @@
-use crate::simulation::q_population::NetworkRoute;
-
 #[derive(Debug)]
 pub struct QVehicle {
     pub id: usize,

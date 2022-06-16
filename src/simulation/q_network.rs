@@ -55,9 +55,9 @@ impl<'net> QNetwork<'net> {
         }
 
         for link in network.links() {
-            let from_id = result.node_id_mapping.get(link.from.as_str()).unwrap();
-            let to_id = result.node_id_mapping.get(link.to.as_str()).unwrap();
-            result.add_link(link, *from_id, *to_id);
+            let from_id = *result.node_id_mapping.get(&link.from.as_str()).unwrap();
+            let to_id = *result.node_id_mapping.get(&link.to.as_str()).unwrap();
+            result.add_link(link, from_id, to_id);
         }
 
         result
@@ -123,8 +123,14 @@ impl QNode {
         let mut at_end_of_route = Vec::new();
 
         for in_link_index in &self.in_links {
+            // we obtain a mutable reference of the in_link and fetch all vehicles which are
+            // eligible for leaving. We need to have all vehicles at once instead of having a
+            // while let loop over in_link.pop_first_vehicle, so that we can release the mutable
+            // reference of in_link and therefore links.
             let in_link = links.get_mut(*in_link_index).unwrap();
             let vehicles = in_link.pop_front(now);
+            // mut ref of in_link and links ends here. Now we are allowed to have a mutable reference
+            // of links again, which we need to mutate the out_link.
 
             for mut vehicle in vehicles {
                 vehicle.advance_route_index();
@@ -151,9 +157,9 @@ impl QNode {
         let exit_time = now + (out_link.length / out_link.freespeed) as u32;
 
         println!(
-                    "Time: {now}. Moving vehicle #{} to #{out_link_id}. Exit time is: {exit_time}",
-                    vehicle.id
-                );
+            "Time: {now}. Moving vehicle #{} to #{out_link_id}. Exit time is: {exit_time}",
+            vehicle.id
+        );
 
         vehicle.exit_time = exit_time;
         out_link.push_vehicle(vehicle);
@@ -163,8 +169,7 @@ impl QNode {
 #[cfg(test)]
 mod tests {
     use crate::container::network::Network;
-    use crate::simulation::q_network::{QLink, QNetwork};
-    use crate::simulation::q_vehicle::QVehicle;
+    use crate::simulation::q_network::QNetwork;
 
     #[test]
     fn create_q_network_from_container_network() {

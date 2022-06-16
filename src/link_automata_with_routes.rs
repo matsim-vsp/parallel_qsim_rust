@@ -48,6 +48,7 @@ impl Link {
 struct Node {
     id: i32,
     in_links: Vec<usize>,
+    #[allow(dead_code)] // i want to keep this even though it is never read.
     out_links: Vec<usize>,
 }
 
