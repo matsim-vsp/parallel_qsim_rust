@@ -1,6 +1,7 @@
+use std::collections::{HashMap, VecDeque};
+
 use crate::container::network::{Link, Network};
 use crate::simulation::q_vehicle::QVehicle;
-use std::collections::{HashMap, VecDeque};
 
 #[derive(Debug)]
 pub struct QNetwork<'net> {
@@ -69,18 +70,18 @@ pub struct QLink {
     id: usize,
     q: VecDeque<QVehicle>,
     length: f32,
-    capacity: f32,
     freespeed: f32,
+    flowcap: Flowcap,
 }
 
 impl QLink {
-    fn new(id: usize, length: f32, capacity: f32, freespeed: f32) -> QLink {
+    fn new(id: usize, length: f32, capacity_h: f32, freespeed: f32) -> QLink {
         QLink {
             id,
             length,
-            capacity,
             freespeed,
             q: VecDeque::new(),
+            flowcap: Flowcap::new(capacity_h / 3600.0),
         }
     }
 
@@ -89,17 +90,58 @@ impl QLink {
     }
 
     pub fn pop_front(&mut self, now: u32) -> Vec<QVehicle> {
-        let mut vehicles: Vec<QVehicle> = Vec::new();
+        self.flowcap.update_capacity(now);
+        let mut popped_vehicles: Vec<QVehicle> = Vec::new();
+
         while let Some(vehicle) = self.q.front() {
-            if vehicle.exit_time <= now {
-                let vehicle = self.q.pop_front().unwrap();
-                vehicles.push(vehicle);
-            } else {
+            if vehicle.exit_time > now || !self.flowcap.has_capacity() {
                 break;
             }
+
+            // take the vehicle out of the q, update the flow cap, and put it into the result
+            let vehicle = self.q.pop_front().unwrap();
+            self.flowcap.consume_capacity(1.0);
+            popped_vehicles.push(vehicle);
         }
 
-        vehicles
+        popped_vehicles
+    }
+}
+
+#[derive(Debug)]
+struct Flowcap {
+    last_update_time: u32,
+    accumulated_capacity: f32,
+    capacity_s: f32,
+}
+
+impl Flowcap {
+    fn new(capacity_s: f32) -> Flowcap {
+        Flowcap {
+            last_update_time: 0,
+            accumulated_capacity: capacity_s,
+            capacity_s,
+        }
+    }
+
+    /**
+    Updates the accumulated capacity if the time has advanced.
+     */
+    fn update_capacity(&mut self, now: u32) {
+        if self.last_update_time < now {
+            let time_steps: f32 = (now - self.last_update_time) as f32;
+            let acc_flow_cap = time_steps * self.capacity_s + self.accumulated_capacity;
+            self.accumulated_capacity = f32::min(acc_flow_cap, self.capacity_s);
+            self.last_update_time = now;
+        }
+    }
+
+    fn has_capacity(&self) -> bool {
+        self.accumulated_capacity > 0.0
+    }
+
+    fn consume_capacity(&mut self, by: f32) {
+        self.accumulated_capacity -= by;
     }
 }
 
@@ -169,10 +211,11 @@ impl QNode {
 #[cfg(test)]
 mod tests {
     use crate::container::network::Network;
-    use crate::simulation::q_network::QNetwork;
+    use crate::simulation::q_network::{Flowcap, QLink, QNetwork};
+    use crate::simulation::q_vehicle::QVehicle;
 
     #[test]
-    fn create_q_network_from_container_network() {
+    fn q_network_from_container() {
         let network = Network::from_file("./assets/equil-network.xml");
         let q_network = QNetwork::from_container(&network);
 
@@ -200,5 +243,98 @@ mod tests {
     }
 
     #[test]
-    fn pop_vehicle_from_link() {}
+    fn link_pop_front_exit_time_constraint() {
+        let id1 = 1;
+        let id2 = 2;
+        let mut vehicle1 = QVehicle::new(id1, vec![]);
+        let mut vehicle2 = QVehicle::new(id2, vec![]);
+        vehicle1.exit_time = 1;
+        vehicle2.exit_time = 5;
+        let mut link = QLink::new(1, 10.0, 3600.0, 1.0);
+        link.push_vehicle(vehicle1);
+        link.push_vehicle(vehicle2);
+
+        // this should not do anything because the exit time of the vehicle is not yet reached
+        let popped_vehicles = link.pop_front(0);
+        assert_eq!(0, popped_vehicles.len());
+
+        // now is equal to the vehicle1's exit time and it should be able to leave
+        let popped_vehicles = link.pop_front(1);
+        assert_eq!(1, popped_vehicles.len());
+        let popped1 = popped_vehicles.first().unwrap();
+        assert_eq!(id1, popped1.id);
+
+        // now is greater than vehicle2's exit time. it should leave now as wel
+        let popped_vehicles = link.pop_front(10);
+        assert_eq!(1, popped_vehicles.len());
+        let popped2 = popped_vehicles.first().unwrap();
+        assert_eq!(id2, popped2.id);
+    }
+
+    #[test]
+    fn link_pop_front_capacity_constraint() {
+        let id1 = 1;
+        let id2 = 2;
+        let vehicle1 = QVehicle::new(id1, vec![]);
+        let vehicle2 = QVehicle::new(id2, vec![]);
+        let mut link = QLink::new(1, 10.0, 900., 1.0);
+        link.push_vehicle(vehicle1);
+        link.push_vehicle(vehicle2);
+
+        // according to their exit times both vehicles could leave the link immediately, but only
+        // one can leave every 4 timesteps because of the link's capacity
+        let popped_vehicles = link.pop_front(0);
+        assert_eq!(1, popped_vehicles.len());
+        let popped1 = popped_vehicles.first().unwrap();
+        assert_eq!(id1, popped1.id);
+
+        let popped_vehicles = link.pop_front(1);
+        assert_eq!(0, popped_vehicles.len());
+
+        let popped_vehicles = link.pop_front(4);
+        assert_eq!(1, popped_vehicles.len());
+        let popped2 = popped_vehicles.first().unwrap();
+        assert_eq!(id2, popped2.id);
+    }
+
+    #[test]
+    fn flowcap_consume_capacity() {
+        let mut flowcap = Flowcap::new(10.0);
+        assert!(flowcap.has_capacity());
+
+        flowcap.consume_capacity(20.0);
+        assert!(!flowcap.has_capacity());
+    }
+
+    #[test]
+    fn flowcap_max_capacity_s() {
+        let mut flowcap = Flowcap::new(10.0);
+
+        flowcap.update_capacity(20);
+
+        assert_eq!(10.0, flowcap.accumulated_capacity);
+        assert_eq!(20, flowcap.last_update_time);
+    }
+
+    #[test]
+    fn flowcap_acc_capacity() {
+        let mut flowcap = Flowcap::new(0.25);
+        assert!(flowcap.has_capacity());
+
+        // accumulated_capacity should be at -0.75 after this.
+        flowcap.consume_capacity(1.0);
+        assert!(!flowcap.has_capacity());
+
+        // accumulated_capacity should be at -0.5
+        flowcap.update_capacity(1);
+        assert!(!flowcap.has_capacity());
+
+        // accumulated_capacity should be at 0.0
+        flowcap.update_capacity(3);
+        assert!(!flowcap.has_capacity());
+
+        // accumulated capacity should be at 0.5
+        flowcap.update_capacity(5);
+        assert!(flowcap.has_capacity());
+    }
 }
