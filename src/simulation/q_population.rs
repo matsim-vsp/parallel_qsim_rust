@@ -1,5 +1,6 @@
 use crate::container::population::{Activity, Leg, Person, Plan, PlanElement, Population, Route};
 use crate::simulation::q_network::QNetwork;
+use crate::simulation::q_vehicle::QVehicles;
 
 #[derive(Debug)]
 pub struct QPopulation {
@@ -11,15 +12,20 @@ impl QPopulation {
         QPopulation { agents: Vec::new() }
     }
 
-    pub fn from_container(population: &Population, q_network: &QNetwork) -> QPopulation {
+    pub fn from_container<'id, 'veh>(
+        population: &'id Population,
+        q_network: &QNetwork,
+        q_vehicles: &'veh mut QVehicles<'id>,
+    ) -> QPopulation {
         let mut result = QPopulation::new();
 
         // go over all the persons
         for person in &population.persons {
             let next_id = result.agents.len();
-            let agent = Agent::from_container(person, next_id, q_network);
+            let agent = Agent::from_container(person, next_id, q_network, q_vehicles);
             result.agents.push(agent);
         }
+
         result
     }
 }
@@ -32,8 +38,13 @@ pub struct Agent {
 }
 
 impl Agent {
-    fn from_container(person: &Person, id: usize, q_network: &QNetwork) -> Agent {
-        let plan = SimPlan::from_container(person.selected_plan(), q_network);
+    fn from_container<'id, 'veh>(
+        person: &'id Person,
+        id: usize,
+        q_network: &QNetwork,
+        q_vehicles: &'veh mut QVehicles<'id>,
+    ) -> Agent {
+        let plan = SimPlan::from_container(person.selected_plan(), q_network, q_vehicles);
 
         Agent {
             id,
@@ -68,18 +79,20 @@ pub struct SimPlan {
 }
 
 impl SimPlan {
-    fn from_container(plan: &Plan, q_network: &QNetwork) -> SimPlan {
+    fn from_container<'id, 'veh>(
+        plan: &'id Plan,
+        q_network: &QNetwork,
+        q_vehicles: &'veh mut QVehicles<'id>,
+    ) -> SimPlan {
         // each plan needs at least one element
         assert!(plan.elements.len() > 0);
         if let PlanElement::Leg(_leg) = plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
         }
-
-        // convert plan elements into sim plan elements
         let sim_elements = plan
             .elements
             .iter()
-            .map(|el| SimPlan::map_plan_element(el, q_network))
+            .map(|el| SimPlan::map_plan_element(el, q_network, q_vehicles))
             .collect();
 
         SimPlan {
@@ -87,12 +100,18 @@ impl SimPlan {
         }
     }
 
-    fn map_plan_element(element: &PlanElement, q_network: &QNetwork) -> SimPlanElement {
+    fn map_plan_element<'id, 'veh>(
+        element: &'id PlanElement,
+        q_network: &QNetwork,
+        q_vehicles: &'veh mut QVehicles<'id>,
+    ) -> SimPlanElement {
         match element {
             PlanElement::Activity(activity) => {
                 SimPlanElement::Activity(SimActivity::from_container(activity, q_network))
             }
-            PlanElement::Leg(leg) => SimPlanElement::Leg(SimLeg::from_container(leg, q_network)),
+            PlanElement::Leg(leg) => {
+                SimPlanElement::Leg(SimLeg::from_container(leg, q_network, q_vehicles))
+            }
         }
     }
 }
@@ -156,8 +175,12 @@ pub struct SimLeg {
 }
 
 impl SimLeg {
-    fn from_container(leg: &Leg, q_network: &QNetwork) -> SimLeg {
-        let sim_route = SimLeg::map_route(&leg.route, q_network);
+    fn from_container<'id, 'veh>(
+        leg: &'id Leg,
+        q_network: &QNetwork,
+        q_vehicles: &'veh mut QVehicles<'id>,
+    ) -> SimLeg {
+        let sim_route = SimLeg::map_route(&leg.route, q_network, q_vehicles);
 
         SimLeg {
             mode: leg.mode.clone(),
@@ -167,10 +190,16 @@ impl SimLeg {
         }
     }
 
-    fn map_route(route: &Route, q_network: &QNetwork) -> SimRoute {
+    fn map_route<'id, 'veh>(
+        route: &'id Route,
+        q_network: &QNetwork,
+        q_vehicles: &'veh mut QVehicles<'id>,
+    ) -> SimRoute {
         match route.r#type.as_str() {
             "generic" => SimRoute::GenericRoute(GenericRoute::from_container(route, q_network)),
-            "links" => SimRoute::NetworkRoute(NetworkRoute::from_container(route, q_network)),
+            "links" => {
+                SimRoute::NetworkRoute(NetworkRoute::from_container(route, q_network, q_vehicles))
+            }
             _ => panic!("Unsupported route type: '{}'", route.r#type),
         }
     }
@@ -213,12 +242,16 @@ impl GenericRoute {
 
 #[derive(Debug)]
 pub struct NetworkRoute {
-    pub vehicle_id: String,
+    pub vehicle_id: usize,
     pub route: Vec<usize>,
 }
 
 impl NetworkRoute {
-    fn from_container(route: &Route, q_network: &QNetwork) -> NetworkRoute {
+    fn from_container<'id, 'veh>(
+        route: &'id Route,
+        q_network: &QNetwork,
+        q_vehicles: &'veh mut QVehicles<'id>,
+    ) -> NetworkRoute {
         let link_ids: Vec<usize> = route
             .route
             .as_ref()
@@ -227,10 +260,11 @@ impl NetworkRoute {
             .map(|id| *q_network.link_id_mapping.get(id).unwrap())
             .collect();
 
-        let vehicle_id = route.vehicle.as_ref().unwrap();
+        let string_id = route.vehicle.as_ref().unwrap();
+        let vehicle_id = q_vehicles.map_vehicle_id(string_id);
 
         NetworkRoute {
-            vehicle_id: vehicle_id.clone(),
+            vehicle_id,
             route: link_ids,
         }
     }
@@ -260,13 +294,15 @@ mod tests {
     use crate::container::population::Population;
     use crate::simulation::q_network::QNetwork;
     use crate::simulation::q_population::QPopulation;
+    use crate::simulation::q_vehicle::QVehicles;
 
     #[test]
     fn population_from_container() {
         let population: Population = Population::from_file("./assets/equil_output_plans.xml.gz");
         let network: Network = Network::from_file("./assets/equil-network.xml");
         let q_network: QNetwork = QNetwork::from_container(&network);
-        let q_population = QPopulation::from_container(&population, &q_network);
+        let mut q_vehicles = QVehicles::new();
+        let q_population = QPopulation::from_container(&population, &q_network, &mut q_vehicles);
 
         println!("{q_population:#?}");
     }

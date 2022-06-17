@@ -246,8 +246,8 @@ mod tests {
     fn link_pop_front_exit_time_constraint() {
         let id1 = 1;
         let id2 = 2;
-        let mut vehicle1 = QVehicle::new(id1, vec![]);
-        let mut vehicle2 = QVehicle::new(id2, vec![]);
+        let mut vehicle1 = QVehicle::new(id1, 1, Vec::new());
+        let mut vehicle2 = QVehicle::new(id2, 2, Vec::new());
         vehicle1.exit_time = 1;
         vehicle2.exit_time = 5;
         let mut link = QLink::new(1, 10.0, 3600.0, 1.0);
@@ -275,8 +275,8 @@ mod tests {
     fn link_pop_front_capacity_constraint() {
         let id1 = 1;
         let id2 = 2;
-        let vehicle1 = QVehicle::new(id1, vec![]);
-        let vehicle2 = QVehicle::new(id2, vec![]);
+        let vehicle1 = QVehicle::new(id1, 1, Vec::new());
+        let vehicle2 = QVehicle::new(id2, 2, Vec::new());
         let mut link = QLink::new(1, 10.0, 900., 1.0);
         link.push_vehicle(vehicle1);
         link.push_vehicle(vehicle2);
