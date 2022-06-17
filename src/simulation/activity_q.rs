@@ -5,17 +5,24 @@ use crate::simulation::q_population::{Agent, SimPlanElement};
 
 pub struct ActivityQ {
     q: BinaryHeap<QEntry>,
+    finished_agents: usize,
 }
 
 impl ActivityQ {
     pub fn new() -> ActivityQ {
         ActivityQ {
             q: BinaryHeap::new(),
+            finished_agents: 0,
         }
     }
 
     pub fn add(&mut self, agent: &Agent, now: u32) {
         let entry = QEntry::new(agent, now);
+
+        if entry.wakeup_time >= u32::MAX {
+            self.finished_agents += 1;
+        }
+
         self.q.push(entry);
     }
 
@@ -35,6 +42,10 @@ impl ActivityQ {
 
     pub fn next_wakeup(&self) -> u32 {
         self.q.peek().unwrap().wakeup_time
+    }
+
+    pub fn finished_agents(&self) -> usize {
+        self.finished_agents
     }
 }
 
