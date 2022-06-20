@@ -4,34 +4,62 @@
 */
 
 use std::sync::mpsc;
+use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
+use std::time::Duration;
 
 fn run() {
-    let (tx1, rx1) = mpsc::channel();
-    let (tx2, rx2) = mpsc::channel();
+    let (tx1, rx1): (Sender<Message>, Receiver<Message>) = mpsc::channel();
+    let (tx2, rx2): (Sender<Message>, Receiver<Message>) = mpsc::channel();
 
     let handle1 = thread::spawn(move || {
-        let mut number_of_messages = 0;
-        while number_of_messages < 10 {
-            let ping = String::from("Ping");
-            println!("Thread 1 sending: {ping:?}");
-            tx1.send(ping).unwrap();
+        let first_message = Message {
+            message: String::from("ping"),
+            id: 0,
+        };
+        println!("Thread 1 sending first {first_message:#?}");
+        tx1.send(first_message).unwrap();
 
-            let pong = rx2.recv().unwrap();
-            println!("Thread 1 has received {}.", pong);
-            number_of_messages += 1;
+        loop {
+            match rx2.recv() {
+                Ok(mut message) => {
+                    println!("Thread 1 received: {message:#?}");
+
+                    if message.id >= 3 {
+                        println!("Thread 1 has received message id >= 3. Breaking out of the loop");
+                        break;
+                    }
+
+                    message.id = message.id + 1;
+                    message.message = String::from("ping");
+                    tx1.send(message).unwrap();
+                }
+                Err(_) => {
+                    println!("Thread 1 received error on recv.")
+                }
+            };
         }
 
         println!("Thread 1 is finishing")
     });
 
     let handle2 = thread::spawn(move || {
-        let number_of_messages = 0;
-        while number_of_messages < 9 {
-            let ping = rx1.recv().unwrap();
-            println!("Thread2 has received: {}", ping);
-            println!("Thread2 sending: pong");
-            tx2.send(String::from("pong")).unwrap();
+        loop {
+            match rx1.recv() {
+                Ok(mut message) => {
+                    println!("Thread 2 received {message:#?}");
+
+                    message.id = message.id + 1;
+                    message.message = String::from("pong");
+
+                    println!("Thread 2 sending {message:#?}");
+                    tx2.send(message).unwrap();
+                }
+                Err(_) => {
+                    println!("Thread 2 received error on recv.");
+                    break;
+                }
+            }
         }
 
         println!("Thread 2 is finishing")
@@ -43,7 +71,11 @@ fn run() {
     print!("Both threads have finished. Program is Done.");
 }
 
-struct ChannelEnd {}
+#[derive(Debug)]
+struct Message {
+    message: String,
+    id: i32,
+}
 
 #[cfg(test)]
 mod tests {
