@@ -6,7 +6,6 @@
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
-use std::time::Duration;
 
 fn run() {
     let (tx1, rx1): (Sender<Message>, Receiver<Message>) = mpsc::channel();
