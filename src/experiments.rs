@@ -1,3 +1,4 @@
+mod concurrent_ping_pong;
 mod lifetimes_example;
 #[allow(dead_code)]
 mod link_automat_with_adjacency_list;
