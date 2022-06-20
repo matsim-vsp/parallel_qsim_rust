@@ -194,7 +194,7 @@ fn move_nodes(nodes: Iter<Node>, links: &mut Vec<Link>, now: u32) {
 
 #[cfg(test)]
 mod tests {
-    use crate::link_automata_with_routes::run;
+    use crate::experiments::link_automata_with_routes::run;
 
     #[test]
     fn test_run() {

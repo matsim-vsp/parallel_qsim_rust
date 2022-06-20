@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 /** Use this part here to figure out things I haven't understood yet.
-    At the moment, this is about uderstanding lifetime annotations.
+  At the moment, this is about uderstanding lifetime annotations.
 */
-fn main() {
+fn run() {
     let strings = vec!["one", "two", "three"];
     let mut mapped: Vec<usize> = vec![];
     let mut mapper = Mapper::new();
@@ -40,14 +40,14 @@ impl<'key> Mapper<'key> {
     }
 
     /**
-        This stores a reference to key. and returns a number instead.
-        The type of self  is: &'s mut Mapper<'key>. The lifetime of the key variable
-        must therefore be of at least 'key, because that is the lifetime of the key
-        in the HashMap. The 'self' must have a different lifetime (possibly shorter)
-        so that this method can be used in a loop. If 'self' would also have 'key as
-        lifetime, the reference to self can't be released until 'key' goes out of scope.
-        .... I think....
-    */
+    This stores a reference to key. and returns a number instead.
+    The type of self  is: &'s mut Mapper<'key>. The lifetime of the key variable
+    must therefore be of at least 'key, because that is the lifetime of the key
+    in the HashMap. The 'self' must have a different lifetime (possibly shorter)
+    so that this method can be used in a loop. If 'self' would also have 'key as
+    lifetime, the reference to self can't be released until 'key' goes out of scope.
+    .... I think....
+     */
     fn add_key<'s>(&'s mut self, key: &'key str) -> usize {
         let id = self.mapping.entry(key).or_insert(self.next_id);
         if self.next_id == *id {
