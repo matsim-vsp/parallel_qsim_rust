@@ -2,14 +2,14 @@ use crate::container::xml_reader;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Node {
+pub struct IONode {
     pub id: String,
     pub x: f32,
     pub y: f32,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Link {
+pub struct IOLink {
     pub id: String,
     pub from: String,
     pub to: String,
@@ -22,33 +22,42 @@ pub struct Link {
 #[derive(Debug, Deserialize, PartialEq)]
 struct Nodes {
     #[serde(rename = "node", default)]
-    nodes: Vec<Node>,
+    nodes: Vec<IONode>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Links {
     #[serde(rename = "link", default)]
-    links: Vec<Link>,
+    links: Vec<IOLink>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Network {
+#[serde(rename = "network")]
+pub struct IONetwork {
     name: Option<String>,
     nodes: Nodes,
     links: Links,
 }
 
-impl Network {
-    pub fn nodes(&self) -> &Vec<Node> {
+impl IONetwork {
+    pub fn nodes(&self) -> &Vec<IONode> {
         &self.nodes.nodes
     }
 
-    pub fn links(&self) -> &Vec<Link> {
+    pub fn links(&self) -> &Vec<IOLink> {
         &self.links.links
     }
 
-    pub fn from_file(file_path: &str) -> Network {
+    pub fn from_file(file_path: &str) -> IONetwork {
         xml_reader::read(file_path)
+    }
+
+    pub fn split_into(&self, number_of_splits: usize, splitter: fn(&IONode) -> usize) {
+        let result: Vec<IONetwork> = Vec::with_capacity(number_of_splits);
+
+        for node in &self.nodes.nodes {
+            let network_id = splitter(node);
+        }
     }
 }
 
@@ -57,7 +66,7 @@ mod tests {
     use quick_xml::de::from_str;
     use std::error::Error;
 
-    use crate::container::network::Network;
+    use crate::container::network::IONetwork;
 
     #[test]
     fn read_simple_network() -> Result<(), Box<dyn Error>> {
@@ -73,7 +82,7 @@ mod tests {
                 </network>
             ";
 
-        let result: Network = from_str(xml)?;
+        let result: IONetwork = from_str(xml)?;
 
         // test overall structure of network
         assert_eq!("test network", result.name.as_ref().unwrap());
@@ -102,7 +111,7 @@ mod tests {
     #[test]
     fn read_example_file() {
         let file_path = "./assets/equil-network.xml";
-        let network: Network = Network::from_file(file_path);
+        let network: IONetwork = IONetwork::from_file(file_path);
 
         // only test some metadata here
         assert_eq!("equil test network", network.name.as_ref().unwrap());
@@ -112,7 +121,7 @@ mod tests {
 
     #[test]
     fn read_example_file_gzipped() {
-        let network: Network = Network::from_file("./assets/andorra-network.xml.gz");
+        let network: IONetwork = IONetwork::from_file("./assets/andorra-network.xml.gz");
 
         assert_eq!(2259, network.nodes().len());
         assert_eq!(4288, network.links().len());

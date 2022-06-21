@@ -290,7 +290,7 @@ fn parse_time(value: &str) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::Network;
+    use crate::container::network::IONetwork;
     use crate::container::population::Population;
     use crate::simulation::q_network::QNetwork;
     use crate::simulation::q_population::QPopulation;
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn population_from_container() {
         let population: Population = Population::from_file("./assets/equil_output_plans.xml.gz");
-        let network: Network = Network::from_file("./assets/equil-network.xml");
+        let network: IONetwork = IONetwork::from_file("./assets/equil-network.xml");
         let q_network: QNetwork = QNetwork::from_container(&network);
         let mut q_vehicles = QVehicles::new();
         let q_population = QPopulation::from_container(&population, &q_network, &mut q_vehicles);

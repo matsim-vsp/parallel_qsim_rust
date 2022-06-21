@@ -4,10 +4,12 @@ use crate::simulation::q_scenario::QScenario;
 use crate::simulation::q_vehicle::QVehicle;
 
 mod activity_q;
+mod flow_cap;
 mod q_network;
 mod q_population;
 mod q_scenario;
 mod q_vehicle;
+mod splittable_network;
 
 struct Simulation<'a> {
     scenario: QScenario<'a>,
@@ -101,14 +103,14 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::Network;
+    use crate::container::network::IONetwork;
     use crate::container::population::Population;
     use crate::simulation::q_scenario::QScenario;
     use crate::simulation::Simulation;
 
     #[test]
     fn run_equil_scenario() {
-        let network = Network::from_file("./assets/equil-network.xml");
+        let network = IONetwork::from_file("./assets/equil-network.xml");
         let population = Population::from_file("./assets/equil_output_plans.xml.gz");
         let scenario = QScenario::from_container(&network, &population);
         let mut simulation = Simulation::new(scenario);

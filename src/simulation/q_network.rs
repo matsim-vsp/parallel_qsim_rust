@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::container::network::{Link, Network};
+use crate::container::network::{IOLink, IONetwork};
+use crate::simulation::flow_cap::Flowcap;
 use crate::simulation::q_vehicle::QVehicle;
 
 #[derive(Debug)]
@@ -31,7 +32,7 @@ impl<'net> QNetwork<'net> {
         next_id
     }
 
-    fn add_link(&mut self, link: &'net Link, from_id: usize, to_id: usize) -> usize {
+    fn add_link(&mut self, link: &'net IOLink, from_id: usize, to_id: usize) -> usize {
         // create a new link and push it onto the link vec
         let next_id = self.links.len();
         let q_link = QLink::new(next_id, link.length, link.capacity, link.freespeed);
@@ -48,7 +49,7 @@ impl<'net> QNetwork<'net> {
         next_id
     }
 
-    pub fn from_container(network: &Network) -> QNetwork {
+    pub fn from_container(network: &IONetwork) -> QNetwork {
         let mut result = QNetwork::new();
 
         for node in network.nodes() {
@@ -105,43 +106,6 @@ impl QLink {
         }
 
         popped_vehicles
-    }
-}
-
-#[derive(Debug)]
-struct Flowcap {
-    last_update_time: u32,
-    accumulated_capacity: f32,
-    capacity_s: f32,
-}
-
-impl Flowcap {
-    fn new(capacity_s: f32) -> Flowcap {
-        Flowcap {
-            last_update_time: 0,
-            accumulated_capacity: capacity_s,
-            capacity_s,
-        }
-    }
-
-    /**
-    Updates the accumulated capacity if the time has advanced.
-     */
-    fn update_capacity(&mut self, now: u32) {
-        if self.last_update_time < now {
-            let time_steps: f32 = (now - self.last_update_time) as f32;
-            let acc_flow_cap = time_steps * self.capacity_s + self.accumulated_capacity;
-            self.accumulated_capacity = f32::min(acc_flow_cap, self.capacity_s);
-            self.last_update_time = now;
-        }
-    }
-
-    fn has_capacity(&self) -> bool {
-        self.accumulated_capacity > 0.0
-    }
-
-    fn consume_capacity(&mut self, by: f32) {
-        self.accumulated_capacity -= by;
     }
 }
 
@@ -210,13 +174,14 @@ impl QNode {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::Network;
-    use crate::simulation::q_network::{Flowcap, QLink, QNetwork};
+    use crate::container::network::IONetwork;
+    use crate::simulation::q_network::QLink;
+    use crate::simulation::q_network::QNetwork;
     use crate::simulation::q_vehicle::QVehicle;
 
     #[test]
     fn q_network_from_container() {
-        let network = Network::from_file("./assets/equil-network.xml");
+        let network = IONetwork::from_file("./assets/equil-network.xml");
         let q_network = QNetwork::from_container(&network);
 
         println!("{q_network:#?}");
@@ -295,46 +260,5 @@ mod tests {
         assert_eq!(1, popped_vehicles.len());
         let popped2 = popped_vehicles.first().unwrap();
         assert_eq!(id2, popped2.id);
-    }
-
-    #[test]
-    fn flowcap_consume_capacity() {
-        let mut flowcap = Flowcap::new(10.0);
-        assert!(flowcap.has_capacity());
-
-        flowcap.consume_capacity(20.0);
-        assert!(!flowcap.has_capacity());
-    }
-
-    #[test]
-    fn flowcap_max_capacity_s() {
-        let mut flowcap = Flowcap::new(10.0);
-
-        flowcap.update_capacity(20);
-
-        assert_eq!(10.0, flowcap.accumulated_capacity);
-        assert_eq!(20, flowcap.last_update_time);
-    }
-
-    #[test]
-    fn flowcap_acc_capacity() {
-        let mut flowcap = Flowcap::new(0.25);
-        assert!(flowcap.has_capacity());
-
-        // accumulated_capacity should be at -0.75 after this.
-        flowcap.consume_capacity(1.0);
-        assert!(!flowcap.has_capacity());
-
-        // accumulated_capacity should be at -0.5
-        flowcap.update_capacity(1);
-        assert!(!flowcap.has_capacity());
-
-        // accumulated_capacity should be at 0.0
-        flowcap.update_capacity(3);
-        assert!(!flowcap.has_capacity());
-
-        // accumulated capacity should be at 0.5
-        flowcap.update_capacity(5);
-        assert!(flowcap.has_capacity());
     }
 }
