@@ -1,13 +1,9 @@
 use crate::container::network::{IOLink, IONetwork, IONode};
 use crate::simulation::flow_cap::Flowcap;
+use crate::simulation::id_mapping::IdMapping;
 use std::collections::{HashMap, VecDeque};
 
 use crate::simulation::q_vehicle::QVehicle;
-
-pub struct IdMappings {
-    node_2_thread: HashMap<usize, usize>,
-    link_2_thread: HashMap<usize, usize>,
-}
 
 #[derive(Debug)]
 pub struct Network {
@@ -27,17 +23,12 @@ impl Network {
         container: &IONetwork,
         size: usize,
         splitter: fn(&IONode) -> usize,
-    ) -> (Vec<Network>, IdMappings) {
+    ) -> (Vec<Network>, IdMapping, IdMapping) {
         // create the result networks which can then be populated
         let mut result = Vec::with_capacity(size);
 
-        let mut node_id_mapping: HashMap<&str, usize> = HashMap::new();
-        let mut link_id_mapping: HashMap<&str, usize> = HashMap::new();
-
-        let mut id_mapping = IdMappings {
-            link_2_thread: HashMap::new(),
-            node_2_thread: HashMap::new(),
-        };
+        let mut node_id_mapping = IdMapping::new();
+        let mut link_id_mapping = IdMapping::new();
 
         for _i in 0..size {
             result.push(Network::new());
@@ -49,18 +40,17 @@ impl Network {
             let network = result.get_mut(thread_id).unwrap();
 
             network.add_node(next_id);
-            node_id_mapping.insert(&node.id, next_id);
-            id_mapping.node_2_thread.insert(next_id, thread_id);
+            node_id_mapping.insert(next_id, thread_id, &node.id);
             next_id = next_id + 1;
         }
 
         next_id = 0;
         for link in container.links() {
-            let from_id = *node_id_mapping.get(link.from.as_str()).unwrap();
-            let to_id = *node_id_mapping.get(link.to.as_str()).unwrap();
+            let from_id = node_id_mapping.get_from_matsim_id(link.from.as_str());
+            let to_id = node_id_mapping.get_from_matsim_id(link.to.as_str());
 
-            let from_thread = *id_mapping.node_2_thread.get(&from_id).unwrap();
-            let to_thread = *id_mapping.node_2_thread.get(&to_id).unwrap();
+            let from_thread = node_id_mapping.get_thread(&from_id);
+            let to_thread = node_id_mapping.get_thread(&to_id);
 
             if from_thread == to_thread {
                 let network = result.get_mut(from_thread).unwrap();
@@ -72,13 +62,12 @@ impl Network {
                 let to_network = result.get_mut(to_thread).unwrap();
                 to_network.add_split_in_link(link, next_id, to_id);
             }
-            link_id_mapping.insert(&link.id, next_id);
             // the link is associated with the network which contains its to-node
-            id_mapping.link_2_thread.insert(next_id, to_thread);
+            link_id_mapping.insert(next_id, to_thread, &link.id);
             next_id = next_id + 1;
         }
 
-        (result, id_mapping)
+        (result, node_id_mapping, link_id_mapping)
     }
 
     fn add_node(&mut self, id: usize) {
@@ -179,7 +168,8 @@ mod tests {
     #[test]
     fn from_container() {
         let io_network = IONetwork::from_file("./assets/equil-network.xml");
-        let (split_networks, id_mappings) = Network::split_from_container(&io_network, 2, split);
+        let (split_networks, node_mapping, link_mapping) =
+            Network::split_from_container(&io_network, 2, split);
 
         assert_eq!(split_networks.len(), 2);
 
@@ -191,8 +181,8 @@ mod tests {
         assert_eq!(second.nodes.len(), 7);
         assert_eq!(second.links.len(), 16);
 
-        assert_eq!(id_mappings.link_2_thread.len(), 23);
-        assert_eq!(id_mappings.node_2_thread.len(), 15);
+        assert_eq!(link_mapping.id_2_thread.len(), 23);
+        assert_eq!(node_mapping.id_2_thread.len(), 15);
     }
 
     fn split(node: &IONode) -> usize {

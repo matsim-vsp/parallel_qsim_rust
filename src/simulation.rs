@@ -5,6 +5,7 @@ use crate::simulation::q_vehicle::QVehicle;
 
 mod activity_q;
 mod flow_cap;
+mod id_mapping;
 mod q_network;
 mod q_population;
 mod q_scenario;
