@@ -1,4 +1,6 @@
-use crate::container::population::{Activity, Leg, Person, Plan, PlanElement, Population, Route};
+use crate::container::population::{
+    IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IOPopulation, IORoute,
+};
 use crate::simulation::q_network::QNetwork;
 use crate::simulation::q_vehicle::QVehicles;
 
@@ -13,7 +15,7 @@ impl QPopulation {
     }
 
     pub fn from_container<'id, 'veh>(
-        population: &'id Population,
+        population: &'id IOPopulation,
         q_network: &QNetwork,
         q_vehicles: &'veh mut QVehicles<'id>,
     ) -> QPopulation {
@@ -39,7 +41,7 @@ pub struct Agent {
 
 impl Agent {
     fn from_container<'id, 'veh>(
-        person: &'id Person,
+        person: &'id IOPerson,
         id: usize,
         q_network: &QNetwork,
         q_vehicles: &'veh mut QVehicles<'id>,
@@ -80,13 +82,13 @@ pub struct SimPlan {
 
 impl SimPlan {
     fn from_container<'id, 'veh>(
-        plan: &'id Plan,
+        plan: &'id IOPlan,
         q_network: &QNetwork,
         q_vehicles: &'veh mut QVehicles<'id>,
     ) -> SimPlan {
         // each plan needs at least one element
         assert!(plan.elements.len() > 0);
-        if let PlanElement::Leg(_leg) = plan.elements.get(0).unwrap() {
+        if let IOPlanElement::Leg(_leg) = plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
         }
         let sim_elements = plan
@@ -101,15 +103,15 @@ impl SimPlan {
     }
 
     fn map_plan_element<'id, 'veh>(
-        element: &'id PlanElement,
+        element: &'id IOPlanElement,
         q_network: &QNetwork,
         q_vehicles: &'veh mut QVehicles<'id>,
     ) -> SimPlanElement {
         match element {
-            PlanElement::Activity(activity) => {
+            IOPlanElement::Activity(activity) => {
                 SimPlanElement::Activity(SimActivity::from_container(activity, q_network))
             }
-            PlanElement::Leg(leg) => {
+            IOPlanElement::Leg(leg) => {
                 SimPlanElement::Leg(SimLeg::from_container(leg, q_network, q_vehicles))
             }
         }
@@ -134,7 +136,7 @@ pub struct SimActivity {
 }
 
 impl SimActivity {
-    fn from_container(activity: &Activity, q_network: &QNetwork) -> SimActivity {
+    fn from_container(activity: &IOActivity, q_network: &QNetwork) -> SimActivity {
         let link_id = q_network
             .link_id_mapping
             .get(activity.link.as_str())
@@ -176,7 +178,7 @@ pub struct SimLeg {
 
 impl SimLeg {
     fn from_container<'id, 'veh>(
-        leg: &'id Leg,
+        leg: &'id IOLeg,
         q_network: &QNetwork,
         q_vehicles: &'veh mut QVehicles<'id>,
     ) -> SimLeg {
@@ -191,7 +193,7 @@ impl SimLeg {
     }
 
     fn map_route<'id, 'veh>(
-        route: &'id Route,
+        route: &'id IORoute,
         q_network: &QNetwork,
         q_vehicles: &'veh mut QVehicles<'id>,
     ) -> SimRoute {
@@ -220,7 +222,7 @@ pub struct GenericRoute {
 }
 
 impl GenericRoute {
-    fn from_container(route: &Route, q_network: &QNetwork) -> GenericRoute {
+    fn from_container(route: &IORoute, q_network: &QNetwork) -> GenericRoute {
         let start_link_id = q_network
             .link_id_mapping
             .get(route.start_link.as_str())
@@ -248,7 +250,7 @@ pub struct NetworkRoute {
 
 impl NetworkRoute {
     fn from_container<'id, 'veh>(
-        route: &'id Route,
+        route: &'id IORoute,
         q_network: &QNetwork,
         q_vehicles: &'veh mut QVehicles<'id>,
     ) -> NetworkRoute {
@@ -291,14 +293,15 @@ fn parse_time(value: &str) -> u32 {
 #[cfg(test)]
 mod tests {
     use crate::container::network::IONetwork;
-    use crate::container::population::Population;
+    use crate::container::population::IOPopulation;
     use crate::simulation::q_network::QNetwork;
     use crate::simulation::q_population::QPopulation;
     use crate::simulation::q_vehicle::QVehicles;
 
     #[test]
     fn population_from_container() {
-        let population: Population = Population::from_file("./assets/equil_output_plans.xml.gz");
+        let population: IOPopulation =
+            IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
         let network: IONetwork = IONetwork::from_file("./assets/equil-network.xml");
         let q_network: QNetwork = QNetwork::from_container(&network);
         let mut q_vehicles = QVehicles::new();

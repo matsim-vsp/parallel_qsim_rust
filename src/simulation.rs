@@ -105,14 +105,14 @@ impl<'a> Simulation<'a> {
 #[cfg(test)]
 mod tests {
     use crate::container::network::IONetwork;
-    use crate::container::population::Population;
+    use crate::container::population::IOPopulation;
     use crate::simulation::q_scenario::QScenario;
     use crate::simulation::Simulation;
 
     #[test]
     fn run_equil_scenario() {
         let network = IONetwork::from_file("./assets/equil-network.xml");
-        let population = Population::from_file("./assets/equil_output_plans.xml.gz");
+        let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
         let scenario = QScenario::from_container(&network, &population);
         let mut simulation = Simulation::new(scenario);
 

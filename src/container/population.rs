@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::container::xml_reader;
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Route {
+pub struct IORoute {
     pub r#type: String,
     pub start_link: String,
     pub end_link: String,
@@ -18,7 +18,7 @@ pub struct Route {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Activity {
+pub struct IOActivity {
     pub r#type: String,
     pub link: String,
     pub x: f32,
@@ -29,52 +29,52 @@ pub struct Activity {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Leg {
+pub struct IOLeg {
     pub mode: String,
     pub dep_time: Option<String>,
     pub trav_time: Option<String>,
-    pub route: Route,
+    pub route: IORoute,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum PlanElement {
+pub enum IOPlanElement {
     // the current matsim implementation has more logic with facility-id, link-id and coord.
     // This prototype assumes a fully specified activity with coord and link-id. We don't care about
     // Facilities at this stage.
-    Activity(Activity),
-    Leg(Leg),
+    Activity(IOActivity),
+    Leg(IOLeg),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Plan {
+pub struct IOPlan {
     pub selected: bool,
     // https://users.rust-lang.org/t/serde-deserializing-a-vector-of-enums/51647/2
     #[serde(rename = "$value")]
-    pub elements: Vec<PlanElement>,
+    pub elements: Vec<IOPlanElement>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Person {
+pub struct IOPerson {
     pub id: String,
     #[serde(rename = "plan")]
-    pub plans: Vec<Plan>,
+    pub plans: Vec<IOPlan>,
 }
 
-impl Person {
-    pub fn selected_plan(&self) -> &Plan {
+impl IOPerson {
+    pub fn selected_plan(&self) -> &IOPlan {
         self.plans.iter().find(|p| p.selected).unwrap()
     }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-pub struct Population {
+pub struct IOPopulation {
     #[serde(rename = "person")]
-    pub persons: Vec<Person>,
+    pub persons: Vec<IOPerson>,
 }
 
-impl Population {
-    pub fn from_file(file_path: &str) -> Population {
+impl IOPopulation {
+    pub fn from_file(file_path: &str) -> IOPopulation {
         xml_reader::read(file_path)
     }
 }
@@ -83,7 +83,7 @@ impl Population {
 mod tests {
     use quick_xml::de::from_str;
 
-    use crate::container::population::{PlanElement, Population};
+    use crate::container::population::{IOPlanElement, IOPopulation};
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all
@@ -135,7 +135,7 @@ mod tests {
 
     </population>";
 
-        let population: Population = from_str(xml).unwrap();
+        let population: IOPopulation = from_str(xml).unwrap();
 
         //test overall structure of population
         assert_eq!(1, population.persons.len());
@@ -151,10 +151,10 @@ mod tests {
         // probe for first leg and second activity
         let leg1 = plan.elements.get(1).unwrap();
         match leg1 {
-            PlanElement::Activity { .. } => {
+            IOPlanElement::Activity { .. } => {
                 panic!("Plan Element at index 1 was expected to be a leg, but was Activity")
             }
-            PlanElement::Leg(leg) => {
+            IOPlanElement::Leg(leg) => {
                 // <leg mode=\"car\">
                 //     <route type=\"links\" start_link=\"1\" end_link=\"20\" trav_time=\"undefined\" distance=\"25000.0\" vehicleRefId=\"null\">1 6 15 20</route>
                 // </leg>
@@ -173,7 +173,7 @@ mod tests {
 
         let activity2 = plan.elements.get(4).unwrap();
         match activity2 {
-            PlanElement::Activity(activity) => {
+            IOPlanElement::Activity(activity) => {
                 //<activity type=\"w\" link=\"20\" x=\"10000.0\" y=\"0.0\" max_dur=\"03:30:00\" >
                 assert_eq!("w", activity.r#type);
                 assert_eq!("20", activity.link);
@@ -183,7 +183,7 @@ mod tests {
                 assert_eq!(None, activity.start_time);
                 assert_eq!(None, activity.end_time);
             }
-            PlanElement::Leg { .. } => {
+            IOPlanElement::Leg { .. } => {
                 panic!("Plan element at inded 6 was expected to be an activity but was a Leg.")
             }
         }
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn read_example_file() {
-        let population = Population::from_file("./assets/population-v6-34-persons.xml");
+        let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml");
         // println!("{population:#?}");
 
         assert_eq!(34, population.persons.len())
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn read_example_file_gzipped() {
-        let population = Population::from_file("./assets/population-v6-34-persons.xml.gz");
+        let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml.gz");
         assert_eq!(34, population.persons.len())
     }
 }
