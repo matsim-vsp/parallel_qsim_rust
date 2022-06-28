@@ -11,6 +11,7 @@ mod q_population;
 mod q_scenario;
 mod q_vehicle;
 mod splittable_network;
+mod splittable_population;
 
 struct Simulation<'a> {
     scenario: QScenario<'a>,
