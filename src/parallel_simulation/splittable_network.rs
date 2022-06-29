@@ -1,6 +1,6 @@
 use crate::container::network::{IOLink, IONetwork, IONode};
 use crate::simulation::flow_cap::Flowcap;
-use crate::simulation::id_mapping::IdMapping;
+use crate::parallel_simulation::id_mapping::IdMapping;
 use std::collections::{HashMap, VecDeque};
 
 use crate::simulation::q_vehicle::QVehicle;
@@ -163,7 +163,7 @@ pub struct SplitLink {
 #[cfg(test)]
 mod tests {
     use crate::container::network::{IONetwork, IONode};
-    use crate::simulation::splittable_network::Network;
+    use crate::parallel_simulation::splittable_network::Network;
 
     #[test]
     fn from_container() {

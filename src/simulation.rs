@@ -4,14 +4,11 @@ use crate::simulation::q_scenario::QScenario;
 use crate::simulation::q_vehicle::QVehicle;
 
 mod activity_q;
-mod flow_cap;
-mod id_mapping;
+pub mod flow_cap;
 mod q_network;
 mod q_population;
 mod q_scenario;
-mod q_vehicle;
-mod splittable_network;
-mod splittable_population;
+pub mod q_vehicle;
 
 struct Simulation<'a> {
     scenario: QScenario<'a>,
