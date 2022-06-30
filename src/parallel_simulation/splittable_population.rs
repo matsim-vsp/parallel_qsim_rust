@@ -3,8 +3,8 @@ use crate::container::population::{
 };
 use crate::parallel_simulation::id_mapping::IdMapping;
 
-use std::collections::HashMap;
 use crate::parallel_simulation::vehicles::VehiclesIdMapping;
+use std::collections::HashMap;
 
 pub struct Population {
     pub agents: HashMap<usize, Agent>,
@@ -25,7 +25,7 @@ impl Population {
         container: &'a IOPopulation,
         size: usize,
         link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &mut VehiclesIdMapping,
+        vehicle_id_mapping: &VehiclesIdMapping,
     ) -> (Vec<Population>, IdMapping<'a>) {
         let mut next_id = 0;
         let mut populations: Vec<Population> = Vec::with_capacity(size);
@@ -62,7 +62,7 @@ impl Agent {
         person: &IOPerson,
         id: usize,
         link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &mut VehiclesIdMapping,
+        vehicle_id_mapping: &VehiclesIdMapping,
     ) -> Agent {
         let plan = Plan::from_io_plan(person.selected_plan(), link_id_mapping, vehicle_id_mapping);
 
@@ -85,7 +85,7 @@ impl Plan {
     fn from_io_plan(
         plan: &IOPlan,
         link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &mut VehiclesIdMapping,
+        vehicle_id_mapping: &VehiclesIdMapping,
     ) -> Plan {
         // each plan needs at least one element
         assert!(plan.elements.len() > 0);
@@ -112,7 +112,7 @@ impl PlanElement {
     fn from_io_element(
         element: &IOPlanElement,
         link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &mut VehiclesIdMapping,
+        vehicle_id_mapping: &VehiclesIdMapping,
     ) -> PlanElement {
         match element {
             IOPlanElement::Activity(a) => {
@@ -161,7 +161,7 @@ impl Leg {
     fn from_io_leg(
         leg: &IOLeg,
         link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &mut VehiclesIdMapping,
+        vehicle_id_mapping: &VehiclesIdMapping,
     ) -> Leg {
         let route = Route::from_io_route(&leg.route, link_id_mapping, vehicle_id_mapping);
 
@@ -183,7 +183,7 @@ impl Route {
     fn from_io_route(
         route: &IORoute,
         link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &IdMapping,
+        vehicle_id_mapping: &VehiclesIdMapping,
     ) -> Route {
         match route.r#type.as_str() {
             "generic" => Route::GenericRoute(GenericRoute::from_io_route(route, link_id_mapping)),
@@ -229,7 +229,7 @@ impl NetworkRoute {
     fn from_io_route(
         route: &IORoute,
         link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &IdMapping,
+        vehicle_id_mapping: &VehiclesIdMapping,
     ) -> NetworkRoute {
         if let Some(ref encoded_links) = route.route {
             if let Some(ref matsim_veh_id) = route.vehicle {
