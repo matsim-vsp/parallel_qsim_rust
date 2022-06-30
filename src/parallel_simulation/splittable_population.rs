@@ -76,6 +76,21 @@ impl Agent {
     pub fn current_plan_element(&self) -> &PlanElement {
         self.plan.elements.get(self.current_element).unwrap()
     }
+
+    pub fn advance_plan(&mut self) {
+        let next_element = self.current_element + 1;
+        if self.plan.elements.len() == next_element {
+            panic!(
+                "Advance plan was called on agent #{}, but no element is remaining.",
+                self.id
+            )
+        }
+        println!(
+            "Agent #{} advancing plan from index {} to index {}",
+            self.id, self.current_element, next_element
+        );
+        self.current_element = next_element;
+    }
 }
 pub struct Plan {
     pub elements: Vec<PlanElement>,
@@ -146,6 +161,21 @@ impl Activity {
             start_time: parse_time_opt(&activity.start_time),
             end_time: parse_time_opt(&activity.end_time),
             max_dur: parse_time_opt(&activity.max_dur),
+        }
+    }
+
+    /**
+    Calculates the end time of this activity. This only implements
+    org.matsim.core.config.groups.PlansConfigGroup.ActivityDurationInterpretation.tryEndTimeThenDuration
+     */
+    pub fn end_time(&self, now: u32) -> u32 {
+        if let Some(end_time) = self.end_time {
+            end_time
+        } else if let Some(max_dur) = self.max_dur {
+            now + max_dur
+        } else {
+            // supposed to be an equivalent for OptionalTime.undefined() in the java code
+            u32::MAX
         }
     }
 }

@@ -1,6 +1,7 @@
 use crate::container::network::{IOLink, IONetwork, IONode};
-use crate::simulation::flow_cap::Flowcap;
 use crate::parallel_simulation::id_mapping::IdMapping;
+use crate::parallel_simulation::vehicles::Vehicle;
+use crate::simulation::flow_cap::Flowcap;
 use std::collections::{HashMap, VecDeque};
 
 use crate::simulation::q_vehicle::QVehicle;
@@ -136,12 +137,22 @@ impl Node {
             out_links: Vec::new(),
         }
     }
+
+    pub fn move_vehicles(&self, links: &mut HashMap<usize, Link>, now: u32) -> Vec<Vehicle> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
 pub enum Link {
     LocalLink(LocalLink),
     SplitLink(SplitLink),
+}
+
+impl Link {
+    pub(crate) fn push_vehicle(&mut self, vehicle: Vehicle) {
+        todo!()
+    }
 }
 
 #[derive(Debug)]

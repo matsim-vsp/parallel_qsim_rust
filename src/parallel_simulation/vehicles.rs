@@ -1,5 +1,41 @@
 use crate::container::population::{IOPlanElement, IOPopulation};
+use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use std::collections::HashMap;
+
+pub struct Vehicle {
+    pub id: usize,
+    pub driver: Agent,
+    pub exit_time: u32,
+    pub route_index: usize,
+}
+
+impl Vehicle {
+    pub fn new(id: usize, driver: Agent) -> Vehicle {
+        Vehicle {
+            id,
+            driver,
+            exit_time: 0,
+            route_index: 0,
+        }
+    }
+
+    pub fn advance_route_index(&mut self) {
+        self.route_index += 1;
+    }
+
+    pub fn current_link_id(&self) -> usize {
+        if let PlanElement::Leg(leg) = self.driver.current_plan_element() {
+            if let Route::NetworkRoute(ref route) = leg.route {
+                return *route.route.get(self.route_index).unwrap();
+            }
+        }
+
+        panic!(
+            "could not get link id for vehicle {} with driver {} for link index {}",
+            self.id, self.driver.id, self.route_index
+        );
+    }
+}
 
 pub struct VehiclesIdMapping<'id> {
     next_id: usize,
@@ -61,7 +97,7 @@ mod tests {
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
         let mapping = VehiclesIdMapping::from_population(&population);
 
-        // for our test set up each person has 1 vehicle. 
+        // for our test set up each person has 1 vehicle.
         assert_eq!(population.persons.len(), mapping.matsim_id_2_id.len());
     }
 }

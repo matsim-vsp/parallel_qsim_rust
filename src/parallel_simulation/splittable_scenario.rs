@@ -10,7 +10,7 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    fn from_io(
+    pub fn from_io(
         network_container: &IONetwork,
         population_container: &IOPopulation,
     ) -> Vec<Scenario> {
