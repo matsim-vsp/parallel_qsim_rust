@@ -1,14 +1,16 @@
 use crate::parallel_simulation::messages::Message;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
+use crate::parallel_simulation::splittable_population::Agent;
+use crate::parallel_simulation::vehicles::Vehicle;
 
-pub struct Customs {
-    receiver: Receiver<Message>,
-    senders: HashMap<usize, Sender<Message>>,
-    out_messages: HashMap<usize, Message>,
+pub struct Customs<'a> {
+    receiver: Receiver<Message<'a>>,
+    senders: HashMap<usize, Sender<Message<'a>>>,
+    out_messages: HashMap<usize, Message<'a>>,
 }
 
-impl Customs {
+impl<'a> Customs<'a> {
     pub fn new(receiver: Receiver<Message>) -> Customs {
         Customs {
             receiver,
@@ -38,5 +40,10 @@ impl Customs {
             let sender = self.senders.get(&id).unwrap();
             sender.send(message).unwrap();
         }
+    }
+
+    pub fn prepare_to_send(&mut self, agent: Agent, vehicle: Vehicle) {
+
+        let
     }
 }

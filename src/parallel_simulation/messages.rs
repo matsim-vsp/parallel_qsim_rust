@@ -1,9 +1,11 @@
 use crate::parallel_simulation::splittable_population::Agent;
-use crate::simulation::q_vehicle::QVehicle;
+use crate::parallel_simulation::vehicles::Vehicle;
 
-pub struct Message {
-    from_thread: usize,
-    to_thread: usize,
-    vehicles: Vec<QVehicle>,
-    teleported_agents: Vec<Agent>,
+pub enum Message<'a> {
+    Travelling(TravellingMessage<'a>),
+}
+
+pub struct TravellingMessage<'a> {
+    // possibly, this will have more agents, once we have passengers in vehicles
+    vehicles: Vec<(Agent, Vehicle<'a>)>,
 }

@@ -15,7 +15,7 @@ impl ActivityQ {
         }
     }
 
-    pub fn add(&mut self, agent: Agent, now: u32) {
+    pub fn add(&mut self, agent: &Agent, now: u32) {
         let entry = QEntry::new(agent, now);
 
         if entry.wakeup_time >= u32::MAX {
@@ -25,13 +25,13 @@ impl ActivityQ {
         self.q.push(entry);
     }
 
-    pub fn wakeup(&mut self, now: u32) -> Vec<Agent> {
-        let mut result: Vec<Agent> = Vec::new();
+    pub fn wakeup(&mut self, now: u32) -> Vec<usize> {
+        let mut result: Vec<usize> = Vec::new();
 
         while let Some(entry_ref) = self.q.peek() {
             if entry_ref.wakeup_time <= now {
                 let entry = self.q.pop().unwrap();
-                result.push(entry.agent);
+                result.push(entry.agent_id);
             } else {
                 break;
             }
@@ -50,11 +50,11 @@ impl ActivityQ {
 
 struct QEntry {
     wakeup_time: u32,
-    agent: Agent,
+    agent_id: usize,
 }
 
 impl QEntry {
-    fn new(agent: Agent, now: u32) -> QEntry {
+    fn new(agent: &Agent, now: u32) -> QEntry {
         let element = agent.current_plan_element();
         if let PlanElement::Activity(act) = element {
             let wakeup_time = act.end_time(now);
@@ -62,7 +62,10 @@ impl QEntry {
                 "Create AgentQ.QEntry for #{} and activity: {} with wakeup_time: {wakeup_time}",
                 agent.id, act.act_type
             );
-            QEntry { agent, wakeup_time }
+            QEntry {
+                agent_id: agent.id,
+                wakeup_time,
+            }
         } else {
             panic!("Current plan element must be an activity if this agent is inserted into ActivityQ.")
         }
@@ -93,7 +96,7 @@ impl Ord for QEntry {
 
 impl PartialEq<Self> for QEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.agent.id == other.agent.id
+        self.agent_id == other.agent_id
     }
 }
 
@@ -112,7 +115,7 @@ mod tests {
         let agent = create_agent(0, act);
 
         let mut activity_q = ActivityQ::new();
-        activity_q.add(agent, 0);
+        activity_q.add(&agent, 0);
 
         let result1 = activity_q.wakeup(10);
         assert_eq!(0, result1.len());
@@ -132,9 +135,9 @@ mod tests {
         let agent3 = create_agent(2, act3);
 
         let mut act_q = ActivityQ::new();
-        act_q.add(agent1, 0);
-        act_q.add(agent2, 0);
-        act_q.add(agent3, 0);
+        act_q.add(&agent1, 0);
+        act_q.add(&agent2, 0);
+        act_q.add(&agent3, 0);
 
         assert_eq!(10, act_q.next_wakeup());
 
@@ -142,8 +145,8 @@ mod tests {
         // agent 2 should not wake up though
         let result1 = act_q.wakeup(25);
         assert_eq!(2, result1.len());
-        assert_eq!(0, result1.get(0).unwrap().id);
-        assert_eq!(1, result1.get(1).unwrap().id);
+        assert_eq!(0, *result1.get(0).unwrap());
+        assert_eq!(1, *result1.get(1).unwrap());
         assert_eq!(1, act_q.q.len());
     }
 
@@ -167,7 +170,7 @@ mod tests {
         agent.current_element = 1;
         let mut activity_q = ActivityQ::new();
 
-        activity_q.add(agent, 0);
+        activity_q.add(&agent, 0);
     }
 
     fn create_activity(end_time: u32) -> Activity {

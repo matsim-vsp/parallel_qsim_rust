@@ -1,12 +1,13 @@
 use crate::parallel_simulation::activity_q::ActivityQ;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::messages::Message;
-use crate::parallel_simulation::splittable_network::Network;
+use crate::parallel_simulation::splittable_network::{ExitReason, Network};
 use crate::parallel_simulation::splittable_population::{
     Agent, Leg, NetworkRoute, PlanElement, Population, Route,
 };
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::vehicles::Vehicle;
+
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 
@@ -21,6 +22,7 @@ mod vehicles;
 
 struct Simulation {
     network: Network,
+    population: Population,
     customs: Customs,
     activity_q: ActivityQ,
 }
@@ -28,12 +30,13 @@ struct Simulation {
 impl Simulation {
     fn new(network: Network, population: Population, customs: Customs) -> Simulation {
         let mut q = ActivityQ::new();
-        for (id, agent) in population.agents.into_iter() {
+        for (_, agent) in population.agents.iter() {
             q.add(agent, 0);
         }
 
         Simulation {
             network,
+            population,
             customs,
             activity_q: q,
         }
@@ -106,7 +109,8 @@ impl Simulation {
             );
         }
 
-        for mut agent in agents_2_link.into_iter() {
+        for id in agents_2_link {
+            let agent = self.population.agents.get_mut(&id).unwrap();
             agent.advance_plan();
 
             if let PlanElement::Leg(leg) = agent.current_plan_element() {
@@ -123,7 +127,21 @@ impl Simulation {
 
     fn move_nodes(&mut self, now: u32) {
         for node in self.network.nodes.values() {
-            let veh_not_continuing = node.move_vehicles(&mut self.network.links, now);
+            let exited_vehicles = node.move_vehicles(&mut self.network.links, now);
+
+            for exit_reason in exited_vehicles {
+                match exit_reason {
+                    ExitReason::FinishRoute(vehicle) => {
+                        let agent = self.population.agents.get_mut(&vehicle.driver_id).unwrap();
+                        agent.advance_plan();
+                        self.activity_q.add(agent, now);
+                    }
+                    ExitReason::ReachedBoundary(vehicle) => {
+                        let agent = self.population.agents.remove(&vehicle.driver_id).unwrap();
+                        self.customs.prepare_to_send(agent, vehicle);
+                    }
+                }
+            }
 
             // here the agents at the end of their route must be put into the agent q
             // vehicles which cross a thread boundary must be put into customs

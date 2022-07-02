@@ -138,7 +138,7 @@ impl Node {
         }
     }
 
-    pub fn move_vehicles(&self, links: &mut HashMap<usize, Link>, now: u32) -> Vec<Vehicle> {
+    pub fn move_vehicles(&self, links: &mut HashMap<usize, Link>, now: u32) -> Vec<ExitReason> {
         todo!()
     }
 }
@@ -169,6 +169,11 @@ pub struct SplitLink {
     id: usize,
     from_thread_id: usize,
     to_thread_id: usize,
+}
+
+pub enum ExitReason<'a> {
+    FinishRoute(Vehicle<'a>),
+    ReachedBoundary(Vehicle<'a>),
 }
 
 #[cfg(test)]
