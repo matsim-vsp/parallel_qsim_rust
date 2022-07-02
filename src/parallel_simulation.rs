@@ -2,7 +2,9 @@ use crate::parallel_simulation::activity_q::ActivityQ;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::messages::Message;
 use crate::parallel_simulation::splittable_network::Network;
-use crate::parallel_simulation::splittable_population::{PlanElement, Population, Route};
+use crate::parallel_simulation::splittable_population::{
+    Agent, Leg, NetworkRoute, PlanElement, Population, Route,
+};
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::vehicles::Vehicle;
 use std::sync::mpsc;
@@ -109,7 +111,7 @@ impl Simulation {
 
             if let PlanElement::Leg(leg) = agent.current_plan_element() {
                 if let Route::NetworkRoute(ref route) = leg.route {
-                    let vehicle = Vehicle::new(route.vehicle_id, agent);
+                    let vehicle = Vehicle::new(route.vehicle_id, agent.id, &route.route);
                     let link_id = route.route.get(0).unwrap();
                     let link = self.network.links.get_mut(link_id).unwrap();
                     // vehicles are put into the back of the queue, regardless.

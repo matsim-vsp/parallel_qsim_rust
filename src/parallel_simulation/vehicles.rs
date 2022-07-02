@@ -1,21 +1,24 @@
 use crate::container::population::{IOPlanElement, IOPopulation};
-use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use std::collections::HashMap;
 
-pub struct Vehicle {
+pub struct Vehicle<'a> {
     pub id: usize,
-    pub driver: Agent,
+    // instead of having a reference to the driver agent, we keep a reference to the network route
+    // of its current leg, as well as its id. This makes borrowing easier.
+    pub route: &'a Vec<usize>,
+    pub driver_id: usize,
     pub exit_time: u32,
     pub route_index: usize,
 }
 
-impl Vehicle {
-    pub fn new(id: usize, driver: Agent) -> Vehicle {
+impl<'a> Vehicle<'a> {
+    pub fn new(id: usize, driver_id: usize, route: &'a Vec<usize>) -> Vehicle<'a> {
         Vehicle {
             id,
-            driver,
+            driver_id,
             exit_time: 0,
             route_index: 0,
+            route,
         }
     }
 
@@ -23,17 +26,8 @@ impl Vehicle {
         self.route_index += 1;
     }
 
-    pub fn current_link_id(&self) -> usize {
-        if let PlanElement::Leg(leg) = self.driver.current_plan_element() {
-            if let Route::NetworkRoute(ref route) = leg.route {
-                return *route.route.get(self.route_index).unwrap();
-            }
-        }
-
-        panic!(
-            "could not get link id for vehicle {} with driver {} for link index {}",
-            self.id, self.driver.id, self.route_index
-        );
+    pub fn current_link_id(&self) -> Option<&usize> {
+        self.route.get(self.route_index)
     }
 }
 

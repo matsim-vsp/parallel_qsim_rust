@@ -51,14 +51,6 @@ impl IONetwork {
     pub fn from_file(file_path: &str) -> IONetwork {
         xml_reader::read(file_path)
     }
-
-    pub fn split_into(&self, number_of_splits: usize, splitter: fn(&IONode) -> usize) {
-        let result: Vec<IONetwork> = Vec::with_capacity(number_of_splits);
-
-        for node in &self.nodes.nodes {
-            let network_id = splitter(node);
-        }
-    }
 }
 
 #[cfg(test)]
