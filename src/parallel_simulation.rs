@@ -45,7 +45,10 @@ impl Simulation {
         println!("This will run some simulation loop.");
 
         // calculate the start time
-        let mut now = self.activity_q.next_wakeup();
+        let mut now = match self.activity_q.next_wakeup() {
+            None => 0,
+            Some(time) => time,
+        };
         let end_time = 86400;
         println!(
             "\n #### Start the simulation at timestep {}. Last timestep is set to {} ####\n",
@@ -144,8 +147,8 @@ impl Simulation {
     }
 
     fn active_agents(&self) -> usize {
-        todo!() // this needs something else maybe a counter would do.
-                //self.scenario.population.agents.len() - self.activity_q.finished_agents()
+        1 // this needs something else maybe a counter would do.
+          //self.scenario.population.agents.len() - self.activity_q.finished_agents()
     }
 
     fn push_onto_network(

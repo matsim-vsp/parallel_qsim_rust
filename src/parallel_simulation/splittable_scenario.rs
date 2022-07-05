@@ -34,7 +34,7 @@ impl Scenario {
 
         let (networks, node_id_mapping, link_id_mapping) =
             Network::split_from_container(network_container, size, split);
-        let (populations, agent_id_mapping) = Population::split_from_container(
+        let (mut populations, agent_id_mapping) = Population::split_from_container(
             &population_container,
             size,
             &link_id_mapping,
@@ -67,15 +67,19 @@ impl Scenario {
             }
         }
 
-        // this double zip is awkward, but I don't have a better idea right now...
         scenario.scenarios = networks
             .into_iter()
-            .zip(populations.into_iter())
-            .zip(customs_collection.into_iter())
-            .map(|triple| ScenarioSlice {
-                network: triple.0 .0,
-                population: triple.0 .1,
-                customs: triple.1,
+            // use reverse, because removing from vec at the end avoids shifting
+            .enumerate()
+            .rev()
+            .map(|(i, network)| {
+                let population = populations.remove(i);
+                let customs = customs_collection.remove(i);
+                ScenarioSlice {
+                    network,
+                    population,
+                    customs,
+                }
             })
             .collect();
 
@@ -125,13 +129,13 @@ mod test {
 
         // test the split scenarios for the particular split algorithm we have so far.
         let scenario1 = scenario.scenarios.get(0).unwrap();
-        assert_eq!(scenario1.network.nodes.len(), 12);
-        assert_eq!(scenario1.network.links.len(), 21);
-        assert_eq!(scenario1.population.agents.len(), 100);
+        assert_eq!(scenario1.network.nodes.len(), 3);
+        assert_eq!(scenario1.network.links.len(), 12);
+        assert_eq!(scenario1.population.agents.len(), 0);
 
         let scenario2 = scenario.scenarios.get(1).unwrap();
-        assert_eq!(scenario2.network.nodes.len(), 3);
-        assert_eq!(scenario2.network.links.len(), 12);
-        assert_eq!(scenario2.population.agents.len(), 0);
+        assert_eq!(scenario2.network.nodes.len(), 12);
+        assert_eq!(scenario2.network.links.len(), 21);
+        assert_eq!(scenario2.population.agents.len(), 100);
     }
 }

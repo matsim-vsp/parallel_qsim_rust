@@ -39,8 +39,11 @@ impl ActivityQ {
         result
     }
 
-    pub fn next_wakeup(&self) -> u32 {
-        self.q.peek().unwrap().wakeup_time
+    pub fn next_wakeup(&self) -> Option<u32> {
+        match self.q.peek() {
+            None => None,
+            Some(entry) => Some(entry.wakeup_time),
+        }
     }
 
     pub fn finished_agents(&self) -> usize {
@@ -139,7 +142,7 @@ mod tests {
         act_q.add(&agent2, 0);
         act_q.add(&agent3, 0);
 
-        assert_eq!(10, act_q.next_wakeup());
+        assert_eq!(10, act_q.next_wakeup().unwrap());
 
         // at timestep 25, agent1 and 3 should wake up, since their activity's end time has passed.
         // agent 2 should not wake up though
