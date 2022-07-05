@@ -1,5 +1,6 @@
 use crate::parallel_simulation::splittable_population::Agent;
 
+#[derive(Debug)]
 pub struct Message {
     // possibly, this will have more agents, once we have passengers in vehicles
     pub vehicles: Vec<(Agent, usize)>,

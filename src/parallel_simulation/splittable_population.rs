@@ -51,6 +51,7 @@ impl Population {
     }
 }
 
+#[derive(Debug)]
 pub struct Agent {
     pub id: usize,
     pub plan: Plan,
@@ -92,6 +93,8 @@ impl Agent {
         self.current_element = next_element;
     }
 }
+
+#[derive(Debug)]
 pub struct Plan {
     pub elements: Vec<PlanElement>,
 }
@@ -118,6 +121,7 @@ impl Plan {
     }
 }
 
+#[derive(Debug)]
 pub enum PlanElement {
     Activity(Activity),
     Leg(Leg),
@@ -140,6 +144,7 @@ impl PlanElement {
     }
 }
 
+#[derive(Debug)]
 pub struct Activity {
     pub act_type: String,
     pub link_id: usize,
@@ -180,6 +185,7 @@ impl Activity {
     }
 }
 
+#[derive(Debug)]
 pub struct Leg {
     pub mode: String,
     pub dep_time: Option<u32>,
@@ -204,6 +210,7 @@ impl Leg {
     }
 }
 
+#[derive(Debug)]
 pub enum Route {
     NetworkRoute(NetworkRoute),
     GenericRoute(GenericRoute),
@@ -227,6 +234,7 @@ impl Route {
     }
 }
 
+#[derive(Debug)]
 pub struct GenericRoute {
     pub start_link: usize,
     pub end_link: usize,
@@ -249,6 +257,7 @@ impl GenericRoute {
     }
 }
 
+#[derive(Debug)]
 pub struct NetworkRoute {
     pub vehicle_id: usize,
     pub route: Vec<usize>,

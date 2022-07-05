@@ -21,6 +21,7 @@ pub struct ScenarioSlice {
     pub network: Network,
     pub population: Population,
     pub customs: Customs,
+    pub id: usize,
 }
 
 impl Scenario {
@@ -79,6 +80,7 @@ impl Scenario {
                     network,
                     population,
                     customs,
+                    id: i,
                 }
             })
             .collect();

@@ -27,7 +27,8 @@ impl Customs {
         self.senders.insert(to, sender);
     }
 
-    pub fn receive(&self) -> Vec<Message> {
+    pub fn receive(&self, thread: usize) -> Vec<Message> {
+        println!("#{}: about to receive.", thread);
         let result = self
             .senders
             .iter()
@@ -37,13 +38,15 @@ impl Customs {
         result
     }
 
-    pub fn send(&mut self, now: u32) {
-        let capacity = self.out_messages.len();
-        let messages = std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
-
-        for (id, mut message) in messages {
+    pub fn send(&mut self, thread: usize, now: u32) {
+        let capacity = self.senders.len();
+        let mut messages =
+            std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
+        for (id, sender) in &self.senders {
+            let mut message = messages.remove(id).unwrap_or(Message::new());
             message.time = now;
-            let sender = self.senders.get(&id).unwrap();
+
+            println!("#{} sending {message:#?}", thread);
             sender.send(message).unwrap();
         }
     }

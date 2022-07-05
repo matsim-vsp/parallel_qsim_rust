@@ -42,17 +42,17 @@ impl Simulation {
     }
 
     fn run(&mut self) {
-        println!("This will run some simulation loop.");
+        println!(
+            "Starting simulation loop for Scenario Slice #{}",
+            self.scenario.id
+        );
 
-        // calculate the start time
-        let mut now = match self.activity_q.next_wakeup() {
-            None => 0,
-            Some(time) => time,
-        };
+        // use fixed start and end times
+        let mut now = 0;
         let end_time = 86400;
         println!(
-            "\n #### Start the simulation at timestep {}. Last timestep is set to {} ####\n",
-            now, end_time
+            "\n #### Start the simulation for Scenario Slice #{} at timestep {}. Last timestep is set to {} ####\n",
+            self.scenario.id, now, end_time
         );
 
         // conceptually this should do the following in the main loop:
@@ -77,11 +77,13 @@ impl Simulation {
     }
 
     fn wakeup(&mut self, now: u32) {
+        println!("#{} wakeup", self.scenario.id);
         let agents_2_link = self.activity_q.wakeup(now);
 
         if agents_2_link.len() > 0 {
             println!(
-                "{} agents woke up. Creating vehicles and putting them onto links",
+                "##{}: {} agents woke up. Creating vehicles and putting them onto links",
+                self.scenario.id,
                 agents_2_link.len()
             );
         }
@@ -94,6 +96,7 @@ impl Simulation {
     }
 
     fn move_nodes(&mut self, now: u32) {
+        println!("#{} move_nodes", self.scenario.id);
         for node in self.scenario.network.nodes.values() {
             let exited_vehicles = node.move_vehicles(&mut self.scenario.network.links, now);
 
@@ -124,7 +127,8 @@ impl Simulation {
     }
 
     fn receive(&mut self) {
-        let messages = self.scenario.customs.receive();
+        println!("#{} receive", self.scenario.id);
+        let messages = self.scenario.customs.receive(self.scenario.id);
         for message in messages {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;
@@ -143,7 +147,8 @@ impl Simulation {
     }
 
     fn send(&mut self, now: u32) {
-        self.scenario.customs.send(now);
+        println!("#{} send", self.scenario.id);
+        self.scenario.customs.send(self.scenario.id, now);
     }
 
     fn active_agents(&self) -> usize {
