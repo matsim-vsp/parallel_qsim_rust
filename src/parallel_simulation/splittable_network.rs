@@ -36,12 +36,13 @@ impl Network {
         }
 
         let mut next_id = 0;
-        for node in container.nodes() {
+
+        for node in container.nodes().into_iter() {
             let thread_id = splitter(node);
             let network = result.get_mut(thread_id).unwrap();
 
             network.add_node(next_id);
-            node_id_mapping.insert(next_id, thread_id, &node.id);
+            node_id_mapping.insert(next_id, thread_id, node.id.clone());
             next_id = next_id + 1;
         }
 
@@ -64,7 +65,7 @@ impl Network {
                 to_network.add_split_in_link(link, next_id, to_id);
             }
             // the link is associated with the network which contains its to-node
-            link_id_mapping.insert(next_id, to_thread, &link.id);
+            link_id_mapping.insert(next_id, to_thread, link.id.clone());
             next_id = next_id + 1;
         }
 

@@ -5,7 +5,7 @@ use crate::parallel_simulation::splittable_network::{ExitReason, Network};
 use crate::parallel_simulation::splittable_population::{
     Agent, Leg, NetworkRoute, PlanElement, Population, Route,
 };
-use crate::parallel_simulation::splittable_scenario::Scenario;
+use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioSlice};
 use crate::parallel_simulation::vehicles::Vehicle;
 
 use std::sync::mpsc;
@@ -21,49 +21,29 @@ mod splittable_scenario;
 mod vehicles;
 
 struct Simulation {
-    network: Network,
-    population: Population,
-    customs: Customs,
+    scenario: ScenarioSlice,
     activity_q: ActivityQ,
 }
 
 impl Simulation {
-    fn new(network: Network, population: Population, customs: Customs) -> Simulation {
+    fn new(scenario: ScenarioSlice) -> Simulation {
         let mut q = ActivityQ::new();
-        for (_, agent) in population.agents.iter() {
+        for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
         }
 
         Simulation {
-            network,
-            population,
-            customs,
+            scenario,
             activity_q: q,
         }
     }
 
-    fn create_runners(scenarios: Vec<Scenario>) -> Vec<Simulation> {
-        let mut simulations: Vec<Simulation> = Vec::new();
-        let mut senders: Vec<Sender<Message>> = Vec::new();
-
-        // create simulations and store the receiver part of a channel in it
-        for scenario in scenarios.into_iter() {
-            let (sender, receiver) = mpsc::channel();
-            let customs = Customs::new(receiver);
-            let simulation = Simulation::new(scenario.network, scenario.population, customs);
-            simulations.push(simulation);
-            senders.push(sender);
-        }
-
-        // now, copy a sender for each simulation, so that each simulation can
-        // send to every other simulation
-        for (i_sim, simulation) in simulations.iter_mut().enumerate() {
-            for (i_sender, sender) in senders.iter().enumerate() {
-                if i_sim != i_sender {
-                    simulation.customs.add_sender(i_sender, sender.clone());
-                }
-            }
-        }
+    fn create_runners(scenario: Scenario) -> Vec<Simulation> {
+        let simulations: Vec<_> = scenario
+            .scenarios
+            .into_iter()
+            .map(|slice| Simulation::new(slice))
+            .collect();
 
         simulations
     }
@@ -110,14 +90,14 @@ impl Simulation {
         }
 
         for id in agents_2_link {
-            let agent = self.population.agents.get_mut(&id).unwrap();
+            let agent = self.scenario.population.agents.get_mut(&id).unwrap();
             agent.advance_plan();
 
             if let PlanElement::Leg(leg) = agent.current_plan_element() {
                 if let Route::NetworkRoute(ref route) = leg.route {
                     let vehicle = Vehicle::new(route.vehicle_id, agent.id, &route.route);
                     let link_id = route.route.get(0).unwrap();
-                    let link = self.network.links.get_mut(link_id).unwrap();
+                    let link = self.scenario.network.links.get_mut(link_id).unwrap();
                     // vehicles are put into the back of the queue, regardless.
                     link.push_vehicle(vehicle);
                 }
@@ -126,35 +106,41 @@ impl Simulation {
     }
 
     fn move_nodes(&mut self, now: u32) {
-        for node in self.network.nodes.values() {
-            let exited_vehicles = node.move_vehicles(&mut self.network.links, now);
+        for node in self.scenario.network.nodes.values() {
+            let exited_vehicles = node.move_vehicles(&mut self.scenario.network.links, now);
 
             for exit_reason in exited_vehicles {
                 match exit_reason {
                     ExitReason::FinishRoute(vehicle) => {
-                        let agent = self.population.agents.get_mut(&vehicle.driver_id).unwrap();
+                        let agent = self
+                            .scenario
+                            .population
+                            .agents
+                            .get_mut(&vehicle.driver_id)
+                            .unwrap();
                         agent.advance_plan();
                         self.activity_q.add(agent, now);
                     }
                     ExitReason::ReachedBoundary(vehicle) => {
-                        let agent = self.population.agents.remove(&vehicle.driver_id).unwrap();
-                        self.customs.prepare_to_send(agent, vehicle);
+                        let agent = self
+                            .scenario
+                            .population
+                            .agents
+                            .remove(&vehicle.driver_id)
+                            .unwrap();
+                        self.scenario.customs.prepare_to_send(agent, vehicle);
                     }
                 }
             }
-
-            // here the agents at the end of their route must be put into the agent q
-            // vehicles which cross a thread boundary must be put into customs
-            todo!()
         }
     }
 
     fn receive(&mut self, now: u32) {
-        let messages = self.customs.receive();
+        let messages = self.scenario.customs.receive();
     }
 
     fn send(&mut self, now: u32) {
-        self.customs.send();
+        self.scenario.customs.send();
     }
 
     fn active_agents(&self) -> usize {
@@ -179,7 +165,7 @@ mod test {
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
 
         // convert input into simulation
-        let scenarios = Scenario::from_io(&network, &population);
+        let scenarios = Scenario::from_io(&network, &population, 2, Scenario::split);
         let simulations = Simulation::create_runners(scenarios);
 
         // create threads and start them

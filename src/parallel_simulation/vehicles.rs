@@ -31,13 +31,13 @@ impl<'a> Vehicle<'a> {
     }
 }
 
-pub struct VehiclesIdMapping<'id> {
+pub struct VehiclesIdMapping {
     next_id: usize,
-    matsim_id_2_id: HashMap<&'id str, usize>,
+    matsim_id_2_id: HashMap<String, usize>,
 }
 
-impl<'id> VehiclesIdMapping<'id> {
-    pub fn new() -> VehiclesIdMapping<'id> {
+impl VehiclesIdMapping {
+    pub fn new() -> VehiclesIdMapping {
         VehiclesIdMapping {
             matsim_id_2_id: HashMap::new(),
             next_id: 0,
@@ -60,13 +60,13 @@ impl<'id> VehiclesIdMapping<'id> {
             .filter(|leg| leg.route.r#type == "links")
             .map(|leg| leg.route.vehicle.as_ref().unwrap())
             .for_each(|veh_id| {
-                vehicle_id_mapping.map_vehicle_id(veh_id);
+                vehicle_id_mapping.map_vehicle_id(veh_id.clone());
             });
 
         vehicle_id_mapping
     }
 
-    pub fn map_vehicle_id(&mut self, matsim_id: &'id str) -> usize {
+    pub fn map_vehicle_id(&mut self, matsim_id: String) -> usize {
         let id = self.matsim_id_2_id.entry(matsim_id).or_insert(self.next_id);
 
         if self.next_id == *id {

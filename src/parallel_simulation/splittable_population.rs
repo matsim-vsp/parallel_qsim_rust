@@ -21,12 +21,12 @@ impl Population {
         self.agents.insert(agent.id, agent);
     }
 
-    pub fn split_from_container<'a>(
-        container: &'a IOPopulation,
+    pub fn split_from_container(
+        container: &IOPopulation,
         size: usize,
         link_id_mapping: &IdMapping,
         vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> (Vec<Population>, IdMapping<'a>) {
+    ) -> (Vec<Population>, IdMapping) {
         let mut next_id = 0;
         let mut populations: Vec<Population> = Vec::with_capacity(size);
         let mut id_mapping = IdMapping::new();
@@ -42,7 +42,7 @@ impl Population {
                 let thread = link_id_mapping.get_thread(&act.link_id);
                 let population = populations.get_mut(thread).unwrap();
                 population.add_agent(agent);
-                id_mapping.insert(next_id, thread, &person.id);
+                id_mapping.insert(next_id, thread, person.id.clone());
             }
             next_id += 1;
         }

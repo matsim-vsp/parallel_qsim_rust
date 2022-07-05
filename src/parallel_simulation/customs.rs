@@ -1,21 +1,25 @@
+use crate::parallel_simulation::id_mapping::IdMapping;
 use crate::parallel_simulation::messages::Message;
-use std::collections::HashMap;
-use std::sync::mpsc::{Receiver, Sender};
 use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::vehicles::Vehicle;
+use std::collections::HashMap;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 
-pub struct Customs<'a> {
-    receiver: Receiver<Message<'a>>,
-    senders: HashMap<usize, Sender<Message<'a>>>,
-    out_messages: HashMap<usize, Message<'a>>,
+pub struct Customs {
+    receiver: Receiver<Message>,
+    senders: HashMap<usize, Sender<Message>>,
+    out_messages: HashMap<usize, Message>,
+    link_id_mapping: Arc<IdMapping>,
 }
 
-impl<'a> Customs<'a> {
-    pub fn new(receiver: Receiver<Message>) -> Customs {
+impl Customs {
+    pub fn new(receiver: Receiver<Message>, link_id_mapping: Arc<IdMapping>) -> Customs {
         Customs {
             receiver,
             senders: HashMap::new(),
             out_messages: HashMap::new(),
+            link_id_mapping,
         }
     }
 
@@ -43,7 +47,9 @@ impl<'a> Customs<'a> {
     }
 
     pub fn prepare_to_send(&mut self, agent: Agent, vehicle: Vehicle) {
-
-        let
+        let link_id = vehicle.current_link_id().unwrap();
+        let thread = self.link_id_mapping.get_thread(link_id);
+        let message = self.out_messages.entry(thread).or_insert(Message::new());
+        message.add(agent, vehicle.route_index);
     }
 }
