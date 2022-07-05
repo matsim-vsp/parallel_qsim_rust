@@ -74,8 +74,8 @@ impl Simulation {
         while self.active_agents() > 0 && now <= end_time {
             self.wakeup(now);
             self.move_nodes(now);
-            self.receive(now);
             self.send(now);
+            self.receive(now);
         }
     }
 
@@ -92,16 +92,7 @@ impl Simulation {
         for id in agents_2_link {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
             agent.advance_plan();
-
-            if let PlanElement::Leg(leg) = agent.current_plan_element() {
-                if let Route::NetworkRoute(ref route) = leg.route {
-                    let vehicle = Vehicle::new(route.vehicle_id, agent.id, &route.route);
-                    let link_id = route.route.get(0).unwrap();
-                    let link = self.scenario.network.links.get_mut(link_id).unwrap();
-                    // vehicles are put into the back of the queue, regardless.
-                    link.push_vehicle(vehicle);
-                }
-            }
+            Simulation::push_onto_network(&mut self.scenario.network, &agent, 0);
         }
     }
 
@@ -137,15 +128,35 @@ impl Simulation {
 
     fn receive(&mut self, now: u32) {
         let messages = self.scenario.customs.receive();
+        for message in messages {
+            for vehicle in message.vehicles {
+                let agent = vehicle.0;
+                let route_index = vehicle.1;
+                Simulation::push_onto_network(&mut self.scenario.network, &agent, route_index);
+                self.scenario.population.agents.insert(agent.id, agent);
+            }
+        }
     }
 
     fn send(&mut self, now: u32) {
-        self.scenario.customs.send();
+        self.scenario.customs.send(now);
     }
 
     fn active_agents(&self) -> usize {
         todo!() // this needs something else maybe a counter would do.
                 //self.scenario.population.agents.len() - self.activity_q.finished_agents()
+    }
+
+    fn push_onto_network(network: &mut Network, agent: &Agent, route_index: usize) {
+        if let PlanElement::Leg(leg) = agent.current_plan_element() {
+            if let Route::NetworkRoute(ref route) = leg.route {
+                let vehicle = Vehicle::new(route.vehicle_id, agent.id, &route.route);
+                let link_id = route.route.get(route_index).unwrap();
+                let link = network.links.get_mut(link_id).unwrap();
+                // vehicles are put into the back of the queue, regardless.
+                link.push_vehicle(vehicle);
+            }
+        }
     }
 }
 

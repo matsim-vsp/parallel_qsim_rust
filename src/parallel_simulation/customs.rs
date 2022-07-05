@@ -37,10 +37,12 @@ impl Customs {
         result
     }
 
-    pub fn send(&mut self) {
-        let messages = std::mem::replace(&mut self.out_messages, HashMap::new());
+    pub fn send(&mut self, now: u32) {
+        let capacity = self.out_messages.len();
+        let messages = std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
 
-        for (id, message) in messages {
+        for (id, mut message) in messages {
+            message.time = now;
             let sender = self.senders.get(&id).unwrap();
             sender.send(message).unwrap();
         }
