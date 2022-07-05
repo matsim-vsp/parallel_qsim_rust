@@ -1,15 +1,8 @@
 use crate::parallel_simulation::activity_q::ActivityQ;
-use crate::parallel_simulation::customs::Customs;
-use crate::parallel_simulation::messages::Message;
-use crate::parallel_simulation::splittable_network::{ExitReason, Network};
-use crate::parallel_simulation::splittable_population::{
-    Agent, Leg, NetworkRoute, PlanElement, Population, Route,
-};
+use crate::parallel_simulation::splittable_network::{ExitReason, Link, Network};
+use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioSlice};
 use crate::parallel_simulation::vehicles::Vehicle;
-
-use std::sync::mpsc;
-use std::sync::mpsc::Sender;
 
 mod activity_q;
 mod customs;
@@ -75,7 +68,8 @@ impl Simulation {
             self.wakeup(now);
             self.move_nodes(now);
             self.send(now);
-            self.receive(now);
+            self.receive();
+            now += 1;
         }
     }
 
@@ -126,14 +120,21 @@ impl Simulation {
         }
     }
 
-    fn receive(&mut self, now: u32) {
+    fn receive(&mut self) {
         let messages = self.scenario.customs.receive();
         for message in messages {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;
                 let route_index = vehicle.1;
-                Simulation::push_onto_network(&mut self.scenario.network, &agent, route_index);
-                self.scenario.population.agents.insert(agent.id, agent);
+                match Simulation::push_onto_network(&mut self.scenario.network, &agent, route_index)
+                {
+                    Some(vehicle) => {
+                        self.scenario.customs.prepare_to_send(agent, vehicle);
+                    }
+                    None => {
+                        self.scenario.population.agents.insert(agent.id, agent);
+                    }
+                }
             }
         }
     }
@@ -147,16 +148,27 @@ impl Simulation {
                 //self.scenario.population.agents.len() - self.activity_q.finished_agents()
     }
 
-    fn push_onto_network(network: &mut Network, agent: &Agent, route_index: usize) {
+    fn push_onto_network(
+        network: &mut Network,
+        agent: &Agent,
+        route_index: usize,
+    ) -> Option<Vehicle> {
         if let PlanElement::Leg(leg) = agent.current_plan_element() {
             if let Route::NetworkRoute(ref route) = leg.route {
-                let vehicle = Vehicle::new(route.vehicle_id, agent.id, &route.route);
+                let vehicle = Vehicle::new(route.vehicle_id, agent.id, route.route.clone());
                 let link_id = route.route.get(route_index).unwrap();
                 let link = network.links.get_mut(link_id).unwrap();
-                // vehicles are put into the back of the queue, regardless.
-                link.push_vehicle(vehicle);
+
+                return match link {
+                    Link::LocalLink(local_link) => {
+                        local_link.push_vehicle(vehicle);
+                        None
+                    }
+                    Link::SplitLink(_) => Some(vehicle),
+                };
             }
         }
+        panic!("Currently only network routes are implemented.")
     }
 }
 

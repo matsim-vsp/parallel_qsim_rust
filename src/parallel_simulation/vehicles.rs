@@ -1,18 +1,19 @@
 use crate::container::population::{IOPlanElement, IOPopulation};
 use std::collections::HashMap;
 
-pub struct Vehicle<'a> {
+#[derive(Debug)]
+pub struct Vehicle {
     pub id: usize,
     // instead of having a reference to the driver agent, we keep a reference to the network route
     // of its current leg, as well as its id. This makes borrowing easier.
-    pub route: &'a Vec<usize>,
+    pub route: Vec<usize>,
     pub driver_id: usize,
     pub exit_time: u32,
     pub route_index: usize,
 }
 
-impl<'a> Vehicle<'a> {
-    pub fn new(id: usize, driver_id: usize, route: &'a Vec<usize>) -> Vehicle<'a> {
+impl Vehicle {
+    pub fn new(id: usize, driver_id: usize, route: Vec<usize>) -> Vehicle {
         Vehicle {
             id,
             driver_id,

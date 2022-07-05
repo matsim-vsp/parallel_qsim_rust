@@ -4,8 +4,6 @@ use crate::parallel_simulation::vehicles::Vehicle;
 use crate::simulation::flow_cap::Flowcap;
 use std::collections::{HashMap, VecDeque};
 
-use crate::simulation::q_vehicle::QVehicle;
-
 #[derive(Debug)]
 pub struct Network {
     pub links: HashMap<usize, Link>,
@@ -140,7 +138,43 @@ impl Node {
     }
 
     pub fn move_vehicles(&self, links: &mut HashMap<usize, Link>, now: u32) -> Vec<ExitReason> {
-        todo!()
+        let mut exited_vehicles = Vec::new();
+
+        for in_link_index in &self.in_links {
+            if let Link::LocalLink(in_link) = links.get_mut(in_link_index).unwrap() {
+                for mut vehicle in in_link.pop_front(now) {
+                    vehicle.advance_route_index();
+                    match vehicle.current_link_id() {
+                        None => exited_vehicles.push(ExitReason::FinishRoute(vehicle)),
+                        Some(out_id) => {
+                            self.move_vehicle(links, *out_id, vehicle, &mut exited_vehicles, now);
+                        }
+                    }
+                }
+            } else {
+                panic!("Only expecting local links as in links")
+            }
+        }
+
+        exited_vehicles
+    }
+
+    fn move_vehicle(
+        &self,
+        links: &mut HashMap<usize, Link>,
+        out_link_id: usize,
+        mut vehicle: Vehicle,
+        exited_vehicles: &mut Vec<ExitReason>,
+        now: u32,
+    ) {
+        match links.get_mut(&out_link_id).unwrap() {
+            Link::LocalLink(local_link) => {
+                let exit_time = now + (local_link.length / local_link.freespeed) as u32;
+                vehicle.exit_time = exit_time;
+                local_link.push_vehicle(vehicle);
+            }
+            Link::SplitLink(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
+        }
     }
 }
 
@@ -150,19 +184,36 @@ pub enum Link {
     SplitLink(SplitLink),
 }
 
-impl Link {
-    pub(crate) fn push_vehicle(&mut self, vehicle: Vehicle) {
-        todo!()
-    }
-}
-
 #[derive(Debug)]
 pub struct LocalLink {
     id: usize,
-    q: VecDeque<QVehicle>,
+    q: VecDeque<Vehicle>,
     length: f32,
     freespeed: f32,
     flowcap: Flowcap,
+}
+
+impl LocalLink {
+    pub fn push_vehicle(&mut self, vehicle: Vehicle) {
+        self.q.push_back(vehicle);
+    }
+
+    pub fn pop_front(&mut self, now: u32) -> Vec<Vehicle> {
+        self.flowcap.update_capacity(now);
+        let mut popped_veh = Vec::new();
+
+        while let Some(vehicle) = self.q.front() {
+            if vehicle.exit_time > now || !self.flowcap.has_capacity() {
+                break;
+            }
+
+            let vehicle = self.q.pop_front().unwrap();
+            self.flowcap.consume_capacity(1.0);
+            popped_veh.push(vehicle);
+        }
+
+        popped_veh
+    }
 }
 
 #[derive(Debug)]
@@ -172,9 +223,9 @@ pub struct SplitLink {
     to_thread_id: usize,
 }
 
-pub enum ExitReason<'a> {
-    FinishRoute(Vehicle<'a>),
-    ReachedBoundary(Vehicle<'a>),
+pub enum ExitReason {
+    FinishRoute(Vehicle),
+    ReachedBoundary(Vehicle),
 }
 
 #[cfg(test)]

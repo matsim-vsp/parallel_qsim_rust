@@ -93,9 +93,9 @@ impl Scenario {
 
 #[cfg(test)]
 mod test {
-    use crate::container::network::{IONetwork, IONode};
+    use crate::container::network::IONetwork;
     use crate::container::population::IOPopulation;
-    use crate::parallel_simulation::splittable_scenario::{test, Scenario};
+    use crate::parallel_simulation::splittable_scenario::Scenario;
 
     #[test]
     fn create_scenarios() {
