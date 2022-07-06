@@ -77,7 +77,7 @@ impl Simulation {
     }
 
     fn wakeup(&mut self, now: u32) {
-        println!("#{} wakeup", self.scenario.id);
+        //println!("#{} wakeup", self.scenario.id);
         let agents_2_link = self.activity_q.wakeup(now);
 
         if agents_2_link.len() > 0 {
@@ -96,7 +96,7 @@ impl Simulation {
     }
 
     fn move_nodes(&mut self, now: u32) {
-        println!("#{} move_nodes", self.scenario.id);
+        //println!("#{} move_nodes", self.scenario.id);
         for node in self.scenario.network.nodes.values() {
             let exited_vehicles = node.move_vehicles(&mut self.scenario.network.links, now);
 
@@ -127,12 +127,16 @@ impl Simulation {
     }
 
     fn receive(&mut self) {
-        println!("#{} receive", self.scenario.id);
+        //println!("#{} receive", self.scenario.id);
         let messages = self.scenario.customs.receive(self.scenario.id);
         for message in messages {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;
                 let route_index = vehicle.1;
+                println!(
+                    "Thread #{} has received Agent #{}",
+                    self.scenario.id, agent.id
+                );
                 match Simulation::push_onto_network(&mut self.scenario.network, &agent, route_index)
                 {
                     Some(vehicle) => {
@@ -147,7 +151,7 @@ impl Simulation {
     }
 
     fn send(&mut self, now: u32) {
-        println!("#{} send", self.scenario.id);
+        // println!("#{} send", self.scenario.id);
         self.scenario.customs.send(self.scenario.id, now);
     }
 
@@ -172,6 +176,7 @@ impl Simulation {
                         local_link.push_vehicle(vehicle);
                         None
                     }
+                    // I am not sure whether this is even possible.
                     Link::SplitLink(_) => Some(vehicle),
                 };
             }
@@ -188,6 +193,52 @@ mod test {
     use crate::parallel_simulation::Simulation;
     use std::thread;
     use std::thread::JoinHandle;
+
+    /// This creates a scenario with three links and one agent. The scenario is not split up, therefore
+    /// a single threaded simulation is run. This test exists to see whether the logic of the simulation
+    /// without passing messages to other simulation slices works.
+    #[test]
+    fn run_single_agent_single_slice() {
+        let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
+        let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
+
+        let scenario = Scenario::from_io(&network, &population, 1, |_node| 0);
+        let mut simulations = Simulation::create_runners(scenario);
+
+        assert_eq!(1, simulations.len());
+        let mut simulation = simulations.remove(0);
+        simulation.run();
+
+        println!("done.")
+    }
+
+    /// This creates a scenario with three links and one agent. The scenario is split into two domains.
+    /// The scenario should contain one split link "link2". Nodes 1 and 2 should be in the first, 3 and 4
+    /// should end up in the second domain. The agent starts at link1, enters link2, gets passed to
+    /// the other domain, leaves link2, enters link3 and finishes its route on link3
+    #[test]
+    fn run_single_agent_two_slices() {
+        let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
+        let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
+
+        let scenario = Scenario::from_io(&network, &population, 2, |node| {
+            if node.id.eq("node1") || node.id.eq("node2") {
+                0
+            } else {
+                1
+            }
+        });
+        let simulations = Simulation::create_runners(scenario);
+
+        let join_handles: Vec<_> = simulations
+            .into_iter()
+            .map(|mut simulation| thread::spawn(move || simulation.run()))
+            .collect();
+
+        for handle in join_handles {
+            handle.join().unwrap();
+        }
+    }
 
     #[test]
     fn run_equil_scenario() {

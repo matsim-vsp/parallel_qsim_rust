@@ -28,7 +28,7 @@ impl Customs {
     }
 
     pub fn receive(&self, thread: usize) -> Vec<Message> {
-        println!("#{}: about to receive.", thread);
+        //println!("#{}: about to receive.", thread);
         let result = self
             .senders
             .iter()
@@ -46,7 +46,6 @@ impl Customs {
             let mut message = messages.remove(id).unwrap_or(Message::new());
             message.time = now;
 
-            println!("#{} sending {message:#?}", thread);
             sender.send(message).unwrap();
         }
     }
@@ -55,6 +54,11 @@ impl Customs {
         let link_id = vehicle.current_link_id().unwrap();
         let thread = self.link_id_mapping.get_thread(link_id);
         let message = self.out_messages.entry(thread).or_insert(Message::new());
+
+        println!(
+            "Prepare to send Agent #{} with route_index {} to thread #{}",
+            agent.id, vehicle.route_index, thread
+        );
         message.add(agent, vehicle.route_index);
     }
 }
