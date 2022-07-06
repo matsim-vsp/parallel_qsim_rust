@@ -149,7 +149,7 @@ mod tests {
         let result1 = act_q.wakeup(25);
         assert_eq!(2, result1.len());
         assert_eq!(0, *result1.get(0).unwrap());
-        assert_eq!(1, *result1.get(1).unwrap());
+        assert_eq!(2, *result1.get(1).unwrap());
         assert_eq!(1, act_q.q.len());
     }
 
