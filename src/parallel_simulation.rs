@@ -44,7 +44,7 @@ impl Simulation {
     fn run(&mut self) {
         println!(
             "Starting simulation loop for Scenario Slice #{}",
-            self.scenario.id
+            self.scenario.customs.id
         );
 
         // use fixed start and end times
@@ -52,7 +52,7 @@ impl Simulation {
         let end_time = 86400;
         println!(
             "\n #### Start the simulation for Scenario Slice #{} at timestep {}. Last timestep is set to {} ####\n",
-            self.scenario.id, now, end_time
+            self.scenario.customs.id, now, end_time
         );
 
         // conceptually this should do the following in the main loop:
@@ -83,7 +83,7 @@ impl Simulation {
         if agents_2_link.len() > 0 {
             println!(
                 "##{}: {} agents woke up. Creating vehicles and putting them onto links",
-                self.scenario.id,
+                self.scenario.customs.id,
                 agents_2_link.len()
             );
         }
@@ -128,14 +128,14 @@ impl Simulation {
 
     fn receive(&mut self) {
         //println!("#{} receive", self.scenario.id);
-        let messages = self.scenario.customs.receive(self.scenario.id);
+        let messages = self.scenario.customs.receive();
         for message in messages {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;
                 let route_index = vehicle.1;
                 println!(
-                    "Thread #{} has received Agent #{}",
-                    self.scenario.id, agent.id
+                    "Thread #{} has received Agent #{} with route index {}",
+                    self.scenario.customs.id, agent.id, route_index
                 );
                 match Simulation::push_onto_network(&mut self.scenario.network, &agent, route_index)
                 {
@@ -152,7 +152,7 @@ impl Simulation {
 
     fn send(&mut self, now: u32) {
         // println!("#{} send", self.scenario.id);
-        self.scenario.customs.send(self.scenario.id, now);
+        self.scenario.customs.send(now);
     }
 
     fn active_agents(&self) -> usize {
@@ -167,7 +167,8 @@ impl Simulation {
     ) -> Option<Vehicle> {
         if let PlanElement::Leg(leg) = agent.current_plan_element() {
             if let Route::NetworkRoute(ref route) = leg.route {
-                let vehicle = Vehicle::new(route.vehicle_id, agent.id, route.route.clone());
+                let mut vehicle = Vehicle::new(route.vehicle_id, agent.id, route.route.clone());
+                vehicle.route_index = route_index;
                 let link_id = route.route.get(route_index).unwrap();
                 let link = network.links.get_mut(link_id).unwrap();
 
@@ -247,7 +248,19 @@ mod test {
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
 
         // convert input into simulation
-        let scenarios = Scenario::from_io(&network, &population, 2, Scenario::split);
+        let scenarios =
+            Scenario::from_io(
+                &network,
+                &population,
+                2,
+                |node| {
+                    if node.x < 0. {
+                        0
+                    } else {
+                        1
+                    }
+                },
+            );
         let simulations = Simulation::create_runners(scenarios);
 
         // create threads and start them

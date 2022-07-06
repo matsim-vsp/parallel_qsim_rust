@@ -21,7 +21,6 @@ pub struct ScenarioSlice {
     pub network: Network,
     pub population: Population,
     pub customs: Customs,
-    pub id: usize,
 }
 
 impl Scenario {
@@ -53,9 +52,9 @@ impl Scenario {
             link_id_mapping: Arc::new(link_id_mapping),
         };
 
-        for _ in 0..size {
+        for i in 0..size {
             let (sender, receiver) = mpsc::channel();
-            let customs = Customs::new(receiver, scenario.link_id_mapping.clone());
+            let customs = Customs::new(i, receiver, scenario.link_id_mapping.clone());
             customs_collection.push(customs);
             senders.push(sender);
         }
@@ -80,20 +79,11 @@ impl Scenario {
                     network,
                     population,
                     customs,
-                    id: i,
                 }
             })
             .collect();
 
         scenario
-    }
-
-    pub fn split(node: &IONode) -> usize {
-        if node.x < 0. {
-            0
-        } else {
-            1
-        }
     }
 }
 
@@ -108,7 +98,13 @@ mod test {
         let io_network = IONetwork::from_file("./assets/equil-network.xml");
         let io_population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
 
-        let scenario = Scenario::from_io(&io_network, &io_population, 2, Scenario::split);
+        let scenario = Scenario::from_io(&io_network, &io_population, 2, |node| {
+            if node.x < 0. {
+                0
+            } else {
+                1
+            }
+        });
 
         assert_eq!(2, scenario.scenarios.len());
         assert_eq!(

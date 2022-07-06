@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
 pub struct Customs {
+    pub(crate) id: usize,
     receiver: Receiver<Message>,
     senders: HashMap<usize, Sender<Message>>,
     out_messages: HashMap<usize, Message>,
@@ -14,8 +15,9 @@ pub struct Customs {
 }
 
 impl Customs {
-    pub fn new(receiver: Receiver<Message>, link_id_mapping: Arc<IdMapping>) -> Customs {
+    pub fn new(id: usize, receiver: Receiver<Message>, link_id_mapping: Arc<IdMapping>) -> Customs {
         Customs {
+            id,
             receiver,
             senders: HashMap::new(),
             out_messages: HashMap::new(),
@@ -27,7 +29,7 @@ impl Customs {
         self.senders.insert(to, sender);
     }
 
-    pub fn receive(&self, thread: usize) -> Vec<Message> {
+    pub fn receive(&self) -> Vec<Message> {
         //println!("#{}: about to receive.", thread);
         let result = self
             .senders
@@ -38,7 +40,7 @@ impl Customs {
         result
     }
 
-    pub fn send(&mut self, thread: usize, now: u32) {
+    pub fn send(&mut self, now: u32) {
         let capacity = self.senders.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
@@ -56,8 +58,8 @@ impl Customs {
         let message = self.out_messages.entry(thread).or_insert(Message::new());
 
         println!(
-            "Prepare to send Agent #{} with route_index {} to thread #{}",
-            agent.id, vehicle.route_index, thread
+            "Prepare to send Agent #{} with route_index {} from thread #{} to thread #{}",
+            agent.id, vehicle.route_index, self.id, thread
         );
         message.add(agent, vehicle.route_index);
     }
