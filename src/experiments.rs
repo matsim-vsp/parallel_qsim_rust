@@ -9,3 +9,5 @@ mod link_automat_with_references;
 mod link_automata_with_routes;
 #[allow(dead_code)]
 mod super_simple_link_automat;
+#[allow(dead_code)]
+mod metis_test;
