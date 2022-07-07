@@ -1,4 +1,5 @@
 use metis::Graph;
+
 #[derive(Debug)]
 struct Node {
     id: usize,
@@ -47,8 +48,9 @@ fn convert(nodes: Vec<Node>, links: Vec<Link>) -> Vec<i32> {
 
 #[cfg(test)]
 mod tests {
-    use crate::experiments::metis_test::{convert, Link, Node};
     use metis::Graph;
+
+    use crate::experiments::metis_test::{convert, Link, Node};
 
     #[test]
     fn test_convert() {
@@ -97,6 +99,9 @@ mod tests {
         (nodes, links)
     }
 
+    /// This takes an example from https://github.com/LIHPC-Computational-Geometry/metis-rs/blob/master/examples/graph.rs
+    /// Which itself is the example from https://raw.githubusercontent.com/KarypisLab/METIS/master/manual/manual.pdf 
+    /// chapter 5.5 - Figure 3
     #[rustfmt::skip]
     fn create_example() -> ([i32; 16], [i32; 44]) {
         let xadj = [0, 2, 5, 8, 11, 13, 16, 20, 24, 28, 31, 33, 36, 39, 42, 44];
