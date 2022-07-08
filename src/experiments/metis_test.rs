@@ -4,6 +4,7 @@ use metis::Graph;
 struct Node {
     id: usize,
     out_links: Vec<usize>,
+    weight: i32,
 }
 
 #[derive(Debug)]
@@ -13,16 +14,20 @@ struct Link {
     to: usize,
 }
 
-fn convert(nodes: Vec<Node>, links: Vec<Link>) -> Vec<i32> {
+fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<i32> {
     let mut xadj: Vec<i32> = Vec::from([0]);
     let mut adjncy: Vec<i32> = Vec::new();
     let mut adjwgt: Vec<i32> = Vec::new();
+    let mut vwgt: Vec<i32> = Vec::new();
+    let mut node_ids: Vec<usize> = Vec::new();
 
     for node in nodes {
         // do the xadj  pointers.
         let number_of_out_links = node.out_links.len() as i32;
         let next_adjacency_index = xadj.last().unwrap() + number_of_out_links;
         xadj.push(next_adjacency_index as i32);
+        vwgt.push(node.weight);
+        node_ids.push(node.id);
 
         // write the adjacent nodes and the link weights
         for link_id in node.out_links {
@@ -36,10 +41,15 @@ fn convert(nodes: Vec<Node>, links: Vec<Link>) -> Vec<i32> {
 
     println!("{:?}", xadj);
     println!("{:?}", adjncy);
+    println!("{:?}", adjwgt);
+    println!("{:?}", vwgt);
+    println!("{:?}", node_ids);
 
     // ncon specifies number of vertice weights. Our vertices are unweighted
     // nparts is the number of parts. We'll start with 2
     Graph::new(1, 2, &mut xadj.as_mut_slice(), &mut adjncy.as_mut_slice())
+        .set_adjwgt(&mut adjwgt)
+        .set_vwgt(&mut vwgt)
         .part_kway(&mut result)
         .unwrap();
 
@@ -48,15 +58,18 @@ fn convert(nodes: Vec<Node>, links: Vec<Link>) -> Vec<i32> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use metis::Graph;
 
-    use crate::experiments::metis_test::{convert, Link, Node};
+    use crate::container::network::IONetwork;
+    use crate::experiments::metis_test::{partition, Link, Node};
 
     #[test]
-    fn test_convert() {
+    fn test_convert_example() {
         let (nodes, links) = create_network();
 
-        let result = convert(nodes, links);
+        let result = partition(nodes, links);
 
         let mut expected = vec![0x00; 15];
         let mut crs = create_example();
@@ -65,6 +78,52 @@ mod tests {
             .unwrap();
 
         assert_eq!(expected, result)
+    }
+
+    #[test]
+    fn test_convert_vertice_weight() {
+        let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
+        let mut nodes: HashMap<_, _> = network
+            .nodes()
+            .iter()
+            .enumerate()
+            .map(|(i, node)| {
+                let weight = if i == 1 || i == 2 { 100 } else { 0 };
+                let result = Node {
+                    id: i,
+                    weight,
+                    out_links: Vec::new(),
+                };
+                (node.id.as_str(), result)
+            })
+            .collect();
+
+        let links: Vec<_> = network
+            .links()
+            .iter()
+            .enumerate()
+            .map(|(i, link)| {
+                // add the link to its from node
+                let from_node = nodes.get_mut(&link.from.as_str()).unwrap();
+                from_node.out_links.push(i);
+
+                let count = if i == 1 { 25 } else { 0 };
+
+                // create the link
+                let to_node = nodes.get(&link.to.as_str()).unwrap();
+                Link {
+                    id: i,
+                    to: to_node.id,
+                    count,
+                }
+            })
+            .collect();
+
+        let mut vec: Vec<_> = nodes.into_iter().map(|(_, node)| node).collect();
+        vec.sort_by(|a, b| a.id.cmp(&b.id));
+        let result = partition(vec, links);
+
+        println!("{:?} this is the result", result);
     }
 
     #[rustfmt::skip]
@@ -90,7 +149,7 @@ mod tests {
             }
 
             let id = nodes.len();
-            let node = Node { id, out_links };
+            let node = Node { id, out_links, weight: 0 };
             nodes.push(node);
         }
 

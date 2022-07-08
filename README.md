@@ -21,6 +21,14 @@ things work
 1. `$ sudo apt install libclang-dev`
 2. `$ sudo apt install libmetis-dev`
 
+On Windows I had to do the following:
+
+1. Install [Cmake](https://cmake.org/download/)
+2. Install Visual Studio Build tools, which one needs for rust anyway
+3. Try to follow the description in [Windows-Build](https://github.com/KarypisLab/METIS/blob/master/BUILD-Windows.txt)
+
+This doesn't work so far 😔
+
 ### Build
 
 Run `$ cargo build` to build the program
