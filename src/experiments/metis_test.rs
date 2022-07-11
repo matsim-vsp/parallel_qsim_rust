@@ -1,4 +1,3 @@
-/*
 use metis::Graph;
 
 
@@ -151,7 +150,7 @@ mod tests {
             }
 
             let id = nodes.len();
-            let node = Node { id, out_links, weight: 0 };
+            let node = Node { id, out_links, weight: 1 };
             nodes.push(node);
         }
 
@@ -188,6 +187,3 @@ mod tests {
         (xadj, adjncy)
     }
 }
-
-
- */
