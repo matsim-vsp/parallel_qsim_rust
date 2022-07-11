@@ -32,6 +32,7 @@ impl Vehicle {
     }
 }
 
+#[derive(Debug)]
 pub struct VehiclesIdMapping {
     next_id: usize,
     matsim_id_2_id: HashMap<String, usize>,

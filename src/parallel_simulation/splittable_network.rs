@@ -18,11 +18,11 @@ impl Network {
         }
     }
 
-    pub fn split_from_container(
+    pub fn split_from_container<F>(
         container: &IONetwork,
         size: usize,
-        splitter: fn(&IONode) -> usize,
-    ) -> (Vec<Network>, IdMapping, IdMapping) {
+        splitter: F,
+    ) -> (Vec<Network>, IdMapping, IdMapping) where F: Fn(&IONode) -> usize {
         // create the result networks which can then be populated
         let mut result = Vec::with_capacity(size);
 

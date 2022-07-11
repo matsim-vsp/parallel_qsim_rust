@@ -6,6 +6,7 @@ use crate::parallel_simulation::id_mapping::IdMapping;
 use crate::parallel_simulation::vehicles::VehiclesIdMapping;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct Population {
     pub agents: HashMap<usize, Agent>,
 }

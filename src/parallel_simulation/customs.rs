@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct Customs {
     pub(crate) id: usize,
     receiver: Receiver<Message>,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct IdMapping {
     pub id_2_thread: HashMap<usize, usize>,
     pub matsim_id_2_id: HashMap<String, usize>,

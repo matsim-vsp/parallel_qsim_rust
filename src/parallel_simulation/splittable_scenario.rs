@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc};
+use metis::Graph;
 
 use crate::container::network::{IONetwork, IONode};
-use crate::container::population::IOPopulation;
+use crate::container::population::{IOPlanElement, IOPopulation};
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::id_mapping::IdMapping;
-use crate::parallel_simulation::splittable_network::Network;
-use crate::parallel_simulation::splittable_population::Population;
+use crate::parallel_simulation::splittable_network::{ Network};
+use crate::parallel_simulation::splittable_population::{ Population};
 use crate::parallel_simulation::vehicles::VehiclesIdMapping;
 
+#[derive(Debug)]
 pub struct Scenario {
     pub scenarios: Vec<ScenarioSlice>,
 
@@ -19,94 +21,133 @@ pub struct Scenario {
     vehicle_id_mapping: Arc<VehiclesIdMapping>,
 }
 
+#[derive(Debug)]
 pub struct ScenarioSlice {
     pub network: Network,
     pub population: Population,
     pub customs: Customs,
 }
 
-struct MatsimIdMapping<'a> {
-    matsim_2_internal: HashMap<&'a str, usize>,
+#[derive(Debug)]
+struct MatsimIdMapping {
+    matsim_2_internal: HashMap<String, usize>,
     internal_2_matsim: HashMap<usize, String>,
 }
 
-impl<'a> MatsimIdMapping<'a> {
-    fn new() -> MatsimIdMapping<'a> {
+impl MatsimIdMapping {
+    fn new() -> MatsimIdMapping {
         MatsimIdMapping {
             matsim_2_internal: HashMap::new(),
             internal_2_matsim: HashMap::new(),
         }
     }
+
+    fn insert(&mut self, internal: usize, matsim: String) {
+        self.internal_2_matsim.insert(internal, matsim);
+        let mapped_matsim = self.internal_2_matsim.get(&internal).unwrap();
+        self.matsim_2_internal.insert(mapped_matsim.clone(), internal);
+    }
+
+    fn get_internal(&self, external: &str) -> Option<&usize> {
+        self.matsim_2_internal.get(external)
+    }
+
+    fn get_external(&self, internal: &usize) -> Option<&String> {
+        self.internal_2_matsim.get(internal)
+    }
 }
 
+#[derive(Debug)]
 struct PartNode {
     weight: i32,
     out_links: Vec<usize>,
 }
 
+#[derive(Debug)]
 struct PartLink {
     weight: i32,
     to: usize,
 }
 
 impl Scenario {
-    /*  fn map_node_ids<'a>(network_container: &IONetwork) -> MatsimIdMapping<'a> {
+      fn map_node_ids(network_container: &IONetwork) -> MatsimIdMapping {
          let mut mapping = MatsimIdMapping::new();
 
          for (i, node) in network_container.nodes().iter().enumerate() {
-             mapping.internal_2_matsim.insert(i, node.id.clone());
-             if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
-                 mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
-             }
+             mapping.insert(i, node.id.clone());
          }
 
          mapping
      }
 
-     fn map_link_ids<'a>(network_container: &IONetwork) -> MatsimIdMapping<'a> {
+     fn map_link_ids(network_container: &IONetwork) -> MatsimIdMapping {
          let mut mapping = MatsimIdMapping::new();
 
          for (i, link) in network_container.links().iter().enumerate() {
-             mapping.internal_2_matsim.insert(i, link.id.clone());
-             if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
-                 mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
-             }
+             mapping.insert(i, link.id.clone());
          }
 
          mapping
      }
 
-     fn map_person_ids<'a>(population_container: &IOPopulation) -> MatsimIdMapping<'a> {
+     fn map_person_ids(population_container: &IOPopulation) -> MatsimIdMapping {
          let mut mapping = MatsimIdMapping::new();
 
          for (i, person) in population_container.persons.iter().enumerate() {
-             mapping.internal_2_matsim.insert(i, person.id.clone());
-             if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
-                 mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
-             }
+             mapping.insert(i, person.id.clone());
          }
 
          mapping
      }
 
-    */
 
-    /*
     fn partition_containers(
         network_container: &IONetwork,
         population_container: &IOPopulation,
         num_parts: i32,
-    ) -> Vec<i32> {
+    ) -> Scenario {
         let node_id_mapping = Self::map_node_ids(network_container);
         let link_id_mapping = Self::map_link_ids(network_container);
         let agent_id_mapping = Self::map_person_ids(population_container);
 
+        let mut link_weights: HashMap<usize, i32> = HashMap::new();
+        let mut node_weights: HashMap<usize, i32> = HashMap::new();
+
+        population_container.persons.iter().flat_map(|p|p.plans.iter())
+            .filter(|p| p.selected)
+            .flat_map(|p| p.elements.iter())
+            .for_each(|el| {
+                match el {
+                    IOPlanElement::Activity(a) => {
+                        let internal = link_id_mapping.get_internal(a.link.as_str()).unwrap();
+                        link_weights.entry(*internal).and_modify(|w| *w += 1).or_insert(1);
+                    }
+                    IOPlanElement::Leg(l) => {
+                        if l.route.r#type == "links" {
+                            let route = l.route.route.as_ref().unwrap();
+                            for id in route.split(' ') {
+                                let internal = link_id_mapping.get_internal(id).unwrap();
+                                link_weights.entry(*internal).and_modify(|w| *w += 1).or_insert(1);
+
+                                let link = network_container.links().get(*internal).unwrap();
+                                let internal_node_id = node_id_mapping.get_internal(link.to.as_str()).unwrap();
+                                node_weights.entry(*internal_node_id).and_modify(|w| *w += 1).or_insert(1);
+                            }
+                        }
+                    }
+                }
+            });
+
         let mut nodes: Vec<_> = network_container
             .nodes()
             .iter()
-            .map(|node| PartNode {
-                weight: 0,
-                out_links: Vec::new(),
+            .map(|node| {
+                let internal = node_id_mapping.get_internal(node.id.as_str()).unwrap();
+                let weight = *node_weights.get(internal).unwrap_or(&1);
+                PartNode {
+                    weight,
+                    out_links: Vec::new()
+                }
             })
             .collect();
 
@@ -114,32 +155,39 @@ impl Scenario {
             .links()
             .iter()
             .map(|link| {
-                let link_id = link_id_mapping
-                    .matsim_2_internal
-                    .get(link.id.as_str())
+                let link_id = link_id_mapping.get_internal(link.id.as_str())
                     .unwrap();
-                let to_node_id = node_id_mapping
-                    .matsim_2_internal
-                    .get(link.to.as_str())
+                let to_node_id = node_id_mapping.get_internal(link.to.as_str())
                     .unwrap();
 
                 // put link into out links list of from node
-                let from_node_id = node_id_mapping
-                    .matsim_2_internal
-                    .get(link.from.as_str())
+                let from_node_id = node_id_mapping.get_internal(link.from.as_str())
                     .unwrap();
                 let from_node = nodes.get_mut(*from_node_id).unwrap();
                 from_node.out_links.push(*link_id);
+                let weight = *link_weights.get(link_id).unwrap_or(&1);
 
                 PartLink {
                     to: *to_node_id,
-                    weight: 0,
+                    weight: weight / 100
                 }
             })
             .collect();
 
+        println!("{links:#?}");
+        println!("{nodes:#?}");
         let result = Self::partition(nodes, links, num_parts);
-        result
+
+        println!("{result:#?}");
+
+        let scenario = Scenario::from_io(network_container, population_container, num_parts as usize, |n| {
+            let internal = node_id_mapping.get_internal(n.id.as_str()).unwrap();
+            let thread_id = *result.get(*internal).unwrap();
+
+            thread_id as usize
+        });
+
+        scenario
     }
 
     fn partition(nodes: Vec<PartNode>, links: Vec<PartLink>, num_parts: i32) -> Vec<i32> {
@@ -171,14 +219,13 @@ impl Scenario {
         result
     }
 
-     */
-
-    pub fn from_io(
+    pub fn from_io<F>(
         network_container: &IONetwork,
         population_container: &IOPopulation,
         size: usize,
-        split: fn(&IONode) -> usize,
-    ) -> Scenario {
+        split: F,
+    ) -> Scenario where F : Fn(&IONode) -> usize {
+
         let vehicle_id_mapping = VehiclesIdMapping::from_population(&population_container);
 
         let (networks, node_id_mapping, link_id_mapping) =
@@ -284,5 +331,15 @@ mod test {
         assert_eq!(scenario2.network.nodes.len(), 12);
         assert_eq!(scenario2.network.links.len(), 21);
         assert_eq!(scenario2.population.agents.len(), 100);
+    }
+
+    #[test]
+    fn partition_equil_scenario() {
+        let io_network = IONetwork::from_file("./assets/equil-network.xml");
+        let io_population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
+
+        let scenario = Scenario::partition_containers(&io_network, &io_population, 2);
+
+        println!("{scenario:#?}")
     }
 }
