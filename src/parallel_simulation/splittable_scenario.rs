@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc};
 
-use metis::Graph;
-
 use crate::container::network::{IONetwork, IONode};
 use crate::container::population::IOPopulation;
 use crate::parallel_simulation::customs::Customs;
@@ -52,45 +50,48 @@ struct PartLink {
 }
 
 impl Scenario {
-    fn map_node_ids<'a>(network_container: &IONetwork) -> MatsimIdMapping<'a> {
-        let mut mapping = MatsimIdMapping::new();
+    /*  fn map_node_ids<'a>(network_container: &IONetwork) -> MatsimIdMapping<'a> {
+         let mut mapping = MatsimIdMapping::new();
 
-        for (i, node) in network_container.nodes().iter().enumerate() {
-            mapping.internal_2_matsim.insert(i, node.id.clone());
-            if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
-                mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
-            }
-        }
+         for (i, node) in network_container.nodes().iter().enumerate() {
+             mapping.internal_2_matsim.insert(i, node.id.clone());
+             if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
+                 mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
+             }
+         }
 
-        mapping
-    }
+         mapping
+     }
 
-    fn map_link_ids<'a>(network_container: &IONetwork) -> MatsimIdMapping<'a> {
-        let mut mapping = MatsimIdMapping::new();
+     fn map_link_ids<'a>(network_container: &IONetwork) -> MatsimIdMapping<'a> {
+         let mut mapping = MatsimIdMapping::new();
 
-        for (i, link) in network_container.links().iter().enumerate() {
-            mapping.internal_2_matsim.insert(i, link.id.clone());
-            if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
-                mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
-            }
-        }
+         for (i, link) in network_container.links().iter().enumerate() {
+             mapping.internal_2_matsim.insert(i, link.id.clone());
+             if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
+                 mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
+             }
+         }
 
-        mapping
-    }
+         mapping
+     }
 
-    fn map_person_ids<'a>(population_container: &IOPopulation) -> MatsimIdMapping<'a> {
-        let mut mapping = MatsimIdMapping::new();
+     fn map_person_ids<'a>(population_container: &IOPopulation) -> MatsimIdMapping<'a> {
+         let mut mapping = MatsimIdMapping::new();
 
-        for (i, person) in population_container.persons.iter().enumerate() {
-            mapping.internal_2_matsim.insert(i, person.id.clone());
-            if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
-                mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
-            }
-        }
+         for (i, person) in population_container.persons.iter().enumerate() {
+             mapping.internal_2_matsim.insert(i, person.id.clone());
+             if let Some(matsim_id) = mapping.internal_2_matsim.get(&i) {
+                 mapping.matsim_2_internal.insert(matsim_id.as_str(), i);
+             }
+         }
 
-        mapping
-    }
+         mapping
+     }
 
+    */
+
+    /*
     fn partition_containers(
         network_container: &IONetwork,
         population_container: &IOPopulation,
@@ -169,6 +170,8 @@ impl Scenario {
 
         result
     }
+
+     */
 
     pub fn from_io(
         network_container: &IONetwork,
