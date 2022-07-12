@@ -1,25 +1,26 @@
 use crate::parallel_simulation::activity_q::ActivityQ;
 use crate::parallel_simulation::splittable_network::{ExitReason, Link, NetworkPartition};
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
-use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioSlice};
+use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
 
 mod activity_q;
 mod customs;
 mod id_mapping;
 mod messages;
+mod partition_info;
 mod splittable_network;
 mod splittable_population;
 mod splittable_scenario;
 mod vehicles;
 
 struct Simulation {
-    scenario: ScenarioSlice,
+    scenario: ScenarioPartition,
     activity_q: ActivityQ,
 }
 
 impl Simulation {
-    fn new(scenario: ScenarioSlice) -> Simulation {
+    fn new(scenario: ScenarioPartition) -> Simulation {
         let mut q = ActivityQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -203,7 +204,7 @@ mod test {
         let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
-        let scenario = Scenario::from_io(&network, &population, 1, |_node| 0);
+        let scenario = Scenario::from_io(&network, &population, 1);
         let mut simulations = Simulation::create_runners(scenario);
 
         assert_eq!(1, simulations.len());
@@ -222,13 +223,7 @@ mod test {
         let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
-        let scenario = Scenario::from_io(&network, &population, 2, |node| {
-            if node.id.eq("node1") || node.id.eq("node2") {
-                0
-            } else {
-                1
-            }
-        });
+        let scenario = Scenario::from_io(&network, &population, 2);
         let simulations = Simulation::create_runners(scenario);
 
         let join_handles: Vec<_> = simulations
@@ -248,19 +243,7 @@ mod test {
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
 
         // convert input into simulation
-        let scenarios =
-            Scenario::from_io(
-                &network,
-                &population,
-                2,
-                |node| {
-                    if node.x < 0. {
-                        0
-                    } else {
-                        1
-                    }
-                },
-            );
+        let scenarios = Scenario::from_io(&network, &population, 2);
         let simulations = Simulation::create_runners(scenarios);
 
         // create threads and start them

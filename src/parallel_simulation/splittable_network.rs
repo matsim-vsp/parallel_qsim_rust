@@ -1,36 +1,43 @@
+use crate::container::matsim_id::MatsimId;
 use crate::container::network::{IOLink, IONetwork, IONode};
-use crate::parallel_simulation::id_mapping::{IdMapping, MatsimIdMappings};
+use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::vehicles::Vehicle;
 use crate::simulation::flow_cap::Flowcap;
 use std::collections::{HashMap, VecDeque};
-use crate::container::matsim_id::MatsimId;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Network {
+    pub partitions: Vec<NetworkPartition>,
+    pub nodes_2_thread: Arc<HashMap<usize, usize>>,
+    pub links_2_thread: Arc<HashMap<usize, usize>>,
+}
+
+pub struct MutNetwork {
     pub partitions: Vec<NetworkPartition>,
     pub nodes_2_thread: HashMap<usize, usize>,
     pub links_2_thread: HashMap<usize, usize>,
 }
 
 impl Network {
-
-    fn new(num_parts: usize) -> Network {
-
-        let mut partitions = Vec::with_capacity(num_parts);
-        for _ in 0..num_parts {
-            partitions.push(NetworkPartition::new());
-        }
-
+    fn from_mut_network(network: MutNetwork) -> Network {
         Network {
-            partitions,
-            nodes_2_thread: HashMap::new(),
-            links_2_thread: HashMap::new(),
+            partitions: network.partitions,
+            nodes_2_thread: Arc::new(network.nodes_2_thread),
+            links_2_thread: Arc::new(network.links_2_thread),
         }
     }
 
-    pub fn from_io<F>(io_network: &IONetwork, num_part: usize, split : F, id_mappings: &MatsimIdMappings) -> Network where F: Fn(&IONode) -> usize {
-
-        let mut result = Network::new(num_part);
+    pub fn from_io<F>(
+        io_network: &IONetwork,
+        num_part: usize,
+        split: F,
+        id_mappings: &MatsimIdMappings,
+    ) -> Network
+    where
+        F: Fn(&IONode) -> usize,
+    {
+        let mut result = MutNetwork::new(num_part);
 
         for node in io_network.nodes() {
             result.add_node(node, id_mappings, &split);
@@ -40,21 +47,50 @@ impl Network {
             result.add_link(link, id_mappings);
         }
 
-        result
+        Network::from_mut_network(result)
     }
 
-    fn add_node<F>(&mut self, node: &IONode, id_mappings: &MatsimIdMappings, split: F) where F: Fn(&IONode) -> usize {
-        let thread = split(node);
-        let node_id = id_mappings.nodes.get_internal(node.id()).unwrap();
-        let network = self.partitions.get_mut(thread).unwrap();
-        network.add_node(*node_id);
+    pub fn get_thread_for_node(&self, node_id: &usize) -> &usize {
+        self.nodes_2_thread.get(node_id).unwrap()
+    }
 
-        self.nodes_2_thread.insert(*node_id, thread);
+    pub fn get_thread_for_link(&self, link_id: &usize) -> &usize {
+        self.links_2_thread.get(link_id).unwrap()
+    }
+}
+
+impl MutNetwork {
+    fn new(num_parts: usize) -> MutNetwork {
+        let mut partitions = Vec::with_capacity(num_parts);
+        for _ in 0..num_parts {
+            partitions.push(NetworkPartition::new());
+        }
+
+        MutNetwork {
+            partitions,
+            nodes_2_thread: HashMap::new(),
+            links_2_thread: HashMap::new(),
+        }
+    }
+
+    fn add_node<F>(&mut self, node: &IONode, id_mappings: &MatsimIdMappings, split: F)
+    where
+        F: Fn(&IONode) -> usize,
+    {
+        let thread = split(node);
+        let node_id = *id_mappings.nodes.get_internal(node.id()).unwrap();
+        let network = self.partitions.get_mut(thread).unwrap();
+        network.add_node(node_id);
+
+        self.nodes_2_thread.insert(node_id, thread);
     }
 
     fn add_link(&mut self, io_link: &IOLink, id_mappings: &MatsimIdMappings) {
         let link_id = *id_mappings.links.get_internal(io_link.id()).unwrap();
-        let from_id = *id_mappings.nodes.get_internal(io_link.from.as_str()).unwrap();
+        let from_id = *id_mappings
+            .nodes
+            .get_internal(io_link.from.as_str())
+            .unwrap();
         let to_id = *id_mappings.nodes.get_internal(io_link.to.as_str()).unwrap();
         let from_thread = *self.get_thread_for_node(&from_id);
         let to_thread = *self.get_thread_for_node(&to_id);
@@ -63,12 +99,10 @@ impl Network {
         if from_thread == to_thread {
             to_network.add_local_link(io_link, link_id, from_id, to_id);
         } else {
-
             to_network.add_split_in_link(io_link, link_id, to_id);
 
             let from_network = self.partitions.get_mut(from_thread).unwrap();
             from_network.add_split_out_link(link_id, from_id, from_thread, to_thread);
-
         }
         // the link is associated with the network which contains its to-node
         self.links_2_thread.insert(link_id, to_thread);
@@ -97,58 +131,6 @@ impl NetworkPartition {
         }
     }
 
-    pub fn split_from_container<F>(
-        container: &IONetwork,
-        size: usize,
-        splitter: F,
-    ) -> (Vec<NetworkPartition>, IdMapping, IdMapping) where F: Fn(&IONode) -> usize {
-        // create the result networks which can then be populated
-        let mut result = Vec::with_capacity(size);
-
-        let mut node_id_mapping = IdMapping::new();
-        let mut link_id_mapping = IdMapping::new();
-
-        for _i in 0..size {
-            result.push(NetworkPartition::new());
-        }
-
-        let mut next_id = 0;
-
-        for node in container.nodes().into_iter() {
-            let thread_id = splitter(node);
-            let network = result.get_mut(thread_id).unwrap();
-
-            network.add_node(next_id);
-            node_id_mapping.insert(next_id, thread_id, node.id.clone());
-            next_id = next_id + 1;
-        }
-
-        next_id = 0;
-        for link in container.links() {
-            let from_id = node_id_mapping.get_from_matsim_id(link.from.as_str());
-            let to_id = node_id_mapping.get_from_matsim_id(link.to.as_str());
-
-            let from_thread = node_id_mapping.get_thread(&from_id);
-            let to_thread = node_id_mapping.get_thread(&to_id);
-
-            if from_thread == to_thread {
-                let network = result.get_mut(from_thread).unwrap();
-                network.add_local_link(link, next_id, from_id, to_id);
-            } else {
-                let from_network = result.get_mut(from_thread).unwrap();
-                from_network.add_split_out_link(next_id, from_id, from_thread, to_thread);
-
-                let to_network = result.get_mut(to_thread).unwrap();
-                to_network.add_split_in_link(link, next_id, to_id);
-            }
-            // the link is associated with the network which contains its to-node
-            link_id_mapping.insert(next_id, to_thread, link.id.clone());
-            next_id = next_id + 1;
-        }
-
-        (result, node_id_mapping, link_id_mapping)
-    }
-
     pub fn add_node(&mut self, id: usize) {
         let node = Node::new(id);
         self.nodes.insert(id, node);
@@ -171,7 +153,13 @@ impl NetworkPartition {
         to.in_links.push(id);
     }
 
-    pub fn add_split_out_link(&mut self, id: usize, from: usize, from_thread: usize, to_thread: usize) {
+    pub fn add_split_out_link(
+        &mut self,
+        id: usize,
+        from: usize,
+        from_thread: usize,
+        to_thread: usize,
+    ) {
         let new_link = SplitLink {
             id,
             from_thread_id: from_thread,
@@ -323,11 +311,12 @@ mod tests {
     use crate::container::network::{IONetwork, IONode};
     use crate::parallel_simulation::splittable_network::NetworkPartition;
 
+    /*
     #[test]
     fn from_container() {
         let io_network = IONetwork::from_file("./assets/equil-network.xml");
         let (split_networks, node_mapping, link_mapping) =
-            NetworkPartition::split_from_container(&io_network, 2, split);
+            NetworkPartition::(&io_network, 2, split);
 
         assert_eq!(split_networks.len(), 2);
 
@@ -351,4 +340,6 @@ mod tests {
             1
         }
     }
+
+     */
 }

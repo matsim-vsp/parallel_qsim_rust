@@ -1,9 +1,10 @@
 use crate::container::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IOPopulation, IORoute,
 };
-use crate::parallel_simulation::id_mapping::IdMapping;
+use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 
-use crate::parallel_simulation::vehicles::VehiclesIdMapping;
+use crate::container::matsim_id::MatsimId;
+use crate::parallel_simulation::splittable_network::Network;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -25,30 +26,26 @@ impl Population {
     pub fn split_from_container(
         container: &IOPopulation,
         size: usize,
-        link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> (Vec<Population>, IdMapping) {
-        let mut next_id = 0;
+        id_mappings: &MatsimIdMappings,
+        network: &Network,
+    ) -> Vec<Population> {
         let mut populations: Vec<Population> = Vec::with_capacity(size);
-        let mut id_mapping = IdMapping::new();
 
         for _i in 0..size {
             populations.push(Population::new());
         }
 
         for person in &container.persons {
-            let agent = Agent::from_person(person, next_id, link_id_mapping, vehicle_id_mapping);
+            let agent = Agent::from_person(person, id_mappings);
 
             if let PlanElement::Activity(act) = agent.current_plan_element() {
-                let thread = link_id_mapping.get_thread(&act.link_id);
+                let thread = *network.get_thread_for_link(&act.link_id);
                 let population = populations.get_mut(thread).unwrap();
                 population.add_agent(agent);
-                id_mapping.insert(next_id, thread, person.id.clone());
             }
-            next_id += 1;
         }
 
-        (populations, id_mapping)
+        populations
     }
 }
 
@@ -60,13 +57,9 @@ pub struct Agent {
 }
 
 impl Agent {
-    fn from_person(
-        person: &IOPerson,
-        id: usize,
-        link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> Agent {
-        let plan = Plan::from_io_plan(person.selected_plan(), link_id_mapping, vehicle_id_mapping);
+    fn from_person(person: &IOPerson, id_mappings: &MatsimIdMappings) -> Agent {
+        let plan = Plan::from_io_plan(person.selected_plan(), id_mappings);
+        let id = *id_mappings.agents.get_internal(person.id()).unwrap();
 
         Agent {
             id,
@@ -101,11 +94,7 @@ pub struct Plan {
 }
 
 impl Plan {
-    fn from_io_plan(
-        plan: &IOPlan,
-        link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> Plan {
+    fn from_io_plan(plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
         // each plan needs at least one element
         assert!(plan.elements.len() > 0);
         if let IOPlanElement::Leg(_leg) = plan.elements.get(0).unwrap() {
@@ -115,7 +104,7 @@ impl Plan {
         let elements = plan
             .elements
             .iter()
-            .map(|el| PlanElement::from_io_element(el, link_id_mapping, vehicle_id_mapping))
+            .map(|el| PlanElement::from_io_element(el, id_mappings))
             .collect();
 
         Plan { elements }
@@ -129,18 +118,12 @@ pub enum PlanElement {
 }
 
 impl PlanElement {
-    fn from_io_element(
-        element: &IOPlanElement,
-        link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> PlanElement {
+    fn from_io_element(element: &IOPlanElement, id_mappings: &MatsimIdMappings) -> PlanElement {
         match element {
             IOPlanElement::Activity(a) => {
-                PlanElement::Activity(Activity::from_io_activity(a, link_id_mapping))
+                PlanElement::Activity(Activity::from_io_activity(a, &id_mappings.links))
             }
-            IOPlanElement::Leg(l) => {
-                PlanElement::Leg(Leg::from_io_leg(l, link_id_mapping, vehicle_id_mapping))
-            }
+            IOPlanElement::Leg(l) => PlanElement::Leg(Leg::from_io_leg(l, id_mappings)),
         }
     }
 }
@@ -157,8 +140,10 @@ pub struct Activity {
 }
 
 impl Activity {
-    fn from_io_activity(activity: &IOActivity, link_id_mapping: &IdMapping) -> Activity {
-        let link_id = link_id_mapping.get_from_matsim_id(activity.link.as_str());
+    fn from_io_activity(activity: &IOActivity, link_id_mapping: &MatsimIdMapping) -> Activity {
+        let link_id = *link_id_mapping
+            .get_internal(activity.link.as_str())
+            .unwrap();
         Activity {
             x: activity.x,
             y: activity.y,
@@ -195,12 +180,8 @@ pub struct Leg {
 }
 
 impl Leg {
-    fn from_io_leg(
-        leg: &IOLeg,
-        link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> Leg {
-        let route = Route::from_io_route(&leg.route, link_id_mapping, vehicle_id_mapping);
+    fn from_io_leg(leg: &IOLeg, id_mappings: &MatsimIdMappings) -> Leg {
+        let route = Route::from_io_route(&leg.route, id_mappings);
 
         Leg {
             mode: leg.mode.clone(), // this should be different
@@ -218,18 +199,12 @@ pub enum Route {
 }
 
 impl Route {
-    fn from_io_route(
-        route: &IORoute,
-        link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> Route {
+    fn from_io_route(route: &IORoute, id_mappings: &MatsimIdMappings) -> Route {
         match route.r#type.as_str() {
-            "generic" => Route::GenericRoute(GenericRoute::from_io_route(route, link_id_mapping)),
-            "links" => Route::NetworkRoute(NetworkRoute::from_io_route(
-                route,
-                link_id_mapping,
-                vehicle_id_mapping,
-            )),
+            "generic" => {
+                Route::GenericRoute(GenericRoute::from_io_route(route, &id_mappings.links))
+            }
+            "links" => Route::NetworkRoute(NetworkRoute::from_io_route(route, id_mappings)),
             _ => panic!("Unsupported route type: '{}'", route.r#type),
         }
     }
@@ -244,9 +219,13 @@ pub struct GenericRoute {
 }
 
 impl GenericRoute {
-    fn from_io_route(route: &IORoute, link_id_mapping: &IdMapping) -> GenericRoute {
-        let start_link = link_id_mapping.get_from_matsim_id(route.start_link.as_str());
-        let end_link = link_id_mapping.get_from_matsim_id(route.end_link.as_str());
+    fn from_io_route(route: &IORoute, link_id_mapping: &MatsimIdMapping) -> GenericRoute {
+        let start_link = *link_id_mapping
+            .get_internal(route.start_link.as_str())
+            .unwrap();
+        let end_link = *link_id_mapping
+            .get_internal(route.end_link.as_str())
+            .unwrap();
         let trav_time = parse_time_opt(&route.trav_time).unwrap();
 
         GenericRoute {
@@ -266,19 +245,18 @@ pub struct NetworkRoute {
 
 impl NetworkRoute {
     // this could probably be implemented via from<t> trait.
-    fn from_io_route(
-        route: &IORoute,
-        link_id_mapping: &IdMapping,
-        vehicle_id_mapping: &VehiclesIdMapping,
-    ) -> NetworkRoute {
+    fn from_io_route(route: &IORoute, id_mappings: &MatsimIdMappings) -> NetworkRoute {
         if let Some(ref encoded_links) = route.route {
             if let Some(ref matsim_veh_id) = route.vehicle {
                 let link_ids = encoded_links
                     .split(' ')
-                    .map(|id| link_id_mapping.get_from_matsim_id(id))
+                    .map(|id| *id_mappings.links.get_internal(id).unwrap())
                     .collect();
 
-                let vehicle_id = vehicle_id_mapping.get_from_matsim_id(matsim_veh_id);
+                let vehicle_id = *id_mappings
+                    .vehicles
+                    .get_internal(matsim_veh_id.as_str())
+                    .unwrap();
 
                 return NetworkRoute {
                     vehicle_id,

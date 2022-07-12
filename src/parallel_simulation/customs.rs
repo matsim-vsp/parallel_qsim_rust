@@ -1,4 +1,3 @@
-use crate::parallel_simulation::id_mapping::IdMapping;
 use crate::parallel_simulation::messages::Message;
 use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::vehicles::Vehicle;
@@ -12,11 +11,15 @@ pub struct Customs {
     receiver: Receiver<Message>,
     senders: HashMap<usize, Sender<Message>>,
     out_messages: HashMap<usize, Message>,
-    link_id_mapping: Arc<IdMapping>,
+    link_id_mapping: Arc<HashMap<usize, usize>>,
 }
 
 impl Customs {
-    pub fn new(id: usize, receiver: Receiver<Message>, link_id_mapping: Arc<IdMapping>) -> Customs {
+    pub fn new(
+        id: usize,
+        receiver: Receiver<Message>,
+        link_id_mapping: Arc<HashMap<usize, usize>>,
+    ) -> Customs {
         Customs {
             id,
             receiver,
@@ -55,7 +58,7 @@ impl Customs {
 
     pub fn prepare_to_send(&mut self, agent: Agent, vehicle: Vehicle) {
         let link_id = vehicle.current_link_id().unwrap();
-        let thread = self.link_id_mapping.get_thread(link_id);
+        let thread = *self.link_id_mapping.get(link_id).unwrap();
         let message = self.out_messages.entry(thread).or_insert(Message::new());
 
         println!(
