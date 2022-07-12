@@ -1,5 +1,5 @@
 use crate::parallel_simulation::activity_q::ActivityQ;
-use crate::parallel_simulation::splittable_network::{ExitReason, Link, Network};
+use crate::parallel_simulation::splittable_network::{ExitReason, Link, NetworkPartition};
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioSlice};
 use crate::parallel_simulation::vehicles::Vehicle;
@@ -161,7 +161,7 @@ impl Simulation {
     }
 
     fn push_onto_network(
-        network: &mut Network,
+        network: &mut NetworkPartition,
         agent: &Agent,
         route_index: usize,
     ) -> Option<Vehicle> {

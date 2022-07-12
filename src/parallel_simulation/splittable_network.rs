@@ -1,16 +1,95 @@
 use crate::container::network::{IOLink, IONetwork, IONode};
-use crate::parallel_simulation::id_mapping::IdMapping;
+use crate::parallel_simulation::id_mapping::{IdMapping, MatsimIdMappings};
 use crate::parallel_simulation::vehicles::Vehicle;
 use crate::simulation::flow_cap::Flowcap;
 use std::collections::{HashMap, VecDeque};
+use crate::container::matsim_id::MatsimId;
 
 #[derive(Debug)]
 pub struct Network {
+    pub partitions: Vec<NetworkPartition>,
+    pub nodes_2_thread: HashMap<usize, usize>,
+    pub links_2_thread: HashMap<usize, usize>,
+}
+
+impl Network {
+
+    fn new(num_parts: usize) -> Network {
+
+        let mut partitions = Vec::with_capacity(num_parts);
+        for _ in 0..num_parts {
+            partitions.push(NetworkPartition::new());
+        }
+
+        Network {
+            partitions,
+            nodes_2_thread: HashMap::new(),
+            links_2_thread: HashMap::new(),
+        }
+    }
+
+    pub fn from_io<F>(io_network: &IONetwork, num_part: usize, split : F, id_mappings: &MatsimIdMappings) -> Network where F: Fn(&IONode) -> usize {
+
+        let mut result = Network::new(num_part);
+
+        for node in io_network.nodes() {
+            result.add_node(node, id_mappings, &split);
+        }
+
+        for link in io_network.links() {
+            result.add_link(link, id_mappings);
+        }
+
+        result
+    }
+
+    fn add_node<F>(&mut self, node: &IONode, id_mappings: &MatsimIdMappings, split: F) where F: Fn(&IONode) -> usize {
+        let thread = split(node);
+        let node_id = id_mappings.nodes.get_internal(node.id()).unwrap();
+        let network = self.partitions.get_mut(thread).unwrap();
+        network.add_node(*node_id);
+
+        self.nodes_2_thread.insert(*node_id, thread);
+    }
+
+    fn add_link(&mut self, io_link: &IOLink, id_mappings: &MatsimIdMappings) {
+        let link_id = *id_mappings.links.get_internal(io_link.id()).unwrap();
+        let from_id = *id_mappings.nodes.get_internal(io_link.from.as_str()).unwrap();
+        let to_id = *id_mappings.nodes.get_internal(io_link.to.as_str()).unwrap();
+        let from_thread = *self.get_thread_for_node(&from_id);
+        let to_thread = *self.get_thread_for_node(&to_id);
+        let to_network = self.partitions.get_mut(to_thread).unwrap();
+
+        if from_thread == to_thread {
+            to_network.add_local_link(io_link, link_id, from_id, to_id);
+        } else {
+
+            to_network.add_split_in_link(io_link, link_id, to_id);
+
+            let from_network = self.partitions.get_mut(from_thread).unwrap();
+            from_network.add_split_out_link(link_id, from_id, from_thread, to_thread);
+
+        }
+        // the link is associated with the network which contains its to-node
+        self.links_2_thread.insert(link_id, to_thread);
+    }
+
+    fn get_thread_for_node(&self, node_id: &usize) -> &usize {
+        self.nodes_2_thread.get(node_id).unwrap()
+    }
+
+    fn get_thread_for_link(&self, link_id: &usize) -> &usize {
+        self.links_2_thread.get(link_id).unwrap()
+    }
+}
+
+#[derive(Debug)]
+pub struct NetworkPartition {
     pub links: HashMap<usize, Link>,
     pub nodes: HashMap<usize, Node>,
 }
 
-impl Network {
+impl NetworkPartition {
     fn new() -> Self {
         Self {
             links: HashMap::new(),
@@ -22,7 +101,7 @@ impl Network {
         container: &IONetwork,
         size: usize,
         splitter: F,
-    ) -> (Vec<Network>, IdMapping, IdMapping) where F: Fn(&IONode) -> usize {
+    ) -> (Vec<NetworkPartition>, IdMapping, IdMapping) where F: Fn(&IONode) -> usize {
         // create the result networks which can then be populated
         let mut result = Vec::with_capacity(size);
 
@@ -30,7 +109,7 @@ impl Network {
         let mut link_id_mapping = IdMapping::new();
 
         for _i in 0..size {
-            result.push(Network::new());
+            result.push(NetworkPartition::new());
         }
 
         let mut next_id = 0;
@@ -70,12 +149,12 @@ impl Network {
         (result, node_id_mapping, link_id_mapping)
     }
 
-    fn add_node(&mut self, id: usize) {
+    pub fn add_node(&mut self, id: usize) {
         let node = Node::new(id);
         self.nodes.insert(id, node);
     }
 
-    fn add_local_link(&mut self, link: &IOLink, id: usize, from: usize, to: usize) {
+    pub fn add_local_link(&mut self, link: &IOLink, id: usize, from: usize, to: usize) {
         let new_link = LocalLink {
             id,
             q: VecDeque::new(),
@@ -92,7 +171,7 @@ impl Network {
         to.in_links.push(id);
     }
 
-    fn add_split_out_link(&mut self, id: usize, from: usize, from_thread: usize, to_thread: usize) {
+    pub fn add_split_out_link(&mut self, id: usize, from: usize, from_thread: usize, to_thread: usize) {
         let new_link = SplitLink {
             id,
             from_thread_id: from_thread,
@@ -105,7 +184,7 @@ impl Network {
         from_node.out_links.push(id);
     }
 
-    fn add_split_in_link(&mut self, link: &IOLink, id: usize, to: usize) {
+    pub fn add_split_in_link(&mut self, link: &IOLink, id: usize, to: usize) {
         let new_link = LocalLink {
             id,
             q: VecDeque::new(),
@@ -242,13 +321,13 @@ pub enum ExitReason {
 #[cfg(test)]
 mod tests {
     use crate::container::network::{IONetwork, IONode};
-    use crate::parallel_simulation::splittable_network::Network;
+    use crate::parallel_simulation::splittable_network::NetworkPartition;
 
     #[test]
     fn from_container() {
         let io_network = IONetwork::from_file("./assets/equil-network.xml");
         let (split_networks, node_mapping, link_mapping) =
-            Network::split_from_container(&io_network, 2, split);
+            NetworkPartition::split_from_container(&io_network, 2, split);
 
         assert_eq!(split_networks.len(), 2);
 

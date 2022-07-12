@@ -6,7 +6,7 @@ use crate::container::network::{IONetwork, IONode};
 use crate::container::population::{IOPlanElement, IOPopulation};
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::id_mapping::IdMapping;
-use crate::parallel_simulation::splittable_network::{ Network};
+use crate::parallel_simulation::splittable_network::{NetworkPartition};
 use crate::parallel_simulation::splittable_population::{ Population};
 use crate::parallel_simulation::vehicles::VehiclesIdMapping;
 
@@ -23,7 +23,7 @@ pub struct Scenario {
 
 #[derive(Debug)]
 pub struct ScenarioSlice {
-    pub network: Network,
+    pub network: NetworkPartition,
     pub population: Population,
     pub customs: Customs,
 }
@@ -229,7 +229,7 @@ impl Scenario {
         let vehicle_id_mapping = VehiclesIdMapping::from_population(&population_container);
 
         let (networks, node_id_mapping, link_id_mapping) =
-            Network::split_from_container(network_container, size, split);
+            NetworkPartition::split_from_container(network_container, size, split);
         let (mut populations, agent_id_mapping) = Population::split_from_container(
             &population_container,
             size,

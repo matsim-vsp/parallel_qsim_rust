@@ -1,11 +1,18 @@
 use crate::container::xml_reader;
 use serde::Deserialize;
+use crate::container::matsim_id::MatsimId;
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IONode {
     pub id: String,
     pub x: f32,
     pub y: f32,
+}
+
+impl MatsimId for IONode {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -17,6 +24,12 @@ pub struct IOLink {
     pub capacity: f32,
     pub freespeed: f32,
     pub permlanes: f32,
+}
+
+impl MatsimId for IOLink {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

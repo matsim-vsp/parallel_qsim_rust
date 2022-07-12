@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use crate::container::matsim_id::MatsimId;
 
 use crate::container::xml_reader;
 
@@ -59,6 +60,12 @@ pub struct IOPerson {
     pub id: String,
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,
+}
+
+impl MatsimId for IOPerson {
+    fn id(&self) -> &str {
+        self.id.as_str()
+    }
 }
 
 impl IOPerson {
