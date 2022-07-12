@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE network SYSTEM "http://www.matsim.org/files/dtd/network_v2.dtd">
+<network name="simple network">
+
+<!-- ====================================================================== -->
+
+	<nodes>
+		<node id="node-with-attr" x="100.0" y="100.0" >
+			<attributes>
+				<attribute name="test" class="java.lang.String">value</attribute>
+			</attributes>
+		</node>
+		<node id="node-without-attr" x="200.0" y="200.0" >
+		</node>
+	</nodes>
+
+<!-- ====================================================================== -->
+
+	<links capperiod="01:00:00" effectivecellsize="7.5" effectivelanewidth="3.75">
+		<link id="link-with-attr" from="node-with-attr" to="node-without-attr" length="141.4213562373095" freespeed="100.0" capacity="100.0" permlanes="2.0" oneway="1" modes="car,other-mode" >
+			<attributes>
+				<attribute name="test" class="java.lang.String">value</attribute>
+			</attributes>
+		</link>
+		<link id="link-without-attr" from="node-without-attr" to="node-with-attr" length="141.4213562373095" freespeed="100.0" capacity="100.0" permlanes="2.0" oneway="1" modes="car,other-mode" >
+		</link>
+	</links>
+
+<!-- ====================================================================== -->
+
+</network>
