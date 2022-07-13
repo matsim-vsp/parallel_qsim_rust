@@ -86,7 +86,10 @@ impl PartitionInfo {
 
         println!("PartitionInfo: Calling Metis Partitioning Library.");
         Graph::new(1, num_parts, &mut xadj, &mut adjncy)
-            .set_adjwgt(&mut adjwgt)
+            // I would like to use make metis not part busy links, but this didn't work on the first try
+            // come back later and figure out the details. The first attempt with only weighting nodes
+            // seems to be okay for starters.
+            //.set_adjwgt(&mut adjwgt)
             .set_vwgt(&mut vwgt)
             .part_kway(&mut result)
             .unwrap();

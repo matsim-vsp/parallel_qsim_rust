@@ -211,12 +211,13 @@ mod test {
     #[test]
     #[ignore]
     fn create_berlin_scenario() {
-        let mut io_network =
-            IONetwork::from_file("/home/janek/test-files/berlin-v5.5.3-1pct.output_network.xml.gz");
-        let io_population = IOPopulation::from_file(
-            "/home/janek/test-files/berlin-v5.5.3-1pct.selected_output_plans.xml.gz",
+        let mut io_network = IONetwork::from_file(
+            "/home/janek/test-files/berlin-v5.5.3-1pct.no-pt-output_network.xml.gz",
         );
-        let num_parts = 4;
+        let io_population = IOPopulation::from_file(
+            "/home/janek/test-files/berlin-v5.5.3.selected-no-pt_output_plans.xml.gz",
+        );
+        let num_parts = 12;
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_berlin_scenario/",
         );
@@ -224,7 +225,7 @@ mod test {
         let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, output_folder);
 
         println!("Create Berlin Scenario Test: Finished creating scenario. Writing network.");
-        let network_file = output_folder.join("output_network.xml.gz");
+        let network_file = output_folder.join("output_12_network.xml.gz");
         io_network.to_file(&network_file);
 
         println!("Done");
