@@ -1,24 +1,24 @@
 use crate::container::matsim_id::MatsimId;
 use crate::container::xml_reader;
-use flate2::read::GzEncoder;
 use flate2::Compression;
-use quick_xml::events::attributes::Attributes;
-use quick_xml::se::{to_string, to_writer};
+use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::fs::File;
 use std::io::BufWriter;
+use std::path::Path;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Attr {
-    name: String,
+    pub name: String,
     #[serde(rename = "$value")]
-    value: String,
+    pub value: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Attrs {
     #[serde(rename = "attribute", default)]
-    attributes: Vec<Attr>,
+    pub attributes: Vec<Attr>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -26,6 +26,7 @@ pub struct IONode {
     pub id: String,
     pub x: f32,
     pub y: f32,
+    pub attributes: Option<Attrs>,
 }
 
 impl MatsimId for IONode {
@@ -85,9 +86,17 @@ impl IONetwork {
         xml_reader::read(file_path)
     }
 
-    pub fn to_file(&self, file_path: &str) {
-        let file = File::create(file_path).unwrap();
-        let encoder = GzEncoder::new(file, Compression::fast());
+    pub fn to_file(&self, path: &Path) {
+        // Create the file and all necessary directories
+        // this doesn't cover some edge cases, but this will do for now
+        //let path = Path::new(file_path);
+        let prefix = path.parent().unwrap();
+        fs::create_dir_all(prefix).unwrap();
+        let file = File::create(path).unwrap();
+
+        // start writing gz stream to the file. This will eventually move into a separate file, once
+        // we want to write other stuff as well.
+        let encoder = flate2::write::GzEncoder::new(file, Compression::fast());
         let writer = BufWriter::new(encoder);
         to_writer(writer, self).unwrap();
 
@@ -99,11 +108,34 @@ impl IONetwork {
 mod tests {
     use quick_xml::de::from_str;
     use std::error::Error;
+    use std::fs;
+    use std::path::PathBuf;
 
-    use crate::container::network::IONetwork;
+    use crate::container::network::{Attrs, IONetwork};
+
+    static OUTPUT_FOLDER: &str = "./test_output/container/network/";
+
+    fn get_output_folder(name: &str) -> PathBuf {
+        let path = format!("{OUTPUT_FOLDER}{name}/");
+        PathBuf::from(&path)
+    }
+
+    fn clear_output_folder(name: &str) {
+        let folder_path = get_output_folder(name);
+
+        if let Ok(iter) = fs::read_dir(folder_path) {
+            for entry in iter {
+                fs::remove_file(entry.unwrap().path()).unwrap();
+            }
+        }
+    }
 
     #[test]
-    fn write_simple_network() {
+    fn write_and_read_simple_network() {
+        // set up
+        let test_name = "write_and_read_simple_network";
+        clear_output_folder(&test_name);
+
         let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
                 <!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v1.dtd\">
                 <network name=\"test network\">
@@ -116,8 +148,12 @@ mod tests {
                 </network>
             ";
 
-        let result: IONetwork = from_str(xml).unwrap();
-        result.to_file("./network.xml.gz");
+        let network: IONetwork = from_str(xml).unwrap();
+        let file_path = get_output_folder(&test_name).join("network.xml.gz");
+        network.to_file(&file_path);
+
+        let result = IONetwork::from_file(file_path.to_str().unwrap());
+        assert_eq!(network, result);
     }
 
     #[test]
@@ -172,6 +208,35 @@ mod tests {
         assert_eq!("simple network", network.name.as_ref().unwrap());
         assert_eq!(2, network.nodes().len());
         assert_eq!(2, network.links().len());
+
+        for node in network.nodes() {
+            match &node.attributes {
+                None => {
+                    assert_eq!("node-without-attr", node.id);
+                }
+                Some(attrs) => {
+                    assert_eq!(1, attrs.attributes.len());
+                    let attr = attrs.attributes.get(0).unwrap();
+                    assert_eq!("test", attr.name);
+                    assert_eq!("value", attr.value);
+                }
+            }
+        }
+
+        for link in network.links() {
+            match &link.attributes {
+                None => {
+                    assert_eq!("link-without-attr", link.id);
+                }
+                Some(attrs) => {
+                    assert_eq!("link-with-attr", link.id);
+                    assert_eq!(1, attrs.attributes.len());
+                    let attr = attrs.attributes.get(0).unwrap();
+                    assert_eq!("test", attr.name);
+                    assert_eq!("value", attr.value);
+                }
+            }
+        }
 
         println!("{network:#?}");
     }

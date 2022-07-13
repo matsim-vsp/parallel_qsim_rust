@@ -1,4 +1,3 @@
-use flate2::bufread::GzDecoder;
 use quick_xml::de::from_reader;
 use serde::de::DeserializeOwned;
 use std::fs::File;
@@ -13,7 +12,8 @@ where
 
     // I guess this could be prettier, but I don't know how to achieve this in Rust yet :-/
     return if file_path.ends_with(".xml.gz") {
-        let decoder = GzDecoder::new(buffered_reader);
+        // use full name, to avoid ambiguity
+        let decoder = flate2::read::GzDecoder::new(buffered_reader);
         let buffered_decoder = BufReader::new(decoder);
         let result: T = from_reader(buffered_decoder).unwrap();
         result
