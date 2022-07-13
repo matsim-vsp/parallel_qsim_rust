@@ -32,19 +32,25 @@ impl PartitionInfo {
         id_mappings: &MatsimIdMappings,
         num_parts: usize,
     ) -> PartitionInfo {
+        println!("PartitionInfo: calculating node and link weights.");
         let (node_weights, link_weights) =
             PartitionInfo::calculate_weights(io_network, io_population, id_mappings);
+        println!("PartitionInfo: converting nodes to partition nodes");
         let mut partition_nodes =
             PartitionInfo::create_partition_nodes(io_network, &node_weights, &id_mappings.nodes);
+        println!("PartitionInfo: converting links to partition links");
         let partition_links = PartitionInfo::create_partition_links(
             io_network,
             &link_weights,
             &mut partition_nodes,
             id_mappings,
         );
+
+        println!("PartitionInfo: starting Partitioning.");
         let partition_result =
             PartitionInfo::partition(partition_nodes, partition_links, num_parts as i32);
 
+        println!("PartitionInfo: finished Partitioning.");
         PartitionInfo {
             num_parts,
             partition_result,
@@ -64,6 +70,7 @@ impl PartitionInfo {
         let mut vwgt: Vec<i32> = Vec::new();
         let mut result = vec![0x00; nodes.len()];
 
+        println!("PartitionInfo: converting nodes and links to ajacency format for metis.");
         for node in nodes {
             let num_out_links = node.out_links.len() as i32;
             let next_adjacency_index = xadj.last().unwrap() + num_out_links;
@@ -77,6 +84,7 @@ impl PartitionInfo {
             }
         }
 
+        println!("PartitionInfo: Calling Metis Partitioning Library.");
         Graph::new(1, num_parts, &mut xadj, &mut adjncy)
             .set_adjwgt(&mut adjwgt)
             .set_vwgt(&mut vwgt)

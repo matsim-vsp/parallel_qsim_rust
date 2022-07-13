@@ -193,6 +193,7 @@ mod test {
     use crate::container::population::IOPopulation;
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use crate::parallel_simulation::Simulation;
+    use std::path::Path;
     use std::thread;
     use std::thread::JoinHandle;
 
@@ -201,10 +202,10 @@ mod test {
     /// without passing messages to other simulation slices works.
     #[test]
     fn run_single_agent_single_slice() {
-        let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
+        let mut network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
-        let scenario = Scenario::from_io(&network, &population, 1);
+        let scenario = Scenario::from_io(&mut network, &population, 1, Path::new(""));
         let mut simulations = Simulation::create_runners(scenario);
 
         assert_eq!(1, simulations.len());
@@ -220,10 +221,10 @@ mod test {
     /// the other domain, leaves link2, enters link3 and finishes its route on link3
     #[test]
     fn run_single_agent_two_slices() {
-        let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
+        let mut network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
-        let scenario = Scenario::from_io(&network, &population, 2);
+        let scenario = Scenario::from_io(&mut network, &population, 2, Path::new(""));
         let simulations = Simulation::create_runners(scenario);
 
         let join_handles: Vec<_> = simulations
@@ -239,11 +240,11 @@ mod test {
     #[test]
     fn run_equil_scenario() {
         // load input files
-        let network = IONetwork::from_file("./assets/equil-network.xml");
+        let mut network = IONetwork::from_file("./assets/equil-network.xml");
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
 
         // convert input into simulation
-        let scenarios = Scenario::from_io(&network, &population, 2);
+        let scenarios = Scenario::from_io(&mut network, &population, 2, Path::new(""));
         let simulations = Simulation::create_runners(scenarios);
 
         // create threads and start them

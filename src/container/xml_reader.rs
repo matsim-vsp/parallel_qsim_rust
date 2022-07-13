@@ -7,7 +7,9 @@ pub fn read<T>(file_path: &str) -> T
 where
     T: DeserializeOwned,
 {
-    let file = File::open(file_path).unwrap();
+    println!("Attempting to read file at: {}", file_path);
+    let file =
+        File::open(file_path).unwrap_or_else(|_| panic!("Could not open file at {}", file_path));
     let buffered_reader = BufReader::new(file);
 
     // I guess this could be prettier, but I don't know how to achieve this in Rust yet :-/

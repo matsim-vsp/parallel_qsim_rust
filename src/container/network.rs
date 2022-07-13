@@ -11,6 +11,7 @@ use std::path::Path;
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct Attr {
     pub name: String,
+    pub class: String,
     #[serde(rename = "$value")]
     pub value: String,
 }
@@ -78,12 +79,27 @@ impl IONetwork {
         &self.nodes.nodes
     }
 
+    pub fn nodes_mut(&mut self) -> &mut Vec<IONode> {
+        &mut self.nodes.nodes
+    }
+
     pub fn links(&self) -> &Vec<IOLink> {
         &self.links.links
     }
 
+    pub fn links_mut(&mut self) -> &mut Vec<IOLink> {
+        &mut self.links.links
+    }
+
     pub fn from_file(file_path: &str) -> IONetwork {
-        xml_reader::read(file_path)
+        let network: IONetwork = xml_reader::read(file_path);
+        println!(
+            "Finished reading network. It contains {} nodes and {} links.",
+            network.nodes().len(),
+            network.links().len()
+        );
+
+        network
     }
 
     pub fn to_file(&self, path: &Path) {
