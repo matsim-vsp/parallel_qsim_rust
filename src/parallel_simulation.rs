@@ -1,6 +1,9 @@
 use crate::parallel_simulation::activity_q::ActivityQ;
+use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::splittable_network::{ExitReason, Link, NetworkPartition};
-use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
+use crate::parallel_simulation::splittable_population::{
+    Agent, GenericRoute, Leg, NetworkRoute, PlanElement, Route,
+};
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
 
@@ -92,7 +95,23 @@ impl Simulation {
         for id in agents_2_link {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
             agent.advance_plan();
-            Simulation::push_onto_network(&mut self.scenario.network, &agent, 0);
+
+            if let PlanElement::Leg(leg) = agent.current_plan_element() {
+                match &leg.route {
+                    Route::NetworkRoute(net_route) => {
+                        Simulation::push_onto_network(
+                            &mut self.scenario.network,
+                            net_route,
+                            0,
+                            agent.id,
+                        );
+                    }
+                    Route::GenericRoute(_) => {
+                        let agent = self.scenario.population.agents.remove(&id).unwrap();
+                        self.scenario.customs.prepare_to_teleport(agent);
+                    }
+                }
+            }
         }
     }
 
@@ -138,13 +157,18 @@ impl Simulation {
                     "Thread #{} has received Agent #{} with route index {}",
                     self.scenario.customs.id, agent.id, route_index
                 );
-                match Simulation::push_onto_network(&mut self.scenario.network, &agent, route_index)
-                {
-                    Some(vehicle) => {
-                        self.scenario.customs.prepare_to_send(agent, vehicle);
-                    }
-                    None => {
-                        self.scenario.population.agents.insert(agent.id, agent);
+                if let PlanElement::Leg(leg) = agent.current_plan_element() {
+                    match &leg.route {
+                        Route::NetworkRoute(net_route) => {
+                            Simulation::push_onto_network(
+                                &mut self.scenario.network,
+                                net_route,
+                                route_index,
+                                agent.id,
+                            );
+                            self.scenario.population.agents.insert(agent.id, agent);
+                        }
+                        Route::GenericRoute(_) => {}
                     }
                 }
             }
@@ -163,27 +187,47 @@ impl Simulation {
 
     fn push_onto_network(
         network: &mut NetworkPartition,
-        agent: &Agent,
+        route: &NetworkRoute,
         route_index: usize,
+        driver_id: usize,
     ) -> Option<Vehicle> {
-        if let PlanElement::Leg(leg) = agent.current_plan_element() {
-            if let Route::NetworkRoute(ref route) = leg.route {
-                let mut vehicle = Vehicle::new(route.vehicle_id, agent.id, route.route.clone());
-                vehicle.route_index = route_index;
-                let link_id = route.route.get(route_index).unwrap();
-                let link = network.links.get_mut(link_id).unwrap();
+        let mut vehicle = Vehicle::new(route.vehicle_id, driver_id, route.route.clone());
+        vehicle.route_index = route_index;
+        let link_id = route.route.get(route_index).unwrap();
+        let link = network.links.get_mut(link_id).unwrap();
 
-                return match link {
-                    Link::LocalLink(local_link) => {
-                        local_link.push_vehicle(vehicle);
-                        None
-                    }
-                    // I am not sure whether this is even possible.
-                    Link::SplitLink(_) => Some(vehicle),
-                };
+        return match link {
+            Link::LocalLink(local_link) => {
+                local_link.push_vehicle(vehicle);
+                None
+            }
+            // I am not sure whether this is even possible.
+            Link::SplitLink(_) => Some(vehicle),
+        };
+
+        panic!("Currently only network routes are implemented.")
+    }
+
+    fn handle_generic_route(customs: &mut Customs, activity_q: &mut ActivityQ, agent: Agent) {
+        let (start_thread, end_thread) =
+            Simulation::get_thread_ids_for_generic_route(&agent, customs);
+        if start_thread == end_thread {
+            // put agent into teleportation q
+        } else {
+            // put agent into customs
+            customs.prepare_to_teleport(agent);
+        }
+    }
+
+    fn get_thread_ids_for_generic_route(agent: &Agent, customs: &Customs) -> (usize, usize) {
+        if let PlanElement::Leg(leg) = agent.current_plan_element() {
+            if let Route::GenericRoute(route) = &leg.route {
+                let start_thread = *customs.get_thread_id(&route.start_link);
+                let end_thread = *customs.get_thread_id(&route.end_link);
+                return (start_thread, end_thread);
             }
         }
-        panic!("Currently only network routes are implemented.")
+        panic!("This should not happen!!!")
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::parallel_simulation::messages::Message;
-use crate::parallel_simulation::splittable_population::Agent;
+use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
@@ -27,6 +27,10 @@ impl Customs {
             out_messages: HashMap::new(),
             link_id_mapping,
         }
+    }
+
+    pub fn get_thread_id(&self, link_id: &usize) -> &usize {
+        self.link_id_mapping.get(link_id).unwrap()
     }
 
     pub fn add_sender(&mut self, to: usize, sender: Sender<Message>) {
@@ -65,6 +69,22 @@ impl Customs {
             "Prepare to send Agent #{} with route_index {} from thread #{} to thread #{}",
             agent.id, vehicle.route_index, self.id, thread
         );
-        message.add(agent, vehicle.route_index);
+        message.add_driver(agent, vehicle.route_index);
+    }
+
+    pub fn prepare_to_teleport(&mut self, agent: Agent) {
+        if let PlanElement::Leg(leg) = agent.current_plan_element() {
+            if let Route::GenericRoute(route) = &leg.route {
+                let end_link = route.end_link;
+                let thread = *self.link_id_mapping.get(&end_link).unwrap();
+                let message = self.out_messages.entry(thread).or_insert(Message::new());
+
+                println!(
+                    "Prepare to send teleported Agent #{} from thread #{} to thread #{}",
+                    agent.id, self.id, thread
+                );
+                message.add_teleported(agent);
+            }
+        }
     }
 }
