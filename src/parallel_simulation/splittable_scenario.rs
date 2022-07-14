@@ -29,7 +29,6 @@ impl Scenario {
         io_network: &mut IONetwork,
         io_population: &IOPopulation,
         num_parts: usize,
-        output_folder: &Path,
     ) -> Scenario {
         println!("Splittable Scenario creating Id mappings");
         let id_mappings = MatsimIdMappings::from_io(io_network, io_population);
@@ -184,7 +183,7 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_3_links_scenario/",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, output_folder);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
         let network_file = output_folder.join("output_network.xml.gz");
         io_network.to_file(&network_file);
@@ -200,7 +199,7 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_equil_scenario",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, output_folder);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
         let network_file = output_folder.join("output_network.xml.gz");
         io_network.to_file(&network_file);
@@ -222,7 +221,7 @@ mod test {
             "./test_output/parallel_simulation/splittable_scenario/create_berlin_scenario/",
         );
 
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, output_folder);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
         println!("Create Berlin Scenario Test: Finished creating scenario. Writing network.");
         let network_file = output_folder.join("output_12_network.xml.gz");

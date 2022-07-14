@@ -32,6 +32,14 @@ impl PartitionInfo {
         id_mappings: &MatsimIdMappings,
         num_parts: usize,
     ) -> PartitionInfo {
+        if num_parts == 1 {
+            println!("PartitionInfo: 'num_parts' is 1. No partitioning necessary. Put all nodes into partition 0.");
+            return PartitionInfo {
+                num_parts,
+                partition_result: vec![0; io_network.nodes().len()],
+                node_id_mapping: id_mappings.nodes.clone(),
+            };
+        }
         println!("PartitionInfo: calculating node and link weights.");
         let (node_weights, link_weights) =
             PartitionInfo::calculate_weights(io_network, io_population, id_mappings);
