@@ -1,13 +1,14 @@
-use crate::parallel_simulation::activity_q::ActivityQ;
+use crate::parallel_simulation::agent_q::AgentQ;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::splittable_network::{ExitReason, Link, NetworkPartition};
-use crate::parallel_simulation::splittable_population::{
-    Agent, GenericRoute, Leg, NetworkRoute, PlanElement, Route,
-};
+use crate::parallel_simulation::splittable_population::Agent;
+use crate::parallel_simulation::splittable_population::NetworkRoute;
+use crate::parallel_simulation::splittable_population::PlanElement;
+use crate::parallel_simulation::splittable_population::Route;
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
 
-mod activity_q;
+mod agent_q;
 mod customs;
 mod id_mapping;
 mod messages;
@@ -19,12 +20,13 @@ mod vehicles;
 
 struct Simulation {
     scenario: ScenarioPartition,
-    activity_q: ActivityQ,
+    activity_q: AgentQ,
+    teleportation_q: AgentQ,
 }
 
 impl Simulation {
     fn new(scenario: ScenarioPartition) -> Simulation {
-        let mut q = ActivityQ::new();
+        let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
         }
@@ -32,6 +34,7 @@ impl Simulation {
         Simulation {
             scenario,
             activity_q: q,
+            teleportation_q: AgentQ::new(),
         }
     }
 
@@ -39,7 +42,7 @@ impl Simulation {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
-            .map(|slice| Simulation::new(slice))
+            .map(Simulation::new)
             .collect();
 
         simulations
@@ -47,7 +50,7 @@ impl Simulation {
 
     fn run(&mut self) {
         println!(
-            "Starting simulation loop for Scenario Slice #{}",
+            "Simulation #{}: Starting simulation loop.",
             self.scenario.customs.id
         );
 
@@ -72,21 +75,26 @@ impl Simulation {
         // simulation parts. Think about better sync method, so that a thread only
         // terminates, if all threads are done.
         while self.active_agents() > 0 && now <= end_time {
+            if now % 3600 == 0 {
+                let hour = now / 3600;
+                println!("Simulation #{}: At: {hour}:00:00", self.scenario.customs.id);
+            }
+
             self.wakeup(now);
+            self.teleportation_arrivals(now);
             self.move_nodes(now);
             self.send(now);
-            self.receive();
+            self.receive(now);
             now += 1;
         }
     }
 
     fn wakeup(&mut self, now: u32) {
-        //println!("#{} wakeup", self.scenario.id);
         let agents_2_link = self.activity_q.wakeup(now);
 
-        if agents_2_link.len() > 0 {
+        if !agents_2_link.is_empty() {
             println!(
-                "##{}: {} agents woke up. Creating vehicles and putting them onto links",
+                "Simulation #{}: {} agents woke up. Creating vehicles and putting them onto links at time {now}",
                 self.scenario.customs.id,
                 agents_2_link.len()
             );
@@ -104,19 +112,35 @@ impl Simulation {
                             net_route,
                             0,
                             agent.id,
+                            now,
                         );
                     }
                     Route::GenericRoute(_) => {
-                        let agent = self.scenario.population.agents.remove(&id).unwrap();
-                        self.scenario.customs.prepare_to_teleport(agent);
+                        if Simulation::is_local_teleportation(agent, &self.scenario.customs) {
+                            self.teleportation_q.add(agent, now);
+                        } else {
+                            // copy the id here, so that the reference to agent can be dropped before we
+                            // attempt to own the agent to move it to customs.
+                            let id = agent.id;
+                            let agent = self.scenario.population.agents.remove(&id).unwrap();
+                            self.scenario.customs.prepare_to_teleport(agent);
+                        }
                     }
                 }
             }
         }
     }
 
+    fn teleportation_arrivals(&mut self, now: u32) {
+        let agents_2_activity = self.teleportation_q.wakeup(now);
+        for id in agents_2_activity {
+            let agent = self.scenario.population.agents.get_mut(&id).unwrap();
+            agent.advance_plan();
+            self.activity_q.add(agent, now);
+        }
+    }
+
     fn move_nodes(&mut self, now: u32) {
-        //println!("#{} move_nodes", self.scenario.id);
         for node in self.scenario.network.nodes.values() {
             let exited_vehicles = node.move_vehicles(&mut self.scenario.network.links, now);
 
@@ -146,15 +170,18 @@ impl Simulation {
         }
     }
 
-    fn receive(&mut self) {
-        //println!("#{} receive", self.scenario.id);
+    fn send(&mut self, now: u32) {
+        self.scenario.customs.send(now);
+    }
+
+    fn receive(&mut self, now: u32) {
         let messages = self.scenario.customs.receive();
         for message in messages {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;
                 let route_index = vehicle.1;
                 println!(
-                    "Thread #{} has received Agent #{} with route index {}",
+                    "Thread #{} has received Agent #{} with route index {} at time {now}",
                     self.scenario.customs.id, agent.id, route_index
                 );
                 if let PlanElement::Leg(leg) = agent.current_plan_element() {
@@ -165,19 +192,17 @@ impl Simulation {
                                 net_route,
                                 route_index,
                                 agent.id,
+                                now,
                             );
                             self.scenario.population.agents.insert(agent.id, agent);
                         }
-                        Route::GenericRoute(_) => {}
+                        Route::GenericRoute(_) => {
+                            self.teleportation_q.add(&agent, now);
+                        }
                     }
                 }
             }
         }
-    }
-
-    fn send(&mut self, now: u32) {
-        // println!("#{} send", self.scenario.id);
-        self.scenario.customs.send(now);
     }
 
     fn active_agents(&self) -> usize {
@@ -190,31 +215,27 @@ impl Simulation {
         route: &NetworkRoute,
         route_index: usize,
         driver_id: usize,
+        now: u32,
     ) -> Option<Vehicle> {
         let mut vehicle = Vehicle::new(route.vehicle_id, driver_id, route.route.clone());
         vehicle.route_index = route_index;
         let link_id = route.route.get(route_index).unwrap();
         let link = network.links.get_mut(link_id).unwrap();
 
-        return match link {
+        match link {
             Link::LocalLink(local_link) => {
-                local_link.push_vehicle(vehicle);
+                local_link.push_vehicle(vehicle, now);
                 None
             }
             // I am not sure whether this is even possible.
             Link::SplitLink(_) => Some(vehicle),
-        };
+        }
     }
 
-    fn handle_generic_route(customs: &mut Customs, activity_q: &mut ActivityQ, agent: Agent) {
+    fn is_local_teleportation(agent: &Agent, customs: &Customs) -> bool {
         let (start_thread, end_thread) =
-            Simulation::get_thread_ids_for_generic_route(&agent, customs);
-        if start_thread == end_thread {
-            // put agent into teleportation q
-        } else {
-            // put agent into customs
-            customs.prepare_to_teleport(agent);
-        }
+            Simulation::get_thread_ids_for_generic_route(agent, customs);
+        start_thread == end_thread
     }
 
     fn get_thread_ids_for_generic_route(agent: &Agent, customs: &Customs) -> (usize, usize) {
@@ -235,7 +256,6 @@ mod test {
     use crate::container::population::IOPopulation;
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use crate::parallel_simulation::Simulation;
-    use std::path::Path;
     use std::thread;
     use std::thread::JoinHandle;
 
@@ -287,6 +307,30 @@ mod test {
 
         // convert input into simulation
         let scenarios = Scenario::from_io(&mut network, &population, 2);
+        let simulations = Simulation::create_runners(scenarios);
+
+        // create threads and start them
+        let join_handles: Vec<JoinHandle<()>> = simulations
+            .into_iter()
+            .map(|mut simulation| thread::spawn(move || simulation.run()))
+            .collect();
+
+        // wait for all threads to finish
+        for handle in join_handles {
+            handle.join().unwrap();
+        }
+
+        println!("all simulation threads have finished. ")
+    }
+
+    #[test]
+    #[ignore]
+    fn run_berlin_scenario() {
+        let mut network = IONetwork::from_file("/home/janek/test-files/berlin-test-network.xml.gz");
+        let population =
+            IOPopulation::from_file("/home/janek/test-files/berlin-all-plans-without-pt.xml.gz");
+
+        let scenarios = Scenario::from_io(&mut network, &population, 16);
         let simulations = Simulation::create_runners(scenarios);
 
         // create threads and start them

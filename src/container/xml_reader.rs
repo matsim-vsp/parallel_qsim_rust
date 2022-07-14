@@ -7,9 +7,9 @@ pub fn read<T>(file_path: &str) -> T
 where
     T: DeserializeOwned,
 {
-    println!("Attempting to read file at: {}", file_path);
-    let file =
-        File::open(file_path).unwrap_or_else(|_| panic!("Could not open file at {}", file_path));
+    println!("xml_reader::read: Starting to read file at: {}", file_path);
+    let file = File::open(file_path)
+        .unwrap_or_else(|_| panic!("xml_reader::read: Could not open file at {}", file_path));
     let buffered_reader = BufReader::new(file);
 
     // I guess this could be prettier, but I don't know how to achieve this in Rust yet :-/
@@ -24,7 +24,7 @@ where
         return result;
     } else {
         panic!(
-            "Can't open file path: {}. Only files with endings '.xml' or '.xml.gz' are supported.",
+            "xml_reader::read: Can't open file path: {}. Only files with endings '.xml' or '.xml.gz' are supported.",
             file_path
         );
     };

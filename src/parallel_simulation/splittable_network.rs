@@ -213,7 +213,10 @@ impl Node {
                     vehicle.advance_route_index();
                     match vehicle.current_link_id() {
                         None => {
-                            println!("Vehicle #{} at the end of its route", vehicle.id);
+                            println!(
+                                "Node: Vehicle #{} at the end of its route at time {now}",
+                                vehicle.id
+                            );
                             exited_vehicles.push(ExitReason::FinishRoute(vehicle))
                         }
                         Some(out_id) => {
@@ -241,10 +244,13 @@ impl Node {
             Link::LocalLink(local_link) => {
                 let exit_time = now + (local_link.length / local_link.freespeed) as u32;
                 vehicle.exit_time = exit_time;
-                local_link.push_vehicle(vehicle);
+                local_link.push_vehicle(vehicle, now);
             }
             Link::SplitLink(split_link) => {
-                println!("Vehicle #{} at split link #{}", vehicle.id, split_link.id);
+                println!(
+                    "Node: Vehicle #{} at split link #{} at time {now}",
+                    vehicle.id, split_link.id
+                );
                 exited_vehicles.push(ExitReason::ReachedBoundary(vehicle))
             }
         }
@@ -267,8 +273,11 @@ pub struct LocalLink {
 }
 
 impl LocalLink {
-    pub fn push_vehicle(&mut self, vehicle: Vehicle) {
-        println!("Vehicle #{} enters link #{}", vehicle.id, self.id);
+    pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
+        println!(
+            "LocalLink: Vehicle #{} enters link #{} at time {}",
+            vehicle.id, self.id, now
+        );
         self.q.push_back(vehicle);
     }
 
@@ -284,7 +293,7 @@ impl LocalLink {
             let vehicle = self.q.pop_front().unwrap();
             self.flowcap.consume_capacity(1.0);
             println!(
-                "Vehicle #{} leaves link #{} at time {}",
+                "LocalLink: Vehicle #{} leaves link #{} at time {}",
                 vehicle.id, self.id, now
             );
             popped_veh.push(vehicle);
@@ -308,8 +317,6 @@ pub enum ExitReason {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::{IONetwork, IONode};
-    use crate::parallel_simulation::splittable_network::NetworkPartition;
 
     /*
     #[test]

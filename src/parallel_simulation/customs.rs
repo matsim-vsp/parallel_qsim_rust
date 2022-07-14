@@ -66,7 +66,7 @@ impl Customs {
         let message = self.out_messages.entry(thread).or_insert(Message::new());
 
         println!(
-            "Prepare to send Agent #{} with route_index {} from thread #{} to thread #{}",
+            "Customs: Prepare to send Agent #{} with route_index {} from thread #{} to thread #{}",
             agent.id, vehicle.route_index, self.id, thread
         );
         message.add_driver(agent, vehicle.route_index);
@@ -80,7 +80,7 @@ impl Customs {
                 let message = self.out_messages.entry(thread).or_insert(Message::new());
 
                 println!(
-                    "Prepare to send teleported Agent #{} from thread #{} to thread #{}",
+                    "Customs: Prepare to send teleported Agent #{} from thread #{} to thread #{}",
                     agent.id, self.id, thread
                 );
                 message.add_teleported(agent);

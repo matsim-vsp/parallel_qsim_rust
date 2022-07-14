@@ -76,12 +76,12 @@ impl Agent {
         let next_element = self.current_element + 1;
         if self.plan.elements.len() == next_element {
             panic!(
-                "Advance plan was called on agent #{}, but no element is remaining.",
+                "Agent: Advance plan was called on agent #{}, but no element is remaining.",
                 self.id
             )
         }
         println!(
-            "Agent #{} advancing plan from index {} to index {}",
+            "Agent #{}: Advancing plan from index {} to index {}",
             self.id, self.current_element, next_element
         );
         self.current_element = next_element;

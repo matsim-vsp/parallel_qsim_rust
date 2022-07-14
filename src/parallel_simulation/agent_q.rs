@@ -71,7 +71,7 @@ impl QEntry {
     fn from_activity(agent: &Agent, activity: &Activity, now: u32) -> QEntry {
         let wakeup_time = activity.end_time(now);
         println!(
-            "Create AgentQ.QEntry for #{} and activity: {} with wakeup_time: {wakeup_time}",
+            "AgentQ: Create QEntry for #{} and activity: {} with wakeup_time: {wakeup_time} at time {now}",
             agent.id, activity.act_type
         );
         QEntry {
@@ -83,6 +83,10 @@ impl QEntry {
     fn from_leg(agent: &Agent, leg: &Leg, now: u32) -> QEntry {
         if let Route::GenericRoute(route) = &leg.route {
             let wakeup_time = now + route.trav_time;
+            println!(
+                "AgentQ: Create QEntry for #{} and GenericRoute with wakeup_time: {wakeup_time} at time {now}",
+                agent.id
+            );
             QEntry {
                 agent_id: agent.id,
                 wakeup_time,
@@ -105,11 +109,8 @@ wakeup time is considered to be greater.
  */
 impl Ord for QEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.wakeup_time.cmp(&other.wakeup_time) {
-            Ordering::Less => Ordering::Greater,
-            Ordering::Equal => Ordering::Equal,
-            Ordering::Greater => Ordering::Less,
-        }
+        // this orders the items in a descending order. Smaller wakeup times to the front.
+        other.wakeup_time.cmp(&self.wakeup_time)
     }
 }
 

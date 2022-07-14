@@ -94,7 +94,7 @@ impl IONetwork {
     pub fn from_file(file_path: &str) -> IONetwork {
         let network: IONetwork = xml_reader::read(file_path);
         println!(
-            "Finished reading network. It contains {} nodes and {} links.",
+            "IONetwork:: Finished reading network. It contains {} nodes and {} links.",
             network.nodes().len(),
             network.links().len()
         );
@@ -127,7 +127,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use crate::container::network::{Attrs, IONetwork};
+    use crate::container::network::IONetwork;
 
     static OUTPUT_FOLDER: &str = "./test_output/container/network/";
 

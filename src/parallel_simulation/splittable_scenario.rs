@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::mpsc;
 
 use crate::container::network::{Attr, Attrs, IONetwork};
@@ -30,17 +29,17 @@ impl Scenario {
         io_population: &IOPopulation,
         num_parts: usize,
     ) -> Scenario {
-        println!("Splittable Scenario creating Id mappings");
+        println!("SplittableScenario: creating Id mappings");
         let id_mappings = MatsimIdMappings::from_io(io_network, io_population);
 
-        println!("Splittable Scenario creating partition information");
+        println!("SplittableScenario: creating partition information");
         let partition_info =
             PartitionInfo::from_io(io_network, io_population, &id_mappings, num_parts);
 
-        println!("Splittable Scenario adding partition information to io network.");
+        println!("SplittableScenario: adding partition information to io network.");
         Scenario::add_thread_attr(io_network, &partition_info);
 
-        println!("Splittable Scenario creating partitioned network");
+        println!("SplittableScenario: creating partitioned network");
         let network = Network::from_io(
             io_network,
             num_parts,
@@ -48,7 +47,7 @@ impl Scenario {
             &id_mappings,
         );
 
-        println!("Splittable Scenario creating partitioned population");
+        println!("SplittableScenario: creating partitioned population");
         let mut populations =
             Population::split_from_container(io_population, num_parts, &id_mappings, &network);
 
@@ -60,7 +59,7 @@ impl Scenario {
             id_mappings,
         };
 
-        println!("Splittable Scenario creating channels for inter thread communication");
+        println!("SplittableScenario: creating channels for inter thread communication");
         for i in 0..num_parts {
             let (sender, receiver) = mpsc::channel();
             let customs = Customs::new(i, receiver, network.links_2_thread.clone());
@@ -76,7 +75,7 @@ impl Scenario {
             }
         }
 
-        println!("Splittable Scenario creating scenario partitions.");
+        println!("SplittableScenario: creating scenario partitions.");
         scenario.scenarios = network
             .partitions
             .into_iter()
@@ -119,62 +118,6 @@ mod test {
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use std::path::Path;
 
-    /*  #[test]
-     fn create_scenarios() {
-         let io_network = IONetwork::from_file("./assets/equil-network.xml");
-         let io_population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
-
-         let scenario = Scenario::from_io(&io_network, &io_population, 2, |node| {
-             if node.x < 0. {
-                 0
-             } else {
-                 1
-             }
-         });
-
-         assert_eq!(2, scenario.scenarios.len());
-         assert_eq!(
-             io_network.nodes().len(),
-             scenario
-                 .scenarios
-                 .iter()
-                 .map(|s| s.network.nodes.len())
-                 .sum()
-         );
-         // can't sum up links because split links are present in both networks.
-         assert_eq!(
-             io_population.persons.len(),
-             scenario
-                 .scenarios
-                 .iter()
-                 .map(|s| s.population.agents.len())
-                 .sum()
-         );
-
-         // test the split scenarios for the particular split algorithm we have so far.
-         let scenario1 = scenario.scenarios.get(0).unwrap();
-         assert_eq!(scenario1.network.nodes.len(), 3);
-         assert_eq!(scenario1.network.links.len(), 12);
-         assert_eq!(scenario1.population.agents.len(), 0);
-
-         let scenario2 = scenario.scenarios.get(1).unwrap();
-         assert_eq!(scenario2.network.nodes.len(), 12);
-         assert_eq!(scenario2.network.links.len(), 21);
-         assert_eq!(scenario2.population.agents.len(), 100);
-     }
-
-     #[test]
-     fn partition_equil_scenario() {
-         let io_network = IONetwork::from_file("./assets/equil-network.xml");
-         let io_population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
-
-         let scenario = Scenario::partition_containers(&io_network, &io_population, 2);
-
-         println!("{scenario:#?}")
-     }
-
-    */
-
     #[test]
     fn create_3_links_scenario() {
         let mut io_network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
@@ -183,7 +126,7 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_3_links_scenario/",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let _scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
         let network_file = output_folder.join("output_network.xml.gz");
         io_network.to_file(&network_file);
@@ -199,7 +142,7 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_equil_scenario",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let _scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
         let network_file = output_folder.join("output_network.xml.gz");
         io_network.to_file(&network_file);
@@ -221,7 +164,7 @@ mod test {
             "./test_output/parallel_simulation/splittable_scenario/create_berlin_scenario/",
         );
 
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let _scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
         println!("Create Berlin Scenario Test: Finished creating scenario. Writing network.");
         let network_file = output_folder.join("output_12_network.xml.gz");

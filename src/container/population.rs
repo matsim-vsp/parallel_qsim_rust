@@ -84,7 +84,7 @@ impl IOPopulation {
     pub fn from_file(file_path: &str) -> IOPopulation {
         let popoulation: IOPopulation = xml_reader::read(file_path);
         println!(
-            "Finished reading population. Population contains {} persons",
+            "IOPopulation: Finished reading population. Population contains {} persons",
             popoulation.persons.len()
         );
         popoulation
