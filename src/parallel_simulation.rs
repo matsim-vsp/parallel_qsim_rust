@@ -204,8 +204,6 @@ impl Simulation {
             // I am not sure whether this is even possible.
             Link::SplitLink(_) => Some(vehicle),
         };
-
-        panic!("Currently only network routes are implemented.")
     }
 
     fn handle_generic_route(customs: &mut Customs, activity_q: &mut ActivityQ, agent: Agent) {
@@ -249,7 +247,7 @@ mod test {
         let mut network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
-        let scenario = Scenario::from_io(&mut network, &population, 1, Path::new(""));
+        let scenario = Scenario::from_io(&mut network, &population, 1);
         let mut simulations = Simulation::create_runners(scenario);
 
         assert_eq!(1, simulations.len());
@@ -268,7 +266,7 @@ mod test {
         let mut network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
-        let scenario = Scenario::from_io(&mut network, &population, 2, Path::new(""));
+        let scenario = Scenario::from_io(&mut network, &population, 2);
         let simulations = Simulation::create_runners(scenario);
 
         let join_handles: Vec<_> = simulations
@@ -288,7 +286,7 @@ mod test {
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
 
         // convert input into simulation
-        let scenarios = Scenario::from_io(&mut network, &population, 2, Path::new(""));
+        let scenarios = Scenario::from_io(&mut network, &population, 2);
         let simulations = Simulation::create_runners(scenarios);
 
         // create threads and start them

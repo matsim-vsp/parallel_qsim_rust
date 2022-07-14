@@ -21,13 +21,21 @@ things work
 1. `$ sudo apt install libclang-dev`
 2. `$ sudo apt install libmetis-dev`
 
-On Windows I had to do the following:
+### Set up in IntelliJ/CLion
+Programming Rust in IntelliJ is possible by installing the [Rust Plugin](https://plugins.jetbrains.com/plugin/8182-rust/docs) developed by JetBrains. However, some features
+such as a Debugger are not available there. For this one can use Clion, which is the C-IDE by JetBrains. This also
+requires the [Rust Plugin](https://plugins.jetbrains.com/plugin/8182-rust/docs) to be installed. 
 
-1. Install [Cmake](https://cmake.org/download/)
-2. Install Visual Studio Build tools, which one needs for rust anyway
-3. Try to follow the description in [Windows-Build](https://github.com/KarypisLab/METIS/blob/master/BUILD-Windows.txt)
+To set things up with WSL, I followed the [WSL Toolchain](https://plugins.jetbrains.com/plugin/8182-rust/docs/rust-project-settings.html#wsl-toolchain)
+section of the [Rust Plugin](https://plugins.jetbrains.com/plugin/8182-rust/docs) documentation. To make the 'right click run as' 
+feature work I had to change the default execution environment of the project to WSL. 
 
-This doesn't work so far 😔
+- Edit Configuration -> Edit Configuration Templates... ->
+Cargo -> Manage Targets... -> + -> WSL
+- On the bottom of that dialog select the newly created target as default for the project
+
+This can probably done somewhere else as well...
+
 
 ### Build
 
