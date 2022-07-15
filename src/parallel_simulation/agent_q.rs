@@ -1,3 +1,4 @@
+use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_population::{Activity, Agent, Leg, PlanElement, Route};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -21,7 +22,6 @@ impl AgentQ {
         if entry.wakeup_time == u32::MAX {
             self.finished_agents += 1;
         }
-
         self.q.push(entry);
     }
 

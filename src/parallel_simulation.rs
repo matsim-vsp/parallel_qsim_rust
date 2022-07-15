@@ -1,5 +1,7 @@
+use crate::container::non_blocking_io::NonBlocking;
 use crate::parallel_simulation::agent_q::AgentQ;
 use crate::parallel_simulation::customs::Customs;
+use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_network::{ExitReason, Link, NetworkPartition};
 use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::splittable_population::NetworkRoute;
@@ -10,6 +12,7 @@ use crate::parallel_simulation::vehicles::Vehicle;
 
 mod agent_q;
 mod customs;
+mod events;
 mod id_mapping;
 mod messages;
 mod partition_info;
@@ -18,14 +21,15 @@ mod splittable_population;
 mod splittable_scenario;
 mod vehicles;
 
-struct Simulation {
+struct Simulation<'a> {
     scenario: ScenarioPartition,
     activity_q: AgentQ,
     teleportation_q: AgentQ,
+    events: Events<'a>,
 }
 
-impl Simulation {
-    fn new(scenario: ScenarioPartition) -> Simulation {
+impl<'a> Simulation<'a> {
+    fn new(scenario: ScenarioPartition, events: Events<'a>) -> Simulation<'a> {
         let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -35,14 +39,18 @@ impl Simulation {
             scenario,
             activity_q: q,
             teleportation_q: AgentQ::new(),
+            events,
         }
     }
 
-    fn create_runners(scenario: Scenario) -> Vec<Simulation> {
+    fn create_simulation_partitions(
+        scenario: Scenario,
+        events: &'a Events<'a>,
+    ) -> Vec<Simulation<'a>> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
-            .map(Simulation::new)
+            .map(|partition| Simulation::new(partition, events.clone()))
             .collect();
 
         simulations
@@ -102,13 +110,16 @@ impl Simulation {
 
         for id in agents_2_link {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
+            self.events.handle_act_end(now, &agent);
             agent.advance_plan();
+            self.events.handle_departure(now, agent);
 
             if let PlanElement::Leg(leg) = agent.current_plan_element() {
                 match &leg.route {
                     Route::NetworkRoute(net_route) => {
                         Simulation::push_onto_network(
                             &mut self.scenario.network,
+                            &self.events,
                             net_route,
                             0,
                             agent.id,
@@ -135,6 +146,7 @@ impl Simulation {
         let agents_2_activity = self.teleportation_q.wakeup(now);
         for id in agents_2_activity {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
+            self.events.handle_travelled(now, agent);
             agent.advance_plan();
             self.activity_q.add(agent, now);
         }
@@ -153,7 +165,13 @@ impl Simulation {
                             .agents
                             .get_mut(&vehicle.driver_id)
                             .unwrap();
+
+                        self.events
+                            .handle_person_leaves_vehicle(now, agent, &vehicle);
+                        self.events.handle_arrival(now, agent);
+
                         agent.advance_plan();
+                        self.events.handle_act_start(now, agent);
                         self.activity_q.add(agent, now);
                     }
                     ExitReason::ReachedBoundary(vehicle) => {
@@ -189,6 +207,7 @@ impl Simulation {
                         Route::NetworkRoute(net_route) => {
                             Simulation::push_onto_network(
                                 &mut self.scenario.network,
+                                &self.events,
                                 net_route,
                                 route_index,
                                 agent.id,
@@ -212,6 +231,7 @@ impl Simulation {
 
     fn push_onto_network(
         network: &mut NetworkPartition,
+        events: &Events,
         route: &NetworkRoute,
         route_index: usize,
         driver_id: usize,
@@ -224,6 +244,10 @@ impl Simulation {
 
         match link {
             Link::LocalLink(local_link) => {
+                if route_index == 0 {
+                    events.handle_person_enters_vehicle(now, driver_id, &vehicle)
+                }
+
                 local_link.push_vehicle(vehicle, now);
                 None
             }
@@ -253,9 +277,12 @@ impl Simulation {
 #[cfg(test)]
 mod test {
     use crate::container::network::IONetwork;
+    use crate::container::non_blocking_io::NonBlocking;
     use crate::container::population::IOPopulation;
+    use crate::parallel_simulation::events::Events;
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use crate::parallel_simulation::Simulation;
+    use std::fs::File;
     use std::thread;
     use std::thread::JoinHandle;
 
@@ -268,11 +295,14 @@ mod test {
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
         let scenario = Scenario::from_io(&mut network, &population, 1);
-        let mut simulations = Simulation::create_runners(scenario);
+        let (writer, guard) = NonBlocking::from_file("./test-log.txt");
+        let events = Events::new(writer, &guard);
+        let mut simulations = Simulation::create_simulation_partitions(scenario, &events);
 
         assert_eq!(1, simulations.len());
         let mut simulation = simulations.remove(0);
         simulation.run();
+        events.finish();
 
         println!("done.")
     }
@@ -287,7 +317,9 @@ mod test {
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
         let scenario = Scenario::from_io(&mut network, &population, 2);
-        let simulations = Simulation::create_runners(scenario);
+        let (writer, guard) = NonBlocking::from_file("./test-log.txt");
+        let events = Events::new(writer, &guard);
+        let simulations = Simulation::create_simulation_partitions(scenario, &events);
 
         let join_handles: Vec<_> = simulations
             .into_iter()
@@ -297,8 +329,9 @@ mod test {
         for handle in join_handles {
             handle.join().unwrap();
         }
+        events.finish();
     }
-
+    /*
     #[test]
     fn run_equil_scenario() {
         // load input files
@@ -307,7 +340,7 @@ mod test {
 
         // convert input into simulation
         let scenarios = Scenario::from_io(&mut network, &population, 2);
-        let simulations = Simulation::create_runners(scenarios);
+        let simulations = Simulation::create_simulation_partitions(scenarios);
 
         // create threads and start them
         let join_handles: Vec<JoinHandle<()>> = simulations
@@ -331,7 +364,7 @@ mod test {
             IOPopulation::from_file("/home/janek/test-files/berlin-all-plans-without-pt.xml.gz");
 
         let scenarios = Scenario::from_io(&mut network, &population, 16);
-        let simulations = Simulation::create_runners(scenarios);
+        let simulations = Simulation::create_simulation_partitions(scenarios);
 
         // create threads and start them
         let join_handles: Vec<JoinHandle<()>> = simulations
@@ -346,4 +379,6 @@ mod test {
 
         println!("all simulation threads have finished. ")
     }
+
+     */
 }
