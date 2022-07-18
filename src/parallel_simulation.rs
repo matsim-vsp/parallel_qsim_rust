@@ -1,4 +1,3 @@
-use crate::io::non_blocking_io::NonBlocking;
 use crate::parallel_simulation::agent_q::AgentQ;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::events::Events;
@@ -284,7 +283,7 @@ mod test {
     use crate::parallel_simulation::events::Events;
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use crate::parallel_simulation::Simulation;
-    use std::fs::File;
+    use std::path::Path;
     use std::thread;
     use std::thread::JoinHandle;
 
@@ -297,7 +296,12 @@ mod test {
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
         let scenario = Scenario::from_io(&mut network, &population, 1);
-        let (writer, guard) = NonBlocking::from_file("./test-events.xml");
+        network.to_file(Path::new(
+            "./test_output/parallel_simulation/run_single_agent_single_slice/output_network.xml.gz",
+        ));
+        let (writer, _guard) = NonBlocking::from_file(
+            "./test_output/parallel_simulation/run_single_agent_single_slice/output_events.xml",
+        );
         let mut events = Events::new(writer);
         let mut simulations = Simulation::create_simulation_partitions(scenario, &events);
 
@@ -319,7 +323,12 @@ mod test {
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
         let scenario = Scenario::from_io(&mut network, &population, 2);
-        let (writer, guard) = NonBlocking::from_file("./test-log.txt");
+        network.to_file(Path::new(
+            "./test_output/parallel_simulation/run_single_agent_two_slices/output_network.xml.gz",
+        ));
+        let (writer, _guard) = NonBlocking::from_file(
+            "./test_output/parallel_simulation/run_single_agent_two_slices/output_events.xml",
+        );
         let mut events = Events::new(writer);
         let simulations = Simulation::create_simulation_partitions(scenario, &events);
 
@@ -333,7 +342,7 @@ mod test {
         }
         events.finish();
     }
-    /*
+
     #[test]
     fn run_equil_scenario() {
         // load input files
@@ -342,7 +351,14 @@ mod test {
 
         // convert input into simulation
         let scenarios = Scenario::from_io(&mut network, &population, 2);
-        let simulations = Simulation::create_simulation_partitions(scenarios);
+        network.to_file(Path::new(
+            "./test_output/parallel_simulation/run_equil_scenario/output_network.xml.gz",
+        ));
+        let (writer, _guard) = NonBlocking::from_file(
+            "./test_output/parallel_simulation/run_equil_scenario/output_events.xml",
+        );
+        let mut events = Events::new(writer);
+        let simulations = Simulation::create_simulation_partitions(scenarios, &events);
 
         // create threads and start them
         let join_handles: Vec<JoinHandle<()>> = simulations
@@ -354,6 +370,7 @@ mod test {
         for handle in join_handles {
             handle.join().unwrap();
         }
+        events.finish();
 
         println!("all simulation threads have finished. ")
     }
@@ -366,7 +383,14 @@ mod test {
             IOPopulation::from_file("/home/janek/test-files/berlin-all-plans-without-pt.xml.gz");
 
         let scenarios = Scenario::from_io(&mut network, &population, 16);
-        let simulations = Simulation::create_simulation_partitions(scenarios);
+        network.to_file(Path::new(
+            "./test_output/parallel_simulation/run_berlin_scenario/output_network.xml.gz",
+        ));
+        let (writer, _guard) = NonBlocking::from_file(
+            "./test_output/parallel_simulation/run_berlin_scenario/output_events.xml",
+        );
+        let mut events = Events::new(writer);
+        let simulations = Simulation::create_simulation_partitions(scenarios, &events);
 
         // create threads and start them
         let join_handles: Vec<JoinHandle<()>> = simulations
@@ -379,8 +403,8 @@ mod test {
             handle.join().unwrap();
         }
 
+        events.finish();
+
         println!("all simulation threads have finished. ")
     }
-
-     */
 }

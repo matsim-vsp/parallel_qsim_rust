@@ -75,6 +75,13 @@ pub struct IONetwork {
 }
 
 impl IONetwork {
+    pub fn new(name: Option<String>) -> IONetwork {
+        IONetwork {
+            links: Links { links: Vec::new() },
+            nodes: Nodes { nodes: Vec::new() },
+            name,
+        }
+    }
     pub fn nodes(&self) -> &Vec<IONode> {
         &self.nodes.nodes
     }

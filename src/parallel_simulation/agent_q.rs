@@ -1,4 +1,3 @@
-use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_population::{Activity, Agent, Leg, PlanElement, Route};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;

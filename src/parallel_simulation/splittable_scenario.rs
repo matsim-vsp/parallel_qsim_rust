@@ -96,6 +96,8 @@ impl Scenario {
         scenario
     }
 
+    pub fn as_network(&self) -> IONetwork {}
+
     fn add_thread_attr(io_network: &mut IONetwork, partition_info: &PartitionInfo) {
         for node in io_network.nodes_mut() {
             let partition = partition_info.get_partition(node);

@@ -1,4 +1,4 @@
-use crate::io::non_blocking_io::{NonBlocking, WorkerGuard};
+use crate::io::non_blocking_io::NonBlocking;
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
 use std::mem::take;

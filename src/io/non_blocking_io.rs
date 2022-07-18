@@ -1,11 +1,9 @@
 use crate::io::worker::Worker;
 use std::fs::File;
-use std::io;
 use std::io::{BufWriter, Write};
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::thread::JoinHandle;
-use std::time::Duration;
 
 pub enum Msg {
     Line(Vec<u8>),
