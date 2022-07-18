@@ -1,6 +1,7 @@
-use std::sync::mpsc;
+use std::collections::HashMap;
+use std::sync::{mpsc, Arc};
 
-use crate::io::network::{Attr, Attrs, IONetwork};
+use crate::io::network::{Attr, Attrs, IOLink, IONetwork, IONode};
 use crate::io::population::IOPopulation;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
@@ -14,6 +15,8 @@ pub struct Scenario {
 
     // the properties below are for bookkeeping of ids
     id_mappings: MatsimIdMappings,
+    link_2_thread: Arc<HashMap<usize, usize>>,
+    node_2_thread: Arc<HashMap<usize, usize>>,
 }
 
 #[derive(Debug)]
@@ -25,7 +28,7 @@ pub struct ScenarioPartition {
 
 impl Scenario {
     pub fn from_io(
-        io_network: &mut IONetwork,
+        io_network: &IONetwork,
         io_population: &IOPopulation,
         num_parts: usize,
     ) -> Scenario {
@@ -35,9 +38,6 @@ impl Scenario {
         println!("SplittableScenario: creating partition information");
         let partition_info =
             PartitionInfo::from_io(io_network, io_population, &id_mappings, num_parts);
-
-        println!("SplittableScenario: adding partition information to io network.");
-        Scenario::add_thread_attr(io_network, &partition_info);
 
         println!("SplittableScenario: creating partitioned network");
         let network = Network::from_io(
@@ -57,6 +57,8 @@ impl Scenario {
         let mut scenario = Scenario {
             scenarios: Vec::new(),
             id_mappings,
+            link_2_thread: network.links_2_thread.clone(),
+            node_2_thread: network.nodes_2_thread.clone(),
         };
 
         println!("SplittableScenario: creating channels for inter thread communication");
@@ -96,7 +98,70 @@ impl Scenario {
         scenario
     }
 
-    pub fn as_network(&self) -> IONetwork {}
+    pub fn as_network(&self, original_io_network: &IONetwork) -> IONetwork {
+        let mut result = IONetwork::new(None);
+
+        for node in original_io_network.nodes() {
+            let internal_id = self
+                .id_mappings
+                .nodes
+                .get_internal(node.id.as_ref())
+                .unwrap();
+            let partition = self.node_2_thread.get(internal_id).unwrap();
+            let attributes = Scenario::create_partition_attr(*partition);
+            let new_node = IONode {
+                id: internal_id.to_string(),
+                x: node.x,
+                y: node.y,
+                attributes,
+            };
+            result.nodes_mut().push(new_node);
+        }
+
+        for link in original_io_network.links() {
+            let internal_id = self
+                .id_mappings
+                .links
+                .get_internal(link.id.as_ref())
+                .unwrap();
+            let internal_from = *self
+                .id_mappings
+                .nodes
+                .get_internal(link.from.as_ref())
+                .unwrap();
+            let internal_to = *self
+                .id_mappings
+                .nodes
+                .get_internal(link.to.as_ref())
+                .unwrap();
+            let partition = self.link_2_thread.get(internal_id).unwrap();
+            let attributes = Scenario::create_partition_attr(*partition);
+            let new_link = IOLink {
+                id: internal_id.to_string(),
+                attributes,
+                from: internal_from.to_string(),
+                to: internal_to.to_string(),
+                freespeed: link.freespeed,
+                capacity: link.capacity,
+                length: link.length,
+                permlanes: link.permlanes,
+            };
+            result.links_mut().push(new_link);
+        }
+
+        result
+    }
+
+    fn create_partition_attr(partition: usize) -> Option<Attrs> {
+        let attrs = Attrs {
+            attributes: vec![Attr {
+                name: String::from("partition"),
+                value: partition.to_string(),
+                class: String::from("java.lang.String"),
+            }],
+        };
+        Some(attrs)
+    }
 
     fn add_thread_attr(io_network: &mut IONetwork, partition_info: &PartitionInfo) {
         for node in io_network.nodes_mut() {
@@ -128,10 +193,11 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_3_links_scenario/",
         );
-        let _scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
+        let out_network = scenario.as_network(&io_network);
         let network_file = output_folder.join("output_network.xml.gz");
-        io_network.to_file(&network_file);
+        out_network.to_file(&network_file);
 
         println!("Done");
     }
@@ -144,10 +210,11 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_equil_scenario",
         );
-        let _scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
+        let out_network = scenario.as_network(&io_network);
         let network_file = output_folder.join("output_network.xml.gz");
-        io_network.to_file(&network_file);
+        out_network.to_file(&network_file);
 
         println!("Done");
     }
@@ -166,11 +233,12 @@ mod test {
             "./test_output/parallel_simulation/splittable_scenario/create_berlin_scenario/",
         );
 
-        let _scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
 
         println!("Create Berlin Scenario Test: Finished creating scenario. Writing network.");
+        let out_network = scenario.as_network(&io_network);
         let network_file = output_folder.join("output_12_network.xml.gz");
-        io_network.to_file(&network_file);
+        out_network.to_file(&network_file);
 
         println!("Done");
     }

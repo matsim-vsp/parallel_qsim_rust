@@ -141,7 +141,7 @@ impl NetworkPartition {
         let new_link = LocalLink {
             id,
             q: VecDeque::new(),
-            flowcap: Flowcap::new(link.capacity),
+            flowcap: Flowcap::new(link.capacity / 3600.),
             freespeed: link.freespeed,
             length: link.length,
         };
@@ -177,7 +177,7 @@ impl NetworkPartition {
         let new_link = LocalLink {
             id,
             q: VecDeque::new(),
-            flowcap: Flowcap::new(link.capacity),
+            flowcap: Flowcap::new(link.capacity / 3600.),
             freespeed: link.freespeed,
             length: link.length,
         };
@@ -251,15 +251,13 @@ impl Node {
         &self,
         links: &mut HashMap<usize, Link>,
         out_link_id: usize,
-        mut vehicle: Vehicle,
+        vehicle: Vehicle,
         exited_vehicles: &mut Vec<ExitReason>,
         now: u32,
         events: &mut Events,
     ) {
         match links.get_mut(&out_link_id).unwrap() {
             Link::LocalLink(local_link) => {
-                let exit_time = now + (local_link.length / local_link.freespeed) as u32;
-                vehicle.exit_time = exit_time;
                 events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
                 local_link.push_vehicle(vehicle, now);
             }
@@ -290,11 +288,13 @@ pub struct LocalLink {
 }
 
 impl LocalLink {
-    pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
+    pub fn push_vehicle(&mut self, mut vehicle: Vehicle, now: u32) {
         println!(
             "LocalLink: Vehicle #{} enters link #{} at time {}",
             vehicle.id, self.id, now
         );
+        let exit_time = now + (self.length / self.freespeed) as u32;
+        vehicle.exit_time = exit_time;
         self.q.push_back(vehicle);
     }
 

@@ -292,11 +292,13 @@ mod test {
     /// without passing messages to other simulation slices works.
     #[test]
     fn run_single_agent_single_slice() {
-        let mut network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
+        let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
-        let scenario = Scenario::from_io(&mut network, &population, 1);
-        network.to_file(Path::new(
+        let scenario = Scenario::from_io(&network, &population, 1);
+
+        let out_network = scenario.as_network(&network);
+        out_network.to_file(Path::new(
             "./test_output/parallel_simulation/run_single_agent_single_slice/output_network.xml.gz",
         ));
         let (writer, _guard) = NonBlocking::from_file(
@@ -319,11 +321,12 @@ mod test {
     /// the other domain, leaves link2, enters link3 and finishes its route on link3
     #[test]
     fn run_single_agent_two_slices() {
-        let mut network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
+        let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
+        let scenario = Scenario::from_io(&network, &population, 2);
 
-        let scenario = Scenario::from_io(&mut network, &population, 2);
-        network.to_file(Path::new(
+        let out_network = scenario.as_network(&network);
+        out_network.to_file(Path::new(
             "./test_output/parallel_simulation/run_single_agent_two_slices/output_network.xml.gz",
         ));
         let (writer, _guard) = NonBlocking::from_file(
@@ -346,19 +349,21 @@ mod test {
     #[test]
     fn run_equil_scenario() {
         // load input files
-        let mut network = IONetwork::from_file("./assets/equil-network.xml");
+        let network = IONetwork::from_file("./assets/equil-network.xml");
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
 
         // convert input into simulation
-        let scenarios = Scenario::from_io(&mut network, &population, 2);
-        network.to_file(Path::new(
+        let scenario = Scenario::from_io(&network, &population, 2);
+
+        let out_network = scenario.as_network(&network);
+        out_network.to_file(Path::new(
             "./test_output/parallel_simulation/run_equil_scenario/output_network.xml.gz",
         ));
         let (writer, _guard) = NonBlocking::from_file(
             "./test_output/parallel_simulation/run_equil_scenario/output_events.xml",
         );
         let mut events = Events::new(writer);
-        let simulations = Simulation::create_simulation_partitions(scenarios, &events);
+        let simulations = Simulation::create_simulation_partitions(scenario, &events);
 
         // create threads and start them
         let join_handles: Vec<JoinHandle<()>> = simulations
@@ -378,19 +383,21 @@ mod test {
     #[test]
     #[ignore]
     fn run_berlin_scenario() {
-        let mut network = IONetwork::from_file("/home/janek/test-files/berlin-test-network.xml.gz");
+        let network = IONetwork::from_file("/home/janek/test-files/berlin-test-network.xml.gz");
         let population =
             IOPopulation::from_file("/home/janek/test-files/berlin-all-plans-without-pt.xml.gz");
 
-        let scenarios = Scenario::from_io(&mut network, &population, 16);
-        network.to_file(Path::new(
+        let scenario = Scenario::from_io(&network, &population, 16);
+
+        let out_network = scenario.as_network(&network);
+        out_network.to_file(Path::new(
             "./test_output/parallel_simulation/run_berlin_scenario/output_network.xml.gz",
         ));
         let (writer, _guard) = NonBlocking::from_file(
             "./test_output/parallel_simulation/run_berlin_scenario/output_events.xml",
         );
         let mut events = Events::new(writer);
-        let simulations = Simulation::create_simulation_partitions(scenarios, &events);
+        let simulations = Simulation::create_simulation_partitions(scenario, &events);
 
         // create threads and start them
         let join_handles: Vec<JoinHandle<()>> = simulations

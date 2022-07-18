@@ -60,7 +60,7 @@ impl Events {
             let (id, link, mode) = match &leg.route {
                 Route::NetworkRoute(net_route) => (
                     agent.id,
-                    *net_route.route.get(0).unwrap(),
+                    *net_route.route.first().unwrap(),
                     leg.mode.as_str(),
                 ),
                 Route::GenericRoute(gen_route) => {
@@ -87,7 +87,7 @@ impl Events {
             let (id, link, mode) = match &leg.route {
                 Route::NetworkRoute(net_route) => (
                     agent.id,
-                    *net_route.route.get(0).unwrap(),
+                    *net_route.route.last().unwrap(),
                     leg.mode.as_str(),
                 ),
                 Route::GenericRoute(gen_route) => {
