@@ -1,7 +1,7 @@
-use crate::container::matsim_id::MatsimId;
+use crate::io::matsim_id::MatsimId;
 use serde::Deserialize;
 
-use crate::container::xml_reader;
+use crate::io::xml_reader;
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IORoute {
@@ -95,7 +95,7 @@ impl IOPopulation {
 mod tests {
     use quick_xml::de::from_str;
 
-    use crate::container::population::{IOPlanElement, IOPopulation};
+    use crate::io::population::{IOPlanElement, IOPopulation};
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all

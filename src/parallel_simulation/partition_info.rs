@@ -1,6 +1,6 @@
-use crate::container::matsim_id::MatsimId;
-use crate::container::network::{IONetwork, IONode};
-use crate::container::population::{IOPlanElement, IOPopulation};
+use crate::io::matsim_id::MatsimId;
+use crate::io::network::{IONetwork, IONode};
+use crate::io::population::{IOPlanElement, IOPopulation};
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use metis::Graph;
 use std::collections::HashMap;

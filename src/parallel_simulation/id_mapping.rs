@@ -1,6 +1,6 @@
-use crate::container::matsim_id::MatsimId;
-use crate::container::network::IONetwork;
-use crate::container::population::{IOPlanElement, IOPopulation};
+use crate::io::matsim_id::MatsimId;
+use crate::io::network::IONetwork;
+use crate::io::population::{IOPlanElement, IOPopulation};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -101,7 +101,7 @@ impl MatsimId for IdRef<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::IONetwork;
+    use crate::io::network::IONetwork;
     use crate::parallel_simulation::id_mapping::MatsimIdMapping;
 
     #[test]

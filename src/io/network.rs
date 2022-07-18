@@ -1,11 +1,11 @@
-use crate::container::matsim_id::MatsimId;
-use crate::container::xml_reader;
+use crate::io::matsim_id::MatsimId;
+use crate::io::xml_reader;
 use flate2::Compression;
 use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::fs::File;
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -113,7 +113,13 @@ impl IONetwork {
         // start writing gz stream to the file. This will eventually move into a separate file, once
         // we want to write other stuff as well.
         let encoder = flate2::write::GzEncoder::new(file, Compression::fast());
-        let writer = BufWriter::new(encoder);
+        let mut writer = BufWriter::new(encoder);
+
+        // to make via swollow this, it neads an xml tag, as well as a dtd header.
+        let network_header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v2.dtd\">";
+        writer.write(network_header.as_ref()).unwrap();
+
+        // write the actual network
         to_writer(writer, self).unwrap();
 
         println!("done");
@@ -127,9 +133,9 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use crate::container::network::IONetwork;
+    use crate::io::network::IONetwork;
 
-    static OUTPUT_FOLDER: &str = "./test_output/container/network/";
+    static OUTPUT_FOLDER: &str = "./test_output/io/network/";
 
     fn get_output_folder(name: &str) -> PathBuf {
         let path = format!("{OUTPUT_FOLDER}{name}/");

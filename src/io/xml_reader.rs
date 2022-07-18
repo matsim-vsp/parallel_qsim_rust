@@ -32,7 +32,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::container::xml_reader::read;
+    use crate::io::xml_reader::read;
 
     // only testing the invalid case here, since the other cases
     // are implicitly tested when data containers are loaded e.g. in

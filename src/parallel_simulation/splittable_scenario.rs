@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 
-use crate::container::network::{Attr, Attrs, IONetwork};
-use crate::container::population::IOPopulation;
+use crate::io::network::{Attr, Attrs, IONetwork};
+use crate::io::population::IOPopulation;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::partition_info::PartitionInfo;
@@ -113,8 +113,8 @@ impl Scenario {
 
 #[cfg(test)]
 mod test {
-    use crate::container::network::IONetwork;
-    use crate::container::population::IOPopulation;
+    use crate::io::network::IONetwork;
+    use crate::io::population::IOPopulation;
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use std::path::Path;
 

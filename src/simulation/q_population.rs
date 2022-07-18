@@ -1,4 +1,4 @@
-use crate::container::population::{
+use crate::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IOPopulation, IORoute,
 };
 use crate::simulation::q_network::QNetwork;
@@ -292,8 +292,8 @@ fn parse_time(value: &str) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::IONetwork;
-    use crate::container::population::IOPopulation;
+    use crate::io::network::IONetwork;
+    use crate::io::population::IOPopulation;
     use crate::simulation::q_network::QNetwork;
     use crate::simulation::q_population::QPopulation;
     use crate::simulation::q_vehicle::QVehicles;

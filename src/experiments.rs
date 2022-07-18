@@ -11,4 +11,3 @@ mod link_automata_with_routes;
 mod metis_test;
 #[allow(dead_code)]
 mod super_simple_link_automat;
-mod tracing_setup;

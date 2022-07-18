@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::container::network::{IOLink, IONetwork};
+use crate::io::network::{IOLink, IONetwork};
 use crate::simulation::flow_cap::Flowcap;
 use crate::simulation::q_vehicle::QVehicle;
 
@@ -174,7 +174,7 @@ impl QNode {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::IONetwork;
+    use crate::io::network::IONetwork;
     use crate::simulation::q_network::QLink;
     use crate::simulation::q_network::QNetwork;
     use crate::simulation::q_vehicle::QVehicle;

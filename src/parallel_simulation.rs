@@ -1,4 +1,4 @@
-use crate::container::non_blocking_io::NonBlocking;
+use crate::io::non_blocking_io::NonBlocking;
 use crate::parallel_simulation::agent_q::AgentQ;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::events::Events;
@@ -21,15 +21,15 @@ mod splittable_population;
 mod splittable_scenario;
 mod vehicles;
 
-struct Simulation<'a> {
+struct Simulation {
     scenario: ScenarioPartition,
     activity_q: AgentQ,
     teleportation_q: AgentQ,
-    events: Events<'a>,
+    events: Events,
 }
 
-impl<'a> Simulation<'a> {
-    fn new(scenario: ScenarioPartition, events: Events<'a>) -> Simulation<'a> {
+impl Simulation {
+    fn new(scenario: ScenarioPartition, events: Events) -> Simulation {
         let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -43,13 +43,11 @@ impl<'a> Simulation<'a> {
         }
     }
 
-    fn create_simulation_partitions(
-        scenario: Scenario,
-        events: &'a Events<'a>,
-    ) -> Vec<Simulation<'a>> {
+    fn create_simulation_partitions(scenario: Scenario, events: &Events) -> Vec<Simulation> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
+            // this clones the sender end of the writer but not the worker part.
             .map(|partition| Simulation::new(partition, events.clone()))
             .collect();
 
@@ -92,6 +90,7 @@ impl<'a> Simulation<'a> {
             self.teleportation_arrivals(now);
             self.move_nodes(now);
             self.send(now);
+            self.events.flush();
             self.receive(now);
             now += 1;
         }
@@ -119,7 +118,7 @@ impl<'a> Simulation<'a> {
                     Route::NetworkRoute(net_route) => {
                         Simulation::push_onto_network(
                             &mut self.scenario.network,
-                            &self.events,
+                            &mut self.events,
                             net_route,
                             0,
                             agent.id,
@@ -154,7 +153,8 @@ impl<'a> Simulation<'a> {
 
     fn move_nodes(&mut self, now: u32) {
         for node in self.scenario.network.nodes.values() {
-            let exited_vehicles = node.move_vehicles(&mut self.scenario.network.links, now);
+            let exited_vehicles =
+                node.move_vehicles(&mut self.scenario.network.links, now, &mut self.events);
 
             for exit_reason in exited_vehicles {
                 match exit_reason {
@@ -207,7 +207,7 @@ impl<'a> Simulation<'a> {
                         Route::NetworkRoute(net_route) => {
                             Simulation::push_onto_network(
                                 &mut self.scenario.network,
-                                &self.events,
+                                &mut self.events,
                                 net_route,
                                 route_index,
                                 agent.id,
@@ -231,7 +231,7 @@ impl<'a> Simulation<'a> {
 
     fn push_onto_network(
         network: &mut NetworkPartition,
-        events: &Events,
+        events: &mut Events,
         route: &NetworkRoute,
         route_index: usize,
         driver_id: usize,
@@ -246,6 +246,8 @@ impl<'a> Simulation<'a> {
             Link::LocalLink(local_link) => {
                 if route_index == 0 {
                     events.handle_person_enters_vehicle(now, driver_id, &vehicle)
+                } else {
+                    events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
                 }
 
                 local_link.push_vehicle(vehicle, now);
@@ -276,9 +278,9 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::container::network::IONetwork;
-    use crate::container::non_blocking_io::NonBlocking;
-    use crate::container::population::IOPopulation;
+    use crate::io::network::IONetwork;
+    use crate::io::non_blocking_io::NonBlocking;
+    use crate::io::population::IOPopulation;
     use crate::parallel_simulation::events::Events;
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use crate::parallel_simulation::Simulation;
@@ -295,8 +297,8 @@ mod test {
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
         let scenario = Scenario::from_io(&mut network, &population, 1);
-        let (writer, guard) = NonBlocking::from_file("./test-log.txt");
-        let events = Events::new(writer, &guard);
+        let (writer, guard) = NonBlocking::from_file("./test-events.xml");
+        let mut events = Events::new(writer);
         let mut simulations = Simulation::create_simulation_partitions(scenario, &events);
 
         assert_eq!(1, simulations.len());
@@ -318,7 +320,7 @@ mod test {
 
         let scenario = Scenario::from_io(&mut network, &population, 2);
         let (writer, guard) = NonBlocking::from_file("./test-log.txt");
-        let events = Events::new(writer, &guard);
+        let mut events = Events::new(writer);
         let simulations = Simulation::create_simulation_partitions(scenario, &events);
 
         let join_handles: Vec<_> = simulations

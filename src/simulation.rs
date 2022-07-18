@@ -102,8 +102,8 @@ impl<'a> Simulation<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::container::network::IONetwork;
-    use crate::container::population::IOPopulation;
+    use crate::io::network::IONetwork;
+    use crate::io::population::IOPopulation;
     use crate::simulation::q_scenario::QScenario;
     use crate::simulation::Simulation;
 

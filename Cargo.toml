@@ -11,6 +11,3 @@ quick-xml = { version = "0.23.0", features = ["serialize"] }
 flate2 = { version = "1.0.24" }
 rand = "0.7.3"
 metis = "0.1.1"
-tracing = "0.1.35"
-tracing-subscriber = "0.3.14"
-tracing-appender = "0.2"

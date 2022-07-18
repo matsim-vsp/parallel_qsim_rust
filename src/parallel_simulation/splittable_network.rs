@@ -1,5 +1,6 @@
-use crate::container::matsim_id::MatsimId;
-use crate::container::network::{IOLink, IONetwork, IONode};
+use crate::io::matsim_id::MatsimId;
+use crate::io::network::{IOLink, IONetwork, IONode};
+use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::vehicles::Vehicle;
 use crate::simulation::flow_cap::Flowcap;
@@ -204,12 +205,19 @@ impl Node {
         }
     }
 
-    pub fn move_vehicles(&self, links: &mut HashMap<usize, Link>, now: u32) -> Vec<ExitReason> {
+    pub fn move_vehicles(
+        &self,
+        links: &mut HashMap<usize, Link>,
+        now: u32,
+        events: &mut Events,
+    ) -> Vec<ExitReason> {
         let mut exited_vehicles = Vec::new();
 
         for in_link_index in &self.in_links {
             if let Link::LocalLink(in_link) = links.get_mut(in_link_index).unwrap() {
                 for mut vehicle in in_link.pop_front(now) {
+                    //let in_link_id = in_link.id;
+                    events.handle_vehicle_leaves_link(now, *in_link_index, vehicle.id);
                     vehicle.advance_route_index();
                     match vehicle.current_link_id() {
                         None => {
@@ -220,7 +228,14 @@ impl Node {
                             exited_vehicles.push(ExitReason::FinishRoute(vehicle))
                         }
                         Some(out_id) => {
-                            self.move_vehicle(links, *out_id, vehicle, &mut exited_vehicles, now);
+                            self.move_vehicle(
+                                links,
+                                *out_id,
+                                vehicle,
+                                &mut exited_vehicles,
+                                now,
+                                events,
+                            );
                         }
                     }
                 }
@@ -239,11 +254,13 @@ impl Node {
         mut vehicle: Vehicle,
         exited_vehicles: &mut Vec<ExitReason>,
         now: u32,
+        events: &mut Events,
     ) {
         match links.get_mut(&out_link_id).unwrap() {
             Link::LocalLink(local_link) => {
                 let exit_time = now + (local_link.length / local_link.freespeed) as u32;
                 vehicle.exit_time = exit_time;
+                events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
                 local_link.push_vehicle(vehicle, now);
             }
             Link::SplitLink(split_link) => {
@@ -265,7 +282,7 @@ pub enum Link {
 
 #[derive(Debug)]
 pub struct LocalLink {
-    id: usize,
+    pub id: usize,
     q: VecDeque<Vehicle>,
     length: f32,
     freespeed: f32,

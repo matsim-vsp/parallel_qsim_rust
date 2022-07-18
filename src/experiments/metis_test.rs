@@ -1,6 +1,5 @@
 use metis::Graph;
 
-
 #[derive(Debug)]
 struct Node {
     id: usize,
@@ -63,8 +62,8 @@ mod tests {
 
     use metis::Graph;
 
-    use crate::container::network::IONetwork;
     use crate::experiments::metis_test::{partition, Link, Node};
+    use crate::io::network::IONetwork;
 
     #[test]
     fn test_convert_example() {
