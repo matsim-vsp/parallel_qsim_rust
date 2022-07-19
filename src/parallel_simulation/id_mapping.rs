@@ -28,6 +28,16 @@ impl MatsimIdMappings {
                 _ => panic!(""),
             })
             .filter(|leg| leg.route.r#type == "links")
+            // Filter vehicles with id null. This is a special case for modes which are routed on the
+            // network but not simulated on the network. Filter those out here, and fix this otherwise
+            // in matsim main. https://github.com/matsim-org/matsim-libs/issues/2098
+            .filter(|leg| {
+                return if let Some(vehicle) = &leg.route.vehicle {
+                    !vehicle.eq("null")
+                } else {
+                    false
+                };
+            })
             .map(|leg| leg.route.vehicle.as_ref().unwrap())
             .map(|id| IdRef { id: id.as_str() })
             .collect();

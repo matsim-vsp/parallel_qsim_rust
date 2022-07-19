@@ -200,7 +200,19 @@ impl Route {
             "generic" => {
                 Route::GenericRoute(GenericRoute::from_io_route(route, &id_mappings.links))
             }
-            "links" => Route::NetworkRoute(NetworkRoute::from_io_route(route, id_mappings)),
+            "links" => {
+                if let Some(vehicle_id) = &route.vehicle {
+                    // catch this special case because we have "null" as vehicle ids for modes which are
+                    // routed but not simulated on the network.
+                    if vehicle_id.eq("null") {
+                        Route::GenericRoute(GenericRoute::from_io_route(route, &id_mappings.links))
+                    } else {
+                        Route::NetworkRoute(NetworkRoute::from_io_route(route, id_mappings))
+                    }
+                } else {
+                    panic!("vehicle id is expected to be set. ")
+                }
+            }
             _ => panic!("Unsupported route type: '{}'", route.r#type),
         }
     }
