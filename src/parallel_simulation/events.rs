@@ -4,30 +4,52 @@ use crate::parallel_simulation::vehicles::Vehicle;
 use std::mem::take;
 
 #[derive(Clone, Debug)]
+pub enum EventsMode {
+    None,
+    File,
+}
+
+impl EventsMode {
+    pub fn from_str(value: &str) -> EventsMode {
+        match value {
+            "none" => EventsMode::None,
+            "file" => EventsMode::File,
+            _ => panic!("unsupported events mode: {value:#?}"),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct Events {
     writer: NonBlocking,
     buffer: Vec<u8>,
+    mode: EventsMode,
 }
 
 impl Events {
-    pub fn new(writer: NonBlocking) -> Events {
+    pub fn new(writer: NonBlocking, mode: EventsMode) -> Events {
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
         writer.write(header.as_bytes().to_vec());
 
         Events {
             writer,
             buffer: Vec::new(),
+            mode,
         }
     }
 
     pub fn handle(&mut self, event: &str) {
-        let mut vec = event.as_bytes().to_vec();
-        self.buffer.append(&mut vec);
+        if let EventsMode::File = self.mode {
+            let mut vec = event.as_bytes().to_vec();
+            self.buffer.append(&mut vec);
+        }
     }
 
     pub fn flush(&mut self) {
-        let buffer = take(&mut self.buffer);
-        self.writer.write(buffer)
+        if let EventsMode::File = self.mode {
+            let buffer = take(&mut self.buffer);
+            self.writer.write(buffer)
+        }
     }
 
     pub fn finish(&mut self) {
