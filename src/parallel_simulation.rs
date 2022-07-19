@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::parallel_simulation::agent_q::AgentQ;
 use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::events::Events;
@@ -12,24 +13,26 @@ use log::info;
 
 mod agent_q;
 mod customs;
-mod events;
+pub mod events;
 mod id_mapping;
 mod messages;
 mod partition_info;
 mod splittable_network;
 mod splittable_population;
-mod splittable_scenario;
+pub mod splittable_scenario;
 mod vehicles;
 
-struct Simulation {
+pub struct Simulation {
     scenario: ScenarioPartition,
     activity_q: AgentQ,
     teleportation_q: AgentQ,
     events: Events,
+    start_time: u32,
+    end_time: u32,
 }
 
 impl Simulation {
-    fn new(scenario: ScenarioPartition, events: Events) -> Simulation {
+    fn new(config: &Config, scenario: ScenarioPartition, events: Events) -> Simulation {
         let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -40,32 +43,37 @@ impl Simulation {
             activity_q: q,
             teleportation_q: AgentQ::new(),
             events,
+            start_time: config.start_time,
+            end_time: config.end_time,
         }
     }
 
-    fn create_simulation_partitions(scenario: Scenario, events: &Events) -> Vec<Simulation> {
+    pub fn create_simulation_partitions(
+        config: &Config,
+        scenario: Scenario,
+        events: &Events,
+    ) -> Vec<Simulation> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
             // this clones the sender end of the writer but not the worker part.
-            .map(|partition| Simulation::new(partition, events.clone()))
+            .map(|partition| Simulation::new(config, partition, events.clone()))
             .collect();
 
         simulations
     }
 
-    fn run(&mut self) {
+    pub fn run(&mut self) {
         info!(
             "Simulation #{}: Starting simulation loop.",
             self.scenario.customs.id
         );
 
         // use fixed start and end times
-        let mut now = 0;
-        let end_time = 21600;
+        let mut now = self.start_time;
         info!(
             "\n #### Start the simulation for Scenario Slice #{} at timestep {}. Last timestep is set to {} ####\n",
-            self.scenario.customs.id, now, end_time
+            self.scenario.customs.id, now, self.end_time
         );
 
         // conceptually this should do the following in the main loop:
@@ -80,7 +88,7 @@ impl Simulation {
         // this will shut down the thread once everybody has left to other
         // simulation parts. Think about better sync method, so that a thread only
         // terminates, if all threads are done.
-        while self.active_agents() > 0 && now <= end_time {
+        while self.active_agents() > 0 && now <= self.end_time {
             if now % 3600 == 0 {
                 let hour = now / 3600;
                 info!("Simulation #{}: At: {hour}:00:00", self.scenario.customs.id);
@@ -263,7 +271,7 @@ impl Simulation {
         panic!("This should not happen!!!")
     }
 }
-
+/*
 #[cfg(test)]
 mod test {
     use crate::io::network::IONetwork;
@@ -426,3 +434,5 @@ mod test {
             .unwrap()
     }
 }
+
+ */
