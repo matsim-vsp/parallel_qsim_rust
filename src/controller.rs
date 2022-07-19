@@ -6,9 +6,11 @@ use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::Simulation;
 use log::info;
+use std::ops::Sub;
 use std::path::Path;
 use std::thread;
 use std::thread::JoinHandle;
+use std::time::Instant;
 
 pub fn run(config: Config) {
     let network = IONetwork::from_file(config.network_file.as_ref());
@@ -27,6 +29,8 @@ pub fn run(config: Config) {
 
     let simulations = Simulation::create_simulation_partitions(&config, scenario, &events);
 
+    // do very basic timing
+    let start = Instant::now();
     // create threads and start them
     let join_handles: Vec<JoinHandle<()>> = simulations
         .into_iter()
@@ -37,6 +41,10 @@ pub fn run(config: Config) {
     for handle in join_handles {
         handle.join().unwrap();
     }
+
+    let end = Instant::now();
+    let duration = end.sub(start);
+    info!("Simulation ran for: {}s", duration.as_millis() / 1000);
 
     // print closing tag in events file.
     events.finish();
