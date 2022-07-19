@@ -1,3 +1,4 @@
+use log::info;
 use quick_xml::de::from_reader;
 use serde::de::DeserializeOwned;
 use std::fs::File;
@@ -7,7 +8,7 @@ pub fn read<T>(file_path: &str) -> T
 where
     T: DeserializeOwned,
 {
-    println!("xml_reader::read: Starting to read file at: {}", file_path);
+    info!("xml_reader::read: Starting to read file at: {}", file_path);
     let file = File::open(file_path)
         .unwrap_or_else(|_| panic!("xml_reader::read: Could not open file at {}", file_path));
     let buffered_reader = BufReader::new(file);

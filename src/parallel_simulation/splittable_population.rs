@@ -80,10 +80,6 @@ impl Agent {
                 self.id
             )
         }
-        println!(
-            "Agent #{}: Advancing plan from index {} to index {}",
-            self.id, self.current_element, next_element
-        );
         self.current_element = next_element;
     }
 }

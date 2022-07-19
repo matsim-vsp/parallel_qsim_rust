@@ -1,6 +1,7 @@
 use crate::io::matsim_id::MatsimId;
 use crate::io::xml_reader;
 use flate2::Compression;
+use log::info;
 use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -100,7 +101,7 @@ impl IONetwork {
 
     pub fn from_file(file_path: &str) -> IONetwork {
         let network: IONetwork = xml_reader::read(file_path);
-        println!(
+        info!(
             "IONetwork:: Finished reading network. It contains {} nodes and {} links.",
             network.nodes().len(),
             network.links().len()
@@ -129,7 +130,7 @@ impl IONetwork {
         // write the actual network
         to_writer(writer, self).unwrap();
 
-        println!("done");
+        info!("IONetwork: Finished writing network.");
     }
 }
 

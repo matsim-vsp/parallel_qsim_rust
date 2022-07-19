@@ -69,10 +69,6 @@ impl QEntry {
 
     fn from_activity(agent: &Agent, activity: &Activity, now: u32) -> QEntry {
         let wakeup_time = activity.end_time(now);
-        println!(
-            "AgentQ: Create QEntry for #{} and activity: {} with wakeup_time: {wakeup_time} at time {now}",
-            agent.id, activity.act_type
-        );
         QEntry {
             agent_id: agent.id,
             wakeup_time,
@@ -82,10 +78,6 @@ impl QEntry {
     fn from_leg(agent: &Agent, leg: &Leg, now: u32) -> QEntry {
         if let Route::GenericRoute(route) = &leg.route {
             let wakeup_time = now + route.trav_time;
-            println!(
-                "AgentQ: Create QEntry for #{} and GenericRoute with wakeup_time: {wakeup_time} at time {now}",
-                agent.id
-            );
             QEntry {
                 agent_id: agent.id,
                 wakeup_time,

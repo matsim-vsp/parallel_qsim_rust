@@ -2,6 +2,7 @@ use crate::io::matsim_id::MatsimId;
 use crate::io::network::{IONetwork, IONode};
 use crate::io::population::{IOPlanElement, IOPopulation};
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
+use log::info;
 use metis::Graph;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -33,20 +34,20 @@ impl PartitionInfo {
         num_parts: usize,
     ) -> PartitionInfo {
         if num_parts == 1 {
-            println!("PartitionInfo: 'num_parts' is 1. No partitioning necessary. Put all nodes into partition 0.");
+            info!("PartitionInfo: 'num_parts' is 1. No partitioning necessary. Put all nodes into partition 0.");
             return PartitionInfo {
                 num_parts,
                 partition_result: vec![0; io_network.nodes().len()],
                 node_id_mapping: id_mappings.nodes.clone(),
             };
         }
-        println!("PartitionInfo: calculating node and link weights.");
+        info!("PartitionInfo: calculating node and link weights.");
         let (node_weights, link_weights) =
             PartitionInfo::calculate_weights(io_network, io_population, id_mappings);
-        println!("PartitionInfo: converting nodes to partition nodes");
+        info!("PartitionInfo: converting nodes to partition nodes");
         let mut partition_nodes =
             PartitionInfo::create_partition_nodes(io_network, &node_weights, &id_mappings.nodes);
-        println!("PartitionInfo: converting links to partition links");
+        info!("PartitionInfo: converting links to partition links");
         let partition_links = PartitionInfo::create_partition_links(
             io_network,
             &link_weights,
@@ -54,11 +55,11 @@ impl PartitionInfo {
             id_mappings,
         );
 
-        println!("PartitionInfo: starting Partitioning.");
+        info!("PartitionInfo: starting Partitioning.");
         let partition_result =
             PartitionInfo::partition(partition_nodes, partition_links, num_parts as i32);
 
-        println!("PartitionInfo: finished Partitioning.");
+        info!("PartitionInfo: finished Partitioning.");
         PartitionInfo {
             num_parts,
             partition_result,
@@ -78,7 +79,7 @@ impl PartitionInfo {
         let mut vwgt: Vec<i32> = Vec::new();
         let mut result = vec![0x00; nodes.len()];
 
-        println!("PartitionInfo: converting nodes and links to ajacency format for metis.");
+        info!("PartitionInfo: converting nodes and links to ajacency format for metis.");
         for node in nodes {
             let num_out_links = node.out_links.len() as i32;
             let next_adjacency_index = xadj.last().unwrap() + num_out_links;
@@ -92,7 +93,7 @@ impl PartitionInfo {
             }
         }
 
-        println!("PartitionInfo: Calling Metis Partitioning Library.");
+        info!("PartitionInfo: Calling Metis Partitioning Library.");
         Graph::new(1, num_parts, &mut xadj, &mut adjncy)
             // I would like to use make metis not part busy links, but this didn't work on the first try
             // come back later and figure out the details. The first attempt with only weighting nodes

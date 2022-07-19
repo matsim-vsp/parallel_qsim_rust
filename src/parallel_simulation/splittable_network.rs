@@ -220,13 +220,7 @@ impl Node {
                     events.handle_vehicle_leaves_link(now, *in_link_index, vehicle.id);
                     vehicle.advance_route_index();
                     match vehicle.current_link_id() {
-                        None => {
-                            println!(
-                                "Node: Vehicle #{} at the end of its route at time {now}",
-                                vehicle.id
-                            );
-                            exited_vehicles.push(ExitReason::FinishRoute(vehicle))
-                        }
+                        None => exited_vehicles.push(ExitReason::FinishRoute(vehicle)),
                         Some(out_id) => {
                             self.move_vehicle(
                                 links,
@@ -261,13 +255,7 @@ impl Node {
                 events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
                 local_link.push_vehicle(vehicle, now);
             }
-            Link::SplitLink(split_link) => {
-                println!(
-                    "Node: Vehicle #{} at split link #{} at time {now}",
-                    vehicle.id, split_link.id
-                );
-                exited_vehicles.push(ExitReason::ReachedBoundary(vehicle))
-            }
+            Link::SplitLink(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
         }
     }
 }
@@ -289,10 +277,6 @@ pub struct LocalLink {
 
 impl LocalLink {
     pub fn push_vehicle(&mut self, mut vehicle: Vehicle, now: u32) {
-        println!(
-            "LocalLink: Vehicle #{} enters link #{} at time {}",
-            vehicle.id, self.id, now
-        );
         let exit_time = now + (self.length / self.freespeed) as u32;
         vehicle.exit_time = exit_time;
         self.q.push_back(vehicle);
@@ -309,10 +293,6 @@ impl LocalLink {
 
             let vehicle = self.q.pop_front().unwrap();
             self.flowcap.consume_capacity(1.0);
-            println!(
-                "LocalLink: Vehicle #{} leaves link #{} at time {}",
-                vehicle.id, self.id, now
-            );
             popped_veh.push(vehicle);
         }
 

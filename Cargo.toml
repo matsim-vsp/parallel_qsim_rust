@@ -11,3 +11,5 @@ quick-xml = { version = "0.23.0", features = ["serialize"] }
 flate2 = { version = "1.0.24" }
 rand = "0.7.3"
 metis = "0.1.1"
+flexi_logger = { version = "0.22" , features = ["async"]}
+log = "0.4"

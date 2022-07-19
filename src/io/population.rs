@@ -1,4 +1,5 @@
 use crate::io::matsim_id::MatsimId;
+use log::info;
 use serde::Deserialize;
 
 use crate::io::xml_reader;
@@ -83,7 +84,7 @@ pub struct IOPopulation {
 impl IOPopulation {
     pub fn from_file(file_path: &str) -> IOPopulation {
         let popoulation: IOPopulation = xml_reader::read(file_path);
-        println!(
+        info!(
             "IOPopulation: Finished reading population. Population contains {} persons",
             popoulation.persons.len()
         );

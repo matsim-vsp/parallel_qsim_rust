@@ -64,11 +64,6 @@ impl Customs {
         let link_id = vehicle.current_link_id().unwrap();
         let thread = *self.link_id_mapping.get(link_id).unwrap();
         let message = self.out_messages.entry(thread).or_insert(Message::new());
-
-        println!(
-            "Customs: Prepare to send Agent #{} with route_index {} from thread #{} to thread #{}",
-            agent.id, vehicle.route_index, self.id, thread
-        );
         message.add_driver(agent, vehicle.route_index);
     }
 
@@ -78,11 +73,6 @@ impl Customs {
                 let end_link = route.end_link;
                 let thread = *self.link_id_mapping.get(&end_link).unwrap();
                 let message = self.out_messages.entry(thread).or_insert(Message::new());
-
-                println!(
-                    "Customs: Prepare to send teleported Agent #{} from thread #{} to thread #{}",
-                    agent.id, self.id, thread
-                );
                 message.add_teleported(agent);
             }
         }

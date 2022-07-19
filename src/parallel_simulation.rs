@@ -8,6 +8,7 @@ use crate::parallel_simulation::splittable_population::PlanElement;
 use crate::parallel_simulation::splittable_population::Route;
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
+use log::info;
 
 mod agent_q;
 mod customs;
@@ -54,15 +55,15 @@ impl Simulation {
     }
 
     fn run(&mut self) {
-        println!(
+        info!(
             "Simulation #{}: Starting simulation loop.",
             self.scenario.customs.id
         );
 
         // use fixed start and end times
         let mut now = 0;
-        let end_time = 86400;
-        println!(
+        let end_time = 21600;
+        info!(
             "\n #### Start the simulation for Scenario Slice #{} at timestep {}. Last timestep is set to {} ####\n",
             self.scenario.customs.id, now, end_time
         );
@@ -82,7 +83,7 @@ impl Simulation {
         while self.active_agents() > 0 && now <= end_time {
             if now % 3600 == 0 {
                 let hour = now / 3600;
-                println!("Simulation #{}: At: {hour}:00:00", self.scenario.customs.id);
+                info!("Simulation #{}: At: {hour}:00:00", self.scenario.customs.id);
             }
 
             self.wakeup(now);
@@ -97,14 +98,6 @@ impl Simulation {
 
     fn wakeup(&mut self, now: u32) {
         let agents_2_link = self.activity_q.wakeup(now);
-
-        if !agents_2_link.is_empty() {
-            println!(
-                "Simulation #{}: {} agents woke up. Creating vehicles and putting them onto links at time {now}",
-                self.scenario.customs.id,
-                agents_2_link.len()
-            );
-        }
 
         for id in agents_2_link {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
@@ -197,10 +190,6 @@ impl Simulation {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;
                 let route_index = vehicle.1;
-                println!(
-                    "Thread #{} has received Agent #{} with route index {} at time {now}",
-                    self.scenario.customs.id, agent.id, route_index
-                );
                 if let PlanElement::Leg(leg) = agent.current_plan_element() {
                     match &leg.route {
                         Route::NetworkRoute(net_route) => {
@@ -283,6 +272,8 @@ mod test {
     use crate::parallel_simulation::events::Events;
     use crate::parallel_simulation::splittable_scenario::Scenario;
     use crate::parallel_simulation::Simulation;
+    use flexi_logger::{detailed_format, FileSpec, Logger, LoggerHandle, WriteMode};
+    use log::info;
     use std::path::Path;
     use std::thread;
     use std::thread::JoinHandle;
@@ -292,6 +283,9 @@ mod test {
     /// without passing messages to other simulation slices works.
     #[test]
     fn run_single_agent_single_slice() {
+        // let _logger =
+        //     get_file_logger("./test_output/parallel_simulation/run_single_agent_single_slice/");
+
         let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
 
@@ -311,8 +305,6 @@ mod test {
         let mut simulation = simulations.remove(0);
         simulation.run();
         events.finish();
-
-        println!("done.")
     }
 
     /// This creates a scenario with three links and one agent. The scenario is split into two domains.
@@ -321,6 +313,8 @@ mod test {
     /// the other domain, leaves link2, enters link3 and finishes its route on link3
     #[test]
     fn run_single_agent_two_slices() {
+        //let _logger =
+        //     get_file_logger("./test_output/parallel_simulation/run_single_agent_two_slices/");
         let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let population = IOPopulation::from_file("./assets/3-links/1-agent.xml");
         let scenario = Scenario::from_io(&network, &population, 2);
@@ -348,6 +342,8 @@ mod test {
 
     #[test]
     fn run_equil_scenario() {
+        let _logger = get_file_logger("./test_output/parallel_simulation/run_equil_scenario/");
+
         // load input files
         let network = IONetwork::from_file("./assets/equil-network.xml");
         let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
@@ -377,12 +373,13 @@ mod test {
         }
         events.finish();
 
-        println!("all simulation threads have finished. ")
+        info!("all simulation threads have finished. ")
     }
 
     #[test]
     #[ignore]
     fn run_berlin_scenario() {
+        let _logger = get_file_logger("./test_output/parallel_simulation/run_berlin_scenario/");
         let network = IONetwork::from_file("/home/janek/test-files/berlin-test-network.xml.gz");
         let population =
             IOPopulation::from_file("/home/janek/test-files/berlin-all-plans-without-pt.xml.gz");
@@ -412,6 +409,20 @@ mod test {
 
         events.finish();
 
-        println!("all simulation threads have finished. ")
+        info!("all simulation threads have finished. ")
+    }
+
+    fn get_file_logger(directory: &str) -> LoggerHandle {
+        Logger::try_with_str("info")
+            .unwrap()
+            .log_to_file(
+                FileSpec::default()
+                    .suppress_timestamp()
+                    .directory(directory),
+            )
+            .format_for_files(detailed_format)
+            .write_mode(WriteMode::Async)
+            .start()
+            .unwrap()
     }
 }

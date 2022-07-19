@@ -1,3 +1,4 @@
+use log::info;
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc};
 
@@ -32,14 +33,14 @@ impl Scenario {
         io_population: &IOPopulation,
         num_parts: usize,
     ) -> Scenario {
-        println!("SplittableScenario: creating Id mappings");
+        info!("SplittableScenario: creating Id mappings");
         let id_mappings = MatsimIdMappings::from_io(io_network, io_population);
 
-        println!("SplittableScenario: creating partition information");
+        info!("SplittableScenario: creating partition information");
         let partition_info =
             PartitionInfo::from_io(io_network, io_population, &id_mappings, num_parts);
 
-        println!("SplittableScenario: creating partitioned network");
+        info!("SplittableScenario: creating partitioned network");
         let network = Network::from_io(
             io_network,
             num_parts,
@@ -47,7 +48,7 @@ impl Scenario {
             &id_mappings,
         );
 
-        println!("SplittableScenario: creating partitioned population");
+        info!("SplittableScenario: creating partitioned population");
         let mut populations =
             Population::split_from_container(io_population, num_parts, &id_mappings, &network);
 
@@ -61,7 +62,7 @@ impl Scenario {
             node_2_thread: network.nodes_2_thread.clone(),
         };
 
-        println!("SplittableScenario: creating channels for inter thread communication");
+        info!("SplittableScenario: creating channels for inter thread communication");
         for i in 0..num_parts {
             let (sender, receiver) = mpsc::channel();
             let customs = Customs::new(i, receiver, network.links_2_thread.clone());
@@ -77,7 +78,7 @@ impl Scenario {
             }
         }
 
-        println!("SplittableScenario: creating scenario partitions.");
+        info!("SplittableScenario: creating scenario partitions.");
         scenario.scenarios = network
             .partitions
             .into_iter()
