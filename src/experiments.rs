@@ -10,4 +10,6 @@ mod link_automata_with_routes;
 #[allow(dead_code)]
 mod metis_test;
 #[allow(dead_code)]
+mod ownership;
+#[allow(dead_code)]
 mod super_simple_link_automat;
