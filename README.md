@@ -15,11 +15,21 @@ $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 This project uses the [metis](https://crates.io/crates/metis) crate as a dependency.
 This crate is a wrapper for the [METIS C Library](https://github.com/KarypisLab/METIS).
-It requires Metis and Clang as Prerequisites. On Windows Subsystem for Linux I executed the following steps to make
+It requires Metis and Clang as Prerequisites. 
+
+#### Windows Subsystem for Linux - Probably Ubuntu in general
+On Windows Subsystem for Linux I executed the following steps to make
 things work
 
 1. `$ sudo apt install libclang-dev`
 2. `$ sudo apt install libmetis-dev`
+
+#### Math Cluster
+The math cluster has `Clang` and `Metis` installed as modules. To make sure the correct versions are enabled run 
+the following before building and running
+
+1. `$ module load clang/8.0.1` (only build)
+2. `$ mdoule load metis-5.1`
 
 ### Set up in IntelliJ/CLion
 Programming Rust in IntelliJ is possible by installing the [Rust Plugin](https://plugins.jetbrains.com/plugin/8182-rust/docs) developed by JetBrains. However, some features
@@ -36,6 +46,39 @@ Cargo -> Manage Targets... -> + -> WSL
 
 This can probably done somewhere else as well...
 
+### Set up on the Math Cluster
+Since Rust is build into a binary executable (this is important for Java Developers 🙃) it has to be built on the 
+machine on which the program is supposed to be run. For this the following steps are necessary:
+
+Make sure `Clang` and `Metis` are available
+
+```
+$ module laod clang/8.0.1
+$ mdoule load metis-5.1
+```
+
+Install Rust on the cluster:
+```
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+Clone the project
+```
+$ git clone https://github.com/Janekdererste/rust_q_sim.git ./your-project-folder
+```
+Build the project from within `your-project-folder`
+```
+$ cargo build --release
+```
+Now there should be an executable in `your-project-folder/target/release`. From within `your-project-folder` it can 
+be started like
+```
+$ ./target/release/rust_q_sim 0 3600 2 /path/to/network.xml.gz /path/to/population.xml.gz /output-folder file
+```
+This would run a simulation from time-step 0 until time-step 3600 (1 hour) on two threads. It would use the 
+specified network and population as input and write output files into the output-folder. The last parameter is
+the writing mode for events.
+
+This interface is very basic and will hopefully improve soon...
 
 ### Build
 
