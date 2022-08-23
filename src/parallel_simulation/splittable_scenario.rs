@@ -4,8 +4,8 @@ use std::sync::{mpsc, Arc};
 
 use crate::io::network::{Attr, Attrs, IOLink, IONetwork, IONode};
 use crate::io::population::IOPopulation;
-use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
+use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::partition_info::PartitionInfo;
 use crate::parallel_simulation::splittable_network::{Network, NetworkPartition};
 use crate::parallel_simulation::splittable_population::Population;
@@ -24,7 +24,7 @@ pub struct Scenario {
 pub struct ScenarioPartition {
     pub network: NetworkPartition,
     pub population: Population,
-    pub customs: Customs,
+    pub msg_broker: MessageBroker,
 }
 
 impl Scenario {
@@ -52,7 +52,7 @@ impl Scenario {
         let mut populations =
             Population::split_from_container(io_population, num_parts, &id_mappings, &network);
 
-        let mut customs_collection = Vec::new();
+        let mut message_brokers = Vec::new();
         let mut senders = Vec::new();
 
         let mut scenario = Scenario {
@@ -65,15 +65,15 @@ impl Scenario {
         info!("SplittableScenario: creating channels for inter thread communication");
         for i in 0..num_parts {
             let (sender, receiver) = mpsc::channel();
-            let customs = Customs::new(i, receiver, network.links_2_thread.clone());
-            customs_collection.push(customs);
+            let broker = MessageBroker::new(i, receiver, network.links_2_thread.clone());
+            message_brokers.push(broker);
             senders.push(sender);
         }
 
-        for (i_custom, customs) in customs_collection.iter_mut().enumerate() {
+        for (i_broker, broker) in message_brokers.iter_mut().enumerate() {
             for (i_sender, sender) in senders.iter().enumerate() {
-                if i_custom != i_sender {
-                    customs.add_sender(i_sender, sender.clone());
+                if i_broker != i_sender {
+                    broker.add_sender(i_sender, sender.clone());
                 }
             }
         }
@@ -87,11 +87,11 @@ impl Scenario {
             .rev()
             .map(|(i, network_partition)| {
                 let population = populations.remove(i);
-                let customs = customs_collection.remove(i);
+                let customs = message_brokers.remove(i);
                 ScenarioPartition {
                     network: network_partition,
                     population,
-                    customs,
+                    msg_broker: customs,
                 }
             })
             .collect();

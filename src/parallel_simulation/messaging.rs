@@ -6,7 +6,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct Customs {
+pub struct MessageBroker {
     pub(crate) id: usize,
     receiver: Receiver<Message>,
     senders: HashMap<usize, Sender<Message>>,
@@ -14,13 +14,13 @@ pub struct Customs {
     link_id_mapping: Arc<HashMap<usize, usize>>,
 }
 
-impl Customs {
+impl MessageBroker {
     pub fn new(
         id: usize,
         receiver: Receiver<Message>,
         link_id_mapping: Arc<HashMap<usize, usize>>,
-    ) -> Customs {
-        Customs {
+    ) -> MessageBroker {
+        MessageBroker {
             id,
             receiver,
             senders: HashMap::new(),

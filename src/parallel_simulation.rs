@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::parallel_simulation::agent_q::AgentQ;
-use crate::parallel_simulation::customs::Customs;
 use crate::parallel_simulation::events::Events;
+use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::splittable_network::{ExitReason, Link, NetworkPartition};
 use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::splittable_population::NetworkRoute;
@@ -12,10 +12,10 @@ use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
 
 mod agent_q;
-mod customs;
 pub mod events;
 mod id_mapping;
 mod messages;
+mod messaging;
 mod partition_info;
 mod splittable_network;
 mod splittable_population;
@@ -66,14 +66,14 @@ impl Simulation {
     pub fn run(&mut self) {
         info!(
             "Simulation #{}: Starting simulation loop.",
-            self.scenario.customs.id
+            self.scenario.msg_broker.id
         );
 
         // use fixed start and end times
         let mut now = self.start_time;
         info!(
             "\n #### Start the simulation for Scenario Slice #{} at timestep {}. Last timestep is set to {} ####\n",
-            self.scenario.customs.id, now, self.end_time
+            self.scenario.msg_broker.id, now, self.end_time
         );
 
         // conceptually this should do the following in the main loop:
@@ -91,7 +91,10 @@ impl Simulation {
         while self.active_agents() > 0 && now <= self.end_time {
             if now % 3600 == 0 {
                 let hour = now / 3600;
-                info!("Simulation #{}: At: {hour}:00:00", self.scenario.customs.id);
+                info!(
+                    "Simulation #{}: At: {hour}:00:00",
+                    self.scenario.msg_broker.id
+                );
             }
 
             self.wakeup(now);
@@ -126,14 +129,14 @@ impl Simulation {
                         );
                     }
                     Route::GenericRoute(_) => {
-                        if Simulation::is_local_teleportation(agent, &self.scenario.customs) {
+                        if Simulation::is_local_teleportation(agent, &self.scenario.msg_broker) {
                             self.teleportation_q.add(agent, now);
                         } else {
                             // copy the id here, so that the reference to agent can be dropped before we
                             // attempt to own the agent to move it to customs.
                             let id = agent.id;
                             let agent = self.scenario.population.agents.remove(&id).unwrap();
-                            self.scenario.customs.prepare_to_teleport(agent);
+                            self.scenario.msg_broker.prepare_to_teleport(agent);
                         }
                     }
                 }
@@ -181,7 +184,7 @@ impl Simulation {
                             .agents
                             .remove(&vehicle.driver_id)
                             .unwrap();
-                        self.scenario.customs.prepare_to_send(agent, vehicle);
+                        self.scenario.msg_broker.prepare_to_send(agent, vehicle);
                     }
                 }
             }
@@ -189,11 +192,11 @@ impl Simulation {
     }
 
     fn send(&mut self, now: u32) {
-        self.scenario.customs.send(now);
+        self.scenario.msg_broker.send(now);
     }
 
     fn receive(&mut self, now: u32) {
-        let messages = self.scenario.customs.receive();
+        let messages = self.scenario.msg_broker.receive();
         for message in messages {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;
@@ -254,13 +257,13 @@ impl Simulation {
         }
     }
 
-    fn is_local_teleportation(agent: &Agent, customs: &Customs) -> bool {
+    fn is_local_teleportation(agent: &Agent, customs: &MessageBroker) -> bool {
         let (start_thread, end_thread) =
             Simulation::get_thread_ids_for_generic_route(agent, customs);
         start_thread == end_thread
     }
 
-    fn get_thread_ids_for_generic_route(agent: &Agent, customs: &Customs) -> (usize, usize) {
+    fn get_thread_ids_for_generic_route(agent: &Agent, customs: &MessageBroker) -> (usize, usize) {
         if let PlanElement::Leg(leg) = agent.current_plan_element() {
             if let Route::GenericRoute(route) = &leg.route {
                 let start_thread = *customs.get_thread_id(&route.start_link);
