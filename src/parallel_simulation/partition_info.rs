@@ -3,7 +3,7 @@ use crate::io::network::{IONetwork, IONode};
 use crate::io::population::{IOPlanElement, IOPopulation};
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use log::info;
-use metis::Graph;
+use metis::{Graph, Idx};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -72,12 +72,12 @@ impl PartitionInfo {
         *self.partition_result.get(internal).unwrap() as usize
     }
 
-    fn partition(nodes: Vec<PartitionNode>, links: Vec<PartitionLink>, num_parts: i32) -> Vec<i32> {
-        let mut xadj: Vec<i32> = Vec::from([0]);
-        let mut adjncy: Vec<i32> = Vec::new();
-        let mut adjwgt: Vec<i32> = Vec::new();
-        let mut vwgt: Vec<i32> = Vec::new();
-        let mut result = vec![0x00; nodes.len()];
+    fn partition(nodes: Vec<PartitionNode>, links: Vec<PartitionLink>, num_parts: Idx) -> Vec<Idx> {
+        let mut xadj: Vec<Idx> = Vec::from([0]);
+        let mut adjncy: Vec<Idx> = Vec::new();
+        let mut adjwgt: Vec<Idx> = Vec::new();
+        let mut vwgt: Vec<Idx> = Vec::new();
+        let mut result: Vec<Idx> = vec![0x00; nodes.len()];
 
         info!("PartitionInfo: converting nodes and links to ajacency format for metis.");
         for node in nodes {
