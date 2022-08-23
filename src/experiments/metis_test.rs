@@ -138,7 +138,7 @@ mod tests {
             let mut out_links = Vec::new();
 
             for l in start_i..end_i {
-                let node_id: i32 = adjncy[l as usize];
+                let node_id: Idx = adjncy[l as usize];
                 let link = Link {
                     id: links.len(),
                     count: 1,
