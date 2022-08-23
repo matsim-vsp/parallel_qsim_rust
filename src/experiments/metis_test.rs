@@ -1,4 +1,4 @@
-use metis::Graph;
+use metis::{Graph, Idx};
 
 #[derive(Debug)]
 struct Node {
@@ -14,18 +14,18 @@ struct Link {
     to: usize,
 }
 
-fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<i32> {
-    let mut xadj: Vec<i32> = Vec::from([0]);
-    let mut adjncy: Vec<i32> = Vec::new();
-    let mut adjwgt: Vec<i32> = Vec::new();
-    let mut vwgt: Vec<i32> = Vec::new();
+fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
+    let mut xadj: Vec<Idx> = Vec::from([0]);
+    let mut adjncy: Vec<Idx> = Vec::new();
+    let mut adjwgt: Vec<Idx> = Vec::new();
+    let mut vwgt: Vec<Idx> = Vec::new();
     let mut node_ids: Vec<usize> = Vec::new();
 
     for node in nodes {
         // do the xadj  pointers.
         let number_of_out_links = node.out_links.len() as i32;
         let next_adjacency_index = xadj.last().unwrap() + number_of_out_links;
-        xadj.push(next_adjacency_index as i32);
+        xadj.push(next_adjacency_index);
         vwgt.push(node.weight);
         node_ids.push(node.id);
 
@@ -47,7 +47,7 @@ fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<i32> {
 
     // ncon specifies number of vertice weights. Our vertices are unweighted
     // nparts is the number of parts. We'll start with 2
-    Graph::new(1, 2, &mut xadj.as_mut_slice(), &mut adjncy.as_mut_slice())
+    Graph::new(1, 2, &mut xadj, &mut adjncy)
         .set_adjwgt(&mut adjwgt)
         .set_vwgt(&mut vwgt)
         .part_kway(&mut result)

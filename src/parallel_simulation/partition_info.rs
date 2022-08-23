@@ -22,7 +22,7 @@ struct PartitionLink {
 #[derive(Debug)]
 pub struct PartitionInfo {
     num_parts: usize,
-    partition_result: Vec<i32>,
+    partition_result: Vec<Idx>,
     node_id_mapping: Arc<MatsimIdMapping>,
 }
 
@@ -57,7 +57,7 @@ impl PartitionInfo {
 
         info!("PartitionInfo: starting Partitioning.");
         let partition_result =
-            PartitionInfo::partition(partition_nodes, partition_links, num_parts as i32);
+            PartitionInfo::partition(partition_nodes, partition_links, num_parts as Idx);
 
         info!("PartitionInfo: finished Partitioning.");
         PartitionInfo {
@@ -81,15 +81,15 @@ impl PartitionInfo {
 
         info!("PartitionInfo: converting nodes and links to ajacency format for metis.");
         for node in nodes {
-            let num_out_links = node.out_links.len() as i32;
+            let num_out_links = node.out_links.len() as Idx;
             let next_adjacency_index = xadj.last().unwrap() + num_out_links;
-            xadj.push(next_adjacency_index as i32);
-            vwgt.push(node.weight);
+            xadj.push(next_adjacency_index);
+            vwgt.push(node.weight as Idx);
 
             for id in node.out_links {
                 let link = links.get(id).unwrap();
-                adjncy.push(link.to as i32);
-                adjwgt.push(link.weight);
+                adjncy.push(link.to as Idx);
+                adjwgt.push(link.weight as Idx);
             }
         }
 
