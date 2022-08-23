@@ -23,21 +23,21 @@ fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
 
     for node in nodes {
         // do the xadj  pointers.
-        let number_of_out_links = node.out_links.len() as i32;
+        let number_of_out_links = node.out_links.len() as Idx;
         let next_adjacency_index = xadj.last().unwrap() + number_of_out_links;
         xadj.push(next_adjacency_index);
-        vwgt.push(node.weight);
+        vwgt.push(node.weight as Idx);
         node_ids.push(node.id);
 
         // write the adjacent nodes and the link weights
         for link_id in node.out_links {
             let link = links.get(link_id).unwrap();
-            adjncy.push(link.to as i32);
-            adjwgt.push(link.count);
+            adjncy.push(link.to as Idx);
+            adjwgt.push(link.count as Idx);
         }
     }
 
-    let mut result = vec![0x00; xadj.len() - 1];
+    let mut result: Vec<Idx> = vec![0x00; xadj.len() - 1];
 
     println!("{:?}", xadj);
     println!("{:?}", adjncy);
