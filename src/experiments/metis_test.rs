@@ -60,7 +60,7 @@ fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
 mod tests {
     use std::collections::HashMap;
 
-    use metis::Graph;
+    use metis::{Graph, Idx};
 
     use crate::experiments::metis_test::{partition, Link, Node};
     use crate::io::network::IONetwork;
@@ -71,7 +71,7 @@ mod tests {
 
         let result = partition(nodes, links);
 
-        let mut expected = vec![0x00; 15];
+        let mut expected: Vec<Idx> = vec![0x00; 15];
         let mut crs = create_example();
         Graph::new(1, 2, &mut crs.0, &mut crs.1)
             .part_kway(&mut expected)
@@ -162,7 +162,7 @@ mod tests {
     /// Which itself is the example from https://raw.githubusercontent.com/KarypisLab/METIS/master/manual/manual.pdf
     /// chapter 5.5 - Figure 3
     #[rustfmt::skip]
-    fn create_example() -> ([i32; 16], [i32; 44]) {
+    fn create_example() -> ([Idx; 16], [Idx; 44]) {
         let xadj = [0, 2, 5, 8, 11, 13, 16, 20, 24, 28, 31, 33, 36, 39, 42, 44];
         let adjncy = [
             1, 5,
