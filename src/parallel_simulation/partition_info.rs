@@ -11,12 +11,14 @@ use std::sync::Arc;
 struct PartitionNode {
     weight: i32,
     out_links: Vec<usize>,
+    in_links: Vec<usize>,
 }
 
 #[derive(Debug)]
 struct PartitionLink {
     weight: i32,
     to: usize,
+    from: usize,
 }
 
 #[derive(Debug)]
@@ -82,13 +84,20 @@ impl PartitionInfo {
         info!("PartitionInfo: converting nodes and links to ajacency format for metis.");
         for node in nodes {
             let num_out_links = node.out_links.len() as Idx;
-            let next_adjacency_index = xadj.last().unwrap() + num_out_links;
+            let num_in_links = node.in_links.len() as Idx;
+            let next_adjacency_index = xadj.last().unwrap() + num_out_links + num_in_links;
             xadj.push(next_adjacency_index);
             vwgt.push(node.weight as Idx);
 
             for id in node.out_links {
                 let link = links.get(id).unwrap();
                 adjncy.push(link.to as Idx);
+                adjwgt.push(link.weight as Idx);
+            }
+
+            for id in node.in_links {
+                let link = links.get(id).unwrap();
+                adjncy.push(link.from as Idx);
                 adjwgt.push(link.weight as Idx);
             }
         }
@@ -120,6 +129,7 @@ impl PartitionInfo {
                 PartitionNode {
                     weight,
                     out_links: Vec::new(),
+                    in_links: Vec::new(),
                 }
             })
             .collect()
@@ -136,16 +146,23 @@ impl PartitionInfo {
             .iter()
             .map(|link| {
                 let link_id = id_mappings.links.get_internal(link.id.as_str()).unwrap();
-                let to_node_id = id_mappings.nodes.get_internal(link.to.as_str()).unwrap();
 
                 // put link into out links list of from node
                 let from_node_id = id_mappings.nodes.get_internal(link.from.as_str()).unwrap();
                 let from_node = nodes.get_mut(*from_node_id).unwrap();
                 from_node.out_links.push(*link_id);
+
+                // put link into in links list of to node
+                let to_node_id = id_mappings.nodes.get_internal(link.to.as_str()).unwrap();
+                let to_node = nodes.get_mut(*to_node_id).unwrap();
+                to_node.in_links.push(*link_id);
+
+                // add weight for link
                 let weight = *link_weights.get(link_id).unwrap_or(&1);
 
                 PartitionLink {
                     to: *to_node_id,
+                    from: *from_node_id,
                     weight: weight / 100, // TODO find an appropriate weight for links, or leave it out?
                 }
             })
