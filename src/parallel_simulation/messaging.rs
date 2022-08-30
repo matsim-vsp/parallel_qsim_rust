@@ -195,6 +195,39 @@ mod tests {
         assert_eq!(agent_id, received_agent.id)
     }
 
+    #[test]
+    fn receive() {
+        let agent_id = 42;
+        let link_id_1 = 1;
+        let link_id_2 = 2;
+        let (sender1, receiver1) = mpsc::channel();
+        let (sender2, receiver2) = mpsc::channel();
+        let id_mapping = Arc::new(HashMap::from([(link_id_1, 1), (link_id_2, 2)]));
+        let mut broker1 = MessageBroker::new(1, receiver1, id_mapping.clone());
+        broker1.add_sender(2, sender2);
+        let mut broker2 = MessageBroker::new(2, receiver2, id_mapping.clone());
+        broker2.add_sender(1, sender1);
+        let agent = Agent {
+            id: agent_id,
+            current_element: 0,
+            plan: Plan { elements: vec![] },
+        };
+        let mut vehicle = Vehicle::new(1, agent_id, vec![1, 2, 3, 4]);
+        vehicle.advance_route_index();
+        broker1.prepare_to_send(agent, vehicle);
+        broker1.send(43);
+
+        let messages = broker2.receive();
+
+        assert_eq!(1, messages.len());
+        let message = messages.get(0).unwrap();
+        assert_eq!(1, message.vehicles.len());
+        assert_eq!(0, message.telported.len());
+        assert_eq!(43, message.time);
+        let (agent, _route_id) = message.vehicles.get(0).unwrap();
+        assert_eq!(agent_id, agent.id)
+    }
+
     fn create_agent(id: usize, end_link_id: usize) -> Agent {
         Agent {
             id,
