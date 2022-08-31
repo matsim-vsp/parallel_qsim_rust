@@ -1,6 +1,6 @@
 # Rust Q-Sim
 
-This is a port of Matsim's Q-Sim to Rust
+This is a port of Matsim's Q-Sim to Rust. My current notes on the project are [here](https://docs.google.com/document/d/1DkrSJ7KnKXfy2qg8wWyE7c9OPqOUB63px6wmkwuIS9M/edit?usp=sharing)
 
 ## Set Up
 
@@ -31,6 +31,18 @@ the following before building and running
 1. `$ module load clang/8.0.1` (only build)
 2. `$ mdoule load metis-5.1`
 
+To run the program only the `Metis` module is necessary
+
+#### HLRN
+HLRN has `Clang` and `Metis` installed as modules. To enable compilation of the programm add the 
+following modules.
+
+1. `$ module load gcc/8.3.0`
+2. `$ module load llvm/9.0.0`
+3. `$ module load metis/5.1.0`
+
+To run the program only the `Metis` module is necessary
+
 ### Set up in IntelliJ/CLion
 Programming Rust in IntelliJ is possible by installing the [Rust Plugin](https://plugins.jetbrains.com/plugin/8182-rust/docs) developed by JetBrains. However, some features
 such as a Debugger are not available there. For this one can use Clion, which is the C-IDE by JetBrains. This also
@@ -46,16 +58,11 @@ Cargo -> Manage Targets... -> + -> WSL
 
 This can probably done somewhere else as well...
 
-### Set up on the Math Cluster
+### Set up on the Math Cluster / HLRN
 Since Rust is build into a binary executable (this is important for Java Developers 🙃) it has to be built on the 
 machine on which the program is supposed to be run. For this the following steps are necessary:
 
-Make sure `Clang` and `Metis` are available
-
-```
-$ module laod clang/8.0.1
-$ mdoule load metis-5.1
-```
+Make sure `Clang` and `Metis` are available as described in Prerequisites
 
 Install Rust on the cluster:
 ```
