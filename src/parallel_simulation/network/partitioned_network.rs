@@ -1,6 +1,7 @@
 use crate::io::matsim_id::MatsimId;
 use crate::io::network::{IOLink, IONetwork, IONode};
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
+use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -117,9 +118,11 @@ impl MutNetwork {
 
 #[cfg(test)]
 mod tests {
+    use super::Network;
     use crate::io::network::{IONetwork, IONode};
     use crate::io::population::IOPopulation;
     use crate::parallel_simulation::id_mapping::MatsimIdMappings;
+    use crate::parallel_simulation::network::link::Link;
     use std::collections::HashSet;
 
     /// This splits the network into 2 parts
@@ -219,36 +222,4 @@ mod tests {
             };
         }
     }
-
-    /*
-    #[test]
-    fn from_container() {
-        let io_network = IONetwork::from_file("./assets/equil-network.xml");
-        let (split_networks, node_mapping, link_mapping) =
-            NetworkPartition::(&io_network, 2, split);
-
-        assert_eq!(split_networks.len(), 2);
-
-        let first = split_networks.get(0).unwrap();
-        assert_eq!(first.nodes.len(), 8);
-        assert_eq!(first.links.len(), 17);
-
-        let second = split_networks.get(1).unwrap();
-        assert_eq!(second.nodes.len(), 7);
-        assert_eq!(second.links.len(), 16);
-
-        assert_eq!(link_mapping.id_2_thread.len(), 23);
-        assert_eq!(node_mapping.id_2_thread.len(), 15);
-    }
-
-    fn split(node: &IONode) -> usize {
-        let node_group_1 = vec!["1", "2", "3", "4", "5", "6", "7", "15"];
-        if node_group_1.contains(&node.id.as_str()) {
-            0
-        } else {
-            1
-        }
-    }
-
-     */
 }

@@ -4,7 +4,7 @@ use crate::io::population::{
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 
 use crate::io::matsim_id::MatsimId;
-use crate::parallel_simulation::splittable_network::Network;
+use crate::parallel_simulation::network::partitioned_network::Network;
 use std::collections::HashMap;
 
 #[derive(Debug)]

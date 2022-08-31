@@ -6,8 +6,9 @@ use crate::io::network::{Attr, Attrs, IOLink, IONetwork, IONode};
 use crate::io::population::IOPopulation;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::messaging::MessageBroker;
+use crate::parallel_simulation::network::network_partition::NetworkPartition;
+use crate::parallel_simulation::network::partitioned_network::Network;
 use crate::parallel_simulation::partition_info::PartitionInfo;
-use crate::parallel_simulation::splittable_network::{Network, NetworkPartition};
 use crate::parallel_simulation::splittable_population::Population;
 
 #[derive(Debug)]
