@@ -90,6 +90,10 @@ impl IOPopulation {
         );
         popoulation
     }
+
+    pub fn empty() -> IOPopulation {
+        IOPopulation { persons: vec![] }
+    }
 }
 
 #[cfg(test)]
