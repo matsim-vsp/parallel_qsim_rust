@@ -72,8 +72,92 @@ impl SplitLink {
             to_thread_id,
         }
     }
-    
+
     pub fn to_thread_id(&self) -> usize {
         self.to_thread_id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parallel_simulation::network::link::LocalLink;
+    use crate::parallel_simulation::vehicles::Vehicle;
+
+    #[test]
+    fn local_link_push_single_veh() {
+        let veh_id = 42;
+        let mut link = LocalLink::new(1, 1., 1., 10.);
+        let vehicle = Vehicle::new(veh_id, 1, vec![]);
+
+        link.push_vehicle(vehicle, 0);
+
+        // this should put the vehicle into the queue and update the exit time correctly
+        let pushed_vehicle = link.q.front().unwrap();
+        assert_eq!(veh_id, pushed_vehicle.id);
+        assert_eq!(10, pushed_vehicle.exit_time);
+    }
+
+    #[test]
+    fn local_link_push_multiple_veh() {
+        let id1 = 42;
+        let id2 = 43;
+        let mut link = LocalLink::new(1, 1., 1., 11.8);
+        let vehicle1 = Vehicle::new(id1, id1, vec![]);
+        let vehicle2 = Vehicle::new(id2, id2, vec![]);
+
+        link.push_vehicle(vehicle1, 0);
+        link.push_vehicle(vehicle2, 0);
+
+        // make sure that vehicles are added ad the end of the queue
+        assert_eq!(2, link.q.len());
+
+        let popped_vehicle1 = link.q.pop_front().unwrap();
+        assert_eq!(id1, popped_vehicle1.id);
+        assert_eq!(11, popped_vehicle1.exit_time);
+
+        let popped_vehicle2 = link.q.pop_front().unwrap();
+        assert_eq!(id2, popped_vehicle2.id);
+        assert_eq!(11, popped_vehicle2.exit_time);
+    }
+
+    #[test]
+    fn local_link_pop_with_exit_time() {
+        let mut link = LocalLink::new(1, 1000000., 10., 100.);
+
+        let mut n: u32 = 0;
+
+        while n < 10 {
+            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n);
+            n += 1;
+        }
+
+        let pop1 = link.pop_front(12);
+        assert_eq!(3, pop1.len());
+        let pop2 = link.pop_front(12);
+        assert_eq!(0, pop2.len());
+        let pop3 = link.pop_front(20);
+        assert_eq!(7, pop3.len());
+    }
+
+    #[test]
+    fn local_link_pop_with_capacity() {
+        // link has capacity of 2 per second
+        let mut link = LocalLink::new(1, 7200., 10., 100.);
+
+        let mut n: u32 = 0;
+
+        while n < 10 {
+            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n);
+            n += 1;
+        }
+
+        n = 0;
+        while n < 5 {
+            let popped = link.pop_front(20 + n);
+            assert_eq!(2, popped.len());
+            assert_eq!(10 + n * 2, popped.get(0).unwrap().exit_time);
+            assert_eq!(11 + n * 2, popped.get(1).unwrap().exit_time);
+            n += 1;
+        }
     }
 }
