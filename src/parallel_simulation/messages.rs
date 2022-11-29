@@ -6,14 +6,16 @@ pub struct Message {
     pub vehicles: Vec<(Agent, usize)>,
     pub telported: Vec<Agent>,
     pub time: u32,
+    pub from: usize,
 }
 
 impl Message {
-    pub fn new() -> Message {
+    pub fn new(from: usize) -> Message {
         Message {
             vehicles: Vec::new(),
             telported: Vec::new(),
             time: 0,
+            from,
         }
     }
 

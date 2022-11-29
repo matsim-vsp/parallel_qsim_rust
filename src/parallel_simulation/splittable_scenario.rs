@@ -71,10 +71,11 @@ impl Scenario {
             senders.push(sender);
         }
 
+        // this implements an n to n communication
         for (i_broker, broker) in message_brokers.iter_mut().enumerate() {
             for (i_sender, sender) in senders.iter().enumerate() {
                 if i_broker != i_sender {
-                    broker.add_sender(i_sender, sender.clone());
+                    broker.add_neighbor_sender(i_sender, sender.clone());
                 }
             }
         }

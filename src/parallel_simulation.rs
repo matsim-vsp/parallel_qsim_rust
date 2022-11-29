@@ -138,7 +138,7 @@ impl Simulation {
                             // attempt to own the agent to move it to customs.
                             let id = agent.id;
                             let agent = self.scenario.population.agents.remove(&id).unwrap();
-                            self.scenario.msg_broker.prepare_to_teleport(agent);
+                            self.scenario.msg_broker.prepare_teleported(agent);
                         }
                     }
                 }
@@ -186,7 +186,7 @@ impl Simulation {
                             .agents
                             .remove(&vehicle.driver_id)
                             .unwrap();
-                        self.scenario.msg_broker.prepare_to_send(agent, vehicle);
+                        self.scenario.msg_broker.prepare_routed(agent, vehicle);
                     }
                 }
             }
