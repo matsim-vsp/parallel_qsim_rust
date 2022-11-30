@@ -6,7 +6,8 @@ use std::collections::VecDeque;
 #[derive(Debug)]
 pub enum Link {
     LocalLink(LocalLink),
-    SplitLink(SplitLink),
+    SplitInLink(SplitInLink),
+    SplitOutLink(SplitOutLink),
 }
 
 #[derive(Debug)]
@@ -58,23 +59,41 @@ impl LocalLink {
 }
 
 #[derive(Debug)]
-pub struct SplitLink {
+pub struct SplitOutLink {
     id: usize,
-    from_thread_id: usize,
     to_thread_id: usize,
 }
 
-impl SplitLink {
-    pub fn new(id: usize, from_thread_id: usize, to_thread_id: usize) -> SplitLink {
-        SplitLink {
-            id,
+impl SplitOutLink {
+    pub fn new(id: usize, to_thread_id: usize) -> SplitOutLink {
+        SplitOutLink { id, to_thread_id }
+    }
+
+    pub fn neighbor_partition_id(&self) -> usize {
+        self.to_thread_id
+    }
+}
+
+#[derive(Debug)]
+pub struct SplitInLink {
+    from_thread_id: usize,
+    local_link: LocalLink,
+}
+
+impl SplitInLink {
+    pub fn new(from_thread_id: usize, local_link: LocalLink) -> SplitInLink {
+        SplitInLink {
             from_thread_id,
-            to_thread_id,
+            local_link,
         }
     }
 
-    pub fn to_thread_id(&self) -> usize {
-        self.to_thread_id
+    pub fn neighbor_partition_id(&self) -> usize {
+        self.from_thread_id
+    }
+
+    pub fn local_link_mut(&mut self) -> &mut LocalLink {
+        &mut self.local_link
     }
 }
 

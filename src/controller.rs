@@ -27,7 +27,7 @@ pub fn run(config: Config) {
     let (events_writer, _guard) = NonBlocking::from_file(&out_events_path.to_str().unwrap());
     let mut events = Events::new(events_writer, config.events_mode.clone());
 
-    let simulations = Simulation::create_simulation_partitions(&config, scenario, &events);
+    let simulations = Simulation::create_simulation_partitions(&config, scenario, events.clone());
 
     // do very basic timing
     let start = Instant::now();

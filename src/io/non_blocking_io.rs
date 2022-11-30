@@ -1,4 +1,5 @@
 use crate::io::worker::Worker;
+use crate::parallel_simulation::events::EventsWriter;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::sync::mpsc;
@@ -44,8 +45,10 @@ impl NonBlocking {
         let writer = BufWriter::new(file);
         NonBlocking::new(writer)
     }
+}
 
-    pub fn write(&self, buf: Vec<u8>) {
+impl EventsWriter for NonBlocking {
+    fn write(&self, buf: Vec<u8>) {
         self.channel.send(Msg::Line(buf)).unwrap();
     }
 }

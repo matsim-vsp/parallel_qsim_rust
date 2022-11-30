@@ -1,4 +1,3 @@
-use crate::io::non_blocking_io::NonBlocking;
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
 use std::mem::take;
@@ -19,15 +18,31 @@ impl EventsMode {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Events {
-    writer: NonBlocking,
-    buffer: Vec<u8>,
-    mode: EventsMode,
+pub trait EventsWriter {
+    fn write(&self, buf: Vec<u8>);
 }
 
-impl Events {
-    pub fn new(writer: NonBlocking, mode: EventsMode) -> Events {
+#[derive(Clone)]
+pub struct NoneWriter {}
+
+impl EventsWriter for NoneWriter {
+    fn write(&self, buf: Vec<u8>) {
+        println!("{}", String::from_utf8_lossy(&*buf));
+    }
+}
+
+#[derive(Clone)]
+pub struct Events<T: EventsWriter + Clone> {
+    buffer: Vec<u8>,
+    mode: EventsMode,
+    writer: T,
+}
+
+impl<T> Events<T>
+where
+    T: EventsWriter + Clone,
+{
+    pub fn new(writer: T, mode: EventsMode) -> Events<T> {
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
         writer.write(header.as_bytes().to_vec());
 
@@ -35,6 +50,14 @@ impl Events {
             writer,
             buffer: Vec::new(),
             mode,
+        }
+    }
+
+    pub fn new_none_writing() -> Events<NoneWriter> {
+        Events {
+            writer: NoneWriter {},
+            buffer: Vec::new(),
+            mode: EventsMode::None,
         }
     }
 

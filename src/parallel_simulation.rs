@@ -1,8 +1,8 @@
 use crate::config::Config;
 use crate::parallel_simulation::agent_q::AgentQ;
-use crate::parallel_simulation::events::Events;
+use crate::parallel_simulation::events::{Events, EventsWriter};
 use crate::parallel_simulation::messaging::MessageBroker;
-use crate::parallel_simulation::network::link::Link;
+use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::node::ExitReason;
 use crate::parallel_simulation::splittable_population::Agent;
@@ -24,17 +24,20 @@ mod splittable_population;
 pub mod splittable_scenario;
 mod vehicles;
 
-pub struct Simulation {
+pub struct Simulation<T: EventsWriter> {
     scenario: ScenarioPartition,
     activity_q: AgentQ,
     teleportation_q: AgentQ,
-    events: Events,
+    events: Events<T>,
     start_time: u32,
     end_time: u32,
 }
 
-impl Simulation {
-    fn new(config: &Config, scenario: ScenarioPartition, events: Events) -> Simulation {
+impl<T> Simulation<T>
+where
+    T: EventsWriter,
+{
+    fn new(config: &Config, scenario: ScenarioPartition, events: Events<T>) -> Simulation<T> {
         let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -53,8 +56,8 @@ impl Simulation {
     pub fn create_simulation_partitions(
         config: &Config,
         scenario: Scenario,
-        events: &Events,
-    ) -> Vec<Simulation> {
+        events: Events<T>,
+    ) -> Vec<Simulation<T>> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
@@ -232,7 +235,7 @@ impl Simulation {
 
     fn push_onto_network(
         network: &mut NetworkPartition,
-        events: &mut Events,
+        events: &mut Events<T>,
         route: &NetworkRoute,
         route_index: usize,
         driver_id: usize,
@@ -244,19 +247,30 @@ impl Simulation {
         let link = network.links.get_mut(link_id).unwrap();
 
         match link {
-            Link::LocalLink(local_link) => {
-                if route_index == 0 {
-                    events.handle_person_enters_vehicle(now, driver_id, &vehicle)
-                } else {
-                    events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
-                }
-
-                local_link.push_vehicle(vehicle, now);
-                None
+            Link::LocalLink(local_link) => Self::push_onto_link(events, now, vehicle, local_link),
+            Link::SplitInLink(split_link) => {
+                let local_link = split_link.local_link_mut();
+                Self::push_onto_link(events, now, vehicle, local_link)
             }
             // I am not sure whether this is even possible.
-            Link::SplitLink(_) => Some(vehicle),
+            Link::SplitOutLink(_) => Some(vehicle),
         }
+    }
+
+    fn push_onto_link(
+        events: &mut Events<T>,
+        now: u32,
+        vehicle: Vehicle,
+        local_link: &mut LocalLink,
+    ) -> Option<Vehicle> {
+        if vehicle.route_index == 0 {
+            events.handle_person_enters_vehicle(now, vehicle.driver_id, &vehicle)
+        } else {
+            events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
+        }
+
+        local_link.push_vehicle(vehicle, now);
+        None
     }
 
     fn is_local_teleportation(agent: &Agent, customs: &MessageBroker) -> bool {

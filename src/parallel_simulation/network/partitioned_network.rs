@@ -98,10 +98,10 @@ impl MutNetwork {
         if from_thread == to_thread {
             to_network.add_local_link(io_link, link_id, from_id, to_id);
         } else {
-            to_network.add_split_in_link(io_link, link_id, to_id);
+            to_network.add_split_in_link(io_link, link_id, to_id, from_thread);
 
             let from_network = self.partitions.get_mut(from_thread).unwrap();
-            from_network.add_split_out_link(link_id, from_id, from_thread, to_thread);
+            from_network.add_split_out_link(link_id, from_id, to_thread);
         }
         // the link is associated with the network which contains its to-node
         self.links_2_thread.insert(link_id, to_thread);
@@ -164,7 +164,7 @@ mod tests {
             .links
             .get(id_mappings.links.get_internal("link2").unwrap())
             .unwrap();
-        assert!(matches!(link2, Link::SplitLink(_)));
+        assert!(matches!(link2, Link::SplitOutLink(_)));
 
         let partition2 = network.partitions.get(1).unwrap();
         assert!(partition2
@@ -183,7 +183,7 @@ mod tests {
             .links
             .get(id_mappings.links.get_internal("link2").unwrap())
             .unwrap();
-        assert!(matches!(link2, Link::LocalLink(_)));
+        assert!(matches!(link2, Link::SplitInLink(_)));
         let link3 = partition2
             .links
             .get(id_mappings.links.get_internal("link3").unwrap())
@@ -216,9 +216,9 @@ mod tests {
 
         for (i, partition) in network.partitions.iter().enumerate() {
             match i {
-                0 => assert_neighbours(HashSet::from([1]), partition.neighbour_node_ids()),
-                1 => assert_neighbours(HashSet::from([0, 2]), partition.neighbour_node_ids()),
-                _ => assert_neighbours(HashSet::from([1]), partition.neighbour_node_ids()),
+                0 => assert_neighbours(HashSet::from([1]), partition.neighbors()),
+                1 => assert_neighbours(HashSet::from([0, 2]), partition.neighbors()),
+                _ => assert_neighbours(HashSet::from([1]), partition.neighbors()),
             };
         }
     }
