@@ -181,7 +181,7 @@ mod tests {
 
     #[test]
     fn q_network_from_container() {
-        let network = IONetwork::from_file("./assets/equil-network.xml");
+        let network = IONetwork::from_file("./assets/equil/equil-network.xml");
         let q_network = QNetwork::from_container(&network);
 
         println!("{q_network:#?}");

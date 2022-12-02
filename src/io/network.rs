@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn read_example_file() {
-        let file_path = "./assets/equil-network.xml";
+        let file_path = "./assets/equil/equil-network.xml";
         let network: IONetwork = IONetwork::from_file(file_path);
 
         // only test some metadata here

@@ -370,7 +370,7 @@ mod test {
 
         // load input files
         let network = IONetwork::from_file("./assets/equil-network.xml");
-        let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
+        let population = IOPopulation::from_file("./assets/equil-plans.xml.gz");
 
         // convert input into simulation
         let scenario = Scenario::from_io(&network, &population, 2);

@@ -1,8 +1,6 @@
-mod logging;
-
 use log::info;
 use rust_q_sim::config::Config;
-use rust_q_sim::controller;
+use rust_q_sim::{controller, logging};
 use std::env;
 
 fn main() {
