@@ -173,20 +173,6 @@ impl Scenario {
         };
         Some(attrs)
     }
-
-    fn add_thread_attr(io_network: &mut IONetwork, partition_info: &PartitionInfo) {
-        for node in io_network.nodes_mut() {
-            let partition = partition_info.get_partition(node);
-            let attrs = node.attributes.get_or_insert(Attrs {
-                attributes: Vec::new(),
-            });
-            attrs.attributes.push(Attr {
-                name: String::from("thread"),
-                value: partition.to_string(),
-                class: String::from("java.lang.String"),
-            })
-        }
-    }
 }
 
 #[cfg(test)]

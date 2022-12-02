@@ -110,10 +110,6 @@ impl MutNetwork {
     fn get_thread_for_node(&self, node_id: &usize) -> &usize {
         self.nodes_2_thread.get(node_id).unwrap()
     }
-
-    fn get_thread_for_link(&self, link_id: &usize) -> &usize {
-        self.links_2_thread.get(link_id).unwrap()
-    }
 }
 
 #[cfg(test)]

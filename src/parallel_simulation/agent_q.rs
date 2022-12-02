@@ -37,14 +37,6 @@ impl AgentQ {
         }
         result
     }
-
-    pub fn next_wakeup(&self) -> Option<u32> {
-        self.q.peek().map(|entry| entry.wakeup_time)
-    }
-
-    pub fn finished_agents(&self) -> usize {
-        self.finished_agents
-    }
 }
 
 struct QEntry {
