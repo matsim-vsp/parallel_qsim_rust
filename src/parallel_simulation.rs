@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::parallel_simulation::agent_q::AgentQ;
-use crate::parallel_simulation::events::{Events, EventsWriter};
+use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
@@ -24,20 +24,17 @@ mod splittable_population;
 pub mod splittable_scenario;
 mod vehicles;
 
-pub struct Simulation<T: EventsWriter> {
+pub struct Simulation {
     scenario: ScenarioPartition,
     activity_q: AgentQ,
     teleportation_q: AgentQ,
-    events: Events<T>,
+    events: Events,
     start_time: u32,
     end_time: u32,
 }
 
-impl<T> Simulation<T>
-where
-    T: EventsWriter,
-{
-    fn new(config: &Config, scenario: ScenarioPartition, events: Events<T>) -> Simulation<T> {
+impl Simulation {
+    fn new(config: &Config, scenario: ScenarioPartition, events: Events) -> Simulation {
         let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -56,8 +53,8 @@ where
     pub fn create_simulation_partitions(
         config: &Config,
         scenario: Scenario,
-        events: Events<T>,
-    ) -> Vec<Simulation<T>> {
+        events: Events,
+    ) -> Vec<Simulation> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
@@ -235,7 +232,7 @@ where
 
     fn push_onto_network(
         network: &mut NetworkPartition,
-        events: &mut Events<T>,
+        events: &mut Events,
         route: &NetworkRoute,
         route_index: usize,
         driver_id: usize,
@@ -258,7 +255,7 @@ where
     }
 
     fn push_onto_link(
-        events: &mut Events<T>,
+        events: &mut Events,
         now: u32,
         vehicle: Vehicle,
         local_link: &mut LocalLink,

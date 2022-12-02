@@ -1,4 +1,3 @@
-use crate::parallel_simulation::events::EventsMode;
 use std::env::Args;
 
 #[derive(Debug)]
@@ -9,7 +8,7 @@ pub struct Config {
     pub network_file: String,
     pub population_file: String,
     pub output_dir: String,
-    pub events_mode: EventsMode,
+    pub events_mode: String,
 }
 
 impl Config {
@@ -24,7 +23,7 @@ impl Config {
             network_file: args.get(4).unwrap().clone(),
             population_file: args.get(5).unwrap().clone(),
             output_dir: args.get(6).unwrap().clone(),
-            events_mode: EventsMode::from_str(args.get(7).unwrap()),
+            events_mode: args.get(7).unwrap().clone(),
         };
 
         println!("Config is: {result:?}");

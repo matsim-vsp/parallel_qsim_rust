@@ -1,4 +1,4 @@
-use crate::parallel_simulation::events::{Events, EventsWriter};
+use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::network::link::Link;
 use crate::parallel_simulation::vehicles::Vehicle;
 use std::collections::HashMap;
@@ -32,11 +32,11 @@ impl Node {
         self.out_links.push(id);
     }
 
-    pub fn move_vehicles<T: EventsWriter>(
+    pub fn move_vehicles(
         &self,
         links: &mut HashMap<usize, Link>,
         now: u32,
-        events: &mut Events<T>,
+        events: &mut Events,
     ) -> Vec<ExitReason> {
         let mut exited_vehicles = Vec::new();
 
@@ -68,14 +68,14 @@ impl Node {
         exited_vehicles
     }
 
-    fn move_vehicle<T: EventsWriter>(
+    fn move_vehicle(
         &self,
         links: &mut HashMap<usize, Link>,
         out_link_id: usize,
         vehicle: Vehicle,
         exited_vehicles: &mut Vec<ExitReason>,
         now: u32,
-        events: &mut Events<T>,
+        events: &mut Events,
     ) {
         match links.get_mut(&out_link_id).unwrap() {
             Link::LocalLink(local_link) => {
@@ -113,9 +113,9 @@ mod tests {
         node.add_in_link(local_in_link.id);
         let in_link = Link::LocalLink(local_in_link);
         let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link)]);
-        let events = Events::new_none_writing();
+        let mut events = Events::new_none_writing();
 
-        //node.move_vehicles(&mut links, now)
+        node.move_vehicles(&mut links, 1, &mut events);
     }
 
     #[test]

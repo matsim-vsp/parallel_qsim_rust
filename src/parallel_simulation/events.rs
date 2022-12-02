@@ -2,77 +2,84 @@ use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Rout
 use crate::parallel_simulation::vehicles::Vehicle;
 use std::mem::take;
 
-#[derive(Clone, Debug)]
-pub enum EventsMode {
-    None,
-    File,
-}
-
-impl EventsMode {
-    pub fn from_str(value: &str) -> EventsMode {
-        match value {
-            "none" => EventsMode::None,
-            "file" => EventsMode::File,
-            _ => panic!("unsupported events mode: {value:#?}"),
-        }
-    }
-}
-
-pub trait EventsWriter {
+/// Events takes a writer. This is the trait for that
+pub trait EventsWriter: EventsWriterClone + Send {
     fn write(&self, buf: Vec<u8>);
 }
 
-#[derive(Clone)]
-pub struct NoneWriter {}
+/// Since we want Events to be clonable but we also want the writer to be a dynamic object, we need to
+/// specify how to clone the Box<dyn EventsWriter> property in Events. The following three method are
+/// concerned about that. Implemented according to https://stackoverflow.com/questions/50017987/cant-clone-vecboxtrait-because-trait-cannot-be-made-into-an-object
+///
+pub trait EventsWriterClone {
+    fn clone_boxed(&self) -> Box<dyn EventsWriter>;
+}
 
-impl EventsWriter for NoneWriter {
+/// this implements clone_boxed for all owned EventsWriters e.g. Box<dyn EventsWriter>. The 'static
+/// lifetime applies to all values that are owned. See last paragraph (Trait bound) of
+/// https://doc.rust-lang.org/rust-by-example/scope/lifetime/static_lifetime.html
+impl<T: EventsWriter + Clone + 'static> EventsWriterClone for T {
+    fn clone_boxed(&self) -> Box<dyn EventsWriter> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn EventsWriter> {
+    fn clone(&self) -> Self {
+        self.clone_boxed()
+    }
+}
+
+#[derive(Clone)]
+pub struct ConsoleWriter {}
+
+impl EventsWriter for ConsoleWriter {
     fn write(&self, buf: Vec<u8>) {
         println!("{}", String::from_utf8_lossy(&*buf));
     }
 }
 
 #[derive(Clone)]
-pub struct Events<T: EventsWriter + Clone> {
-    buffer: Vec<u8>,
-    mode: EventsMode,
-    writer: T,
+pub struct SilentWriter {}
+
+impl EventsWriter for SilentWriter {
+    fn write(&self, _buf: Vec<u8>) {
+        // nothing. just swallow all the messages.
+    }
 }
 
-impl<T> Events<T>
-where
-    T: EventsWriter + Clone,
-{
-    pub fn new(writer: T, mode: EventsMode) -> Events<T> {
+#[derive(Clone)]
+pub struct Events {
+    buffer: Vec<u8>,
+    writer: Box<dyn EventsWriter>,
+}
+
+impl Events {
+    pub fn new(writer: impl EventsWriter + 'static) -> Events {
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
         writer.write(header.as_bytes().to_vec());
 
         Events {
-            writer,
+            writer: Box::new(writer),
             buffer: Vec::new(),
-            mode,
         }
     }
 
-    pub fn new_none_writing() -> Events<NoneWriter> {
+    pub fn new_none_writing() -> Events {
         Events {
-            writer: NoneWriter {},
+            writer: Box::new(ConsoleWriter {}),
             buffer: Vec::new(),
-            mode: EventsMode::None,
         }
     }
 
     pub fn handle(&mut self, event: &str) {
-        if let EventsMode::File = self.mode {
-            let mut vec = event.as_bytes().to_vec();
-            self.buffer.append(&mut vec);
-        }
+        let mut vec = event.as_bytes().to_vec();
+        self.buffer.append(&mut vec);
     }
 
     pub fn flush(&mut self) {
-        if let EventsMode::File = self.mode {
-            let buffer = take(&mut self.buffer);
-            self.writer.write(buffer)
-        }
+        let buffer = take(&mut self.buffer);
+        self.writer.write(buffer)
     }
 
     pub fn finish(&mut self) {
