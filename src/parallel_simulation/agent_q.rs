@@ -142,8 +142,6 @@ mod tests {
         act_q.add(&agent2, 0);
         act_q.add(&agent3, 0);
 
-        assert_eq!(10, act_q.next_wakeup().unwrap());
-
         // at timestep 25, agent1 and 3 should wake up, since their activity's end time has passed.
         // agent 2 should not wake up though
         let result1 = act_q.wakeup(25);
