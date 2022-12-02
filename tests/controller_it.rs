@@ -27,7 +27,7 @@ fn equil_scenario() {
         .output_dir(String::from(
             "./test_output/controller_it/three_link_network",
         ))
-        .num_parts(3)
+        .num_parts(2)
         .build();
     let _logger_handle = logging::init_logging(config.output_dir.as_ref());
 
