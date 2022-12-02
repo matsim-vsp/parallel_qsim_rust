@@ -11,8 +11,6 @@ pub enum Msg {
     Shutdown,
 }
 
-#[must_use]
-#[derive(Debug)]
 pub struct WorkerGuard {
     _guard: Option<JoinHandle<()>>,
     sender: Sender<Msg>,
@@ -61,10 +59,16 @@ impl WorkerGuard {
             shutdown,
         }
     }
+}
 
+impl Drop for WorkerGuard {
     fn drop(&mut self) {
         match self.sender.send(Msg::Shutdown) {
-            Ok(_) => {}
+            Ok(_) => {
+                self.shutdown
+                    .send(())
+                    .expect("Error when sending shut down message");
+            }
             Err(e) => println!(
                 "Failed to send shutdown signal to logging worker. Error: {:?}",
                 e

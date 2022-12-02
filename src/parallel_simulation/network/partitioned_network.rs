@@ -110,10 +110,6 @@ impl MutNetwork {
     fn get_thread_for_node(&self, node_id: &usize) -> &usize {
         self.nodes_2_thread.get(node_id).unwrap()
     }
-
-    fn get_thread_for_link(&self, link_id: &usize) -> &usize {
-        self.links_2_thread.get(link_id).unwrap()
-    }
 }
 
 #[cfg(test)]
@@ -196,7 +192,7 @@ mod tests {
     /// 0-----|-----0----------0-----|-----0
     ///       |                      |
     #[test]
-    fn neighbour_node_ids() {
+    fn split_3link_network_neighbors() {
         let io_network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let io_population = IOPopulation::empty();
         let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);

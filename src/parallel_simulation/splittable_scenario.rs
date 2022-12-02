@@ -173,20 +173,6 @@ impl Scenario {
         };
         Some(attrs)
     }
-
-    fn add_thread_attr(io_network: &mut IONetwork, partition_info: &PartitionInfo) {
-        for node in io_network.nodes_mut() {
-            let partition = partition_info.get_partition(node);
-            let attrs = node.attributes.get_or_insert(Attrs {
-                attributes: Vec::new(),
-            });
-            attrs.attributes.push(Attr {
-                name: String::from("thread"),
-                value: partition.to_string(),
-                class: String::from("java.lang.String"),
-            })
-        }
-    }
 }
 
 #[cfg(test)]
@@ -215,8 +201,8 @@ mod test {
 
     #[test]
     fn create_equil_scenario() {
-        let mut io_network = IONetwork::from_file("./assets/equil-network.xml");
-        let io_population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
+        let mut io_network = IONetwork::from_file("./assets/equil/equil-network.xml");
+        let io_population = IOPopulation::from_file("./assets/equil/equil-plans.xml.gz");
         let num_parts = 2;
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_equil_scenario",

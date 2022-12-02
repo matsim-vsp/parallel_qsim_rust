@@ -300,9 +300,8 @@ mod tests {
 
     #[test]
     fn population_from_container() {
-        let population: IOPopulation =
-            IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
-        let network: IONetwork = IONetwork::from_file("./assets/equil-network.xml");
+        let population: IOPopulation = IOPopulation::from_file("./assets/equil/equil-plans.xml.gz");
+        let network: IONetwork = IONetwork::from_file("./assets/equil/equil-network.xml");
         let q_network: QNetwork = QNetwork::from_container(&network);
         let mut q_vehicles = QVehicles::new();
         let q_population = QPopulation::from_container(&population, &q_network, &mut q_vehicles);

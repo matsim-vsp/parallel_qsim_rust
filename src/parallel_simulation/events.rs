@@ -65,9 +65,16 @@ impl Events {
         }
     }
 
-    pub fn new_none_writing() -> Events {
+    pub fn new_with_console_writer() -> Events {
         Events {
             writer: Box::new(ConsoleWriter {}),
+            buffer: Vec::new(),
+        }
+    }
+
+    pub fn new_silent() -> Events {
+        Events {
+            writer: Box::new(SilentWriter {}),
             buffer: Vec::new(),
         }
     }

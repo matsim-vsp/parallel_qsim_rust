@@ -109,8 +109,8 @@ mod tests {
 
     #[test]
     fn run_equil_scenario() {
-        let network = IONetwork::from_file("./assets/equil-network.xml");
-        let population = IOPopulation::from_file("./assets/equil_output_plans.xml.gz");
+        let network = IONetwork::from_file("./assets/equil/equil-network.xml");
+        let population = IOPopulation::from_file("./assets/equil/equil-plans.xml.gz");
         let scenario = QScenario::from_container(&network, &population);
         let mut simulation = Simulation::new(scenario);
 

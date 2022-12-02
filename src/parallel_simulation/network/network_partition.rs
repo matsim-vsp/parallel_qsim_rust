@@ -72,3 +72,39 @@ impl NetworkPartition {
         distinct_thread_ids
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::io::network::IOLink;
+    use crate::parallel_simulation::network::network_partition::NetworkPartition;
+
+    /// create a partition with one node which has multiple in and out links
+    #[test]
+    fn neighbors() {
+        let mut network_part = NetworkPartition::new();
+        let node_id = 1;
+        let io_link = IOLink::default();
+        network_part.add_node(node_id);
+
+        // add split links. make sure partitions have multiple connections because the method
+        // should return each neighbour partition only once.
+
+        // this partition has incoming links from partition 1 and 2
+        network_part.add_split_in_link(&io_link, 1, node_id, 1);
+        network_part.add_split_in_link(&io_link, 2, node_id, 1);
+        network_part.add_split_in_link(&io_link, 3, node_id, 2);
+
+        // this partition has outgoing links to partition 2, 3 and 4
+        network_part.add_split_out_link(4, node_id, 2);
+        network_part.add_split_out_link(5, node_id, 3);
+        network_part.add_split_out_link(6, node_id, 3);
+        network_part.add_split_out_link(7, node_id, 4);
+
+        let neighbors = network_part.neighbors();
+        assert_eq!(4, neighbors.len());
+        assert!(neighbors.contains(&1));
+        assert!(neighbors.contains(&2));
+        assert!(neighbors.contains(&3));
+        assert!(neighbors.contains(&4));
+    }
+}
