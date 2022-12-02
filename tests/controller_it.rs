@@ -11,7 +11,6 @@ fn three_link_network() {
         ))
         .num_parts(3)
         .build();
-    let _logger_handle = logging::init_logging(config.output_dir.as_ref());
 
     controller::run(config);
 
@@ -24,12 +23,9 @@ fn equil_scenario() {
     let config = Config::builder()
         .network_file(String::from("./assets/equil/equil-network.xml"))
         .population_file(String::from("./assets/equil/equil-plans.xml.gz"))
-        .output_dir(String::from(
-            "./test_output/controller_it/three_link_network",
-        ))
+        .output_dir(String::from("./test_output/controller_it/equil_scenario"))
         .num_parts(2)
         .build();
-    let _logger_handle = logging::init_logging(config.output_dir.as_ref());
 
     controller::run(config);
 }
