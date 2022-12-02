@@ -196,7 +196,7 @@ mod tests {
     /// 0-----|-----0----------0-----|-----0
     ///       |                      |
     #[test]
-    fn neighbour_node_ids() {
+    fn split_3link_network_neighbors() {
         let io_network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
         let io_population = IOPopulation::empty();
         let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
