@@ -37,7 +37,7 @@ impl MatsimId for IONode {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
 pub struct IOLink {
     pub id: String,
     pub from: String,
