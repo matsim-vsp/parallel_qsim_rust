@@ -93,8 +93,9 @@ impl Node {
 #[cfg(test)]
 mod tests {
     use crate::parallel_simulation::events::Events;
-    use crate::parallel_simulation::network::link::{Link, LocalLink};
-    use crate::parallel_simulation::network::node::Node;
+    use crate::parallel_simulation::network::link::{Link, LocalLink, SplitOutLink};
+    use crate::parallel_simulation::network::node::{ExitReason, Node};
+    use crate::parallel_simulation::vehicles::Vehicle;
     use std::collections::HashMap;
 
     #[test]
@@ -109,21 +110,123 @@ mod tests {
     #[test]
     fn vehicle_in() {
         let mut node = Node::new(1);
-        let local_in_link = LocalLink::new(1, 20., 20., 20.);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20.);
+        let vehicle = Vehicle::new(1, 1, vec![1]);
+        local_in_link.push_vehicle(vehicle, 1);
         node.add_in_link(local_in_link.id);
         let in_link = Link::LocalLink(local_in_link);
         let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link)]);
-        let mut events = Events::new_none_writing();
+        let mut events = Events::new_silent();
 
-        node.move_vehicles(&mut links, 1, &mut events);
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
+
+        assert_eq!(1, exited_vehicles.len());
+        let entry = exited_vehicles.get(0).unwrap();
+        assert!(matches!(entry, ExitReason::FinishRoute(_)));
     }
 
     #[test]
-    fn vehicle_in_and_out() {}
+    fn vehicle_in_and_out() {
+        let mut node = Node::new(1);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20.);
+        let local_out_link = LocalLink::new(2, 20., 40., 20.);
+        let vehicle = Vehicle::new(1, 1, vec![1, 2]);
+        local_in_link.push_vehicle(vehicle, 1);
+        node.add_in_link(local_in_link.id);
+        node.add_out_link(local_out_link.id);
+        let in_link = Link::LocalLink(local_in_link);
+        let out_link = Link::LocalLink(local_out_link);
+        let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link), (2, out_link)]);
+        let mut events = Events::new_silent();
+
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
+
+        assert_eq!(0, exited_vehicles.len());
+        let out_link_ref = links.get_mut(&2).unwrap();
+        if let Link::LocalLink(local_out) = out_link_ref {
+            let vehicles = local_out.pop_front(1);
+            assert_eq!(1, vehicles.len());
+        }
+    }
 
     #[test]
-    fn vehicles_in() {}
+    pub fn vehicle_in_out_boundary() {
+        let mut node = Node::new(1);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20.);
+        let split_out_link = SplitOutLink::new(2, 2);
+        let vehicle = Vehicle::new(1, 1, vec![1, 2]);
+        local_in_link.push_vehicle(vehicle, 1);
+        node.add_in_link(local_in_link.id());
+        node.add_out_link(split_out_link.id());
+        let in_link = Link::LocalLink(local_in_link);
+        let out_link = Link::SplitOutLink(split_out_link);
+        let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link), (2, out_link)]);
+        let mut events = Events::new_silent();
+
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
+
+        assert_eq!(1, exited_vehicles.len());
+        assert!(matches!(
+            exited_vehicles.get(0).unwrap(),
+            ExitReason::ReachedBoundary(_)
+        ));
+    }
 
     #[test]
-    fn vehicles_in_and_out() {}
+    fn vehicles_in() {
+        let mut node = Node::new(1);
+        let mut local_in_link = LocalLink::new(1, 3600., 40., 20.);
+        let vehicle_1 = Vehicle::new(1, 1, vec![1]);
+        let vehicle_2 = Vehicle::new(2, 2, vec![1]);
+        local_in_link.push_vehicle(vehicle_1, 1);
+        local_in_link.push_vehicle(vehicle_2, 1);
+        node.add_in_link(local_in_link.id);
+        let in_link = Link::LocalLink(local_in_link);
+        let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link)]);
+        let mut events = Events::new_silent();
+
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
+
+        assert_eq!(1, exited_vehicles.len());
+        let entry = exited_vehicles.get(0).unwrap();
+        assert!(matches!(entry, ExitReason::FinishRoute(_)));
+        if let ExitReason::FinishRoute(vehicle) = entry {
+            assert_eq!(1, vehicle.id);
+        }
+
+        let exited_vehicles = node.move_vehicles(&mut links, 2, &mut events);
+
+        assert_eq!(1, exited_vehicles.len());
+        let entry = exited_vehicles.get(0).unwrap();
+        assert!(matches!(entry, ExitReason::FinishRoute(_)));
+        if let ExitReason::FinishRoute(vehicle) = entry {
+            assert_eq!(2, vehicle.id);
+        }
+    }
+
+    #[test]
+    fn vehicles_in_and_out() {
+        let mut node = Node::new(1);
+        let mut local_in_link = LocalLink::new(1, 10000., 40., 20.);
+        let local_out_link = LocalLink::new(2, 10000., 40., 20.);
+        let vehicle_1 = Vehicle::new(1, 1, vec![1, 2]);
+        let vehicle_2 = Vehicle::new(2, 2, vec![1, 2]);
+        local_in_link.push_vehicle(vehicle_1, 1);
+        local_in_link.push_vehicle(vehicle_2, 1);
+        node.add_in_link(local_in_link.id);
+        node.add_out_link(local_out_link.id);
+        let in_link = Link::LocalLink(local_in_link);
+        let out_link = Link::LocalLink(local_out_link);
+        let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link), (2, out_link)]);
+        let mut events = Events::new_silent();
+
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
+        assert_eq!(0, exited_vehicles.len());
+
+        let out_link_ref = links.get_mut(&2).unwrap();
+        if let Link::LocalLink(local_out) = out_link_ref {
+            let vehicles = local_out.pop_front(1);
+            assert_eq!(2, vehicles.len());
+        }
+    }
 }

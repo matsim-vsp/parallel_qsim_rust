@@ -56,6 +56,10 @@ impl LocalLink {
 
         popped_veh
     }
+
+    pub fn id(&self) -> usize {
+        self.id
+    }
 }
 
 #[derive(Debug)]
@@ -71,6 +75,9 @@ impl SplitOutLink {
 
     pub fn neighbor_partition_id(&self) -> usize {
         self.to_thread_id
+    }
+    pub fn id(&self) -> usize {
+        self.id
     }
 }
 
