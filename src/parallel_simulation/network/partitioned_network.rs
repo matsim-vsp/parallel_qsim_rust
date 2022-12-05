@@ -8,28 +8,29 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct Network {
     pub partitions: Vec<NetworkPartition>,
-    pub nodes_2_thread: Arc<HashMap<usize, usize>>,
-    pub links_2_thread: Arc<HashMap<usize, usize>>,
+    pub nodes_2_partition: Arc<HashMap<usize, usize>>,
+    pub links_2_partition: Arc<HashMap<usize, usize>>,
 }
 
 pub struct MutNetwork {
     pub partitions: Vec<NetworkPartition>,
-    pub nodes_2_thread: HashMap<usize, usize>,
-    pub links_2_thread: HashMap<usize, usize>,
+    pub nodes_2_partition: HashMap<usize, usize>,
+    pub links_2_partition: HashMap<usize, usize>,
 }
 
 impl Network {
     fn from_mut_network(network: MutNetwork) -> Network {
         Network {
             partitions: network.partitions,
-            nodes_2_thread: Arc::new(network.nodes_2_thread),
-            links_2_thread: Arc::new(network.links_2_thread),
+            nodes_2_partition: Arc::new(network.nodes_2_partition),
+            links_2_partition: Arc::new(network.links_2_partition),
         }
     }
 
     pub fn from_io<F>(
         io_network: &IONetwork,
         num_part: usize,
+        sample_size: f32,
         split: F,
         id_mappings: &MatsimIdMappings,
     ) -> Network
@@ -43,18 +44,18 @@ impl Network {
         }
 
         for link in io_network.links() {
-            result.add_link(link, id_mappings);
+            result.add_link(link, sample_size, id_mappings);
         }
 
         Network::from_mut_network(result)
     }
 
-    pub fn get_thread_for_node(&self, node_id: &usize) -> &usize {
-        self.nodes_2_thread.get(node_id).unwrap()
+    pub fn partition_for_node(&self, node_id: &usize) -> &usize {
+        self.nodes_2_partition.get(node_id).unwrap()
     }
 
-    pub fn get_thread_for_link(&self, link_id: &usize) -> &usize {
-        self.links_2_thread.get(link_id).unwrap()
+    pub fn partition_for_link(&self, link_id: &usize) -> &usize {
+        self.links_2_partition.get(link_id).unwrap()
     }
 }
 
@@ -67,8 +68,8 @@ impl MutNetwork {
 
         MutNetwork {
             partitions,
-            nodes_2_thread: HashMap::new(),
-            links_2_thread: HashMap::new(),
+            nodes_2_partition: HashMap::new(),
+            links_2_partition: HashMap::new(),
         }
     }
 
@@ -76,39 +77,39 @@ impl MutNetwork {
     where
         F: Fn(&IONode) -> usize,
     {
-        let thread = split(node);
+        let partition = split(node);
         let node_id = *id_mappings.nodes.get_internal(node.id()).unwrap();
-        let network = self.partitions.get_mut(thread).unwrap();
+        let network = self.partitions.get_mut(partition).unwrap();
         network.add_node(node_id);
 
-        self.nodes_2_thread.insert(node_id, thread);
+        self.nodes_2_partition.insert(node_id, partition);
     }
 
-    fn add_link(&mut self, io_link: &IOLink, id_mappings: &MatsimIdMappings) {
+    fn add_link(&mut self, io_link: &IOLink, sample_size: f32, id_mappings: &MatsimIdMappings) {
         let link_id = *id_mappings.links.get_internal(io_link.id()).unwrap();
         let from_id = *id_mappings
             .nodes
             .get_internal(io_link.from.as_str())
             .unwrap();
         let to_id = *id_mappings.nodes.get_internal(io_link.to.as_str()).unwrap();
-        let from_thread = *self.get_thread_for_node(&from_id);
-        let to_thread = *self.get_thread_for_node(&to_id);
-        let to_network = self.partitions.get_mut(to_thread).unwrap();
+        let from_part = *self.partition_for_node(&from_id);
+        let to_part = *self.partition_for_node(&to_id);
+        let to_network = self.partitions.get_mut(to_part).unwrap();
 
-        if from_thread == to_thread {
-            to_network.add_local_link(io_link, link_id, from_id, to_id);
+        if from_part == to_part {
+            to_network.add_local_link(io_link, sample_size, link_id, from_id, to_id);
         } else {
-            to_network.add_split_in_link(io_link, link_id, to_id, from_thread);
+            to_network.add_split_in_link(io_link, sample_size, link_id, to_id, from_part);
 
-            let from_network = self.partitions.get_mut(from_thread).unwrap();
-            from_network.add_split_out_link(link_id, from_id, to_thread);
+            let from_network = self.partitions.get_mut(from_part).unwrap();
+            from_network.add_split_out_link(link_id, from_id, to_part);
         }
         // the link is associated with the network which contains its to-node
-        self.links_2_thread.insert(link_id, to_thread);
+        self.links_2_partition.insert(link_id, to_part);
     }
 
-    fn get_thread_for_node(&self, node_id: &usize) -> &usize {
-        self.nodes_2_thread.get(node_id).unwrap()
+    fn partition_for_node(&self, node_id: &usize) -> &usize {
+        self.nodes_2_partition.get(node_id).unwrap()
     }
 }
 
@@ -135,7 +136,7 @@ mod tests {
             "node2" => 0,
             _ => 1,
         };
-        let network = Network::from_io(&io_network, 2, split, &id_mappings);
+        let network = Network::from_io(&io_network, 2, 1.0, split, &id_mappings);
         assert_eq!(2, network.partitions.len());
 
         let partition1 = network.partitions.get(0).unwrap();
@@ -201,7 +202,7 @@ mod tests {
             "node4" => 2, // right
             _ => 1,       // center
         };
-        let network = Network::from_io(&io_network, 3, split, &id_mappings);
+        let network = Network::from_io(&io_network, 3, 1.0, split, &id_mappings);
 
         assert_eq!(3, network.partitions.len());
 

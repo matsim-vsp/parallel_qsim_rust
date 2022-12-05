@@ -16,7 +16,7 @@ pub fn run(config: Config) {
     let network = IONetwork::from_file(config.network_file.as_ref());
     let population = IOPopulation::from_file(config.population_file.as_ref());
 
-    let scenario = Scenario::from_io(&network, &population, config.num_parts);
+    let scenario = Scenario::from_io(&network, &population, config.num_parts, config.sample_size);
 
     let output_dir_path = Path::new(&config.output_dir);
     let out_network_path = output_dir_path.join("output_network.xml.gz");

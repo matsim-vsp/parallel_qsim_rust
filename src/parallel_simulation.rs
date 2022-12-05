@@ -263,7 +263,7 @@ impl Simulation {
         if vehicle.route_index == 0 {
             events.handle_person_enters_vehicle(now, vehicle.driver_id, &vehicle)
         } else {
-            events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
+            events.handle_vehicle_enters_link(now, local_link.id(), vehicle.id);
         }
 
         local_link.push_vehicle(vehicle, now);
@@ -279,8 +279,8 @@ impl Simulation {
     fn get_thread_ids_for_generic_route(agent: &Agent, customs: &MessageBroker) -> (usize, usize) {
         if let PlanElement::Leg(leg) = agent.current_plan_element() {
             if let Route::GenericRoute(route) = &leg.route {
-                let start_thread = *customs.get_thread_id(&route.start_link);
-                let end_thread = *customs.get_thread_id(&route.end_link);
+                let start_thread = *customs.part_id(&route.start_link);
+                let end_thread = *customs.part_id(&route.end_link);
                 return (start_thread, end_thread);
             }
         }

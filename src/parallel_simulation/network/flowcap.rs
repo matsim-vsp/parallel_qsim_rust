@@ -75,8 +75,9 @@ mod tests {
         flowcap.update_capacity(3);
         assert!(!flowcap.has_capacity());
 
-        // accumulated capacity should be at 0.5
+        // accumulated capacity should be at 0.25 because this is where the accumulation is capped.
         flowcap.update_capacity(5);
         assert!(flowcap.has_capacity());
+        assert_eq!(0.25, flowcap.capacity_s)
     }
 }

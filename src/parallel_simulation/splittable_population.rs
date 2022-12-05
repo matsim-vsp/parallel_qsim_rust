@@ -39,7 +39,7 @@ impl Population {
             let agent = Agent::from_person(person, id_mappings);
 
             if let PlanElement::Activity(act) = agent.current_plan_element() {
-                let thread = *network.get_thread_for_link(&act.link_id);
+                let thread = *network.partition_for_link(&act.link_id);
                 let population = populations.get_mut(thread).unwrap();
                 population.add_agent(agent);
             }

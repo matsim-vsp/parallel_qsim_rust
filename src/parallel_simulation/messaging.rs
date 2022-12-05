@@ -31,7 +31,7 @@ impl MessageBroker {
         }
     }
 
-    pub fn get_thread_id(&self, link_id: &usize) -> &usize {
+    pub fn part_id(&self, link_id: &usize) -> &usize {
         self.link_id_mapping.get(link_id).unwrap()
     }
 
@@ -86,10 +86,10 @@ impl MessageBroker {
 
     pub fn prepare_routed(&mut self, agent: Agent, vehicle: Vehicle) {
         let link_id = vehicle.current_link_id().unwrap();
-        let thread = *self.link_id_mapping.get(link_id).unwrap();
+        let partition = *self.link_id_mapping.get(link_id).unwrap();
         let message = self
             .out_messages
-            .entry(thread)
+            .entry(partition)
             .or_insert_with(|| Message::new(self.id));
         message.add_driver(agent, vehicle.route_index);
     }
@@ -98,10 +98,10 @@ impl MessageBroker {
         if let PlanElement::Leg(leg) = agent.current_plan_element() {
             if let Route::GenericRoute(route) = &leg.route {
                 let end_link = route.end_link;
-                let thread = *self.link_id_mapping.get(&end_link).unwrap();
+                let partition = *self.link_id_mapping.get(&end_link).unwrap();
                 let message = self
                     .out_messages
-                    .entry(thread)
+                    .entry(partition)
                     .or_insert_with(|| Message::new(self.id));
                 message.add_teleported(agent);
             }
@@ -133,12 +133,12 @@ mod tests {
     }
 
     #[test]
-    fn thread_id() {
+    fn partition_id() {
         let (_sender, receiver) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::from([(1, 84)]));
         let broker = MessageBroker::new(42, receiver, id_mapping);
 
-        assert_eq!(84, *broker.get_thread_id(&1));
+        assert_eq!(84, *broker.part_id(&1));
     }
 
     #[test]
