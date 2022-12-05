@@ -1,5 +1,20 @@
+use std::env;
+use std::fs::File;
+use std::io::Write;
+
 use rust_road_router::datastr::graph::{EdgeId, NodeId, Weight};
-use crate::io::network::{IOLink, IONetwork, IONode};
+
+use rust_q_sim::io::network::{IOLink, IONetwork, IONode};
+
+pub fn main() {
+    let args: Vec<String> = env::args().collect();
+    assert_eq!(3, args.len(), "You have to provide args: <path to matsim network> <output path in routing kit format>.");
+    let matsim_network_path = args.get(1).unwrap();
+    let output_path = args.get(2).unwrap();
+
+    let network = convert_network(matsim_network_path);
+    network.serialize(output_path);
+}
 
 fn convert_network(path: &str) -> RoutingKitNetwork {
     let mut network = IONetwork::from_file(path);
@@ -65,9 +80,33 @@ struct RoutingKitNetwork {
     longitude: Vec<f32>,
 }
 
+impl RoutingKitNetwork {
+    fn serialize(&self, output_folder: &str) {
+        serialize_vector(&self.first_out, output_folder.to_owned() + "/first_out");
+        serialize_vector(&self.head, output_folder.to_owned() + "/head");
+        serialize_vector(&self.travel_time, output_folder.to_owned() + "/travel_time");
+        serialize_vector_float(&self.latitude, output_folder.to_owned() + "/latitude");
+        serialize_vector_float(&self.longitude, output_folder.to_owned() + "/longitude");
+    }
+}
+
+fn serialize_vector(vector: &Vec<u32>, output_file: String) {
+    let mut file = File::create(output_file).expect("Unable to create file.");
+    for i in vector {
+        writeln!(file, "{}", i).expect("Unable to write into file.");
+    }
+}
+
+fn serialize_vector_float(vector: &Vec<f32>, output_file: String) {
+    let mut file = File::create(output_file).expect("Unable to create file.");
+    for i in vector {
+        writeln!(file, "{}", i).expect("Unable to write into file.");
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use crate::experiments::routing::network_converter::convert_network;
+    use crate::convert_network;
 
     #[test]
     fn test_simple_network() {
@@ -78,5 +117,12 @@ mod test {
         assert_eq!(network.head, vec![2, 3, 2, 3, 1]);
         assert_eq!(network.travel_time, vec![1, 2, 1, 4, 2]);
         //we don't check latitude and longitude so far
+    }
+
+    #[test]
+    fn test_serialization() {
+        let network = convert_network("./assets/routing_tests/triangle-network.xml");
+        network.serialize(&String::from("./assets/routing_tests/serialization"));
+        //TODO implement test
     }
 }
