@@ -14,3 +14,5 @@ metis = "0.1.1"
 flexi_logger = { version = "0.22" , features = ["async"]}
 log = "0.4"
 clap = { version = "4.0.29", features = ["derive"] }
+fast_paths = "0.2.0"
+rust_road_router = { git = "https://github.com/kit-algo/rust_road_router" }
