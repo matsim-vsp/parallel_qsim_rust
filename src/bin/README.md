@@ -43,6 +43,11 @@ Then follow the installation instruction of InertialFlowCutter.
 
 To execute phases 2-4, execute
 
+```shell
+cd src/bin
+python3 network_converter.py <InertialFlowCutter home directory> <Network files in textual RoutingKit format> <output file name>
+```
+
 ## Phase 2
 
 This phase consists of the following steps
