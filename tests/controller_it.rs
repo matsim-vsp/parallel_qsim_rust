@@ -1,5 +1,5 @@
 use rust_q_sim::config::Config;
-use rust_q_sim::{controller, logging};
+use rust_q_sim::controller;
 
 #[test]
 fn three_link_network() {

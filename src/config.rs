@@ -1,35 +1,28 @@
-use std::env::Args;
+use clap::Parser;
 
-#[derive(Debug)]
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
 pub struct Config {
+    #[arg(long, default_value_t = 0)]
     pub start_time: u32,
+    #[arg(long, default_value_t = 86400)]
     pub end_time: u32,
+    #[arg(long)]
     pub num_parts: usize,
+    #[arg(long)]
     pub network_file: String,
+    #[arg(long)]
     pub population_file: String,
+    #[arg(long, default_value = "./")]
     pub output_dir: String,
+    #[arg(long, default_value = "file")]
     pub events_mode: String,
+    #[arg(long, default_value_t = 1.0)]
+    pub sample_size: f32,
 }
 
 impl Config {
-    pub fn from_args(args: Args) -> Config {
-        let args: Vec<String> = args.collect();
-
-        assert_eq!(8, args.len(), "One must provide 'start_time' 'end_time' 'num_parts' 'network_file' 'population_file' 'output_dir' 'events_mode' in this order");
-        let result = Config {
-            start_time: args.get(1).unwrap().parse().unwrap(),
-            end_time: args.get(2).unwrap().parse().unwrap(),
-            num_parts: args.get(3).unwrap().parse().unwrap(),
-            network_file: args.get(4).unwrap().clone(),
-            population_file: args.get(5).unwrap().clone(),
-            output_dir: args.get(6).unwrap().clone(),
-            events_mode: args.get(7).unwrap().clone(),
-        };
-
-        println!("Config is: {result:?}");
-        result
-    }
-
     pub fn builder() -> ConfigBuilder {
         ConfigBuilder::new()
     }
@@ -43,6 +36,7 @@ pub struct ConfigBuilder {
     population_file: String,
     output_dir: String,
     events_mode: String,
+    sample_size: f32,
 }
 
 impl ConfigBuilder {
@@ -55,6 +49,7 @@ impl ConfigBuilder {
             num_parts: 0,
             start_time: 0,
             end_time: 86400,
+            sample_size: 1.0,
         }
     }
 
@@ -93,6 +88,11 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn sample_size(mut self, sample_size: f32) -> Self {
+        self.sample_size = sample_size;
+        self
+    }
+
     pub fn build(self) -> Config {
         Config {
             start_time: self.start_time,
@@ -102,6 +102,7 @@ impl ConfigBuilder {
             population_file: self.population_file,
             output_dir: self.output_dir,
             events_mode: self.events_mode,
+            sample_size: self.sample_size,
         }
     }
 }
