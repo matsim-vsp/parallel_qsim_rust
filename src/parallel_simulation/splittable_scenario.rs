@@ -33,6 +33,7 @@ impl Scenario {
         io_network: &IONetwork,
         io_population: &IOPopulation,
         num_parts: usize,
+        sample_size: f32,
     ) -> Scenario {
         info!("SplittableScenario: creating Id mappings");
         let id_mappings = MatsimIdMappings::from_io(io_network, io_population);
@@ -45,6 +46,7 @@ impl Scenario {
         let network = Network::from_io(
             io_network,
             num_parts,
+            sample_size,
             |node| partition_info.get_partition(node),
             &id_mappings,
         );
@@ -59,14 +61,14 @@ impl Scenario {
         let mut scenario = Scenario {
             scenarios: Vec::new(),
             id_mappings,
-            link_2_thread: network.links_2_thread.clone(),
-            node_2_thread: network.nodes_2_thread.clone(),
+            link_2_thread: network.links_2_partition.clone(),
+            node_2_thread: network.nodes_2_partition.clone(),
         };
 
         info!("SplittableScenario: creating channels for inter thread communication");
         for i in 0..num_parts {
             let (sender, receiver) = mpsc::channel();
-            let broker = MessageBroker::new(i, receiver, network.links_2_thread.clone());
+            let broker = MessageBroker::new(i, receiver, network.links_2_partition.clone());
             message_brokers.push(broker);
             senders.push(sender);
         }
@@ -190,7 +192,7 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_3_links_scenario/",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
 
         let out_network = scenario.as_network(&io_network);
         let network_file = output_folder.join("output_network.xml.gz");
@@ -207,7 +209,7 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_equil_scenario",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
 
         let out_network = scenario.as_network(&io_network);
         let network_file = output_folder.join("output_network.xml.gz");
@@ -230,7 +232,7 @@ mod test {
             "./test_output/parallel_simulation/splittable_scenario/create_berlin_scenario/",
         );
 
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts);
+        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
 
         println!("Create Berlin Scenario Test: Finished creating scenario. Writing network.");
         let out_network = scenario.as_network(&io_network);

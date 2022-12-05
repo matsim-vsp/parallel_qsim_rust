@@ -12,7 +12,7 @@ pub enum Link {
 
 #[derive(Debug)]
 pub struct LocalLink {
-    pub id: usize,
+    id: usize,
     q: VecDeque<Vehicle>,
     length: f32,
     freespeed: f32,
@@ -20,15 +20,21 @@ pub struct LocalLink {
 }
 
 impl LocalLink {
-    pub fn from_io_link(id: usize, link: &IOLink) -> LocalLink {
-        LocalLink::new(id, link.capacity, link.freespeed, link.length)
+    pub fn from_io_link(id: usize, link: &IOLink, sample_size: f32) -> LocalLink {
+        LocalLink::new(id, link.capacity, link.freespeed, link.length, sample_size)
     }
 
-    pub fn new(id: usize, capacity_h: f32, freespeed: f32, length: f32) -> LocalLink {
+    pub fn new(
+        id: usize,
+        capacity_h: f32,
+        freespeed: f32,
+        length: f32,
+        sample_size: f32,
+    ) -> LocalLink {
         LocalLink {
             id,
             q: VecDeque::new(),
-            flowcap: Flowcap::new(capacity_h / 3600.),
+            flowcap: Flowcap::new(capacity_h * sample_size / 3600.),
             freespeed,
             length,
         }
@@ -42,6 +48,7 @@ impl LocalLink {
 
     pub fn pop_front(&mut self, now: u32) -> Vec<Vehicle> {
         self.flowcap.update_capacity(now);
+
         let mut popped_veh = Vec::new();
 
         while let Some(vehicle) = self.q.front() {
@@ -65,16 +72,16 @@ impl LocalLink {
 #[derive(Debug)]
 pub struct SplitOutLink {
     id: usize,
-    to_thread_id: usize,
+    to_part: usize,
 }
 
 impl SplitOutLink {
-    pub fn new(id: usize, to_thread_id: usize) -> SplitOutLink {
-        SplitOutLink { id, to_thread_id }
+    pub fn new(id: usize, to_part: usize) -> SplitOutLink {
+        SplitOutLink { id, to_part }
     }
 
     pub fn neighbor_partition_id(&self) -> usize {
-        self.to_thread_id
+        self.to_part
     }
     pub fn id(&self) -> usize {
         self.id
@@ -83,20 +90,20 @@ impl SplitOutLink {
 
 #[derive(Debug)]
 pub struct SplitInLink {
-    from_thread_id: usize,
+    from_part: usize,
     local_link: LocalLink,
 }
 
 impl SplitInLink {
-    pub fn new(from_thread_id: usize, local_link: LocalLink) -> SplitInLink {
+    pub fn new(from_part: usize, local_link: LocalLink) -> SplitInLink {
         SplitInLink {
-            from_thread_id,
+            from_part,
             local_link,
         }
     }
 
     pub fn neighbor_partition_id(&self) -> usize {
-        self.from_thread_id
+        self.from_part
     }
 
     pub fn local_link_mut(&mut self) -> &mut LocalLink {
@@ -112,7 +119,7 @@ mod tests {
     #[test]
     fn local_link_push_single_veh() {
         let veh_id = 42;
-        let mut link = LocalLink::new(1, 1., 1., 10.);
+        let mut link = LocalLink::new(1, 1., 1., 10., 1.);
         let vehicle = Vehicle::new(veh_id, 1, vec![]);
 
         link.push_vehicle(vehicle, 0);
@@ -127,7 +134,7 @@ mod tests {
     fn local_link_push_multiple_veh() {
         let id1 = 42;
         let id2 = 43;
-        let mut link = LocalLink::new(1, 1., 1., 11.8);
+        let mut link = LocalLink::new(1, 1., 1., 11.8, 1.);
         let vehicle1 = Vehicle::new(id1, id1, vec![]);
         let vehicle2 = Vehicle::new(id2, id2, vec![]);
 
@@ -148,7 +155,7 @@ mod tests {
 
     #[test]
     fn local_link_pop_with_exit_time() {
-        let mut link = LocalLink::new(1, 1000000., 10., 100.);
+        let mut link = LocalLink::new(1, 1000000., 10., 100., 1.);
 
         let mut n: u32 = 0;
 
@@ -168,7 +175,7 @@ mod tests {
     #[test]
     fn local_link_pop_with_capacity() {
         // link has capacity of 2 per second
-        let mut link = LocalLink::new(1, 7200., 10., 100.);
+        let mut link = LocalLink::new(1, 7200., 10., 100., 1.);
 
         let mut n: u32 = 0;
 
@@ -185,5 +192,25 @@ mod tests {
             assert_eq!(11 + n * 2, popped.get(1).unwrap().exit_time);
             n += 1;
         }
+    }
+
+    #[test]
+    fn local_link_pop_with_capacity_reduced() {
+        // link has a capacity of 1 * 0.1 per second
+        let mut link = LocalLink::new(1, 3600., 10., 100., 0.1);
+
+        link.push_vehicle(Vehicle::new(1, 1, vec![]), 0);
+        link.push_vehicle(Vehicle::new(2, 2, vec![]), 0);
+
+        let popped = link.pop_front(10);
+        assert_eq!(1, popped.len());
+
+        // actually this shouldn't let vehicles at 19 seconds as well, but due to floating point arithmatic
+        // the flowcap inside the link has a accumulated capacity slightly greater than 0 at 19 🤷‍♀️
+        let popped_2 = link.pop_front(18);
+        assert_eq!(0, popped_2.len());
+
+        let popped_3 = link.pop_front(20);
+        assert_eq!(1, popped_3.len());
     }
 }

@@ -79,7 +79,7 @@ impl Node {
     ) {
         match links.get_mut(&out_link_id).unwrap() {
             Link::LocalLink(local_link) => {
-                events.handle_vehicle_enters_link(now, local_link.id, vehicle.id);
+                events.handle_vehicle_enters_link(now, local_link.id(), vehicle.id);
                 local_link.push_vehicle(vehicle, now);
             }
             Link::SplitOutLink(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
@@ -110,10 +110,10 @@ mod tests {
     #[test]
     fn vehicle_in() {
         let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20.);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20., 1.);
         let vehicle = Vehicle::new(1, 1, vec![1]);
         local_in_link.push_vehicle(vehicle, 1);
-        node.add_in_link(local_in_link.id);
+        node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link)]);
         let mut events = Events::new_silent();
@@ -128,12 +128,12 @@ mod tests {
     #[test]
     fn vehicle_in_and_out() {
         let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20.);
-        let local_out_link = LocalLink::new(2, 20., 40., 20.);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20., 1.);
+        let local_out_link = LocalLink::new(2, 20., 40., 20., 1.);
         let vehicle = Vehicle::new(1, 1, vec![1, 2]);
         local_in_link.push_vehicle(vehicle, 1);
-        node.add_in_link(local_in_link.id);
-        node.add_out_link(local_out_link.id);
+        node.add_in_link(local_in_link.id());
+        node.add_out_link(local_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
         let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link), (2, out_link)]);
@@ -152,7 +152,7 @@ mod tests {
     #[test]
     pub fn vehicle_in_out_boundary() {
         let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20.);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20., 1.);
         let split_out_link = SplitOutLink::new(2, 2);
         let vehicle = Vehicle::new(1, 1, vec![1, 2]);
         local_in_link.push_vehicle(vehicle, 1);
@@ -175,12 +175,12 @@ mod tests {
     #[test]
     fn vehicles_in() {
         let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 3600., 40., 20.);
+        let mut local_in_link = LocalLink::new(1, 3600., 40., 20., 1.);
         let vehicle_1 = Vehicle::new(1, 1, vec![1]);
         let vehicle_2 = Vehicle::new(2, 2, vec![1]);
         local_in_link.push_vehicle(vehicle_1, 1);
         local_in_link.push_vehicle(vehicle_2, 1);
-        node.add_in_link(local_in_link.id);
+        node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link)]);
         let mut events = Events::new_silent();
@@ -207,14 +207,14 @@ mod tests {
     #[test]
     fn vehicles_in_and_out() {
         let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 10000., 40., 20.);
-        let local_out_link = LocalLink::new(2, 10000., 40., 20.);
+        let mut local_in_link = LocalLink::new(1, 10000., 40., 20., 1.);
+        let local_out_link = LocalLink::new(2, 10000., 40., 20., 1.);
         let vehicle_1 = Vehicle::new(1, 1, vec![1, 2]);
         let vehicle_2 = Vehicle::new(2, 2, vec![1, 2]);
         local_in_link.push_vehicle(vehicle_1, 1);
         local_in_link.push_vehicle(vehicle_2, 1);
-        node.add_in_link(local_in_link.id);
-        node.add_out_link(local_out_link.id);
+        node.add_in_link(local_in_link.id());
+        node.add_out_link(local_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
         let mut links: HashMap<usize, Link> = HashMap::from([(1, in_link), (2, out_link)]);
