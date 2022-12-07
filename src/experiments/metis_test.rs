@@ -1,9 +1,10 @@
 use metis::{Graph, Idx};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 struct Node {
     id: usize,
     out_links: Vec<usize>,
+    in_links: Vec<usize>,
     weight: i32,
 }
 
@@ -12,6 +13,7 @@ struct Link {
     id: usize,
     count: i32,
     to: usize,
+    from: usize,
 }
 
 fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
@@ -24,7 +26,8 @@ fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
     for node in nodes {
         // do the xadj  pointers.
         let number_of_out_links = node.out_links.len() as Idx;
-        let next_adjacency_index = xadj.last().unwrap() + number_of_out_links;
+        let number_of_in_links = node.in_links.len() as Idx;
+        let next_adjacency_index = xadj.last().unwrap() + number_of_out_links + number_of_in_links;
         xadj.push(next_adjacency_index);
         vwgt.push(node.weight as Idx);
         node_ids.push(node.id);
@@ -33,6 +36,12 @@ fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
         for link_id in node.out_links {
             let link = links.get(link_id).unwrap();
             adjncy.push(link.to as Idx);
+            adjwgt.push(link.count as Idx);
+        }
+
+        for link_id in node.in_links {
+            let link = links.get(link_id).unwrap();
+            adjncy.push(link.from as Idx);
             adjwgt.push(link.count as Idx);
         }
     }
@@ -65,8 +74,6 @@ mod tests {
     use crate::experiments::metis_test::{partition, Link, Node};
     use crate::io::network::IONetwork;
 
-    /// ignore because it started failing at some point and I don't care at the moment janek '22
-    #[ignore]
     #[test]
     fn test_convert_example() {
         let (nodes, links) = create_network();
@@ -79,6 +86,8 @@ mod tests {
             .part_kway(&mut expected)
             .unwrap();
 
+        // this assertion basically tests whether the partition method converts the node/link structure
+        // into the crs format correctly.
         assert_eq!(expected, result)
     }
 
@@ -95,6 +104,7 @@ mod tests {
                     id: i,
                     weight,
                     out_links: Vec::new(),
+                    in_links: Vec::new(),
                 };
                 (node.id.as_str(), result)
             })
@@ -107,16 +117,17 @@ mod tests {
             .map(|(i, link)| {
                 // add the link to its from node
                 let from_node = nodes.get_mut(&link.from.as_str()).unwrap();
+                let from_id = from_node.id;
                 from_node.out_links.push(i);
+                let to_node = nodes.get_mut(&link.to.as_str()).unwrap();
+                let to_id = to_node.id;
+                to_node.in_links.push(i);
 
-                let count = if i == 1 { 25 } else { 0 };
-
-                // create the link
-                let to_node = nodes.get(&link.to.as_str()).unwrap();
                 Link {
                     id: i,
-                    to: to_node.id,
-                    count,
+                    to: to_id,
+                    from: from_id,
+                    count: 1,
                 }
             })
             .collect();
@@ -126,33 +137,47 @@ mod tests {
         let result = partition(vec, links);
 
         println!("{:?} this is the result", result);
+        assert_eq!(vec![1, 1, 0, 0], result);
     }
 
     #[rustfmt::skip]
     fn create_network() -> (Vec<Node>, Vec<Link>) {
         let (xadj, adjncy) = create_example();
-        let mut nodes = Vec::with_capacity(xadj.len() - 1);
         let mut links = Vec::with_capacity(adjncy.len());
 
-        for i in 0..xadj.len() - 1 {
-            let start_i = xadj[i];
-            let end_i = xadj[i + 1];
-            let mut out_links = Vec::new();
+        let mut nodes : Vec<Node> = xadj.iter().enumerate()
+            .filter(|(i, _index) | *i < xadj.len() - 1)
+            .map(|(i, _index)| { Node {
+                id: i,
+                weight: 1,
+                out_links: Vec::new(),
+                in_links: Vec::new(),
+            }})
+            .collect();
+
+        for from_id in 0..xadj.len() - 1 {
+            let start_i = xadj[from_id];
+            let end_i = xadj[from_id + 1];
+            //let mut out_links = Vec::new();
 
             for l in start_i..end_i {
-                let node_id: Idx = adjncy[l as usize];
+                let to_id: Idx = adjncy[l as usize];
                 let link = Link {
                     id: links.len(),
                     count: 1,
-                    to: node_id as usize,
+                    to: to_id as usize,
+                    from: from_id,
                 };
-                out_links.push(link.id);
+
+                // wire up the from and to node for this link
+                let from_node = nodes.get_mut(from_id).unwrap();
+                from_node.out_links.push(link.id);
+                let to_node = nodes.get_mut(to_id as usize).unwrap();
+                to_node.in_links.push(link.id);
+
+                // move link into link list
                 links.push(link);
             }
-
-            let id = nodes.len();
-            let node = Node { id, out_links, weight: 1 };
-            nodes.push(node);
         }
 
         println!("{:?}", nodes);
