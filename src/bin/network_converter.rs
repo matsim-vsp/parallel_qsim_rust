@@ -1,4 +1,5 @@
 use std::env;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::Write;
 
@@ -90,7 +91,7 @@ impl RoutingKitNetwork {
     }
 }
 
-fn serialize_vector(vector: &Vec<u32>, output_file: String) {
+fn serialize_vector<T: Display>(vector: &Vec<T>, output_file: String) {
     let mut file = File::create(output_file).expect("Unable to create file.");
     for i in vector {
         writeln!(file, "{}", i).expect("Unable to write into file.");

@@ -52,11 +52,11 @@ impl Graph {
 }
 
 trait Id {
-    fn get_id(&self) -> i32;
+    fn id(&self) -> i32;
 }
 
 fn only_unique_values<T: Id>(list: &Vec<T>) -> bool {
-    let mut x: Vec<i32> = list.iter().map(|v| v.get_id()).collect();
+    let mut x: Vec<i32> = list.iter().map(|v| v.id()).collect();
     x.dedup();
     x.len() == list.len()
 }
@@ -67,7 +67,7 @@ pub struct Vertex {
 }
 
 impl Id for Vertex {
-    fn get_id(&self) -> i32 {
+    fn id(&self) -> i32 {
         self.id
     }
 }
@@ -81,7 +81,7 @@ pub struct Edge {
 }
 
 impl Id for Edge {
-    fn get_id(&self) -> i32 {
+    fn id(&self) -> i32 {
         self.id
     }
 }
