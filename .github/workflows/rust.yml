@@ -18,6 +18,8 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install
       run: sudo apt -y install libclang-dev libmetis-dev
+    - name: Set Rust to nightly
+      run: rustup default nightly
     - name: Build
       run: cargo build --verbose
     - name: Run tests
