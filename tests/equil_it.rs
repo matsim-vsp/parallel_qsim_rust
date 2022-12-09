@@ -10,6 +10,8 @@ fn equil_scenario() {
         .population_file(String::from("./assets/equil/equil-plans.xml.gz"))
         .output_dir(String::from("./test_output/controller_it/equil_scenario"))
         .num_parts(2)
+        .start_time(0)
+        .end_time(86400)
         .build();
 
     let _logger_guard = init_logging(&config.output_dir);

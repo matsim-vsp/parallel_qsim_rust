@@ -77,17 +77,25 @@ impl Scenario {
         for i in 0..num_parts {
             let broker = message_brokers.get_mut(i).unwrap();
             let network_partition = network.partitions.get(i).unwrap();
+
+            info!("Part #{i} {:?}", network_partition.links.keys());
+            info!("Part #{i} {:?}", network_partition.nodes.keys());
             let neighbors = network_partition.neighbors();
 
             for (i_sender, sender) in senders.iter().enumerate() {
                 if i_sender != i {
-                    if neighbors.contains(&i) {
+                    if neighbors.contains(&i_sender) {
                         broker.add_neighbor_sender(i_sender, sender.clone())
                     } else {
                         broker.add_remote_sender(i_sender, sender.clone());
                     }
                 }
             }
+            info!(
+                "Part #{i} Broker neighbors: {:?}, remotes: {:?}",
+                broker.neighbor_senders.keys(),
+                broker.remote_senders.keys()
+            )
         }
 
         info!("SplittableScenario: creating scenario partitions.");

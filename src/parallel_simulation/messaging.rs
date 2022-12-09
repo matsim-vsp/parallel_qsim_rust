@@ -1,7 +1,9 @@
 use crate::parallel_simulation::messages::Message;
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
-use std::collections::{HashMap, HashSet};
+use log::info;
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
@@ -9,10 +11,11 @@ use std::sync::Arc;
 pub struct MessageBroker {
     pub(crate) id: usize,
     receiver: Receiver<Message>,
-    remote_senders: HashMap<usize, Sender<Message>>,
-    neighbor_senders: HashMap<usize, Sender<Message>>,
+    pub remote_senders: HashMap<usize, Sender<Message>>,
+    pub neighbor_senders: HashMap<usize, Sender<Message>>,
     out_messages: HashMap<usize, Message>,
     link_id_mapping: Arc<HashMap<usize, usize>>,
+    message_cache: BinaryHeap<MessageEntry>,
 }
 
 impl MessageBroker {
@@ -28,6 +31,7 @@ impl MessageBroker {
             neighbor_senders: HashMap::new(),
             out_messages: HashMap::new(),
             link_id_mapping,
+            message_cache: BinaryHeap::new(),
         }
     }
 
@@ -43,22 +47,56 @@ impl MessageBroker {
         self.remote_senders.insert(to, sender);
     }
 
-    pub fn receive(&self) -> Vec<Message> {
-        let mut messages = Vec::new();
-        let mut required_senders: HashSet<usize> = self.neighbor_senders.keys().cloned().collect();
+    fn receive_from_cache(&mut self, required: &mut HashSet<usize>, now: u32) -> Vec<Message> {
+        let mut result = Vec::new();
+        while let Some(entry) = self.message_cache.peek() {
+            if entry.message.time <= now {
+                required.remove(&entry.message.from);
+                result.push(self.message_cache.pop().unwrap().message);
+            }
+        }
+        result
+    }
 
-        // do blocking receive for required partitions
-        while !required_senders.is_empty() {
+    fn receive_blocking(&mut self, required: &mut HashSet<usize>, now: u32) {
+        while !required.is_empty() {
             let message = self.receiver.recv().unwrap();
-            required_senders.remove(&message.from);
-            messages.push(message);
-        }
 
-        // check for optional messages as well.
+            required.remove(&message.from);
+      //      info!(
+      //          "#{now} #{} Received Message blocking {message:?} still requiring {required:?}",
+      //          self.id
+       //     );
+            self.message_cache.push(MessageEntry { message });
+        }
+    }
+
+    fn receive_non_blocking(&mut self) {
         for message in self.receiver.try_iter() {
-            messages.push(message);
+            self.message_cache.push(MessageEntry { message })
         }
+    }
 
+    pub fn receive(&mut self, now: u32) -> Vec<Message> {
+        let mut required_senders: HashSet<usize> = self.neighbor_senders.keys().cloned().collect();
+        let mut messages = self.receive_from_cache(&mut required_senders, now);
+
+      //  info!(
+      //      "{now} #{} {messages:?} from cache. Await blocking from {required_senders:?}",
+      //      self.id
+      //  );
+        self.receive_blocking(&mut required_senders, now);
+      //  info!("{now} #{}, after receive blocking", self.id);
+        self.receive_non_blocking();
+       // info!("{now} #{}, after receive non blocking", self.id);
+        while let Some(entry) = self.message_cache.peek() {
+            if entry.message.time <= now {
+                messages.push(self.message_cache.pop().unwrap().message);
+            } else {
+                break;
+            }
+        }
+       // info!("{now} #{} received: {messages:?}", self.id);
         messages
     }
 
@@ -73,6 +111,7 @@ impl MessageBroker {
         for (id, sender) in &self.neighbor_senders {
             let mut message = messages.remove(id).unwrap_or_else(|| Message::new(self.id));
             message.time = now;
+         //   info!("{now} #{} sending: {message:?} to {id}", self.id);
             sender.send(message).unwrap();
         }
 
@@ -108,6 +147,32 @@ impl MessageBroker {
         }
     }
 }
+
+/// Entry struct to get reverse ordering in binary heap
+#[derive(Debug)]
+struct MessageEntry {
+    message: Message,
+}
+
+impl PartialOrd for MessageEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MessageEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.message.time.cmp(&self.message.time)
+    }
+}
+
+impl PartialEq<Self> for MessageEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.message.from == other.message.from && self.message.time == other.message.time
+    }
+}
+
+impl Eq for MessageEntry {}
 
 #[cfg(test)]
 mod tests {
@@ -369,7 +434,7 @@ mod tests {
         broker1.prepare_routed(agent, vehicle);
         broker1.send(43);
 
-        let messages = broker2.receive();
+        let messages = broker2.receive(1);
 
         assert_eq!(1, messages.len());
         let message = messages.get(0).unwrap();
@@ -392,7 +457,7 @@ mod tests {
         broker.add_remote_sender(3, sender3.clone());
 
         sender1.send(Message::new(2)).unwrap();
-        let result = broker.receive();
+        let result = broker.receive(1);
         assert_eq!(1, result.len());
     }
 
@@ -426,7 +491,7 @@ mod tests {
         {
             // put this into a scope so that the mutex is released before waiting for the other thread
             // which also uses this mutex.
-            let result = broker.receive();
+            let result = broker.receive(1);
             assert_eq!(2, result.len());
             let mut has_received = has_received_1.lock().unwrap();
             *has_received = true;
@@ -450,7 +515,7 @@ mod tests {
         // send the required message
         sender1.send(Message::new(2)).unwrap();
 
-        let result = broker.receive();
+        let result = broker.receive(1);
         assert_eq!(2, result.len());
     }
 
