@@ -1,8 +1,6 @@
 use crate::parallel_simulation::messages::Message;
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
-use log::info;
-use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
@@ -11,11 +9,11 @@ use std::sync::Arc;
 pub struct MessageBroker {
     pub(crate) id: usize,
     receiver: Receiver<Message>,
-    pub remote_senders: HashMap<usize, Sender<Message>>,
-    pub neighbor_senders: HashMap<usize, Sender<Message>>,
+    remote_senders: HashMap<usize, Sender<Message>>,
+    neighbor_senders: HashMap<usize, Sender<Message>>,
     out_messages: HashMap<usize, Message>,
     link_id_mapping: Arc<HashMap<usize, usize>>,
-    message_cache: BinaryHeap<MessageEntry>,
+    message_cache: BinaryHeap<Message>,
 }
 
 impl MessageBroker {
@@ -49,10 +47,10 @@ impl MessageBroker {
 
     fn receive_from_cache(&mut self, required: &mut HashSet<usize>, now: u32) -> Vec<Message> {
         let mut result = Vec::new();
-        while let Some(entry) = self.message_cache.peek() {
-            if entry.message.time <= now {
-                required.remove(&entry.message.from);
-                result.push(self.message_cache.pop().unwrap().message);
+        while let Some(message) = self.message_cache.peek() {
+            if message.time <= now {
+                required.remove(&message.from);
+                result.push(self.message_cache.pop().unwrap());
             }
         }
         result
@@ -63,17 +61,17 @@ impl MessageBroker {
             let message = self.receiver.recv().unwrap();
 
             required.remove(&message.from);
-      //      info!(
-      //          "#{now} #{} Received Message blocking {message:?} still requiring {required:?}",
-      //          self.id
-       //     );
-            self.message_cache.push(MessageEntry { message });
+            //      info!(
+            //          "#{now} #{} Received Message blocking {message:?} still requiring {required:?}",
+            //          self.id
+            //     );
+            self.message_cache.push(message);
         }
     }
 
     fn receive_non_blocking(&mut self) {
         for message in self.receiver.try_iter() {
-            self.message_cache.push(MessageEntry { message })
+            self.message_cache.push(message)
         }
     }
 
@@ -81,22 +79,22 @@ impl MessageBroker {
         let mut required_senders: HashSet<usize> = self.neighbor_senders.keys().cloned().collect();
         let mut messages = self.receive_from_cache(&mut required_senders, now);
 
-      //  info!(
-      //      "{now} #{} {messages:?} from cache. Await blocking from {required_senders:?}",
-      //      self.id
-      //  );
+        //  info!(
+        //      "{now} #{} {messages:?} from cache. Await blocking from {required_senders:?}",
+        //      self.id
+        //  );
         self.receive_blocking(&mut required_senders, now);
-      //  info!("{now} #{}, after receive blocking", self.id);
+        //  info!("{now} #{}, after receive blocking", self.id);
         self.receive_non_blocking();
-       // info!("{now} #{}, after receive non blocking", self.id);
-        while let Some(entry) = self.message_cache.peek() {
-            if entry.message.time <= now {
-                messages.push(self.message_cache.pop().unwrap().message);
+        // info!("{now} #{}, after receive non blocking", self.id);
+        while let Some(message) = self.message_cache.peek() {
+            if message.time <= now {
+                messages.push(self.message_cache.pop().unwrap());
             } else {
                 break;
             }
         }
-       // info!("{now} #{} received: {messages:?}", self.id);
+        // info!("{now} #{} received: {messages:?}", self.id);
         messages
     }
 
@@ -111,7 +109,7 @@ impl MessageBroker {
         for (id, sender) in &self.neighbor_senders {
             let mut message = messages.remove(id).unwrap_or_else(|| Message::new(self.id));
             message.time = now;
-         //   info!("{now} #{} sending: {message:?} to {id}", self.id);
+            //   info!("{now} #{} sending: {message:?} to {id}", self.id);
             sender.send(message).unwrap();
         }
 
@@ -147,32 +145,6 @@ impl MessageBroker {
         }
     }
 }
-
-/// Entry struct to get reverse ordering in binary heap
-#[derive(Debug)]
-struct MessageEntry {
-    message: Message,
-}
-
-impl PartialOrd for MessageEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for MessageEntry {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.message.time.cmp(&self.message.time)
-    }
-}
-
-impl PartialEq<Self> for MessageEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.message.from == other.message.from && self.message.time == other.message.time
-    }
-}
-
-impl Eq for MessageEntry {}
 
 #[cfg(test)]
 mod tests {

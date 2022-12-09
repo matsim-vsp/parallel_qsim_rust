@@ -12,8 +12,6 @@ use crate::parallel_simulation::splittable_population::Route;
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
-use std::thread::sleep;
-use std::time::Duration;
 
 mod agent_q;
 pub mod events;
@@ -108,18 +106,9 @@ impl Simulation {
             self.events.flush();
             self.receive(now);
             now += 1;
-            //   if self.scenario.msg_broker.id == 1 {
-            //      sleep(Duration::from_secs(1));
-            // }
         }
 
-        //sleep(Duration::from_secs(10));
-        info!(
-            "Partition #{} finished. Neighbors {:?}, Remotes {:?}",
-            self.scenario.msg_broker.id,
-            self.scenario.msg_broker.neighbor_senders.keys(),
-            self.scenario.msg_broker.remote_senders.keys(),
-        );
+        info!("Partition #{} finished.", self.scenario.msg_broker.id,);
     }
 
     fn wakeup(&mut self, now: u32) {
