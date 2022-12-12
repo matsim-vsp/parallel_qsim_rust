@@ -225,9 +225,9 @@ mod test {
         let network = converter.routing_kit_network.as_ref().unwrap();
         println!("{network:#?}");
 
-        assert_eq!(network.first_out, vec![0, 0, 2, 4, 5]);
-        assert_eq!(network.head, vec![2, 3, 2, 3, 1]);
-        assert_eq!(network.travel_time, vec![1, 2, 1, 4, 2]);
+        assert_eq!(network.first_out, vec![0, 0, 2, 4, 6]);
+        assert_eq!(network.head, vec![2, 3, 2, 3, 1, 2]);
+        assert_eq!(network.travel_time, vec![1, 2, 1, 4, 2, 5]);
         // we don't check latitude and longitude so far
     }
 
