@@ -3,7 +3,6 @@ use rust_q_sim::controller;
 use rust_q_sim::logging::init_logging;
 
 #[test]
-#[ignore]
 fn equil_scenario() {
     let config = Config::builder()
         .network_file(String::from("./assets/equil/equil-network.xml"))

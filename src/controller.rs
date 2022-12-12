@@ -4,10 +4,12 @@ use crate::io::non_blocking_io::NonBlocking;
 use crate::io::population::IOPopulation;
 use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_scenario::Scenario;
+use crate::parallel_simulation::time_logging::SingleMessageLogger;
 use crate::parallel_simulation::Simulation;
 use log::info;
 use std::ops::Sub;
 use std::path::Path;
+use std::sync::mpsc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Instant;
@@ -28,14 +30,18 @@ pub fn run(config: Config) {
     let mut events = Events::new(events_writer);
 
     let simulations = Simulation::create_simulation_partitions(&config, scenario, events.clone());
-
+    let (log_sender, log_receiver) = mpsc::channel();
+    let mut time_logger = SingleMessageLogger::new(log_receiver, config.num_parts);
     // do very basic timing
     let start = Instant::now();
     // create threads and start them
     let join_handles: Vec<JoinHandle<()>> = simulations
         .into_iter()
-        .map(|mut simulation| thread::spawn(move || simulation.run()))
+        .map(|simulation| (simulation, log_sender.clone()))
+        .map(|(mut simulation, sender)| thread::spawn(move || simulation.run(sender)))
         .collect();
+
+    time_logger.recv();
 
     // wait for all threads to finish
     for handle in join_handles {
