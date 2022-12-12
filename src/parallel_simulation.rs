@@ -10,8 +10,10 @@ use crate::parallel_simulation::splittable_population::NetworkRoute;
 use crate::parallel_simulation::splittable_population::PlanElement;
 use crate::parallel_simulation::splittable_population::Route;
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
+use crate::parallel_simulation::time_logging::LogMessage;
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
+use std::sync::mpsc::Sender;
 
 mod agent_q;
 pub mod events;
@@ -22,6 +24,7 @@ mod network;
 mod partition_info;
 mod splittable_population;
 pub mod splittable_scenario;
+pub mod time_logging;
 mod vehicles;
 
 pub struct Simulation {
@@ -65,17 +68,12 @@ impl Simulation {
         simulations
     }
 
-    pub fn run(&mut self) {
-        info!(
-            "Simulation #{}: Starting simulation loop.",
-            self.scenario.msg_broker.id
-        );
-
+    pub fn run(&mut self, improvised_logger: Sender<LogMessage>) {
         // use fixed start and end times
         let mut now = self.start_time;
         info!(
-            "\n #### Start the simulation for Scenario Slice #{} at timestep {}. Last timestep is set to {} ####\n",
-            self.scenario.msg_broker.id, now, self.end_time
+            "#### Start the simulation for Scenario Slice #{} ####",
+            self.scenario.msg_broker.id
         );
 
         // conceptually this should do the following in the main loop:
@@ -93,10 +91,9 @@ impl Simulation {
         while self.active_agents() > 0 && now <= self.end_time {
             if now % 3600 == 0 {
                 let hour = now / 3600;
-                info!(
-                    "Simulation #{}: At: {hour}:00:00",
-                    self.scenario.msg_broker.id
-                );
+                improvised_logger
+                    .send(LogMessage::Message(format!("Simulation at {hour}:00:00")))
+                    .unwrap();
             }
 
             self.wakeup(now);
@@ -109,6 +106,7 @@ impl Simulation {
         }
 
         info!("Partition #{} finished.", self.scenario.msg_broker.id,);
+        improvised_logger.send(LogMessage::Shutdown).unwrap();
     }
 
     fn wakeup(&mut self, now: u32) {

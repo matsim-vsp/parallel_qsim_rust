@@ -91,7 +91,7 @@ impl Scenario {
                     }
                 }
             }
-            info!("Part #{i} Broker: {broker:?}",)
+            //info!("Part #{i} Broker: {broker:?}",)
         }
 
         info!("SplittableScenario: creating scenario partitions.");
