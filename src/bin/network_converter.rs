@@ -15,78 +15,27 @@ pub fn main() {
     let output_path = args.get(2).unwrap();
     let inertial_flow_cutter_path = args.get(3).unwrap();
 
-    let network = NetworkConverter::convert_network(matsim_network_path);
+    let converter = NetworkConverter {
+        matsim_network_path,
+        output_path,
+        inertial_flow_cutter_path,
+    };
+
+    let network = converter.convert_network();
     network.serialize(output_path);
-    let node_ordering = NetworkConverter::call_node_ordering(inertial_flow_cutter_path, output_path);
+    let node_ordering = converter.call_node_ordering();
     println!("The following node ordering was calculated: {:#?}", node_ordering);
 }
 
-struct NetworkConverter {}
+struct NetworkConverter<'conv> {
+    matsim_network_path: &'conv str,
+    output_path: &'conv str,
+    inertial_flow_cutter_path: &'conv str,
+}
 
-impl NetworkConverter {
-    fn call_node_ordering(inertial_flow_cutter_path: &str, output_path: &str) -> Vec<u32> {
-        let file_names = vec!["head", "travel_time", "first_out", "latitude", "longitude"];
-        for f in file_names {
-            NetworkConverter::convert_network_into_binary(&inertial_flow_cutter_path, output_path, f);
-        }
-
-        let output_file_name = String::from("order");
-        NetworkConverter::compute_ordering(&inertial_flow_cutter_path, output_path, &output_file_name);
-        NetworkConverter::convert_ordering_into_text(&inertial_flow_cutter_path, output_path, &output_file_name);
-        NetworkConverter::read_text_ordering(output_path, &output_file_name)
-    }
-
-    fn read_text_ordering(output_path: &str, output_file_name: &str) -> Vec<u32> {
-        let ordering_file = File::open(output_path.to_owned() + &"/ordering/".to_owned() + &output_file_name.to_owned())
-            .expect("Could not open file with node ordering");
-        let buf = BufReader::new(ordering_file);
-        let mut v = Vec::new();
-        for line in buf.lines() {
-            let n = line.expect("Could not read line.").parse().expect("Could not parse value.");
-            v.push(n);
-        };
-        v
-    }
-
-    fn convert_ordering_into_text(inertial_flow_path: &str, data_path: &str, file: &str) {
-        println!("Converting ordering into text.");
-
-        Command::new(inertial_flow_path.to_owned() + &"/build/console".to_owned())
-            .arg("binary_to_text_vector")
-            .arg(data_path.to_owned() + &"/ordering/".to_owned() + &file.to_owned() + &"_bin".to_owned())
-            .arg(data_path.to_owned() + &"/ordering/".to_owned() + &file.to_owned())
-            .status()
-            .expect("Failed to convert ordering into text.");
-    }
-
-    fn compute_ordering(inertial_flow_path: &str, data_path: &str, output_file_name: &str) {
-        println!("Computing ordering for file {output_file_name}");
-
-        create_dir_all(data_path.to_owned() + &"/ordering".to_owned()).expect("Failed to create directory.");
-
-        Command::new("python3")
-            .arg(inertial_flow_path.to_owned() + &"/inertialflowcutter_order.py".to_owned())
-            .arg(data_path.to_owned() + &"/binary/".to_owned())
-            .arg(data_path.to_owned() + &"/ordering/".to_owned() + &output_file_name.to_owned() + &"_bin".to_owned())
-            .status()
-            .expect("Failed to compute ordering");
-    }
-
-    fn convert_network_into_binary(inertial_flow_path: &str, data_path: &str, file: &str) {
-        println!("Converting file {file} into binary.");
-
-        create_dir_all(data_path.to_owned() + &"/binary".to_owned()).expect("Failed to create directory.");
-
-        Command::new(inertial_flow_path.to_owned() + &"/build/console".to_owned())
-            .arg("text_to_binary_vector")
-            .arg(data_path.to_owned() + &"/".to_owned() + &file.to_owned())
-            .arg(data_path.to_owned() + &"/binary/".to_owned() + &file.to_owned())
-            .status()
-            .expect("Failed to convert network into binary files.");
-    }
-
-    fn convert_network(path: &str) -> RoutingKitNetwork {
-        let mut network = IONetwork::from_file(path);
+impl NetworkConverter<'_> {
+    fn convert_network(&self) -> RoutingKitNetwork {
+        let mut network = IONetwork::from_file(self.matsim_network_path);
 
         let mut first_out: Vec<EdgeId> = Vec::new();
         let mut head: Vec<NodeId> = Vec::new();
@@ -126,6 +75,71 @@ impl NetworkConverter {
             latitude,
             longitude,
         }
+    }
+
+    fn call_console(&self) -> String {
+        self.inertial_flow_cutter_path.to_owned() + &"/build/console".to_owned()
+    }
+
+    fn call_node_ordering(&self) -> Vec<u32> {
+        let file_names = vec!["head", "travel_time", "first_out", "latitude", "longitude"];
+        for f in file_names {
+            self.convert_network_into_binary(f);
+        }
+
+        let output_file_name = String::from("order");
+        self.compute_ordering(&output_file_name);
+        self.convert_ordering_into_text(&output_file_name);
+        self.read_text_ordering(&output_file_name)
+    }
+
+    fn convert_network_into_binary(&self, file: &str) {
+        println!("Converting file {file} into binary.");
+
+        create_dir_all(self.output_path.to_owned() + &"/binary".to_owned()).expect("Failed to create directory.");
+
+        Command::new(self.call_console())
+            .arg("text_to_binary_vector")
+            .arg(self.output_path.to_owned() + &"/".to_owned() + &file.to_owned())
+            .arg(self.output_path.to_owned() + &"/binary/".to_owned() + &file.to_owned())
+            .status()
+            .expect("Failed to convert network into binary files.");
+    }
+
+    fn compute_ordering(&self, output_file_name: &str) {
+        println!("Computing ordering for file {output_file_name}");
+
+        create_dir_all(self.output_path.to_owned() + &"/ordering".to_owned()).expect("Failed to create directory.");
+
+        Command::new("python3")
+            .arg(self.inertial_flow_cutter_path.to_owned() + &"/inertialflowcutter_order.py".to_owned())
+            .arg(self.output_path.to_owned() + &"/binary/".to_owned())
+            .arg(self.output_path.to_owned() + &"/ordering/".to_owned() + &output_file_name.to_owned() + &"_bin".to_owned())
+            .status()
+            .expect("Failed to compute ordering");
+    }
+
+    fn convert_ordering_into_text(&self, file: &str) {
+        println!("Converting ordering into text.");
+
+        Command::new(self.call_console())
+            .arg("binary_to_text_vector")
+            .arg(self.output_path.to_owned() + &"/ordering/".to_owned() + &file.to_owned() + &"_bin".to_owned())
+            .arg(self.output_path.to_owned() + &"/ordering/".to_owned() + &file.to_owned())
+            .status()
+            .expect("Failed to convert ordering into text.");
+    }
+
+    fn read_text_ordering(&self, output_file_name: &str) -> Vec<u32> {
+        let ordering_file = File::open(self.output_path.to_owned() + &"/ordering/".to_owned() + &output_file_name.to_owned())
+            .expect("Could not open file with node ordering");
+        let buf = BufReader::new(ordering_file);
+        let mut v = Vec::new();
+        for line in buf.lines() {
+            let n = line.expect("Could not read line.").parse().expect("Could not parse value.");
+            v.push(n);
+        };
+        v
     }
 
     //checks whether network consists of unique node ids
@@ -174,7 +188,12 @@ mod test {
 
     #[test]
     fn test_simple_network() {
-        let network = NetworkConverter::convert_network("./assets/routing_tests/triangle-network.xml");
+        let converter = NetworkConverter {
+            matsim_network_path: "./assets/routing_tests/triangle-network.xml",
+            output_path: &String::new(),
+            inertial_flow_cutter_path: &String::new(),
+        };
+        let network = converter.convert_network();
         println!("{network:#?}");
 
         assert_eq!(network.first_out, vec![0, 0, 2, 4, 5]);
@@ -185,7 +204,12 @@ mod test {
 
     #[test]
     fn test_serialization() {
-        let network = NetworkConverter::convert_network("./assets/routing_tests/triangle-network.xml");
+        let converter = NetworkConverter {
+            matsim_network_path: "./assets/routing_tests/triangle-network.xml",
+            output_path: &String::new(),
+            inertial_flow_cutter_path: &String::new(),
+        };
+        let network = converter.convert_network();
         network.serialize(&String::from("./assets/routing_tests/serialization"));
         // TODO implement test
     }
