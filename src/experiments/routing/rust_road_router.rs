@@ -1,3 +1,28 @@
+use std::borrow::Borrow;
+use std::cell::{Ref, RefCell};
+use std::rc::Rc;
+
+use rust_road_router::algo::customizable_contraction_hierarchy;
+use rust_road_router::algo::customizable_contraction_hierarchy::{CCH, customize, CustomizedBasic};
+use rust_road_router::algo::customizable_contraction_hierarchy::query::Server;
+use rust_road_router::datastr::graph::{EdgeId, FirstOutGraph, OwnedGraph};
+use rust_road_router::datastr::node_order::NodeOrder;
+
+use crate::io::network::IONetwork;
+use crate::routing::network_converter::{NetworkConverter, node_ordering_from_matsim_network, RoutingKitNetwork};
+
+struct Router<'router> {
+    server: Server<CustomizedBasic<'router, CCH>>,
+}
+
+impl<'router> Router<'router> {
+    fn new(cch: &'router CCH, graph: &OwnedGraph) -> Router<'router> {
+        Router {
+            server: Server::new(customize(cch, graph))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rust_road_router::{
@@ -6,6 +31,8 @@ mod tests {
     };
     use rust_road_router::algo::customizable_contraction_hierarchy::{CCH, customize};
     use rust_road_router::datastr::node_order::NodeOrder;
+
+    use crate::routing::network_converter::NetworkConverter;
 
     fn create_graph() -> OwnedGraph {
         /*
@@ -46,6 +73,27 @@ mod tests {
         let cch = CCH::fix_order_and_build(&created_graph_with_isolated_node_0(), node_order);
 
         let mut server = customizable_contraction_hierarchy::query::Server::new(customize(&cch, &create_graph()));
+        let mut result = server.query(Query { from: 3, to: 2 });
+        assert_eq!(result.distance(), Some(3));
+        println!("{:#?}", result.node_path())
+    }
+
+    #[ignore]
+    #[test]
+    fn test_simple_cch_with_router() {
+        //does only work locally
+        let mut converter = NetworkConverter {
+            matsim_network_path: "./assets/routing_tests/triangle-network.xml",
+            output_path: "./assets/routing_tests/conversion/",
+            inertial_flow_cutter_path: "../InertialFlowCutter",
+            routing_kit_network: None,
+        };
+
+        let node_order = NodeOrder::from_node_order(converter.node_ordering(false));
+        let cch = CCH::fix_order_and_build(&created_graph_with_isolated_node_0(), node_order);
+
+        let owned_graph = OwnedGraph::new(converter.routing_kit_network.as_ref().unwrap().first_out().to_owned(), converter.routing_kit_network.as_ref().unwrap().head().to_owned(), converter.routing_kit_network.as_ref().unwrap().travel_time().to_owned());
+        let mut server = customizable_contraction_hierarchy::query::Server::new(customize(&cch, &owned_graph));
         let mut result = server.query(Query { from: 3, to: 2 });
         assert_eq!(result.distance(), Some(3));
         println!("{:#?}", result.node_path())

@@ -9,5 +9,5 @@ pub fn main() {
     let output_path = args.get(2).unwrap();
     let inertial_flow_cutter_path = args.get(3).unwrap();
 
-    node_ordering_from_matsim_network(matsim_network_path, output_path, inertial_flow_cutter_path);
+    node_ordering_from_matsim_network(matsim_network_path, output_path, inertial_flow_cutter_path, true);
 }
