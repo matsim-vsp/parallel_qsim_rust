@@ -1,6 +1,6 @@
 use std::env;
 use std::fmt::Display;
-use std::fs::{create_dir_all, File};
+use std::fs::{create_dir_all, File, remove_dir_all, remove_file};
 use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
 
@@ -22,7 +22,7 @@ pub fn main() {
     };
 
     let network = converter.convert_network();
-    network.serialize(output_path);
+    converter.serialize_routing_kit_network(network);
     let node_ordering = converter.call_node_ordering();
     println!("The following node ordering was calculated: {:#?}", node_ordering);
 }
@@ -78,7 +78,11 @@ impl NetworkConverter<'_> {
     }
 
     fn call_console(&self) -> String {
-        self.inertial_flow_cutter_path.to_owned() + &"/build/console".to_owned()
+        self.inertial_flow_cutter_path.to_owned() + &"/build/console"
+    }
+
+    fn temp_output_path(&self) -> String {
+        self.output_path.to_owned() + &"temp/"
     }
 
     fn call_node_ordering(&self) -> Vec<u32> {
@@ -90,31 +94,30 @@ impl NetworkConverter<'_> {
         let output_file_name = String::from("order");
         self.compute_ordering(&output_file_name);
         self.convert_ordering_into_text(&output_file_name);
+        self.clean_temp_directory(&output_file_name);
         self.read_text_ordering(&output_file_name)
     }
 
     fn convert_network_into_binary(&self, file: &str) {
         println!("Converting file {file} into binary.");
 
-        create_dir_all(self.output_path.to_owned() + &"/binary".to_owned()).expect("Failed to create directory.");
+        create_dir_all(self.temp_output_path().to_owned() + "binary").expect("Failed to create directory.");
 
         Command::new(self.call_console())
             .arg("text_to_binary_vector")
-            .arg(self.output_path.to_owned() + &"/".to_owned() + &file.to_owned())
-            .arg(self.output_path.to_owned() + &"/binary/".to_owned() + &file.to_owned())
+            .arg(self.temp_output_path().to_owned() + file)
+            .arg(self.temp_output_path().to_owned() + &"binary/" + &file)
             .status()
             .expect("Failed to convert network into binary files.");
     }
 
     fn compute_ordering(&self, output_file_name: &str) {
-        println!("Computing ordering for file {output_file_name}");
-
-        create_dir_all(self.output_path.to_owned() + &"/ordering".to_owned()).expect("Failed to create directory.");
+        println!("Computing ordering and store in binary file '{output_file_name}'");
 
         Command::new("python3")
-            .arg(self.inertial_flow_cutter_path.to_owned() + &"/inertialflowcutter_order.py".to_owned())
-            .arg(self.output_path.to_owned() + &"/binary/".to_owned())
-            .arg(self.output_path.to_owned() + &"/ordering/".to_owned() + &output_file_name.to_owned() + &"_bin".to_owned())
+            .arg(self.inertial_flow_cutter_path.to_owned() + "/inertialflowcutter_order.py")
+            .arg(self.temp_output_path().to_owned() + "binary/")
+            .arg(self.output_path.to_owned() + output_file_name + "_bin")
             .status()
             .expect("Failed to compute ordering");
     }
@@ -124,14 +127,19 @@ impl NetworkConverter<'_> {
 
         Command::new(self.call_console())
             .arg("binary_to_text_vector")
-            .arg(self.output_path.to_owned() + &"/ordering/".to_owned() + &file.to_owned() + &"_bin".to_owned())
-            .arg(self.output_path.to_owned() + &"/ordering/".to_owned() + &file.to_owned())
+            .arg(self.output_path.to_owned() + file + "_bin")
+            .arg(self.output_path.to_owned() + file)
             .status()
             .expect("Failed to convert ordering into text.");
     }
 
+    fn clean_temp_directory(&self, file: &str) {
+        remove_file(self.output_path.to_owned() + file + "_bin").expect("Could not delete binary ordering file.");
+        remove_dir_all(self.temp_output_path()).expect("Could not remove temporary output directory.");
+    }
+
     fn read_text_ordering(&self, output_file_name: &str) -> Vec<u32> {
-        let ordering_file = File::open(self.output_path.to_owned() + &"/ordering/".to_owned() + &output_file_name.to_owned())
+        let ordering_file = File::open(self.output_path.to_owned() + output_file_name)
             .expect("Could not open file with node ordering");
         let buf = BufReader::new(ordering_file);
         let mut v = Vec::new();
@@ -152,6 +160,16 @@ impl NetworkConverter<'_> {
     fn get_node_index(network: &IONetwork, id: &str) -> usize {
         network.nodes().iter().position(|node| node.id == *id).unwrap()
     }
+
+    fn serialize_routing_kit_network(&self, network: RoutingKitNetwork) {
+        create_dir_all(self.temp_output_path()).expect("Failed to create temporary output directory.");
+
+        RoutingKitNetwork::serialize_vector(&network.first_out, self.temp_output_path().to_owned() + "/first_out");
+        RoutingKitNetwork::serialize_vector(&network.head, self.temp_output_path().to_owned() + "/head");
+        RoutingKitNetwork::serialize_vector(&network.travel_time, self.temp_output_path().to_owned() + "/travel_time");
+        RoutingKitNetwork::serialize_vector(&network.latitude, self.temp_output_path().to_owned() + "/latitude");
+        RoutingKitNetwork::serialize_vector(&network.longitude, self.temp_output_path().to_owned() + "/longitude");
+    }
 }
 
 
@@ -166,14 +184,6 @@ struct RoutingKitNetwork {
 }
 
 impl RoutingKitNetwork {
-    fn serialize(&self, output_folder: &str) {
-        RoutingKitNetwork::serialize_vector(&self.first_out, output_folder.to_owned() + "/first_out");
-        RoutingKitNetwork::serialize_vector(&self.head, output_folder.to_owned() + "/head");
-        RoutingKitNetwork::serialize_vector(&self.travel_time, output_folder.to_owned() + "/travel_time");
-        RoutingKitNetwork::serialize_vector(&self.latitude, output_folder.to_owned() + "/latitude");
-        RoutingKitNetwork::serialize_vector(&self.longitude, output_folder.to_owned() + "/longitude");
-    }
-
     fn serialize_vector<T: Display>(vector: &Vec<T>, output_file: String) {
         let mut file = File::create(output_file).expect("Unable to create file.");
         for i in vector {
@@ -206,11 +216,11 @@ mod test {
     fn test_serialization() {
         let converter = NetworkConverter {
             matsim_network_path: "./assets/routing_tests/triangle-network.xml",
-            output_path: &String::new(),
+            output_path: "./assets/routing_tests/serialization/",
             inertial_flow_cutter_path: &String::new(),
         };
         let network = converter.convert_network();
-        network.serialize(&String::from("./assets/routing_tests/serialization"));
+        converter.serialize_routing_kit_network(network);
         // TODO implement test
     }
 

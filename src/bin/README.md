@@ -30,7 +30,7 @@ cargo run --bin network_converter <path to mastim network> <output folder> <Iner
 e.g.
 
 ```shell
-cargo run --package rust_q_sim --bin network_converter ./assets/routing_tests/triangle-network.xml ./assets/routing_tests/conversion ../InertialFlowCutter
+cargo run --package rust_q_sim --bin network_converter ./assets/routing_tests/triangle-network.xml ./assets/routing_tests/conversion/ ../InertialFlowCutter
 ```
 
 ### Pre requirements for phases 1.2 - 1.4
