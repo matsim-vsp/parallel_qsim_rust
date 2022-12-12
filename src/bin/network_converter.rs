@@ -229,11 +229,12 @@ mod test {
         // TODO implement test
     }
 
+    #[ignore]
     #[test]
     fn test_node_ordering() {
         // This seems to be more like an integration test which needs some steps to be done in advance
         // i.e. installation of InertialFlowCutter library and the required dependencies.
-        // I think it's ok so far to check that program flow manually.
+        // If you installed InertialFlowCutter locally this test will work. On github actions it doesn't so far.
         let ordering = node_ordering_from_matsim_network("./assets/routing_tests/triangle-network.xml", "./assets/routing_tests/conversion/", "../InertialFlowCutter");
         assert_eq!(ordering, vec![2, 3, 1, 0])
     }
