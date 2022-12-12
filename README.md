@@ -11,6 +11,14 @@ be
 ```
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
+The project requires the nightly version of rust, because the [rust_road_router](https://github.com/kit-algo/rust_road_router)
+uses features available in the nightly build of standard library. 
+
+Install the nightly build
+```
+$ rustup install nightly
+```
+The version against which the project is build against is fixed in `rust-toolchain.toml`.
 
 Please make sure you are using the rust nightly build version. It can be installed by calling
 
@@ -49,7 +57,7 @@ To run the program only the `Metis` module is necessary
 HLRN has `Clang` and `Metis` installed as modules. To enable compilation of the programm add the
 following modules.
 
-1. `$ module load gcc/8.3.0`
+1. `$ module load gcc/9.2.0`
 2. `$ module load llvm/9.0.0`
 3. `$ module load metis/5.1.0`
 
@@ -74,6 +82,7 @@ feature work I had to change the default execution environment of the project to
 
 This can probably done somewhere else as well...
 
+To use the rust nightly build from CLion go to Settings -> Rust -> Standard Library and select the nightly folder.
 ### Set up on the Math Cluster / HLRN
 
 Since Rust is build into a binary executable (this is important for Java Developers 🙃) it has to be built on the

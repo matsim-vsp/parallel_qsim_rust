@@ -149,7 +149,7 @@ impl Dispatcher {
     }
 
     fn send_to_random_relay(&self, message: Message) {
-        let target: usize = rand::thread_rng().gen_range(0, 4);
+        let target: usize = rand::thread_rng().gen_range(0..4);
         let connection = self.connections.get(target).unwrap();
 
         println!("Dispatcher {} sending {message:#?}", self.node.id);

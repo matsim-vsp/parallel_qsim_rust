@@ -1,0 +1,3 @@
+# use nighly build because rust road router need experimental features.
+[toolchain]
+channel = "nightly"
