@@ -15,6 +15,10 @@ pub fn main() {
     let output_path = args.get(2).unwrap();
     let inertial_flow_cutter_path = args.get(3).unwrap();
 
+    node_ordering_from_matsim_network(matsim_network_path, output_path, inertial_flow_cutter_path);
+}
+
+fn node_ordering_from_matsim_network(matsim_network_path: &str, output_path: &str, inertial_flow_cutter_path: &str) -> Vec<u32> {
     let converter = NetworkConverter {
         matsim_network_path,
         output_path,
@@ -25,6 +29,7 @@ pub fn main() {
     converter.serialize_routing_kit_network(network);
     let node_ordering = converter.call_node_ordering();
     println!("The following node ordering was calculated: {:#?}", node_ordering);
+    node_ordering
 }
 
 struct NetworkConverter<'conv> {
@@ -194,7 +199,7 @@ impl RoutingKitNetwork {
 
 #[cfg(test)]
 mod test {
-    use crate::NetworkConverter;
+    use crate::{main, NetworkConverter, node_ordering_from_matsim_network};
 
     #[test]
     fn test_simple_network() {
@@ -229,5 +234,7 @@ mod test {
         // This seems to be more like an integration test which needs some steps to be done in advance
         // i.e. installation of InertialFlowCutter library and the required dependencies.
         // I think it's ok so far to check that program flow manually.
+        let ordering = node_ordering_from_matsim_network("./assets/routing_tests/triangle-network.xml", "./assets/routing_tests/conversion/", "../InertialFlowCutter");
+        assert_eq!(ordering, vec![2, 3, 1, 0])
     }
 }

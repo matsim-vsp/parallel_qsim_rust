@@ -20,7 +20,7 @@ mod tests {
         OwnedGraph::new(vec![0, 2, 4, 5], vec![1, 2, 1, 2, 0], vec![1, 2, 1, 4, 2])
     }
 
-    fn get_graph_single_node0() -> OwnedGraph {
+    fn created_graph_with_isolated_node_0() -> OwnedGraph {
         OwnedGraph::new(vec![0, 0, 2, 4, 5], vec![2, 3, 2, 3, 1], vec![1, 2, 1, 4, 2])
     }
 
@@ -34,7 +34,7 @@ mod tests {
 
     #[test]
     fn test_simple_dijkstra_with_single_node() {
-        let mut server = DijkServer::<_, DefaultOps>::new(get_graph_single_node0());
+        let mut server = DijkServer::<_, DefaultOps>::new(created_graph_with_isolated_node_0());
         let mut result = server.query(Query { from: 3, to: 2 });
         assert_eq!(result.distance(), Some(3));
         println!("{:#?}", result.node_path());
@@ -42,11 +42,11 @@ mod tests {
 
     #[test]
     fn test_simple_cch() {
-        let node_order = NodeOrder::from_node_order(vec![1, 0, 2]);
-        let cch = CCH::fix_order_and_build(&create_graph(), node_order);
+        let node_order = NodeOrder::from_node_order(vec![2, 3, 1, 0]);
+        let cch = CCH::fix_order_and_build(&created_graph_with_isolated_node_0(), node_order);
 
         let mut server = customizable_contraction_hierarchy::query::Server::new(customize(&cch, &create_graph()));
-        let mut result = server.query(Query { from: 2, to: 1 });
+        let mut result = server.query(Query { from: 3, to: 2 });
         assert_eq!(result.distance(), Some(3));
         println!("{:#?}", result.node_path())
     }
