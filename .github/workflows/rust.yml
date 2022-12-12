@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Update
+        run: sudo apt-get update
       - name: Install InertialFlowCutter libraries
         run: sudo apt -y install libtbb-dev readline8 readline-dev zlib1g-dev
       - name: Clone InertialFlowCutter
