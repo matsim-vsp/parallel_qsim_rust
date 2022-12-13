@@ -1,47 +1,3 @@
-use std::borrow::Borrow;
-use std::cell::{Ref, RefCell};
-use std::rc::Rc;
-
-use rust_road_router::algo::{customizable_contraction_hierarchy, Query, QueryResult, QueryServer};
-use rust_road_router::algo::customizable_contraction_hierarchy::{CCH, customize, Customized, CustomizedBasic};
-use rust_road_router::algo::customizable_contraction_hierarchy::query::{PathServerWrapper, Server};
-use rust_road_router::datastr::graph::{EdgeId, FirstOutGraph, OwnedGraph, Weight};
-use rust_road_router::datastr::node_order::NodeOrder;
-
-use crate::io::network::IONetwork;
-use crate::routing::network_converter::{NetworkConverter, node_ordering_from_matsim_network, RoutingKitNetwork};
-
-struct Router<'router> {
-    server: Server<CustomizedBasic<'router, CCH>>,
-}
-
-impl<'router> Router<'router> {
-    fn new(cch: &'router CCH, graph: &OwnedGraph) -> Router<'router> {
-        Router {
-            server: Server::new(customize(cch, graph))
-        }
-    }
-
-    fn customize(&mut self, cch: &'router CCH, graph: &OwnedGraph) {
-        self.server = Server::new(customize(cch, graph));
-    }
-
-    fn create_cch(converter: &mut NetworkConverter) -> CCH {
-        converter.convert_network();
-        let owned_graph = Router::create_owned_graph(converter);
-        let node_order_vec = converter.node_ordering(false);
-        assert_eq!(node_order_vec, vec![2, 3, 1, 0]);
-        let node_order = NodeOrder::from_node_order(node_order_vec);
-        CCH::fix_order_and_build(&owned_graph, node_order)
-    }
-
-    fn create_owned_graph(converter: &NetworkConverter) -> OwnedGraph {
-        OwnedGraph::new(converter.routing_kit_network.as_ref().unwrap().first_out().to_owned(),
-                        converter.routing_kit_network.as_ref().unwrap().head().to_owned(),
-                        converter.routing_kit_network.as_ref().unwrap().travel_time().to_owned())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
@@ -53,8 +9,8 @@ mod tests {
     use rust_road_router::algo::customizable_contraction_hierarchy::{CCH, customize};
     use rust_road_router::datastr::node_order::NodeOrder;
 
-    use crate::experiments::routing::rust_road_router::Router;
     use crate::routing::network_converter::NetworkConverter;
+    use crate::routing::router::Router;
 
     fn create_graph() -> OwnedGraph {
         /*
