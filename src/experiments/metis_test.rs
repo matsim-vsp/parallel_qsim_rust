@@ -1,3 +1,4 @@
+use metis::option::Seed;
 use metis::{Graph, Idx};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -59,6 +60,7 @@ fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
     Graph::new(1, 2, &mut xadj, &mut adjncy)
         .set_adjwgt(&mut adjwgt)
         .set_vwgt(&mut vwgt)
+        .set_option(Seed(1))
         .part_kway(&mut result)
         .unwrap();
 
@@ -69,6 +71,7 @@ fn partition(nodes: Vec<Node>, links: Vec<Link>) -> Vec<Idx> {
 mod tests {
     use std::collections::HashMap;
 
+    use metis::option::Seed;
     use metis::{Graph, Idx};
 
     use crate::experiments::metis_test::{partition, Link, Node};
@@ -83,6 +86,7 @@ mod tests {
         let mut expected: Vec<Idx> = vec![0x00; 15];
         let mut crs = create_example();
         Graph::new(1, 2, &mut crs.0, &mut crs.1)
+            .set_option(Seed(1))
             .part_kway(&mut expected)
             .unwrap();
 

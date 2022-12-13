@@ -5,10 +5,9 @@ use crate::io::population::IOPopulation;
 use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::Simulation;
-use log::{error, info};
+use log::info;
 use std::ops::Sub;
 use std::path::Path;
-use std::sync::mpsc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Instant;
@@ -34,8 +33,7 @@ pub fn run(config: Config) {
     // create threads and start them
     let join_handles: Vec<JoinHandle<()>> = simulations
         .into_iter()
-        .map(|simulation| (simulation, log_sender.clone()))
-        .map(|(mut simulation, sender)| thread::spawn(move || simulation.run(sender)))
+        .map(|mut simulation| thread::spawn(move || simulation.run()))
         .collect();
 
     // wait for all threads to finish

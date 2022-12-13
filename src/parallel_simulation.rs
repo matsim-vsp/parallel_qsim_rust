@@ -12,7 +12,6 @@ use crate::parallel_simulation::splittable_population::Route;
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
-use std::sync::mpsc::Sender;
 
 mod agent_q;
 pub mod events;
@@ -66,7 +65,7 @@ impl Simulation {
         simulations
     }
 
-    pub fn run(&mut self, improvised_logger: Sender<LogMessage>) {
+    pub fn run(&mut self) {
         // use fixed start and end times
         let mut now = self.start_time;
         info!(
@@ -109,7 +108,6 @@ impl Simulation {
         }
 
         info!("Partition #{} finished.", self.scenario.msg_broker.id,);
-        improvised_logger.send(LogMessage::Shutdown).unwrap();
     }
 
     fn wakeup(&mut self, now: u32) {
@@ -219,7 +217,7 @@ impl Simulation {
                             );
                             self.scenario.population.agents.insert(agent.id, agent);
                         }
-                        Route::GenericRoute(r) => {
+                        Route::GenericRoute(_) => {
                             self.teleportation_q.add(&agent, now);
                         }
                     }
