@@ -68,7 +68,7 @@ mod tests {
     fn test_simple_dijkstra_with_single_node() {
         let mut server = DijkServer::<_, DefaultOps>::new(created_graph_with_isolated_node_0());
         let mut result = server.query(Query { from: 3, to: 2 });
-        assert_eq!(result.distance(), Some(5));
+        assert_eq!(result.distance(), Some(3));
         println!("{:#?}", result.node_path());
     }
 
@@ -80,7 +80,7 @@ mod tests {
 
         let mut server = customizable_contraction_hierarchy::query::Server::new(customize(&cch, graph));
         let mut result = server.query(Query { from: 3, to: 2 });
-        assert_eq!(result.distance(), Some(5));
+        assert_eq!(result.distance(), Some(3));
         println!("{:#?}", result.node_path())
     }
 
