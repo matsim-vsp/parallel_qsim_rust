@@ -28,15 +28,14 @@ impl<'router> Router<'router> {
 
     fn create_cch(converter: &mut NetworkConverter) -> CCH {
         converter.convert_network();
-        let owned_graph = Router::owned_graph_from_converter(converter);
-
+        let owned_graph = Router::create_owned_graph(converter);
         let node_order_vec = converter.node_ordering(false);
         assert_eq!(node_order_vec, vec![2, 3, 1, 0]);
         let node_order = NodeOrder::from_node_order(node_order_vec);
         CCH::fix_order_and_build(&owned_graph, node_order)
     }
 
-    fn owned_graph_from_converter(converter: &NetworkConverter) -> OwnedGraph {
+    fn create_owned_graph(converter: &NetworkConverter) -> OwnedGraph {
         OwnedGraph::new(converter.routing_kit_network.as_ref().unwrap().first_out().to_owned(),
                         converter.routing_kit_network.as_ref().unwrap().head().to_owned(),
                         converter.routing_kit_network.as_ref().unwrap().travel_time().to_owned())
@@ -104,7 +103,7 @@ mod tests {
 
     #[ignore]
     #[test]
-    fn test_simple_cch_with_router() {
+    fn test_simple_cch_with_router_and_update() {
         //does only work locally
         let mut converter = NetworkConverter {
             matsim_network_path: "./assets/routing_tests/triangle-network.xml",
@@ -113,10 +112,13 @@ mod tests {
             routing_kit_network: None,
         };
         let cch = Router::create_cch(&mut converter);
+        let owned_graph = Router::create_owned_graph(&converter);
 
-        let mut server = customizable_contraction_hierarchy::query::Server::new(customize(&cch, &Router::owned_graph_from_converter(&converter)));
-        let result = server.query(Query { from: 3, to: 2 });
-        test_query_result(result, 3, vec![3, 1, 2]);
+        let mut router = Router::new(&cch, &owned_graph);
+        let res12 = router.server.query(Query { from: 1, to: 2 });
+        test_query_result(res12, 1, vec![1, 2]);
+        let res32 = router.server.query(Query { from: 3, to: 2 });
+        test_query_result(res32, 3, vec![3, 1, 2]);
 
         println!("Assign new travel time to edge 1-2: 4");
 
@@ -124,9 +126,8 @@ mod tests {
             OwnedGraph::new(converter.routing_kit_network.as_ref().unwrap().first_out().to_owned(),
                             converter.routing_kit_network.as_ref().unwrap().head().to_owned(),
                             vec![4, 2, 1, 4, 2, 5]);
-
-        server.update(customize(&cch, &new_owned_graph));
-        let new_result = server.query(Query { from: 3, to: 2 });
+        router.customize(&cch, &new_owned_graph);
+        let new_result = router.server.query(Query { from: 3, to: 2 });
         test_query_result(new_result, 5, vec![3, 2]);
     }
 
