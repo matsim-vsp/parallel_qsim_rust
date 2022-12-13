@@ -1,7 +1,7 @@
 use crate::parallel_simulation::messages::Message;
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
-use log::{error, info};
+use log::error;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
@@ -26,18 +26,12 @@ impl MessageBroker {
         remote_senders: HashMap<usize, Sender<Message>>,
         link_id_mapping: Arc<HashMap<usize, usize>>,
     ) -> MessageBroker {
-        let out_messages = neighbor_senders
-            .keys()
-            .cloned()
-            .map(|key| (key, Message::new(id)))
-            .collect();
-
         MessageBroker {
             id,
             receiver,
             neighbor_senders,
             remote_senders,
-            out_messages,
+            out_messages: HashMap::new(),
             link_id_mapping,
             message_cache: BinaryHeap::new(),
         }
@@ -50,49 +44,34 @@ impl MessageBroker {
     fn receive_from_cache(
         &mut self,
         expected_messages: &mut HashSet<usize>,
+        messages: &mut Vec<Message>,
         now: u32,
-    ) -> Vec<Message> {
-        let mut result = Vec::new();
+    ) {
         while let Some(message) = self.message_cache.peek() {
             if message.time <= now {
                 expected_messages.remove(&message.from);
-                result.push(self.message_cache.pop().unwrap());
+                messages.push(self.message_cache.pop().unwrap());
             } else {
                 break;
             }
         }
-        result
     }
 
-    fn receive_blocking(
-        &mut self,
-        expected_messages: &mut HashSet<usize>,
-        messages_from_cache: &Vec<Message>,
-        now: u32,
-    ) {
+    fn receive_blocking(&mut self, expected_messages: &mut HashSet<usize>) {
         while !expected_messages.is_empty() {
             match self.receiver.recv_timeout(Duration::from_secs(5)) {
                 Ok(message) => {
-                    let cache: Vec<(usize, u32)> = self
-                        .message_cache
-                        .iter()
-                        .map(|m| (m.from, m.time))
-                        .collect();
                     expected_messages.remove(&message.from);
                     self.message_cache.push(message);
                 }
                 Err(e) => {
                     let cache_keys: Vec<usize> =
                         self.message_cache.iter().map(|m| m.from).collect();
-                    let message_keys: Vec<usize> =
-                        messages_from_cache.iter().map(|m| m.from).collect();
                     error!(
-                        ";{}; {now}; {:?}; {:?}; {:?}; {:?}; {:?};",
+                        ";{}; {:?}; {:?}; {:?};",
                         self.id,
-                        message_keys,
                         expected_messages,
                         cache_keys,
-                        self.last_sent_to,
                         self.neighbor_senders.keys()
                     );
                     panic!("{:?}", e);
@@ -109,18 +88,22 @@ impl MessageBroker {
 
     pub fn receive(&mut self, now: u32) -> Vec<Message> {
         let mut expected_messages: HashSet<usize> = self.neighbor_senders.keys().cloned().collect();
-        let mut messages = self.receive_from_cache(&mut expected_messages, now);
+        let mut received_messages = Vec::new();
 
-        self.receive_blocking(&mut expected_messages, &messages, now);
+        // because we have required messages from neighbor partitions but also optionally we might
+        // receive messages from other partitions too, the methods receiving messages from the channel
+        // put these into a priority queue sorted ascending by time stamp. This way we make sure that
+        // if another partition has moved faster than this one we only look at messages for the current
+        // time step.
+        // 1. look at the cache whether we have already received messages for this timestep
+        // 2. put required and optional messages into our cache
+        // 3. look at the cache again, whether we have received messages for this timestep from the channel.
+        self.receive_from_cache(&mut expected_messages, &mut received_messages, now);
+        self.receive_blocking(&mut expected_messages);
         self.receive_non_blocking();
-        while let Some(message) = self.message_cache.peek() {
-            if message.time <= now {
-                messages.push(self.message_cache.pop().unwrap());
-            } else {
-                break;
-            }
-        }
-        messages
+        self.receive_from_cache(&mut expected_messages, &mut received_messages, now);
+
+        received_messages
     }
 
     pub fn send(&mut self, now: u32) {
@@ -208,7 +191,7 @@ mod tests {
         let (_sender1, receiver) = mpsc::channel();
         let (sender2, _receiver) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::new());
-        let mut broker = MessageBroker::new(
+        let broker = MessageBroker::new(
             1,
             receiver,
             HashMap::from([(2, sender2)]),
@@ -479,7 +462,7 @@ mod tests {
         broker1.prepare_routed(agent, vehicle);
         broker1.send(43);
 
-        let messages = broker2.receive(1);
+        let messages = broker2.receive(43);
 
         assert_eq!(1, messages.len());
         let message = messages.get(0).unwrap();
