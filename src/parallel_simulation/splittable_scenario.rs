@@ -1,10 +1,12 @@
 use log::info;
 use std::collections::HashMap;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 
 use crate::io::network::{Attr, Attrs, IOLink, IONetwork, IONode};
 use crate::io::population::IOPopulation;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
+use crate::parallel_simulation::messages::Message;
 use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::partitioned_network::Network;
@@ -55,9 +57,6 @@ impl Scenario {
         let mut populations =
             Population::split_from_container(io_population, num_parts, &id_mappings, &network);
 
-        let mut message_brokers = Vec::new();
-        let mut senders = Vec::new();
-
         let mut scenario = Scenario {
             scenarios: Vec::new(),
             id_mappings,
@@ -65,36 +64,41 @@ impl Scenario {
             node_2_thread: network.nodes_2_partition.clone(),
         };
 
+        let mut receivers: Vec<Receiver<Message>> = Vec::new();
+        let mut senders: Vec<Sender<Message>> = Vec::new();
+        let mut message_brokers = Vec::new();
+
         info!("SplittableScenario: creating channels for inter thread communication");
-        for i in 0..num_parts {
+        for _ in 0..num_parts {
             let (sender, receiver) = mpsc::channel();
-            let broker = MessageBroker::new(i, receiver, network.links_2_partition.clone());
-            message_brokers.push(broker);
+            receivers.push(receiver);
             senders.push(sender);
         }
 
-        // wire up brokers
-        for i in 0..num_parts {
-            let broker = message_brokers.get_mut(i).unwrap();
+        for (i, receiver) in receivers.into_iter().enumerate() {
             let network_partition = network.partitions.get(i).unwrap();
-
-            // info!("Part #{i} {:?}", network_partition.links.keys());
-            // info!("Part #{i} {:?}", network_partition.nodes.keys());
             let neighbors = network_partition.neighbors();
+            let mut neighbor_senders = HashMap::new();
+            let mut remote_senders = HashMap::new();
 
             for (i_sender, sender) in senders.iter().enumerate() {
-                if i_sender != i {
-                    if neighbors.contains(&i_sender) {
-                        broker.add_neighbor_sender(i_sender, sender.clone())
-                    } else {
-                        broker.add_remote_sender(i_sender, sender.clone());
-                    }
+                if neighbors.contains(&i_sender) {
+                    neighbor_senders.insert(i_sender, sender.clone());
+                } else if i_sender != i {
+                    remote_senders.insert(i_sender, sender.clone());
                 }
             }
-            //info!("Part #{i} Broker: {broker:?}",)
+            let broker = MessageBroker::new(
+                i,
+                receiver,
+                neighbor_senders,
+                remote_senders,
+                network.links_2_partition.clone(),
+            );
+            message_brokers.push(broker);
         }
 
-        info!("SplittableScenario: creating scenario partitions.");
+        info!("Creating scenario partitions.");
         scenario.scenarios = network
             .partitions
             .into_iter()
@@ -174,7 +178,7 @@ impl Scenario {
             attributes: vec![Attr {
                 name: String::from("partition"),
                 value: partition.to_string(),
-                class: String::from("java.lang.String"),
+                class: String::from("java.lang.Integer"),
             }],
         };
         Some(attrs)

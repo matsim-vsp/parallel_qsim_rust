@@ -106,6 +106,7 @@ impl PartitionInfo {
             // seems to be okay for starters.
             //.set_adjwgt(&mut adjwgt)
             .set_vwgt(&mut vwgt)
+            .set_option(metis::option::Seed(4711))
             .part_kway(&mut result)
             .unwrap();
 

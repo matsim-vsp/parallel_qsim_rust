@@ -10,7 +10,6 @@ use crate::parallel_simulation::splittable_population::NetworkRoute;
 use crate::parallel_simulation::splittable_population::PlanElement;
 use crate::parallel_simulation::splittable_population::Route;
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
-use crate::parallel_simulation::time_logging::LogMessage;
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
 use std::sync::mpsc::Sender;
@@ -24,7 +23,6 @@ mod network;
 mod partition_info;
 mod splittable_population;
 pub mod splittable_scenario;
-pub mod time_logging;
 mod vehicles;
 
 pub struct Simulation {
@@ -72,8 +70,9 @@ impl Simulation {
         // use fixed start and end times
         let mut now = self.start_time;
         info!(
-            "#### Start the simulation for Scenario Slice #{} ####",
-            self.scenario.msg_broker.id
+            "Starting #{}. Network neighbors: {:?}",
+            self.scenario.msg_broker.id,
+            self.scenario.network.neighbors(),
         );
 
         // conceptually this should do the following in the main loop:
@@ -91,9 +90,13 @@ impl Simulation {
         while self.active_agents() > 0 && now <= self.end_time {
             if now % 3600 == 0 {
                 let hour = now / 3600;
-                improvised_logger
-                    .send(LogMessage::Message(format!("Simulation at {hour}:00:00")))
-                    .unwrap();
+                //  improvised_logger
+                //      .send(LogMessage::Message(format!("Simulation at {hour}:00:00")))
+                //      .unwrap();
+                info!(
+                    "Simulation #{} at {hour}:00:00",
+                    self.scenario.msg_broker.id
+                );
             }
 
             self.wakeup(now);
@@ -216,7 +219,7 @@ impl Simulation {
                             );
                             self.scenario.population.agents.insert(agent.id, agent);
                         }
-                        Route::GenericRoute(_) => {
+                        Route::GenericRoute(r) => {
                             self.teleportation_q.add(&agent, now);
                         }
                     }
