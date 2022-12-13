@@ -45,8 +45,8 @@ impl NetworkConverter<'_> {
 
         for node in network.nodes() {
             //TODO: make sure, that the coordinate system is correct
-            longitude.push(node.x);
-            latitude.push(node.y);
+            longitude.push(node.x.floor());
+            latitude.push(node.y.floor());
 
             first_out.push((links_before) as EdgeId);
 
@@ -84,7 +84,7 @@ impl NetworkConverter<'_> {
 
         self.serialize_routing_kit_network();
         let node_ordering = self.call_node_ordering(save_ordering_to_file);
-        println!("The following node ordering was calculated: {:#?}", node_ordering);
+        //println!("The following node ordering was calculated: {:#?}", node_ordering);
         node_ordering
     }
 

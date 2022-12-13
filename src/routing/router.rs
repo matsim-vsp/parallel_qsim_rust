@@ -24,7 +24,6 @@ impl<'router> Router<'router> {
         converter.convert_network();
         let owned_graph = Router::create_owned_graph(converter);
         let node_order_vec = converter.node_ordering(false);
-        assert_eq!(node_order_vec, vec![2, 3, 1, 0]);
         let node_order = NodeOrder::from_node_order(node_order_vec);
         CCH::fix_order_and_build(&owned_graph, node_order)
     }
