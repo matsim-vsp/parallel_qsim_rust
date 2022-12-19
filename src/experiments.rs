@@ -13,5 +13,5 @@ mod metis_test;
 mod ownership;
 #[allow(dead_code)]
 mod super_simple_link_automat;
-#[allow(unused_variables, dead_code)]
+#[allow(unused_variables, dead_code, unused_imports)]
 pub mod routing;
