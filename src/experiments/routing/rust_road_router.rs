@@ -68,9 +68,8 @@ mod tests {
             routing_kit_network: None,
         };
         let cch = Router::create_cch(&mut converter);
-        let owned_graph = Router::create_owned_graph(&converter);
 
-        let mut router = Router::new(&cch, &owned_graph);
+        let mut router = Router::new(&cch, &converter);
         let res12 = router.query(1, 2);
         test_query_result(res12, 1, vec![1, 2]);
         let res32 = router.query(3, 2);

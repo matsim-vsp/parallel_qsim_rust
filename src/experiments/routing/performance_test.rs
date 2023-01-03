@@ -28,7 +28,7 @@ mod test {
 
         let cch = Router::create_cch(&mut converter);
         let owned_graph = Router::create_owned_graph(&converter);
-        let mut cch_router = Router::new(&cch, &owned_graph);
+        let mut cch_router = Router::new(&cch, &converter);
         let mut dijkstra_router = DijkServer::<_, DefaultOps>::new(Router::create_owned_graph(&converter));
         let mut bid_dijkstra_router = BidServer::<OwnedGraph, OwnedGraph, BiDirZeroPot, ChooseMinKeyDir>::new(Router::create_owned_graph(&converter));
 

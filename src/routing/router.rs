@@ -11,9 +11,9 @@ pub struct Router<'router> {
 }
 
 impl<'router> Router<'router> {
-    pub(crate) fn new(cch: &'router CCH, graph: &OwnedGraph) -> Router<'router> {
+    pub(crate) fn new(cch: &'router CCH, converter: &NetworkConverter) -> Router<'router> {
         Router {
-            server: Server::new(customize(cch, graph))
+            server: Server::new(customize(cch, &Router::create_owned_graph(&converter)))
         }
     }
 
