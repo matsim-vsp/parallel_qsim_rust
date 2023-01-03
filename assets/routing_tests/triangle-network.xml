@@ -14,5 +14,6 @@
         <link id="3" from="2" to="2" length="10000.00" capacity="3600" freespeed="10000.00" permlanes="1"/>
         <link id="4" from="2" to="3" length="10000.00" capacity="3600" freespeed="2500.00" permlanes="1"/>
         <link id="5" from="3" to="1" length="10000.00" capacity="3600" freespeed="5000.00" permlanes="1"/>
+        <link id="6" from="3" to="2" length="10000.00" capacity="3600" freespeed="2000.00" permlanes="1"/>
     </links>
 </network>

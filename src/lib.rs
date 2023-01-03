@@ -15,3 +15,4 @@ pub mod experiments;
 // this was the first try of the simulation in a single threaded manner
 #[allow(dead_code)]
 mod simulation;
+pub mod routing;

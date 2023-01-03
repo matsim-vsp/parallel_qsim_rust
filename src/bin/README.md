@@ -20,15 +20,20 @@ This phase consists of the following steps:
 3. Compute ordering (binary RoutingKit format)
 4. Convert ordering to text RoutingKit format
 
-### Phase 1.1
-
-Done in Rust. Call
+Phase 1 is done in Rust, phases 2-4 are done in external processes which are called in Rust. So you have to configure
+those processes properly as described below. But you do only have to call Rust one time initially.
 
 ```shell
-cargo run --bin network_converter <path to mastim network> <output folder>
+cargo run --bin network_converter <path to mastim network> <output folder> <InertialFlowCutterPath>
 ```
 
-### Phase 1.2 - 1.4
+e.g.
+
+```shell
+cargo run --package rust_q_sim --bin network_converter ./assets/routing_tests/triangle-network.xml ./assets/routing_tests/conversion/ ../InertialFlowCutter
+```
+
+### Pre requirements for phases 1.2 - 1.4
 
 Clone the [InertialFlowCutter](https://github.com/paulheinr/InertialFlowCutter) repository. It needs some extra
 libraries. Install them:
