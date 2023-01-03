@@ -1,4 +1,5 @@
 use crate::parallel_simulation::splittable_population::Agent;
+use std::cmp::Ordering;
 
 #[derive(Debug)]
 pub struct Message {
@@ -27,3 +28,25 @@ impl Message {
         self.telported.push(agent);
     }
 }
+
+//----- Implement ordering here, so that messages can be put into a priority queue which sorts
+//      ascending by time. I.e. the message with the smallest time stamp is fetched first.
+impl PartialOrd for Message {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Message {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.time.cmp(&self.time)
+    }
+}
+
+impl PartialEq<Self> for Message {
+    fn eq(&self, other: &Self) -> bool {
+        self.from == other.from && self.time == other.time
+    }
+}
+
+impl Eq for Message {}

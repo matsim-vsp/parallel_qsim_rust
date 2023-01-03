@@ -66,16 +66,12 @@ impl Simulation {
     }
 
     pub fn run(&mut self) {
-        info!(
-            "Simulation #{}: Starting simulation loop.",
-            self.scenario.msg_broker.id
-        );
-
         // use fixed start and end times
         let mut now = self.start_time;
         info!(
-            "\n #### Start the simulation for Scenario Slice #{} at timestep {}. Last timestep is set to {} ####\n",
-            self.scenario.msg_broker.id, now, self.end_time
+            "Starting #{}. Network neighbors: {:?}",
+            self.scenario.msg_broker.id,
+            self.scenario.network.neighbors(),
         );
 
         // conceptually this should do the following in the main loop:
@@ -93,8 +89,11 @@ impl Simulation {
         while self.active_agents() > 0 && now <= self.end_time {
             if now % 3600 == 0 {
                 let hour = now / 3600;
+                //  improvised_logger
+                //      .send(LogMessage::Message(format!("Simulation at {hour}:00:00")))
+                //      .unwrap();
                 info!(
-                    "Simulation #{}: At: {hour}:00:00",
+                    "Simulation #{} at {hour}:00:00",
                     self.scenario.msg_broker.id
                 );
             }
@@ -107,6 +106,8 @@ impl Simulation {
             self.receive(now);
             now += 1;
         }
+
+        info!("Partition #{} finished.", self.scenario.msg_broker.id,);
     }
 
     fn wakeup(&mut self, now: u32) {
@@ -198,7 +199,7 @@ impl Simulation {
     }
 
     fn receive(&mut self, now: u32) {
-        let messages = self.scenario.msg_broker.receive();
+        let messages = self.scenario.msg_broker.receive(now);
         for message in messages {
             for vehicle in message.vehicles {
                 let agent = vehicle.0;

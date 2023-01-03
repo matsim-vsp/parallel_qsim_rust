@@ -28,7 +28,6 @@ pub fn run(config: Config) {
     let mut events = Events::new(events_writer);
 
     let simulations = Simulation::create_simulation_partitions(&config, scenario, events.clone());
-
     // do very basic timing
     let start = Instant::now();
     // create threads and start them

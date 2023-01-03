@@ -1,9 +1,11 @@
 use crate::parallel_simulation::messages::Message;
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
-use std::collections::{HashMap, HashSet};
+use log::error;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct MessageBroker {
@@ -13,21 +15,25 @@ pub struct MessageBroker {
     neighbor_senders: HashMap<usize, Sender<Message>>,
     out_messages: HashMap<usize, Message>,
     link_id_mapping: Arc<HashMap<usize, usize>>,
+    message_cache: BinaryHeap<Message>,
 }
 
 impl MessageBroker {
     pub fn new(
         id: usize,
         receiver: Receiver<Message>,
+        neighbor_senders: HashMap<usize, Sender<Message>>,
+        remote_senders: HashMap<usize, Sender<Message>>,
         link_id_mapping: Arc<HashMap<usize, usize>>,
     ) -> MessageBroker {
         MessageBroker {
             id,
             receiver,
-            remote_senders: HashMap::new(),
-            neighbor_senders: HashMap::new(),
+            neighbor_senders,
+            remote_senders,
             out_messages: HashMap::new(),
             link_id_mapping,
+            message_cache: BinaryHeap::new(),
         }
     }
 
@@ -35,31 +41,69 @@ impl MessageBroker {
         self.link_id_mapping.get(link_id).unwrap()
     }
 
-    pub fn add_neighbor_sender(&mut self, to: usize, sender: Sender<Message>) {
-        self.neighbor_senders.insert(to, sender);
-    }
-
-    pub fn add_remote_sender(&mut self, to: usize, sender: Sender<Message>) {
-        self.remote_senders.insert(to, sender);
-    }
-
-    pub fn receive(&self) -> Vec<Message> {
-        let mut messages = Vec::new();
-        let mut required_senders: HashSet<usize> = self.neighbor_senders.keys().cloned().collect();
-
-        // do blocking receive for required partitions
-        while !required_senders.is_empty() {
-            let message = self.receiver.recv().unwrap();
-            required_senders.remove(&message.from);
-            messages.push(message);
+    fn receive_from_cache(
+        &mut self,
+        expected_messages: &mut HashSet<usize>,
+        messages: &mut Vec<Message>,
+        now: u32,
+    ) {
+        while let Some(message) = self.message_cache.peek() {
+            if message.time <= now {
+                expected_messages.remove(&message.from);
+                messages.push(self.message_cache.pop().unwrap());
+            } else {
+                break;
+            }
         }
+    }
 
-        // check for optional messages as well.
+    fn receive_blocking(&mut self, expected_messages: &mut HashSet<usize>) {
+        while !expected_messages.is_empty() {
+            match self.receiver.recv_timeout(Duration::from_secs(5)) {
+                Ok(message) => {
+                    expected_messages.remove(&message.from);
+                    self.message_cache.push(message);
+                }
+                Err(e) => {
+                    let cache_keys: Vec<usize> =
+                        self.message_cache.iter().map(|m| m.from).collect();
+                    error!(
+                        ";{}; {:?}; {:?}; {:?};",
+                        self.id,
+                        expected_messages,
+                        cache_keys,
+                        self.neighbor_senders.keys()
+                    );
+                    panic!("{:?}", e);
+                }
+            };
+        }
+    }
+
+    fn receive_non_blocking(&mut self) {
         for message in self.receiver.try_iter() {
-            messages.push(message);
+            self.message_cache.push(message)
         }
+    }
 
-        messages
+    pub fn receive(&mut self, now: u32) -> Vec<Message> {
+        let mut expected_messages: HashSet<usize> = self.neighbor_senders.keys().cloned().collect();
+        let mut received_messages = Vec::new();
+
+        // because we have required messages from neighbor partitions but also optionally we might
+        // receive messages from other partitions too, the methods receiving messages from the channel
+        // put these into a priority queue sorted ascending by time stamp. This way we make sure that
+        // if another partition has moved faster than this one we only look at messages for the current
+        // time step.
+        // 1. look at the cache whether we have already received messages for this timestep
+        // 2. put required and optional messages into our cache
+        // 3. look at the cache again, whether we have received messages for this timestep from the channel.
+        self.receive_from_cache(&mut expected_messages, &mut received_messages, now);
+        self.receive_blocking(&mut expected_messages);
+        self.receive_non_blocking();
+        self.receive_from_cache(&mut expected_messages, &mut received_messages, now);
+
+        received_messages
     }
 
     pub fn send(&mut self, now: u32) {
@@ -73,6 +117,7 @@ impl MessageBroker {
         for (id, sender) in &self.neighbor_senders {
             let mut message = messages.remove(id).unwrap_or_else(|| Message::new(self.id));
             message.time = now;
+            //   info!("{now} #{} sending: {message:?} to {id}", self.id);
             sender.send(message).unwrap();
         }
 
@@ -127,7 +172,7 @@ mod tests {
     fn id() {
         let (_sender, receiver) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::new());
-        let broker = MessageBroker::new(42, receiver, id_mapping);
+        let broker = MessageBroker::new(42, receiver, HashMap::new(), HashMap::new(), id_mapping);
 
         assert_eq!(42, broker.id);
     }
@@ -136,7 +181,7 @@ mod tests {
     fn partition_id() {
         let (_sender, receiver) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::from([(1, 84)]));
-        let broker = MessageBroker::new(42, receiver, id_mapping);
+        let broker = MessageBroker::new(42, receiver, HashMap::new(), HashMap::new(), id_mapping);
 
         assert_eq!(84, *broker.part_id(&1));
     }
@@ -146,9 +191,13 @@ mod tests {
         let (_sender1, receiver) = mpsc::channel();
         let (sender2, _receiver) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::new());
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-
-        broker.add_neighbor_sender(2, sender2);
+        let broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2)]),
+            HashMap::new(),
+            id_mapping,
+        );
 
         assert_eq!(1, broker.neighbor_senders.len());
         assert!(broker.neighbor_senders.contains_key(&2));
@@ -159,8 +208,13 @@ mod tests {
         let (_sender1, receiver) = mpsc::channel();
         let (sender2, receiver2) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::new());
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-        broker.add_neighbor_sender(2, sender2);
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2)]),
+            HashMap::new(),
+            id_mapping,
+        );
 
         // should be empty here
         assert!(receiver2.try_recv().is_err());
@@ -181,14 +235,19 @@ mod tests {
         let (_sender1, receiver) = mpsc::channel();
         let (sender2, receiver2) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::from([(1, 2)]));
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2)]),
+            HashMap::new(),
+            id_mapping,
+        );
         let vehicle = Vehicle::new(1, agent_id, vec![1, 2, 3, 4]);
         let agent = Agent {
             id: agent_id,
             current_element: 0,
             plan: Plan { elements: vec![] },
         };
-        broker.add_neighbor_sender(2, sender2);
 
         broker.prepare_routed(agent, vehicle);
         // should be empty here
@@ -213,8 +272,13 @@ mod tests {
         let id_mapping = Arc::new(HashMap::from([(1, 2)]));
         let agent = create_agent(agent_id, link_id);
         let vehicle = Vehicle::new(1, agent_id, vec![1, 2, 3, 4]);
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-        broker.add_remote_sender(2, sender2);
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::new(),
+            HashMap::from([(2, sender2)]),
+            id_mapping,
+        );
 
         // should be empty here
         assert!(receiver2.try_recv().is_err());
@@ -243,9 +307,13 @@ mod tests {
         let agent2 = create_agent(43, next_link_2);
         let vehicle1 = Vehicle::new(1, agent1.id, vec![next_link_1, 2, 3, 4]);
         let vehicle2 = Vehicle::new(1, agent2.id, vec![next_link_2, 6, 7, 8]);
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-        broker.add_neighbor_sender(2, sender2);
-        broker.add_remote_sender(3, sender3);
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2)]),
+            HashMap::from([(3, sender3)]),
+            id_mapping,
+        );
 
         // should be empty here
         assert!(receiver2.try_recv().is_err());
@@ -273,9 +341,14 @@ mod tests {
         let (_sender1, receiver) = mpsc::channel();
         let (sender2, receiver2) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::from([(link_id, 2)]));
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2)]),
+            HashMap::new(),
+            id_mapping,
+        );
         let agent = create_agent(agent_id, link_id);
-        broker.add_neighbor_sender(2, sender2);
         broker.prepare_teleported(agent);
 
         assert!(receiver2.try_recv().is_err());
@@ -297,9 +370,15 @@ mod tests {
         let (_sender1, receiver) = mpsc::channel();
         let (sender2, receiver2) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::from([(link_id, 2)]));
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::new(),
+            HashMap::from([(2, sender2)]),
+            id_mapping,
+        );
         let agent = create_agent(agent_id, link_id);
-        broker.add_remote_sender(2, sender2);
+
         broker.prepare_teleported(agent);
 
         assert!(receiver2.try_recv().is_err());
@@ -324,9 +403,13 @@ mod tests {
         let id_mapping = Arc::new(HashMap::from([(end_link_1, 2), (end_link_2, 3)]));
         let agent1 = create_agent(42, end_link_1);
         let agent2 = create_agent(43, end_link_2);
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-        broker.add_neighbor_sender(2, sender2);
-        broker.add_remote_sender(3, sender3);
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2)]),
+            HashMap::from([(3, sender3)]),
+            id_mapping,
+        );
 
         // should be empty here
         assert!(receiver2.try_recv().is_err());
@@ -355,10 +438,20 @@ mod tests {
         let (sender1, receiver1) = mpsc::channel();
         let (sender2, receiver2) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::from([(link_id_1, 1), (link_id_2, 2)]));
-        let mut broker1 = MessageBroker::new(1, receiver1, id_mapping.clone());
-        broker1.add_neighbor_sender(2, sender2);
-        let mut broker2 = MessageBroker::new(2, receiver2, id_mapping.clone());
-        broker2.add_neighbor_sender(1, sender1);
+        let mut broker1 = MessageBroker::new(
+            1,
+            receiver1,
+            HashMap::from([(2, sender2)]),
+            HashMap::new(),
+            id_mapping.clone(),
+        );
+        let mut broker2 = MessageBroker::new(
+            2,
+            receiver2,
+            HashMap::from([(1, sender1)]),
+            HashMap::new(),
+            id_mapping.clone(),
+        );
         let agent = Agent {
             id: agent_id,
             current_element: 0,
@@ -369,7 +462,7 @@ mod tests {
         broker1.prepare_routed(agent, vehicle);
         broker1.send(43);
 
-        let messages = broker2.receive();
+        let messages = broker2.receive(43);
 
         assert_eq!(1, messages.len());
         let message = messages.get(0).unwrap();
@@ -386,13 +479,16 @@ mod tests {
         let (sender2, _receiver2) = mpsc::channel();
         let (sender3, _receiver3) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::new());
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-
-        broker.add_neighbor_sender(2, sender2.clone());
-        broker.add_remote_sender(3, sender3.clone());
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2)]),
+            HashMap::from([(3, sender3)]),
+            id_mapping,
+        );
 
         sender1.send(Message::new(2)).unwrap();
-        let result = broker.receive();
+        let result = broker.receive(1);
         assert_eq!(1, result.len());
     }
 
@@ -402,9 +498,13 @@ mod tests {
         let (sender2, _receiver2) = mpsc::channel();
         let (sender3, _receiver3) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::new());
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-        broker.add_neighbor_sender(2, sender2.clone());
-        broker.add_remote_sender(3, sender3.clone());
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2.clone())]),
+            HashMap::from([(3, sender3.clone())]),
+            id_mapping,
+        );
 
         // send an optional message to the message broker. The broker should block for this
         sender1.send(Message::new(3)).unwrap();
@@ -426,7 +526,7 @@ mod tests {
         {
             // put this into a scope so that the mutex is released before waiting for the other thread
             // which also uses this mutex.
-            let result = broker.receive();
+            let result = broker.receive(1);
             assert_eq!(2, result.len());
             let mut has_received = has_received_1.lock().unwrap();
             *has_received = true;
@@ -442,15 +542,19 @@ mod tests {
         let (sender2, _receiver2) = mpsc::channel();
         let (sender3, _receiver3) = mpsc::channel();
         let id_mapping = Arc::new(HashMap::new());
-        let mut broker = MessageBroker::new(1, receiver, id_mapping);
-        broker.add_neighbor_sender(2, sender2.clone());
-        broker.add_remote_sender(3, sender3.clone());
+        let mut broker = MessageBroker::new(
+            1,
+            receiver,
+            HashMap::from([(2, sender2.clone())]),
+            HashMap::from([(3, sender3.clone())]),
+            id_mapping,
+        );
         // send an optional message
         sender1.send(Message::new(3)).unwrap();
         // send the required message
         sender1.send(Message::new(2)).unwrap();
 
-        let result = broker.receive();
+        let result = broker.receive(1);
         assert_eq!(2, result.len());
     }
 
