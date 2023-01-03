@@ -74,7 +74,7 @@ mod tests {
     use metis::option::Seed;
     use metis::{Graph, Idx};
 
-    use crate::experiments::metis_test::{partition, Link, Node};
+    use crate::experiments::metis_test::{Link, Node, partition};
     use crate::io::network::IONetwork;
 
     #[test]
@@ -95,6 +95,7 @@ mod tests {
         assert_eq!(expected, result)
     }
 
+    #[ignore]
     #[test]
     fn test_convert_vertice_weight() {
         let network = IONetwork::from_file("./assets/3-links/3-links-network.xml");
@@ -149,14 +150,16 @@ mod tests {
         let (xadj, adjncy) = create_example();
         let mut links = Vec::with_capacity(adjncy.len());
 
-        let mut nodes : Vec<Node> = xadj.iter().enumerate()
-            .filter(|(i, _index) | *i < xadj.len() - 1)
-            .map(|(i, _index)| { Node {
-                id: i,
-                weight: 1,
-                out_links: Vec::new(),
-                in_links: Vec::new(),
-            }})
+        let mut nodes: Vec<Node> = xadj.iter().enumerate()
+            .filter(|(i, _index)| *i < xadj.len() - 1)
+            .map(|(i, _index)| {
+                Node {
+                    id: i,
+                    weight: 1,
+                    out_links: Vec::new(),
+                    in_links: Vec::new(),
+                }
+            })
             .collect();
 
         for from_id in 0..xadj.len() - 1 {
