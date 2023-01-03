@@ -41,7 +41,7 @@ mod test {
         let mut cch_result_distances: Vec<u32> = Vec::new();
         let now = Instant::now();
         for (&from, &to) in from_nodes.iter().zip(to_nodes.iter()) {
-            let cch_result = cch_router.server.query(Query { from: from as NodeId, to: to as NodeId });
+            let cch_result = cch_router.query(from, to);
             match cch_result.distance() {
                 Some(x) => cch_result_distances.push(x),
                 None => {}
