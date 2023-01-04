@@ -10,12 +10,13 @@ serde = { version = "1.0.137", features = ["derive"] }
 quick-xml = { version = "0.23.0", features = ["serialize"] }
 flate2 = { version = "1.0.24" }
 rand = "0.8.5"
-metis = "0.1.1"
+metis = { git = "https://github.com/Janekdererste/metis-rs"}
 flexi_logger = { version = "0.22", features = ["async"] }
 log = "0.4"
 clap = { version = "4.0.29", features = ["derive"] }
 fast_paths = "0.2.0"
 rust_road_router = { git = "https://github.com/kit-algo/rust_road_router" }
+mpi = "0.6"
 
 [[bin]]
 name = "network_converter"
