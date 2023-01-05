@@ -746,7 +746,7 @@ dependencies = [
 [[package]]
 name = "metis"
 version = "0.1.1"
-source = "git+https://github.com/Janekdererste/metis-rs#0e784e8137b1ca957baafda441eabbaaf6440f63"
+source = "git+https://github.com/Janekdererste/metis-rs#e1fd52542a6646a810a09576886d77947a454e02"
 dependencies = [
  "metis-sys",
 ]
@@ -754,7 +754,7 @@ dependencies = [
 [[package]]
 name = "metis-sys"
 version = "0.1.1"
-source = "git+https://github.com/Janekdererste/metis-rs#0e784e8137b1ca957baafda441eabbaaf6440f63"
+source = "git+https://github.com/Janekdererste/metis-rs#e1fd52542a6646a810a09576886d77947a454e02"
 dependencies = [
  "bindgen",
 ]

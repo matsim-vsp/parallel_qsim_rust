@@ -1,5 +1,5 @@
 use log::error;
-use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
+use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Root, Source};
 use std::string::FromUtf8Error;
 
 fn main() {
@@ -15,6 +15,7 @@ fn main() {
     if rank == 0 {
         println!("Process #{} will send to rank #{}", rank, next_rank);
         world.process_at_rank(next_rank).send(&message);
+        world.this_process().broadcast_into()
     } else if rank == 1 {
         println!("Process #{} about to receive.", rank);
 
