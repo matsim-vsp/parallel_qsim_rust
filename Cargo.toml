@@ -17,6 +17,14 @@ clap = { version = "4.0.29", features = ["derive"] }
 fast_paths = "0.2.0"
 rust_road_router = { git = "https://github.com/kit-algo/rust_road_router" }
 mpi = "0.6"
+# dependencies for serialization with protobuf
+prost = "0.11.5"
+# bytes replaces the signature of std::io::Cursor to implemnt Buf somehow...
+bytes = "1.3.0"
+
+[build-dependencies]
+prost-build = "0.11"
+protobuf-src = "1.1.0"
 
 [[bin]]
 name = "network_converter"

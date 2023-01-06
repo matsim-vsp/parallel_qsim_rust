@@ -1,7 +1,5 @@
 use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
 use mpi::Rank;
-use std::thread::sleep;
-use std::time::Duration;
 
 fn main() {
     let universe = mpi::initialize().unwrap();
