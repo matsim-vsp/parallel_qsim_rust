@@ -1,5 +1,4 @@
 use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
-use mpi::Rank;
 
 fn main() {
     let universe = mpi::initialize().unwrap();
@@ -28,7 +27,7 @@ fn main() {
 
     // play ping pong
     while counter < 10 {
-        let (message, status) = world.any_process().receive::<i32>();
+        let (message, _status) = world.any_process().receive::<i32>();
         println!("Process #{rank} received {message}");
         counter = message + 1;
         println!("Process #{rank} sending {counter}");
