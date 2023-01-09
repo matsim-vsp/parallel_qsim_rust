@@ -36,7 +36,7 @@ jobs:
           make
 
   build:
-#    needs: set-up
+    needs: set-up
     runs-on: ubuntu-latest
 
     steps:
