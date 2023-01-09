@@ -40,7 +40,7 @@ libraries. Install them:
 
 ```shell
 sudo apt install libtbb-dev
-sudo apt-get install readline8 readline-dev
+sudo apt-get install libreadline8 libreadline-dev
 sudo apt-get install zlib1g-dev
 ```
 
