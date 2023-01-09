@@ -38,12 +38,14 @@ impl<'router> Router<'router> {
     pub(crate) fn perform_preprocessing(
         network: &RoutingKitNetwork,
         inertial_flow_cutter_path: &str,
+        temp_output_folder: &str,
     ) -> CCH {
         let owned_graph = Router::create_owned_graph(network);
 
         // step 1: compute node ordering
         let node_order_vec =
-            InertialFlowCutterAdapter::new(network, inertial_flow_cutter_path).node_ordering(false);
+            InertialFlowCutterAdapter::new(network, inertial_flow_cutter_path, temp_output_folder)
+                .node_ordering(false);
         let node_order = NodeOrder::from_node_order(node_order_vec);
 
         // step 2: compute customization

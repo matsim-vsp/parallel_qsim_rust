@@ -19,21 +19,20 @@ mod test {
     #[ignore]
     #[test]
     fn compare_cch_and_dijkstra() {
-        let routing_kit_network =
-            NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
+        let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
-        let cch = Router::perform_preprocessing(&routing_kit_network, "../InertialFlowCutter");
-        let mut cch_router = Router::new(&cch, &routing_kit_network);
+        let cch = Router::perform_preprocessing(&network, "../InertialFlowCutter", "./output/");
+        let mut cch_router = Router::new(&cch, &network);
 
         let mut dijkstra_router =
-            DijkServer::<_, DefaultOps>::new(Router::create_owned_graph(&routing_kit_network));
+            DijkServer::<_, DefaultOps>::new(Router::create_owned_graph(&network));
 
         let mut bid_dijkstra_router =
             BidServer::<OwnedGraph, OwnedGraph, BiDirZeroPot, ChooseMinKeyDir>::new(
-                Router::create_owned_graph(&routing_kit_network),
+                Router::create_owned_graph(&network),
             );
 
-        let owned_graph = Router::create_owned_graph(&routing_kit_network);
+        let owned_graph = Router::create_owned_graph(&network);
         let number_of_nodes = owned_graph.first_out().len();
         let from_nodes: Vec<usize> =
             (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);

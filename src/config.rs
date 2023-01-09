@@ -14,7 +14,7 @@ pub struct Config {
     pub network_file: String,
     #[arg(long)]
     pub population_file: String,
-    #[arg(long, default_value = false)]
+    #[arg(long, default_value = "false")]
     pub adhoc_routing: bool,
     #[arg(long, default_value = "./")]
     pub output_dir: String,

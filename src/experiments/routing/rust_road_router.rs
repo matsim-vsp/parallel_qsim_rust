@@ -71,7 +71,7 @@ mod tests {
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
 
-        let cch = Router::perform_preprocessing(&network, "../InertialFlowCutter");
+        let cch = Router::perform_preprocessing(&network, "../InertialFlowCutter", "./output/");
         let mut router = Router::new(&cch, &network);
 
         let res12 = router.query(1, 2);

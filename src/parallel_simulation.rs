@@ -5,8 +5,6 @@ use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::node::ExitReason;
-use crate::parallel_simulation::network::partitioned_network::Network;
-use crate::parallel_simulation::routing::network_converter::NetworkConverter;
 use crate::parallel_simulation::routing::router::Router;
 use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::splittable_population::NetworkRoute;
@@ -36,6 +34,7 @@ pub struct Simulation {
     start_time: u32,
     end_time: u32,
     adhoc_routing: bool,
+    output_dir: String,
 }
 
 impl Simulation {
@@ -53,6 +52,7 @@ impl Simulation {
             start_time: config.start_time,
             end_time: config.end_time,
             adhoc_routing: config.adhoc_routing,
+            output_dir: config.output_dir.to_owned(),
         }
     }
 
@@ -87,12 +87,13 @@ impl Simulation {
             let cch = Router::perform_preprocessing(
                 &self.scenario.network.routing_kit_network,
                 "../InertialFlowCutter",
+                self.get_temp_output_folder().as_str(),
             );
             router = Some(Router::new(
                 &cch,
                 &self.scenario.network.routing_kit_network,
             ));
-        }
+        };
 
         // conceptually this should do the following in the main loop:
 
@@ -306,6 +307,16 @@ impl Simulation {
             }
         }
         panic!("This should not happen!!!")
+    }
+
+    fn get_temp_output_folder(&self) -> String {
+        format!(
+            "{}{}{}{}",
+            self.output_dir.to_owned(),
+            "/routing/",
+            self.scenario.msg_broker.id,
+            "/"
+        )
     }
 }
 /*
