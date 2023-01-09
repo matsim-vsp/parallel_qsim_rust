@@ -1,6 +1,7 @@
+use rust_road_router::algo::{Query, QueryResult, QueryServer};
 use rust_road_router::algo::customizable_contraction_hierarchy::{CCH, customize, CustomizedBasic};
-use rust_road_router::algo::customizable_contraction_hierarchy::query::Server;
-use rust_road_router::datastr::graph::OwnedGraph;
+use rust_road_router::algo::customizable_contraction_hierarchy::query::{PathServerWrapper, Server};
+use rust_road_router::datastr::graph::{NodeId, OwnedGraph, Weight};
 use rust_road_router::datastr::node_order::NodeOrder;
 
 use crate::routing::network_converter::NetworkConverter;
@@ -10,14 +11,18 @@ pub struct Router<'router> {
 }
 
 impl<'router> Router<'router> {
-    pub(crate) fn new(cch: &'router CCH, graph: &OwnedGraph) -> Router<'router> {
+    pub(crate) fn new(cch: &'router CCH, converter: &NetworkConverter) -> Router<'router> {
         Router {
-            server: Server::new(customize(cch, graph))
+            server: Server::new(customize(cch, &Router::create_owned_graph(&converter)))
         }
     }
 
     pub(crate) fn customize(&mut self, cch: &'router CCH, graph: &OwnedGraph) {
         self.server = Server::new(customize(cch, graph));
+    }
+
+    pub(crate) fn query<'q>(&'q mut self, from: usize, to: usize) -> QueryResult<PathServerWrapper<'q, CustomizedBasic<'router, CCH>>, Weight> {
+        self.server.query(Query { from: from as NodeId, to: to as NodeId })
     }
 
     pub(crate) fn create_cch(converter: &mut NetworkConverter) -> CCH {

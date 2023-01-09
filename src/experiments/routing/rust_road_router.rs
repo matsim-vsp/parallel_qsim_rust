@@ -68,12 +68,11 @@ mod tests {
             routing_kit_network: None,
         };
         let cch = Router::create_cch(&mut converter);
-        let owned_graph = Router::create_owned_graph(&converter);
 
-        let mut router = Router::new(&cch, &owned_graph);
-        let res12 = router.server.query(Query { from: 1, to: 2 });
+        let mut router = Router::new(&cch, &converter);
+        let res12 = router.query(1, 2);
         test_query_result(res12, 1, vec![1, 2]);
-        let res32 = router.server.query(Query { from: 3, to: 2 });
+        let res32 = router.query(3, 2);
         test_query_result(res32, 3, vec![3, 1, 2]);
 
         println!("Assign new travel time to edge 1-2: 4");
@@ -83,7 +82,7 @@ mod tests {
                             converter.routing_kit_network.as_ref().unwrap().head().to_owned(),
                             vec![4, 2, 1, 4, 2, 5]);
         router.customize(&cch, &new_owned_graph);
-        let new_result = router.server.query(Query { from: 3, to: 2 });
+        let new_result = router.query(3, 2);
         test_query_result(new_result, 5, vec![3, 2]);
     }
 
