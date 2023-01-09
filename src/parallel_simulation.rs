@@ -35,6 +35,7 @@ pub struct Simulation {
     events: Events,
     start_time: u32,
     end_time: u32,
+    adhoc_routing: bool,
 }
 
 impl Simulation {
@@ -51,6 +52,7 @@ impl Simulation {
             events,
             start_time: config.start_time,
             end_time: config.end_time,
+            adhoc_routing: config.adhoc_routing,
         }
     }
 
@@ -80,11 +82,17 @@ impl Simulation {
 
         // TODO make path to InertialFlowCutter configurable
 
-        let cch = Router::perform_preprocessing(
-            &self.scenario.network.routing_kit_network,
-            "../InertialFlowCutter",
-        );
-        let mut router = Router::new(&cch, &self.scenario.network.routing_kit_network);
+        let mut router: Option<Router> = None;
+        if self.adhoc_routing {
+            let cch = Router::perform_preprocessing(
+                &self.scenario.network.routing_kit_network,
+                "../InertialFlowCutter",
+            );
+            router = Some(Router::new(
+                &cch,
+                &self.scenario.network.routing_kit_network,
+            ));
+        }
 
         // conceptually this should do the following in the main loop:
 
