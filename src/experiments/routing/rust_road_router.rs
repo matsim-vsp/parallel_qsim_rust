@@ -2,12 +2,15 @@
 mod tests {
     use std::fmt::Debug;
 
+    use rust_road_router::algo::customizable_contraction_hierarchy::{customize, CCH};
+    use rust_road_router::datastr::node_order::NodeOrder;
     use rust_road_router::{
-        algo::{*, dijkstra::{*, query::dijkstra::Server as DijkServer}},
+        algo::{
+            dijkstra::{query::dijkstra::Server as DijkServer, *},
+            *,
+        },
         datastr::graph::*,
     };
-    use rust_road_router::algo::customizable_contraction_hierarchy::{CCH, customize};
-    use rust_road_router::datastr::node_order::NodeOrder;
 
     use crate::routing::network_converter::NetworkConverter;
     use crate::routing::router::Router;
@@ -26,7 +29,11 @@ mod tests {
     }
 
     fn created_graph_with_isolated_node_0() -> OwnedGraph {
-        OwnedGraph::new(vec![0, 0, 2, 4, 6], vec![2, 3, 2, 3, 1, 2], vec![1, 2, 1, 4, 2, 5])
+        OwnedGraph::new(
+            vec![0, 0, 2, 4, 6],
+            vec![2, 3, 2, 3, 1, 2],
+            vec![1, 2, 1, 4, 2, 5],
+        )
     }
 
     #[test]
@@ -51,7 +58,8 @@ mod tests {
         let graph = &created_graph_with_isolated_node_0();
         let cch = CCH::fix_order_and_build(graph, node_order);
 
-        let mut server = customizable_contraction_hierarchy::query::Server::new(customize(&cch, graph));
+        let mut server =
+            customizable_contraction_hierarchy::query::Server::new(customize(&cch, graph));
         let mut result = server.query(Query { from: 3, to: 2 });
         assert_eq!(result.distance(), Some(3));
         println!("{:#?}", result.node_path())
@@ -77,17 +85,34 @@ mod tests {
 
         println!("Assign new travel time to edge 1-2: 4");
 
-        let new_owned_graph =
-            OwnedGraph::new(converter.routing_kit_network.as_ref().unwrap().first_out().to_owned(),
-                            converter.routing_kit_network.as_ref().unwrap().head().to_owned(),
-                            vec![4, 2, 1, 4, 2, 5]);
+        let new_owned_graph = OwnedGraph::new(
+            converter
+                .routing_kit_network
+                .as_ref()
+                .unwrap()
+                .first_out()
+                .to_owned(),
+            converter
+                .routing_kit_network
+                .as_ref()
+                .unwrap()
+                .head()
+                .to_owned(),
+            vec![4, 2, 1, 4, 2, 5],
+        );
         router.customize(&cch, &new_owned_graph);
         let new_result = router.query(3, 2);
         test_query_result(new_result, 5, vec![3, 2]);
     }
 
-    fn test_query_result<P: PathServer>(mut result: QueryResult<P, u32>, distance: u32, expected_path: Vec<u32>)
-        where <P as PathServer>::NodeInfo: Debug, <P as PathServer>::NodeInfo: PartialEq<u32> {
+    fn test_query_result<P: PathServer>(
+        mut result: QueryResult<P, u32>,
+        distance: u32,
+        expected_path: Vec<u32>,
+    ) where
+        <P as PathServer>::NodeInfo: Debug,
+        <P as PathServer>::NodeInfo: PartialEq<u32>,
+    {
         assert_eq!(result.distance().unwrap(), distance);
         let result_path = result.node_path().unwrap();
         println!("Got path {:#?}", result_path);

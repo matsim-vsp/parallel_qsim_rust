@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::fs::{create_dir_all, File, remove_dir_all, remove_file};
+use std::fs::{create_dir_all, remove_dir_all, remove_file, File};
 use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
 
@@ -7,7 +7,12 @@ use rust_road_router::datastr::graph::{EdgeId, NodeId, Weight};
 
 use crate::io::network::{IOLink, IONetwork, IONode};
 
-pub fn node_ordering_from_matsim_network(matsim_network_path: &str, output_path: &str, inertial_flow_cutter_path: &str, save_ordering_to_file: bool) -> Vec<u32> {
+pub fn node_ordering_from_matsim_network(
+    matsim_network_path: &str,
+    output_path: &str,
+    inertial_flow_cutter_path: &str,
+    save_ordering_to_file: bool,
+) -> Vec<u32> {
     let mut converter = NetworkConverter {
         matsim_network_path,
         output_path,
@@ -37,9 +42,13 @@ impl NetworkConverter<'_> {
         NetworkConverter::check_network_valid(&network);
 
         //sort links by from id
-        network.links_mut().sort_by_key(|link: &IOLink| link.from.to_lowercase());
+        network
+            .links_mut()
+            .sort_by_key(|link: &IOLink| link.from.to_lowercase());
         //sort nodes by id
-        network.nodes_mut().sort_by_key(|node: &IONode| node.id.to_lowercase());
+        network
+            .nodes_mut()
+            .sort_by_key(|node: &IONode| node.id.to_lowercase());
 
         let mut links_before = 0;
 
@@ -50,7 +59,11 @@ impl NetworkConverter<'_> {
 
             first_out.push((links_before) as EdgeId);
 
-            let links: Vec<&IOLink> = network.links().iter().filter(|link: &&IOLink| *link.from == node.id).collect();
+            let links: Vec<&IOLink> = network
+                .links()
+                .iter()
+                .filter(|link: &&IOLink| *link.from == node.id)
+                .collect();
             links_before += links.len();
             for link in links {
                 head.push(NetworkConverter::get_node_index(&network, &link.to) as NodeId);
@@ -105,7 +118,8 @@ impl NetworkConverter<'_> {
     fn convert_network_into_binary(&self, file: &str) {
         println!("Converting file {file} into binary.");
 
-        create_dir_all(self.temp_output_path().to_owned() + "binary").expect("Failed to create directory.");
+        create_dir_all(self.temp_output_path().to_owned() + "binary")
+            .expect("Failed to create directory.");
 
         Command::new(self.call_console())
             .arg("text_to_binary_vector")
@@ -141,8 +155,10 @@ impl NetworkConverter<'_> {
         if !save_ordering_to_file {
             remove_dir_all(self.output_path).expect("Could not delete whole output directory.");
         } else {
-            remove_file(self.output_path.to_owned() + file + "_bin").expect("Could not delete binary ordering file.");
-            remove_dir_all(self.temp_output_path()).expect("Could not remove temporary output directory.");
+            remove_file(self.output_path.to_owned() + file + "_bin")
+                .expect("Could not delete binary ordering file.");
+            remove_dir_all(self.temp_output_path())
+                .expect("Could not remove temporary output directory.");
         }
     }
 
@@ -152,34 +168,60 @@ impl NetworkConverter<'_> {
         let buf = BufReader::new(ordering_file);
         let mut v = Vec::new();
         for line in buf.lines() {
-            let n = line.expect("Could not read line.").parse().expect("Could not parse value.");
+            let n = line
+                .expect("Could not read line.")
+                .parse()
+                .expect("Could not parse value.");
             v.push(n);
-        };
+        }
         v
     }
 
     //checks whether network consists of unique node ids
     fn check_network_valid(network: &IONetwork) {
-        let mut node_ids: Vec<String> = network.nodes().iter().map(|n| String::from(&n.id)).collect();
+        let mut node_ids: Vec<String> = network
+            .nodes()
+            .iter()
+            .map(|n| String::from(&n.id))
+            .collect();
         node_ids.dedup();
         assert_eq!(node_ids.len(), network.nodes().len());
     }
 
     fn get_node_index(network: &IONetwork, id: &str) -> usize {
-        network.nodes().iter().position(|node| node.id == *id).unwrap()
+        network
+            .nodes()
+            .iter()
+            .position(|node| node.id == *id)
+            .unwrap()
     }
 
     fn serialize_routing_kit_network(&self) {
-        create_dir_all(self.temp_output_path()).expect("Failed to create temporary output directory.");
+        create_dir_all(self.temp_output_path())
+            .expect("Failed to create temporary output directory.");
 
-        RoutingKitNetwork::serialize_vector(&self.routing_kit_network.as_ref().unwrap().first_out, self.temp_output_path().to_owned() + "/first_out");
-        RoutingKitNetwork::serialize_vector(&self.routing_kit_network.as_ref().unwrap().head, self.temp_output_path().to_owned() + "/head");
-        RoutingKitNetwork::serialize_vector(&self.routing_kit_network.as_ref().unwrap().travel_time, self.temp_output_path().to_owned() + "/travel_time");
-        RoutingKitNetwork::serialize_vector(&self.routing_kit_network.as_ref().unwrap().latitude, self.temp_output_path().to_owned() + "/latitude");
-        RoutingKitNetwork::serialize_vector(&self.routing_kit_network.as_ref().unwrap().longitude, self.temp_output_path().to_owned() + "/longitude");
+        RoutingKitNetwork::serialize_vector(
+            &self.routing_kit_network.as_ref().unwrap().first_out,
+            self.temp_output_path().to_owned() + "/first_out",
+        );
+        RoutingKitNetwork::serialize_vector(
+            &self.routing_kit_network.as_ref().unwrap().head,
+            self.temp_output_path().to_owned() + "/head",
+        );
+        RoutingKitNetwork::serialize_vector(
+            &self.routing_kit_network.as_ref().unwrap().travel_time,
+            self.temp_output_path().to_owned() + "/travel_time",
+        );
+        RoutingKitNetwork::serialize_vector(
+            &self.routing_kit_network.as_ref().unwrap().latitude,
+            self.temp_output_path().to_owned() + "/latitude",
+        );
+        RoutingKitNetwork::serialize_vector(
+            &self.routing_kit_network.as_ref().unwrap().longitude,
+            self.temp_output_path().to_owned() + "/longitude",
+        );
     }
 }
-
 
 #[derive(Debug)]
 pub struct RoutingKitNetwork {
@@ -211,7 +253,7 @@ impl RoutingKitNetwork {
 
 #[cfg(test)]
 mod test {
-    use crate::routing::network_converter::{NetworkConverter, node_ordering_from_matsim_network};
+    use crate::routing::network_converter::{node_ordering_from_matsim_network, NetworkConverter};
 
     #[test]
     fn test_simple_network() {
@@ -235,7 +277,7 @@ mod test {
     fn test_serialization() {
         let mut converter = NetworkConverter {
             matsim_network_path: "./assets/routing_tests/triangle-network.xml",
-            output_path: "./assets/routing_tests/serialization/",
+            output_path: "./test_output/routing/network_converter/test_serialization/",
             inertial_flow_cutter_path: &String::new(),
             routing_kit_network: None,
         };
@@ -250,7 +292,12 @@ mod test {
         // This seems to be more like an integration test which needs some steps to be done in advance
         // i.e. installation of InertialFlowCutter library and the required dependencies.
         // If you installed InertialFlowCutter locally this test will work. On github actions it doesn't so far.
-        let ordering = node_ordering_from_matsim_network("./assets/routing_tests/triangle-network.xml", "./assets/routing_tests/conversion/", "../InertialFlowCutter", false);
+        let ordering = node_ordering_from_matsim_network(
+            "./assets/routing_tests/triangle-network.xml",
+            "./assets/routing_tests/conversion/",
+            "../InertialFlowCutter",
+            false,
+        );
         assert_eq!(ordering, vec![2, 3, 1, 0])
     }
 }
