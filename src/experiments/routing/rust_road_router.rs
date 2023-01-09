@@ -2,6 +2,8 @@
 mod tests {
     use std::fmt::Debug;
 
+    use crate::parallel_simulation::routing::network_converter::NetworkConverter;
+    use crate::parallel_simulation::routing::router::Router;
     use rust_road_router::algo::customizable_contraction_hierarchy::{customize, CCH};
     use rust_road_router::datastr::node_order::NodeOrder;
     use rust_road_router::{
@@ -11,9 +13,6 @@ mod tests {
         },
         datastr::graph::*,
     };
-
-    use crate::routing::network_converter::NetworkConverter;
-    use crate::routing::router::Router;
 
     fn create_graph() -> OwnedGraph {
         /*
@@ -69,15 +68,12 @@ mod tests {
     #[test]
     fn test_simple_cch_with_router_and_update() {
         //does only work locally
-        let mut converter = NetworkConverter {
-            matsim_network_path: "./assets/routing_tests/triangle-network.xml",
-            output_path: "./assets/routing_tests/conversion/",
-            inertial_flow_cutter_path: "../InertialFlowCutter",
-            routing_kit_network: None,
-        };
-        let cch = Router::create_cch(&mut converter);
+        let network =
+            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
 
-        let mut router = Router::new(&cch, &converter);
+        let cch = Router::perform_preprocessing(&network, "../InertialFlowCutter");
+        let mut router = Router::new(&cch, &network);
+
         let res12 = router.query(1, 2);
         test_query_result(res12, 1, vec![1, 2]);
         let res32 = router.query(3, 2);
@@ -86,18 +82,8 @@ mod tests {
         println!("Assign new travel time to edge 1-2: 4");
 
         let new_owned_graph = OwnedGraph::new(
-            converter
-                .routing_kit_network
-                .as_ref()
-                .unwrap()
-                .first_out()
-                .to_owned(),
-            converter
-                .routing_kit_network
-                .as_ref()
-                .unwrap()
-                .head()
-                .to_owned(),
+            network.first_out().to_owned(),
+            network.head().to_owned(),
             vec![4, 2, 1, 4, 2, 5],
         );
         router.customize(&cch, &new_owned_graph);

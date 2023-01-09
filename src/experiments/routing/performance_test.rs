@@ -2,6 +2,8 @@
 mod test {
     use std::time::Instant;
 
+    use crate::parallel_simulation::routing::network_converter::NetworkConverter;
+    use crate::parallel_simulation::routing::router::Router;
     use log::info;
     use rand::seq::{IteratorRandom, SliceRandom};
     use rust_road_router::algo::a_star::BiDirZeroPot;
@@ -14,29 +16,24 @@ mod test {
     use rust_road_router::algo::{Query, QueryServer};
     use rust_road_router::datastr::graph::{NodeId, OwnedGraph};
 
-    use crate::routing::network_converter::NetworkConverter;
-    use crate::routing::router::Router;
-
     #[ignore]
     #[test]
     fn compare_cch_and_dijkstra() {
-        let mut converter = NetworkConverter {
-            matsim_network_path: "./assets/andorra-network.xml.gz",
-            output_path: "./assets/routing_tests/conversion/",
-            inertial_flow_cutter_path: "../InertialFlowCutter",
-            routing_kit_network: None,
-        };
+        let routing_kit_network =
+            NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
-        let cch = Router::create_cch(&mut converter);
-        let owned_graph = Router::create_owned_graph(&converter);
-        let mut cch_router = Router::new(&cch, &converter);
+        let cch = Router::perform_preprocessing(&routing_kit_network, "../InertialFlowCutter");
+        let mut cch_router = Router::new(&cch, &routing_kit_network);
+
         let mut dijkstra_router =
-            DijkServer::<_, DefaultOps>::new(Router::create_owned_graph(&converter));
+            DijkServer::<_, DefaultOps>::new(Router::create_owned_graph(&routing_kit_network));
+
         let mut bid_dijkstra_router =
             BidServer::<OwnedGraph, OwnedGraph, BiDirZeroPot, ChooseMinKeyDir>::new(
-                Router::create_owned_graph(&converter),
+                Router::create_owned_graph(&routing_kit_network),
             );
 
+        let owned_graph = Router::create_owned_graph(&routing_kit_network);
         let number_of_nodes = owned_graph.first_out().len();
         let from_nodes: Vec<usize> =
             (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);

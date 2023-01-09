@@ -5,6 +5,9 @@ use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::node::ExitReason;
+use crate::parallel_simulation::network::partitioned_network::Network;
+use crate::parallel_simulation::routing::network_converter::NetworkConverter;
+use crate::parallel_simulation::routing::router::Router;
 use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::splittable_population::NetworkRoute;
 use crate::parallel_simulation::splittable_population::PlanElement;
@@ -20,6 +23,7 @@ mod messages;
 mod messaging;
 mod network;
 mod partition_info;
+pub mod routing;
 mod splittable_population;
 pub mod splittable_scenario;
 mod vehicles;
@@ -73,6 +77,14 @@ impl Simulation {
             self.scenario.msg_broker.id,
             self.scenario.network.neighbors(),
         );
+
+        // TODO make path to InertialFlowCutter configurable
+
+        let cch = Router::perform_preprocessing(
+            &self.scenario.network.routing_kit_network,
+            "../InertialFlowCutter",
+        );
+        let mut router = Router::new(&cch, &self.scenario.network.routing_kit_network);
 
         // conceptually this should do the following in the main loop:
 

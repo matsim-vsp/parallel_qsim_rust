@@ -29,9 +29,5 @@ prost-build = "0.11"
 # install the protoc compiler as prerequisite.
 protobuf-src = "1.1.0"
 
-[[bin]]
-name = "network_converter"
-test = false
-
 [profile.bench]
 debug=true

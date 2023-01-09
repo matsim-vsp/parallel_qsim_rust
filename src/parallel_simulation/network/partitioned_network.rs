@@ -2,6 +2,8 @@ use crate::io::matsim_id::MatsimId;
 use crate::io::network::{IOLink, IONetwork, IONode};
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
+use crate::parallel_simulation::network::routing_kit_network::RoutingKitNetwork;
+use crate::parallel_simulation::routing::network_converter::NetworkConverter;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -12,7 +14,8 @@ pub struct Network {
     pub links_2_partition: Arc<HashMap<usize, usize>>,
 }
 
-pub struct MutNetwork {
+// used for internal computation of Network
+struct MutNetwork {
     pub partitions: Vec<NetworkPartition>,
     pub nodes_2_partition: HashMap<usize, usize>,
     pub links_2_partition: HashMap<usize, usize>,
@@ -37,7 +40,10 @@ impl Network {
     where
         F: Fn(&IONode) -> usize,
     {
-        let mut result = MutNetwork::new(num_part);
+        let mut result = MutNetwork::new(
+            num_part,
+            NetworkConverter::convert_io_network(io_network.clone()),
+        );
 
         for node in io_network.nodes() {
             result.add_node(node, id_mappings, &split);
@@ -60,10 +66,10 @@ impl Network {
 }
 
 impl MutNetwork {
-    fn new(num_parts: usize) -> MutNetwork {
+    fn new(num_parts: usize, routing_kit_network: RoutingKitNetwork) -> MutNetwork {
         let mut partitions = Vec::with_capacity(num_parts);
         for _ in 0..num_parts {
-            partitions.push(NetworkPartition::new());
+            partitions.push(NetworkPartition::new(routing_kit_network.clone()));
         }
 
         MutNetwork {
