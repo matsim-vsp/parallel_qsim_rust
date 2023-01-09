@@ -30,7 +30,7 @@ jobs:
         uses: mxschmitt/action-tmate@v3
       - name: Install InertialFlowCutter
         run: |
-          cd ../InertialFlowCutter
+          cd ./InertialFlowCutter
           mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=Release ..
