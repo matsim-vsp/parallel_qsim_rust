@@ -25,7 +25,7 @@ jobs:
           repository: paulheinr/InertialFlowCutter
           ref: master
           submodules: true
-          path: ../InertialFlowCutter
+          path: ./InertialFlowCutter
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
       - name: Install InertialFlowCutter
