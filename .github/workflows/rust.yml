@@ -35,14 +35,14 @@ jobs:
           cmake -DCMAKE_INSTALL_PREFIX=/tmp/manual_installed_tbb -DTBB_TEST=OFF ..
           cmake --build . --config relwithdebinfo
           cmake --install . --config relwithdebinfo
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+#      - name: Setup tmate session
+#        uses: mxschmitt/action-tmate@v3
       - name: Install InertialFlowCutter
         run: |
           cd ./InertialFlowCutter
           mkdir build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake --debug-find -DCMAKE_BUILD_TYPE=Release ..
           make
 
   build:
