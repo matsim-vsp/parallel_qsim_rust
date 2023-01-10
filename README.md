@@ -3,7 +3,7 @@
 This is a port of Matsim's Q-Sim to Rust. My current notes on the project
 are [here](https://docs.google.com/document/d/1DkrSJ7KnKXfy2qg8wWyE7c9OPqOUB63px6wmkwuIS9M/edit?usp=sharing)
 
-## Set Up
+## Set Up Rust
 
 Install Rust for your operating system as described [here](https://www.rust-lang.org/tools/install). For WSL this would
 be
@@ -11,57 +11,66 @@ be
 ```
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
-The project requires the nightly version of rust, because the [rust_road_router](https://github.com/kit-algo/rust_road_router)
-uses features available in the nightly build of standard library. 
+The project requires the nightly version of rust, because [rust_road_router](https://github.com/kit-algo/rust_road_router)
+uses features available in the nightly build of the standard library. 
 
 Install the nightly build
 ```
 $ rustup install nightly
 ```
-The version against which the project is build against is fixed in `rust-toolchain.toml`.
-
-Please make sure you are using the rust nightly build version. It can be installed by calling
+The version against which the project is build against is fixed in `rust-toolchain.toml`. And
+should be picked automatically. It is also possible to set the rust version manually with the 
+following command:
 
 ```
 $ rustup default nightly
 ```
 
-The reason for using the nightly version of rust is that one dependency (`rust_road_router`) requires it.
+## Set Up Prerequisites
+This project has multiple dependencies which are not compiled with the project but must be 
+present on the operating system the project is compiled on.
 
-### Prerequisites
+### METIS
+This project uses the [metis](https://crates.io/crates/metis) crate as a dependency which
+is a wrapper for the [METIS C Library](https://github.com/KarypisLab/METIS). The C-Library is 
+expected to be present on the machine. Also, the `metis` crate requires `libclang` on the machine 
+this project is built on.
 
-This project uses the [metis](https://crates.io/crates/metis) crate as a dependency.
-This crate is a wrapper for the [METIS C Library](https://github.com/KarypisLab/METIS).
-It requires Metis and Clang as Prerequisites.
+We use our own [fork](https://github.com/Janekdererste/metis-rs) of the `metis` crate. This is because
+both the `metis` and `rsmpi` crate use `bindgen` but with different versions to bind to the 
+C-Implementations of the respective libraries. This lead to build errors where `libclang` was 
+not loaded properly. The fork sets the `libgen` version in the `metis` crate to the same 
+version as `rsmpi`'s `bindgen version 
+
+### MPI
+This project uses [MPI](https://docs.open-mpi.org/en/v5.0.x/) for Message Passing. The raw
+C-Api is abstracted by the [rsmpi](https://github.com/rsmpi/rsmpi) crate. As with METIS an MPI
+Implementation is expected to be present on the machine the program is build and run on.
 
 #### Windows Subsystem for Linux - Probably Ubuntu in general
 
-On Windows Subsystem for Linux I executed the following steps to make
-things work
-
-1. `$ sudo apt install libclang-dev`
-2. `$ sudo apt install libmetis-dev`
+On Windows Subsystem for Linux and in the ci-build we install the pre-requisites as follows:
+```
+$ sudo apt -y install libclang-dev llvm-dev libmetis-dev libopenmpi-dev
+```
 
 #### Math Cluster
 
-The math cluster has `Clang` and `Metis` installed as modules. To make sure the correct versions are enabled run
-the following before building and running
+The math cluster provides our prerequisites as modules. The modules must be loaded with the 
+following command.
 
-1. `$ module load clang/8.0.1` (only build)
-2. `$ mdoule load metis-5.1`
-
-To run the program only the `Metis` module is necessary
+```
+$ module load metis-5.1 ompi/gcc/4.1.2
+```
 
 #### HLRN
 
-HLRN has `Clang` and `Metis` installed as modules. To enable compilation of the programm add the
-following modules.
+The HLRN cluster provides our prerequisites as modules. The modules and their respecting
+prerequisites can be loaded as follows:
 
-1. `$ module load gcc/9.2.0`
-2. `$ module load llvm/9.0.0`
-3. `$ module load metis/5.1.0`
-
-To run the program only the `Metis` module is necessary
+```
+$ module load gcc/9.3.0 llvm/9.0.0 openmpi/gcc.9/4.1.4 metis/5.1.0
+```
 
 ### Set up in IntelliJ/CLion
 
@@ -83,6 +92,11 @@ feature work I had to change the default execution environment of the project to
 This can probably done somewhere else as well...
 
 To use the rust nightly build from CLion go to Settings -> Rust -> Standard Library and select the nightly folder.
+
+To enable code completion on generated items it is necessary to set `org.rust.cargo.evaluate.build.scripts` to `true`
+in `Experimental Features` Dialog. This is important to get typing assistance on types generated
+from protobuf.
+
 ### Set up on the Math Cluster / HLRN
 
 Since Rust is build into a binary executable (this is important for Java Developers 🙃) it has to be built on the
@@ -127,4 +141,4 @@ Run `$ cargo build` to build the program
 
 ### Test
 
-Run `$ cargo test` to execute all tests. To have emmediate output use `$ cargo test -- --nocapture`
+Run `$ cargo test` to execute all tests. To have emmediate output use `$ cargo test -- --nocapture

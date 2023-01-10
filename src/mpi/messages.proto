@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package mpi.messages;
+
+message ExperimentalMessage {
+  uint64 timestamp = 1;
+  uint32 counter = 2;
+  string additional_message = 3;
+}
