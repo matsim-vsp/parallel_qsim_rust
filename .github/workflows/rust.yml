@@ -11,7 +11,7 @@ env:
   INERTIAL_FLOW_CUTTER_HOME_DIRECTORY: ./InertialFlowCutter
 
 jobs:
-  set-up:
+  build:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout
