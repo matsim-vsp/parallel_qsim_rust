@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  INERTIAL_FLOW_CUTTER_HOME_DIRECTORY: ./InertialFlowCutter
 
 jobs:
   set-up:
@@ -25,10 +26,10 @@ jobs:
           repository: paulheinr/InertialFlowCutter
           ref: master
           submodules: true
-          path: ./InertialFlowCutter
+          path: ${{ env.INERTIAL_FLOW_CUTTER_HOME_DIRECTORY }}
       - name: Install InertialFlowCutter
         run: |
-          cd ./InertialFlowCutter
+          cd $INERTIAL_FLOW_CUTTER_HOME_DIRECTORY
           mkdir build
           cd build
           cmake --debug-find -DCMAKE_BUILD_TYPE=Release ..

@@ -64,7 +64,7 @@ mod tests {
         println!("{:#?}", result.node_path())
     }
 
-    #[ignore]
+    //#[ignore]
     #[test]
     fn test_simple_cch_with_router_and_update() {
         //does only work locally
