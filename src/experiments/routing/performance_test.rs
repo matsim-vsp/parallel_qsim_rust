@@ -21,7 +21,7 @@ mod test {
     fn compare_cch_and_dijkstra() {
         let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
-        let cch = Router::perform_preprocessing(&network, "../InertialFlowCutter", "./output/");
+        let cch = Router::perform_preprocessing(&network, "./output/");
         let mut cch_router = Router::new(&cch, &network);
 
         let mut dijkstra_router =

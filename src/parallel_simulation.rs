@@ -86,7 +86,6 @@ impl Simulation {
         if self.adhoc_routing {
             let cch = Router::perform_preprocessing(
                 &self.scenario.network.routing_kit_network,
-                "../InertialFlowCutter",
                 self.get_temp_output_folder().as_str(),
             );
             router = Some(Router::new(

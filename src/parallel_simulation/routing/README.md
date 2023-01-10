@@ -9,6 +9,8 @@ It is split into two phases:
 During phase 1 an ordering of the nodes is computed which doesn't depend on travel times. This task is not done in Rust,
 but by the [InertialFlowCutter](https://github.com/kit-algo/InertialFlowCutter/).
 
+**Watch out:** InertialFlowCutter works with `cmake 3.16` for sure. With `cmake 3.25`, which comes with Ubuntu 22.x, there are errors (`cmake` doesn't find `dlltools`). 
+
 The ordering computed there is then used during phase 2. This is done by `rust-road-router`, thus in out Rust code.
 
 ## Phase 1
