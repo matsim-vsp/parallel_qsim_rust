@@ -18,7 +18,7 @@ jobs:
       - name: Install InertialFlowCutter libraries
         run: |
           sudo apt-get update &&
-          sudo apt-get -y install libtbb-dev libreadline8 libreadline-dev zlib1g-dev libopenmpi-dev libopenmpi3 ccache llvm-11
+          sudo apt-get -y install libtbb-dev libreadline8 libreadline-dev zlib1g-dev libopenmpi-dev libopenmpi3 ccache libllvm14
       - name: Clone InertialFlowCutter
         uses: actions/checkout@v3
         with:
