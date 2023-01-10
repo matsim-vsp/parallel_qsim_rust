@@ -34,6 +34,12 @@ This project uses the [metis](https://crates.io/crates/metis) crate as a depende
 This crate is a wrapper for the [METIS C Library](https://github.com/KarypisLab/METIS).
 It requires Metis and Clang as Prerequisites.
 
+Also, this project uses [MPI](https://docs.open-mpi.org/en/v5.0.x/) with the help of [rsmpi](https://github.com/rsmpi/rsmpi)
+as a wrapper over the MPI-C API. To compile and run the project an MPI-Implementation must be installed. For example
+OpenMPI
+
+Also, this project uses Google Protocol Buffers for serializing messages. 
+
 #### Windows Subsystem for Linux - Probably Ubuntu in general
 
 On Windows Subsystem for Linux I executed the following steps to make
@@ -83,6 +89,10 @@ feature work I had to change the default execution environment of the project to
 This can probably done somewhere else as well...
 
 To use the rust nightly build from CLion go to Settings -> Rust -> Standard Library and select the nightly folder.
+
+To enable code completion on generated items it is necessary to set `org.rust.cargo.evaluate.build.scripts` to `true`
+in `Experimental Features` Dialog
+
 ### Set up on the Math Cluster / HLRN
 
 Since Rust is build into a binary executable (this is important for Java Developers 🙃) it has to be built on the
