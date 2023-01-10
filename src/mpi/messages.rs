@@ -1,11 +1,10 @@
 use crate::mpi::messages::proto::ExperimentalMessage;
-
 use prost::Message;
 use std::io::Cursor;
 
 // Include the `messages` module, which is generated from messages.proto.
 pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/_.rs"));
+    include!(concat!(env!("OUT_DIR"), "/mpi.messages.rs"));
 }
 
 impl ExperimentalMessage {

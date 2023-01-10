@@ -36,6 +36,12 @@ is a wrapper for the [METIS C Library](https://github.com/KarypisLab/METIS). The
 expected to be present on the machine. Also, the `metis` crate requires `libclang` on the machine 
 this project is built on.
 
+We use our own [fork](https://github.com/Janekdererste/metis-rs) of the `metis` crate. This is because
+both the `metis` and `rsmpi` crate use `bindgen` but with different versions to bind to the 
+C-Implementations of the respective libraries. This lead to build errors where `libclang` was 
+not loaded properly. The fork sets the `libgen` version in the `metis` crate to the same 
+version as `rsmpi`'s `bindgen version 
+
 ### MPI
 This project uses [MPI](https://docs.open-mpi.org/en/v5.0.x/) for Message Passing. The raw
 C-Api is abstracted by the [rsmpi](https://github.com/rsmpi/rsmpi) crate. As with METIS an MPI
@@ -138,4 +144,4 @@ Run `$ cargo build` to build the program
 
 ### Test
 
-Run `$ cargo test` to execute all tests. To have emmediate output use `$ cargo test -- --nocapture`
+Run `$ cargo test` to execute all tests. To have emmediate output use `$ cargo test -- --nocapture
