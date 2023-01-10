@@ -9,6 +9,9 @@ fn main() {
     let rank = world.rank();
     let size = world.size();
 
+    let version = mpi::environment::library_version().unwrap();
+    println!("Library Version: {version}");
+
     let next_rank = (rank + 1) % size;
     let start = Instant::now();
 

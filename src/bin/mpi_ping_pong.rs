@@ -5,6 +5,8 @@ fn main() {
     let world = universe.world();
     let rank = world.rank();
     let size = world.size();
+    let version = mpi::environment::library_version().unwrap();
+    println!("Library Version: {version}");
 
     assert_eq!(
         2, size,

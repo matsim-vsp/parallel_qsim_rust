@@ -7,6 +7,9 @@ fn main() {
     let size = world.size();
     let rank = world.rank();
 
+    let version = mpi::environment::library_version().unwrap();
+    println!("Library Version: {version}");
+
     assert!(
         size > 1,
         "We need more than one process to pass messages around"
