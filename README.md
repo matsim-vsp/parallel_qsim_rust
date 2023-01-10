@@ -51,29 +51,26 @@ Implementation is expected to be present on the machine the program is build and
 
 On Windows Subsystem for Linux and in the ci-build we install the pre-requisites as follows:
 ```
-$ sudo apt -y install libclang-dev  llvm-dev libmetis-dev libopenmpi-dev
+$ sudo apt -y install libclang-dev llvm-dev libmetis-dev libopenmpi-dev
 ```
 
 #### Math Cluster
 
-The math cluster has `Clang` and `Metis` installed as modules. To make sure the correct versions are enabled run
-the following before building and running
+The math cluster provides our prerequisites as modules. The modules must be loaded with the 
+following command.
 
-1. `$ module load clang/8.0.1` (only build)
-2. `$ mdoule load metis-5.1`
-
-To run the program only the `Metis` module is necessary
+```
+$ module load metis-5.1 ompi/gcc/4.1.2
+```
 
 #### HLRN
 
-HLRN has `Clang` and `Metis` installed as modules. To enable compilation of the programm add the
-following modules.
+The HLRN cluster provides our prerequisites as modules. The modules and their respecting
+prerequisites can be loaded as follows:
 
-1. `$ module load gcc/9.2.0`
-2. `$ module load llvm/9.0.0`
-3. `$ module load metis/5.1.0`
-
-To run the program only the `Metis` module is necessary
+```
+$ module load gcc/9.3.0 llvm/9.0.0 openmpi/gcc.9/4.1.4 metis/5.1.0
+```
 
 ### Set up in IntelliJ/CLion
 
