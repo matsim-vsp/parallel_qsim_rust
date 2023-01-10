@@ -15,12 +15,12 @@ use log::info;
 
 mod agent_q;
 pub mod events;
-mod id_mapping;
+pub mod id_mapping;
 mod messages;
 mod messaging;
-mod network;
-mod partition_info;
-mod splittable_population;
+pub mod network;
+pub mod partition_info;
+pub mod splittable_population;
 pub mod splittable_scenario;
 mod vehicles;
 

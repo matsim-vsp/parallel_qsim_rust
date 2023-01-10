@@ -1,5 +1,5 @@
 use crate::io::matsim_id::MatsimId;
-use crate::io::network::{IONetwork, IONode};
+use crate::io::network::{IOLink, IONetwork, IONode};
 use crate::io::population::{IOPlanElement, IOPopulation};
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use log::info;
@@ -28,6 +28,8 @@ pub struct PartitionInfo {
 }
 
 impl PartitionInfo {
+    /// This partitions the network graph according to agent plans. This method iterates through all
+    /// plans and calculates the sum of crossing we can expect for each node in the network.
     pub fn from_io(
         io_network: &IONetwork,
         io_population: &IOPopulation,
@@ -60,6 +62,60 @@ impl PartitionInfo {
             PartitionInfo::partition(partition_nodes, partition_links, num_parts as Idx);
 
         info!("PartitionInfo: finished Partitioning.");
+        PartitionInfo {
+            partition_result,
+            node_id_mapping: id_mappings.nodes.clone(),
+        }
+    }
+
+    /// This partitions the network graph according to link capacities. The computational weight for
+    /// nodes is estimated as the sum of capacities of a node's in links
+    /// Links are also weighted by capacity. This makes links with higher capacities less likely to be
+    /// split
+    pub fn from_io_network(
+        io_network: &IONetwork,
+        id_mappings: &MatsimIdMappings,
+        num_parts: usize,
+    ) -> PartitionInfo {
+        let mut partition_nodes: Vec<PartitionNode> = io_network
+            .nodes()
+            .iter()
+            .map(|_| PartitionNode {
+                weight: 0,
+                out_links: Vec::new(),
+                in_links: Vec::new(),
+            })
+            .collect();
+
+        let partition_links: Vec<PartitionLink> = io_network
+            .links()
+            .iter()
+            .map(|link: &IOLink| {
+                let link_id = id_mappings.links.get_internal(link.id.as_str()).unwrap();
+
+                // put link into out links list of from node and increase weight of node by link's capacity
+                let from_node_id = id_mappings.nodes.get_internal(link.from.as_str()).unwrap();
+                let from_node = partition_nodes.get_mut(*from_node_id).unwrap();
+                from_node.out_links.push(*link_id);
+
+                // put link into in links list of to node and increase node's weight by link's capacity -
+                // let's see whether this is a good estimate.
+                let to_node_id = id_mappings.nodes.get_internal(link.to.as_str()).unwrap();
+                let to_node = partition_nodes.get_mut(*to_node_id).unwrap();
+                to_node.in_links.push(*link_id);
+                to_node.weight += link.capacity as i32;
+
+                PartitionLink {
+                    to: *to_node_id,
+                    from: *from_node_id,
+                    weight: link.capacity as i32,
+                }
+            })
+            .collect();
+
+        let partition_result =
+            PartitionInfo::partition(partition_nodes, partition_links, num_parts as Idx);
+
         PartitionInfo {
             partition_result,
             node_id_mapping: id_mappings.nodes.clone(),

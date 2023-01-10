@@ -62,7 +62,7 @@ pub struct MatsimIdMapping {
 }
 
 impl MatsimIdMapping {
-    fn new() -> MatsimIdMapping {
+    pub fn new() -> MatsimIdMapping {
         MatsimIdMapping {
             matsim_2_internal: HashMap::new(),
             internal_2_matsim: HashMap::new(),
