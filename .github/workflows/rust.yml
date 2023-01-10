@@ -18,7 +18,7 @@ jobs:
       - name: Install InertialFlowCutter libraries
         run: |
           sudo apt-get update &&
-          sudo apt-get -y install libreadline8 libreadline-dev zlib1g-dev
+          sudo apt-get -y install libtbb-dev libreadline8 libreadline-dev zlib1g-dev
       - name: Clone InertialFlowCutter
         uses: actions/checkout@v3
         with:
@@ -37,6 +37,8 @@ jobs:
           cmake --install . --config relwithdebinfo
 #      - name: Setup tmate session
 #        uses: mxschmitt/action-tmate@v3
+      - name: Show TBB information
+        run: dpkg -L libtbb-dev
       - name: Install InertialFlowCutter
         run: |
           cd ./InertialFlowCutter
