@@ -1,24 +1,31 @@
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::{create_dir_all, remove_dir_all, remove_file, File};
 use std::io::{BufRead, BufReader, Write};
 use std::process::Command;
+use std::sync::Arc;
 
 use rust_road_router::datastr::graph::{EdgeId, NodeId, Weight};
 
 use crate::io::network::{IOLink, IONetwork, IONode};
+use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::parallel_simulation::network::routing_kit_network::RoutingKitNetwork;
 
 pub struct NetworkConverter {}
 
 impl NetworkConverter {
     pub fn convert_xml_network(matsim_network_path: &str) -> RoutingKitNetwork {
-        NetworkConverter::convert_io_network(IONetwork::from_file(matsim_network_path))
+        NetworkConverter::convert_io_network(IONetwork::from_file(matsim_network_path), None)
     }
 
-    pub fn convert_io_network(mut matsim_network: IONetwork) -> RoutingKitNetwork {
+    pub fn convert_io_network(
+        mut matsim_network: IONetwork,
+        id_mappings: Option<&MatsimIdMappings>,
+    ) -> RoutingKitNetwork {
         let mut first_out: Vec<EdgeId> = Vec::new();
         let mut head: Vec<NodeId> = Vec::new();
         let mut travel_time: Vec<Weight> = Vec::new();
+        let mut link_ids: Vec<usize> = Vec::new();
         let mut latitude: Vec<f32> = Vec::new();
         let mut longitude: Vec<f32> = Vec::new();
 
@@ -51,6 +58,16 @@ impl NetworkConverter {
             for link in links {
                 head.push(NetworkConverter::get_node_index(&matsim_network, &link.to) as NodeId);
                 travel_time.push((link.length / link.freespeed) as Weight);
+
+                if id_mappings.is_some() {
+                    link_ids.push(
+                        *id_mappings
+                            .unwrap()
+                            .links
+                            .get_internal(link.id.as_str())
+                            .unwrap(),
+                    );
+                }
             }
         }
         first_out.push(head.len() as EdgeId);
@@ -59,6 +76,7 @@ impl NetworkConverter {
             first_out,
             head,
             travel_time,
+            link_ids,
             latitude,
             longitude,
         }
@@ -97,6 +115,7 @@ mod test {
         assert_eq!(network.first_out, vec![0, 0, 2, 4, 6]);
         assert_eq!(network.head, vec![2, 3, 2, 3, 1, 2]);
         assert_eq!(network.travel_time, vec![1, 2, 1, 4, 2, 5]);
+        assert_eq!(network.link_ids, vec!["1", "2", "3", "4", "5", "6"]);
         // we don't check latitude and longitude so far
     }
 }

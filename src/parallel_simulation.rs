@@ -6,10 +6,10 @@ use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::node::ExitReason;
 use crate::parallel_simulation::routing::router::Router;
-use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::splittable_population::NetworkRoute;
 use crate::parallel_simulation::splittable_population::PlanElement;
 use crate::parallel_simulation::splittable_population::Route;
+use crate::parallel_simulation::splittable_population::{Agent, Leg};
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
@@ -80,14 +80,13 @@ impl Simulation {
             self.scenario.network.neighbors(),
         );
 
-        // TODO make path to InertialFlowCutter configurable
-
         let mut router: Option<Router> = None;
+        //TODO: if cch construction is in if clause it does not live long enough
+        let cch = Router::perform_preprocessing(
+            &self.scenario.network.routing_kit_network,
+            self.get_temp_output_folder().as_str(),
+        );
         if self.adhoc_routing {
-            let cch = Router::perform_preprocessing(
-                &self.scenario.network.routing_kit_network,
-                self.get_temp_output_folder().as_str(),
-            );
             router = Some(Router::new(
                 &cch,
                 &self.scenario.network.routing_kit_network,
@@ -118,7 +117,7 @@ impl Simulation {
                 );
             }
 
-            self.wakeup(now);
+            self.wakeup(now, &mut router);
             self.teleportation_arrivals(now);
             self.move_nodes(now);
             self.send(now);
@@ -130,12 +129,46 @@ impl Simulation {
         info!("Partition #{} finished.", self.scenario.msg_broker.id,);
     }
 
-    fn wakeup(&mut self, now: u32) {
+    fn wakeup(&mut self, now: u32, router: &mut Option<Router>) {
         let agents_2_link = self.activity_q.wakeup(now);
 
         for id in agents_2_link {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
             self.events.handle_act_end(now, &agent);
+
+            if router.is_some() {
+                let end_activity = match agent.plan.elements.get(agent.current_element).unwrap() {
+                    PlanElement::Activity(a) => a,
+                    PlanElement::Leg(_) => todo!(),
+                };
+
+                let new_activity = match agent.plan.elements.get(agent.current_element + 1).unwrap()
+                {
+                    PlanElement::Activity(a) => a,
+                    PlanElement::Leg(_) => todo!(),
+                };
+
+                let query_result = router.as_mut().unwrap().query_coordinates(
+                    end_activity.x,
+                    end_activity.y,
+                    new_activity.x,
+                    new_activity.y,
+                );
+
+                let leg = PlanElement::Leg(Leg {
+                    mode: "car".to_string(),
+                    dep_time: end_activity.end_time,
+                    trav_time: query_result.travel_time,
+                    route: Route::NetworkRoute(NetworkRoute {
+                        vehicle_id: 0, //TODO is a counter feasible?
+                        route: query_result.path.expect("There is no route!"),
+                    }),
+                });
+
+                agent.plan.elements.insert(agent.current_element + 1, leg);
+            }
+
+            //here, current element counter is going to be increased
             agent.advance_plan();
             self.events.handle_departure(now, agent);
 

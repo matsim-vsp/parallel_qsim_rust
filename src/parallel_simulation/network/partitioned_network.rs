@@ -42,7 +42,7 @@ impl Network {
     {
         let mut result = MutNetwork::new(
             num_part,
-            NetworkConverter::convert_io_network(io_network.clone()),
+            NetworkConverter::convert_io_network(io_network.clone(), Some(id_mappings)),
         );
 
         for node in io_network.nodes() {

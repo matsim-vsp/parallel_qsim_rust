@@ -6,6 +6,7 @@ pub struct RoutingKitNetwork {
     pub(crate) first_out: Vec<EdgeId>,
     pub(crate) head: Vec<NodeId>,
     pub(crate) travel_time: Vec<Weight>,
+    pub(crate) link_ids: Vec<usize>,
     pub(crate) latitude: Vec<f32>,
     pub(crate) longitude: Vec<f32>,
 }
@@ -16,6 +17,7 @@ impl RoutingKitNetwork {
             first_out: Vec::new(),
             head: Vec::new(),
             travel_time: Vec::new(),
+            link_ids: Vec::new(),
             latitude: Vec::new(),
             longitude: Vec::new(),
         }
