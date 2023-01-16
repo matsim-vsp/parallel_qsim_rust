@@ -1,14 +1,7 @@
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::fs::{create_dir_all, remove_dir_all, remove_file, File};
-use std::io::{BufRead, BufReader, Write};
-use std::process::Command;
-use std::sync::Arc;
-
 use rust_road_router::datastr::graph::{EdgeId, NodeId, Weight};
 
 use crate::io::network::{IOLink, IONetwork, IONode};
-use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
+use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::network::routing_kit_network::RoutingKitNetwork;
 
 pub struct NetworkConverter {}

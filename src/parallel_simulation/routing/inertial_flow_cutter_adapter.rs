@@ -100,6 +100,7 @@ impl InertialFlowCutterAdapter<'_> {
     }
 
     fn clean_temp_directory(&self, file: &str, save_ordering_to_file: bool) {
+        debug!("Cleaning temp output directory.");
         if !save_ordering_to_file {
             remove_dir_all(self.output_folder).expect("Could not delete whole output directory.");
         } else {
@@ -167,9 +168,10 @@ impl InertialFlowCutterAdapter<'_> {
 mod test {
     use crate::parallel_simulation::routing::inertial_flow_cutter_adapter::InertialFlowCutterAdapter;
     use crate::parallel_simulation::routing::network_converter::NetworkConverter;
+    use serial_test::serial;
 
-    #[ignore]
     #[test]
+    #[serial]
     fn test_node_ordering() {
         // This seems to be more like an integration test which needs some steps to be done in advance
         // i.e. installation of InertialFlowCutter library and the required dependencies.
@@ -186,6 +188,7 @@ mod test {
     }
 
     #[test]
+    #[serial]
     fn test_serialization() {
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");

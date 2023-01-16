@@ -1,8 +1,7 @@
 use crate::parallel_simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::parallel_simulation::routing::inertial_flow_cutter_adapter::InertialFlowCutterAdapter;
-use crate::parallel_simulation::routing::network_converter::NetworkConverter;
+use geo::EuclideanDistance;
 use geo::Point;
-use geo::{Closest, EuclideanDistance};
 use rust_road_router::algo::customizable_contraction_hierarchy::query::{
     PathServerWrapper, Server,
 };
@@ -116,7 +115,7 @@ impl<'router> Router<'router> {
     }
 }
 
-fn get_edge_path(path: Vec<NodeId>, network: RoutingKitNetwork) -> Vec<usize> {
+pub(self) fn get_edge_path(path: Vec<NodeId>, network: RoutingKitNetwork) -> Vec<usize> {
     let mut res = Vec::new();
     let mut last_node: Option<usize> = None;
     for node in path {
@@ -138,22 +137,22 @@ fn get_edge_path(path: Vec<NodeId>, network: RoutingKitNetwork) -> Vec<usize> {
     res
 }
 
-fn find_edge_id_of_outgoing(
+pub(self) fn find_edge_id_of_outgoing(
     first_out_index: usize,
     last_out_index: usize,
     next_node: NodeId,
     network: &RoutingKitNetwork,
 ) -> usize {
+    //TODO this is marked as unnecessary comparison - why?
     assert!(last_out_index - first_out_index >= 0, "No outgoing edges!");
-    let mut result = 0;
+    let mut result = None;
     for i in first_out_index..=last_out_index {
         if *network.head.get(i).unwrap() == next_node {
-            result = network.link_ids.get(i).unwrap().clone();
+            result = Some(network.link_ids.get(i).unwrap().clone());
             break;
         }
-        panic!("No outgoing edge found!");
     }
-    result
+    result.expect("No outgoing edge found!")
 }
 
 pub struct CustomQueryResult {
@@ -166,10 +165,11 @@ mod test {
     use std::fmt::Debug;
     use std::time::Instant;
 
+    use serial_test::serial;
+
     use crate::parallel_simulation::routing::network_converter::NetworkConverter;
-    use crate::parallel_simulation::routing::router::Router;
-    use log::info;
-    use rand::seq::{IteratorRandom, SliceRandom};
+    use crate::parallel_simulation::routing::router::{get_edge_path, Router};
+    use rand::seq::IteratorRandom;
     use rust_road_router::algo::a_star::BiDirZeroPot;
     use rust_road_router::algo::customizable_contraction_hierarchy::{customize, CCH};
     use rust_road_router::algo::dijkstra::query::bidirectional_dijkstra::Server as BidServer;
@@ -233,6 +233,48 @@ mod test {
     }
 
     #[test]
+    #[serial]
+    fn test_find_nearest_node() {
+        //nodes will be sorted by network converter by there ids
+        let network =
+            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
+        let cch = Router::perform_preprocessing(&network, "./output/");
+        let router = Router::new(&cch, &network);
+
+        //(17500,0) is in the middle of 0 and 1
+        assert_eq!(0, router.find_nearest_node(-20000., 0.));
+        assert_eq!(0, router.find_nearest_node(-17501., 0.));
+        assert_eq!(0, router.find_nearest_node(-17500., 0.));
+        assert_eq!(0, router.find_nearest_node(-10000000., 0.));
+
+        assert_eq!(1, router.find_nearest_node(-15000., 0.));
+        assert_eq!(1, router.find_nearest_node(-17499., 0.));
+
+        //(-1681.5, 5128) is in the middle of 2 and 3
+        assert_eq!(2, router.find_nearest_node(-865., 5925.));
+        assert_eq!(2, router.find_nearest_node(-1680., 5128.));
+
+        assert_eq!(3, router.find_nearest_node(-2498., 4331.));
+        assert_eq!(3, router.find_nearest_node(-1682., 5128.));
+    }
+
+    #[test]
+    #[serial]
+    fn test_get_edge_path() {
+        let mut network =
+            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
+        network.link_ids = vec![0, 1, 2, 3, 4, 5];
+
+        assert_eq!(get_edge_path(vec![1, 2, 3], network.clone()), vec![0, 3]);
+        assert_eq!(get_edge_path(vec![1, 3, 2], network.clone()), vec![1, 5]);
+        assert_eq!(
+            get_edge_path(vec![1, 2, 3, 1, 2, 3], network.clone()),
+            vec![0, 3, 4, 0, 3]
+        );
+    }
+
+    #[test]
+    #[serial]
     fn test_simple_cch_with_router_and_update() {
         //does only work locally
         let network =
@@ -258,22 +300,9 @@ mod test {
         test_query_result(new_result, 5, vec![3, 2]);
     }
 
-    fn test_query_result<P: PathServer>(
-        mut result: QueryResult<P, u32>,
-        distance: u32,
-        expected_path: Vec<u32>,
-    ) where
-        <P as PathServer>::NodeInfo: Debug,
-        <P as PathServer>::NodeInfo: PartialEq<u32>,
-    {
-        assert_eq!(result.distance().unwrap(), distance);
-        let result_path = result.node_path().unwrap();
-        println!("Got path {:#?}", result_path);
-        assert_eq!(result_path, expected_path);
-    }
-
     #[ignore]
     #[test]
+    #[serial]
     fn compare_cch_and_dijkstra() {
         let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
@@ -349,5 +378,19 @@ mod test {
             assert_eq!(cch, dijkstra, "Distances not equal for index {}.", counter);
             counter += 1;
         }
+    }
+
+    fn test_query_result<P: PathServer>(
+        mut result: QueryResult<P, u32>,
+        distance: u32,
+        expected_path: Vec<u32>,
+    ) where
+        <P as PathServer>::NodeInfo: Debug,
+        <P as PathServer>::NodeInfo: PartialEq<u32>,
+    {
+        assert_eq!(result.distance().unwrap(), distance);
+        let result_path = result.node_path().unwrap();
+        println!("Got path {:#?}", result_path);
+        assert_eq!(result_path, expected_path);
     }
 }
