@@ -6,6 +6,7 @@ use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::Simulation;
 use log::info;
+use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::Path;
 use std::thread;
@@ -47,6 +48,11 @@ pub fn run(config: Config) {
 
     // print closing tag in events file.
     events.finish();
+
+    if config.adhoc_routing {
+        remove_dir_all(config.output_dir + "/routing")
+            .expect("Couldn't remove temporary routing folder.");
+    }
 
     info!("All simulation threads have finished. Waiting for events writer thread and logger thread to finish as well.")
 }

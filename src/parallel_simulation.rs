@@ -13,6 +13,7 @@ use crate::parallel_simulation::splittable_population::{Agent, Leg};
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
+use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
 
 mod agent_q;
 pub mod events;
@@ -81,12 +82,12 @@ impl Simulation {
         );
 
         let mut router: Option<Router> = None;
-        //TODO: if cch construction is in if clause it does not live long enough
-        let cch = Router::perform_preprocessing(
-            &self.scenario.network.routing_kit_network,
-            self.get_temp_output_folder().as_str(),
-        );
+        let cch: CCH;
         if self.adhoc_routing {
+            cch = Router::perform_preprocessing(
+                &self.scenario.network.routing_kit_network,
+                self.get_temp_output_folder().as_str(),
+            );
             router = Some(Router::new(
                 &cch,
                 &self.scenario.network.routing_kit_network,
