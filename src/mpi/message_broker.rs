@@ -5,8 +5,8 @@ use mpi::Rank;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
 pub trait MessageBroker {
-    fn send(&mut self, now: u32);
-    fn receive(&mut self, now: u32);
+    fn send(&mut self);
+    fn receive(&mut self) -> Vec<Vehicle>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
 }
 pub struct MpiMessageBroker {
@@ -19,7 +19,7 @@ pub struct MpiMessageBroker {
 }
 
 impl MessageBroker for MpiMessageBroker {
-    fn send(&mut self, now: u32) {
+    fn send(&mut self) {
         let capacity = self.out_messages.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
@@ -32,7 +32,7 @@ impl MessageBroker for MpiMessageBroker {
         }
     }
 
-    fn receive(&mut self, now: u32) -> Vec<Vehicle> {
+    fn receive(&mut self) -> Vec<Vehicle> {
         let mut expected_messages = self.neighbors.clone();
         let mut received_messages = Vec::new();
 
