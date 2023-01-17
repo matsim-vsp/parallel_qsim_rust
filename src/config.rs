@@ -87,8 +87,9 @@ impl ConfigBuilder {
         self
     }
 
-    pub fn set_adhoc_routing(mut self, routing_mode: RoutingMode) {
+    pub fn set_adhoc_routing(mut self, routing_mode: RoutingMode) -> Self {
         self.routing_mode = Some(routing_mode);
+        self
     }
 
     pub fn output_dir(mut self, dir: String) -> Self {

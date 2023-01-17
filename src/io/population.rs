@@ -83,12 +83,12 @@ pub struct IOPopulation {
 
 impl IOPopulation {
     pub fn from_file(file_path: &str) -> IOPopulation {
-        let popoulation: IOPopulation = xml_reader::read(file_path);
+        let population: IOPopulation = xml_reader::read(file_path);
         info!(
             "IOPopulation: Finished reading population. Population contains {} persons",
-            popoulation.persons.len()
+            population.persons.len()
         );
-        popoulation
+        population
     }
 
     pub fn empty() -> IOPopulation {
