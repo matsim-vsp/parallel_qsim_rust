@@ -6,6 +6,7 @@ use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::io::matsim_id::MatsimId;
 use crate::parallel_simulation::network::partitioned_network::Network;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 #[derive(Debug)]
 pub struct Population {
@@ -23,11 +24,11 @@ impl Population {
         self.agents.insert(agent.id, agent);
     }
 
-    pub fn split_from_container(
+    pub fn split_from_container<V: Debug>(
         container: &IOPopulation,
         size: usize,
         id_mappings: &MatsimIdMappings,
-        network: &Network,
+        network: &Network<V>,
     ) -> Vec<Population> {
         let mut populations: Vec<Population> = Vec::with_capacity(size);
 
@@ -277,7 +278,7 @@ impl NetworkRoute {
     }
 }
 
-fn  parse_time_opt(value: &Option<String>) -> Option<u32> {
+fn parse_time_opt(value: &Option<String>) -> Option<u32> {
     match value {
         None => None,
         Some(value) => Some(parse_time(value)),

@@ -25,7 +25,7 @@ pub mod splittable_scenario;
 mod vehicles;
 
 pub struct Simulation {
-    scenario: ScenarioPartition,
+    scenario: ScenarioPartition<Vehicle>,
     activity_q: AgentQ,
     teleportation_q: AgentQ,
     events: Events,
@@ -34,7 +34,7 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    fn new(config: &Config, scenario: ScenarioPartition, events: Events) -> Simulation {
+    fn new(config: &Config, scenario: ScenarioPartition<Vehicle>, events: Events) -> Self {
         let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -52,9 +52,9 @@ impl Simulation {
 
     pub fn create_simulation_partitions(
         config: &Config,
-        scenario: Scenario,
+        scenario: Scenario<Vehicle>,
         events: Events,
-    ) -> Vec<Simulation> {
+    ) -> Vec<Self> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
@@ -232,7 +232,7 @@ impl Simulation {
     }
 
     fn push_onto_network(
-        network: &mut NetworkPartition,
+        network: &mut NetworkPartition<Vehicle>,
         events: &mut Events,
         route: &NetworkRoute,
         route_index: usize,
@@ -259,7 +259,7 @@ impl Simulation {
         events: &mut Events,
         now: u32,
         vehicle: Vehicle,
-        local_link: &mut LocalLink,
+        local_link: &mut LocalLink<Vehicle>,
     ) -> Option<Vehicle> {
         if vehicle.route_index == 0 {
             events.handle_person_enters_vehicle(now, vehicle.driver_id, &vehicle)

@@ -1,6 +1,8 @@
 use crate::config::Config;
 use crate::io::network::IONetwork;
 use crate::io::population::IOPopulation;
+use crate::mpi::message_broker::MpiMessageBroker;
+use crate::mpi::messages::proto::Vehicle;
 use crate::mpi::population::Population;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::network::partitioned_network::Network;
@@ -8,7 +10,6 @@ use crate::parallel_simulation::partition_info::PartitionInfo;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
-use crate::mpi::message_broker::MpiMessageBroker;
 
 pub fn run(world: SystemCommunicator, config: Config) {
     let rank = world.rank();
@@ -18,7 +19,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let io_population = IOPopulation::from_file(config.population_file.as_ref());
     let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
     let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, size as usize);
-    let network = Network::from_io(
+    let network: Network<Vehicle> = Network::from_io(
         &io_network,
         size as usize,
         config.sample_size,

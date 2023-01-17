@@ -7,18 +7,19 @@ use crate::mpi::time_queue::TimeQueue;
 use crate::parallel_simulation::network::link::Link;
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use log::info;
+use std::fmt::Debug;
 
 pub struct Simulation {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
-    network: NetworkPartition,
+    network: NetworkPartition<Vehicle>,
     message_broker: MpiMessageBroker,
 }
 
 impl Simulation {
     fn new(
         config: &Config,
-        network: NetworkPartition,
+        network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
     ) -> Self {
@@ -86,8 +87,8 @@ impl Simulation {
         let link = self.network.links.get_mut(&link_id).unwrap();
 
         match link {
-            Link::LocalLink(link) => link.push_vehicle(vehicle, now), // TODO this is the wrong vehicle
-            Link::SplitInLink(in_link) => in_link.local_link_mut().push_vehicle(vehicle, now), // TODO wrong veh type
+            Link::LocalLink(link) => link.push_vehicle(vehicle, now),
+            Link::SplitInLink(in_link) => in_link.local_link_mut().push_vehicle(vehicle, now),
             Link::SplitOutLink(_) => {
                 panic!("Vehicles should not start on out links...")
             }

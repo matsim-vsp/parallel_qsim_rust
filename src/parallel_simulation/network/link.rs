@@ -1,36 +1,36 @@
 use crate::io::network::IOLink;
 use crate::parallel_simulation::network::flowcap::Flowcap;
-use crate::parallel_simulation::vehicles::Vehicle;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 
 #[derive(Debug)]
-pub enum Link {
-    LocalLink(LocalLink),
-    SplitInLink(SplitInLink),
+pub enum Link<V: Debug> {
+    LocalLink(LocalLink<V>),
+    SplitInLink(SplitInLink<V>),
     SplitOutLink(SplitOutLink),
 }
 
 #[derive(Debug)]
-pub struct LocalLink {
+pub struct LocalLink<V: Debug> {
     id: usize,
-    q: VecDeque<Vehicle>,
+    q: VecDeque<VehicleQEntry<V>>,
     length: f32,
     freespeed: f32,
     flowcap: Flowcap,
 }
 
-impl LocalLink {
-    pub fn from_io_link(id: usize, link: &IOLink, sample_size: f32) -> LocalLink {
+#[derive(Debug)]
+struct VehicleQEntry<V> {
+    vehicle: V,
+    earliest_exit_time: u32,
+}
+
+impl<V: Debug> LocalLink<V> {
+    pub fn from_io_link(id: usize, link: &IOLink, sample_size: f32) -> Self {
         LocalLink::new(id, link.capacity, link.freespeed, link.length, sample_size)
     }
 
-    pub fn new(
-        id: usize,
-        capacity_h: f32,
-        freespeed: f32,
-        length: f32,
-        sample_size: f32,
-    ) -> LocalLink {
+    pub fn new(id: usize, capacity_h: f32, freespeed: f32, length: f32, sample_size: f32) -> Self {
         LocalLink {
             id,
             q: VecDeque::new(),
@@ -40,23 +40,25 @@ impl LocalLink {
         }
     }
 
-    pub fn push_vehicle(&mut self, mut vehicle: Vehicle, now: u32) {
-        let exit_time = now + (self.length / self.freespeed) as u32;
-        vehicle.exit_time = exit_time;
-        self.q.push_back(vehicle);
+    pub fn push_vehicle(&mut self, mut vehicle: V, now: u32) {
+        let earliest_exit_time = now + (self.length / self.freespeed) as u32;
+        self.q.push_back(VehicleQEntry {
+            vehicle,
+            earliest_exit_time,
+        });
     }
 
-    pub fn pop_front(&mut self, now: u32) -> Vec<Vehicle> {
+    pub fn pop_front(&mut self, now: u32) -> Vec<V> {
         self.flowcap.update_capacity(now);
 
         let mut popped_veh = Vec::new();
 
-        while let Some(vehicle) = self.q.front() {
-            if vehicle.exit_time > now || !self.flowcap.has_capacity() {
+        while let Some(entry) = self.q.front() {
+            if entry.earliest_exit_time > now || !self.flowcap.has_capacity() {
                 break;
             }
 
-            let vehicle = self.q.pop_front().unwrap();
+            let vehicle = self.q.pop_front().unwrap().vehicle;
             self.flowcap.consume_capacity(1.0);
             popped_veh.push(vehicle);
         }
@@ -89,13 +91,13 @@ impl SplitOutLink {
 }
 
 #[derive(Debug)]
-pub struct SplitInLink {
+pub struct SplitInLink<V: Debug> {
     from_part: usize,
-    local_link: LocalLink,
+    local_link: LocalLink<V>,
 }
 
-impl SplitInLink {
-    pub fn new(from_part: usize, local_link: LocalLink) -> SplitInLink {
+impl<V: Debug> SplitInLink<V> {
+    pub fn new(from_part: usize, local_link: LocalLink<V>) -> Self {
         SplitInLink {
             from_part,
             local_link,
@@ -106,7 +108,7 @@ impl SplitInLink {
         self.from_part
     }
 
-    pub fn local_link_mut(&mut self) -> &mut LocalLink {
+    pub fn local_link_mut(&mut self) -> &mut LocalLink<V> {
         &mut self.local_link
     }
 }

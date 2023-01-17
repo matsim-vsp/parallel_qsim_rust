@@ -3,6 +3,7 @@ use crate::mpi::messages::proto::Agent;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::parallel_simulation::network::partitioned_network::Network;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 pub struct Population {
     pub agents: HashMap<usize, Agent>,
@@ -15,11 +16,11 @@ impl Population {
         }
     }
 
-    pub fn from_io(
+    pub fn from_io<V: Debug>(
         io_population: &IOPopulation,
         id_mappings: &MatsimIdMappings,
         partition: usize,
-        network: &Network,
+        network: &Network<V>,
     ) -> Population {
         let mut result = Population::new();
 
