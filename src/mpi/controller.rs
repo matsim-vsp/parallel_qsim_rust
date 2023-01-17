@@ -1,10 +1,10 @@
 use crate::config::Config;
 use crate::io::network::IONetwork;
 use crate::io::population::IOPopulation;
+use crate::mpi::population::Population;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::network::partitioned_network::Network;
 use crate::parallel_simulation::partition_info::PartitionInfo;
-use crate::parallel_simulation::splittable_population::Population;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
@@ -26,9 +26,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     );
     let network_partition = network.partitions.get(rank as usize).unwrap();
 
-    let populations =
-        Population::split_from_container(&io_population, size as usize, &id_mappings, &network);
-    let population = populations.get(rank as usize).unwrap();
+    let population = Population::from_io(&io_population, &id_mappings, rank as usize, &network);
 
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",

@@ -19,14 +19,20 @@ message VehicleMessage {
 
 message Vehicle {
   uint64 id = 1;
-  uint32 cur_route_elem = 2;
-  Agent agent = 3;
+  uint32 curr_route_elem = 2;
+  VehicleType type = 3;
+  Agent agent = 4;
   // this must be extended once more people use one vehicle
+}
+
+enum VehicleType {
+  TELEPORTED = 0;
+  NETWORK = 1;
 }
 
 message Agent {
   uint64 id = 1;
-  uint32 current_element = 2;
+  uint32 curr_plan_elem = 2;
   Plan plan = 3;
 }
 

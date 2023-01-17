@@ -277,7 +277,7 @@ impl NetworkRoute {
     }
 }
 
-fn parse_time_opt(value: &Option<String>) -> Option<u32> {
+fn  parse_time_opt(value: &Option<String>) -> Option<u32> {
     match value {
         None => None,
         Some(value) => Some(parse_time(value)),
