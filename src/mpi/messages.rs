@@ -5,6 +5,7 @@ use crate::mpi::messages::proto::{
     Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan, Vehicle,
     VehicleMessage, VehicleType,
 };
+use crate::mpi::time_queue::EndTime;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use prost::Message;
 use std::cmp::Ordering;
@@ -36,7 +37,7 @@ impl ExperimentalMessage {
 }
 
 impl VehicleMessage {
-    pub fn new(time: u32, from: usize, to: usize) -> VehicleMessage {
+    pub fn new(time: u32, from: u32, to: u32) -> VehicleMessage {
         VehicleMessage {
             time,
             from_process: from as u32,
@@ -75,9 +76,9 @@ impl Ord for VehicleMessage {
 }
 
 impl Vehicle {
-    pub fn new(id: usize, veh_type: VehicleType, agent: Agent) -> Vehicle {
+    pub fn new(id: u64, veh_type: VehicleType, agent: Agent) -> Vehicle {
         Vehicle {
-            id: id as u64,
+            id,
             agent: Some(agent),
             curr_route_elem: 0,
             r#type: veh_type as i32,
@@ -102,6 +103,12 @@ impl Vehicle {
 
     fn agent(&self) -> &Agent {
         self.agent.as_ref().unwrap()
+    }
+}
+
+impl EndTime for Vehicle {
+    fn end_time(&self, now: u32) -> u32 {
+        self.agent().end_time(now)
     }
 }
 
@@ -161,6 +168,22 @@ impl Agent {
     }
 }
 
+impl EndTime for Agent {
+    fn end_time(&self, now: u32) -> u32 {
+        return if self.curr_plan_elem % 2 == 0 {
+            self.curr_act().cmp_end_time(now)
+        } else {
+            let route = self.curr_leg().route.as_ref().unwrap();
+            match route {
+                Route::GenericRoute(gen_route) => now + gen_route.trav_time,
+                Route::NetworkRoute(_) => {
+                    panic!("End time not supported for network route")
+                }
+            }
+        };
+    }
+}
+
 impl Plan {
     fn new() -> Plan {
         Plan {
@@ -205,6 +228,17 @@ impl Activity {
             start_time: parse_time_opt(&io_act.start_time),
             end_time: parse_time_opt(&io_act.end_time),
             max_dur: parse_time_opt(&io_act.max_dur),
+        }
+    }
+
+    fn cmp_end_time(&self, now: u32) -> u32 {
+        if let Some(end_time) = self.end_time {
+            end_time
+        } else if let Some(max_dur) = self.max_dur {
+            now + max_dur
+        } else {
+            // supposed to be an equivalent for OptionalTime.undefined() in the java code
+            u32::MAX
         }
     }
 }

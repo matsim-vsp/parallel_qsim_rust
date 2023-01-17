@@ -8,6 +8,7 @@ use crate::parallel_simulation::partition_info::PartitionInfo;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
+use crate::mpi::message_broker::MpiMessageBroker;
 
 pub fn run(world: SystemCommunicator, config: Config) {
     let rank = world.rank();
@@ -35,6 +36,9 @@ pub fn run(world: SystemCommunicator, config: Config) {
         population.agents.len()
     );
 
+    let neighbors = network_partition.neighbors();
+    let link_id_mapping = network.links_2_partition;
+    let message_broker = MpiMessageBroker::new(world, rank, neighbors, link_id_mapping.clone());
     //Here we should initialize a simulation
     // Simulation::new(config, network, population, message_broker, events);
 
