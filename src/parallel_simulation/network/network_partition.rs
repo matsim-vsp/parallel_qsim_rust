@@ -92,11 +92,12 @@ impl<V: Debug> NetworkPartition<V> {
 mod tests {
     use crate::io::network::IOLink;
     use crate::parallel_simulation::network::network_partition::NetworkPartition;
+    use crate::parallel_simulation::vehicles::Vehicle;
 
     /// create a partition with one node which has multiple in and out links
     #[test]
     fn neighbors() {
-        let mut network_part = NetworkPartition::new();
+        let mut network_part: NetworkPartition<Vehicle> = NetworkPartition::new();
         let node_id = 1;
         let io_link = IOLink::default();
         network_part.add_node(node_id);

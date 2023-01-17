@@ -32,7 +32,7 @@ impl NodeVehicle for Vehicle {
         self.route_index += 1;
     }
 
-    fn curr_link_id(&self) -> Option<&usize> {
-        self.route.get(self.route_index)
+    fn curr_link_id(&self) -> Option<usize> {
+        self.route.get(self.route_index).map(|id| *id)
     }
 }

@@ -1,5 +1,5 @@
 use crate::mpi::messages::proto::{Vehicle, VehicleMessage};
-use crate::parallel_simulation::id_mapping::MatsimIdMapping;
+use crate::parallel_simulation::network::node::NodeVehicle;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
@@ -89,7 +89,7 @@ impl MpiMessageBroker {
             .process_at_rank(message.to_process as Rank)
             .send(&buffer);
     }
-    
+
     pub fn rank_for_link(&self, link_id: u64) -> u64 {
         *self.link_id_mapping.get(&(link_id as usize)).unwrap() as u64
     }

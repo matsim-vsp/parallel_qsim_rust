@@ -121,6 +121,7 @@ mod tests {
     use crate::io::population::IOPopulation;
     use crate::parallel_simulation::id_mapping::MatsimIdMappings;
     use crate::parallel_simulation::network::link::Link;
+    use crate::parallel_simulation::vehicles::Vehicle;
     use std::collections::HashSet;
 
     /// This splits the network into 2 parts
@@ -137,7 +138,7 @@ mod tests {
             "node2" => 0,
             _ => 1,
         };
-        let network = Network::from_io(&io_network, 2, 1.0, split, &id_mappings);
+        let network: Network<Vehicle> = Network::from_io(&io_network, 2, 1.0, split, &id_mappings);
         assert_eq!(2, network.partitions.len());
 
         let partition1 = network.partitions.get(0).unwrap();
@@ -203,7 +204,7 @@ mod tests {
             "node4" => 2, // right
             _ => 1,       // center
         };
-        let network = Network::from_io(&io_network, 3, 1.0, split, &id_mappings);
+        let network: Network<Vehicle> = Network::from_io(&io_network, 3, 1.0, split, &id_mappings);
 
         assert_eq!(3, network.partitions.len());
 

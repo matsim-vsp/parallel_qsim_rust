@@ -132,7 +132,7 @@ impl MessageBroker {
 
     pub fn prepare_routed(&mut self, agent: Agent, vehicle: Vehicle) {
         let link_id = vehicle.curr_link_id().unwrap();
-        let partition = *self.link_id_mapping.get(link_id).unwrap();
+        let partition = *self.link_id_mapping.get(&link_id).unwrap();
         let message = self
             .out_messages
             .entry(partition)

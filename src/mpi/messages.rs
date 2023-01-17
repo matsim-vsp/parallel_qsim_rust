@@ -7,6 +7,7 @@ use crate::mpi::messages::proto::{
 };
 use crate::mpi::time_queue::EndTime;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
+use crate::parallel_simulation::network::node::NodeVehicle;
 use prost::Message;
 use std::cmp::Ordering;
 use std::io::Cursor;
@@ -85,11 +86,21 @@ impl Vehicle {
         }
     }
 
-    pub fn advance_route(&mut self) {
+    fn agent(&self) -> &Agent {
+        self.agent.as_ref().unwrap()
+    }
+}
+
+impl NodeVehicle for Vehicle {
+    fn id(&self) -> usize {
+        self.id as usize
+    }
+
+    fn advance_route_index(&mut self) {
         self.curr_route_elem += 1;
     }
 
-    pub fn curr_link_id(&self) -> Option<usize> {
+    fn curr_link_id(&self) -> Option<usize> {
         let leg = self.agent().curr_leg();
         let route = leg.route.as_ref().unwrap();
         match route {
@@ -99,10 +110,6 @@ impl Vehicle {
                 route.route.get(index).map(|id| *id as usize)
             }
         }
-    }
-
-    fn agent(&self) -> &Agent {
-        self.agent.as_ref().unwrap()
     }
 }
 

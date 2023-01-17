@@ -159,8 +159,7 @@ impl Simulation {
 
     fn move_nodes(&mut self, now: u32) {
         for node in self.scenario.network.nodes.values() {
-            let exited_vehicles =
-                node.move_vehicles(&mut self.scenario.network.links, now, &mut self.events);
+            let exited_vehicles = node.move_vehicles(&mut self.scenario.network.links, now); // &mut self.events);
 
             for exit_reason in exited_vehicles {
                 match exit_reason {

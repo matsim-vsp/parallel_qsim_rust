@@ -6,8 +6,8 @@ use crate::mpi::population::Population;
 use crate::mpi::time_queue::TimeQueue;
 use crate::parallel_simulation::network::link::Link;
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
+use crate::parallel_simulation::network::node::{ExitReason, NodeVehicle};
 use log::info;
-use std::fmt::Debug;
 
 pub struct Simulation {
     activity_q: TimeQueue<Agent>,
@@ -17,7 +17,7 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    fn new(
+    pub fn new(
         config: &Config,
         network: NetworkPartition<Vehicle>,
         population: Population,
@@ -47,7 +47,7 @@ impl Simulation {
 
         while now <= end_time {
             self.wakeup(now);
-            self.teleport(now);
+            self.terminate_teleportation(now);
             self.move_nodes(now);
             self.send(now);
             //self.events.flush();
@@ -95,17 +95,51 @@ impl Simulation {
         }
     }
 
-    fn teleport(&self, now: u32) {
-        todo!()
+    fn terminate_teleportation(&mut self, now: u32) {
+        let teleportation_vehicles = self.teleportation_q.pop(now);
+        for vehicle in teleportation_vehicles {
+            // handle travelled
+            let mut agent = vehicle.agent.unwrap();
+            agent.advance_plan();
+            self.activity_q.add(agent, now);
+        }
     }
-    fn move_nodes(&self, now: u32) {
-        todo!()
+    fn move_nodes(&mut self, now: u32) {
+        for node in self.network.nodes.values() {
+            let exited_vehicles = node.move_vehicles(&mut self.network.links, now);
+
+            for exit_reason in exited_vehicles {
+                match exit_reason {
+                    ExitReason::FinishRoute(vehicle) => {
+                        let mut agent = vehicle.agent.unwrap();
+                        // person leaves vehicle event
+                        // arrival event
+                        agent.advance_plan();
+                        // act start event
+                        self.activity_q.add(agent, now);
+                    }
+                    ExitReason::ReachedBoundary(vehicle) => {
+                        self.message_broker.add_veh(vehicle, now);
+                    }
+                }
+            }
+        }
     }
-    fn send(&self, now: u32) {
-        todo!()
+    fn send(&mut self, now: u32) {
+        self.message_broker.send(now);
     }
-    fn receive(&self, now: u32) {
-        todo!()
+    fn receive(&mut self, now: u32) {
+        let vehicles = self.message_broker.receive();
+        for vehicle in vehicles {
+            match vehicle.r#type() {
+                VehicleType::Teleported => {
+                    self.teleportation_q.add(vehicle, now);
+                }
+                VehicleType::Network => {
+                    self.veh_onto_network(vehicle, now);
+                }
+            }
+        }
     }
 
     fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {

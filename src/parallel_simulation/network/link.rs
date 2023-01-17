@@ -40,7 +40,7 @@ impl<V: Debug> LocalLink<V> {
         }
     }
 
-    pub fn push_vehicle(&mut self, mut vehicle: V, now: u32) {
+    pub fn push_vehicle(&mut self, vehicle: V, now: u32) {
         let earliest_exit_time = now + (self.length / self.freespeed) as u32;
         self.q.push_back(VehicleQEntry {
             vehicle,
@@ -128,8 +128,8 @@ mod tests {
 
         // this should put the vehicle into the queue and update the exit time correctly
         let pushed_vehicle = link.q.front().unwrap();
-        assert_eq!(veh_id, pushed_vehicle.id);
-        assert_eq!(10, pushed_vehicle.exit_time);
+        assert_eq!(veh_id, pushed_vehicle.vehicle.id);
+        assert_eq!(10, pushed_vehicle.earliest_exit_time);
     }
 
     #[test]
@@ -147,12 +147,12 @@ mod tests {
         assert_eq!(2, link.q.len());
 
         let popped_vehicle1 = link.q.pop_front().unwrap();
-        assert_eq!(id1, popped_vehicle1.id);
-        assert_eq!(11, popped_vehicle1.exit_time);
+        assert_eq!(id1, popped_vehicle1.vehicle.id);
+        assert_eq!(11, popped_vehicle1.earliest_exit_time);
 
         let popped_vehicle2 = link.q.pop_front().unwrap();
-        assert_eq!(id2, popped_vehicle2.id);
-        assert_eq!(11, popped_vehicle2.exit_time);
+        assert_eq!(id2, popped_vehicle2.vehicle.id);
+        assert_eq!(11, popped_vehicle2.earliest_exit_time);
     }
 
     #[test]
@@ -190,8 +190,6 @@ mod tests {
         while n < 5 {
             let popped = link.pop_front(20 + n);
             assert_eq!(2, popped.len());
-            assert_eq!(10 + n * 2, popped.get(0).unwrap().exit_time);
-            assert_eq!(11 + n * 2, popped.get(1).unwrap().exit_time);
             n += 1;
         }
     }

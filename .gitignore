@@ -3,3 +3,4 @@
 *.iml
 .idea/
 /test_output/
+/assets/routing_tests/*
