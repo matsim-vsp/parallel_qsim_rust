@@ -27,11 +27,11 @@ message GenericEvent {
 message ActivityStartEvent {
   uint64 person = 1;
   uint64 link = 2;
-  uint64 actType = 3;
+  string actType = 3;
 }
 
 message ActivityEndEvent {
   uint64 person = 1;
   uint64 link = 2;
-  uint64 actType = 3;
+  string actType = 3;
 }
