@@ -4,3 +4,4 @@ pub mod messages;
 mod population;
 mod simulation;
 mod time_queue;
+mod events;

@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package mpi.events;
+
+message Events {
+
+}
+
+message TimeStep {
+  uint32 time = 1;
+  bytes data = 2;
+}
+
+message Event {
+  oneof type {
+    GenericEvent generic = 1;
+    ActivityStartEvent actStart = 2;
+    ActivityEndEvent actEnd = 3;
+  }
+}
+
+message GenericEvent {
+  string type = 1;
+  map<string, string> attrs = 2;
+}
+
+message ActivityStartEvent {
+  uint64 person = 1;
+  uint64 link = 2;
+  uint64 actType = 3;
+}
+
+message ActivityEndEvent {
+  uint64 person = 1;
+  uint64 link = 2;
+  uint64 actType = 3;
+}
