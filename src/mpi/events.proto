@@ -24,6 +24,8 @@ message GenericEvent {
   map<string, string> attrs = 2;
 }
 
+// Having the actType as string will generate a lot of owned short lived strings for events handling
+// Maybe with quick-protobuf we could do something else.
 message ActivityStartEvent {
   uint64 person = 1;
   uint64 link = 2;
