@@ -1,5 +1,6 @@
 use crate::mpi::messages::proto::{Vehicle, VehicleMessage};
 use crate::parallel_simulation::network::node::NodeVehicle;
+use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
@@ -31,6 +32,9 @@ impl MessageBroker for MpiMessageBroker {
             let message = messages
                 .remove(&neighbor_rank)
                 .unwrap_or_else(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
+            if message.vehicles.len() > 0 {
+                info!("#{} sends {message:?}", self.rank);
+            }
             self.send_msg(message);
         }
         for (_partition, message) in messages {
@@ -48,6 +52,10 @@ impl MessageBroker for MpiMessageBroker {
             let from_rank = msg.from_process as usize;
             expected_messages.remove(&from_rank);
             received_messages.push(msg);
+        }
+
+        if received_messages.iter().any(|msg| msg.vehicles.len() > 0) {
+            info!("#{} Received: {received_messages:?}", self.rank);
         }
 
         received_messages
