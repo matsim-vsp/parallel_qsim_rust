@@ -1,6 +1,8 @@
 use crate::config::Config;
 use crate::io::network::IONetwork;
 use crate::io::population::IOPopulation;
+use crate::io::proto_events::ProtoEventsWriter;
+use crate::mpi::events::{EventsLogger, EventsPublisher};
 use crate::mpi::message_broker::MpiMessageBroker;
 use crate::mpi::messages::proto::Vehicle;
 use crate::mpi::population::Population;
@@ -11,10 +13,17 @@ use crate::parallel_simulation::partition_info::PartitionInfo;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
+use std::fs;
+use std::path::PathBuf;
 
 pub fn run(world: SystemCommunicator, config: Config) {
     let rank = world.rank();
     let size = world.size();
+
+    info!("Process #{rank} of {size}");
+
+    let output_path = PathBuf::from(&config.output_dir);
+    fs::create_dir_all(&output_path).expect("Failed to create output path");
 
     let io_network = IONetwork::from_file(config.network_file.as_ref());
     let io_population = IOPopulation::from_file(config.population_file.as_ref());
@@ -28,21 +37,41 @@ pub fn run(world: SystemCommunicator, config: Config) {
         &id_mappings,
     );
 
+    // write network with new ids to output
+    {
+        let out_network =
+            io_network.clone_with_internal_ids(&network, &id_mappings.links, &id_mappings.nodes);
+        out_network.to_file(&output_path.join("output_network.xml.gz"));
+    }
     let population = Population::from_io(&io_population, &id_mappings, rank as usize, &network);
     let network_partition = network.partitions.remove(rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
-        network_partition.links.len(),
         network_partition.nodes.len(),
+        network_partition.links.len(),
         population.agents.len()
     );
+
+    //info!("Partition #{rank} {network_partition:#?}");
 
     let neighbors = network_partition.neighbors();
     let link_id_mapping = network.links_2_partition;
 
     let message_broker = MpiMessageBroker::new(world, rank, neighbors, link_id_mapping);
+    let mut events = EventsPublisher::new();
 
-    let mut simulation = Simulation::new(&config, network_partition, population, message_broker);
+    let events_file = format!("events.{rank}.pbf");
+    let events_path = output_path.join(events_file);
+    events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    events.add_subscriber(Box::new(EventsLogger {}));
+
+    let mut simulation = Simulation::new(
+        &config,
+        network_partition,
+        population,
+        message_broker,
+        events,
+    );
     simulation.run(config.start_time, config.end_time);
 
     info!("Process #{rank} at barrier.");

@@ -1,4 +1,6 @@
 use crate::config::Config;
+use crate::mpi::events::proto::Event;
+use crate::mpi::events::EventsPublisher;
 use crate::mpi::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::mpi::messages::proto::leg::Route;
 use crate::mpi::messages::proto::{Agent, GenericRoute, Vehicle, VehicleType};
@@ -14,6 +16,7 @@ pub struct Simulation {
     teleportation_q: TimeQueue<Vehicle>,
     network: NetworkPartition<Vehicle>,
     message_broker: MpiMessageBroker,
+    events: EventsPublisher,
 }
 
 impl Simulation {
@@ -22,6 +25,7 @@ impl Simulation {
         network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
+        events: EventsPublisher,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -33,6 +37,7 @@ impl Simulation {
             teleportation_q: TimeQueue::new(),
             activity_q,
             message_broker,
+            events,
         }
     }
 
@@ -40,7 +45,7 @@ impl Simulation {
         // use fixed start and end times
         let mut now = start_time;
         info!(
-            "Starting #{}. Network neighbors: {:?}",
+            "Starting #{}. Network neighbors: {:?}, Start time {start_time}, End time {end_time}",
             self.message_broker.rank,
             self.network.neighbors(),
         );
@@ -54,14 +59,24 @@ impl Simulation {
             self.receive(now);
             now += 1;
         }
+
+        // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
+        self.events.finish();
     }
     fn wakeup(&mut self, now: u32) {
         let agents = self.activity_q.pop(now);
         for mut agent in agents {
-            // ACTEND EVENT here
+            self.events.publish_event(
+                now,
+                &Event::new_act_end(
+                    agent.id,
+                    agent.curr_act().link_id,
+                    agent.curr_act().act_type.clone(),
+                ),
+            );
             agent.advance_plan();
             //DEPARTURE EVENT here
-            assert!(agent.curr_plan_elem % 2 != 0);
+            assert_ne!(agent.curr_plan_elem % 2, 0);
 
             let leg = agent.curr_leg();
             match leg.route.as_ref().unwrap() {
@@ -75,6 +90,10 @@ impl Simulation {
                     }
                 }
                 Route::NetworkRoute(route) => {
+                    self.events.publish_event(
+                        now,
+                        &Event::new_person_enters_veh(agent.id, route.vehicle_id),
+                    );
                     let veh = Vehicle::new(route.vehicle_id, VehicleType::Network, agent);
                     self.veh_onto_network(veh, now);
                 }
@@ -106,16 +125,30 @@ impl Simulation {
     }
     fn move_nodes(&mut self, now: u32) {
         for node in self.network.nodes.values() {
-            let exited_vehicles = node.move_vehicles(&mut self.network.links, now);
+            let exited_vehicles =
+                node.move_vehicles(&mut self.network.links, now, &mut self.events);
 
+            if exited_vehicles.len() > 0 {
+                info!("Time: {now}, Exited vehicles: {}", exited_vehicles.len());
+            }
             for exit_reason in exited_vehicles {
                 match exit_reason {
                     ExitReason::FinishRoute(vehicle) => {
                         let mut agent = vehicle.agent.unwrap();
-                        // person leaves vehicle event
+                        self.events.publish_event(
+                            now,
+                            &Event::new_person_leaves_veh(agent.id, vehicle.id),
+                        );
                         // arrival event
                         agent.advance_plan();
-                        // act start event
+                        self.events.publish_event(
+                            now,
+                            &Event::new_act_start(
+                                agent.id,
+                                agent.curr_act().link_id,
+                                agent.curr_act().act_type.clone(),
+                            ),
+                        );
                         self.activity_q.add(agent, now);
                     }
                     ExitReason::ReachedBoundary(vehicle) => {

@@ -77,6 +77,14 @@ impl PartitionInfo {
         id_mappings: &MatsimIdMappings,
         num_parts: usize,
     ) -> PartitionInfo {
+        if num_parts == 1 {
+            info!("PartitionInfo: 'num_parts' is 1. No partitioning necessary. Put all nodes into partition 0.");
+            return PartitionInfo {
+                partition_result: vec![0; io_network.nodes().len()],
+                node_id_mapping: id_mappings.nodes.clone(),
+            };
+        }
+
         let mut partition_nodes: Vec<PartitionNode> = io_network
             .nodes()
             .iter()

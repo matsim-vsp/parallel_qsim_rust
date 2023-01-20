@@ -1,3 +1,5 @@
+use crate::mpi::events::proto::Event;
+use crate::mpi::events::EventsPublisher;
 use crate::parallel_simulation::network::link::Link;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -41,7 +43,7 @@ impl Node {
         &self,
         links: &mut HashMap<usize, Link<V>>,
         now: u32,
-        //events: &mut Events,
+        events: &mut EventsPublisher,
     ) -> Vec<ExitReason<V>> {
         let mut exited_vehicles = Vec::new();
 
@@ -53,7 +55,10 @@ impl Node {
             };
 
             for mut vehicle in vehicles {
-                //events.handle_vehicle_leaves_link(now, *in_link_index, vehicle.id());
+                events.publish_event(
+                    now,
+                    &Event::new_link_leave(*in_link_index as u64, vehicle.id() as u64),
+                );
                 vehicle.advance_route_index();
                 match vehicle.curr_link_id() {
                     None => exited_vehicles.push(ExitReason::FinishRoute(vehicle)),
@@ -64,7 +69,7 @@ impl Node {
                             vehicle,
                             &mut exited_vehicles,
                             now,
-                            //events,
+                            events,
                         );
                     }
                 }
@@ -80,11 +85,14 @@ impl Node {
         vehicle: V,
         exited_vehicles: &mut Vec<ExitReason<V>>,
         now: u32,
-        //events: &mut Events,
+        events: &mut EventsPublisher,
     ) {
         match links.get_mut(&out_link_id).unwrap() {
             Link::LocalLink(local_link) => {
-                //events.handle_vehicle_enters_link(now, local_link.id(), vehicle.id());
+                events.publish_event(
+                    now,
+                    &Event::new_link_enter(local_link.id() as u64, vehicle.id() as u64),
+                );
                 local_link.push_vehicle(vehicle, now);
             }
             Link::SplitOutLink(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
@@ -102,6 +110,7 @@ mod tests {
     use crate::parallel_simulation::network::node::{ExitReason, Node};
     use crate::parallel_simulation::vehicles::Vehicle;
     use std::collections::HashMap;
+    use crate::mpi::events::EventsPublisher;
 
     #[test]
     fn init() {
@@ -121,9 +130,9 @@ mod tests {
         node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link)]);
-        //let mut events = Events::new_silent();
+        let mut events = EventsPublisher::new();
 
-        let exited_vehicles = node.move_vehicles(&mut links, 1); //&mut events);
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
 
         assert_eq!(1, exited_vehicles.len());
         let entry = exited_vehicles.get(0).unwrap();
@@ -142,9 +151,9 @@ mod tests {
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
         let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link), (2, out_link)]);
-        let mut events = Events::new_silent();
+        let mut events = EventsPublisher::new();
 
-        let exited_vehicles = node.move_vehicles(&mut links, 1); //, &mut events);
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
 
         assert_eq!(0, exited_vehicles.len());
         let out_link_ref = links.get_mut(&2).unwrap();
@@ -166,9 +175,9 @@ mod tests {
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::SplitOutLink(split_out_link);
         let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link), (2, out_link)]);
-        let mut events = Events::new_silent();
+        let mut events = EventsPublisher::new();
 
-        let exited_vehicles = node.move_vehicles(&mut links, 1); //, &mut events);
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
 
         assert_eq!(1, exited_vehicles.len());
         assert!(matches!(
@@ -188,9 +197,9 @@ mod tests {
         node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link)]);
-        let mut events = Events::new_silent();
+        let mut events = EventsPublisher::new();
 
-        let exited_vehicles = node.move_vehicles(&mut links, 1); //, &mut events);
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
 
         assert_eq!(1, exited_vehicles.len());
         let entry = exited_vehicles.get(0).unwrap();
@@ -199,7 +208,7 @@ mod tests {
             assert_eq!(1, vehicle.id);
         }
 
-        let exited_vehicles = node.move_vehicles(&mut links, 2); //, &mut events);
+        let exited_vehicles = node.move_vehicles(&mut links, 2, &mut events);
 
         assert_eq!(1, exited_vehicles.len());
         let entry = exited_vehicles.get(0).unwrap();
@@ -223,9 +232,9 @@ mod tests {
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
         let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link), (2, out_link)]);
-        let mut events = Events::new_silent();
+        let mut events = EventsPublisher::new();
 
-        let exited_vehicles = node.move_vehicles(&mut links, 1); //, &mut events);
+        let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
         assert_eq!(0, exited_vehicles.len());
 
         let out_link_ref = links.get_mut(&2).unwrap();

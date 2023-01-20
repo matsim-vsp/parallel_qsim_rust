@@ -1,5 +1,11 @@
-use crate::mpi::events::proto::event::Type::{ActEnd, ActStart, Generic};
-use crate::mpi::events::proto::{ActivityEndEvent, ActivityStartEvent, Event, GenericEvent};
+use crate::mpi::events::proto::event::Type::{
+    ActEnd, ActStart, Generic, LinkEnter, LinkLeave, PersonEntersVeh, PersonLeavesVeh,
+};
+use crate::mpi::events::proto::{
+    ActivityEndEvent, ActivityStartEvent, Event, GenericEvent, LinkEnterEvent, LinkLeaveEvent,
+    PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
+};
+use log::info;
 use std::collections::HashMap;
 
 // Include the `events` module, which is generated from events.proto.
@@ -11,6 +17,14 @@ pub trait EventsSubscriber {
     fn receive_event(&mut self, time: u32, event: &Event);
 
     fn finish(&mut self) {}
+}
+
+pub struct EventsLogger {}
+
+impl EventsSubscriber for EventsLogger {
+    fn receive_event(&mut self, time: u32, event: &Event) {
+        info!("{time}: {event:?}");
+    }
 }
 
 pub struct EventsPublisher {
@@ -73,6 +87,36 @@ impl Event {
                 person,
                 link,
                 act_type,
+            })),
+        }
+    }
+
+    pub fn new_link_enter(link: u64, vehicle: u64) -> Event {
+        Event {
+            r#type: Some(LinkEnter(LinkEnterEvent { link, vehicle })),
+        }
+    }
+
+    pub fn new_link_leave(link: u64, vehicle: u64) -> Event {
+        Event {
+            r#type: Some(LinkLeave(LinkLeaveEvent { link, vehicle })),
+        }
+    }
+
+    pub fn new_person_enters_veh(person: u64, vehicle: u64) -> Event {
+        Event {
+            r#type: Some(PersonEntersVeh(PersonEntersVehicleEvent {
+                person,
+                vehicle,
+            })),
+        }
+    }
+
+    pub fn new_person_leaves_veh(person: u64, vehicle: u64) -> Event {
+        Event {
+            r#type: Some(PersonLeavesVeh(PersonLeavesVehicleEvent {
+                person,
+                vehicle,
             })),
         }
     }

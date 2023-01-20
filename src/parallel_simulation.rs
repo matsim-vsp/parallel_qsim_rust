@@ -4,7 +4,6 @@ use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
-use crate::parallel_simulation::network::node::ExitReason;
 use crate::parallel_simulation::splittable_population::Agent;
 use crate::parallel_simulation::splittable_population::NetworkRoute;
 use crate::parallel_simulation::splittable_population::PlanElement;
@@ -157,9 +156,12 @@ impl Simulation {
         }
     }
 
-    fn move_nodes(&mut self, now: u32) {
-        for node in self.scenario.network.nodes.values() {
-            let exited_vehicles = node.move_vehicles(&mut self.scenario.network.links, now); // &mut self.events);
+    fn move_nodes(&mut self, _now: u32) {
+        panic!("This doesn't do anything at the moment. EventsManager/EventsPublisher must be fixed first.");
+        /*
+        for _node in self.scenario.network.nodes.values() {
+
+            let exited_vehicles: Vec<ExitReason<Vehicle>> = Vec::new(); //node.move_vehicles(&mut self.scenario.network.links, now, &mut self.events);
 
             for exit_reason in exited_vehicles {
                 match exit_reason {
@@ -191,6 +193,8 @@ impl Simulation {
                 }
             }
         }
+
+         */
     }
 
     fn send(&mut self, now: u32) {

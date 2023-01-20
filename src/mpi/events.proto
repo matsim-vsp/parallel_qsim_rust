@@ -12,6 +12,10 @@ message Event {
     GenericEvent generic = 1;
     ActivityStartEvent actStart = 2;
     ActivityEndEvent actEnd = 3;
+    LinkEnterEvent linkEnter = 4;
+    LinkLeaveEvent linkLeave = 5;
+    PersonEntersVehicleEvent personEntersVeh = 6;
+    PersonLeavesVehicleEvent personLeavesVeh = 7;
   }
 }
 
@@ -32,4 +36,24 @@ message ActivityEndEvent {
   uint64 person = 1;
   uint64 link = 2;
   string actType = 3;
+}
+
+message LinkEnterEvent {
+  uint64 link = 1;
+  uint64 vehicle = 2;
+}
+
+message LinkLeaveEvent {
+  uint64 link = 1;
+  uint64 vehicle = 2;
+}
+
+message PersonEntersVehicleEvent {
+  uint64 person = 1;
+  uint64 vehicle = 2;
+}
+
+message PersonLeavesVehicleEvent {
+  uint64 person = 1;
+  uint64 vehicle = 2;
 }

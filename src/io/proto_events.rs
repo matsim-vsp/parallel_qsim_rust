@@ -5,17 +5,17 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
 use std::path::Path;
 
-struct EventsWriter {
+pub struct ProtoEventsWriter {
     encoded_events: Vec<u8>,
     curr_time_step: u32,
     writer: BufWriter<File>,
 }
 
-impl EventsWriter {
-    fn new(path: &Path) -> Self {
+impl ProtoEventsWriter {
+    pub fn new(path: &Path) -> Self {
         let file = File::create(path).unwrap();
         let writer = BufWriter::new(file);
-        EventsWriter {
+        ProtoEventsWriter {
             curr_time_step: 0,
             encoded_events: Vec::new(),
             writer,
@@ -47,7 +47,7 @@ impl EventsWriter {
     }
 }
 
-impl EventsSubscriber for EventsWriter {
+impl EventsSubscriber for ProtoEventsWriter {
     fn receive_event(&mut self, time: u32, event: &Event) {
         self.update_time_step(time);
 
@@ -64,12 +64,12 @@ impl EventsSubscriber for EventsWriter {
     }
 }
 
-struct EventsReader<R: Read + Seek> {
+pub struct EventsReader<R: Read + Seek> {
     reader: BufReader<R>,
 }
 
 impl<R: Read + Seek> EventsReader<R> {
-    fn new(reader: R) -> Self {
+    pub fn new(reader: R) -> Self {
         EventsReader {
             reader: BufReader::new(reader),
         }
@@ -148,7 +148,7 @@ impl<R: Read + Seek> Iterator for EventsReader<R> {
 }
 
 impl EventsReader<File> {
-    fn from_file(path: &Path) -> Self {
+    pub fn from_file(path: &Path) -> Self {
         let file = File::open(path).unwrap();
         Self::new(file)
     }
@@ -156,7 +156,7 @@ impl EventsReader<File> {
 
 #[cfg(test)]
 mod tests {
-    use crate::io::proto_events::{EventsReader, EventsWriter};
+    use crate::io::proto_events::{EventsReader, ProtoEventsWriter};
     use crate::mpi::events::proto::event::Type;
     use crate::mpi::events::proto::Event;
     use crate::mpi::events::EventsSubscriber;
@@ -168,7 +168,7 @@ mod tests {
     fn write_read_single() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_single/events.pbf");
-        let mut writer = EventsWriter::new(&path);
+        let mut writer = ProtoEventsWriter::new(&path);
         let event = Event::new_generic(
             "some-event-type",
             HashMap::from([(String::from("attr1"), String::from("value1"))]),
@@ -188,7 +188,7 @@ mod tests {
     fn write_read_multiple() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_multiple/events.pbf");
-        let mut writer = EventsWriter::new(&path);
+        let mut writer = ProtoEventsWriter::new(&path);
         let issued_events = vec![
             Event::new_generic(
                 "some-event-type",
@@ -220,7 +220,7 @@ mod tests {
             "./test_output/io/proto_events/write_read_multiple_time_steps/events.pbf",
         );
 
-        let mut writer = EventsWriter::new(&path);
+        let mut writer = ProtoEventsWriter::new(&path);
         let issued_events = vec![
             Event::new_generic(
                 "some-event-type",
@@ -291,6 +291,7 @@ mod tests {
                     panic!("wrong type");
                 }
             }
+            _ => panic!("Not yet implemented."),
         }
     }
 }
