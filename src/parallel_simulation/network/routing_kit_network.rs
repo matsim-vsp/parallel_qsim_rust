@@ -22,13 +22,4 @@ impl RoutingKitNetwork {
             longitude: Vec::new(),
         }
     }
-    pub fn first_out(&self) -> &Vec<EdgeId> {
-        &self.first_out
-    }
-    pub fn head(&self) -> &Vec<NodeId> {
-        &self.head
-    }
-    pub fn travel_time(&self) -> &Vec<Weight> {
-        &self.travel_time
-    }
 }

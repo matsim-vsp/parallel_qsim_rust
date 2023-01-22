@@ -91,7 +91,6 @@ impl NetworkPartition {
 mod tests {
     use crate::io::network::IOLink;
     use crate::parallel_simulation::network::network_partition::NetworkPartition;
-    use crate::parallel_simulation::network::routing_kit_network::RoutingKitNetwork;
 
     /// create a partition with one node which has multiple in and out links
     #[test]

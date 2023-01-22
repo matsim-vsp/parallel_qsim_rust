@@ -86,9 +86,9 @@ impl<'router> Router<'router> {
     // creates a copy of RoutingKitNetwork
     pub(crate) fn create_owned_graph(routing_kit_network: &RoutingKitNetwork) -> OwnedGraph {
         OwnedGraph::new(
-            routing_kit_network.first_out().to_owned(),
-            routing_kit_network.head().to_owned(),
-            routing_kit_network.travel_time().to_owned(),
+            routing_kit_network.first_out.to_owned(),
+            routing_kit_network.head.to_owned(),
+            routing_kit_network.travel_time.to_owned(),
         )
     }
 
@@ -287,8 +287,8 @@ mod test {
         println!("Assign new travel time to edge 1-2: 4");
 
         let new_owned_graph = OwnedGraph::new(
-            network.first_out().to_owned(),
-            network.head().to_owned(),
+            network.first_out.to_owned(),
+            network.head.to_owned(),
             vec![4, 2, 1, 4, 2, 5],
         );
         router.customize(&cch, &new_owned_graph);
