@@ -1,9 +1,11 @@
 use crate::event_test_utils::run_simulation_and_compare_events;
 use rust_q_sim::config::{Config, RoutingMode};
+use serial_test::serial;
 
 mod event_test_utils;
 
 #[test]
+#[serial]
 fn three_link_network() {
     let config = Config::builder()
         .network_file(String::from("./assets/3-links/3-links-network.xml"))
@@ -17,6 +19,7 @@ fn three_link_network() {
 }
 
 #[test]
+#[serial]
 fn three_link_network_adhoc_routing() {
     let config = Config::builder()
         .network_file(String::from("./assets/3-links/3-links-network.xml"))
