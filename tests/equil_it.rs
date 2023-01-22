@@ -29,7 +29,10 @@ fn get_config(num_parts: usize) -> Config {
     Config::builder()
         .network_file(String::from("./assets/equil/equil-network.xml"))
         .population_file(String::from("./assets/equil/equil-plans.xml.gz"))
-        .output_dir(String::from("./test_output/controller_it/equil_scenario"))
+        .output_dir(format!(
+            "./test_output/controller_it/equil_scenario/{}parts",
+            num_parts
+        ))
         .num_parts(num_parts)
         .start_time(0)
         .end_time(86400)
