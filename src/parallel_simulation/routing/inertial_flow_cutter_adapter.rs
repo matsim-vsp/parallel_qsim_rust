@@ -168,11 +168,9 @@ impl InertialFlowCutterAdapter<'_> {
 mod test {
     use crate::parallel_simulation::routing::inertial_flow_cutter_adapter::InertialFlowCutterAdapter;
     use crate::parallel_simulation::routing::network_converter::NetworkConverter;
-    use serial_test::serial;
     use std::env;
 
     #[test]
-    #[serial]
     fn test_node_ordering() {
         let inertial_flow_cutter_path = env::var("INERTIAL_FLOW_CUTTER_HOME_DIRECTORY")
             .expect("The environment variable 'INERTIAL_FLOW_CUTTER_HOME_DIRECTORY' is not set.");
@@ -182,7 +180,7 @@ mod test {
         let mut flow_cutter = InertialFlowCutterAdapter::new(
             &network,
             inertial_flow_cutter_path.as_str(),
-            "./output/",
+            "./test_output/routing/node_ordering/",
         );
 
         let ordering = flow_cutter.node_ordering(false);
@@ -191,7 +189,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_serialization() {
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");

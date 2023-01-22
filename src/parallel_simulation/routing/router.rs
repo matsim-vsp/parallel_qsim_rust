@@ -165,8 +165,6 @@ mod test {
     use std::fmt::Debug;
     use std::time::Instant;
 
-    use serial_test::serial;
-
     use crate::parallel_simulation::routing::network_converter::NetworkConverter;
     use crate::parallel_simulation::routing::router::{get_edge_path, Router};
     use rand::seq::IteratorRandom;
@@ -233,12 +231,11 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_find_nearest_node() {
         //nodes will be sorted by network converter by there ids
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
-        let cch = Router::perform_preprocessing(&network, "./output/");
+        let cch = Router::perform_preprocessing(&network, "./test_output/routing/nearest_node/");
         let router = Router::new(&cch, &network);
 
         //(17500,0) is in the middle of 0 and 1
@@ -259,7 +256,6 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_get_edge_path() {
         let mut network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
@@ -274,13 +270,13 @@ mod test {
     }
 
     #[test]
-    #[serial]
     fn test_simple_cch_with_router_and_update() {
         //does only work locally
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
 
-        let cch = Router::perform_preprocessing(&network, "./output/");
+        let cch =
+            Router::perform_preprocessing(&network, "./test_output/routing/simple_cch_update/");
         let mut router = Router::new(&cch, &network);
 
         let res12 = router.query(1, 2);
@@ -302,11 +298,10 @@ mod test {
 
     #[ignore]
     #[test]
-    #[serial]
     fn compare_cch_and_dijkstra() {
         let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
-        let cch = Router::perform_preprocessing(&network, "./output/");
+        let cch = Router::perform_preprocessing(&network, "./test_output/routing/performance/");
         let mut cch_router = Router::new(&cch, &network);
 
         let mut dijkstra_router =
