@@ -12,7 +12,8 @@ pub struct Network {
     pub links_2_partition: Arc<HashMap<usize, usize>>,
 }
 
-pub struct MutNetwork {
+// used for internal computation of Network
+struct MutNetwork {
     pub partitions: Vec<NetworkPartition>,
     pub nodes_2_partition: HashMap<usize, usize>,
     pub links_2_partition: HashMap<usize, usize>,

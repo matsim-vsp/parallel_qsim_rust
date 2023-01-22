@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -14,12 +14,19 @@ pub struct Config {
     pub network_file: String,
     #[arg(long)]
     pub population_file: String,
+    #[arg(long, value_enum)]
+    pub routing_mode: Option<RoutingMode>,
     #[arg(long, default_value = "./")]
     pub output_dir: String,
     #[arg(long, default_value = "file")]
     pub events_mode: String,
     #[arg(long, default_value_t = 1.0)]
     pub sample_size: f32,
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy)]
+pub enum RoutingMode {
+    AdHoc,
 }
 
 impl Config {
@@ -34,6 +41,7 @@ pub struct ConfigBuilder {
     num_parts: usize,
     network_file: String,
     population_file: String,
+    routing_mode: Option<RoutingMode>,
     output_dir: String,
     events_mode: String,
     sample_size: f32,
@@ -50,6 +58,7 @@ impl ConfigBuilder {
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,
+            routing_mode: None,
         }
     }
 
@@ -78,6 +87,10 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn set_adhoc_routing(mut self, routing_mode: RoutingMode) {
+        self.routing_mode = Some(routing_mode);
+    }
+
     pub fn output_dir(mut self, dir: String) -> Self {
         self.output_dir = dir;
         self
@@ -100,6 +113,7 @@ impl ConfigBuilder {
             num_parts: self.num_parts,
             network_file: self.network_file,
             population_file: self.population_file,
+            routing_mode: self.routing_mode,
             output_dir: self.output_dir,
             events_mode: self.events_mode,
             sample_size: self.sample_size,
