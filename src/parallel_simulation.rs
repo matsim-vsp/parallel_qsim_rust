@@ -5,6 +5,7 @@ use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::node::ExitReason;
+use crate::parallel_simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::parallel_simulation::routing::router::Router;
 use crate::parallel_simulation::splittable_population::NetworkRoute;
 use crate::parallel_simulation::splittable_population::PlanElement;
@@ -36,10 +37,16 @@ pub struct Simulation {
     end_time: u32,
     routing_mode: Option<RoutingMode>,
     output_dir: String,
+    routing_kit_network: RoutingKitNetwork,
 }
 
 impl Simulation {
-    fn new(config: &Config, scenario: ScenarioPartition, events: Events) -> Simulation {
+    fn new(
+        config: &Config,
+        scenario: ScenarioPartition,
+        events: Events,
+        routing_kit_network: RoutingKitNetwork,
+    ) -> Simulation {
         let mut q = AgentQ::new();
         for (_, agent) in scenario.population.agents.iter() {
             q.add(agent, 0);
@@ -54,6 +61,7 @@ impl Simulation {
             end_time: config.end_time,
             routing_mode: config.routing_mode,
             output_dir: config.output_dir.to_owned(),
+            routing_kit_network,
         }
     }
 
@@ -61,12 +69,20 @@ impl Simulation {
         config: &Config,
         scenario: Scenario,
         events: Events,
+        routing_kit_network: RoutingKitNetwork,
     ) -> Vec<Simulation> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
             // this clones the sender end of the writer but not the worker part.
-            .map(|partition| Simulation::new(config, partition, events.clone()))
+            .map(|partition| {
+                Simulation::new(
+                    config,
+                    partition,
+                    events.clone(),
+                    routing_kit_network.clone(),
+                )
+            })
             .collect();
 
         simulations
@@ -85,13 +101,10 @@ impl Simulation {
         let cch: CCH;
         if self.routing_mode == Some(RoutingMode::AdHoc) {
             cch = Router::perform_preprocessing(
-                &self.scenario.network.routing_kit_network,
+                &self.routing_kit_network,
                 self.get_temp_output_folder().as_str(),
             );
-            router = Some(Router::new(
-                &cch,
-                &self.scenario.network.routing_kit_network,
-            ));
+            router = Some(Router::new(&cch, &self.routing_kit_network));
         };
 
         // conceptually this should do the following in the main loop:
@@ -137,7 +150,7 @@ impl Simulation {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
             self.events.handle_act_end(now, &agent);
 
-            if router.is_some() {
+            if let Some(router) = router {
                 let end_activity = match agent.plan.elements.get(agent.current_element).unwrap() {
                     PlanElement::Activity(a) => a,
                     PlanElement::Leg(_) => todo!(),
@@ -149,7 +162,7 @@ impl Simulation {
                     PlanElement::Leg(_) => todo!(),
                 };
 
-                let query_result = router.as_mut().unwrap().query_coordinates(
+                let query_result = router.query_coordinates(
                     end_activity.x,
                     end_activity.y,
                     new_activity.x,

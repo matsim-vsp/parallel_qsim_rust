@@ -18,7 +18,7 @@ pub struct Scenario {
     pub scenarios: Vec<ScenarioPartition>,
 
     // the properties below are for bookkeeping of ids
-    id_mappings: MatsimIdMappings,
+    pub id_mappings: MatsimIdMappings,
     link_2_thread: Arc<HashMap<usize, usize>>,
     node_2_thread: Arc<HashMap<usize, usize>>,
 }

@@ -3,6 +3,7 @@ use crate::io::network::IONetwork;
 use crate::io::non_blocking_io::NonBlocking;
 use crate::io::population::IOPopulation;
 use crate::parallel_simulation::events::Events;
+use crate::parallel_simulation::routing::network_converter::NetworkConverter;
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::Simulation;
 use log::info;
@@ -28,7 +29,15 @@ pub fn run(config: Config) {
     let (events_writer, _guard) = NonBlocking::from_file(&out_events_path.to_str().unwrap());
     let mut events = Events::new(events_writer);
 
-    let simulations = Simulation::create_simulation_partitions(&config, scenario, events.clone());
+    let routing_kit_network =
+        NetworkConverter::convert_io_network(network, Some(&scenario.id_mappings));
+
+    let simulations = Simulation::create_simulation_partitions(
+        &config,
+        scenario,
+        events.clone(),
+        routing_kit_network,
+    );
     // do very basic timing
     let start = Instant::now();
     // create threads and start them
