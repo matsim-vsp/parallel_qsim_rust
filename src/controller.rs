@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, RoutingMode};
 use crate::io::network::IONetwork;
 use crate::io::non_blocking_io::NonBlocking;
 use crate::io::population::IOPopulation;
@@ -49,7 +49,7 @@ pub fn run(config: Config) {
     // print closing tag in events file.
     events.finish();
 
-    if config.adhoc_routing {
+    if config.routing_mode == Some(RoutingMode::AdHoc) {
         remove_dir_all(config.output_dir + "/routing")
             .expect("Couldn't remove temporary routing folder.");
     }

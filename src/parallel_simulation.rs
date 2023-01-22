@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, RoutingMode};
 use crate::parallel_simulation::agent_q::AgentQ;
 use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::messaging::MessageBroker;
@@ -34,7 +34,7 @@ pub struct Simulation {
     events: Events,
     start_time: u32,
     end_time: u32,
-    adhoc_routing: bool,
+    routing_mode: Option<RoutingMode>,
     output_dir: String,
 }
 
@@ -52,7 +52,7 @@ impl Simulation {
             events,
             start_time: config.start_time,
             end_time: config.end_time,
-            adhoc_routing: config.adhoc_routing,
+            routing_mode: config.routing_mode,
             output_dir: config.output_dir.to_owned(),
         }
     }
@@ -83,7 +83,7 @@ impl Simulation {
 
         let mut router: Option<Router> = None;
         let cch: CCH;
-        if self.adhoc_routing {
+        if self.routing_mode == Some(RoutingMode::AdHoc) {
             cch = Router::perform_preprocessing(
                 &self.scenario.network.routing_kit_network,
                 self.get_temp_output_folder().as_str(),
