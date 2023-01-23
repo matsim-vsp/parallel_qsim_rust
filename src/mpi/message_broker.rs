@@ -1,22 +1,22 @@
 use crate::mpi::messages::proto::{Vehicle, VehicleMessage};
 use crate::parallel_simulation::network::node::NodeVehicle;
-use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 
 pub trait MessageBroker {
     fn send(&mut self, now: u32);
-    fn receive(&mut self) -> Vec<Vehicle>;
+    fn receive(&mut self, now: u32) -> Vec<Vehicle>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
 }
 pub struct MpiMessageBroker {
     pub rank: Rank,
     communicator: SystemCommunicator,
-    neighbors: HashSet<usize>,
+    neighbors: HashSet<u32>,
     out_messages: HashMap<u32, VehicleMessage>,
+    in_messages: BinaryHeap<VehicleMessage>,
     link_id_mapping: Arc<HashMap<usize, usize>>,
 }
 
@@ -28,13 +28,10 @@ impl MessageBroker for MpiMessageBroker {
 
         // send required messages to neighbor partitions
         for partition in &self.neighbors {
-            let neighbor_rank = *partition as u32;
+            let neighbor_rank = *partition;
             let message = messages
                 .remove(&neighbor_rank)
                 .unwrap_or_else(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
-            if message.vehicles.len() > 0 {
-                info!("#{} sends {message:?}", self.rank);
-            }
             self.send_msg(message);
         }
         for (_partition, message) in messages {
@@ -42,21 +39,12 @@ impl MessageBroker for MpiMessageBroker {
         }
     }
 
-    fn receive(&mut self) -> Vec<Vehicle> {
+    fn receive(&mut self, now: u32) -> Vec<Vehicle> {
         let mut expected_messages = self.neighbors.clone();
         let mut received_messages = Vec::new();
 
-        while !expected_messages.is_empty() {
-            let (encoded_msg, _status) = self.communicator.any_process().receive_vec();
-            let msg = VehicleMessage::deserialize(&encoded_msg);
-            let from_rank = msg.from_process as usize;
-            expected_messages.remove(&from_rank);
-            received_messages.push(msg);
-        }
-
-        if received_messages.iter().any(|msg| msg.vehicles.len() > 0) {
-            info!("#{} Received: {received_messages:?}", self.rank);
-        }
+        self.pop_from_cache(&mut expected_messages, &mut received_messages, now);
+        self.receive_blocking(&mut expected_messages, &mut received_messages, now);
 
         received_messages
             .into_iter()
@@ -79,11 +67,12 @@ impl MpiMessageBroker {
     pub fn new(
         communicator: SystemCommunicator,
         rank: Rank,
-        neighbors: HashSet<usize>,
+        neighbors: HashSet<u32>,
         link_id_mapping: Arc<HashMap<usize, usize>>,
     ) -> Self {
         MpiMessageBroker {
             out_messages: HashMap::new(),
+            in_messages: BinaryHeap::new(),
             communicator,
             neighbors,
             rank,
@@ -92,6 +81,7 @@ impl MpiMessageBroker {
     }
 
     fn send_msg(&self, message: VehicleMessage) {
+        //info!("#{} sends: {message:?}", self.rank);
         let buffer = message.serialize();
         self.communicator
             .process_at_rank(message.to_process as Rank)
@@ -102,34 +92,40 @@ impl MpiMessageBroker {
         *self.link_id_mapping.get(&(link_id as usize)).unwrap() as u64
     }
 
-    /*
     fn pop_from_cache(
         &mut self,
         expected_messages: &mut HashSet<u32>,
         messages: &mut Vec<VehicleMessage>,
         now: u32,
     ) {
-        while let Some(veh_message) = self.in_messages_cache.peek() {
-            if veh_message.time <= now {
-                expected_messages.remove(&veh_message.from_process);
-                messages.push(self.in_messages_cache.pop().unwrap())
+        while let Some(msg) = self.in_messages.peek() {
+            if msg.time <= now {
+                //info!("#{} {now} from cache {msg:?}", self.rank);
+                expected_messages.remove(&msg.from_process);
+                messages.push(self.in_messages.pop().unwrap())
             } else {
-                break; // important! otherwise this is an infinte loop
+                break; // important! otherwise this is an infinite loop
             }
         }
     }
 
-    fn receive_blocking(&mut self, expected_messages: &mut HashSet<usize>) {
+    fn receive_blocking(
+        &mut self,
+        expected_messages: &mut HashSet<u32>,
+        received_message: &mut Vec<VehicleMessage>,
+        now: u32,
+    ) {
         while !expected_messages.is_empty() {
-            let (recv_encoded_msg, _status) = self.communicator.any_process().receive_vec::<u8>();
-            let recv_msg = VehicleMessage::deserialize(recv_encoded_msg);
-            self.in_messages_cache.push(recv_msg);
+            let (encoded_msg, _status) = self.communicator.any_process().receive_vec();
+            let msg = VehicleMessage::deserialize(&encoded_msg);
+            let from_rank = msg.from_process;
+
+            if msg.time == now {
+                expected_messages.remove(&from_rank);
+                received_message.push(msg);
+            } else {
+                self.in_messages.push(msg);
+            }
         }
     }
-
-    fn receive_non_blocking(&mut self) {
-        self.communicator.any_process().immediate_receive()
-    }
-
-     */
 }

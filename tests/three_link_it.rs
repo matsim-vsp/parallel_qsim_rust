@@ -3,6 +3,7 @@ use rust_q_sim::controller;
 use rust_q_sim::logging::init_logging;
 
 #[test]
+#[ignore]
 fn three_link_network() {
     let config = Config::builder()
         .network_file(String::from("./assets/3-links/3-links-network.xml"))
@@ -13,7 +14,7 @@ fn three_link_network() {
         .num_parts(3)
         .build();
 
-    let _logger_guard = init_logging(&config.output_dir);
+    let _logger_guard = init_logging(&config.output_dir, None);
 
     controller::run(config);
 

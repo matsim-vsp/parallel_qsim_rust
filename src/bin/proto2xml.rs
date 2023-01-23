@@ -16,6 +16,7 @@ impl<R: Read + Seek> StatefullReader<R> {
         match self.reader.next() {
             None => None,
             Some(time_step) => {
+                //println!("load_next {}: {time_step:?}", self.id);
                 self.curr_time_step = time_step;
                 Some(())
             }
@@ -26,12 +27,13 @@ impl<R: Read + Seek> StatefullReader<R> {
 fn main() {
     let args = InputArgs::parse();
 
-    println!("{args:?}");
+    println!("Proto2Xml with args: {args:?}");
 
     let mut readers = Vec::new();
+    println!("Reading from Files: ");
     for i in 0..args.num_parts {
         let file_string = format!("{}.{i}.pbf", args.path);
-        println!("{}", file_string);
+        println!("\t {}", file_string);
         let file_path = PathBuf::from(file_string);
         let reader = EventsReader::from_file(&file_path);
         let wrapper = StatefullReader {
@@ -45,21 +47,26 @@ fn main() {
     let mut publisher = EventsPublisher::new();
     publisher.add_subscriber(Box::new(XmlEventsWriter::new(&output_file_path)));
 
-    // assign any value to get over initial test
-    let mut readers_with_some = readers.len();
-
-    while readers_with_some > 0 {
+    while !readers.is_empty() {
         readers.sort_by(|a, b| a.curr_time_step.0.cmp(&b.curr_time_step.0));
 
         // get the reader with the smallest curr time step and process its events
         let reader = readers.first_mut().unwrap();
+        /* println!(
+            "Process Events of {}: {:?}",
+            reader.id, reader.curr_time_step
+        );
+
+        */
         process_events(
             reader.curr_time_step.0,
             &reader.curr_time_step.1,
             &mut publisher,
         );
         match reader.load_next() {
-            None => readers_with_some -= 1,
+            None => {
+                readers.remove(0);
+            }
             Some(_) => {}
         };
     }
@@ -68,7 +75,6 @@ fn main() {
 }
 
 fn process_events(time: u32, events: &Vec<Event>, publisher: &mut EventsPublisher) {
-    println!("Time: {time}");
     for event in events {
         publisher.publish_event(time, &event);
     }

@@ -149,7 +149,7 @@ impl<R: Read + Seek> Iterator for EventsReader<R> {
 
 impl EventsReader<File> {
     pub fn from_file(path: &Path) -> Self {
-        let file = File::open(path).unwrap();
+        let file = File::open(path).unwrap_or_else(|_e| panic!("Failed to open File at: {path:?}"));
         Self::new(file)
     }
 }

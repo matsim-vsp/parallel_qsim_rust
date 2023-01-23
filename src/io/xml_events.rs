@@ -1,6 +1,7 @@
 use crate::mpi::events::proto::event::Type;
 use crate::mpi::events::proto::Event;
 use crate::mpi::events::EventsSubscriber;
+use log::info;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -11,6 +12,7 @@ pub struct XmlEventsWriter {
 
 impl XmlEventsWriter {
     pub fn new(path: &Path) -> Self {
+        info!("Creating file: {path:?}");
         let file = File::create(path).expect("Failed to create File.");
         let mut writer = BufWriter::new(file);
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
@@ -73,7 +75,7 @@ impl EventsSubscriber for XmlEventsWriter {
     fn finish(&mut self) {
         let closing_tag = "</events>";
         self.write(closing_tag);
-        println!("XmlWriter Finishing.");
+        info!("Finishing Events File. Calling flush on Buffered Writer.");
         self.writer.flush().expect("Failed to flush events.");
     }
 }

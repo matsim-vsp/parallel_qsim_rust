@@ -105,12 +105,12 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use crate::parallel_simulation::events::Events;
+
+    use crate::mpi::events::EventsPublisher;
     use crate::parallel_simulation::network::link::{Link, LocalLink, SplitOutLink};
     use crate::parallel_simulation::network::node::{ExitReason, Node};
     use crate::parallel_simulation::vehicles::Vehicle;
     use std::collections::HashMap;
-    use crate::mpi::events::EventsPublisher;
 
     #[test]
     fn init() {

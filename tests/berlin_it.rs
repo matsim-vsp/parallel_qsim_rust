@@ -19,7 +19,7 @@ fn berlin_scenario() {
         .sample_size(0.1)
         .build();
 
-    let _logger_guard = init_logging(&config.output_dir);
+    let _logger_guard = init_logging(&config.output_dir, None);
 
     controller::run(config);
 }

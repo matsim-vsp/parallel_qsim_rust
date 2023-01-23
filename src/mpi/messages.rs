@@ -62,6 +62,7 @@ impl VehicleMessage {
     }
 }
 
+// Implementation for ordering, so that vehicle messages can be put into a message queue sorted by time
 impl PartialOrd for VehicleMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -200,7 +201,7 @@ impl Plan {
     }
 
     fn from_io(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
-        assert!(io_plan.elements.len() > 0);
+        assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
         }
@@ -214,7 +215,7 @@ impl Plan {
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => {
-                    let leg = Leg::from_io(io_leg, &id_mappings);
+                    let leg = Leg::from_io(io_leg, id_mappings);
                     result.legs.push(leg);
                 }
             }
@@ -313,17 +314,14 @@ impl NetworkRoute {
 }
 
 fn parse_time_opt(value: &Option<String>) -> Option<u32> {
-    match value {
-        None => None,
-        Some(value) => Some(parse_time(value)),
-    }
+    value.as_ref().map(|value| parse_time(value))
 }
 
 fn parse_time(value: &str) -> u32 {
     let split: Vec<&str> = value.split(':').collect();
     assert_eq!(3, split.len());
 
-    let hour: u32 = split.get(0).unwrap().parse().unwrap();
+    let hour: u32 = split.first().unwrap().parse().unwrap();
     let minutes: u32 = split.get(1).unwrap().parse().unwrap();
     let seconds: u32 = split.get(2).unwrap().parse().unwrap();
 

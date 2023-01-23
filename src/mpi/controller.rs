@@ -14,7 +14,9 @@ use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
 use std::fs;
+use std::ops::Sub;
 use std::path::PathBuf;
+use std::time::Instant;
 
 pub fn run(world: SystemCommunicator, config: Config) {
     let rank = world.rank();
@@ -37,8 +39,8 @@ pub fn run(world: SystemCommunicator, config: Config) {
         &id_mappings,
     );
 
-    // write network with new ids to output
-    {
+    // write network with new ids to output but only once.
+    if rank == 0 {
         let out_network =
             io_network.clone_with_internal_ids(&network, &id_mappings.links, &id_mappings.nodes);
         out_network.to_file(&output_path.join("output_network.xml.gz"));
@@ -54,7 +56,13 @@ pub fn run(world: SystemCommunicator, config: Config) {
 
     //info!("Partition #{rank} {network_partition:#?}");
 
-    let neighbors = network_partition.neighbors();
+    let neighbors = network_partition
+        .neighbors()
+        .iter()
+        // cast this here. change the api to not use usize all the time, since with mpi and protobuf
+        // we have to use u32 or u64.
+        .map(|u| *u as u32)
+        .collect();
     let link_id_mapping = network.links_2_partition;
 
     let message_broker = MpiMessageBroker::new(world, rank, neighbors, link_id_mapping);
@@ -72,9 +80,14 @@ pub fn run(world: SystemCommunicator, config: Config) {
         message_broker,
         events,
     );
-    simulation.run(config.start_time, config.end_time);
 
-    info!("Process #{rank} at barrier.");
+    let start = Instant::now();
+    simulation.run(config.start_time, config.end_time);
+    let end = Instant::now();
+    let duration = end.sub(start).as_millis() / 1000;
+    info!("#{rank} took: {duration}s");
+
+    info!("#{rank} at barrier.");
     world.barrier();
     info!("Process #{rank} finishing.");
 }

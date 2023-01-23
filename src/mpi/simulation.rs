@@ -51,11 +51,14 @@ impl Simulation {
         );
 
         while now <= end_time {
+            if self.message_broker.rank == 0 && now % 3600 == 0 {
+                let _hour = now / 3600;
+                info!("#{} of Qsim at {_hour}:00", self.message_broker.rank);
+            }
             self.wakeup(now);
             self.terminate_teleportation(now);
             self.move_nodes(now);
             self.send(now);
-            //self.events.flush();
             self.receive(now);
             now += 1;
         }
@@ -63,6 +66,7 @@ impl Simulation {
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
         self.events.finish();
     }
+
     fn wakeup(&mut self, now: u32) {
         let agents = self.activity_q.pop(now);
         for mut agent in agents {
@@ -81,7 +85,7 @@ impl Simulation {
             let leg = agent.curr_leg();
             match leg.route.as_ref().unwrap() {
                 Route::GenericRoute(route) => {
-                    if Simulation::is_local_route(&route, &self.message_broker) {
+                    if Simulation::is_local_route(route, &self.message_broker) {
                         let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent);
                         self.teleportation_q.add(veh, now);
                     } else {
@@ -95,19 +99,26 @@ impl Simulation {
                         &Event::new_person_enters_veh(agent.id, route.vehicle_id),
                     );
                     let veh = Vehicle::new(route.vehicle_id, VehicleType::Network, agent);
-                    self.veh_onto_network(veh, now);
+                    self.veh_onto_network(veh, true, now);
                 }
             }
         }
     }
 
-    fn veh_onto_network(&mut self, vehicle: Vehicle, now: u32) {
+    fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap(); // in this case there should always be a link id.
         let link = self.network.links.get_mut(&link_id).unwrap();
 
+        if !from_act {
+            self.events
+                .publish_event(now, &Event::new_link_enter(link_id as u64, vehicle.id));
+        }
         match link {
             Link::LocalLink(link) => link.push_vehicle(vehicle, now),
-            Link::SplitInLink(in_link) => in_link.local_link_mut().push_vehicle(vehicle, now),
+            Link::SplitInLink(in_link) => {
+                let local_link = in_link.local_link_mut();
+                local_link.push_vehicle(vehicle, now)
+            }
             Link::SplitOutLink(_) => {
                 panic!("Vehicles should not start on out links...")
             }
@@ -123,14 +134,12 @@ impl Simulation {
             self.activity_q.add(agent, now);
         }
     }
+
     fn move_nodes(&mut self, now: u32) {
         for node in self.network.nodes.values() {
             let exited_vehicles =
                 node.move_vehicles(&mut self.network.links, now, &mut self.events);
 
-            if exited_vehicles.len() > 0 {
-                info!("Time: {now}, Exited vehicles: {}", exited_vehicles.len());
-            }
             for exit_reason in exited_vehicles {
                 match exit_reason {
                     ExitReason::FinishRoute(vehicle) => {
@@ -158,18 +167,20 @@ impl Simulation {
             }
         }
     }
+
     fn send(&mut self, now: u32) {
         self.message_broker.send(now);
     }
+
     fn receive(&mut self, now: u32) {
-        let vehicles = self.message_broker.receive();
+        let vehicles = self.message_broker.receive(now);
         for vehicle in vehicles {
             match vehicle.r#type() {
                 VehicleType::Teleported => {
                     self.teleportation_q.add(vehicle, now);
                 }
                 VehicleType::Network => {
-                    self.veh_onto_network(vehicle, now);
+                    self.veh_onto_network(vehicle, false, now);
                 }
             }
         }
