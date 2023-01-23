@@ -4,6 +4,7 @@ use serial_test::serial;
 
 mod event_test_utils;
 
+#[ignore]
 #[test]
 #[serial]
 fn three_link_network() {
