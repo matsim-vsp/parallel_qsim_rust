@@ -90,7 +90,7 @@ impl Events {
     }
 
     pub fn finish(&mut self) {
-        let closing_tag = "</events>";
+        let closing_tag = "</events>\n";
         self.handle(closing_tag.as_ref());
         self.flush();
     }
