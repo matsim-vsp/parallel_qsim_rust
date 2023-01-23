@@ -3,6 +3,7 @@ use rust_q_sim::logging::init_logging;
 use rust_q_sim::{controller, io};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
+use std::time::Duration;
 use std::usize;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -89,6 +90,8 @@ pub fn run_simulation_and_compare_events(config: Config, path_to_expected_scenar
     let _logger_guard = init_logging(&output_dir);
 
     controller::run(config);
+
+    std::thread::sleep(Duration::from_secs(3));
 
     let mut expected_output_events: Events = io::xml_reader::read(
         (String::from(path_to_expected_scenario_files) + "/output_events.xml").as_ref(),
