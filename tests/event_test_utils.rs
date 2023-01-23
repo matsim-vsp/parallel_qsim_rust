@@ -3,6 +3,7 @@ use rust_q_sim::logging::init_logging;
 use rust_q_sim::{controller, io};
 use serde::{de, Deserialize, Deserializer, Serialize};
 use std::str::FromStr;
+use std::time::Duration;
 use std::usize;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -32,7 +33,7 @@ enum SimEvent {
     ActivityStart(Activity),
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct Activity {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
@@ -44,7 +45,7 @@ struct Activity {
     act_type: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct ArrivalDeparture {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
@@ -56,7 +57,7 @@ struct ArrivalDeparture {
     leg_mode: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct PersonVehicleInteraction {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
@@ -66,7 +67,7 @@ struct PersonVehicleInteraction {
     vehicle: u64,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct LinkInteraction {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
@@ -89,6 +90,9 @@ pub fn run_simulation_and_compare_events(config: Config, path_to_expected_scenar
     let _logger_guard = init_logging(&output_dir);
 
     controller::run(config);
+
+    // The event writer is non blocking. So we need to wait a bit til it's finished. This should be a temporary fix.
+    std::thread::sleep(Duration::from_secs(3));
 
     let mut expected_output_events: Events = io::xml_reader::read(
         (String::from(path_to_expected_scenario_files) + "/output_events.xml").as_ref(),

@@ -14,6 +14,8 @@ fn three_link_network() {
             "./test_output/controller_it/three_link_network/static",
         ))
         .num_parts(1)
+        .start_time(0)
+        .end_time(86400)
         .build();
     run_simulation_and_compare_events(config, "tests/resources/three_link")
 }
@@ -28,6 +30,8 @@ fn three_link_network_adhoc_routing() {
             "./test_output/controller_it/three_link_network/adhoc",
         ))
         .num_parts(1)
+        .start_time(0)
+        .end_time(86400)
         .set_routing_mode(RoutingMode::AdHoc)
         .build();
     run_simulation_and_compare_events(config, "tests/resources/three_link")

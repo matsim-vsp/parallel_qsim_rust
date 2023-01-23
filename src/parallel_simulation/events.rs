@@ -1,5 +1,6 @@
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
+use log::info;
 use std::mem::take;
 
 /// Events takes a writer. This is the trait for that
@@ -86,11 +87,11 @@ impl Events {
 
     pub fn flush(&mut self) {
         let buffer = take(&mut self.buffer);
-        self.writer.write(buffer)
+        self.writer.write(buffer);
     }
 
     pub fn finish(&mut self) {
-        let closing_tag = "</events>";
+        let closing_tag = "</events>\n";
         self.handle(closing_tag.as_ref());
         self.flush();
     }
