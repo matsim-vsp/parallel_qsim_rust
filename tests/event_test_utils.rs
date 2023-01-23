@@ -32,7 +32,7 @@ enum SimEvent {
     ActivityStart(Activity),
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct Activity {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
@@ -44,7 +44,7 @@ struct Activity {
     act_type: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct ArrivalDeparture {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
@@ -56,7 +56,7 @@ struct ArrivalDeparture {
     leg_mode: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct PersonVehicleInteraction {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
@@ -66,7 +66,7 @@ struct PersonVehicleInteraction {
     vehicle: u64,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct LinkInteraction {
     #[serde(deserialize_with = "str_to_u64")]
     time: u64,
