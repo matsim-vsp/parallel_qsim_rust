@@ -1,4 +1,4 @@
-use log::info;
+use log::{debug, info};
 use quick_xml::de::from_reader;
 use serde::de::DeserializeOwned;
 use std::fs;
@@ -23,7 +23,7 @@ where
         result
     } else if file_path.ends_with(".xml") {
         let s = fs::read_to_string(file_path).expect("Couldn't find file.");
-        info!("File content of {}:\n{}", file_path, s);
+        debug!("File content of {}:\n{}", file_path, s);
         let result: Result<T, _> = from_reader(buffered_reader);
         match result {
             Ok(x) => x,

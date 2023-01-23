@@ -135,7 +135,7 @@ impl Simulation {
             self.teleportation_arrivals(now);
             self.move_nodes(now);
             self.send(now);
-            self.events.flush(false);
+            self.events.flush();
             self.receive(now);
             now += 1;
         }

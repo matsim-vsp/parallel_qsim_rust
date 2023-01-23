@@ -91,6 +91,7 @@ pub fn run_simulation_and_compare_events(config: Config, path_to_expected_scenar
 
     controller::run(config);
 
+    // The event writer is non blocking. So we need to wait a bit til it's finished. This should be a temporary fix.
     std::thread::sleep(Duration::from_secs(3));
 
     let mut expected_output_events: Events = io::xml_reader::read(

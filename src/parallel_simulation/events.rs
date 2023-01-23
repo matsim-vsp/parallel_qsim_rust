@@ -85,22 +85,15 @@ impl Events {
         self.buffer.append(&mut vec);
     }
 
-    pub fn flush(&mut self, info: bool) {
+    pub fn flush(&mut self) {
         let buffer = take(&mut self.buffer);
-        if info {
-            info!(
-                "Flush events. Will write:\n{}",
-                std::str::from_utf8(&buffer).unwrap()
-            )
-        }
         self.writer.write(buffer);
     }
 
     pub fn finish(&mut self) {
         let closing_tag = "</events>\n";
-        info!("Handle events end tag.");
         self.handle(closing_tag.as_ref());
-        self.flush(true);
+        self.flush();
     }
 
     //pub fn handle_act_start(&self, now: u32, agent_id: usize, link_id: usize, act_type: &str) {
