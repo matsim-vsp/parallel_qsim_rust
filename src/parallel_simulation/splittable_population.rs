@@ -5,17 +5,18 @@ use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 
 use crate::io::matsim_id::MatsimId;
 use crate::parallel_simulation::network::partitioned_network::Network;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 #[derive(Debug)]
 pub struct Population {
-    pub agents: HashMap<usize, Agent>,
+    // To ensure deterministic results when iterating over entries for inserting agents in the queue
+    pub agents: BTreeMap<usize, Agent>,
 }
 
 impl Population {
     fn new() -> Population {
         Population {
-            agents: HashMap::new(),
+            agents: BTreeMap::new(),
         }
     }
 

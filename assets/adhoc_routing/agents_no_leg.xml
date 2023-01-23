@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE population SYSTEM "http://www.matsim.org/files/dtd/population_v6.dtd">
+
+<population desc="single agent on three links network">
+    <person id="100">
+        <plan score="92.61490939414003" selected="yes">
+            <activity type="home_28800.0" link="link1" x="-100" y="0.0" end_time="9:00:00"/>
+            <activity type="errands_2400.0" link="link4" x="1200.0" y="0.0" start_time="15:51:00" />
+        </plan>
+    </person>
+    <person id="101">
+        <plan score="92.61490939414003" selected="yes">
+            <activity type="home_28800.0" link="link1" x="-100" y="0.0" end_time="9:20:00"/>
+            <activity type="errands_2400.0" link="link2" x="1100.0" y="0.0" start_time="16:51:00" />
+        </plan>
+    </person>
+    <person id="102">
+        <plan score="92.61490939414003" selected="yes">
+            <activity type="home_28800.0" link="link1" x="-100" y="0.0" end_time="9:30:00"/>
+            <activity type="errands_2400.0" link="link3" x="1200.0" y="0.0" start_time="17:51:00" />
+        </plan>
+    </person>
+    <person id="103">
+        <plan score="92.61490939414003" selected="yes">
+            <activity type="home_28800.0" link="link2" x="0" y="0.0" end_time="9:40:00"/>
+            <activity type="errands_2400.0" link="link4" x="1300.0" y="0.0" start_time="18:51:00" />
+        </plan>
+    </person>
+</population>
