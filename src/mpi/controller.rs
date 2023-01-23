@@ -71,7 +71,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let events_file = format!("events.{rank}.pbf");
     let events_path = output_path.join(events_file);
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-    events.add_subscriber(Box::new(EventsLogger {}));
+    //events.add_subscriber(Box::new(EventsLogger {}));
 
     let mut simulation = Simulation::new(
         &config,

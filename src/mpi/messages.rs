@@ -267,7 +267,19 @@ impl Route {
     fn from_io(io_route: &IORoute, id_mappings: &MatsimIdMappings) -> Self {
         match io_route.r#type.as_str() {
             "generic" => Route::GenericRoute(GenericRoute::from_io(io_route, &id_mappings.links)),
-            "links" => Route::NetworkRoute(NetworkRoute::from_io(io_route, id_mappings)),
+            "links" => {
+                if let Some(vehicle_id) = &io_route.vehicle {
+                    // catch this special case because we have "null" as vehicle ids for modes which are
+                    // routed but not simulated on the network.
+                    if vehicle_id.eq("null") {
+                        Route::GenericRoute(GenericRoute::from_io(io_route, &id_mappings.links))
+                    } else {
+                        Route::NetworkRoute(NetworkRoute::from_io(io_route, id_mappings))
+                    }
+                } else {
+                    panic!("vehicle id is expected to be set. ")
+                }
+            }
             _t => panic!("Unsupported route type: '{_t}'"),
         }
     }
@@ -294,11 +306,16 @@ impl GenericRoute {
 
 impl NetworkRoute {
     fn from_io(io_route: &IORoute, id_mappings: &MatsimIdMappings) -> Self {
-        let matsim_veh_id = io_route.vehicle.as_ref().unwrap();
+        let matsim_veh_id = io_route
+            .vehicle
+            .as_ref()
+            .unwrap_or_else(|| panic!("Couldn't find veh-id for route {io_route:?} "));
         let veh_id = id_mappings
             .vehicles
             .get_internal(matsim_veh_id.as_str())
-            .unwrap();
+            .unwrap_or_else(|| {
+                panic!("Couldn't find veh-id: {matsim_veh_id:?} for route {io_route:?}")
+            });
         let link_ids = match &io_route.route {
             None => Vec::new(),
             Some(encoded_links) => encoded_links

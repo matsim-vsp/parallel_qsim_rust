@@ -10,7 +10,7 @@ pub fn init_logging(directory: &str, file_discriminant: Option<String>) -> Logge
                 .directory(directory),
         )
         .format(detailed_format)
-        .write_mode(WriteMode::Async)
+        .write_mode(WriteMode::Direct)
         .duplicate_to_stdout(Duplicate::All)
         .start()
         .unwrap()
