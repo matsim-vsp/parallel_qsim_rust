@@ -1,6 +1,7 @@
 use log::info;
 use quick_xml::de::from_reader;
 use serde::de::DeserializeOwned;
+use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 
@@ -21,6 +22,8 @@ where
         let result: T = from_reader(buffered_decoder).unwrap();
         result
     } else if file_path.ends_with(".xml") {
+        let s = fs::read_to_string(file_path).expect("Couldn't find file.");
+        info!("File content of {}:\n{}", file_path, s);
         let result: Result<T, _> = from_reader(buffered_reader);
         match result {
             Ok(x) => x,
