@@ -142,7 +142,7 @@ impl PartitionInfo {
         let mut vwgt: Vec<Idx> = Vec::new();
         let mut result: Vec<Idx> = vec![0x00; nodes.len()];
 
-        info!("PartitionInfo: converting nodes and links to ajacency format for metis.");
+        info!("PartitionInfo: converting nodes and links to adjacency format for metis.");
         for node in nodes {
             let num_out_links = node.out_links.len() as Idx;
             let num_in_links = node.in_links.len() as Idx;

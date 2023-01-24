@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::io::network::IONetwork;
 use crate::io::population::IOPopulation;
 use crate::io::proto_events::ProtoEventsWriter;
-use crate::mpi::events::{EventsLogger, EventsPublisher};
+use crate::mpi::events::EventsPublisher;
 use crate::mpi::message_broker::MpiMessageBroker;
 use crate::mpi::messages::proto::Vehicle;
 use crate::mpi::population::Population;
@@ -53,8 +53,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         network_partition.links.len(),
         population.agents.len()
     );
-
-    //info!("Partition #{rank} {network_partition:#?}");
 
     let neighbors = network_partition
         .neighbors()

@@ -51,15 +51,15 @@ impl Simulation {
         );
 
         while now <= end_time {
-            if self.message_broker.rank == 0 && now % 3600 == 0 {
+            if self.message_broker.rank == 0 && now % 600 == 0 {
                 let _hour = now / 3600;
-                info!("#{} of Qsim at {_hour}:00", self.message_broker.rank);
+                let _min = (now % 3600) / 60;
+                info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank);
             }
             self.wakeup(now);
             self.terminate_teleportation(now);
             self.move_nodes(now);
-            self.send(now);
-            self.receive(now);
+            self.send_receive(now);
             now += 1;
         }
 
@@ -168,12 +168,8 @@ impl Simulation {
         }
     }
 
-    fn send(&mut self, now: u32) {
-        self.message_broker.send(now);
-    }
-
-    fn receive(&mut self, now: u32) {
-        let vehicles = self.message_broker.receive(now);
+    fn send_receive(&mut self, now: u32) {
+        let vehicles = self.message_broker.send_recv(now);
         for vehicle in vehicles {
             match vehicle.r#type() {
                 VehicleType::Teleported => {

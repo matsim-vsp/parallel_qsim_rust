@@ -1,6 +1,7 @@
 use crate::io::matsim_id::MatsimId;
 use crate::io::network::IONetwork;
 use crate::io::population::{IOPlanElement, IOPopulation};
+use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -14,9 +15,13 @@ pub struct MatsimIdMappings {
 
 impl MatsimIdMappings {
     pub fn from_io(io_network: &IONetwork, io_population: &IOPopulation) -> MatsimIdMappings {
+        info!("Create link id mapping.");
         let links = MatsimIdMapping::from_matsim_ids(io_network.links());
+        info!("Create node id mapping.");
         let nodes = MatsimIdMapping::from_matsim_ids(io_network.nodes());
+        info!("Create agent id mapping.");
         let agents = MatsimIdMapping::from_matsim_ids(&io_population.persons);
+        info!("Create vehicle id mapping.");
         let vehicles_ids: Vec<_> = io_population
             .persons
             .iter()
