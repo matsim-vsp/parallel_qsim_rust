@@ -69,6 +69,18 @@ impl EventsSubscriber for XmlEventsWriter {
                 let text = format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\" />\n", e.person, e.vehicle);
                 self.write(&text);
             }
+            Type::Departure(e) => {
+                let text = format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n", e.person, e.link, e.leg_mode);
+                self.write(&text);
+            }
+            Type::Arrival(e) => {
+                let text = format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n", e.person, e.link, e.leg_mode);
+                self.write(&text);
+            }
+            Type::Travelled(e) => {
+                let text = format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\" />\n", e.person, e.distance, e.mode);
+                self.write(&text);
+            }
         }
     }
 

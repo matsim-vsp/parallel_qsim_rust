@@ -16,6 +16,9 @@ message Event {
     LinkLeaveEvent linkLeave = 5;
     PersonEntersVehicleEvent personEntersVeh = 6;
     PersonLeavesVehicleEvent personLeavesVeh = 7;
+    DepartureEvent departure = 8;
+    ArrivalEvent arrival = 9;
+    TravelledEvent travelled = 10;
   }
 }
 
@@ -56,4 +59,22 @@ message PersonEntersVehicleEvent {
 message PersonLeavesVehicleEvent {
   uint64 person = 1;
   uint64 vehicle = 2;
+}
+
+message DepartureEvent {
+  uint64 person = 1;
+  uint64 link = 2;
+  string legMode = 3;
+}
+
+message ArrivalEvent {
+  uint64 person = 1;
+  uint64 link = 2;
+  string legMode = 3;
+}
+
+message TravelledEvent {
+  uint64 person = 1;
+  float distance = 2;
+  string mode = 3;
 }

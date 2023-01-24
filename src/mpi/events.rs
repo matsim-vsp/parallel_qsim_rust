@@ -1,9 +1,11 @@
 use crate::mpi::events::proto::event::Type::{
-    ActEnd, ActStart, Generic, LinkEnter, LinkLeave, PersonEntersVeh, PersonLeavesVeh,
+    ActEnd, ActStart, Arrival, Departure, Generic, LinkEnter, LinkLeave, PersonEntersVeh,
+    PersonLeavesVeh, Travelled,
 };
 use crate::mpi::events::proto::{
-    ActivityEndEvent, ActivityStartEvent, Event, GenericEvent, LinkEnterEvent, LinkLeaveEvent,
-    PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
+    ActivityEndEvent, ActivityStartEvent, ArrivalEvent, DepartureEvent, Event, GenericEvent,
+    LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
+    TravelledEvent,
 };
 use log::info;
 use std::collections::HashMap;
@@ -117,6 +119,36 @@ impl Event {
             r#type: Some(PersonLeavesVeh(PersonLeavesVehicleEvent {
                 person,
                 vehicle,
+            })),
+        }
+    }
+
+    pub fn new_departure(person: u64, link: u64, leg_mode: String) -> Event {
+        Event {
+            r#type: Some(Departure(DepartureEvent {
+                person,
+                link,
+                leg_mode,
+            })),
+        }
+    }
+
+    pub fn new_arrival(person: u64, link: u64, leg_mode: String) -> Event {
+        Event {
+            r#type: Some(Arrival(ArrivalEvent {
+                person,
+                link,
+                leg_mode,
+            })),
+        }
+    }
+
+    pub fn new_travelled(person: u64, distance: f32, mode: String) -> Event {
+        Event {
+            r#type: Some(Travelled(TravelledEvent {
+                person,
+                distance,
+                mode,
             })),
         }
     }

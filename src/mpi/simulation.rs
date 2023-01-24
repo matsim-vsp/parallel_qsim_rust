@@ -69,22 +69,30 @@ impl Simulation {
 
     fn wakeup(&mut self, now: u32) {
         let agents = self.activity_q.pop(now);
+
         for mut agent in agents {
+            let agent_id = agent.id;
             self.events.publish_event(
                 now,
                 &Event::new_act_end(
-                    agent.id,
+                    agent_id,
                     agent.curr_act().link_id,
                     agent.curr_act().act_type.clone(),
                 ),
             );
             agent.advance_plan();
-            //DEPARTURE EVENT here
+
             assert_ne!(agent.curr_plan_elem % 2, 0);
 
             let leg = agent.curr_leg();
+
             match leg.route.as_ref().unwrap() {
                 Route::GenericRoute(route) => {
+                    self.events.publish_event(
+                        now,
+                        &Event::new_departure(agent_id, route.start_link, leg.mode.clone()),
+                    );
+
                     if Simulation::is_local_route(route, &self.message_broker) {
                         let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent);
                         self.teleportation_q.add(veh, now);
@@ -94,10 +102,17 @@ impl Simulation {
                     }
                 }
                 Route::NetworkRoute(route) => {
+                    let link_id = route.route.get(0).unwrap();
                     self.events.publish_event(
                         now,
-                        &Event::new_person_enters_veh(agent.id, route.vehicle_id),
+                        &Event::new_departure(agent_id, *link_id, leg.mode.clone()),
                     );
+
+                    self.events.publish_event(
+                        now,
+                        &Event::new_person_enters_veh(agent_id, route.vehicle_id),
+                    );
+
                     let veh = Vehicle::new(route.vehicle_id, VehicleType::Network, agent);
                     self.veh_onto_network(veh, true, now);
                 }
@@ -130,6 +145,13 @@ impl Simulation {
         for vehicle in teleportation_vehicles {
             // handle travelled
             let mut agent = vehicle.agent.unwrap();
+            let leg = agent.curr_leg();
+            if let Route::GenericRoute(route) = &leg.route.as_ref().unwrap() {
+                self.events.publish_event(
+                    now,
+                    &Event::new_travelled(agent.id, route.distance, leg.mode.clone()),
+                );
+            }
             agent.advance_plan();
             self.activity_q.add(agent, now);
         }
@@ -143,12 +165,19 @@ impl Simulation {
             for exit_reason in exited_vehicles {
                 match exit_reason {
                     ExitReason::FinishRoute(vehicle) => {
+                        let veh_id = vehicle.id;
+                        let link_id = vehicle.curr_link_id().unwrap();
                         let mut agent = vehicle.agent.unwrap();
+                        self.events
+                            .publish_event(now, &Event::new_person_leaves_veh(agent.id, veh_id));
                         self.events.publish_event(
                             now,
-                            &Event::new_person_leaves_veh(agent.id, vehicle.id),
+                            &Event::new_arrival(
+                                agent.id,
+                                link_id as u64,
+                                agent.curr_leg().mode.clone(),
+                            ),
                         );
-                        // arrival event
                         agent.advance_plan();
                         self.events.publish_event(
                             now,
