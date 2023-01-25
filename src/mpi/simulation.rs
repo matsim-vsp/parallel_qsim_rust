@@ -166,26 +166,23 @@ impl Simulation {
                 match exit_reason {
                     ExitReason::FinishRoute(vehicle) => {
                         let veh_id = vehicle.id;
-                        let link_id = vehicle.curr_link_id().unwrap();
                         let mut agent = vehicle.agent.unwrap();
+                        let leg_mode = agent.curr_leg().mode.clone();
+
                         self.events
                             .publish_event(now, &Event::new_person_leaves_veh(agent.id, veh_id));
-                        self.events.publish_event(
-                            now,
-                            &Event::new_arrival(
-                                agent.id,
-                                link_id as u64,
-                                agent.curr_leg().mode.clone(),
-                            ),
-                        );
+
                         agent.advance_plan();
+                        let act = agent.curr_act();
+
                         self.events.publish_event(
                             now,
-                            &Event::new_act_start(
-                                agent.id,
-                                agent.curr_act().link_id,
-                                agent.curr_act().act_type.clone(),
-                            ),
+                            &Event::new_arrival(agent.id, act.link_id, leg_mode),
+                        );
+
+                        self.events.publish_event(
+                            now,
+                            &Event::new_act_start(agent.id, act.link_id, act.act_type.clone()),
                         );
                         self.activity_q.add(agent, now);
                     }
