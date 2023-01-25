@@ -71,7 +71,9 @@ fn main() {
         };
     }
 
+    println!("Finished reading proto files. Calling finish on XmlWriter");
     publisher.finish();
+    println!("Finished writing to xml-file.")
 }
 
 fn process_events(time: u32, events: &Vec<Event>, publisher: &mut EventsPublisher) {
