@@ -13,6 +13,5 @@ pub mod parallel_simulation;
 pub mod experiments;
 
 pub mod mpi;
-pub mod routing;
 #[allow(dead_code)]
 mod simulation;

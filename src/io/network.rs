@@ -12,7 +12,7 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Attr {
     pub name: String,
     pub class: String,
@@ -20,13 +20,13 @@ pub struct Attr {
     pub value: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Attrs {
     #[serde(rename = "attribute", default)]
     pub attributes: Vec<Attr>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IONode {
     pub id: String,
     pub x: f32,
@@ -40,7 +40,7 @@ impl MatsimId for IONode {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Default)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Default, Clone)]
 pub struct IOLink {
     pub id: String,
     pub from: String,
@@ -58,19 +58,19 @@ impl MatsimId for IOLink {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct Nodes {
     #[serde(rename = "node", default)]
     nodes: Vec<IONode>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 struct Links {
     #[serde(rename = "link", default)]
     links: Vec<IOLink>,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename = "network")]
 pub struct IONetwork {
     name: Option<String>,

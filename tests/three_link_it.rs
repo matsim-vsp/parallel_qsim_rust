@@ -1,22 +1,38 @@
-use rust_q_sim::config::Config;
-use rust_q_sim::controller;
-use rust_q_sim::logging::init_logging;
+use crate::event_test_utils::run_simulation_and_compare_events;
+use rust_q_sim::config::{Config, RoutingMode};
+use serial_test::serial;
+
+mod event_test_utils;
 
 #[test]
+#[serial]
 fn three_link_network() {
     let config = Config::builder()
         .network_file(String::from("./assets/3-links/3-links-network.xml"))
         .population_file(String::from("./assets/3-links/1-agent.xml"))
         .output_dir(String::from(
-            "./test_output/controller_it/three_link_network",
+            "./test_output/controller_it/three_link_network/static",
         ))
-        .num_parts(3)
+        .num_parts(1)
+        .start_time(0)
+        .end_time(86400)
         .build();
+    run_simulation_and_compare_events(config, "tests/resources/three_link")
+}
 
-    let _logger_guard = init_logging(&config.output_dir, None);
-
-    controller::run(config);
-
-    // somehow test the output
-    println!("Done");
+#[test]
+#[serial]
+fn three_link_network_adhoc_routing() {
+    let config = Config::builder()
+        .network_file(String::from("./assets/3-links/3-links-network.xml"))
+        .population_file(String::from("./assets/3-links/1-agent-no-leg.xml"))
+        .output_dir(String::from(
+            "./test_output/controller_it/three_link_network/adhoc",
+        ))
+        .num_parts(1)
+        .start_time(0)
+        .end_time(86400)
+        .set_routing_mode(RoutingMode::AdHoc)
+        .build();
+    run_simulation_and_compare_events(config, "tests/resources/three_link")
 }

@@ -26,13 +26,17 @@ impl Graph {
     }
 
     fn get_edge_weight_from_to(&self, from: i32, to: i32) -> Option<f32> {
-        let candidates: Vec<&Edge> = self.edges.iter().filter(|e| e.from == from && e.to == to).collect();
+        let candidates: Vec<&Edge> = self
+            .edges
+            .iter()
+            .filter(|e| e.from == from && e.to == to)
+            .collect();
         if candidates.len() > 1 {
             return None;
         }
         match candidates.first() {
             Some(x) => return Some(x.weight),
-            None => None
+            None => None,
         }
     }
 
@@ -43,7 +47,9 @@ impl Graph {
             _ => {
                 let from = *path.get(0).unwrap();
                 let to = *path.get(1).unwrap();
-                let edge = self.get_edge_weight_from_to(from, to).expect(&format!("There is no edge from {from} to {to}"));
+                let edge = self
+                    .get_edge_weight_from_to(from, to)
+                    .expect(&format!("There is no edge from {from} to {to}"));
                 path.remove(0);
                 return edge + self.traverse_path_sum_weights(path);
             }
@@ -103,7 +109,20 @@ mod tests {
     fn test_invalid_graph() {
         let graph = Graph {
             vertices: vec![Vertex { id: 0 }, Vertex { id: 0 }],
-            edges: vec![Edge { id: 1, from: 3, to: 0, weight: 2.0 }, Edge { id: 2, from: 0, to: 0, weight: 2.0 }],
+            edges: vec![
+                Edge {
+                    id: 1,
+                    from: 3,
+                    to: 0,
+                    weight: 2.0,
+                },
+                Edge {
+                    id: 2,
+                    from: 0,
+                    to: 0,
+                    weight: 2.0,
+                },
+            ],
         };
         assert_eq!(graph.has_valid_vertices(), false);
         assert_eq!(graph.has_valid_vertices(), false);
@@ -118,11 +137,38 @@ mod tests {
 
     fn get_test_graph() -> Graph {
         let vertex_list = vec![Vertex { id: 0 }, Vertex { id: 1 }, Vertex { id: 2 }];
-        let edge_list = vec![Edge { id: 1, from: 0, to: 1, weight: 1.0 },
-                             Edge { id: 2, from: 0, to: 2, weight: 2.0 },
-                             Edge { id: 3, from: 1, to: 1, weight: 1.0 },
-                             Edge { id: 4, from: 1, to: 2, weight: 4.0 },
-                             Edge { id: 5, from: 2, to: 0, weight: 2.0 }];
+        let edge_list = vec![
+            Edge {
+                id: 1,
+                from: 0,
+                to: 1,
+                weight: 1.0,
+            },
+            Edge {
+                id: 2,
+                from: 0,
+                to: 2,
+                weight: 2.0,
+            },
+            Edge {
+                id: 3,
+                from: 1,
+                to: 1,
+                weight: 1.0,
+            },
+            Edge {
+                id: 4,
+                from: 1,
+                to: 2,
+                weight: 4.0,
+            },
+            Edge {
+                id: 5,
+                from: 2,
+                to: 0,
+                weight: 2.0,
+            },
+        ];
         return Graph {
             vertices: vertex_list,
             edges: edge_list,
