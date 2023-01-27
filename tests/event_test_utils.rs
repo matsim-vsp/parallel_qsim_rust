@@ -87,7 +87,7 @@ where
 
 pub fn run_simulation_and_compare_events(config: Config, path_to_expected_scenario_files: &str) {
     let output_dir = config.output_dir.clone();
-    let _logger_guard = init_logging(&output_dir);
+    let _logger_guard = init_logging(&output_dir, None);
 
     controller::run(config);
 

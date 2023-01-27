@@ -15,8 +15,6 @@ use crate::parallel_simulation::splittable_population::Route;
 use crate::parallel_simulation::splittable_population::{Agent, Leg};
 use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartition};
 use crate::parallel_simulation::vehicles::Vehicle;
-use crate::routing::network_converter::RoutingKitNetwork;
-use crate::routing::router::Router;
 use log::info;
 use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
 use std::path::PathBuf;
@@ -73,13 +71,11 @@ impl Simulation {
     pub fn create_simulation_partitions(
         config: &Config,
         scenario: Scenario<Vehicle>,
-        events: EventsPublisher,
         routing_kit_network: RoutingKitNetwork,
     ) -> Vec<Simulation> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
-            // this clones the sender end of the writer but not the worker part.
             .map(|partition| {
                 let id = partition.msg_broker.id;
                 let mut events = EventsPublisher::new();

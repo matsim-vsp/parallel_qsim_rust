@@ -5,5 +5,5 @@ pub mod population;
 pub mod proto_events;
 mod worker;
 pub mod xml_events;
-mod xml_reader;
+pub mod xml_reader;
 mod xml_writer;
