@@ -1,8 +1,6 @@
 use crate::config::Config;
 use crate::io::network::IONetwork;
-use crate::io::non_blocking_io::NonBlocking;
 use crate::io::population::IOPopulation;
-use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::Simulation;
 use log::info;
@@ -23,11 +21,7 @@ pub fn run(config: Config) {
     let out_network = scenario.as_network(&network);
     out_network.to_file(&out_network_path);
 
-    let out_events_path = output_dir_path.join("output_events.xml");
-    let (events_writer, _guard) = NonBlocking::from_file(&out_events_path.to_str().unwrap());
-    let mut events = Events::new(events_writer);
-
-    let simulations = Simulation::create_simulation_partitions(&config, scenario, events.clone());
+    let simulations = Simulation::create_simulation_partitions(&config, scenario);
     // do very basic timing
     let start = Instant::now();
     // create threads and start them
@@ -44,9 +38,6 @@ pub fn run(config: Config) {
     let end = Instant::now();
     let duration = end.sub(start);
     info!("Simulation ran for: {}s", duration.as_millis() / 1000);
-
-    // print closing tag in events file.
-    events.finish();
 
     info!("All simulation threads have finished. Waiting for events writer thread and logger thread to finish as well.")
 }

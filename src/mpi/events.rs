@@ -30,7 +30,7 @@ impl EventsSubscriber for EventsLogger {
 }
 
 pub struct EventsPublisher {
-    handlers: Vec<Box<dyn EventsSubscriber>>,
+    handlers: Vec<Box<dyn EventsSubscriber + Send>>,
 }
 
 /// EventsManager owns event handlers. Handlers are Trait objects, hence they have to be passed in a
@@ -42,7 +42,7 @@ impl EventsPublisher {
         }
     }
 
-    pub fn add_subscriber(&mut self, handler: Box<dyn EventsSubscriber>) {
+    pub fn add_subscriber(&mut self, handler: Box<dyn EventsSubscriber + Send>) {
         self.handlers.push(handler);
     }
 
