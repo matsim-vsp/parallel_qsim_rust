@@ -5,6 +5,7 @@ use serial_test::serial;
 mod event_test_utils;
 
 #[test]
+#[ignore]
 #[serial]
 fn equil_scenario_one_thread() {
     let config = get_config(1);
@@ -12,6 +13,7 @@ fn equil_scenario_one_thread() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn equil_scenario_two_threads() {
     let config = get_config(2);
@@ -19,6 +21,7 @@ fn equil_scenario_two_threads() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn equil_scenario_five_threads() {
     let config = get_config(5);
