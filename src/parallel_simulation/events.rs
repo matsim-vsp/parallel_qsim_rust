@@ -1,6 +1,5 @@
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
-use log::info;
 use std::mem::take;
 
 /// Events takes a writer. This is the trait for that

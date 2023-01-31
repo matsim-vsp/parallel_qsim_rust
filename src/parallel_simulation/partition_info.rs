@@ -1,5 +1,5 @@
 use crate::io::matsim_id::MatsimId;
-use crate::io::network::{IONetwork, IONode};
+use crate::io::network::{IOLink, IONetwork, IONode};
 use crate::io::population::{IOPlanElement, IOPopulation};
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use log::info;
@@ -28,6 +28,8 @@ pub struct PartitionInfo {
 }
 
 impl PartitionInfo {
+    /// This partitions the network graph according to agent plans. This method iterates through all
+    /// plans and calculates the sum of crossing we can expect for each node in the network.
     pub fn from_io(
         io_network: &IONetwork,
         io_population: &IOPopulation,
@@ -66,6 +68,68 @@ impl PartitionInfo {
         }
     }
 
+    /// This partitions the network graph according to link capacities. The computational weight for
+    /// nodes is estimated as the sum of capacities of a node's in links
+    /// Links are also weighted by capacity. This makes links with higher capacities less likely to be
+    /// split
+    pub fn from_io_network(
+        io_network: &IONetwork,
+        id_mappings: &MatsimIdMappings,
+        num_parts: usize,
+    ) -> PartitionInfo {
+        if num_parts == 1 {
+            info!("PartitionInfo: 'num_parts' is 1. No partitioning necessary. Put all nodes into partition 0.");
+            return PartitionInfo {
+                partition_result: vec![0; io_network.nodes().len()],
+                node_id_mapping: id_mappings.nodes.clone(),
+            };
+        }
+
+        let mut partition_nodes: Vec<PartitionNode> = io_network
+            .nodes()
+            .iter()
+            .map(|_| PartitionNode {
+                weight: 0,
+                out_links: Vec::new(),
+                in_links: Vec::new(),
+            })
+            .collect();
+
+        let partition_links: Vec<PartitionLink> = io_network
+            .links()
+            .iter()
+            .map(|link: &IOLink| {
+                let link_id = id_mappings.links.get_internal(link.id.as_str()).unwrap();
+
+                // put link into out links list of from node and increase weight of node by link's capacity
+                let from_node_id = id_mappings.nodes.get_internal(link.from.as_str()).unwrap();
+                let from_node = partition_nodes.get_mut(*from_node_id).unwrap();
+                from_node.out_links.push(*link_id);
+
+                // put link into in links list of to node and increase node's weight by link's capacity -
+                // let's see whether this is a good estimate.
+                let to_node_id = id_mappings.nodes.get_internal(link.to.as_str()).unwrap();
+                let to_node = partition_nodes.get_mut(*to_node_id).unwrap();
+                to_node.in_links.push(*link_id);
+                to_node.weight += link.capacity as i32;
+
+                PartitionLink {
+                    to: *to_node_id,
+                    from: *from_node_id,
+                    weight: link.capacity as i32,
+                }
+            })
+            .collect();
+
+        let partition_result =
+            PartitionInfo::partition(partition_nodes, partition_links, num_parts as Idx);
+
+        PartitionInfo {
+            partition_result,
+            node_id_mapping: id_mappings.nodes.clone(),
+        }
+    }
+
     pub fn get_partition(&self, node: &IONode) -> usize {
         let internal = *self.node_id_mapping.get_internal(node.id()).unwrap();
         *self.partition_result.get(internal).unwrap() as usize
@@ -78,7 +142,7 @@ impl PartitionInfo {
         let mut vwgt: Vec<Idx> = Vec::new();
         let mut result: Vec<Idx> = vec![0x00; nodes.len()];
 
-        info!("PartitionInfo: converting nodes and links to ajacency format for metis.");
+        info!("PartitionInfo: converting nodes and links to adjacency format for metis.");
         for node in nodes {
             let num_out_links = node.out_links.len() as Idx;
             let num_in_links = node.in_links.len() as Idx;

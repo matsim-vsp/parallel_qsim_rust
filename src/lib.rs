@@ -12,7 +12,6 @@ pub mod parallel_simulation;
 #[allow(dead_code)]
 pub mod experiments;
 
-// this was the first try of the simulation in a single threaded manner
 pub mod mpi;
 #[allow(dead_code)]
 mod simulation;

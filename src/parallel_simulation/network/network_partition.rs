@@ -2,14 +2,15 @@ use crate::io::network::IOLink;
 use crate::parallel_simulation::network::link::{Link, LocalLink, SplitInLink, SplitOutLink};
 use crate::parallel_simulation::network::node::Node;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 
 #[derive(Debug)]
-pub struct NetworkPartition {
-    pub links: HashMap<usize, Link>,
+pub struct NetworkPartition<V: Debug> {
+    pub links: HashMap<usize, Link<V>>,
     pub nodes: HashMap<usize, Node>,
 }
 
-impl NetworkPartition {
+impl<V: Debug> NetworkPartition<V> {
     pub fn new() -> Self {
         Self {
             links: HashMap::new(),
@@ -91,11 +92,12 @@ impl NetworkPartition {
 mod tests {
     use crate::io::network::IOLink;
     use crate::parallel_simulation::network::network_partition::NetworkPartition;
+    use crate::parallel_simulation::vehicles::Vehicle;
 
     /// create a partition with one node which has multiple in and out links
     #[test]
     fn neighbors() {
-        let mut network_part = NetworkPartition::new();
+        let mut network_part: NetworkPartition<Vehicle> = NetworkPartition::new();
         let node_id = 1;
         let io_link = IOLink::default();
         network_part.add_node(node_id);

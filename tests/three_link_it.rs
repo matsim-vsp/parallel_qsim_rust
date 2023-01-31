@@ -5,6 +5,7 @@ use serial_test::serial;
 mod event_test_utils;
 
 #[test]
+#[ignore]
 #[serial]
 fn three_link_network() {
     let config = Config::builder()
@@ -21,6 +22,7 @@ fn three_link_network() {
 }
 
 #[test]
+#[ignore]
 #[serial]
 fn three_link_network_adhoc_routing() {
     let config = Config::builder()

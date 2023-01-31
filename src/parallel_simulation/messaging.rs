@@ -1,4 +1,5 @@
 use crate::parallel_simulation::messages::Message;
+use crate::parallel_simulation::network::node::NodeVehicle;
 use crate::parallel_simulation::splittable_population::{Agent, PlanElement, Route};
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::error;
@@ -130,8 +131,8 @@ impl MessageBroker {
     }
 
     pub fn prepare_routed(&mut self, agent: Agent, vehicle: Vehicle) {
-        let link_id = vehicle.current_link_id().unwrap();
-        let partition = *self.link_id_mapping.get(link_id).unwrap();
+        let link_id = vehicle.curr_link_id().unwrap();
+        let partition = *self.link_id_mapping.get(&link_id).unwrap();
         let message = self
             .out_messages
             .entry(partition)
@@ -158,6 +159,7 @@ impl MessageBroker {
 mod tests {
     use crate::parallel_simulation::messages::Message;
     use crate::parallel_simulation::messaging::MessageBroker;
+    use crate::parallel_simulation::network::node::NodeVehicle;
     use crate::parallel_simulation::splittable_population::{
         Agent, GenericRoute, Leg, Plan, PlanElement, Route,
     };

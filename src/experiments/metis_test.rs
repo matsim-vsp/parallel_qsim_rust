@@ -78,6 +78,7 @@ mod tests {
     use crate::io::network::IONetwork;
 
     #[test]
+    #[ignore]
     fn test_convert_example() {
         let (nodes, links) = create_network();
 

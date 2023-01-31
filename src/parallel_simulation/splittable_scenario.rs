@@ -1,5 +1,6 @@
 use log::info;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 
@@ -14,8 +15,8 @@ use crate::parallel_simulation::partition_info::PartitionInfo;
 use crate::parallel_simulation::splittable_population::Population;
 
 #[derive(Debug)]
-pub struct Scenario {
-    pub scenarios: Vec<ScenarioPartition>,
+pub struct Scenario<V: Debug> {
+    pub scenarios: Vec<ScenarioPartition<V>>,
 
     // the properties below are for bookkeeping of ids
     pub id_mappings: MatsimIdMappings,
@@ -24,19 +25,19 @@ pub struct Scenario {
 }
 
 #[derive(Debug)]
-pub struct ScenarioPartition {
-    pub network: NetworkPartition,
+pub struct ScenarioPartition<V: Debug> {
+    pub network: NetworkPartition<V>,
     pub population: Population,
     pub msg_broker: MessageBroker,
 }
 
-impl Scenario {
+impl<V: Debug> Scenario<V> {
     pub fn from_io(
         io_network: &IONetwork,
         io_population: &IOPopulation,
         num_parts: usize,
         sample_size: f32,
-    ) -> Scenario {
+    ) -> Self {
         info!("SplittableScenario: creating Id mappings");
         let id_mappings = MatsimIdMappings::from_io(io_network, io_population);
 
@@ -129,7 +130,7 @@ impl Scenario {
                 .get_internal(node.id.as_ref())
                 .unwrap();
             let partition = self.node_2_thread.get(internal_id).unwrap();
-            let attributes = Scenario::create_partition_attr(*partition);
+            let attributes = Scenario::<V>::create_partition_attr(*partition);
             let new_node = IONode {
                 id: internal_id.to_string(),
                 x: node.x,
@@ -156,7 +157,7 @@ impl Scenario {
                 .get_internal(link.to.as_ref())
                 .unwrap();
             let partition = self.link_2_thread.get(internal_id).unwrap();
-            let attributes = Scenario::create_partition_attr(*partition);
+            let attributes = Scenario::<V>::create_partition_attr(*partition);
             let new_link = IOLink {
                 id: internal_id.to_string(),
                 attributes,
@@ -190,6 +191,7 @@ mod test {
     use crate::io::network::IONetwork;
     use crate::io::population::IOPopulation;
     use crate::parallel_simulation::splittable_scenario::Scenario;
+    use crate::parallel_simulation::vehicles::Vehicle;
     use std::path::Path;
 
     #[test]
@@ -200,7 +202,8 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_3_links_scenario/",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
+        let scenario: Scenario<Vehicle> =
+            Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
 
         let out_network = scenario.as_network(&io_network);
         let network_file = output_folder.join("output_network.xml.gz");
@@ -217,7 +220,8 @@ mod test {
         let output_folder = Path::new(
             "./test_output/parallel_simulation/splittable_scenario/create_equil_scenario",
         );
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
+        let scenario: Scenario<Vehicle> =
+            Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
 
         let out_network = scenario.as_network(&io_network);
         let network_file = output_folder.join("output_network.xml.gz");
@@ -240,7 +244,8 @@ mod test {
             "./test_output/parallel_simulation/splittable_scenario/create_berlin_scenario/",
         );
 
-        let scenario = Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
+        let scenario: Scenario<Vehicle> =
+            Scenario::from_io(&mut io_network, &io_population, num_parts, 1.);
 
         println!("Create Berlin Scenario Test: Finished creating scenario. Writing network.");
         let out_network = scenario.as_network(&io_network);

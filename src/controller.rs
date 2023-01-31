@@ -1,8 +1,6 @@
 use crate::config::{Config, RoutingMode};
 use crate::io::network::IONetwork;
-use crate::io::non_blocking_io::NonBlocking;
 use crate::io::population::IOPopulation;
-use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::routing::network_converter::NetworkConverter;
 use crate::parallel_simulation::splittable_scenario::Scenario;
 use crate::parallel_simulation::Simulation;
@@ -25,19 +23,11 @@ pub fn run(config: Config) {
     let out_network = scenario.as_network(&network);
     out_network.to_file(&out_network_path);
 
-    let out_events_path = output_dir_path.join("output_events.xml");
-    let (events_writer, _guard) = NonBlocking::from_file(&out_events_path.to_str().unwrap());
-    let mut events = Events::new(events_writer);
-
     let routing_kit_network =
         NetworkConverter::convert_io_network(network, Some(&scenario.id_mappings));
 
-    let simulations = Simulation::create_simulation_partitions(
-        &config,
-        scenario,
-        events.clone(),
-        routing_kit_network,
-    );
+    let simulations =
+        Simulation::create_simulation_partitions(&config, scenario, routing_kit_network);
     // do very basic timing
     let start = Instant::now();
     // create threads and start them
@@ -54,9 +44,6 @@ pub fn run(config: Config) {
     let end = Instant::now();
     let duration = end.sub(start);
     info!("Simulation ran for: {}s", duration.as_millis() / 1000);
-
-    // print closing tag in events file.
-    events.finish();
 
     if config.routing_mode == Some(RoutingMode::AdHoc) {
         remove_dir_all(config.output_dir + "/routing")

@@ -1,6 +1,8 @@
 use crate::config::{Config, RoutingMode};
+use crate::io::proto_events::ProtoEventsWriter;
+use crate::mpi::events::proto::Event;
+use crate::mpi::events::EventsPublisher;
 use crate::parallel_simulation::agent_q::AgentQ;
-use crate::parallel_simulation::events::Events;
 use crate::parallel_simulation::messaging::MessageBroker;
 use crate::parallel_simulation::network::link::{Link, LocalLink};
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
@@ -15,24 +17,25 @@ use crate::parallel_simulation::splittable_scenario::{Scenario, ScenarioPartitio
 use crate::parallel_simulation::vehicles::Vehicle;
 use log::info;
 use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
+use std::path::PathBuf;
 
 mod agent_q;
 pub mod events;
-mod id_mapping;
+pub mod id_mapping;
 mod messages;
 mod messaging;
-mod network;
-mod partition_info;
+pub mod network;
+pub mod partition_info;
 pub mod routing;
-mod splittable_population;
+pub mod splittable_population;
 pub mod splittable_scenario;
 mod vehicles;
 
 pub struct Simulation {
-    scenario: ScenarioPartition,
+    scenario: ScenarioPartition<Vehicle>,
     activity_q: AgentQ,
     teleportation_q: AgentQ,
-    events: Events,
+    events: EventsPublisher,
     start_time: u32,
     end_time: u32,
     routing_mode: Option<RoutingMode>,
@@ -43,8 +46,8 @@ pub struct Simulation {
 impl Simulation {
     fn new(
         config: &Config,
-        scenario: ScenarioPartition,
-        events: Events,
+        scenario: ScenarioPartition<Vehicle>,
+        events: EventsPublisher,
         routing_kit_network: RoutingKitNetwork,
     ) -> Simulation {
         let mut q = AgentQ::new();
@@ -67,21 +70,21 @@ impl Simulation {
 
     pub fn create_simulation_partitions(
         config: &Config,
-        scenario: Scenario,
-        events: Events,
+        scenario: Scenario<Vehicle>,
         routing_kit_network: RoutingKitNetwork,
     ) -> Vec<Simulation> {
         let simulations: Vec<_> = scenario
             .scenarios
             .into_iter()
-            // this clones the sender end of the writer but not the worker part.
             .map(|partition| {
-                Simulation::new(
-                    config,
-                    partition,
-                    events.clone(),
-                    routing_kit_network.clone(),
-                )
+                let id = partition.msg_broker.id;
+                let mut events = EventsPublisher::new();
+                let output_path = PathBuf::from(&config.output_dir);
+                let events_file = format!("events.{id}.pbf");
+                let events_path = output_path.join(events_file);
+                let writer = ProtoEventsWriter::new(&events_path);
+                events.add_subscriber(Box::new(writer));
+                Simulation::new(config, partition, events, routing_kit_network.clone())
             })
             .collect();
 
@@ -122,9 +125,6 @@ impl Simulation {
         while self.active_agents() > 0 && now <= self.end_time {
             if now % 3600 == 0 {
                 let hour = now / 3600;
-                //  improvised_logger
-                //      .send(LogMessage::Message(format!("Simulation at {hour}:00:00")))
-                //      .unwrap();
                 info!(
                     "Simulation #{} at {hour}:00:00",
                     self.scenario.msg_broker.id
@@ -135,11 +135,11 @@ impl Simulation {
             self.teleportation_arrivals(now);
             self.move_nodes(now);
             self.send(now);
-            self.events.flush();
             self.receive(now);
             now += 1;
         }
 
+        self.events.finish();
         info!("Partition #{} finished.", self.scenario.msg_broker.id,);
     }
 
@@ -148,7 +148,12 @@ impl Simulation {
 
         for id in agents_2_link {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
-            self.events.handle_act_end(now, &agent);
+            if let PlanElement::Activity(act) = agent.current_plan_element() {
+                self.events.publish_event(
+                    now,
+                    &Event::new_act_end(agent.id as u64, act.link_id as u64, act.act_type.clone()),
+                )
+            }
 
             if let Some(router) = router {
                 let end_activity = match agent.plan.elements.get(agent.current_element).unwrap() {
@@ -184,11 +189,18 @@ impl Simulation {
 
             //here, current element counter is going to be increased
             agent.advance_plan();
-            self.events.handle_departure(now, agent);
 
             if let PlanElement::Leg(leg) = agent.current_plan_element() {
                 match &leg.route {
                     Route::NetworkRoute(net_route) => {
+                        self.events.publish_event(
+                            now,
+                            &Event::new_departure(
+                                agent.id as u64,
+                                *net_route.route.first().unwrap() as u64,
+                                leg.mode.clone(),
+                            ),
+                        );
                         Simulation::push_onto_network(
                             &mut self.scenario.network,
                             &mut self.events,
@@ -198,7 +210,15 @@ impl Simulation {
                             now,
                         );
                     }
-                    Route::GenericRoute(_) => {
+                    Route::GenericRoute(gen_route) => {
+                        self.events.publish_event(
+                            now,
+                            &Event::new_departure(
+                                agent.id as u64,
+                                gen_route.start_link as u64,
+                                leg.mode.clone(),
+                            ),
+                        );
                         if Simulation::is_local_teleportation(agent, &self.scenario.msg_broker) {
                             self.teleportation_q.add(agent, now);
                         } else {
@@ -218,7 +238,15 @@ impl Simulation {
         let agents_2_activity = self.teleportation_q.wakeup(now);
         for id in agents_2_activity {
             let agent = self.scenario.population.agents.get_mut(&id).unwrap();
-            self.events.handle_travelled(now, agent);
+            if let PlanElement::Leg(leg) = agent.current_plan_element() {
+                if let Route::GenericRoute(route) = &leg.route {
+                    self.events.publish_event(
+                        now,
+                        &Event::new_travelled(agent.id as u64, route.distance, leg.mode.clone()),
+                    )
+                }
+            }
+
             agent.advance_plan();
             self.activity_q.add(agent, now);
         }
@@ -239,12 +267,33 @@ impl Simulation {
                             .get_mut(&vehicle.driver_id)
                             .unwrap();
 
-                        self.events
-                            .handle_person_leaves_vehicle(now, agent, &vehicle);
-                        self.events.handle_arrival(now, agent);
+                        self.events.publish_event(
+                            now,
+                            &Event::new_person_leaves_veh(agent.id as u64, vehicle.id as u64),
+                        );
+
+                        let leg_mode = if let PlanElement::Leg(leg) = agent.current_plan_element() {
+                            leg.mode.clone()
+                        } else {
+                            panic!("Expected leg");
+                        };
 
                         agent.advance_plan();
-                        self.events.handle_act_start(now, agent);
+
+                        if let PlanElement::Activity(act) = agent.current_plan_element() {
+                            self.events.publish_event(
+                                now,
+                                &Event::new_arrival(agent.id as u64, act.link_id as u64, leg_mode),
+                            );
+                            self.events.publish_event(
+                                now,
+                                &Event::new_act_start(
+                                    agent.id as u64,
+                                    act.link_id as u64,
+                                    act.act_type.clone(),
+                                ),
+                            );
+                        }
                         self.activity_q.add(agent, now);
                     }
                     ExitReason::ReachedBoundary(vehicle) => {
@@ -299,8 +348,8 @@ impl Simulation {
     }
 
     fn push_onto_network(
-        network: &mut NetworkPartition,
-        events: &mut Events,
+        network: &mut NetworkPartition<Vehicle>,
+        events: &mut EventsPublisher,
         route: &NetworkRoute,
         route_index: usize,
         driver_id: usize,
@@ -323,15 +372,21 @@ impl Simulation {
     }
 
     fn push_onto_link(
-        events: &mut Events,
+        events: &mut EventsPublisher,
         now: u32,
         vehicle: Vehicle,
-        local_link: &mut LocalLink,
+        local_link: &mut LocalLink<Vehicle>,
     ) -> Option<Vehicle> {
         if vehicle.route_index == 0 {
-            events.handle_person_enters_vehicle(now, vehicle.driver_id, &vehicle)
+            events.publish_event(
+                now,
+                &Event::new_person_enters_veh(vehicle.driver_id as u64, vehicle.id as u64),
+            );
         } else {
-            events.handle_vehicle_enters_link(now, local_link.id(), vehicle.id);
+            events.publish_event(
+                now,
+                &Event::new_link_enter(local_link.id() as u64, vehicle.id as u64),
+            );
         }
 
         local_link.push_vehicle(vehicle, now);
