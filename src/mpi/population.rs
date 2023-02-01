@@ -21,6 +21,7 @@ impl Population {
         id_mappings: &MatsimIdMappings,
         partition: usize,
         network: &Network<V>,
+        use_legs_of_plan: bool,
     ) -> Population {
         let mut result = Population::new();
 
@@ -30,7 +31,7 @@ impl Population {
 
             // take only agents which start on our partition
             if agent_partition == partition {
-                let agent = Agent::from_io(io_person, id_mappings);
+                let agent = Agent::from_io(io_person, id_mappings, use_legs_of_plan);
                 result.agents.insert(agent.id(), agent);
             }
         }

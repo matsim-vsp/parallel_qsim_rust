@@ -9,7 +9,7 @@
     <event time="32460" type="entered link" link="6" vehicle="0" />
     <event time="32510" type="left link" link="6" vehicle="0" />
     <event time="32510" type="PersonLeavesVehicle" person="0" vehicle="0" />
-    <event time="32510" type="arrival" person="0" link="6" legMode="car" />
+    <event time="32510" type="arrival" person="0" link="4" legMode="car" />
     <event time="32510" type="actstart" person="0" link="4" actType="errands_2400.0" />
     <event time="33600" type="actend" person="1" link="1" actType="home_28800.0" />
     <event time="33600" type="departure" person="1" link="0" legMode="car" />
@@ -31,7 +31,7 @@
     <event time="34260" type="entered link" link="6" vehicle="0" />
     <event time="34310" type="left link" link="6" vehicle="0" />
     <event time="34310" type="PersonLeavesVehicle" person="2" vehicle="0" />
-    <event time="34310" type="arrival" person="2" link="6" legMode="car" />
+    <event time="34310" type="arrival" person="2" link="3" legMode="car" />
     <event time="34310" type="actstart" person="2" link="3" actType="errands_2400.0" />
     <event time="34800" type="actend" person="3" link="2" actType="home_28800.0" />
     <event time="34800" type="departure" person="3" link="5" legMode="car" />

@@ -6,12 +6,12 @@ use rust_q_sim::mpi::events::EventsPublisher;
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 
-struct StatefullReader<R: Read + Seek> {
+struct StatefulReader<R: Read + Seek> {
     reader: EventsReader<R>,
     curr_time_step: (u32, Vec<Event>),
 }
 
-impl<R: Read + Seek> StatefullReader<R> {
+impl<R: Read + Seek> StatefulReader<R> {
     pub fn load_next(&mut self) -> Option<()> {
         match self.reader.next() {
             None => None,
@@ -36,7 +36,7 @@ fn main() {
         println!("\t {}", file_string);
         let file_path = PathBuf::from(file_string);
         let reader = EventsReader::from_file(&file_path);
-        let wrapper = StatefullReader {
+        let wrapper = StatefulReader {
             reader,
             curr_time_step: (0, Vec::new()),
         };

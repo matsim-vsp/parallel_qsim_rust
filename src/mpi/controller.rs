@@ -10,6 +10,7 @@ use crate::mpi::simulation::Simulation;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::network::partitioned_network::Network;
 use crate::parallel_simulation::partition_info::PartitionInfo;
+use crate::parallel_simulation::routing::network_converter::NetworkConverter;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
@@ -45,7 +46,16 @@ pub fn run(world: SystemCommunicator, config: Config) {
             io_network.clone_with_internal_ids(&network, &id_mappings.links, &id_mappings.nodes);
         out_network.to_file(&output_path.join("output_network.xml.gz"));
     }
-    let population = Population::from_io(&io_population, &id_mappings, rank as usize, &network);
+
+    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
+
+    let population = Population::from_io(
+        &io_population,
+        &id_mappings,
+        rank as usize,
+        &network,
+        config.routing_mode.is_none(),
+    );
     let network_partition = network.partitions.remove(rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
@@ -77,6 +87,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         population,
         message_broker,
         events,
+        routing_kit_network,
     );
 
     let start = Instant::now();

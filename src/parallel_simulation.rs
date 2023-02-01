@@ -180,7 +180,12 @@ impl Simulation {
                     trav_time: query_result.travel_time,
                     route: Route::NetworkRoute(NetworkRoute {
                         vehicle_id: 0, //TODO is a counter feasible?
-                        route: query_result.path.expect("There is no route!"),
+                        route: query_result
+                            .path
+                            .expect("There is no route!")
+                            .into_iter()
+                            .map(|e| e as usize)
+                            .collect(),
                     }),
                 });
 

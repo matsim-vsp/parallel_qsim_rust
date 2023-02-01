@@ -8,6 +8,7 @@ use crate::mpi::messages::proto::{
 use crate::mpi::time_queue::EndTime;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::parallel_simulation::network::node::NodeVehicle;
+use log::warn;
 use prost::Message;
 use std::cmp::Ordering;
 use std::io::Cursor;
@@ -121,8 +122,12 @@ impl EndTime for Vehicle {
 }
 
 impl Agent {
-    pub fn from_io(io_person: &IOPerson, id_mappings: &MatsimIdMappings) -> Agent {
-        let plan = Plan::from_io(io_person.selected_plan(), id_mappings);
+    pub fn from_io(
+        io_person: &IOPerson,
+        id_mappings: &MatsimIdMappings,
+        use_legs_of_plan: bool,
+    ) -> Agent {
+        let plan = Plan::from_io(io_person.selected_plan(), id_mappings, use_legs_of_plan);
         let id = *id_mappings.agents.get_internal(io_person.id()).unwrap();
         Agent {
             id: id as u64,
@@ -140,11 +145,28 @@ impl Agent {
             panic!("Current element is not an activity");
         }
         let act_index = self.curr_plan_elem / 2;
+        self.get_act_at_index(act_index)
+    }
+
+    pub fn next_act(&self) -> &Activity {
+        let act_index = match self.curr_plan_elem % 2 {
+            //current element is an activity => two elements after is the next activity
+            0 => (self.curr_plan_elem + 2) / 2,
+            //current element is a leg => one element after is the next activity
+            1 => (self.curr_plan_elem + 1) / 2,
+            _ => {
+                panic!()
+            }
+        };
+        self.get_act_at_index(act_index)
+    }
+
+    fn get_act_at_index(&self, index: u32) -> &Activity {
         self.plan
             .as_ref()
             .unwrap()
             .acts
-            .get(act_index as usize)
+            .get(index as usize)
             .unwrap()
     }
 
@@ -200,7 +222,7 @@ impl Plan {
         }
     }
 
-    fn from_io(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+    fn from_io(io_plan: &IOPlan, id_mappings: &MatsimIdMappings, use_legs_of_plan: bool) -> Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
@@ -215,10 +237,22 @@ impl Plan {
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => {
-                    let leg = Leg::from_io(io_leg, id_mappings);
-                    result.legs.push(leg);
+                    if use_legs_of_plan {
+                        let leg = Leg::from_io(io_leg, id_mappings);
+                        result.legs.push(leg);
+                    } else {
+                        warn!(
+                            "Internal routing is activated. The leg {:?} will be discarded.",
+                            io_leg
+                        )
+                    }
                 }
             }
+        }
+
+        if use_legs_of_plan && result.acts.len() - result.legs.len() != 1 {
+            // I don't know whether panic!() would be too strict here
+            warn!("A plan has less legs than expected");
         }
 
         result
