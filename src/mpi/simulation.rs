@@ -3,7 +3,7 @@ use crate::mpi::events::proto::Event;
 use crate::mpi::events::EventsPublisher;
 use crate::mpi::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::mpi::messages::proto::leg::Route;
-use crate::mpi::messages::proto::{Agent, GenericRoute, Leg, NetworkRoute, Vehicle, VehicleType};
+use crate::mpi::messages::proto::{Activity, Agent, GenericRoute, Vehicle, VehicleType};
 use crate::mpi::population::Population;
 use crate::mpi::time_queue::TimeQueue;
 use crate::parallel_simulation::network::link::Link;
@@ -72,9 +72,9 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn wakeup(&mut self, now: u32) {
-        let mut agents = self.activity_q.pop(now);
+        let agents = self.activity_q.pop(now);
 
-        for agent in &mut agents {
+        for mut agent in agents {
             let agent_id = agent.id;
             self.events.publish_event(
                 now,
@@ -85,36 +85,14 @@ impl<'sim> Simulation<'sim> {
                 ),
             );
 
-            if let Some(router) = self.router.as_mut() {
-                let dep_time;
-                let trav_time;
-                let route;
-                {
-                    let end_activity = agent.curr_act();
+            if self.router.is_some() {
+                let end_activity = agent.curr_act();
+                let new_activity = agent.next_act();
 
-                    let new_activity = agent.next_act();
+                let (route, trav_time) = self.find_route(end_activity, new_activity);
+                let dep_time = end_activity.end_time;
 
-                    let query_result = router.query_coordinates(
-                        end_activity.x,
-                        end_activity.y,
-                        new_activity.x,
-                        new_activity.y,
-                    );
-
-                    dep_time = end_activity.end_time;
-                    trav_time = query_result.travel_time;
-                    route = query_result.path.expect("There is no route!");
-                }
-
-                agent.plan.as_mut().unwrap().legs.push(Leg {
-                    mode: "car".to_string(),
-                    dep_time,
-                    trav_time,
-                    route: Some(Route::NetworkRoute(NetworkRoute {
-                        vehicle_id: 0, //TODO
-                        route,
-                    })),
-                });
+                agent.push_leg(dep_time, trav_time, route);
             }
 
             //here, current element counter is going to be increased
@@ -132,10 +110,10 @@ impl<'sim> Simulation<'sim> {
                     );
 
                     if Simulation::is_local_route(route, &self.message_broker) {
-                        let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent.clone());
+                        let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent);
                         self.teleportation_q.add(veh, now);
                     } else {
-                        let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent.clone());
+                        let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent);
                         self.message_broker.add_veh(veh, now);
                     }
                 }
@@ -151,11 +129,23 @@ impl<'sim> Simulation<'sim> {
                         &Event::new_person_enters_veh(agent_id, route.vehicle_id),
                     );
 
-                    let veh = Vehicle::new(route.vehicle_id, VehicleType::Network, agent.clone());
+                    let veh = Vehicle::new(route.vehicle_id, VehicleType::Network, agent);
                     self.veh_onto_network(veh, true, now);
                 }
             }
         }
+    }
+
+    fn find_route(&mut self, from_act: &Activity, to_act: &Activity) -> (Vec<u64>, Option<u32>) {
+        let query_result = self
+            .router
+            .as_mut()
+            .unwrap()
+            .query_coordinates(from_act.x, from_act.y, to_act.x, to_act.y);
+
+        let route = query_result.path.expect("There is no route!");
+        let trav_time = query_result.travel_time;
+        (route, trav_time)
     }
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {

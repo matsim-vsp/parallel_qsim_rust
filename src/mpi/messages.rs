@@ -186,6 +186,18 @@ impl Agent {
             .unwrap()
     }
 
+    pub fn push_leg(&mut self, dep_time: Option<u32>, trav_time: Option<u32>, route: Vec<u64>) {
+        self.plan.as_mut().unwrap().legs.push(Leg {
+            mode: "car".to_string(),
+            dep_time,
+            trav_time,
+            route: Some(Route::NetworkRoute(NetworkRoute {
+                vehicle_id: 0, //TODO
+                route,
+            })),
+        });
+    }
+
     pub fn advance_plan(&mut self) {
         let next = self.curr_plan_elem + 1;
         if self.plan.as_ref().unwrap().acts.len() + self.plan.as_ref().unwrap().legs.len()
