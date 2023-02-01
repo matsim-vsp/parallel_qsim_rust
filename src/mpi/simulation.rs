@@ -1,4 +1,4 @@
-use crate::config::{Config, RoutingMode};
+use crate::config::Config;
 use crate::mpi::events::proto::Event;
 use crate::mpi::events::EventsPublisher;
 use crate::mpi::message_broker::{MessageBroker, MpiMessageBroker};
@@ -9,30 +9,26 @@ use crate::mpi::time_queue::TimeQueue;
 use crate::parallel_simulation::network::link::Link;
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::node::{ExitReason, NodeVehicle};
-use crate::parallel_simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::parallel_simulation::routing::router::Router;
 use log::info;
-use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
 
-pub struct Simulation {
+pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: NetworkPartition<Vehicle>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
-    routing_mode: RoutingMode,
-    output_dir: String,
-    routing_kit_network: RoutingKitNetwork,
+    router: Option<Router<'sim>>,
 }
 
-impl Simulation {
+impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
         network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
-        routing_kit_network: RoutingKitNetwork,
+        router: Option<Router<'sim>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -45,9 +41,7 @@ impl Simulation {
             activity_q,
             message_broker,
             events,
-            routing_mode: config.routing_mode,
-            output_dir: config.output_dir.to_owned(),
-            routing_kit_network,
+            router,
         }
     }
 
@@ -60,23 +54,13 @@ impl Simulation {
             self.network.neighbors(),
         );
 
-        let mut router: Option<Router> = None;
-        let cch: CCH;
-        if self.routing_mode == RoutingMode::AdHoc {
-            cch = Router::perform_preprocessing(
-                &self.routing_kit_network,
-                self.get_temp_output_folder().as_str(),
-            );
-            router = Some(Router::new(&cch, &self.routing_kit_network));
-        };
-
         while now <= end_time {
             if self.message_broker.rank == 0 && now % 600 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank);
             }
-            self.wakeup(now, &mut router);
+            self.wakeup(now);
             self.terminate_teleportation(now);
             self.move_nodes(now);
             self.send_receive(now);
@@ -87,7 +71,7 @@ impl Simulation {
         self.events.finish();
     }
 
-    fn wakeup(&mut self, now: u32, router: &mut Option<Router>) {
+    fn wakeup(&mut self, now: u32) {
         let mut agents = self.activity_q.pop(now);
 
         for agent in &mut agents {
@@ -101,7 +85,37 @@ impl Simulation {
                 ),
             );
 
-            Self::find_route(router, agent);
+            if let Some(router) = self.router.as_mut() {
+                let dep_time;
+                let trav_time;
+                let route;
+                {
+                    let end_activity = agent.curr_act();
+
+                    let new_activity = agent.next_act();
+
+                    let query_result = router.query_coordinates(
+                        end_activity.x,
+                        end_activity.y,
+                        new_activity.x,
+                        new_activity.y,
+                    );
+
+                    dep_time = end_activity.end_time;
+                    trav_time = query_result.travel_time;
+                    route = query_result.path.expect("There is no route!");
+                }
+
+                agent.plan.as_mut().unwrap().legs.push(Leg {
+                    mode: "car".to_string(),
+                    dep_time,
+                    trav_time,
+                    route: Some(Route::NetworkRoute(NetworkRoute {
+                        vehicle_id: 0, //TODO
+                        route,
+                    })),
+                });
+            }
 
             //here, current element counter is going to be increased
             agent.advance_plan();
@@ -141,40 +155,6 @@ impl Simulation {
                     self.veh_onto_network(veh, true, now);
                 }
             }
-        }
-    }
-
-    fn find_route(router: &mut Option<Router>, agent: &mut Agent) {
-        if let Some(router) = router {
-            let dep_time;
-            let trav_time;
-            let route;
-            {
-                let end_activity = agent.curr_act();
-
-                let new_activity = agent.next_act();
-
-                let query_result = router.query_coordinates(
-                    end_activity.x,
-                    end_activity.y,
-                    new_activity.x,
-                    new_activity.y,
-                );
-
-                dep_time = end_activity.end_time;
-                trav_time = query_result.travel_time;
-                route = query_result.path.expect("There is no route!");
-            }
-
-            agent.plan.as_mut().unwrap().legs.push(Leg {
-                mode: "car".to_string(),
-                dep_time,
-                trav_time,
-                route: Some(Route::NetworkRoute(NetworkRoute {
-                    vehicle_id: 0, //TODO
-                    route,
-                })),
-            });
         }
     }
 
@@ -277,15 +257,5 @@ impl Simulation {
         let from_rank = message_broker.rank_for_link(route.start_link);
         let to_rank = message_broker.rank_for_link(route.end_link);
         (from_rank, to_rank)
-    }
-
-    fn get_temp_output_folder(&self) -> String {
-        format!(
-            "{}{}{}{}",
-            self.output_dir.to_owned(),
-            "/routing/",
-            self.message_broker.rank,
-            "/"
-        )
     }
 }

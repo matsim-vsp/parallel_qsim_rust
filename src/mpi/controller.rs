@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, RoutingMode};
 use crate::io::network::IONetwork;
 use crate::io::population::IOPopulation;
 use crate::io::proto_events::ProtoEventsWriter;
@@ -11,9 +11,12 @@ use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::network::partitioned_network::Network;
 use crate::parallel_simulation::partition_info::PartitionInfo;
 use crate::parallel_simulation::routing::network_converter::NetworkConverter;
+use crate::parallel_simulation::routing::router::Router;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
+use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
+use std::ffi::c_int;
 use std::fs;
 use std::ops::Sub;
 use std::path::PathBuf;
@@ -81,13 +84,23 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     //events.add_subscriber(Box::new(EventsLogger {}));
 
+    let mut router: Option<Router> = None;
+    let cch: CCH;
+    if config.routing_mode == RoutingMode::AdHoc {
+        cch = Router::perform_preprocessing(
+            &routing_kit_network,
+            get_temp_output_folder(&config.output_dir, rank).as_str(),
+        );
+        router = Some(Router::new(&cch, &routing_kit_network));
+    }
+
     let mut simulation = Simulation::new(
         &config,
         network_partition,
         population,
         message_broker,
         events,
-        routing_kit_network,
+        router,
     );
 
     let start = Instant::now();
@@ -99,4 +112,8 @@ pub fn run(world: SystemCommunicator, config: Config) {
     info!("#{rank} at barrier.");
     world.barrier();
     info!("Process #{rank} finishing.");
+}
+
+fn get_temp_output_folder(output_dir: &str, rank: c_int) -> String {
+    format!("{}{}{}{}", output_dir, "/routing/", rank, "/")
 }
