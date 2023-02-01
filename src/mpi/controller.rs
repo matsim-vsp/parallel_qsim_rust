@@ -54,7 +54,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         &id_mappings,
         rank as usize,
         &network,
-        config.routing_mode.is_none(),
+        config.routing_mode,
     );
     let network_partition = network.partitions.remove(rank as usize);
     info!(

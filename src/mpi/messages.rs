@@ -1,3 +1,5 @@
+use crate::config::RoutingMode;
+use crate::config::RoutingMode::UsePlans;
 use crate::io::matsim_id::MatsimId;
 use crate::io::population::{IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute};
 use crate::mpi::messages::proto::leg::Route;
@@ -8,7 +10,7 @@ use crate::mpi::messages::proto::{
 use crate::mpi::time_queue::EndTime;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::parallel_simulation::network::node::NodeVehicle;
-use log::warn;
+use log::debug;
 use prost::Message;
 use std::cmp::Ordering;
 use std::io::Cursor;
@@ -125,9 +127,9 @@ impl Agent {
     pub fn from_io(
         io_person: &IOPerson,
         id_mappings: &MatsimIdMappings,
-        use_legs_of_plan: bool,
+        routing_mode: RoutingMode,
     ) -> Agent {
-        let plan = Plan::from_io(io_person.selected_plan(), id_mappings, use_legs_of_plan);
+        let plan = Plan::from_io(io_person.selected_plan(), id_mappings, routing_mode);
         let id = *id_mappings.agents.get_internal(io_person.id()).unwrap();
         Agent {
             id: id as u64,
@@ -222,7 +224,11 @@ impl Plan {
         }
     }
 
-    fn from_io(io_plan: &IOPlan, id_mappings: &MatsimIdMappings, use_legs_of_plan: bool) -> Plan {
+    fn from_io(
+        io_plan: &IOPlan,
+        id_mappings: &MatsimIdMappings,
+        routing_mode: RoutingMode,
+    ) -> Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
@@ -236,23 +242,23 @@ impl Plan {
                     let act = Activity::from_io(io_act, &id_mappings.links);
                     result.acts.push(act);
                 }
-                IOPlanElement::Leg(io_leg) => {
-                    if use_legs_of_plan {
+                IOPlanElement::Leg(io_leg) => match routing_mode {
+                    RoutingMode::AdHoc => {
                         let leg = Leg::from_io(io_leg, id_mappings);
                         result.legs.push(leg);
-                    } else {
-                        warn!(
+                    }
+                    UsePlans => {
+                        debug!(
                             "Internal routing is activated. The leg {:?} will be discarded.",
                             io_leg
                         )
                     }
-                }
+                },
             }
         }
 
-        if use_legs_of_plan && result.acts.len() - result.legs.len() != 1 {
-            // I don't know whether panic!() would be too strict here
-            warn!("A plan has less legs than expected");
+        if routing_mode == UsePlans && result.acts.len() - result.legs.len() != 1 {
+            panic!("A plan has less legs than expected");
         }
 
         result

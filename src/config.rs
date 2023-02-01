@@ -1,3 +1,4 @@
+use crate::config::RoutingMode::UsePlans;
 use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
@@ -13,8 +14,8 @@ pub struct Config {
     pub network_file: String,
     #[arg(long)]
     pub population_file: String,
-    #[arg(long, value_enum)]
-    pub routing_mode: Option<RoutingMode>,
+    #[arg(long, value_enum, default_value_t=RoutingMode::UsePlans)]
+    pub routing_mode: RoutingMode,
     #[arg(long, default_value = "./")]
     pub output_dir: String,
     #[arg(long, default_value = "file")]
@@ -26,6 +27,7 @@ pub struct Config {
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy)]
 pub enum RoutingMode {
     AdHoc,
+    UsePlans,
 }
 
 impl Config {
@@ -40,7 +42,7 @@ pub struct ConfigBuilder {
     num_parts: usize,
     network_file: String,
     population_file: String,
-    routing_mode: Option<RoutingMode>,
+    routing_mode: RoutingMode,
     output_dir: String,
     events_mode: String,
     sample_size: f32,
@@ -57,7 +59,7 @@ impl ConfigBuilder {
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,
-            routing_mode: None,
+            routing_mode: UsePlans,
         }
     }
 
@@ -87,7 +89,7 @@ impl ConfigBuilder {
     }
 
     pub fn set_routing_mode(mut self, routing_mode: RoutingMode) -> Self {
-        self.routing_mode = Some(routing_mode);
+        self.routing_mode = routing_mode;
         self
     }
 

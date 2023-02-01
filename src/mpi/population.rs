@@ -1,3 +1,4 @@
+use crate::config::RoutingMode;
 use crate::io::population::{IOPerson, IOPlanElement, IOPopulation};
 use crate::mpi::messages::proto::Agent;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
@@ -21,7 +22,7 @@ impl Population {
         id_mappings: &MatsimIdMappings,
         partition: usize,
         network: &Network<V>,
-        use_legs_of_plan: bool,
+        routing_mode: RoutingMode,
     ) -> Population {
         let mut result = Population::new();
 
@@ -31,7 +32,7 @@ impl Population {
 
             // take only agents which start on our partition
             if agent_partition == partition {
-                let agent = Agent::from_io(io_person, id_mappings, use_legs_of_plan);
+                let agent = Agent::from_io(io_person, id_mappings, routing_mode);
                 result.agents.insert(agent.id(), agent);
             }
         }
