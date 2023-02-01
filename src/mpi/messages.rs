@@ -255,11 +255,11 @@ impl Plan {
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => match routing_mode {
-                    RoutingMode::AdHoc => {
+                    UsePlans => {
                         let leg = Leg::from_io(io_leg, id_mappings);
                         result.legs.push(leg);
                     }
-                    UsePlans => {
+                    RoutingMode::AdHoc => {
                         debug!(
                             "Internal routing is activated. The leg {:?} will be discarded.",
                             io_leg
@@ -270,7 +270,7 @@ impl Plan {
         }
 
         if routing_mode == UsePlans && result.acts.len() - result.legs.len() != 1 {
-            panic!("A plan has less legs than expected");
+            panic!("Plan {:?} has less legs than expected", io_plan);
         }
 
         result

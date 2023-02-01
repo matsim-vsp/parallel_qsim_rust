@@ -1,10 +1,10 @@
-use rust_q_sim::config::Config;
-use rust_q_sim::logging::init_logging;
-use rust_q_sim::{controller, io};
+use rust_q_sim::io;
 use serde::{de, Deserialize, Deserializer, Serialize};
+use std::process::Command;
 use std::str::FromStr;
 use std::time::Duration;
 use std::usize;
+use wait_timeout::ChildExt;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Events {
@@ -85,21 +85,67 @@ where
     u64::from_str(&s).map_err(de::Error::custom)
 }
 
-pub fn run_simulation_and_compare_events(config: Config, path_to_expected_scenario_files: &str) {
-    let output_dir = config.output_dir.clone();
-    let _logger_guard = init_logging(&output_dir, None);
+pub fn run_mpi_simulation_and_convert_events(
+    number_of_parts: usize,
+    network_file: &str,
+    population_file: &str,
+    output_dir: &str,
+    routing_mode: &str,
+) {
+    let mut child = Command::new("cargo")
+        .arg("mpirun")
+        .arg("-n")
+        .arg(format!("{}", number_of_parts))
+        .arg("--bin")
+        .arg("mpi_qsim")
+        .arg("--")
+        .arg("--network-file")
+        .arg(network_file)
+        .arg("--population-file")
+        .arg(population_file)
+        .arg("--output-dir")
+        .arg(output_dir)
+        .arg("--routing-mode")
+        .arg(routing_mode)
+        .spawn()
+        .unwrap();
 
-    controller::run(config);
+    let simulation_status = match child.wait_timeout(Duration::from_secs(5)).unwrap() {
+        None => {
+            child.kill().unwrap();
+            child.wait().unwrap().code()
+        }
+        Some(status) => status.code(),
+    };
 
-    // The event writer is non blocking. So we need to wait a bit til it's finished. This should be a temporary fix.
-    std::thread::sleep(Duration::from_secs(3));
+    assert_eq!(
+        simulation_status,
+        Some(0),
+        "The Simulation did not finish and was killed."
+    );
 
+    let event_converison_status = Command::new("cargo")
+        .arg("run")
+        .arg("--bin")
+        .arg("proto2xml")
+        .arg("--")
+        .arg("--num-parts")
+        .arg(format!("{}", number_of_parts))
+        .arg("--path")
+        .arg(output_dir.to_owned() + "events")
+        .status()
+        .unwrap();
+
+    assert_eq!(event_converison_status.code(), Some(0));
+}
+
+pub fn compare_events(output_dir: &str, path_to_expected_scenario_files: &str) {
     let mut expected_output_events: Events = io::xml_reader::read(
         (String::from(path_to_expected_scenario_files) + "/output_events.xml").as_ref(),
     );
 
     let actual_output_events: Events =
-        io::xml_reader::read((output_dir + "/output_events.xml").as_ref());
+        io::xml_reader::read((output_dir.to_owned() + "/events.xml").as_ref());
 
     for actual_event in actual_output_events.events {
         expected_output_events.events.remove(
@@ -107,10 +153,13 @@ pub fn run_simulation_and_compare_events(config: Config, path_to_expected_scenar
                 .events
                 .iter()
                 .position(|expected_event| *expected_event == actual_event)
-                .expect(&*format!(
-                    "Event {:?} was not expected to be in the output",
-                    actual_event
-                )),
+                .expect(
+                    format!(
+                        "Event {:?} was not expected to be in the output",
+                        actual_event
+                    )
+                    .as_str(),
+                ),
         );
     }
 
