@@ -18,6 +18,7 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
 use std::ffi::c_int;
 use std::fs;
+use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -108,6 +109,17 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let end = Instant::now();
     let duration = end.sub(start).as_millis() / 1000;
     info!("#{rank} took: {duration}s");
+
+    info!("output dir: {:?}", config.output_dir);
+
+    if config.routing_mode == RoutingMode::AdHoc {
+        match remove_dir_all(config.output_dir + "routing") {
+            Ok(_) => {}
+            Err(_) => {
+                info!("Wasn't able to delete temporary routing output.")
+            }
+        }
+    }
 
     info!("#{rank} at barrier.");
     world.barrier();

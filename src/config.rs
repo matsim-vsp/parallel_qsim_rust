@@ -8,7 +8,7 @@ pub struct Config {
     pub start_time: u32,
     #[arg(long, default_value_t = 86400)]
     pub end_time: u32,
-    #[arg(long)]
+    #[arg(long, default_value_t = 1)]
     pub num_parts: usize,
     #[arg(long)]
     pub network_file: String,

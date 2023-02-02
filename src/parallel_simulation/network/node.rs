@@ -1,7 +1,7 @@
 use crate::mpi::events::proto::Event;
 use crate::mpi::events::EventsPublisher;
 use crate::parallel_simulation::network::link::Link;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 pub trait NodeVehicle: Debug {
@@ -41,7 +41,7 @@ impl Node {
 
     pub fn move_vehicles<V: NodeVehicle>(
         &self,
-        links: &mut HashMap<usize, Link<V>>,
+        links: &mut BTreeMap<usize, Link<V>>,
         now: u32,
         events: &mut EventsPublisher,
     ) -> Vec<ExitReason<V>> {
@@ -80,7 +80,7 @@ impl Node {
 
     fn move_vehicle<V: NodeVehicle>(
         &self,
-        links: &mut HashMap<usize, Link<V>>,
+        links: &mut BTreeMap<usize, Link<V>>,
         out_link_id: usize,
         vehicle: V,
         exited_vehicles: &mut Vec<ExitReason<V>>,
@@ -110,7 +110,7 @@ mod tests {
     use crate::parallel_simulation::network::link::{Link, LocalLink, SplitOutLink};
     use crate::parallel_simulation::network::node::{ExitReason, Node};
     use crate::parallel_simulation::vehicles::Vehicle;
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
 
     #[test]
     fn init() {
@@ -129,7 +129,7 @@ mod tests {
         local_in_link.push_vehicle(vehicle, 1);
         node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
-        let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link)]);
+        let mut links: BTreeMap<usize, Link<Vehicle>> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
@@ -150,7 +150,8 @@ mod tests {
         node.add_out_link(local_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
-        let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link), (2, out_link)]);
+        let mut links: BTreeMap<usize, Link<Vehicle>> =
+            BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
@@ -174,7 +175,8 @@ mod tests {
         node.add_out_link(split_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::SplitOutLink(split_out_link);
-        let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link), (2, out_link)]);
+        let mut links: BTreeMap<usize, Link<Vehicle>> =
+            BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
@@ -196,7 +198,7 @@ mod tests {
         local_in_link.push_vehicle(vehicle_2, 1);
         node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
-        let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link)]);
+        let mut links: BTreeMap<usize, Link<Vehicle>> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
@@ -231,7 +233,8 @@ mod tests {
         node.add_out_link(local_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
-        let mut links: HashMap<usize, Link<Vehicle>> = HashMap::from([(1, in_link), (2, out_link)]);
+        let mut links: BTreeMap<usize, Link<Vehicle>> =
+            BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events);
