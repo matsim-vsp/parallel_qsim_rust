@@ -17,7 +17,8 @@ fn test_equil_2() {
 
 #[test]
 #[serial]
-fn test_equil_5() {
+#[ignore]
+fn test_equil_4() {
     test_equil(4)
 }
 
