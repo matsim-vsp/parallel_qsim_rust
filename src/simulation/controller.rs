@@ -83,16 +83,18 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let events_file = format!("events.{rank}.pbf");
     let events_path = output_path.join(events_file);
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    let travel_time_collector = Box::new(TravelTimeCollector::new());
+    events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
     let mut router: Option<Router> = None;
-    let cch: CCH;
+    let mut cch: Option<CCH> = None;
     if config.routing_mode == RoutingMode::AdHoc {
-        cch = Router::perform_preprocessing(
+        cch = Some(Router::perform_preprocessing(
             &routing_kit_network,
             get_temp_output_folder(&config.output_dir, rank).as_str(),
-        );
-        router = Some(Router::new(&cch, &routing_kit_network));
+        ));
+        router = Some(Router::new(cch.as_ref().unwrap(), &routing_kit_network));
     }
 
     let mut simulation = Simulation::new(
@@ -102,6 +104,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         message_broker,
         events,
         router,
+        &cch,
     );
 
     let start = Instant::now();

@@ -24,8 +24,10 @@ impl<'router> Router<'router> {
         }
     }
 
-    pub(crate) fn customize(&mut self, cch: &'router CCH, graph: &OwnedGraph) {
-        self.server = Server::new(customize(cch, graph));
+    pub(crate) fn customize(&mut self, cch: &'router CCH, network: RoutingKitNetwork) {
+        self.network = network;
+        self.server
+            .update(customize(cch, &Router::create_owned_graph(&self.network)));
     }
 
     pub(crate) fn query<'q>(
@@ -286,12 +288,9 @@ mod test {
 
         println!("Assign new travel time to edge 1-2: 4");
 
-        let new_owned_graph = OwnedGraph::new(
-            network.first_out.to_owned(),
-            network.head.to_owned(),
-            vec![4, 2, 1, 4, 2, 5],
-        );
-        router.customize(&cch, &new_owned_graph);
+        let network_new_weights =
+            RoutingKitNetwork::clone_with_new_travel_times(network, vec![4, 2, 1, 4, 2, 5]);
+        router.customize(&cch, network_new_weights);
         let new_result = router.query(3, 2);
         test_query_result(new_result, 5, vec![3, 2]);
     }

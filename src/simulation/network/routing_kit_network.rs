@@ -22,4 +22,13 @@ impl RoutingKitNetwork {
             longitude: Vec::new(),
         }
     }
+
+    pub fn clone_with_new_travel_times(
+        old: RoutingKitNetwork,
+        travel_times: Vec<u32>,
+    ) -> RoutingKitNetwork {
+        let mut result = old.clone();
+        result.travel_time = travel_times;
+        result
+    }
 }
