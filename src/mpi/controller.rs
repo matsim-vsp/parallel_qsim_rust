@@ -112,13 +112,9 @@ pub fn run(world: SystemCommunicator, config: Config) {
 
     info!("output dir: {:?}", config.output_dir);
 
-    if config.routing_mode == RoutingMode::AdHoc {
-        match remove_dir_all(config.output_dir + "routing") {
-            Ok(_) => {}
-            Err(_) => {
-                info!("Wasn't able to delete temporary routing output.")
-            }
-        }
+    if rank == 0 && config.routing_mode == RoutingMode::AdHoc {
+        remove_dir_all(config.output_dir + "routing")
+            .expect("Wasn't able to delete temporary routing output.")
     }
 
     info!("#{rank} at barrier.");

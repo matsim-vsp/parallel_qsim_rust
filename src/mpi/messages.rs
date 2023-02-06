@@ -255,7 +255,7 @@ impl Plan {
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => match routing_mode {
-                    UsePlans => {
+                    RoutingMode::UsePlans => {
                         let leg = Leg::from_io(io_leg, id_mappings);
                         result.legs.push(leg);
                     }
