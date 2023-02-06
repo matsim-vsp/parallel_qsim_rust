@@ -2,6 +2,17 @@ syntax = "proto3";
 
 package mpi.messages;
 
+message SimulationUpdateMessage {
+  oneof type {
+    VehicleMessage vehicleMessage = 1;
+    TrafficInfoMessage trafficInfoMessage = 2;
+  }
+}
+
+message TrafficInfoMessage {
+  map<uint64, uint64> travelTimes = 1;
+}
+
 // this is a message for the mpi examples
 message ExperimentalMessage {
   uint64 timestamp = 1;

@@ -7,7 +7,9 @@ use crate::simulation::messaging::events::proto::{
     LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
     TravelledEvent,
 };
+use crate::mpi::travel_time_collector::TravelTimeCollector;
 use log::info;
+use std::any::Any;
 use std::collections::HashMap;
 
 // Include the `events` module, which is generated from events.proto.
@@ -19,6 +21,8 @@ pub trait EventsSubscriber {
     fn receive_event(&mut self, time: u32, event: &Event);
 
     fn finish(&mut self) {}
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub struct EventsLogger {}
@@ -26,6 +30,10 @@ pub struct EventsLogger {}
 impl EventsSubscriber for EventsLogger {
     fn receive_event(&mut self, time: u32, event: &Event) {
         info!("{time}: {event:?}");
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 
@@ -84,6 +92,17 @@ impl EventsPublisher {
         for handler in self.handlers.iter_mut() {
             handler.finish();
         }
+    }
+
+    pub fn get_travel_time_collector(&mut self) -> Option<&TravelTimeCollector> {
+        let mut result = None;
+        for handler in self.handlers.iter() {
+            match handler.as_any().downcast_ref::<TravelTimeCollector>() {
+                Some(collector) => result = Some(collector),
+                None => {}
+            };
+        }
+        result
     }
 }
 

@@ -2,6 +2,7 @@ use crate::simulation::messaging::events::proto::event::Type;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsSubscriber;
 use log::info;
+use std::any::Any;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
@@ -89,5 +90,9 @@ impl EventsSubscriber for XmlEventsWriter {
         self.write(closing_tag);
         info!("Finishing Events File. Calling flush on Buffered Writer.");
         self.writer.flush().expect("Failed to flush events.");
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
