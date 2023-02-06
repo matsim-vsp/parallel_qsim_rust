@@ -15,6 +15,7 @@ use crate::simulation::time_queue::EndTime;
 use log::debug;
 use prost::Message;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::io::Cursor;
 
 // Include the `messages` module, which is generated from messages.proto.
@@ -64,6 +65,28 @@ impl VehicleMessage {
 
     pub fn deserialize(buffer: &[u8]) -> VehicleMessage {
         VehicleMessage::decode(&mut Cursor::new(buffer)).unwrap()
+    }
+}
+
+impl TrafficInfoMessage {
+    pub fn new() -> Self {
+        TrafficInfoMessage {
+            travel_times: HashMap::new(),
+        }
+    }
+
+    pub fn add_travel_time(&mut self, link: u64, travel_time: u64) {
+        self.travel_times.insert(link, travel_time);
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut buffer = Vec::with_capacity(self.encoded_len());
+        self.encode(&mut buffer).unwrap();
+        buffer
+    }
+
+    pub fn deserialize(buffer: &[u8]) -> TrafficInfoMessage {
+        TrafficInfoMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
