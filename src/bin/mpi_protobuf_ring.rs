@@ -1,5 +1,5 @@
 use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
-use rust_q_sim::mpi::messages::proto::ExperimentalMessage;
+use rust_q_sim::simulation::messaging::messages::proto::ExperimentalMessage;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 

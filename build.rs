@@ -7,7 +7,10 @@ fn main() {
     // this line comes from the prost-build example and compiles items.proto into corresponding types.
     // the generated code is under ./target/<goal, e.g. debug>/build/<project-name>-<some-hash>/out
     prost_build::compile_protos(
-        &["src/mpi/messages.proto", "src/mpi/events.proto"],
+        &[
+            "src/simulation/messaging/messages.proto",
+            "src/simulation/messaging/events.proto",
+        ],
         &["src/"],
     )
     .unwrap();

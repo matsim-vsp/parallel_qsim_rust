@@ -1,8 +1,8 @@
 use clap::Parser;
 use log::info;
 use mpi::traits::Communicator;
-use rust_q_sim::config::Config;
-use rust_q_sim::logging;
+use rust_q_sim::simulation::config::Config;
+use rust_q_sim::simulation::logging;
 
 fn main() {
     let universe = mpi::initialize().unwrap();
@@ -12,5 +12,5 @@ fn main() {
 
     info!("{}", mpi::environment::library_version().unwrap());
 
-    rust_q_sim::mpi::controller::run(universe.world(), config);
+    rust_q_sim::simulation::controller::run(universe.world(), config);
 }

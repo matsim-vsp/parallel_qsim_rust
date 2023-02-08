@@ -1,8 +1,8 @@
 use clap::Parser;
-use rust_q_sim::io::proto_events::EventsReader;
-use rust_q_sim::io::xml_events::XmlEventsWriter;
-use rust_q_sim::mpi::events::proto::Event;
-use rust_q_sim::mpi::events::EventsPublisher;
+use rust_q_sim::simulation::io::proto_events::EventsReader;
+use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
+use rust_q_sim::simulation::messaging::events::proto::Event;
+use rust_q_sim::simulation::messaging::events::EventsPublisher;
 use std::io::{Read, Seek};
 use std::path::PathBuf;
 
