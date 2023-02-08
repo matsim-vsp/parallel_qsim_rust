@@ -70,37 +70,32 @@ impl MessageBroker for MpiMessageBroker {
             if self.routing_mode == RoutingMode::AdHoc && now % (60 * 15) == 0 {
                 // ------- Gather traffic info lengths -------
                 let mut traffic_info_length_buffer = vec![0i32; self.communicator.size() as usize];
-                println!(
-                    "Process {:?}: length to be sent is {:?}",
-                    self.communicator.rank(),
-                    traffic_info_message.len()
-                );
                 self.communicator.all_gather_into(
                     &(traffic_info_message.len() as i32),
                     &mut traffic_info_length_buffer[..],
                 );
-                println!(
-                    "Process {:?}: gathered lengths {:?}",
-                    self.communicator.rank(),
-                    traffic_info_length_buffer
-                );
 
                 // ------- Gather traffic info -------
-                let mut traffic_info_buffer =
-                    vec![0u8; traffic_info_length_buffer.iter().sum::<i32>() as usize];
-                let info_displs = Self::get_traffic_info_displs(&mut traffic_info_length_buffer);
-                let mut partition = PartitionMut::new(
-                    &mut traffic_info_buffer,
-                    traffic_info_length_buffer.clone(),
-                    &info_displs[..],
-                );
-                self.communicator
-                    .all_gather_varcount_into(&traffic_info_message[..], &mut partition);
+                if traffic_info_length_buffer.iter().sum::<i32>() > 0 {
+                    // only if there is traffic data to be sent, we actually perform mpi communication
+                    // otherwise mpi would crash
+                    let mut traffic_info_buffer =
+                        vec![0u8; traffic_info_length_buffer.iter().sum::<i32>() as usize];
+                    let info_displs =
+                        Self::get_traffic_info_displs(&mut traffic_info_length_buffer);
+                    let mut partition = PartitionMut::new(
+                        &mut traffic_info_buffer,
+                        traffic_info_length_buffer.clone(),
+                        &info_displs[..],
+                    );
+                    self.communicator
+                        .all_gather_varcount_into(&traffic_info_message[..], &mut partition);
 
-                received_traffic_info_messages = Self::deserialize_traffic_infos(
-                    traffic_info_buffer,
-                    traffic_info_length_buffer,
-                );
+                    received_traffic_info_messages = Self::deserialize_traffic_infos(
+                        traffic_info_buffer,
+                        traffic_info_length_buffer,
+                    );
+                }
             }
 
             // ------ Receive Part --------

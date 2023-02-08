@@ -4,4 +4,5 @@ extern crate core;
 #[allow(dead_code)]
 pub mod experiments;
 
+#[allow(dead_code, unused_variables)]
 pub mod simulation;
