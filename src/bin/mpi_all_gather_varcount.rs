@@ -9,9 +9,9 @@ fn main() {
 
     // construct messages
     let mut message = TrafficInfoMessage::new();
-    message.add_travel_time(world.rank() as u64, world.rank() as u64 * 2);
+    message.add_travel_time(world.rank() as u64, world.rank() as u32 * 2);
     if world.rank() == 2 {
-        message.add_travel_time(1000000u64, 40000u64)
+        message.add_travel_time(1000000u64, 40000u32)
     }
 
     let send_traffic_info = message.serialize();

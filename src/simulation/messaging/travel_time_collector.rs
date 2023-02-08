@@ -69,6 +69,16 @@ impl TravelTimeCollector {
             }
         }
     }
+
+    pub fn get_travel_times(&self) -> HashMap<u64, u32> {
+        let mut result = HashMap::new();
+        for key in self.travel_times_by_link.keys() {
+            if let Some(travel_time) = self.get_travel_time_of_link(*key) {
+                result.insert(*key, travel_time);
+            }
+        }
+        result
+    }
 }
 
 impl EventsSubscriber for TravelTimeCollector {
@@ -92,6 +102,7 @@ mod test {
     use crate::simulation::messaging::travel_time_collector::{
         TrafficInformation, TravelTimeCollector,
     };
+    use std::collections::HashMap;
 
     #[test]
     fn test_one_vehicle() {
@@ -100,8 +111,11 @@ mod test {
         collector.receive_event(2, &Event::new_link_enter(2, 1));
         collector.receive_event(4, &Event::new_link_leave(2, 1));
 
-        assert_eq!(Some(2), collector.get_travel_time_of_link(2));
-        assert_eq!(None, collector.get_travel_time_of_link(1));
+        assert_eq!(collector.get_travel_time_of_link(2), Some(2));
+        assert_eq!(collector.get_travel_time_of_link(1), None);
+        assert_eq!(collector.get_travel_times().keys().len(), 1);
+        assert_eq!(collector.get_travel_times().get(&2), Some(&2u32));
+
         assert_eq!(
             collector
                 .cache_traffic_information_by_link
@@ -133,6 +147,9 @@ mod test {
         // The average travel time on link 2 is 3
         assert_eq!(Some(3), collector.get_travel_time_of_link(2));
         assert_eq!(None, collector.get_travel_time_of_link(1));
+
+        assert_eq!(collector.get_travel_times().keys().len(), 1);
+        assert_eq!(collector.get_travel_times().get(&2), Some(&3u32));
 
         // link 1 has no cached traffic information
         assert_eq!(

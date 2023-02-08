@@ -78,7 +78,8 @@ pub fn run(world: SystemCommunicator, config: Config) {
         .collect();
     let link_id_mapping = network.links_2_partition;
 
-    let message_broker = MpiMessageBroker::new(world, rank, neighbors, link_id_mapping);
+    let message_broker =
+        MpiMessageBroker::new(world, rank, neighbors, link_id_mapping, config.routing_mode);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");

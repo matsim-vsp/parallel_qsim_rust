@@ -1,14 +1,19 @@
-use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
+use crate::simulation::config::RoutingMode;
+use crate::simulation::messaging::messages::proto::{
+    SimulationUpdateMessage, TrafficInfoMessage, Vehicle, VehicleMessage,
+};
 use crate::simulation::network::node::NodeVehicle;
+use mpi::datatype::PartitionMut;
 use mpi::topology::SystemCommunicator;
-use mpi::traits::{Communicator, Destination, Source};
-use mpi::Rank;
+use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
+use mpi::{Count, Rank};
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 
 pub trait MessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<Vehicle>;
+    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
+    fn add_travel_times(&mut self, travel_times: HashMap<u64, u32>);
 }
 pub struct MpiMessageBroker {
     pub rank: Rank,
@@ -17,26 +22,26 @@ pub struct MpiMessageBroker {
     out_messages: HashMap<u32, VehicleMessage>,
     in_messages: BinaryHeap<VehicleMessage>,
     link_id_mapping: Arc<HashMap<usize, usize>>,
+    traffic_info: TrafficInfoMessage,
+    routing_mode: RoutingMode,
 }
 
 impl MessageBroker for MpiMessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<Vehicle> {
-        let capacity = self.out_messages.len();
-        let mut messages =
-            std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
+    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage> {
+        // preparation of traffic info messages
+        let traffic_info_message = self.traffic_info.serialize();
 
-        for partition in &self.neighbors {
-            let neighbor_rank = *partition;
-            messages
-                .entry(neighbor_rank)
-                .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
-        }
+        // preparation of vehicle messages
+        let vehicle_messages = self.prepare_send_recv_vehicles(now);
+        let buf_msg: Vec<_> = vehicle_messages
+            .values()
+            .map(|m| (m, m.serialize()))
+            .collect();
 
         // prepare the receiving here.
-        let mut expected_messages = self.neighbors.clone();
-        let mut received_messages = Vec::new();
-
-        let buf_msg: Vec<_> = messages.values().map(|m| (m, m.serialize())).collect();
+        let mut expected_vehicle_messages = self.neighbors.clone();
+        let mut received_vehicle_messages = Vec::new();
+        let mut received_traffic_info_messages = Vec::new();
 
         // we have to use at least immediate send here. Otherwise we risk blocking on send as explained
         // in https://paperpile.com/app/p/e209e0b3-9bdb-08c7-8a62-b1180a9ac954 chapter 4.3, 4.4 and 4.12.
@@ -62,12 +67,52 @@ impl MessageBroker for MpiMessageBroker {
                 reqs.add(req);
             }
 
+            if self.routing_mode == RoutingMode::AdHoc && now % (60 * 15) == 0 {
+                // ------- Gather traffic info lengths -------
+                let mut traffic_info_length_buffer = vec![0i32; self.communicator.size() as usize];
+                println!(
+                    "Process {:?}: length to be sent is {:?}",
+                    self.communicator.rank(),
+                    traffic_info_message.len()
+                );
+                self.communicator.all_gather_into(
+                    &(traffic_info_message.len() as i32),
+                    &mut traffic_info_length_buffer[..],
+                );
+                println!(
+                    "Process {:?}: gathered lengths {:?}",
+                    self.communicator.rank(),
+                    traffic_info_length_buffer
+                );
+
+                // ------- Gather traffic info -------
+                let mut traffic_info_buffer =
+                    vec![0u8; traffic_info_length_buffer.iter().sum::<i32>() as usize];
+                let info_displs = Self::get_traffic_info_displs(&mut traffic_info_length_buffer);
+                let mut partition = PartitionMut::new(
+                    &mut traffic_info_buffer,
+                    traffic_info_length_buffer.clone(),
+                    &info_displs[..],
+                );
+                self.communicator
+                    .all_gather_varcount_into(&traffic_info_message[..], &mut partition);
+
+                received_traffic_info_messages = Self::deserialize_traffic_infos(
+                    traffic_info_buffer,
+                    traffic_info_length_buffer,
+                );
+            }
+
             // ------ Receive Part --------
-            self.pop_from_cache(&mut expected_messages, &mut received_messages, now);
+            self.pop_from_cache(
+                &mut expected_vehicle_messages,
+                &mut received_vehicle_messages,
+                now,
+            );
 
             // Use blocking MPI_recv here, since we don't have anything to do if there are no other
             // messages.
-            while !expected_messages.is_empty() {
+            while !expected_vehicle_messages.is_empty() {
                 let (encoded_msg, _status) = self.communicator.any_process().receive_vec();
                 let msg = VehicleMessage::deserialize(&encoded_msg);
                 let from_rank = msg.from_process;
@@ -76,13 +121,14 @@ impl MessageBroker for MpiMessageBroker {
                 // that partition from expected messages which indicates which partitions we are waiting
                 // for
                 if msg.time == now {
-                    expected_messages.remove(&from_rank);
+                    expected_vehicle_messages.remove(&from_rank);
                 }
                 // In case a message is for a future time step store it in the message cache, until
                 // this process reaches the time step of that message. Otherwise store it in received
                 // messages and use it in the simulation
                 if msg.time <= now {
-                    received_messages.push(msg);
+                    received_vehicle_messages
+                        .push(SimulationUpdateMessage::new_vehicle_message(msg));
                 } else {
                     self.in_messages.push(msg);
                 }
@@ -94,11 +140,9 @@ impl MessageBroker for MpiMessageBroker {
             reqs.wait_all(&mut Vec::new());
         });
 
-        let result = received_messages
-            .into_iter()
-            .flat_map(|msg| msg.vehicles)
-            .collect();
-
+        let mut result: Vec<SimulationUpdateMessage> = Vec::new();
+        result.append(&mut received_vehicle_messages);
+        result.append(&mut received_traffic_info_messages);
         result
     }
 
@@ -111,6 +155,10 @@ impl MessageBroker for MpiMessageBroker {
             .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, partition));
         message.add(vehicle);
     }
+
+    fn add_travel_times(&mut self, new_travel_times: HashMap<u64, u32>) {
+        self.traffic_info.travel_times = new_travel_times;
+    }
 }
 
 impl MpiMessageBroker {
@@ -119,6 +167,7 @@ impl MpiMessageBroker {
         rank: Rank,
         neighbors: HashSet<u32>,
         link_id_mapping: Arc<HashMap<usize, usize>>,
+        routing_mode: RoutingMode,
     ) -> Self {
         MpiMessageBroker {
             out_messages: HashMap::new(),
@@ -127,6 +176,8 @@ impl MpiMessageBroker {
             neighbors,
             rank,
             link_id_mapping,
+            traffic_info: TrafficInfoMessage::new(),
+            routing_mode,
         }
     }
 
@@ -137,7 +188,7 @@ impl MpiMessageBroker {
     fn pop_from_cache(
         &mut self,
         expected_messages: &mut HashSet<u32>,
-        messages: &mut Vec<VehicleMessage>,
+        messages: &mut Vec<SimulationUpdateMessage>,
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
@@ -148,11 +199,58 @@ impl MpiMessageBroker {
                 //      self.rank, msg.from_process, msg.to_process, msg.time
                 //  );
                 expected_messages.remove(&msg.from_process);
-                messages.push(self.in_messages.pop().unwrap())
+                messages.push(SimulationUpdateMessage::new_vehicle_message(
+                    self.in_messages.pop().unwrap(),
+                ))
             } else {
                 //  info!("; {}; {}; break in cache ", self.rank, now);
                 break; // important! otherwise this is an infinite loop
             }
         }
+    }
+
+    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, VehicleMessage> {
+        let capacity = self.out_messages.len();
+        let mut messages =
+            std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
+
+        for partition in &self.neighbors {
+            let neighbor_rank = *partition;
+            messages
+                .entry(neighbor_rank)
+                .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
+        }
+        messages
+    }
+
+    fn get_traffic_info_displs(all_traffic_info_message_lengths: &mut Vec<i32>) -> Vec<Count> {
+        // this is copied from rsmpi example immediate_all_gather_varcount
+        all_traffic_info_message_lengths
+            .iter()
+            .scan(0, |acc, &x| {
+                let tmp = *acc;
+                *acc += x;
+                Some(tmp)
+            })
+            .collect()
+    }
+
+    fn deserialize_traffic_infos(
+        all_traffic_info_messages: Vec<u8>,
+        lengths: Vec<i32>,
+    ) -> Vec<SimulationUpdateMessage> {
+        let mut result = Vec::new();
+        let mut last_end_index = 0usize;
+        for len in lengths {
+            let begin_index = last_end_index;
+            let end_index = last_end_index + len as usize;
+            result.push(SimulationUpdateMessage::new_traffic_info_message(
+                TrafficInfoMessage::deserialize(
+                    &all_traffic_info_messages[begin_index..end_index as usize],
+                ),
+            ));
+            last_end_index = end_index;
+        }
+        result
     }
 }
