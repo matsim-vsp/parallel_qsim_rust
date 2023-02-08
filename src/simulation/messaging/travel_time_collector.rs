@@ -1,6 +1,6 @@
-use crate::mpi::events::proto::event::Type;
-use crate::mpi::events::proto::{Event, LinkEnterEvent, LinkLeaveEvent};
-use crate::mpi::events::EventsSubscriber;
+use crate::simulation::messaging::events::proto::event::Type;
+use crate::simulation::messaging::events::proto::{Event, LinkEnterEvent, LinkLeaveEvent};
+use crate::simulation::messaging::events::EventsSubscriber;
 use std::any::Any;
 use std::collections::HashMap;
 
@@ -87,9 +87,11 @@ impl EventsSubscriber for TravelTimeCollector {
 
 #[cfg(test)]
 mod test {
-    use crate::mpi::events::proto::Event;
-    use crate::mpi::events::EventsSubscriber;
-    use crate::mpi::travel_time_collector::{TrafficInformation, TravelTimeCollector};
+    use crate::simulation::messaging::events::proto::Event;
+    use crate::simulation::messaging::events::EventsSubscriber;
+    use crate::simulation::messaging::travel_time_collector::{
+        TrafficInformation, TravelTimeCollector,
+    };
 
     #[test]
     fn test_one_vehicle() {

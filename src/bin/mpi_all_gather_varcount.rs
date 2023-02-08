@@ -1,7 +1,7 @@
 use mpi::datatype::PartitionMut;
 use mpi::traits::{Communicator, CommunicatorCollectives};
 use mpi::Count;
-use rust_q_sim::mpi::messages::proto::TrafficInfoMessage;
+use rust_q_sim::simulation::messaging::messages::proto::TrafficInfoMessage;
 
 fn main() {
     let universe = mpi::initialize().unwrap();
