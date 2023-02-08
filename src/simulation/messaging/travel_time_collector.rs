@@ -102,7 +102,6 @@ mod test {
     use crate::simulation::messaging::travel_time_collector::{
         TrafficInformation, TravelTimeCollector,
     };
-    use std::collections::HashMap;
 
     #[test]
     fn test_one_vehicle() {
