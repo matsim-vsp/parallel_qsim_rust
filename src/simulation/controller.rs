@@ -6,6 +6,7 @@ use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::messaging::messages::proto::Vehicle;
+use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::partitioned_network::Network;
 use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;

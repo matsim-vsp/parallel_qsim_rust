@@ -7,8 +7,8 @@ use crate::simulation::io::population::{
 };
 use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan, Vehicle,
-    VehicleMessage, VehicleType,
+    Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
+    TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;

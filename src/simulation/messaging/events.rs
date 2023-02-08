@@ -7,7 +7,7 @@ use crate::simulation::messaging::events::proto::{
     LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
     TravelledEvent,
 };
-use crate::mpi::travel_time_collector::TravelTimeCollector;
+use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use log::info;
 use std::any::Any;
 use std::collections::HashMap;
