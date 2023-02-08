@@ -6,9 +6,10 @@ use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::messaging::messages::proto::leg::Route;
+use crate::simulation::messaging::messages::proto::simulation_update_message::Type;
 use crate::simulation::messaging::messages::proto::{
     Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
-    TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
+    SimulationUpdateMessage, TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
@@ -75,7 +76,7 @@ impl TrafficInfoMessage {
         }
     }
 
-    pub fn add_travel_time(&mut self, link: u64, travel_time: u64) {
+    pub fn add_travel_time(&mut self, link: u64, travel_time: u32) {
         self.travel_times.insert(link, travel_time);
     }
 
@@ -87,6 +88,40 @@ impl TrafficInfoMessage {
 
     pub fn deserialize(buffer: &[u8]) -> TrafficInfoMessage {
         TrafficInfoMessage::decode(&mut Cursor::new(buffer)).unwrap()
+    }
+}
+
+impl SimulationUpdateMessage {
+    pub fn new_vehicle_message(message: VehicleMessage) -> Self {
+        SimulationUpdateMessage {
+            r#type: Some(Type::VehicleMessage(message)),
+        }
+    }
+
+    pub fn new_traffic_info_message(message: TrafficInfoMessage) -> Self {
+        SimulationUpdateMessage {
+            r#type: Some(Type::TrafficInfoMessage(message)),
+        }
+    }
+
+    pub fn is_vehicle_message(&self) -> bool {
+        match &self.r#type {
+            None => false,
+            Some(message) => match message {
+                Type::VehicleMessage(_) => true,
+                Type::TrafficInfoMessage(_) => false,
+            },
+        }
+    }
+
+    pub fn is_traffic_info_message(&self) -> bool {
+        match &self.r#type {
+            None => false,
+            Some(message) => match message {
+                Type::VehicleMessage(_) => false,
+                Type::TrafficInfoMessage(_) => true,
+            },
+        }
     }
 }
 

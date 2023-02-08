@@ -6,7 +6,7 @@ fn main() {
     let world = universe.world();
 
     let mut message = TrafficInfoMessage::new();
-    message.add_travel_time(world.rank() as u64 + 0, (world.rank() as u64 + 0) * 2);
+    message.add_travel_time(world.rank() as u64 + 0, (world.rank() as u32 + 0) * 2);
 
     let send_traffic_info = message.serialize();
     println!(

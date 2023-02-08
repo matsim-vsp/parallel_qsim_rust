@@ -167,6 +167,7 @@ mod test {
     use std::fmt::Debug;
     use std::time::Instant;
 
+    use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
     use crate::simulation::routing::network_converter::NetworkConverter;
     use crate::simulation::routing::router::{get_edge_path, Router};
     use rand::seq::IteratorRandom;

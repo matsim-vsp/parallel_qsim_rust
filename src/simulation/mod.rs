@@ -3,13 +3,13 @@ use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::simulation::messaging::messages::proto::leg::Route;
+use crate::simulation::messaging::messages::proto::simulation_update_message::Type;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, GenericRoute, Vehicle, VehicleType,
+    Activity, Agent, GenericRoute, TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
 };
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
-use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
@@ -246,13 +246,46 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn send_receive(&mut self, now: u32) {
-        self.events
-            .get_travel_time_collector()
-            .unwrap()
-            .get_travel_time_of_link(1);
-        //send mechanism
-        //receive mechanism
-        let vehicles = self.message_broker.send_recv(now);
+        if self.router.is_some() {
+            if let Some(traffic_info) = self.events.get_travel_time_collector() {
+                self.message_broker
+                    .add_travel_times(traffic_info.get_travel_times());
+            }
+        }
+
+        let update_messages = self.message_broker.send_recv(now);
+
+        let mut vehicle_update_messages = Vec::new();
+        let mut traffic_info_messages = Vec::new();
+
+        for update in update_messages {
+            if update.is_vehicle_message() {
+                match update.r#type.unwrap() {
+                    Type::VehicleMessage(message) => vehicle_update_messages.push(message),
+                    _ => {
+                        panic!("Filtered vehicle messages but got other message type.")
+                    }
+                }
+            } else if update.is_traffic_info_message() {
+                match update.r#type.unwrap() {
+                    Type::TrafficInfoMessage(message) => traffic_info_messages.push(message),
+                    _ => {
+                        panic!("Filtered traffic info messages but got other message type.")
+                    }
+                }
+            }
+        }
+
+        self.handle_vehicle_messages(now, vehicle_update_messages);
+        self.handle_traffic_info_messages(now, traffic_info_messages);
+    }
+
+    fn handle_vehicle_messages(&mut self, now: u32, vehicle_update_messages: Vec<VehicleMessage>) {
+        let vehicles = vehicle_update_messages
+            .into_iter()
+            .flat_map(|msg| msg.vehicles)
+            .collect::<Vec<Vehicle>>();
+
         for vehicle in vehicles {
             match vehicle.r#type() {
                 VehicleType::Teleported => {
@@ -263,11 +296,17 @@ impl<'sim> Simulation<'sim> {
                 }
             }
         }
+    }
 
+    fn handle_traffic_info_messages(
+        &mut self,
+        now: u32,
+        traffic_info_messages: Vec<TrafficInfoMessage>,
+    ) {
         //TODO
-        if let Some(router) = self.router.as_mut() {
-            router.customize(self.cch.as_ref().unwrap(), RoutingKitNetwork::new());
-        }
+        // if let Some(router) = self.router.as_mut() {
+        //     router.customize(self.cch.as_ref().unwrap(), RoutingKitNetwork::new());
+        // }
     }
 
     fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {
