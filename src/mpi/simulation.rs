@@ -3,29 +3,32 @@ use crate::mpi::events::proto::Event;
 use crate::mpi::events::EventsPublisher;
 use crate::mpi::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::mpi::messages::proto::leg::Route;
-use crate::mpi::messages::proto::{Agent, GenericRoute, Vehicle, VehicleType};
+use crate::mpi::messages::proto::{Activity, Agent, GenericRoute, Vehicle, VehicleType};
 use crate::mpi::population::Population;
 use crate::mpi::time_queue::TimeQueue;
 use crate::parallel_simulation::network::link::Link;
 use crate::parallel_simulation::network::network_partition::NetworkPartition;
 use crate::parallel_simulation::network::node::{ExitReason, NodeVehicle};
+use crate::parallel_simulation::routing::router::Router;
 use log::info;
 
-pub struct Simulation {
+pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: NetworkPartition<Vehicle>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
+    router: Option<Router<'sim>>,
 }
 
-impl Simulation {
+impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
         network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
+        router: Option<Router<'sim>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -38,6 +41,7 @@ impl Simulation {
             activity_q,
             message_broker,
             events,
+            router,
         }
     }
 
@@ -80,6 +84,18 @@ impl Simulation {
                     agent.curr_act().act_type.clone(),
                 ),
             );
+
+            if self.router.is_some() {
+                let curr_act = agent.curr_act();
+                let next_act = agent.next_act();
+
+                let (route, travel_time) = self.find_route(curr_act, next_act);
+                let dep_time = curr_act.end_time;
+
+                agent.push_leg(dep_time, travel_time, route);
+            }
+
+            //here, current element counter is going to be increased
             agent.advance_plan();
 
             assert_ne!(agent.curr_plan_elem % 2, 0);
@@ -118,6 +134,18 @@ impl Simulation {
                 }
             }
         }
+    }
+
+    fn find_route(&mut self, from_act: &Activity, to_act: &Activity) -> (Vec<u64>, Option<u32>) {
+        let query_result = self
+            .router
+            .as_mut()
+            .unwrap()
+            .query_coordinates(from_act.x, from_act.y, to_act.x, to_act.y);
+
+        let route = query_result.path.expect("There is no route!");
+        let trav_time = query_result.travel_time;
+        (route, trav_time)
     }
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {

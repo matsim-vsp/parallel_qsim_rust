@@ -1,3 +1,5 @@
+use crate::config::RoutingMode;
+use crate::config::RoutingMode::UsePlans;
 use crate::io::matsim_id::MatsimId;
 use crate::io::population::{IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute};
 use crate::mpi::messages::proto::leg::Route;
@@ -8,6 +10,7 @@ use crate::mpi::messages::proto::{
 use crate::mpi::time_queue::EndTime;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::parallel_simulation::network::node::NodeVehicle;
+use log::debug;
 use prost::Message;
 use std::cmp::Ordering;
 use std::io::Cursor;
@@ -121,8 +124,12 @@ impl EndTime for Vehicle {
 }
 
 impl Agent {
-    pub fn from_io(io_person: &IOPerson, id_mappings: &MatsimIdMappings) -> Agent {
-        let plan = Plan::from_io(io_person.selected_plan(), id_mappings);
+    pub fn from_io(
+        io_person: &IOPerson,
+        id_mappings: &MatsimIdMappings,
+        routing_mode: RoutingMode,
+    ) -> Agent {
+        let plan = Plan::from_io(io_person.selected_plan(), id_mappings, routing_mode);
         let id = *id_mappings.agents.get_internal(io_person.id()).unwrap();
         Agent {
             id: id as u64,
@@ -140,11 +147,31 @@ impl Agent {
             panic!("Current element is not an activity");
         }
         let act_index = self.curr_plan_elem / 2;
+        self.get_act_at_index(act_index)
+    }
+
+    pub fn next_act(&self) -> &Activity {
+        let act_index = match self.curr_plan_elem % 2 {
+            //current element is an activity => two elements after is the next activity
+            0 => (self.curr_plan_elem + 2) / 2,
+            //current element is a leg => one element after is the next activity
+            1 => (self.curr_plan_elem + 1) / 2,
+            _ => {
+                panic!(
+                    "There was an error while getting the next activity of agent {:?}",
+                    self.id
+                )
+            }
+        };
+        self.get_act_at_index(act_index)
+    }
+
+    fn get_act_at_index(&self, index: u32) -> &Activity {
         self.plan
             .as_ref()
             .unwrap()
             .acts
-            .get(act_index as usize)
+            .get(index as usize)
             .unwrap()
     }
 
@@ -160,6 +187,18 @@ impl Agent {
             .legs
             .get(leg_index as usize)
             .unwrap()
+    }
+
+    pub fn push_leg(&mut self, dep_time: Option<u32>, travel_time: Option<u32>, route: Vec<u64>) {
+        self.plan.as_mut().unwrap().legs.push(Leg {
+            mode: "car".to_string(),
+            dep_time,
+            trav_time: travel_time,
+            route: Some(Route::NetworkRoute(NetworkRoute {
+                vehicle_id: self.id,
+                route,
+            })),
+        });
     }
 
     pub fn advance_plan(&mut self) {
@@ -200,7 +239,11 @@ impl Plan {
         }
     }
 
-    fn from_io(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+    fn from_io(
+        io_plan: &IOPlan,
+        id_mappings: &MatsimIdMappings,
+        routing_mode: RoutingMode,
+    ) -> Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
@@ -214,11 +257,23 @@ impl Plan {
                     let act = Activity::from_io(io_act, &id_mappings.links);
                     result.acts.push(act);
                 }
-                IOPlanElement::Leg(io_leg) => {
-                    let leg = Leg::from_io(io_leg, id_mappings);
-                    result.legs.push(leg);
-                }
+                IOPlanElement::Leg(io_leg) => match routing_mode {
+                    RoutingMode::UsePlans => {
+                        let leg = Leg::from_io(io_leg, id_mappings);
+                        result.legs.push(leg);
+                    }
+                    RoutingMode::AdHoc => {
+                        debug!(
+                            "Internal routing is activated. The leg {:?} will be discarded.",
+                            io_leg
+                        )
+                    }
+                },
             }
+        }
+
+        if routing_mode == UsePlans && result.acts.len() - result.legs.len() != 1 {
+            panic!("Plan {:?} has less legs than expected", io_plan);
         }
 
         result

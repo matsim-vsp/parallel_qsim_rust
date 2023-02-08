@@ -1,18 +1,21 @@
+use crate::config::RoutingMode;
 use crate::io::population::{IOPerson, IOPlanElement, IOPopulation};
 use crate::mpi::messages::proto::Agent;
 use crate::parallel_simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::parallel_simulation::network::partitioned_network::Network;
-use std::collections::HashMap;
+use std::collections::btree_map::BTreeMap;
 use std::fmt::Debug;
 
 pub struct Population {
-    pub agents: HashMap<usize, Agent>,
+    // We use a BTreeMap to ensure deterministic order when iterating over this map.
+    // Needed when inserting agents in the queue.
+    pub agents: BTreeMap<usize, Agent>,
 }
 
 impl Population {
     fn new() -> Population {
         Population {
-            agents: HashMap::new(),
+            agents: BTreeMap::new(),
         }
     }
 
@@ -21,6 +24,7 @@ impl Population {
         id_mappings: &MatsimIdMappings,
         partition: usize,
         network: &Network<V>,
+        routing_mode: RoutingMode,
     ) -> Population {
         let mut result = Population::new();
 
@@ -30,7 +34,7 @@ impl Population {
 
             // take only agents which start on our partition
             if agent_partition == partition {
-                let agent = Agent::from_io(io_person, id_mappings);
+                let agent = Agent::from_io(io_person, id_mappings, routing_mode);
                 result.agents.insert(agent.id(), agent);
             }
         }

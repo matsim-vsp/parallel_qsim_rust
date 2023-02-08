@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, RoutingMode};
 use crate::io::network::IONetwork;
 use crate::io::population::IOPopulation;
 use crate::io::proto_events::ProtoEventsWriter;
@@ -10,10 +10,15 @@ use crate::mpi::simulation::Simulation;
 use crate::parallel_simulation::id_mapping::MatsimIdMappings;
 use crate::parallel_simulation::network::partitioned_network::Network;
 use crate::parallel_simulation::partition_info::PartitionInfo;
+use crate::parallel_simulation::routing::network_converter::NetworkConverter;
+use crate::parallel_simulation::routing::router::Router;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
+use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
+use std::ffi::c_int;
 use std::fs;
+use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -45,7 +50,16 @@ pub fn run(world: SystemCommunicator, config: Config) {
             io_network.clone_with_internal_ids(&network, &id_mappings.links, &id_mappings.nodes);
         out_network.to_file(&output_path.join("output_network.xml.gz"));
     }
-    let population = Population::from_io(&io_population, &id_mappings, rank as usize, &network);
+
+    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
+
+    let population = Population::from_io(
+        &io_population,
+        &id_mappings,
+        rank as usize,
+        &network,
+        config.routing_mode,
+    );
     let network_partition = network.partitions.remove(rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
@@ -71,12 +85,23 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     //events.add_subscriber(Box::new(EventsLogger {}));
 
+    let mut router: Option<Router> = None;
+    let cch: CCH;
+    if config.routing_mode == RoutingMode::AdHoc {
+        cch = Router::perform_preprocessing(
+            &routing_kit_network,
+            get_temp_output_folder(&config.output_dir, rank).as_str(),
+        );
+        router = Some(Router::new(&cch, &routing_kit_network));
+    }
+
     let mut simulation = Simulation::new(
         &config,
         network_partition,
         population,
         message_broker,
         events,
+        router,
     );
 
     let start = Instant::now();
@@ -85,7 +110,18 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let duration = end.sub(start).as_millis() / 1000;
     info!("#{rank} took: {duration}s");
 
+    info!("output dir: {:?}", config.output_dir);
+
+    if rank == 0 && config.routing_mode == RoutingMode::AdHoc {
+        remove_dir_all(config.output_dir + "routing")
+            .expect("Wasn't able to delete temporary routing output.")
+    }
+
     info!("#{rank} at barrier.");
     world.barrier();
     info!("Process #{rank} finishing.");
+}
+
+fn get_temp_output_folder(output_dir: &str, rank: c_int) -> String {
+    format!("{}{}{}{}", output_dir, "/routing/", rank, "/")
 }

@@ -45,7 +45,7 @@ pub fn run(config: Config) {
     let duration = end.sub(start);
     info!("Simulation ran for: {}s", duration.as_millis() / 1000);
 
-    if config.routing_mode == Some(RoutingMode::AdHoc) {
+    if config.routing_mode == RoutingMode::AdHoc {
         remove_dir_all(config.output_dir + "/routing")
             .expect("Couldn't remove temporary routing folder.");
     }

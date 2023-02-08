@@ -1,43 +1,35 @@
-use crate::event_test_utils::run_simulation_and_compare_events;
-use rust_q_sim::config::Config;
+use crate::event_test_utils::{compare_events, run_mpi_simulation_and_convert_events};
 use serial_test::serial;
 
 mod event_test_utils;
 
 #[test]
-#[ignore]
 #[serial]
-fn equil_scenario_one_thread() {
-    let config = get_config(1);
-    run_simulation_and_compare_events(config, "tests/resources/equil")
+fn test_equil_1() {
+    test_equil(1)
 }
 
 #[test]
-#[ignore]
 #[serial]
-fn equil_scenario_two_threads() {
-    let config = get_config(2);
-    run_simulation_and_compare_events(config, "tests/resources/equil")
+fn test_equil_2() {
+    test_equil(2)
 }
 
 #[test]
-#[ignore]
 #[serial]
-fn equil_scenario_five_threads() {
-    let config = get_config(5);
-    run_simulation_and_compare_events(config, "tests/resources/equil")
+#[ignore]
+fn test_equil_4() {
+    test_equil(4)
 }
 
-fn get_config(num_parts: usize) -> Config {
-    Config::builder()
-        .network_file(String::from("./assets/equil/equil-network.xml"))
-        .population_file(String::from("./assets/equil/equil-plans.xml.gz"))
-        .output_dir(format!(
-            "./test_output/controller_it/equil_scenario/{}parts",
-            num_parts
-        ))
-        .num_parts(num_parts)
-        .start_time(0)
-        .end_time(86400)
-        .build()
+fn test_equil(parts: usize) {
+    let output_dir = format!("test_output/mpi_test/equil_scenario/{}/", parts);
+    run_mpi_simulation_and_convert_events(
+        parts,
+        "assets/equil/equil-network.xml",
+        "assets/equil/equil-plans.xml.gz",
+        output_dir.as_str(),
+        "use-plans",
+    );
+    compare_events(output_dir.as_str(), "tests/resources/equil")
 }

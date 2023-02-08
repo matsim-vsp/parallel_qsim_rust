@@ -38,7 +38,7 @@ pub struct Simulation {
     events: EventsPublisher,
     start_time: u32,
     end_time: u32,
-    routing_mode: Option<RoutingMode>,
+    routing_mode: RoutingMode,
     output_dir: String,
     routing_kit_network: RoutingKitNetwork,
 }
@@ -102,7 +102,7 @@ impl Simulation {
 
         let mut router: Option<Router> = None;
         let cch: CCH;
-        if self.routing_mode == Some(RoutingMode::AdHoc) {
+        if self.routing_mode == RoutingMode::AdHoc {
             cch = Router::perform_preprocessing(
                 &self.routing_kit_network,
                 self.get_temp_output_folder().as_str(),
@@ -180,7 +180,12 @@ impl Simulation {
                     trav_time: query_result.travel_time,
                     route: Route::NetworkRoute(NetworkRoute {
                         vehicle_id: 0, //TODO is a counter feasible?
-                        route: query_result.path.expect("There is no route!"),
+                        route: query_result
+                            .path
+                            .expect("There is no route!")
+                            .into_iter()
+                            .map(|e| e as usize)
+                            .collect(),
                     }),
                 });
 

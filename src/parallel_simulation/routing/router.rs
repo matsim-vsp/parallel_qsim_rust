@@ -115,7 +115,7 @@ impl<'router> Router<'router> {
     }
 }
 
-pub(self) fn get_edge_path(path: Vec<NodeId>, network: RoutingKitNetwork) -> Vec<usize> {
+pub(self) fn get_edge_path(path: Vec<NodeId>, network: RoutingKitNetwork) -> Vec<u64> {
     let mut res = Vec::new();
     let mut last_node: Option<usize> = None;
     for node in path {
@@ -142,7 +142,7 @@ pub(self) fn find_edge_id_of_outgoing(
     last_out_index: usize,
     next_node: NodeId,
     network: &RoutingKitNetwork,
-) -> usize {
+) -> u64 {
     //TODO this is marked as unnecessary comparison - why?
     assert!(last_out_index - first_out_index >= 0, "No outgoing edges!");
     let mut result = None;
@@ -152,12 +152,12 @@ pub(self) fn find_edge_id_of_outgoing(
             break;
         }
     }
-    result.expect("No outgoing edge found!")
+    result.expect("No outgoing edge found!") as u64
 }
 
 pub struct CustomQueryResult {
     pub travel_time: Option<u32>,
-    pub path: Option<Vec<usize>>,
+    pub path: Option<Vec<u64>>,
 }
 
 #[cfg(test)]

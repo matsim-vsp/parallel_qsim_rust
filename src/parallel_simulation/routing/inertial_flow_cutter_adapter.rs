@@ -64,7 +64,7 @@ impl InertialFlowCutterAdapter<'_> {
     }
 
     fn convert_network_into_binary(&self, file: &str) {
-        debug!("Converting file {file} into binary.");
+        debug!("Converting file {} into binary.", file);
 
         create_dir_all(self.temp_output_path().to_owned() + "binary")
             .expect("Failed to create directory.");
@@ -78,7 +78,10 @@ impl InertialFlowCutterAdapter<'_> {
     }
 
     fn compute_ordering(&self, output_file_name: &str) {
-        debug!("Computing ordering and store in binary file '{output_file_name}'");
+        debug!(
+            "Computing ordering and store in binary file '{}'",
+            output_file_name
+        );
 
         Command::new("python3")
             .arg(self.inertial_flow_cutter_path.to_owned() + "/inertialflowcutter_order.py")
