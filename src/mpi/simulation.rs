@@ -86,13 +86,13 @@ impl<'sim> Simulation<'sim> {
             );
 
             if self.router.is_some() {
-                let end_activity = agent.curr_act();
-                let new_activity = agent.next_act();
+                let curr_act = agent.curr_act();
+                let next_act = agent.next_act();
 
-                let (route, trav_time) = self.find_route(end_activity, new_activity);
-                let dep_time = end_activity.end_time;
+                let (route, travel_time) = self.find_route(curr_act, next_act);
+                let dep_time = curr_act.end_time;
 
-                agent.push_leg(dep_time, trav_time, route);
+                agent.push_leg(dep_time, travel_time, route);
             }
 
             //here, current element counter is going to be increased

@@ -157,7 +157,10 @@ impl Agent {
             //current element is a leg => one element after is the next activity
             1 => (self.curr_plan_elem + 1) / 2,
             _ => {
-                panic!()
+                panic!(
+                    "There was an error while getting the next activity of agent {:?}",
+                    self.id
+                )
             }
         };
         self.get_act_at_index(act_index)
@@ -186,13 +189,13 @@ impl Agent {
             .unwrap()
     }
 
-    pub fn push_leg(&mut self, dep_time: Option<u32>, trav_time: Option<u32>, route: Vec<u64>) {
+    pub fn push_leg(&mut self, dep_time: Option<u32>, travel_time: Option<u32>, route: Vec<u64>) {
         self.plan.as_mut().unwrap().legs.push(Leg {
             mode: "car".to_string(),
             dep_time,
-            trav_time,
+            trav_time: travel_time,
             route: Some(Route::NetworkRoute(NetworkRoute {
-                vehicle_id: 0, //TODO
+                vehicle_id: self.id,
                 route,
             })),
         });

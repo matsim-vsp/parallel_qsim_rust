@@ -110,7 +110,7 @@ mod tests {
     use crate::parallel_simulation::network::link::{Link, LocalLink, SplitOutLink};
     use crate::parallel_simulation::network::node::{ExitReason, Node};
     use crate::parallel_simulation::vehicles::Vehicle;
-    use std::collections::{BTreeMap, HashMap};
+    use std::collections::BTreeMap;
 
     #[test]
     fn init() {
