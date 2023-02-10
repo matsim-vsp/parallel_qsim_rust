@@ -14,21 +14,6 @@ use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
 use log::info;
 
-pub mod config;
-pub mod controller;
-mod id_mapping;
-pub mod io;
-pub mod logging;
-pub mod messaging;
-#[allow(dead_code)]
-mod network;
-#[allow(dead_code)]
-mod partition_info;
-mod population;
-#[allow(unused_comparisons, dead_code)]
-mod routing;
-pub mod time_queue;
-
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,

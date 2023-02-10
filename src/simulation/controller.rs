@@ -11,7 +11,7 @@ use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
-use crate::simulation::Simulation;
+use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
