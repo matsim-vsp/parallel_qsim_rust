@@ -167,7 +167,6 @@ mod test {
     use std::fmt::Debug;
     use std::time::Instant;
 
-    use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
     use crate::simulation::routing::network_converter::NetworkConverter;
     use crate::simulation::routing::router::{get_edge_path, Router};
     use rand::seq::IteratorRandom;
@@ -289,8 +288,7 @@ mod test {
 
         println!("Assign new travel time to edge 1-2: 4");
 
-        let network_new_weights =
-            network.clone_with_new_travel_times(vec![4, 2, 1, 4, 2, 5]);
+        let network_new_weights = network.clone_with_new_travel_times(vec![4, 2, 1, 4, 2, 5]);
         router.customize(&cch, network_new_weights);
         let new_result = router.query(3, 2);
         test_query_result(new_result, 5, vec![3, 2]);

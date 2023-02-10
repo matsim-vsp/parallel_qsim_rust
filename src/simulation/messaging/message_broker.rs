@@ -1,4 +1,3 @@
-use crate::simulation::config::RoutingMode;
 use crate::simulation::messaging::messages::proto::{
     SimulationUpdateMessage, TrafficInfoMessage, Vehicle, VehicleMessage,
 };
@@ -11,7 +10,8 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 
 pub trait MessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage>;
+    fn send_recv(&mut self, now: u32, send_revc_traffic_info: bool)
+        -> Vec<SimulationUpdateMessage>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
     fn add_travel_times(&mut self, travel_times: HashMap<u64, u32>);
 }
@@ -23,11 +23,14 @@ pub struct MpiMessageBroker {
     in_messages: BinaryHeap<VehicleMessage>,
     link_id_mapping: Arc<HashMap<usize, usize>>,
     traffic_info: TrafficInfoMessage,
-    routing_mode: RoutingMode,
 }
 
 impl MessageBroker for MpiMessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage> {
+    fn send_recv(
+        &mut self,
+        now: u32,
+        send_revc_traffic_info: bool,
+    ) -> Vec<SimulationUpdateMessage> {
         // preparation of traffic info messages
         let traffic_info_message = self.traffic_info.serialize();
 
@@ -68,7 +71,7 @@ impl MessageBroker for MpiMessageBroker {
             }
 
             // ------ Gather traffic information --------
-            if self.routing_mode == RoutingMode::AdHoc && now % (60 * 15) == 0 {
+            if send_revc_traffic_info {
                 received_traffic_info_messages = self.gather_traffic_info(&traffic_info_message);
             }
 
@@ -136,7 +139,6 @@ impl MpiMessageBroker {
         rank: Rank,
         neighbors: HashSet<u32>,
         link_id_mapping: Arc<HashMap<usize, usize>>,
-        routing_mode: RoutingMode,
     ) -> Self {
         MpiMessageBroker {
             out_messages: HashMap::new(),
@@ -146,7 +148,6 @@ impl MpiMessageBroker {
             rank,
             link_id_mapping,
             traffic_info: TrafficInfoMessage::new(),
-            routing_mode,
         }
     }
 
