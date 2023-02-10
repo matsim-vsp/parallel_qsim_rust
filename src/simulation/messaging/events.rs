@@ -7,7 +7,6 @@ use crate::simulation::messaging::events::proto::{
     LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
     TravelledEvent,
 };
-use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use log::info;
 use std::any::Any;
 use std::collections::HashMap;
@@ -22,7 +21,7 @@ pub trait EventsSubscriber {
 
     fn finish(&mut self) {}
 
-    fn as_any(&self) -> &dyn Any;
+    fn as_any(&mut self) -> &mut dyn Any;
 }
 
 pub struct EventsLogger {}
@@ -32,7 +31,7 @@ impl EventsSubscriber for EventsLogger {
         info!("{time}: {event:?}");
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 }
@@ -94,10 +93,10 @@ impl EventsPublisher {
         }
     }
 
-    pub fn get_subscriber<T: EventsSubscriber + 'static>(&self) -> Option<&T> {
+    pub fn get_subscriber<T: EventsSubscriber + 'static>(&mut self) -> Option<&mut T> {
         let mut result = None;
-        for handler in self.handlers.iter() {
-            match handler.as_any().downcast_ref::<T>() {
+        for handler in self.handlers.iter_mut() {
+            match handler.as_any().downcast_mut::<T>() {
                 Some(collector) => result = Some(collector),
                 None => {}
             };
