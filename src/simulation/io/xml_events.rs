@@ -92,7 +92,7 @@ impl EventsSubscriber for XmlEventsWriter {
         self.writer.flush().expect("Failed to flush events.");
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 }

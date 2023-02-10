@@ -64,7 +64,7 @@ impl EventsSubscriber for ProtoEventsWriter {
             .expect("Failed to flush buffered writer.");
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 }

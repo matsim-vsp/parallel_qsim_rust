@@ -14,8 +14,9 @@ use crate::simulation::network::node::{ExitReason, NodeVehicle};
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
-use log::info;
+use log::{debug, info};
 use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
+use std::collections::HashMap;
 
 pub mod config;
 pub mod controller;
@@ -251,6 +252,7 @@ impl<'sim> Simulation<'sim> {
             if let Some(traffic_info) = self.events.get_subscriber::<TravelTimeCollector>() {
                 self.message_broker
                     .add_travel_times(traffic_info.get_travel_times());
+                traffic_info.flush();
             }
         }
 
@@ -274,11 +276,13 @@ impl<'sim> Simulation<'sim> {
                         panic!("Filtered traffic info messages but got other message type.")
                     }
                 }
+            } else {
+                panic!("The SimulationUpdateMessage is expected to be either a VehicleMessage or a TrafficInfoMessage.");
             }
         }
 
         self.handle_vehicle_messages(now, vehicle_update_messages);
-        self.handle_traffic_info_messages(now, traffic_info_messages);
+        self.handle_traffic_info_messages(traffic_info_messages);
     }
 
     fn handle_vehicle_messages(&mut self, now: u32, vehicle_update_messages: Vec<VehicleMessage>) {
@@ -299,15 +303,42 @@ impl<'sim> Simulation<'sim> {
         }
     }
 
-    fn handle_traffic_info_messages(
-        &mut self,
-        now: u32,
-        traffic_info_messages: Vec<TrafficInfoMessage>,
-    ) {
-        //TODO
-        // if let Some(router) = self.router.as_mut() {
-        //     router.customize(self.cch.as_ref().unwrap(), RoutingKitNetwork::new());
-        // }
+    fn handle_traffic_info_messages(&mut self, traffic_info_messages: Vec<TrafficInfoMessage>) {
+        if self.router.is_none() {
+            return;
+        }
+
+        if traffic_info_messages.is_empty() {
+            return;
+        }
+        debug!("Processing traffic info message.");
+
+        let travel_times_by_link = traffic_info_messages
+            .iter()
+            .map(|info| &info.travel_times)
+            .fold(HashMap::new(), |result, value| {
+                result.into_iter().chain(value).collect()
+            });
+
+        let number_of_links_with_traffic_info = traffic_info_messages
+            .iter()
+            .map(|info| info.travel_times.len())
+            .sum::<usize>();
+
+        assert_eq!(
+            number_of_links_with_traffic_info,
+            travel_times_by_link.len()
+        );
+
+        let router = self.router.as_mut().unwrap();
+        let network_clone = router
+            .network
+            .clone_with_new_travel_times_if_changes_present(travel_times_by_link);
+
+        if let Some(new_network) = network_clone {
+            debug!("There are travel time changes. Router will be customized.");
+            router.customize(self.cch.as_ref().unwrap(), new_network);
+        }
     }
 
     fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {

@@ -79,6 +79,13 @@ impl TravelTimeCollector {
         }
         result
     }
+
+    pub fn flush(&mut self) {
+        // Collected travel times will be dropped, but cached values not.
+        // Vehicles of cached values haven't left the corresponding links yet.
+        // A travel time of a link is considered when a vehicle leaves the link.
+        self.travel_times_by_link = HashMap::new();
+    }
 }
 
 impl EventsSubscriber for TravelTimeCollector {
@@ -90,7 +97,7 @@ impl EventsSubscriber for TravelTimeCollector {
         }
     }
 
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 }
