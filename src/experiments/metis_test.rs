@@ -75,7 +75,7 @@ mod tests {
     use metis::{Graph, Idx};
 
     use crate::experiments::metis_test::{partition, Link, Node};
-    use crate::io::network::IONetwork;
+    use crate::simulation::io::network::IONetwork;
 
     #[test]
     #[ignore]
