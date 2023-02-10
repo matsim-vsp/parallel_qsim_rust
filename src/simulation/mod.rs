@@ -7,6 +7,7 @@ use crate::simulation::messaging::messages::proto::simulation_update_message::Ty
 use crate::simulation::messaging::messages::proto::{
     Activity, Agent, GenericRoute, TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
 };
+use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
@@ -247,7 +248,7 @@ impl<'sim> Simulation<'sim> {
 
     fn send_receive(&mut self, now: u32) {
         if self.router.is_some() {
-            if let Some(traffic_info) = self.events.get_travel_time_collector() {
+            if let Some(traffic_info) = self.events.get_subscriber::<TravelTimeCollector>() {
                 self.message_broker
                     .add_travel_times(traffic_info.get_travel_times());
             }

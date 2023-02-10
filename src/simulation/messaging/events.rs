@@ -94,10 +94,10 @@ impl EventsPublisher {
         }
     }
 
-    pub fn get_travel_time_collector(&mut self) -> Option<&TravelTimeCollector> {
+    pub fn get_subscriber<T: EventsSubscriber + 'static>(&self) -> Option<&T> {
         let mut result = None;
         for handler in self.handlers.iter() {
-            match handler.as_any().downcast_ref::<TravelTimeCollector>() {
+            match handler.as_any().downcast_ref::<T>() {
                 Some(collector) => result = Some(collector),
                 None => {}
             };
