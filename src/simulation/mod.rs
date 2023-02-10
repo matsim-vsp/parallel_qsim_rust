@@ -248,7 +248,13 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn send_receive(&mut self, now: u32) {
-        if self.router.is_some() {
+        // this might be configurable
+        let traffic_update_interval_in_min = 15;
+
+        let traffic_update =
+            self.router.is_some() && now % (60 * traffic_update_interval_in_min) == 0;
+
+        if traffic_update {
             if let Some(traffic_info) = self.events.get_subscriber::<TravelTimeCollector>() {
                 self.message_broker
                     .add_travel_times(traffic_info.get_travel_times());
@@ -256,7 +262,7 @@ impl<'sim> Simulation<'sim> {
             }
         }
 
-        let update_messages = self.message_broker.send_recv(now);
+        let update_messages = self.message_broker.send_recv(now, traffic_update);
 
         let mut vehicle_update_messages = Vec::new();
         let mut traffic_info_messages = Vec::new();

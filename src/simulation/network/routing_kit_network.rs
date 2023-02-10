@@ -1,3 +1,4 @@
+use log::debug;
 use rust_road_router::datastr::graph::{EdgeId, NodeId, Weight};
 use std::collections::HashMap;
 
@@ -44,6 +45,10 @@ impl RoutingKitNetwork {
                     new_travel_time_vector.push(old_travel_time);
                 }
                 Some(&new_travel_time) => {
+                    debug!(
+                        "Link {:?} | old travel time {:?} | new travel time {:?}",
+                        id, old_travel_time, new_travel_time
+                    );
                     new_travel_time_vector.push(*new_travel_time);
                     //if flag is true once, it stays true
                     changed_travel_time_flag |= *new_travel_time != old_travel_time;
