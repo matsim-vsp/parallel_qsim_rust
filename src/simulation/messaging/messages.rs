@@ -103,26 +103,6 @@ impl SimulationUpdateMessage {
             r#type: Some(Type::TrafficInfoMessage(message)),
         }
     }
-
-    pub fn is_vehicle_message(&self) -> bool {
-        match &self.r#type {
-            None => false,
-            Some(message) => match message {
-                Type::VehicleMessage(_) => true,
-                Type::TrafficInfoMessage(_) => false,
-            },
-        }
-    }
-
-    pub fn is_traffic_info_message(&self) -> bool {
-        match &self.r#type {
-            None => false,
-            Some(message) => match message {
-                Type::VehicleMessage(_) => false,
-                Type::TrafficInfoMessage(_) => true,
-            },
-        }
-    }
 }
 
 // Implementation for ordering, so that vehicle messages can be put into a message queue sorted by time
