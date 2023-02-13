@@ -10,7 +10,7 @@ message SimulationUpdateMessage {
 }
 
 message TrafficInfoMessage {
-  map<uint64, uint32> travelTimes = 1;
+  map<uint64, uint32> travelTimesByLinkId = 1;
 }
 
 // this is a message for the mpi examples

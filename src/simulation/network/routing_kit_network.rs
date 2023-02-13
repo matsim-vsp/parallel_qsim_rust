@@ -8,7 +8,7 @@ pub struct RoutingKitNetwork {
     pub(crate) first_out: Vec<EdgeId>,
     pub(crate) head: Vec<NodeId>,
     pub(crate) travel_time: Vec<Weight>,
-    pub(crate) link_ids: Vec<usize>,
+    pub(crate) link_ids: Vec<u64>,
     pub(crate) latitude: Vec<f32>,
     pub(crate) longitude: Vec<f32>,
 }
@@ -25,41 +25,39 @@ impl RoutingKitNetwork {
         }
     }
 
-    pub fn clone_with_new_travel_times(&self, travel_times: Vec<u32>) -> RoutingKitNetwork {
+    pub fn get_travel_time_by_link_id(&self, link_id: u64) -> u32 {
+        let index = self.link_ids.iter().position(|&l| l == link_id);
+        index
+            .map(|i| {
+                *self
+                    .travel_time
+                    .get(i)
+                    .expect(&*format!("There is no travel time for link {:?}", link_id))
+                    as u32
+            })
+            .unwrap()
+    }
+
+    pub(crate) fn clone_with_new_travel_times(&self, travel_times: Vec<u32>) -> RoutingKitNetwork {
         let mut result = self.clone();
         result.travel_time = travel_times;
         result
     }
 
-    pub fn clone_with_new_travel_times_if_changes_present(
+    pub fn clone_with_new_travel_times_by_link(
         &self,
         new_travel_times_by_link: HashMap<&u64, &u32>,
-    ) -> Option<RoutingKitNetwork> {
+    ) -> RoutingKitNetwork {
         let mut new_travel_time_vector = Vec::new();
 
         assert_eq!(self.link_ids.len(), self.travel_time.len());
-        let mut changed_travel_time_flag = false;
-        for (&id, &old_travel_time) in self.link_ids.iter().zip(self.travel_time.iter()) {
-            match new_travel_times_by_link.get(&(id as u64)) {
-                None => {
-                    new_travel_time_vector.push(old_travel_time);
-                }
-                Some(&new_travel_time) => {
-                    debug!(
-                        "Link {:?} | old travel time {:?} | new travel time {:?}",
-                        id, old_travel_time, new_travel_time
-                    );
-                    new_travel_time_vector.push(*new_travel_time);
-                    //if flag is true once, it stays true
-                    changed_travel_time_flag |= *new_travel_time != old_travel_time;
-                }
-            }
+        for &id in self.link_ids.iter() {
+            let new_travel_time = new_travel_times_by_link.get(&(id as u64)).unwrap();
+            new_travel_time_vector.push(**new_travel_time);
+            debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
         }
 
-        match changed_travel_time_flag {
-            false => None,
-            true => Some(self.clone_with_new_travel_times(new_travel_time_vector)),
-        }
+        self.clone_with_new_travel_times(new_travel_time_vector)
     }
 }
 

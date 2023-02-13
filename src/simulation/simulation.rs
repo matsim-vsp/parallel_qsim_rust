@@ -16,7 +16,7 @@ use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
 use log::{debug, info};
 use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
@@ -239,11 +239,19 @@ impl<'sim> Simulation<'sim> {
             self.router.is_some() && now % (60 * traffic_update_interval_in_min) == 0;
 
         if traffic_update {
-            if let Some(traffic_info) = self.events.get_subscriber::<TravelTimeCollector>() {
-                self.message_broker
-                    .add_travel_times(traffic_info.get_travel_times());
-                traffic_info.flush();
-            }
+            let collected_travel_times = self
+                .events
+                .get_subscriber::<TravelTimeCollector>()
+                .map(|travel_time_collector| travel_time_collector.get_travel_times());
+
+            self.message_broker.add_travel_times(
+                self.get_travel_times_by_link_to_send(collected_travel_times.unwrap()),
+            );
+
+            self.events
+                .get_subscriber::<TravelTimeCollector>()
+                .unwrap()
+                .flush();
         }
 
         let update_messages = self.message_broker.send_recv(now, traffic_update);
@@ -264,6 +272,39 @@ impl<'sim> Simulation<'sim> {
 
         self.handle_vehicle_messages(now, vehicle_update_messages);
         self.handle_traffic_info_messages(traffic_info_messages);
+    }
+
+    fn get_travel_times_by_link_to_send(
+        &self,
+        collected_travel_times: HashMap<u64, u32>,
+    ) -> HashMap<u64, u32> {
+        let mut result = HashMap::new();
+
+        let link_ids_of_process = self
+            .network
+            .links
+            .keys()
+            .cloned()
+            .map(|key| key as u64)
+            .collect::<HashSet<u64>>();
+
+        // for each collected travel time: add if currently known travel time is different
+        for (id, travel_time) in &collected_travel_times {
+            if *travel_time != self.get_router_ref().get_current_travel_time(*id) {
+                result.insert(*id, *travel_time);
+            }
+        }
+
+        // for each link about which no travel time was collected: add initial travel time if currently known travel time is different
+        for id in link_ids_of_process
+            .difference(&collected_travel_times.into_keys().collect::<HashSet<u64>>())
+        {
+            let initial_travel_time = self.get_router_ref().get_initial_travel_time(*id);
+            if self.get_router_ref().get_current_travel_time(*id) != initial_travel_time {
+                result.insert(*id, initial_travel_time);
+            }
+        }
+        result
     }
 
     fn handle_vehicle_messages(&mut self, now: u32, vehicle_update_messages: Vec<VehicleMessage>) {
@@ -296,14 +337,14 @@ impl<'sim> Simulation<'sim> {
 
         let travel_times_by_link = traffic_info_messages
             .iter()
-            .map(|info| &info.travel_times)
+            .map(|info| &info.travel_times_by_link_id)
             .fold(HashMap::new(), |result, value| {
                 result.into_iter().chain(value).collect()
             });
 
         let number_of_links_with_traffic_info = traffic_info_messages
             .iter()
-            .map(|info| info.travel_times.len())
+            .map(|info| info.travel_times_by_link_id.len())
             .sum::<usize>();
 
         assert_eq!(
@@ -312,20 +353,19 @@ impl<'sim> Simulation<'sim> {
         );
 
         let router = self.router.as_mut().unwrap();
-        let network_clone = router
-            .network
-            .clone_with_new_travel_times_if_changes_present(travel_times_by_link);
+        let network_with_new_travel_times = router
+            .current_network
+            .clone_with_new_travel_times_by_link(travel_times_by_link);
 
-        if let Some(new_network) = network_clone {
-            debug!("There are travel time changes. Router will be customized.");
-            router.customize(self.cch.as_ref().unwrap(), new_network);
-        }
+        debug!("There are travel time changes. Router will be customized.");
+        router.customize(self.cch.as_ref().unwrap(), network_with_new_travel_times);
     }
 
     fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {
         let (from, to) = Simulation::process_ids_for_generic_route(route, message_broker);
         from == to
     }
+
     fn process_ids_for_generic_route(
         route: &GenericRoute,
         message_broker: &MpiMessageBroker,
@@ -333,5 +373,9 @@ impl<'sim> Simulation<'sim> {
         let from_rank = message_broker.rank_for_link(route.start_link);
         let to_rank = message_broker.rank_for_link(route.end_link);
         (from_rank, to_rank)
+    }
+
+    fn get_router_ref(&self) -> &Router {
+        self.router.as_ref().unwrap()
     }
 }
