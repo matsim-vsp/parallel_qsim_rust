@@ -71,13 +71,12 @@ impl TravelTimeCollector {
     }
 
     pub fn get_travel_times(&self) -> HashMap<u64, u32> {
-        let mut result = HashMap::new();
-        for key in self.travel_times_by_link.keys() {
-            if let Some(travel_time) = self.get_travel_time_of_link(*key) {
-                result.insert(*key, travel_time);
-            }
-        }
-        result
+        self.travel_times_by_link
+            .iter()
+            .map(|(id, travel_time)| (*id, self.get_travel_time_of_link(*id)))
+            .filter(|(id, travel_time)| travel_time.is_some())
+            .map(|(id, travel_time)| (id, travel_time.unwrap()))
+            .collect::<HashMap<u64, u32>>()
     }
 
     pub fn flush(&mut self) {

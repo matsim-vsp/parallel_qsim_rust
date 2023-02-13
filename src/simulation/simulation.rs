@@ -252,19 +252,10 @@ impl<'sim> Simulation<'sim> {
         let mut traffic_info_messages = Vec::new();
 
         for update in update_messages {
-            if update.is_vehicle_message() {
-                match update.r#type.unwrap() {
+            if let Some(message_type) = update.r#type {
+                match message_type {
                     Type::VehicleMessage(message) => vehicle_update_messages.push(message),
-                    _ => {
-                        panic!("Filtered vehicle messages but got other message type.")
-                    }
-                }
-            } else if update.is_traffic_info_message() {
-                match update.r#type.unwrap() {
                     Type::TrafficInfoMessage(message) => traffic_info_messages.push(message),
-                    _ => {
-                        panic!("Filtered traffic info messages but got other message type.")
-                    }
                 }
             } else {
                 panic!("The SimulationUpdateMessage is expected to be either a VehicleMessage or a TrafficInfoMessage.");

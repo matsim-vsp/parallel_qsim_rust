@@ -48,7 +48,7 @@ impl<'router> Router<'router> {
         x_to: f32,
         y_to: f32,
     ) -> CustomQueryResult {
-        let network = self.network();
+        let network = self.network.clone();
         let mut result: QueryResult<PathServerWrapper<'q, CustomizedBasic<'router, CCH>>, Weight> =
             self.query(
                 self.find_nearest_node(x_from, y_from),
@@ -56,7 +56,7 @@ impl<'router> Router<'router> {
             );
         let edge_path = result
             .node_path()
-            .map(|node_path| get_edge_path(node_path, network));
+            .map(|node_path| get_edge_path(node_path, &network));
         CustomQueryResult {
             travel_time: result.distance(),
             path: edge_path,
@@ -110,14 +110,9 @@ impl<'router> Router<'router> {
             .map(|(index, _)| index)
             .unwrap()
     }
-
-    fn network(&self) -> RoutingKitNetwork {
-        //TODO ugly?
-        self.network.clone()
-    }
 }
 
-pub(self) fn get_edge_path(path: Vec<NodeId>, network: RoutingKitNetwork) -> Vec<u64> {
+pub(self) fn get_edge_path(path: Vec<NodeId>, network: &RoutingKitNetwork) -> Vec<u64> {
     let mut res = Vec::new();
     let mut last_node: Option<usize> = None;
     for node in path {
@@ -130,7 +125,7 @@ pub(self) fn get_edge_path(path: Vec<NodeId>, network: RoutingKitNetwork) -> Vec
                     first_out_index,
                     last_out_index,
                     node,
-                    &network,
+                    network,
                 ));
                 last_node = Some(node as usize)
             }
@@ -263,10 +258,10 @@ mod test {
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
         network.link_ids = vec![0, 1, 2, 3, 4, 5];
 
-        assert_eq!(get_edge_path(vec![1, 2, 3], network.clone()), vec![0, 3]);
-        assert_eq!(get_edge_path(vec![1, 3, 2], network.clone()), vec![1, 5]);
+        assert_eq!(get_edge_path(vec![1, 2, 3], &network), vec![0, 3]);
+        assert_eq!(get_edge_path(vec![1, 3, 2], &network), vec![1, 5]);
         assert_eq!(
-            get_edge_path(vec![1, 2, 3, 1, 2, 3], network.clone()),
+            get_edge_path(vec![1, 2, 3, 1, 2, 3], &network),
             vec![0, 3, 4, 0, 3]
         );
     }
