@@ -239,6 +239,7 @@ impl<'sim> Simulation<'sim> {
             self.router.is_some() && now % (60 * traffic_update_interval_in_min) == 0;
 
         if traffic_update {
+            debug!("Traffic update at {}", now);
             let collected_travel_times = self
                 .events
                 .get_subscriber::<TravelTimeCollector>()
@@ -283,15 +284,24 @@ impl<'sim> Simulation<'sim> {
         let link_ids_of_process = self
             .network
             .links
-            .keys()
-            .cloned()
-            .map(|key| key as u64)
+            .iter()
+            .filter(|(id, link)| match link {
+                Link::LocalLink(_) => true,
+                Link::SplitInLink(_) => true,
+                Link::SplitOutLink(_) => false,
+            })
+            .map(|(id, _)| *id as u64)
             .collect::<HashSet<u64>>();
 
         // for each collected travel time: add if currently known travel time is different
         for (id, travel_time) in &collected_travel_times {
             if *travel_time != self.get_router_ref().get_current_travel_time(*id) {
                 result.insert(*id, *travel_time);
+            } else {
+                debug!(
+                    "Process {:?} | (link {:?}, travel time: {:?}) was already there.",
+                    self.message_broker.rank, id, travel_time
+                );
             }
         }
 
@@ -303,6 +313,9 @@ impl<'sim> Simulation<'sim> {
             if self.get_router_ref().get_current_travel_time(*id) != initial_travel_time {
                 result.insert(*id, initial_travel_time);
             }
+        }
+        if !result.is_empty() {
+            debug!("Traffic update to be sent: {:?}", result);
         }
         result
     }
@@ -333,7 +346,10 @@ impl<'sim> Simulation<'sim> {
         if traffic_info_messages.is_empty() {
             return;
         }
-        debug!("Processing traffic info message.");
+        debug!(
+            "Processing traffic info messages: {:?}.",
+            traffic_info_messages
+        );
 
         let travel_times_by_link = traffic_info_messages
             .iter()

@@ -51,10 +51,13 @@ impl RoutingKitNetwork {
         let mut new_travel_time_vector = Vec::new();
 
         assert_eq!(self.link_ids.len(), self.travel_time.len());
-        for &id in self.link_ids.iter() {
-            let new_travel_time = new_travel_times_by_link.get(&(id as u64)).unwrap();
-            new_travel_time_vector.push(**new_travel_time);
-            debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
+        for (index, &id) in self.link_ids.iter().enumerate() {
+            if let Some(new_travel_time) = new_travel_times_by_link.get(&(id as u64)) {
+                new_travel_time_vector.push(**new_travel_time);
+                debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
+            } else {
+                new_travel_time_vector.push(*self.travel_time.get(index).unwrap())
+            }
         }
 
         self.clone_with_new_travel_times(new_travel_time_vector)
