@@ -15,12 +15,12 @@ impl NetworkConverter {
         mut matsim_network: IONetwork,
         id_mappings: Option<&MatsimIdMappings>,
     ) -> RoutingKitNetwork {
-        let mut first_out: Vec<EdgeId> = Vec::new();
-        let mut head: Vec<NodeId> = Vec::new();
-        let mut travel_time: Vec<Weight> = Vec::new();
-        let mut link_ids: Vec<usize> = Vec::new();
-        let mut latitude: Vec<f32> = Vec::new();
-        let mut longitude: Vec<f32> = Vec::new();
+        let mut first_out = Vec::new();
+        let mut head = Vec::new();
+        let mut travel_time = Vec::new();
+        let mut link_ids = Vec::new();
+        let mut latitude = Vec::new();
+        let mut longitude = Vec::new();
 
         Self::check_network_valid(&matsim_network);
 
@@ -58,7 +58,7 @@ impl NetworkConverter {
                             .unwrap()
                             .links
                             .get_internal(link.id.as_str())
-                            .unwrap(),
+                            .unwrap() as u64,
                     );
                 }
             }
@@ -108,7 +108,7 @@ mod test {
         assert_eq!(network.first_out, vec![0, 0, 2, 4, 6]);
         assert_eq!(network.head, vec![2, 3, 2, 3, 1, 2]);
         assert_eq!(network.travel_time, vec![1, 2, 1, 4, 2, 5]);
-        assert_eq!(network.link_ids, Vec::<usize>::new());
+        assert_eq!(network.link_ids, Vec::<u64>::new());
         // we don't check latitude and longitude so far
     }
 }

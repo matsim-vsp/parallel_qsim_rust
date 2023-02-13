@@ -129,7 +129,7 @@ impl MessageBroker for MpiMessageBroker {
     }
 
     fn add_travel_times(&mut self, new_travel_times: HashMap<u64, u32>) {
-        self.traffic_info.travel_times = new_travel_times;
+        self.traffic_info.travel_times_by_link_id = new_travel_times;
     }
 }
 

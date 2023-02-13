@@ -72,12 +72,12 @@ impl VehicleMessage {
 impl TrafficInfoMessage {
     pub fn new() -> Self {
         TrafficInfoMessage {
-            travel_times: HashMap::new(),
+            travel_times_by_link_id: HashMap::new(),
         }
     }
 
     pub fn add_travel_time(&mut self, link: u64, travel_time: u32) {
-        self.travel_times.insert(link, travel_time);
+        self.travel_times_by_link_id.insert(link, travel_time);
     }
 
     pub fn serialize(&self) -> Vec<u8> {

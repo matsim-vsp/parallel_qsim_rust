@@ -13,21 +13,25 @@ use std::env;
 
 pub struct Router<'router> {
     pub(crate) server: Server<CustomizedBasic<'router, CCH>>,
-    pub(crate) network: RoutingKitNetwork,
+    pub(crate) current_network: RoutingKitNetwork,
+    initial_network: RoutingKitNetwork,
 }
 
 impl<'router> Router<'router> {
     pub(crate) fn new(cch: &'router CCH, network: &RoutingKitNetwork) -> Router<'router> {
         Router {
             server: Server::new(customize(cch, &Router::create_owned_graph(&network))),
-            network: network.clone(),
+            current_network: network.clone(),
+            initial_network: network.clone(),
         }
     }
 
     pub(crate) fn customize(&mut self, cch: &'router CCH, network: RoutingKitNetwork) {
-        self.network = network;
-        self.server
-            .update(customize(cch, &Router::create_owned_graph(&self.network)));
+        self.current_network = network;
+        self.server.update(customize(
+            cch,
+            &Router::create_owned_graph(&self.current_network),
+        ));
     }
 
     pub(crate) fn query<'q>(
@@ -48,18 +52,25 @@ impl<'router> Router<'router> {
         x_to: f32,
         y_to: f32,
     ) -> CustomQueryResult {
-        let network = self.network.clone();
-        let mut result: QueryResult<PathServerWrapper<'q, CustomizedBasic<'router, CCH>>, Weight> =
-            self.query(
+        let travel_time;
+        let result_edge_path;
+        {
+            let mut result: QueryResult<
+                PathServerWrapper<'_, CustomizedBasic<'router, CCH>>,
+                Weight,
+            > = self.query(
                 self.find_nearest_node(x_from, y_from),
                 self.find_nearest_node(x_to, y_to),
             );
-        let edge_path = result
-            .node_path()
-            .map(|node_path| get_edge_path(node_path, &network));
+            travel_time = result.distance();
+            result_edge_path = result.node_path();
+        }
+        let edge_path =
+            result_edge_path.map(|node_path| get_edge_path(node_path, &self.current_network));
+
         CustomQueryResult {
-            travel_time: result.distance(),
-            path: edge_path,
+            travel_time,
+            path: edge_path.clone(),
         }
     }
 
@@ -98,10 +109,10 @@ impl<'router> Router<'router> {
         let point = Point::new(x, y);
 
         let network_points = self
-            .network
+            .current_network
             .longitude
             .iter()
-            .zip(self.network.latitude.iter());
+            .zip(self.current_network.latitude.iter());
 
         network_points
             .map(|(long, lat)| point.euclidean_distance(&Point::new(*long, *lat)))
@@ -109,6 +120,14 @@ impl<'router> Router<'router> {
             .min_by(|(_, a), (_, b)| a.total_cmp(b))
             .map(|(index, _)| index)
             .unwrap()
+    }
+
+    pub(crate) fn get_initial_travel_time(&self, link_id: u64) -> u32 {
+        self.initial_network.get_travel_time_by_link_id(link_id)
+    }
+
+    pub(crate) fn get_current_travel_time(&self, link_id: u64) -> u32 {
+        self.current_network.get_travel_time_by_link_id(link_id)
     }
 }
 
