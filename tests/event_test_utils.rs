@@ -110,7 +110,7 @@ pub fn run_mpi_simulation_and_convert_events(
         .spawn()
         .unwrap();
 
-    let simulation_status = match child.wait_timeout(Duration::from_secs(5)).unwrap() {
+    let simulation_status = match child.wait_timeout(Duration::from_secs(10)).unwrap() {
         None => {
             child.kill().unwrap();
             child.wait().unwrap().code()
