@@ -70,7 +70,7 @@ impl<'router> Router<'router> {
 
         CustomQueryResult {
             travel_time,
-            path: edge_path.clone(),
+            path: edge_path,
         }
     }
 
