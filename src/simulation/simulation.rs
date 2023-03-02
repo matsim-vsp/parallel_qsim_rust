@@ -101,6 +101,10 @@ impl<'sim> Simulation<'sim> {
                 let (route, travel_time) = self.find_route(curr_act, next_act);
                 let dep_time = curr_act.end_time;
 
+                debug!(
+                    "Add new route for agent {:?} between current ({:?}) and next ({:?}) with {:?} nodes.",
+                    agent.id, curr_act, next_act, route.len()
+                );
                 agent.push_leg(dep_time, travel_time, route);
             }
 
