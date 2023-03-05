@@ -170,7 +170,10 @@ impl<'sim> Simulation<'sim> {
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap(); // in this case there should always be a link id.
-        let link = self.network.links.get_mut(&link_id).unwrap();
+        let link = self.network.links.get_mut(&link_id).expect(&*format!(
+            "Cannot find link for link_id {:?} and vehicle {:?}",
+            link_id, vehicle
+        ));
 
         if !from_act {
             self.events
@@ -250,7 +253,10 @@ impl<'sim> Simulation<'sim> {
             self.router.is_some() && now % (60 * traffic_update_interval_in_min) == 0;
 
         if traffic_update {
-            debug!("Traffic update at {}", now);
+            debug!(
+                "Process {}: Traffic update at {}",
+                self.message_broker.rank, now
+            );
             let collected_travel_times = self
                 .events
                 .get_subscriber::<TravelTimeCollector>()
