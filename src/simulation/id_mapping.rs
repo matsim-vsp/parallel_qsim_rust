@@ -2,6 +2,7 @@ use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::network::IONetwork;
 use crate::simulation::io::population::{IOPlanElement, IOPopulation};
 use log::info;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -57,7 +58,7 @@ impl MatsimIdMappings {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MatsimIdMapping {
     // both maps have owned strings. This could be one owned string and the other could have a
     // ref to it. According to https://stackoverflow.com/questions/72941761/for-loop-struct-with-lifetime-a-cannot-borrow-as-mutable-because-it-is-also-b/72942371#72942371
