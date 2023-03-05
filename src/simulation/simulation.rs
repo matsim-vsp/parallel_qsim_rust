@@ -156,7 +156,7 @@ impl<'sim> Simulation<'sim> {
             .router
             .as_mut()
             .unwrap()
-            .query_coordinates(from_act.x, from_act.y, to_act.x, to_act.y);
+            .query_links(from_act.link_id, to_act.link_id);
 
         let route = query_result.path.expect("There is no route!");
         let travel_time = query_result.travel_time;

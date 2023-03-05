@@ -74,6 +74,62 @@ impl<'router> Router<'router> {
         }
     }
 
+    pub(crate) fn query_links<'q>(&'q mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
+        let travel_time;
+        let result_edge_path;
+        {
+            let mut result: QueryResult<
+                PathServerWrapper<'_, CustomizedBasic<'router, CCH>>,
+                Weight,
+            > = self.query(self.get_end_node(from_link), self.get_start_node(to_link));
+            travel_time = result.distance();
+            result_edge_path = result.node_path();
+        }
+        let edge_path = result_edge_path
+            .map(|node_path| get_edge_path(node_path, &self.current_network))
+            .map(|mut path| {
+                //add from link at the beginning and to link at the end
+                path.insert(0, from_link);
+                path.push(to_link);
+                path
+            });
+
+        CustomQueryResult {
+            travel_time,
+            path: edge_path,
+        }
+    }
+
+    fn get_end_node(&self, link_id: u64) -> usize {
+        let link_id_index = self
+            .current_network
+            .link_ids
+            .iter()
+            .position(|&id| id == link_id)
+            .unwrap();
+        *self.current_network.head.get(link_id_index).unwrap() as usize
+    }
+
+    fn get_start_node(&self, link_id: u64) -> usize {
+        let link_id_index = self
+            .current_network
+            .link_ids
+            .iter()
+            .position(|&id| id == link_id)
+            .unwrap();
+
+        let mut result = None;
+        for i in 0..self.current_network.first_out.len() {
+            if link_id_index >= *self.current_network.first_out.get(i).unwrap() as usize
+                && link_id_index < *self.current_network.first_out.get(i + 1).unwrap() as usize
+            {
+                result = Some(i as usize);
+            }
+        }
+
+        result.unwrap()
+    }
+
     pub(crate) fn perform_preprocessing(
         network: &RoutingKitNetwork,
         temp_output_folder: &str,
