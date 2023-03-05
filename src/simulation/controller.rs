@@ -50,6 +50,14 @@ pub fn run(world: SystemCommunicator, config: Config) {
         let out_network =
             io_network.clone_with_internal_ids(&network, &id_mappings.links, &id_mappings.nodes);
         out_network.to_file(&output_path.join("output_network.xml.gz"));
+
+        let id_mappings_string = serde_json::to_string(id_mappings.links.as_ref()).unwrap();
+        fs::write(
+            config.output_dir.to_owned() + "/id_mappings.json",
+            id_mappings_string,
+        )
+        .expect("Unable to write file");
+        info!("Written id mappings file!");
     }
 
     let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
