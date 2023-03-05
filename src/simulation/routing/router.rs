@@ -254,12 +254,12 @@ mod test {
         let cch = Router::perform_preprocessing(&network, "./test_output/routing/nearest_node/");
         let router = Router::new(&cch, &network);
 
-        //(17500,0) is in the middle of 0 and 1
+        //(-17500.051,0.005) is in the middle of 0 and 1
         assert_eq!(0, router.find_nearest_node(-20000., 0.));
         assert_eq!(0, router.find_nearest_node(-17501., 0.));
-        assert_eq!(0, router.find_nearest_node(-17500., 0.));
         assert_eq!(0, router.find_nearest_node(-10000000., 0.));
 
+        assert_eq!(1, router.find_nearest_node(-17500., 0.));
         assert_eq!(1, router.find_nearest_node(-15000., 0.));
         assert_eq!(1, router.find_nearest_node(-17499., 0.));
 

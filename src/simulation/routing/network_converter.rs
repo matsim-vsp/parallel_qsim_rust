@@ -37,8 +37,8 @@ impl NetworkConverter {
 
         for node in matsim_network.nodes() {
             //TODO: make sure, that the coordinate system is correct
-            longitude.push(node.x.floor());
-            latitude.push(node.y.floor());
+            longitude.push(node.x);
+            latitude.push(node.y);
 
             first_out.push((links_before) as EdgeId);
 
