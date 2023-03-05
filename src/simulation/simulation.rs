@@ -101,11 +101,13 @@ impl<'sim> Simulation<'sim> {
                 let (route, travel_time) = self.find_route(curr_act, next_act);
                 let dep_time = curr_act.end_time;
 
-                debug!(
-                    "Add new route for agent {:?} between current ({:?}) and next ({:?}) with {:?} nodes.",
-                    agent.id, curr_act, next_act, route.len()
+                agent.push_leg(
+                    dep_time,
+                    travel_time,
+                    route,
+                    curr_act.link_id,
+                    next_act.link_id,
                 );
-                agent.push_leg(dep_time, travel_time, route);
             }
 
             //here, current element counter is going to be increased
@@ -157,8 +159,13 @@ impl<'sim> Simulation<'sim> {
             .query_coordinates(from_act.x, from_act.y, to_act.x, to_act.y);
 
         let route = query_result.path.expect("There is no route!");
-        let trav_time = query_result.travel_time;
-        (route, trav_time)
+        let travel_time = query_result.travel_time;
+
+        if route.is_empty() {
+            debug!("Route between {:?} and {:?} is empty.", from_act, to_act);
+        }
+
+        (route, travel_time)
     }
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
