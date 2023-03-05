@@ -49,10 +49,12 @@ impl InertialFlowCutterAdapter<'_> {
         node_ordering
     }
 
+    // The magic happens here
     fn call_node_ordering(&self, save_ordering_to_file: bool) -> Vec<u32> {
         let file_names = vec!["head", "travel_time", "first_out", "latitude", "longitude"];
         for f in file_names {
-            self.convert_network_into_binary(f);
+            let contains_float = f.eq("latitude") || f.eq("longitude");
+            self.convert_file_into_binary(f, contains_float);
         }
 
         let output_file_name = String::from("order");
@@ -63,14 +65,19 @@ impl InertialFlowCutterAdapter<'_> {
         ordering
     }
 
-    fn convert_network_into_binary(&self, file: &str) {
+    fn convert_file_into_binary(&self, file: &str, contains_float: bool) {
         debug!("Converting file {} into binary.", file);
 
         create_dir_all(self.temp_output_path().to_owned() + "binary")
             .expect("Failed to create directory.");
 
+        let converter_command = match contains_float {
+            false => "text_to_binary_vector",
+            true => "text_to_binary_float_vector",
+        };
+
         Command::new(self.call_console())
-            .arg("text_to_binary_vector")
+            .arg(converter_command)
             .arg(self.temp_output_path().to_owned() + file)
             .arg(self.temp_output_path().to_owned() + &"binary/" + &file)
             .status()
