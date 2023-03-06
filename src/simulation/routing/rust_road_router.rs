@@ -1,8 +1,6 @@
 use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::simulation::routing::inertial_flow_cutter_adapter::InertialFlowCutterAdapter;
-use crate::simulation::routing::router::CustomQueryResult;
-use geo::EuclideanDistance;
-use geo::Point;
+use crate::simulation::routing::router::{CustomQueryResult, Router};
 use rust_road_router::algo::customizable_contraction_hierarchy::query::{
     PathServerWrapper, Server,
 };
@@ -13,32 +11,23 @@ use rust_road_router::datastr::node_order::NodeOrder;
 use std::env;
 
 pub struct RustRoadRouter<'router> {
-    pub(crate) server: Server<CustomizedBasic<'router, CCH>>,
+    pub(crate) server: Option<ServerAdapter<'router>>,
     pub(crate) current_network: RoutingKitNetwork,
     pub(crate) initial_network: RoutingKitNetwork,
+    cch: CCH,
 }
 
 impl<'router> RustRoadRouter<'router> {
-    pub(crate) fn new(cch: *const CCH, network: &RoutingKitNetwork) -> RustRoadRouter<'router> {
+    pub(crate) fn new(network: &RoutingKitNetwork, output_dir: &str) -> RustRoadRouter<'router> {
         unsafe {
-            RustRoadRouter {
-                server: Server::new(customize(
-                    &*cch,
-                    &RustRoadRouter::create_owned_graph(&network),
-                )),
+            let mut router = RustRoadRouter {
+                server: None,
                 current_network: network.clone(),
                 initial_network: network.clone(),
-            }
-        }
-    }
-
-    pub(crate) fn customize(&mut self, cch: *const CCH, network: RoutingKitNetwork) {
-        unsafe {
-            self.current_network = network;
-            self.server.update(customize(
-                &*cch,
-                &RustRoadRouter::create_owned_graph(&self.current_network),
-            ));
+                cch: RustRoadRouter::perform_preprocessing(&network, output_dir),
+            };
+            router.server = Some(ServerAdapter::new(&router.cch as *const CCH, network));
+            router
         }
     }
 
@@ -47,65 +36,7 @@ impl<'router> RustRoadRouter<'router> {
         from: usize,
         to: usize,
     ) -> QueryResult<PathServerWrapper<'q, CustomizedBasic<'router, CCH>>, Weight> {
-        self.server.query(Query {
-            from: from as NodeId,
-            to: to as NodeId,
-        })
-    }
-
-    pub(crate) fn query_coordinates<'q>(
-        &'q mut self,
-        x_from: f32,
-        y_from: f32,
-        x_to: f32,
-        y_to: f32,
-    ) -> CustomQueryResult {
-        let travel_time;
-        let result_edge_path;
-        {
-            let mut result: QueryResult<
-                PathServerWrapper<'_, CustomizedBasic<'router, CCH>>,
-                Weight,
-            > = self.query(
-                self.find_nearest_node(x_from, y_from),
-                self.find_nearest_node(x_to, y_to),
-            );
-            travel_time = result.distance();
-            result_edge_path = result.node_path();
-        }
-        let edge_path =
-            result_edge_path.map(|node_path| get_edge_path(node_path, &self.current_network));
-
-        CustomQueryResult {
-            travel_time,
-            path: edge_path,
-        }
-    }
-
-    pub(crate) fn query_links<'q>(&'q mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
-        let travel_time;
-        let result_edge_path;
-        {
-            let mut result: QueryResult<
-                PathServerWrapper<'_, CustomizedBasic<'router, CCH>>,
-                Weight,
-            > = self.query(self.get_end_node(from_link), self.get_start_node(to_link));
-            travel_time = result.distance();
-            result_edge_path = result.node_path();
-        }
-        let edge_path = result_edge_path
-            .map(|node_path| get_edge_path(node_path, &self.current_network))
-            .map(|mut path| {
-                //add from link at the beginning and to link at the end
-                path.insert(0, from_link);
-                path.push(to_link);
-                path
-            });
-
-        CustomQueryResult {
-            travel_time,
-            path: edge_path,
-        }
+        self.server.as_mut().unwrap().query(from, to)
     }
 
     fn get_end_node(&self, link_id: u64) -> usize {
@@ -168,30 +99,93 @@ impl<'router> RustRoadRouter<'router> {
             routing_kit_network.travel_time.to_owned(),
         )
     }
+}
 
-    pub(self) fn find_nearest_node(&self, x: f32, y: f32) -> usize {
-        let point = Point::new(x, y);
+impl<'router> Router for RustRoadRouter<'router> {
+    fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
+        let travel_time;
+        let result_edge_path;
+        {
+            let mut result: QueryResult<
+                PathServerWrapper<'_, CustomizedBasic<'router, CCH>>,
+                Weight,
+            > = self.query(self.get_end_node(from_link), self.get_start_node(to_link));
+            travel_time = result.distance();
+            result_edge_path = result.node_path();
+        }
+        let edge_path = result_edge_path
+            .map(|node_path| get_edge_path(node_path, &self.current_network))
+            .map(|mut path| {
+                //add from link at the beginning and to link at the end
+                path.insert(0, from_link);
+                path.push(to_link);
+                path
+            });
 
-        let network_points = self
-            .current_network
-            .longitude
-            .iter()
-            .zip(self.current_network.latitude.iter());
-
-        network_points
-            .map(|(long, lat)| point.euclidean_distance(&Point::new(*long, *lat)))
-            .enumerate()
-            .min_by(|(_, a), (_, b)| a.total_cmp(b))
-            .map(|(index, _)| index)
-            .unwrap()
+        CustomQueryResult {
+            travel_time,
+            path: edge_path,
+        }
     }
 
-    pub(crate) fn get_initial_travel_time(&self, link_id: u64) -> u32 {
+    fn customize(&mut self, network: RoutingKitNetwork) {
+        unsafe {
+            self.current_network = network;
+            self.server
+                .as_mut()
+                .unwrap()
+                .update(&self.cch as *const CCH, &self.current_network);
+        }
+    }
+
+    fn get_current_network(&self) -> &RoutingKitNetwork {
+        &self.current_network
+    }
+
+    fn get_initial_travel_time(&self, link_id: u64) -> u32 {
         self.initial_network.get_travel_time_by_link_id(link_id)
     }
 
-    pub(crate) fn get_current_travel_time(&self, link_id: u64) -> u32 {
+    fn get_current_travel_time(&self, link_id: u64) -> u32 {
         self.current_network.get_travel_time_by_link_id(link_id)
+    }
+}
+
+pub struct ServerAdapter<'adapter> {
+    server: Server<CustomizedBasic<'adapter, CCH>>,
+}
+
+// We need unsafe code here in order to implement the router trait. Otherwise, the instantiation and
+// update function could not be implemented.
+// This requires that the base address of cch is never moved:
+// https://stackoverflow.com/questions/32300132/why-cant-i-store-a-value-and-a-reference-to-that-value-in-the-same-struct
+//
+impl<'adapter> ServerAdapter<'adapter> {
+    pub unsafe fn new(cch: *const CCH, network: &RoutingKitNetwork) -> ServerAdapter<'adapter> {
+        ServerAdapter {
+            server: Server::new(customize(
+                &*cch,
+                &RustRoadRouter::create_owned_graph(&network),
+            )),
+        }
+    }
+
+    pub unsafe fn update(&mut self, cch: *const CCH, network: &RoutingKitNetwork) {
+        self.server.update(customize(
+            &*cch,
+            &RustRoadRouter::create_owned_graph(network),
+        ))
+    }
+
+    pub fn query<'q>(
+        &'q mut self,
+        from: usize,
+        to: usize,
+    ) -> QueryResult<PathServerWrapper<'q, CustomizedBasic<'adapter, CCH>>, Weight> {
+        self.server.query(Query {
+            from: from as NodeId,
+            to: to as NodeId,
+        })
     }
 }
 
@@ -241,6 +235,7 @@ mod test {
     use std::time::Instant;
 
     use crate::simulation::routing::network_converter::NetworkConverter;
+    use crate::simulation::routing::router::Router;
     use crate::simulation::routing::rust_road_router::{get_edge_path, RustRoadRouter};
     use rand::seq::IteratorRandom;
     use rust_road_router::algo::a_star::BiDirZeroPot;
@@ -306,34 +301,6 @@ mod test {
     }
 
     #[test]
-    fn test_find_nearest_node() {
-        //nodes will be sorted by network converter by there ids
-        let network =
-            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
-        let cch =
-            RustRoadRouter::perform_preprocessing(&network, "./test_output/routing/nearest_node/");
-        unsafe {
-            let router = RustRoadRouter::new(&cch, &network);
-
-            //(-17500.051,0.005) is in the middle of 0 and 1
-            assert_eq!(0, router.find_nearest_node(-20000., 0.));
-            assert_eq!(0, router.find_nearest_node(-17501., 0.));
-            assert_eq!(0, router.find_nearest_node(-10000000., 0.));
-
-            assert_eq!(1, router.find_nearest_node(-17500., 0.));
-            assert_eq!(1, router.find_nearest_node(-15000., 0.));
-            assert_eq!(1, router.find_nearest_node(-17499., 0.));
-
-            //(-1681.5, 5128) is in the middle of 2 and 3
-            assert_eq!(2, router.find_nearest_node(-865., 5925.));
-            assert_eq!(2, router.find_nearest_node(-1680., 5128.));
-
-            assert_eq!(3, router.find_nearest_node(-2498., 4331.));
-            assert_eq!(3, router.find_nearest_node(-1682., 5128.));
-        }
-    }
-
-    #[test]
     fn test_get_edge_path() {
         let mut network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
@@ -353,25 +320,19 @@ mod test {
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
 
-        let cch = RustRoadRouter::perform_preprocessing(
-            &network,
-            "./test_output/routing/simple_cch_update/",
-        );
-        unsafe {
-            let mut router = RustRoadRouter::new(&cch, &network);
+        let mut router = RustRoadRouter::new(&network, "./test_output/routing/simple_cch_update/");
 
-            let res12 = router.query(1, 2);
-            test_query_result(res12, 1, vec![1, 2]);
-            let res32 = router.query(3, 2);
-            test_query_result(res32, 3, vec![3, 1, 2]);
+        let res12 = router.query(1, 2);
+        test_query_result(res12, 1, vec![1, 2]);
+        let res32 = router.query(3, 2);
+        test_query_result(res32, 3, vec![3, 1, 2]);
 
-            println!("Assign new travel time to edge 1-2: 4");
+        println!("Assign new travel time to edge 1-2: 4");
 
-            let network_new_weights = network.clone_with_new_travel_times(vec![4, 2, 1, 4, 2, 5]);
-            router.customize(&cch, network_new_weights);
-            let new_result = router.query(3, 2);
-            test_query_result(new_result, 5, vec![3, 2]);
-        }
+        let network_new_weights = network.clone_with_new_travel_times(vec![4, 2, 1, 4, 2, 5]);
+        router.customize(network_new_weights);
+        let new_result = router.query(3, 2);
+        test_query_result(new_result, 5, vec![3, 2]);
     }
 
     #[ignore]
@@ -379,80 +340,76 @@ mod test {
     fn compare_cch_and_dijkstra() {
         let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
-        let cch =
-            RustRoadRouter::perform_preprocessing(&network, "./test_output/routing/performance/");
-        unsafe {
-            let mut cch_router = RustRoadRouter::new(&cch, &network);
+        let mut cch_router = RustRoadRouter::new(&network, "./test_output/routing/performance/");
 
-            let mut dijkstra_router =
-                DijkServer::<_, DefaultOps>::new(RustRoadRouter::create_owned_graph(&network));
+        let mut dijkstra_router =
+            DijkServer::<_, DefaultOps>::new(RustRoadRouter::create_owned_graph(&network));
 
-            let mut bid_dijkstra_router =
-                BidServer::<OwnedGraph, OwnedGraph, BiDirZeroPot, ChooseMinKeyDir>::new(
-                    RustRoadRouter::create_owned_graph(&network),
-                );
+        let mut bid_dijkstra_router =
+            BidServer::<OwnedGraph, OwnedGraph, BiDirZeroPot, ChooseMinKeyDir>::new(
+                RustRoadRouter::create_owned_graph(&network),
+            );
 
-            let owned_graph = RustRoadRouter::create_owned_graph(&network);
-            let number_of_nodes = owned_graph.first_out().len();
-            let from_nodes: Vec<usize> =
-                (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);
-            let to_nodes: Vec<usize> =
-                (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);
+        let owned_graph = RustRoadRouter::create_owned_graph(&network);
+        let number_of_nodes = owned_graph.first_out().len();
+        let from_nodes: Vec<usize> =
+            (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);
+        let to_nodes: Vec<usize> =
+            (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);
 
-            // ugly code repetition, but the servers do not have a common parent trait :(
-            println!("Starting CCH routing.");
-            let mut cch_result_distances: Vec<u32> = Vec::new();
-            let now = Instant::now();
-            for (&from, &to) in from_nodes.iter().zip(to_nodes.iter()) {
-                let cch_result = cch_router.query(from, to);
-                match cch_result.distance() {
-                    Some(x) => cch_result_distances.push(x),
-                    None => {}
-                }
+        // ugly code repetition, but the servers do not have a common parent trait :(
+        println!("Starting CCH routing.");
+        let mut cch_result_distances: Vec<u32> = Vec::new();
+        let now = Instant::now();
+        for (&from, &to) in from_nodes.iter().zip(to_nodes.iter()) {
+            let cch_result = cch_router.query(from, to);
+            match cch_result.distance() {
+                Some(x) => cch_result_distances.push(x),
+                None => {}
             }
-            let elapsed = now.elapsed();
-            println!("CCH duration: {:?}", elapsed);
+        }
+        let elapsed = now.elapsed();
+        println!("CCH duration: {:?}", elapsed);
 
-            println!("Starting Dijkstra routing.");
-            let mut dijkstra_result_distances: Vec<u32> = Vec::new();
-            let now = Instant::now();
-            for (&from, &to) in from_nodes.iter().zip(to_nodes.iter()) {
-                let dijkstra_result = dijkstra_router.query(Query {
-                    from: from as NodeId,
-                    to: to as NodeId,
-                });
-                match dijkstra_result.distance() {
-                    Some(x) => dijkstra_result_distances.push(x),
-                    None => {}
-                }
+        println!("Starting Dijkstra routing.");
+        let mut dijkstra_result_distances: Vec<u32> = Vec::new();
+        let now = Instant::now();
+        for (&from, &to) in from_nodes.iter().zip(to_nodes.iter()) {
+            let dijkstra_result = dijkstra_router.query(Query {
+                from: from as NodeId,
+                to: to as NodeId,
+            });
+            match dijkstra_result.distance() {
+                Some(x) => dijkstra_result_distances.push(x),
+                None => {}
             }
-            let elapsed = now.elapsed();
-            println!("Dijkstra duration: {:?}", elapsed);
+        }
+        let elapsed = now.elapsed();
+        println!("Dijkstra duration: {:?}", elapsed);
 
-            println!("Starting BidDijkstra routing.");
-            let mut bid_dijkstra_result_distances: Vec<u32> = Vec::new();
-            let now = Instant::now();
-            for (&from, &to) in from_nodes.iter().zip(to_nodes.iter()) {
-                let bid_dijkstra_result = bid_dijkstra_router.query(Query {
-                    from: from as NodeId,
-                    to: to as NodeId,
-                });
-                match bid_dijkstra_result.distance() {
-                    Some(x) => bid_dijkstra_result_distances.push(x),
-                    None => {}
-                }
+        println!("Starting BidDijkstra routing.");
+        let mut bid_dijkstra_result_distances: Vec<u32> = Vec::new();
+        let now = Instant::now();
+        for (&from, &to) in from_nodes.iter().zip(to_nodes.iter()) {
+            let bid_dijkstra_result = bid_dijkstra_router.query(Query {
+                from: from as NodeId,
+                to: to as NodeId,
+            });
+            match bid_dijkstra_result.distance() {
+                Some(x) => bid_dijkstra_result_distances.push(x),
+                None => {}
             }
-            let elapsed = now.elapsed();
-            println!("BidDijkstra duration: {:?}", elapsed);
+        }
+        let elapsed = now.elapsed();
+        println!("BidDijkstra duration: {:?}", elapsed);
 
-            let mut counter = 0;
-            for (&cch, &dijkstra) in cch_result_distances
-                .iter()
-                .zip(dijkstra_result_distances.iter())
-            {
-                assert_eq!(cch, dijkstra, "Distances not equal for index {}.", counter);
-                counter += 1;
-            }
+        let mut counter = 0;
+        for (&cch, &dijkstra) in cch_result_distances
+            .iter()
+            .zip(dijkstra_result_distances.iter())
+        {
+            assert_eq!(cch, dijkstra, "Distances not equal for index {}.", counter);
+            counter += 1;
         }
     }
 

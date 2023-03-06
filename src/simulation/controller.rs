@@ -12,7 +12,7 @@ use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
-use crate::simulation::routing::rust_road_router_adapter::RustRoadRouterAdapter;
+use crate::simulation::routing::rust_road_router::RustRoadRouter;
 use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
@@ -98,7 +98,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
 
     let mut router: Option<Box<dyn Router>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
-        router = Some(Box::new(RustRoadRouterAdapter::new(
+        router = Some(Box::new(RustRoadRouter::new(
             &routing_kit_network,
             get_temp_output_folder(&config.output_dir, rank).as_str(),
         )));
