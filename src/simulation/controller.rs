@@ -100,7 +100,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(RustRoadRouter::new(
             &routing_kit_network,
-            get_temp_output_folder(&config.output_dir, rank).as_str(),
+            get_temp_output_folder(&output_path, rank),
         )));
     }
 
@@ -122,7 +122,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     info!("output dir: {:?}", config.output_dir);
 
     if rank == 0 && config.routing_mode == RoutingMode::AdHoc {
-        remove_dir_all(config.output_dir + "routing")
+        remove_dir_all(output_path.join("routing"))
             .expect("Wasn't able to delete temporary routing output.")
     }
 
@@ -131,6 +131,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
     info!("Process #{rank} finishing.");
 }
 
-fn get_temp_output_folder(output_dir: &str, rank: c_int) -> String {
-    format!("{}{}{}{}", output_dir, "/routing/", rank, "/")
+fn get_temp_output_folder(output_dir: &PathBuf, rank: c_int) -> PathBuf {
+    output_dir.join("routing").join(format!("{}", rank))
 }

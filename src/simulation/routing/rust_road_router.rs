@@ -9,6 +9,7 @@ use rust_road_router::algo::{Query, QueryResult, QueryServer};
 use rust_road_router::datastr::graph::{NodeId, OwnedGraph, Weight};
 use rust_road_router::datastr::node_order::NodeOrder;
 use std::env;
+use std::path::PathBuf;
 
 pub struct RustRoadRouter<'router> {
     pub(crate) server: Option<ServerAdapter<'router>>,
@@ -18,7 +19,7 @@ pub struct RustRoadRouter<'router> {
 }
 
 impl<'router> RustRoadRouter<'router> {
-    pub(crate) fn new(network: &RoutingKitNetwork, output_dir: &str) -> RustRoadRouter<'router> {
+    pub(crate) fn new(network: &RoutingKitNetwork, output_dir: PathBuf) -> RustRoadRouter<'router> {
         unsafe {
             let mut router = RustRoadRouter {
                 server: None,
@@ -71,7 +72,7 @@ impl<'router> RustRoadRouter<'router> {
 
     pub(crate) fn perform_preprocessing(
         network: &RoutingKitNetwork,
-        temp_output_folder: &str,
+        temp_output_folder: PathBuf,
     ) -> CCH {
         let owned_graph = RustRoadRouter::create_owned_graph(network);
 
@@ -81,7 +82,7 @@ impl<'router> RustRoadRouter<'router> {
         // step 1: compute node ordering
         let node_order_vec = InertialFlowCutterAdapter::new(
             network,
-            inertial_flow_cutter_path.as_str(),
+            PathBuf::from(inertial_flow_cutter_path),
             temp_output_folder,
         )
         .node_ordering(false);
@@ -232,6 +233,7 @@ pub(self) fn find_edge_id_of_outgoing(
 #[cfg(test)]
 mod test {
     use std::fmt::Debug;
+    use std::path::PathBuf;
     use std::time::Instant;
 
     use crate::simulation::routing::network_converter::NetworkConverter;
@@ -320,7 +322,10 @@ mod test {
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
 
-        let mut router = RustRoadRouter::new(&network, "./test_output/routing/simple_cch_update/");
+        let mut router = RustRoadRouter::new(
+            &network,
+            PathBuf::from("./test_output/routing/simple_cch_update/"),
+        );
 
         let res12 = router.query(1, 2);
         test_query_result(res12, 1, vec![1, 2]);
@@ -340,7 +345,10 @@ mod test {
     fn compare_cch_and_dijkstra() {
         let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
-        let mut cch_router = RustRoadRouter::new(&network, "./test_output/routing/performance/");
+        let mut cch_router = RustRoadRouter::new(
+            &network,
+            PathBuf::from("./test_output/routing/performance/"),
+        );
 
         let mut dijkstra_router =
             DijkServer::<_, DefaultOps>::new(RustRoadRouter::create_owned_graph(&network));
