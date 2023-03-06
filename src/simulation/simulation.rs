@@ -15,28 +15,25 @@ use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
 use log::{debug, info};
-use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
 use std::collections::{HashMap, HashSet};
 
-pub struct Simulation<'sim> {
+pub struct Simulation {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: NetworkPartition<Vehicle>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
-    router: Option<Router<'sim>>,
-    cch: &'sim Option<CCH>,
+    router: Option<Box<dyn Router>>,
 }
 
-impl<'sim> Simulation<'sim> {
+impl Simulation {
     pub fn new(
         config: &Config,
         network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
-        router: Option<Router<'sim>>,
-        cch: &'sim Option<CCH>,
+        router: Option<Box<dyn Router>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -50,7 +47,6 @@ impl<'sim> Simulation<'sim> {
             message_broker,
             events,
             router,
-            cch,
         }
     }
 
@@ -387,11 +383,11 @@ impl<'sim> Simulation<'sim> {
 
         let router = self.router.as_mut().unwrap();
         let network_with_new_travel_times = router
-            .current_network
+            .get_current_network()
             .clone_with_new_travel_times_by_link(travel_times_by_link);
 
         debug!("There are travel time changes. Router will be customized.");
-        router.customize(self.cch.as_ref().unwrap(), network_with_new_travel_times);
+        router.customize(network_with_new_travel_times);
     }
 
     fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {
@@ -408,7 +404,7 @@ impl<'sim> Simulation<'sim> {
         (from_rank, to_rank)
     }
 
-    fn get_router_ref(&self) -> &Router {
-        self.router.as_ref().unwrap()
+    fn get_router_ref(&self) -> &dyn Router {
+        self.router.as_ref().unwrap().as_ref()
     }
 }

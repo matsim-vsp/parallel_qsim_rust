@@ -12,11 +12,11 @@ use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
+use crate::simulation::routing::rust_road_router_adapter::RustRoadRouterAdapter;
 use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
-use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
 use std::ffi::c_int;
 use std::fs;
 use std::fs::remove_dir_all;
@@ -96,14 +96,12 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let mut router: Option<Router> = None;
-    let mut cch: Option<CCH> = None;
+    let mut router: Option<Box<dyn Router>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
-        cch = Some(Router::perform_preprocessing(
+        router = Some(Box::new(RustRoadRouterAdapter::new(
             &routing_kit_network,
             get_temp_output_folder(&config.output_dir, rank).as_str(),
-        ));
-        router = Some(Router::new(cch.as_ref().unwrap(), &routing_kit_network));
+        )));
     }
 
     let mut simulation = Simulation::new(
@@ -113,7 +111,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         message_broker,
         events,
         router,
-        &cch,
     );
 
     let start = Instant::now();
