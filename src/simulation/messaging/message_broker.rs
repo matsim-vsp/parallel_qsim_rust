@@ -10,8 +10,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 
 pub trait MessageBroker {
-    fn send_recv(&mut self, now: u32, send_revc_traffic_info: bool)
-        -> Vec<SimulationUpdateMessage>;
+    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
     fn add_travel_times(&mut self, travel_times: HashMap<u64, u32>);
 }
@@ -26,11 +25,7 @@ pub struct MpiMessageBroker {
 }
 
 impl MessageBroker for MpiMessageBroker {
-    fn send_recv(
-        &mut self,
-        now: u32,
-        send_revc_traffic_info: bool,
-    ) -> Vec<SimulationUpdateMessage> {
+    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage> {
         // preparation of traffic info messages
         let traffic_info_message = self.traffic_info.serialize();
 
@@ -44,7 +39,6 @@ impl MessageBroker for MpiMessageBroker {
         // prepare the receiving here.
         let mut expected_vehicle_messages = self.neighbors.clone();
         let mut received_vehicle_messages = Vec::new();
-        let mut received_traffic_info_messages = Vec::new();
 
         // we have to use at least immediate send here. Otherwise we risk blocking on send as explained
         // in https://paperpile.com/app/p/e209e0b3-9bdb-08c7-8a62-b1180a9ac954 chapter 4.3, 4.4 and 4.12.
@@ -68,11 +62,6 @@ impl MessageBroker for MpiMessageBroker {
                     .process_at_rank(message.to_process as Rank)
                     .immediate_send(scope, buf);
                 reqs.add(req);
-            }
-
-            // ------ Gather traffic information --------
-            if send_revc_traffic_info {
-                received_traffic_info_messages = self.gather_traffic_info(&traffic_info_message);
             }
 
             // ------ Receive Part --------
@@ -114,7 +103,6 @@ impl MessageBroker for MpiMessageBroker {
 
         let mut result: Vec<SimulationUpdateMessage> = Vec::new();
         result.append(&mut received_vehicle_messages);
-        result.append(&mut received_traffic_info_messages);
         result
     }
 
@@ -191,68 +179,5 @@ impl MpiMessageBroker {
                 .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
         }
         messages
-    }
-
-    fn get_traffic_info_displs(all_traffic_info_message_lengths: &mut Vec<i32>) -> Vec<Count> {
-        // this is copied from rsmpi example immediate_all_gather_varcount
-        all_traffic_info_message_lengths
-            .iter()
-            .scan(0, |acc, &x| {
-                let tmp = *acc;
-                *acc += x;
-                Some(tmp)
-            })
-            .collect()
-    }
-
-    fn deserialize_traffic_infos(
-        all_traffic_info_messages: Vec<u8>,
-        lengths: Vec<i32>,
-    ) -> Vec<SimulationUpdateMessage> {
-        let mut result = Vec::new();
-        let mut last_end_index = 0usize;
-        for len in lengths {
-            let begin_index = last_end_index;
-            let end_index = last_end_index + len as usize;
-            result.push(SimulationUpdateMessage::new_traffic_info_message(
-                TrafficInfoMessage::deserialize(
-                    &all_traffic_info_messages[begin_index..end_index as usize],
-                ),
-            ));
-            last_end_index = end_index;
-        }
-        result
-    }
-
-    fn gather_traffic_info(
-        &mut self,
-        traffic_info_message: &Vec<u8>,
-    ) -> Vec<SimulationUpdateMessage> {
-        // ------- Gather traffic info lengths -------
-        let mut traffic_info_length_buffer = vec![0i32; self.communicator.size() as usize];
-        self.communicator.all_gather_into(
-            &(traffic_info_message.len() as i32),
-            &mut traffic_info_length_buffer[..],
-        );
-
-        // ------- Gather traffic info -------
-        if traffic_info_length_buffer.iter().sum::<i32>() <= 0 {
-            // if there is no traffic data to be sent, we do not actually perform mpi communication
-            // because mpi would crash
-            return Vec::new();
-        }
-
-        let mut traffic_info_buffer =
-            vec![0u8; traffic_info_length_buffer.iter().sum::<i32>() as usize];
-        let info_displs = Self::get_traffic_info_displs(&mut traffic_info_length_buffer);
-        let mut partition = PartitionMut::new(
-            &mut traffic_info_buffer,
-            traffic_info_length_buffer.clone(),
-            &info_displs[..],
-        );
-        self.communicator
-            .all_gather_varcount_into(&traffic_info_message[..], &mut partition);
-
-        Self::deserialize_traffic_infos(traffic_info_buffer, traffic_info_length_buffer)
     }
 }

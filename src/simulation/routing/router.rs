@@ -1,15 +1,9 @@
-use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
+use crate::simulation::messaging::events::EventsPublisher;
 
 pub trait Router {
     fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult;
 
-    fn customize(&mut self, network: RoutingKitNetwork);
-
-    fn get_current_network(&self) -> &RoutingKitNetwork;
-
-    fn get_initial_travel_time(&self, link_id: u64) -> u32;
-
-    fn get_current_travel_time(&self, link_id: u64) -> u32;
+    fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher);
 }
 
 pub struct CustomQueryResult {

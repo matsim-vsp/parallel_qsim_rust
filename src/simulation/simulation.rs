@@ -7,7 +7,6 @@ use crate::simulation::messaging::messages::proto::simulation_update_message::Ty
 use crate::simulation::messaging::messages::proto::{
     Activity, Agent, GenericRoute, TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
 };
-use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
@@ -69,6 +68,11 @@ impl Simulation {
             self.terminate_teleportation(now);
             self.move_nodes(now);
             self.send_receive(now);
+
+            if let Some(router) = self.router.as_mut() {
+                router.next_time_step(now, &mut self.events)
+            }
+
             now += 1;
         }
 
@@ -242,42 +246,16 @@ impl Simulation {
     }
 
     fn send_receive(&mut self, now: u32) {
-        // this might be configurable
-        let traffic_update_interval_in_min = 15;
-
-        let traffic_update =
-            self.router.is_some() && now % (60 * traffic_update_interval_in_min) == 0;
-
-        if traffic_update {
-            debug!(
-                "Process {}: Traffic update at {}",
-                self.message_broker.rank, now
-            );
-            let collected_travel_times = self
-                .events
-                .get_subscriber::<TravelTimeCollector>()
-                .map(|travel_time_collector| travel_time_collector.get_travel_times());
-
-            self.message_broker.add_travel_times(
-                self.get_travel_times_by_link_to_send(collected_travel_times.unwrap()),
-            );
-
-            self.events
-                .get_subscriber::<TravelTimeCollector>()
-                .unwrap()
-                .flush();
-        }
-
-        let update_messages = self.message_broker.send_recv(now, traffic_update);
+        let update_messages = self.message_broker.send_recv(now);
 
         let mut vehicle_update_messages = Vec::new();
-        let mut traffic_info_messages = Vec::new();
 
+        //TODO make that generic
         for update in update_messages {
             if let Some(message_type) = update.r#type {
                 match message_type {
                     Type::VehicleMessage(message) => vehicle_update_messages.push(message),
-                    Type::TrafficInfoMessage(message) => traffic_info_messages.push(message),
+                    Type::TrafficInfoMessage(message) => panic!(),
                 }
             } else {
                 panic!("The SimulationUpdateMessage is expected to be either a VehicleMessage or a TrafficInfoMessage.");
@@ -285,52 +263,6 @@ impl Simulation {
         }
 
         self.handle_vehicle_messages(now, vehicle_update_messages);
-        self.handle_traffic_info_messages(traffic_info_messages);
-    }
-
-    fn get_travel_times_by_link_to_send(
-        &self,
-        collected_travel_times: HashMap<u64, u32>,
-    ) -> HashMap<u64, u32> {
-        let mut result = HashMap::new();
-
-        let link_ids_of_process = self
-            .network
-            .links
-            .iter()
-            .filter(|(id, link)| match link {
-                Link::LocalLink(_) => true,
-                Link::SplitInLink(_) => true,
-                Link::SplitOutLink(_) => false,
-            })
-            .map(|(id, _)| *id as u64)
-            .collect::<HashSet<u64>>();
-
-        // for each collected travel time: add if currently known travel time is different
-        for (id, travel_time) in &collected_travel_times {
-            if *travel_time != self.get_router_ref().get_current_travel_time(*id) {
-                result.insert(*id, *travel_time);
-            } else {
-                debug!(
-                    "Process {:?} | (link {:?}, travel time: {:?}) was already there.",
-                    self.message_broker.rank, id, travel_time
-                );
-            }
-        }
-
-        // for each link about which no travel time was collected: add initial travel time if currently known travel time is different
-        for id in link_ids_of_process
-            .difference(&collected_travel_times.into_keys().collect::<HashSet<u64>>())
-        {
-            let initial_travel_time = self.get_router_ref().get_initial_travel_time(*id);
-            if self.get_router_ref().get_current_travel_time(*id) != initial_travel_time {
-                result.insert(*id, initial_travel_time);
-            }
-        }
-        if !result.is_empty() {
-            debug!("Traffic update to be sent: {:?}", result);
-        }
-        result
     }
 
     fn handle_vehicle_messages(&mut self, now: u32, vehicle_update_messages: Vec<VehicleMessage>) {
@@ -349,45 +281,6 @@ impl Simulation {
                 }
             }
         }
-    }
-
-    fn handle_traffic_info_messages(&mut self, traffic_info_messages: Vec<TrafficInfoMessage>) {
-        if self.router.is_none() {
-            return;
-        }
-
-        if traffic_info_messages.is_empty() {
-            return;
-        }
-        debug!(
-            "Processing traffic info messages: {:?}.",
-            traffic_info_messages
-        );
-
-        let travel_times_by_link = traffic_info_messages
-            .iter()
-            .map(|info| &info.travel_times_by_link_id)
-            .fold(HashMap::new(), |result, value| {
-                result.into_iter().chain(value).collect()
-            });
-
-        let number_of_links_with_traffic_info = traffic_info_messages
-            .iter()
-            .map(|info| info.travel_times_by_link_id.len())
-            .sum::<usize>();
-
-        assert_eq!(
-            number_of_links_with_traffic_info,
-            travel_times_by_link.len()
-        );
-
-        let router = self.router.as_mut().unwrap();
-        let network_with_new_travel_times = router
-            .get_current_network()
-            .clone_with_new_travel_times_by_link(travel_times_by_link);
-
-        debug!("There are travel time changes. Router will be customized.");
-        router.customize(network_with_new_travel_times);
     }
 
     fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {

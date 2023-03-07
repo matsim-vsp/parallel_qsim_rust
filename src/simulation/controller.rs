@@ -12,7 +12,7 @@ use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
-use crate::simulation::routing::rust_road_router::RustRoadRouter;
+use crate::simulation::routing::rust_road_update_router::RustRoadUpdateRouter;
 use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
@@ -60,8 +60,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         info!("Written id mappings file!");
     }
 
-    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
-
     let population = Population::from_io(
         &io_population,
         &id_mappings,
@@ -86,7 +84,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         .collect();
     let link_id_mapping = network.links_2_partition;
 
-    let message_broker = MpiMessageBroker::new(world, rank, neighbors, link_id_mapping);
+    let message_broker = MpiMessageBroker::new(world.clone(), rank, neighbors, link_id_mapping);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");
@@ -96,11 +94,15 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
+    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
     let mut router: Option<Box<dyn Router>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
-        router = Some(Box::new(RustRoadRouter::new(
+        router = Some(Box::new(RustRoadUpdateRouter::new(
             &routing_kit_network,
+            world.clone(),
+            rank,
             get_temp_output_folder(&output_path, rank),
+            &network_partition,
         )));
     }
 

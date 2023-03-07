@@ -76,6 +76,12 @@ impl TrafficInfoMessage {
         }
     }
 
+    pub fn create_with(map: HashMap<u64, u32>) -> Self {
+        TrafficInfoMessage {
+            travel_times_by_link_id: map,
+        }
+    }
+
     pub fn add_travel_time(&mut self, link: u64, travel_time: u32) {
         self.travel_times_by_link_id.insert(link, travel_time);
     }

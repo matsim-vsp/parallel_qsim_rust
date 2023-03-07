@@ -11,7 +11,7 @@ pub trait NodeVehicle: Debug {
     fn is_current_link_last(&self) -> bool;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Node {
     pub id: usize,
     pub in_links: Vec<usize>,

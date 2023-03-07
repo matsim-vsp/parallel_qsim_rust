@@ -4,7 +4,7 @@ use crate::simulation::network::node::Node;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NetworkPartition<V: Debug> {
     pub links: BTreeMap<usize, Link<V>>,
     pub nodes: BTreeMap<usize, Node>,

@@ -1,6 +1,6 @@
 use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::simulation::routing::inertial_flow_cutter_adapter::InertialFlowCutterAdapter;
-use crate::simulation::routing::router::{CustomQueryResult, Router};
+use crate::simulation::routing::router::CustomQueryResult;
 use rust_road_router::algo::customizable_contraction_hierarchy::query::{
     PathServerWrapper, Server,
 };
@@ -99,10 +99,8 @@ impl<'router> RustRoadRouter<'router> {
             routing_kit_network.travel_time.to_owned(),
         )
     }
-}
 
-impl<'router> Router for RustRoadRouter<'router> {
-    fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
+    pub fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
         let travel_time;
         let result_edge_path;
         {
@@ -128,7 +126,7 @@ impl<'router> Router for RustRoadRouter<'router> {
         }
     }
 
-    fn customize(&mut self, network: RoutingKitNetwork) {
+    pub fn customize(&mut self, network: RoutingKitNetwork) {
         self.current_network = network;
 
         let pin = &mut self.server;
@@ -147,15 +145,15 @@ impl<'router> Router for RustRoadRouter<'router> {
         }
     }
 
-    fn get_current_network(&self) -> &RoutingKitNetwork {
+    pub fn get_current_network(&self) -> &RoutingKitNetwork {
         &self.current_network
     }
 
-    fn get_initial_travel_time(&self, link_id: u64) -> u32 {
+    pub fn get_initial_travel_time(&self, link_id: u64) -> u32 {
         self.initial_network.get_travel_time_by_link_id(link_id)
     }
 
-    fn get_current_travel_time(&self, link_id: u64) -> u32 {
+    pub fn get_current_travel_time(&self, link_id: u64) -> u32 {
         self.current_network.get_travel_time_by_link_id(link_id)
     }
 }
@@ -167,9 +165,8 @@ pub struct ServerAdapter<'adapter> {
 
 // We need unsafe code here in order to implement the router trait. Otherwise, the instantiation and
 // update function could not be implemented.
-// This requires that the base address of cch is never moved:
+// This requires that the base address of cch is never moved, thus ServerAdapter must be pinned.
 // https://stackoverflow.com/questions/32300132/why-cant-i-store-a-value-and-a-reference-to-that-value-in-the-same-struct
-//
 impl<'adapter> ServerAdapter<'adapter> {
     pub fn new(cch: CCH, network: &RoutingKitNetwork) -> Pin<Box<ServerAdapter<'adapter>>> {
         let adapter = ServerAdapter { server: None, cch };
