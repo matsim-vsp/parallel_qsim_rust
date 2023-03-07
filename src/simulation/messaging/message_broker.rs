@@ -2,10 +2,10 @@ use crate::simulation::messaging::messages::proto::{
     SimulationUpdateMessage, TrafficInfoMessage, Vehicle, VehicleMessage,
 };
 use crate::simulation::network::node::NodeVehicle;
-use mpi::datatype::PartitionMut;
+
 use mpi::topology::SystemCommunicator;
-use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
-use mpi::{Count, Rank};
+use mpi::traits::{Communicator, Destination, Source};
+use mpi::Rank;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 

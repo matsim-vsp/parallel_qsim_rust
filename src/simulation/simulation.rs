@@ -5,7 +5,7 @@ use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBrok
 use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::simulation_update_message::Type;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, GenericRoute, TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
+    Activity, Agent, GenericRoute, Vehicle, VehicleMessage, VehicleType,
 };
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
@@ -14,7 +14,7 @@ use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
 use log::{debug, info};
-use std::collections::{HashMap, HashSet};
+
 
 pub struct Simulation {
     activity_q: TimeQueue<Agent>,

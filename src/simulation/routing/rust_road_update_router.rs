@@ -8,7 +8,7 @@ use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
 use crate::simulation::routing::rust_road_router::RustRoadRouter;
 use crate::simulation::routing::traffic_message_broker::TrafficMessageBroker;
-use log::{debug, info};
+use log::{debug};
 use mpi::topology::SystemCommunicator;
 use mpi::Rank;
 use std::collections::{HashMap, HashSet};
