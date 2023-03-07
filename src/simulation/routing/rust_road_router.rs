@@ -10,25 +10,24 @@ use rust_road_router::datastr::graph::{NodeId, OwnedGraph, Weight};
 use rust_road_router::datastr::node_order::NodeOrder;
 use std::env;
 use std::path::PathBuf;
+use std::pin::Pin;
+use std::ptr::NonNull;
 
 pub struct RustRoadRouter<'router> {
-    pub(crate) server: Option<ServerAdapter<'router>>,
+    pub(crate) server: Pin<Box<ServerAdapter<'router>>>,
     pub(crate) current_network: RoutingKitNetwork,
     pub(crate) initial_network: RoutingKitNetwork,
-    cch: CCH,
 }
 
 impl<'router> RustRoadRouter<'router> {
     pub(crate) fn new(network: &RoutingKitNetwork, output_dir: PathBuf) -> RustRoadRouter<'router> {
-        unsafe {
-            let mut router = RustRoadRouter {
-                server: None,
-                current_network: network.clone(),
-                initial_network: network.clone(),
-                cch: RustRoadRouter::perform_preprocessing(&network, output_dir),
-            };
-            router.server = Some(ServerAdapter::new(&router.cch as *const CCH, network));
-            router
+        RustRoadRouter {
+            server: ServerAdapter::new(
+                RustRoadRouter::perform_preprocessing(&network, output_dir),
+                network,
+            ),
+            current_network: network.clone(),
+            initial_network: network.clone(),
         }
     }
 
@@ -37,7 +36,7 @@ impl<'router> RustRoadRouter<'router> {
         from: usize,
         to: usize,
     ) -> QueryResult<PathServerWrapper<'q, CustomizedBasic<'router, CCH>>, Weight> {
-        self.server.as_mut().unwrap().query(from, to)
+        self.server.query(from, to)
     }
 
     fn get_end_node(&self, link_id: u64) -> usize {
@@ -130,12 +129,21 @@ impl<'router> Router for RustRoadRouter<'router> {
     }
 
     fn customize(&mut self, network: RoutingKitNetwork) {
+        self.current_network = network;
+
+        let pin = &mut self.server;
+        let cch_ref = NonNull::from(&pin.cch);
+        let mut_ref = Pin::as_mut(pin);
+
         unsafe {
-            self.current_network = network;
-            self.server
+            Pin::get_unchecked_mut(mut_ref)
+                .server
                 .as_mut()
                 .unwrap()
-                .update(&self.cch as *const CCH, &self.current_network);
+                .update(customize(
+                    cch_ref.as_ref(),
+                    &RustRoadRouter::create_owned_graph(&self.current_network),
+                ));
         }
     }
 
@@ -153,7 +161,8 @@ impl<'router> Router for RustRoadRouter<'router> {
 }
 
 pub struct ServerAdapter<'adapter> {
-    server: Server<CustomizedBasic<'adapter, CCH>>,
+    server: Option<Server<CustomizedBasic<'adapter, CCH>>>,
+    cch: CCH,
 }
 
 // We need unsafe code here in order to implement the router trait. Otherwise, the instantiation and
@@ -162,20 +171,19 @@ pub struct ServerAdapter<'adapter> {
 // https://stackoverflow.com/questions/32300132/why-cant-i-store-a-value-and-a-reference-to-that-value-in-the-same-struct
 //
 impl<'adapter> ServerAdapter<'adapter> {
-    pub unsafe fn new(cch: *const CCH, network: &RoutingKitNetwork) -> ServerAdapter<'adapter> {
-        ServerAdapter {
-            server: Server::new(customize(
-                &*cch,
-                &RustRoadRouter::create_owned_graph(&network),
-            )),
-        }
-    }
+    pub fn new(cch: CCH, network: &RoutingKitNetwork) -> Pin<Box<ServerAdapter<'adapter>>> {
+        let adapter = ServerAdapter { server: None, cch };
+        let mut boxed = Box::pin(adapter);
 
-    pub unsafe fn update(&mut self, cch: *const CCH, network: &RoutingKitNetwork) {
-        self.server.update(customize(
-            &*cch,
-            &RustRoadRouter::create_owned_graph(network),
-        ))
+        let cch_ref = NonNull::from(&boxed.cch);
+        let mut_ref: Pin<&mut Self> = Pin::as_mut(&mut boxed);
+        unsafe {
+            Pin::get_unchecked_mut(mut_ref).server = Some(Server::new(customize(
+                cch_ref.as_ref(),
+                &RustRoadRouter::create_owned_graph(&network),
+            )));
+        }
+        boxed
     }
 
     pub fn query<'q>(
@@ -183,7 +191,7 @@ impl<'adapter> ServerAdapter<'adapter> {
         from: usize,
         to: usize,
     ) -> QueryResult<PathServerWrapper<'q, CustomizedBasic<'adapter, CCH>>, Weight> {
-        self.server.query(Query {
+        self.server.as_mut().unwrap().query(Query {
             from: from as NodeId,
             to: to as NodeId,
         })
