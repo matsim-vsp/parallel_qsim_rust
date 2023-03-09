@@ -17,6 +17,7 @@ pub struct LocalLink<V: Debug> {
     length: f32,
     freespeed: f32,
     flowcap: Flowcap,
+    modes: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -27,15 +28,30 @@ struct VehicleQEntry<V> {
 
 impl<V: Debug> LocalLink<V> {
     pub fn from_io_link(id: usize, link: &IOLink, sample_size: f32) -> Self {
-        LocalLink::new(id, link.capacity, link.freespeed, link.length, sample_size)
+        LocalLink::new(
+            id,
+            link.capacity,
+            link.freespeed,
+            link.length,
+            link.modes(),
+            sample_size,
+        )
     }
 
-    pub fn new(id: usize, capacity_h: f32, freespeed: f32, length: f32, sample_size: f32) -> Self {
+    pub fn new(
+        id: usize,
+        capacity_h: f32,
+        freespeed: f32,
+        length: f32,
+        modes: Vec<String>,
+        sample_size: f32,
+    ) -> Self {
         LocalLink {
             id,
             q: VecDeque::new(),
             flowcap: Flowcap::new(capacity_h * sample_size / 3600.),
             freespeed,
+            modes,
             length,
         }
     }
@@ -121,7 +137,7 @@ mod tests {
     #[test]
     fn local_link_push_single_veh() {
         let veh_id = 42;
-        let mut link = LocalLink::new(1, 1., 1., 10., 1.);
+        let mut link = LocalLink::new(1, 1., 1., 10., vec![], 1.);
         let vehicle = Vehicle::new(veh_id, 1, vec![]);
 
         link.push_vehicle(vehicle, 0);
@@ -136,7 +152,7 @@ mod tests {
     fn local_link_push_multiple_veh() {
         let id1 = 42;
         let id2 = 43;
-        let mut link = LocalLink::new(1, 1., 1., 11.8, 1.);
+        let mut link = LocalLink::new(1, 1., 1., 11.8, vec![], 1.);
         let vehicle1 = Vehicle::new(id1, id1, vec![]);
         let vehicle2 = Vehicle::new(id2, id2, vec![]);
 
@@ -157,7 +173,7 @@ mod tests {
 
     #[test]
     fn local_link_pop_with_exit_time() {
-        let mut link = LocalLink::new(1, 1000000., 10., 100., 1.);
+        let mut link = LocalLink::new(1, 1000000., 10., 100., vec![], 1.);
 
         let mut n: u32 = 0;
 
@@ -177,7 +193,7 @@ mod tests {
     #[test]
     fn local_link_pop_with_capacity() {
         // link has capacity of 2 per second
-        let mut link = LocalLink::new(1, 7200., 10., 100., 1.);
+        let mut link = LocalLink::new(1, 7200., 10., 100., vec![], 1.);
 
         let mut n: u32 = 0;
 
@@ -197,7 +213,7 @@ mod tests {
     #[test]
     fn local_link_pop_with_capacity_reduced() {
         // link has a capacity of 1 * 0.1 per second
-        let mut link = LocalLink::new(1, 3600., 10., 100., 0.1);
+        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 0.1);
 
         link.push_vehicle(Vehicle::new(1, 1, vec![]), 0);
         link.push_vehicle(Vehicle::new(2, 2, vec![]), 0);

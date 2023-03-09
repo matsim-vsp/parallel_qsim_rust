@@ -49,12 +49,29 @@ pub struct IOLink {
     pub capacity: f32,
     pub freespeed: f32,
     pub permlanes: f32,
+    #[serde(default)]
+    modes: String,
     pub attributes: Option<Attrs>,
 }
 
 impl MatsimId for IOLink {
     fn id(&self) -> &str {
         self.id.as_str()
+    }
+}
+
+impl IOLink {
+    pub fn modes(&self) -> Vec<String> {
+        if self.modes.eq("") {
+            return Vec::new();
+        };
+
+        self.modes
+            .replace(" ", "")
+            .split(",")
+            .into_iter()
+            .map(|s| String::from(s))
+            .collect()
     }
 }
 
@@ -171,6 +188,7 @@ impl IONetwork {
                 capacity: link.capacity,
                 length: link.length,
                 permlanes: link.permlanes,
+                modes: link.modes.clone(),
                 attributes: attrs,
             };
             result.links_mut().push(new_link);
@@ -230,7 +248,7 @@ mod tests {
                         <node id=\"1\" x=\"-20000\" y=\"0\"/>
                     </nodes>
                     <links>
-                        <link id=\"23\" from=\"15\" to=\"1\" length=\"10000.00\" capacity=\"36000\" freespeed=\"27.78\" permlanes=\"1\"  />
+                        <link id=\"23\" from=\"15\" to=\"1\" length=\"10000.00\" capacity=\"36000\" freespeed=\"27.78\" permlanes=\"1\" modes=\"car,bike\"  />
                     </links>
                 </network>
             ";
@@ -256,7 +274,7 @@ mod tests {
                         </node>
                     </nodes>
                     <links>
-                        <link id=\"23\" from=\"15\" to=\"1\" length=\"10000.00\" capacity=\"36000\" freespeed=\"27.78\" permlanes=\"1\"  />
+                        <link id=\"23\" from=\"15\" to=\"1\" length=\"10000.00\" capacity=\"36000\" freespeed=\"27.78\" permlanes=\"1\" modes=\"car, bike\" />
                     </links>
                 </network>
             ";
@@ -283,6 +301,7 @@ mod tests {
         assert_eq!(36000.0, link.capacity);
         assert_eq!(27.78, link.freespeed);
         assert_eq!(1.0, link.permlanes);
+        assert_eq!(vec!["car", "bike"], link.modes());
 
         Ok(())
     }
