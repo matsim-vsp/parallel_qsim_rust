@@ -42,6 +42,37 @@ C-Implementations of the respective libraries. This lead to build errors where `
 not loaded properly. The fork sets the `libgen` version in the `metis` crate to the same 
 version as `rsmpi`'s `bindgen version 
 
+### Routing
+This project uses the [rust-road-router](https://github.com/kit-algo/rust_road_router) project for routing.
+The preprocessing of this routing library relies on [InertialFlowCutter](https://github.com/paulheinr/InertialFlowCutter).
+Since some router related tests check the preprocessing, you need to configure it correctly even if you do not enable routing in the simulation.
+
+#### Install dependencies
+Install them via:
+
+```shell
+sudo apt install libtbb-dev
+sudo apt-get install libreadline8 libreadline-dev
+sudo apt-get install zlib1g-dev
+```
+
+#### Install InertialFlowCutter
+_Instructions from [GitHub repository](https://github.com/kit-algo/InertialFlowCutter/)._
+
+Clone https://github.com/paulheinr/InertialFlowCutter.git next to this repository. 
+There is an environment variable defined in `.cargo/config.toml` which points to the home directory of the InertialFlowCutter repository.
+By default, it is set to `"../InertialFlowCutter"`. This is why it should be cloned next to this repository.
+
+**Watch out:** InertialFlowCutter works with `cmake 3.16` for sure. With `cmake 3.25`, which comes with Ubuntu 22.x, there are errors (`cmake` doesn't find `dlltools`).
+
+In the top level folder of the InertialFlowCutter repository run
+
+```shell
+mkdir build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
+```
+
 ### MPI
 This project uses [MPI](https://docs.open-mpi.org/en/v5.0.x/) for Message Passing. The raw
 C-Api is abstracted by the [rsmpi](https://github.com/rsmpi/rsmpi) crate. As with METIS an MPI

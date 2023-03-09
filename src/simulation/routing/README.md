@@ -22,23 +22,12 @@ This phase consists of the following steps:
 3. Compute ordering (binary RoutingKit format)
 4. Convert ordering to text RoutingKit format
 
-Phase 1 is done in Rust, phases 2-4 are done in external processes which are called in Rust. So you have to configure
-those processes properly as described below. But you do only have to call Rust one time initially.
-
-```shell
-cargo run --bin network_converter <path to mastim network> <output folder> <InertialFlowCutterPath>
-```
-
-e.g.
-
-```shell
-cargo run --package rust_q_sim --bin network_converter ./assets/routing_tests/triangle-network.xml ./assets/routing_tests/conversion/ ../InertialFlowCutter
-```
+Phase 1 is done in Rust, phases 2-4 are done in external processes which are called in Rust. 
 
 ### Pre requirements for phases 1.2 - 1.4
 
 Clone the [InertialFlowCutter](https://github.com/paulheinr/InertialFlowCutter) repository. It needs some extra
-libraries. Install them:
+libraries. Install them via:
 
 ```shell
 sudo apt install libtbb-dev
@@ -47,13 +36,6 @@ sudo apt-get install zlib1g-dev
 ```
 
 Then follow the installation instruction of InertialFlowCutter.
-
-To execute phases 2-4, execute
-
-```shell
-cd src/bin
-python3 network_converter.py <InertialFlowCutter home directory> <Network files in textual RoutingKit format> <output file name>
-```
 
 ## Phase 2
 
