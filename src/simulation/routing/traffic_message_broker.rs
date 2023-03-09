@@ -1,4 +1,4 @@
-use crate::simulation::messaging::messages::proto::{SimulationUpdateMessage, TrafficInfoMessage};
+use crate::simulation::messaging::messages::proto::TrafficInfoMessage;
 use log::debug;
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
@@ -20,19 +20,16 @@ impl TrafficMessageBroker {
         &mut self,
         now: u32,
         traffic_info: HashMap<u64, u32>,
-    ) -> Vec<SimulationUpdateMessage> {
+    ) -> Vec<TrafficInfoMessage> {
         debug!("Process {}: Traffic update at {}", self.rank, now);
 
-        let traffic_info_message = TrafficInfoMessage::create_with(traffic_info);
+        let traffic_info_message = TrafficInfoMessage::from(traffic_info);
         let serial_traffic_info_message = traffic_info_message.serialize();
 
         self.gather_traffic_info(&serial_traffic_info_message)
     }
 
-    fn gather_traffic_info(
-        &mut self,
-        traffic_info_message: &Vec<u8>,
-    ) -> Vec<SimulationUpdateMessage> {
+    fn gather_traffic_info(&mut self, traffic_info_message: &Vec<u8>) -> Vec<TrafficInfoMessage> {
         // ------- Gather traffic info lengths -------
         let mut traffic_info_length_buffer = vec![0i32; self.communicator.size() as usize];
         self.communicator.all_gather_into(
@@ -76,16 +73,14 @@ impl TrafficMessageBroker {
     fn deserialize_traffic_infos(
         all_traffic_info_messages: Vec<u8>,
         lengths: Vec<i32>,
-    ) -> Vec<SimulationUpdateMessage> {
+    ) -> Vec<TrafficInfoMessage> {
         let mut result = Vec::new();
         let mut last_end_index = 0usize;
         for len in lengths {
             let begin_index = last_end_index;
             let end_index = last_end_index + len as usize;
-            result.push(SimulationUpdateMessage::new_traffic_info_message(
-                TrafficInfoMessage::deserialize(
-                    &all_traffic_info_messages[begin_index..end_index as usize],
-                ),
+            result.push(TrafficInfoMessage::deserialize(
+                &all_traffic_info_messages[begin_index..end_index as usize],
             ));
             last_end_index = end_index;
         }

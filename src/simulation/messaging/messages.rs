@@ -6,10 +6,9 @@ use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::messaging::messages::proto::leg::Route;
-use crate::simulation::messaging::messages::proto::simulation_update_message::Type;
 use crate::simulation::messaging::messages::proto::{
     Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
-    SimulationUpdateMessage, TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
+    TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
@@ -76,7 +75,7 @@ impl TrafficInfoMessage {
         }
     }
 
-    pub fn create_with(map: HashMap<u64, u32>) -> Self {
+    pub fn from(map: HashMap<u64, u32>) -> Self {
         TrafficInfoMessage {
             travel_times_by_link_id: map,
         }
@@ -94,20 +93,6 @@ impl TrafficInfoMessage {
 
     pub fn deserialize(buffer: &[u8]) -> TrafficInfoMessage {
         TrafficInfoMessage::decode(&mut Cursor::new(buffer)).unwrap()
-    }
-}
-
-impl SimulationUpdateMessage {
-    pub fn new_vehicle_message(message: VehicleMessage) -> Self {
-        SimulationUpdateMessage {
-            r#type: Some(Type::VehicleMessage(message)),
-        }
-    }
-
-    pub fn new_traffic_info_message(message: TrafficInfoMessage) -> Self {
-        SimulationUpdateMessage {
-            r#type: Some(Type::TrafficInfoMessage(message)),
-        }
     }
 }
 

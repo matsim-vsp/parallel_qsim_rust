@@ -242,7 +242,6 @@ mod test {
     use std::time::Instant;
 
     use crate::simulation::routing::network_converter::NetworkConverter;
-    use crate::simulation::routing::router::Router;
     use crate::simulation::routing::rust_road_router::{get_edge_path, RustRoadRouter};
     use rand::seq::IteratorRandom;
     use rust_road_router::algo::a_star::BiDirZeroPot;

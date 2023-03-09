@@ -3,9 +3,8 @@ use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::simulation::messaging::messages::proto::leg::Route;
-use crate::simulation::messaging::messages::proto::simulation_update_message::Type;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, GenericRoute, Vehicle, VehicleMessage, VehicleType,
+    Activity, Agent, GenericRoute, Vehicle, VehicleType,
 };
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
@@ -14,7 +13,6 @@ use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
 use log::{debug, info};
-
 
 pub struct Simulation {
     activity_q: TimeQueue<Agent>,
@@ -246,26 +244,8 @@ impl Simulation {
     }
 
     fn send_receive(&mut self, now: u32) {
-        let update_messages = self.message_broker.send_recv(now);
+        let vehicle_update_messages = self.message_broker.send_recv(now);
 
-        let mut vehicle_update_messages = Vec::new();
-
-        //TODO make that generic
-        for update in update_messages {
-            if let Some(message_type) = update.r#type {
-                match message_type {
-                    Type::VehicleMessage(message) => vehicle_update_messages.push(message),
-                    Type::TrafficInfoMessage(message) => panic!(),
-                }
-            } else {
-                panic!("The SimulationUpdateMessage is expected to be either a VehicleMessage or a TrafficInfoMessage.");
-            }
-        }
-
-        self.handle_vehicle_messages(now, vehicle_update_messages);
-    }
-
-    fn handle_vehicle_messages(&mut self, now: u32, vehicle_update_messages: Vec<VehicleMessage>) {
         let vehicles = vehicle_update_messages
             .into_iter()
             .flat_map(|msg| msg.vehicles)

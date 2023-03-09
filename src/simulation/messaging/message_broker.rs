@@ -1,6 +1,4 @@
-use crate::simulation::messaging::messages::proto::{
-    SimulationUpdateMessage, TrafficInfoMessage, Vehicle, VehicleMessage,
-};
+use crate::simulation::messaging::messages::proto::{TrafficInfoMessage, Vehicle, VehicleMessage};
 use crate::simulation::network::node::NodeVehicle;
 
 use mpi::topology::SystemCommunicator;
@@ -10,7 +8,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 
 pub trait MessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage>;
+    fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
     fn add_travel_times(&mut self, travel_times: HashMap<u64, u32>);
 }
@@ -25,7 +23,7 @@ pub struct MpiMessageBroker {
 }
 
 impl MessageBroker for MpiMessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<SimulationUpdateMessage> {
+    fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
         // preparation of traffic info messages
         let traffic_info_message = self.traffic_info.serialize();
 
@@ -88,8 +86,7 @@ impl MessageBroker for MpiMessageBroker {
                 // this process reaches the time step of that message. Otherwise store it in received
                 // messages and use it in the simulation
                 if msg.time <= now {
-                    received_vehicle_messages
-                        .push(SimulationUpdateMessage::new_vehicle_message(msg));
+                    received_vehicle_messages.push(msg);
                 } else {
                     self.in_messages.push(msg);
                 }
@@ -101,9 +98,7 @@ impl MessageBroker for MpiMessageBroker {
             reqs.wait_all(&mut Vec::new());
         });
 
-        let mut result: Vec<SimulationUpdateMessage> = Vec::new();
-        result.append(&mut received_vehicle_messages);
-        result
+        received_vehicle_messages
     }
 
     fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
@@ -146,7 +141,7 @@ impl MpiMessageBroker {
     fn pop_from_cache(
         &mut self,
         expected_messages: &mut HashSet<u32>,
-        messages: &mut Vec<SimulationUpdateMessage>,
+        messages: &mut Vec<VehicleMessage>,
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
@@ -157,9 +152,7 @@ impl MpiMessageBroker {
                 //      self.rank, msg.from_process, msg.to_process, msg.time
                 //  );
                 expected_messages.remove(&msg.from_process);
-                messages.push(SimulationUpdateMessage::new_vehicle_message(
-                    self.in_messages.pop().unwrap(),
-                ))
+                messages.push(self.in_messages.pop().unwrap())
             } else {
                 //  info!("; {}; {}; break in cache ", self.rank, now);
                 break; // important! otherwise this is an infinite loop

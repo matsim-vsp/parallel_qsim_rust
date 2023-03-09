@@ -1,5 +1,4 @@
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::messages::proto::simulation_update_message::Type;
 use crate::simulation::messaging::messages::proto::{TrafficInfoMessage, Vehicle};
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::link::Link;
@@ -8,7 +7,7 @@ use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
 use crate::simulation::routing::rust_road_router::RustRoadRouter;
 use crate::simulation::routing::traffic_message_broker::TrafficMessageBroker;
-use log::{debug};
+use log::debug;
 use mpi::topology::SystemCommunicator;
 use mpi::Rank;
 use std::collections::{HashMap, HashSet};
@@ -45,18 +44,10 @@ impl<'router> Router for RustRoadUpdateRouter<'router> {
             .unwrap();
 
         //send travel times
-        let vec = self
-            .traffic_message_broker
-            .send_recv(now, self.get_travel_times_by_link_to_send(collected_travel_times))
-            .into_iter().map(|s|
-                if let Some(message_type) = s.r#type{
-                    match message_type {
-                        Type::TrafficInfoMessage(message) => message,
-                        _ => panic!(),
-                    }
-                }else {
-                    panic!("The SimulationUpdateMessage is expected to be either a VehicleMessage or a TrafficInfoMessage.");
-                }).collect();
+        let vec = self.traffic_message_broker.send_recv(
+            now,
+            self.get_travel_times_by_link_to_send(collected_travel_times),
+        );
 
         self.handle_traffic_info_messages(vec);
 
