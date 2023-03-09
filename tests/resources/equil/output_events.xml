@@ -900,23 +900,15 @@
     <event time="22615" type="entered link" link="19" vehicle="22" />
     <event time="22619" type="left link" link="14" vehicle="10" />
     <event time="22619" type="entered link" link="19" vehicle="10" />
-    <event time="22766" type="left link" link="19" vehicle="48" />
     <event time="22766" type="PersonLeavesVehicle" person="23" vehicle="48" />
     <event time="22766" type="arrival" person="23" link="19" legMode="car" />
     <event time="22766" type="actstart" person="23" link="19" actType="w" />
-    <event time="22796" type="left link" link="19" vehicle="26" />
     <event time="22796" type="PersonLeavesVehicle" person="12" vehicle="26" />
     <event time="22796" type="arrival" person="12" link="19" legMode="car" />
     <event time="22796" type="actstart" person="12" link="19" actType="w" />
-    <event time="22826" type="left link" link="19" vehicle="70" />
     <event time="22826" type="PersonLeavesVehicle" person="34" vehicle="70" />
     <event time="22826" type="arrival" person="34" link="19" legMode="car" />
     <event time="22826" type="actstart" person="34" link="19" actType="w" />
-    <event time="22856" type="left link" link="19" vehicle="14" />
-    <event time="22856" type="left link" link="19" vehicle="192" />
-    <event time="22856" type="left link" link="19" vehicle="62" />
-    <event time="22856" type="left link" link="19" vehicle="198" />
-    <event time="22856" type="left link" link="19" vehicle="194" />
     <event time="22856" type="PersonLeavesVehicle" person="6" vehicle="14" />
     <event time="22856" type="arrival" person="6" link="19" legMode="car" />
     <event time="22856" type="actstart" person="6" link="19" actType="w" />
@@ -932,19 +924,12 @@
     <event time="22856" type="PersonLeavesVehicle" person="96" vehicle="194" />
     <event time="22856" type="arrival" person="96" link="19" legMode="car" />
     <event time="22856" type="actstart" person="96" link="19" actType="w" />
-    <event time="22857" type="left link" link="19" vehicle="174" />
-    <event time="22857" type="left link" link="19" vehicle="184" />
     <event time="22857" type="PersonLeavesVehicle" person="86" vehicle="174" />
     <event time="22857" type="arrival" person="86" link="19" legMode="car" />
     <event time="22857" type="actstart" person="86" link="19" actType="w" />
     <event time="22857" type="PersonLeavesVehicle" person="91" vehicle="184" />
     <event time="22857" type="arrival" person="91" link="19" legMode="car" />
     <event time="22857" type="actstart" person="91" link="19" actType="w" />
-    <event time="22859" type="left link" link="19" vehicle="30" />
-    <event time="22859" type="left link" link="19" vehicle="172" />
-    <event time="22859" type="left link" link="19" vehicle="126" />
-    <event time="22859" type="left link" link="19" vehicle="160" />
-    <event time="22859" type="left link" link="19" vehicle="186" />
     <event time="22859" type="PersonLeavesVehicle" person="14" vehicle="30" />
     <event time="22859" type="arrival" person="14" link="19" legMode="car" />
     <event time="22859" type="actstart" person="14" link="19" actType="w" />
@@ -960,19 +945,12 @@
     <event time="22859" type="PersonLeavesVehicle" person="92" vehicle="186" />
     <event time="22859" type="arrival" person="92" link="19" legMode="car" />
     <event time="22859" type="actstart" person="92" link="19" actType="w" />
-    <event time="22860" type="left link" link="19" vehicle="120" />
-    <event time="22860" type="left link" link="19" vehicle="182" />
     <event time="22860" type="PersonLeavesVehicle" person="59" vehicle="120" />
     <event time="22860" type="arrival" person="59" link="19" legMode="car" />
     <event time="22860" type="actstart" person="59" link="19" actType="w" />
     <event time="22860" type="PersonLeavesVehicle" person="90" vehicle="182" />
     <event time="22860" type="arrival" person="90" link="19" legMode="car" />
     <event time="22860" type="actstart" person="90" link="19" actType="w" />
-    <event time="22863" type="left link" link="19" vehicle="196" />
-    <event time="22863" type="left link" link="19" vehicle="168" />
-    <event time="22863" type="left link" link="19" vehicle="200" />
-    <event time="22863" type="left link" link="19" vehicle="106" />
-    <event time="22863" type="left link" link="19" vehicle="142" />
     <event time="22863" type="PersonLeavesVehicle" person="97" vehicle="196" />
     <event time="22863" type="arrival" person="97" link="19" legMode="car" />
     <event time="22863" type="actstart" person="97" link="19" actType="w" />
@@ -988,19 +966,12 @@
     <event time="22863" type="PersonLeavesVehicle" person="70" vehicle="142" />
     <event time="22863" type="arrival" person="70" link="19" legMode="car" />
     <event time="22863" type="actstart" person="70" link="19" actType="w" />
-    <event time="22864" type="left link" link="19" vehicle="114" />
-    <event time="22864" type="left link" link="19" vehicle="176" />
     <event time="22864" type="PersonLeavesVehicle" person="56" vehicle="114" />
     <event time="22864" type="arrival" person="56" link="19" legMode="car" />
     <event time="22864" type="actstart" person="56" link="19" actType="w" />
     <event time="22864" type="PersonLeavesVehicle" person="87" vehicle="176" />
     <event time="22864" type="arrival" person="87" link="19" legMode="car" />
     <event time="22864" type="actstart" person="87" link="19" actType="w" />
-    <event time="22866" type="left link" link="19" vehicle="162" />
-    <event time="22866" type="left link" link="19" vehicle="124" />
-    <event time="22866" type="left link" link="19" vehicle="188" />
-    <event time="22866" type="left link" link="19" vehicle="190" />
-    <event time="22866" type="left link" link="19" vehicle="138" />
     <event time="22866" type="PersonLeavesVehicle" person="80" vehicle="162" />
     <event time="22866" type="arrival" person="80" link="19" legMode="car" />
     <event time="22866" type="actstart" person="80" link="19" actType="w" />
@@ -1016,19 +987,12 @@
     <event time="22866" type="PersonLeavesVehicle" person="68" vehicle="138" />
     <event time="22866" type="arrival" person="68" link="19" legMode="car" />
     <event time="22866" type="actstart" person="68" link="19" actType="w" />
-    <event time="22867" type="left link" link="19" vehicle="112" />
-    <event time="22867" type="left link" link="19" vehicle="152" />
     <event time="22867" type="PersonLeavesVehicle" person="55" vehicle="112" />
     <event time="22867" type="arrival" person="55" link="19" legMode="car" />
     <event time="22867" type="actstart" person="55" link="19" actType="w" />
     <event time="22867" type="PersonLeavesVehicle" person="75" vehicle="152" />
     <event time="22867" type="arrival" person="75" link="19" legMode="car" />
     <event time="22867" type="actstart" person="75" link="19" actType="w" />
-    <event time="22870" type="left link" link="19" vehicle="140" />
-    <event time="22870" type="left link" link="19" vehicle="128" />
-    <event time="22870" type="left link" link="19" vehicle="180" />
-    <event time="22870" type="left link" link="19" vehicle="12" />
-    <event time="22870" type="left link" link="19" vehicle="122" />
     <event time="22870" type="PersonLeavesVehicle" person="69" vehicle="140" />
     <event time="22870" type="arrival" person="69" link="19" legMode="car" />
     <event time="22870" type="actstart" person="69" link="19" actType="w" />
@@ -1044,18 +1008,12 @@
     <event time="22870" type="PersonLeavesVehicle" person="60" vehicle="122" />
     <event time="22870" type="arrival" person="60" link="19" legMode="car" />
     <event time="22870" type="actstart" person="60" link="19" actType="w" />
-    <event time="22871" type="left link" link="19" vehicle="104" />
-    <event time="22871" type="left link" link="19" vehicle="150" />
     <event time="22871" type="PersonLeavesVehicle" person="51" vehicle="104" />
     <event time="22871" type="arrival" person="51" link="19" legMode="car" />
     <event time="22871" type="actstart" person="51" link="19" actType="w" />
     <event time="22871" type="PersonLeavesVehicle" person="74" vehicle="150" />
     <event time="22871" type="arrival" person="74" link="19" legMode="car" />
     <event time="22871" type="actstart" person="74" link="19" actType="w" />
-    <event time="22873" type="left link" link="19" vehicle="50" />
-    <event time="22873" type="left link" link="19" vehicle="90" />
-    <event time="22873" type="left link" link="19" vehicle="178" />
-    <event time="22873" type="left link" link="19" vehicle="98" />
     <event time="22873" type="PersonLeavesVehicle" person="24" vehicle="50" />
     <event time="22873" type="arrival" person="24" link="19" legMode="car" />
     <event time="22873" type="actstart" person="24" link="19" actType="w" />
@@ -1068,18 +1026,12 @@
     <event time="22873" type="PersonLeavesVehicle" person="48" vehicle="98" />
     <event time="22873" type="arrival" person="48" link="19" legMode="car" />
     <event time="22873" type="actstart" person="48" link="19" actType="w" />
-    <event time="22874" type="left link" link="19" vehicle="86" />
-    <event time="22874" type="left link" link="19" vehicle="148" />
     <event time="22874" type="PersonLeavesVehicle" person="42" vehicle="86" />
     <event time="22874" type="arrival" person="42" link="19" legMode="car" />
     <event time="22874" type="actstart" person="42" link="19" actType="w" />
     <event time="22874" type="PersonLeavesVehicle" person="73" vehicle="148" />
     <event time="22874" type="arrival" person="73" link="19" legMode="car" />
     <event time="22874" type="actstart" person="73" link="19" actType="w" />
-    <event time="22877" type="left link" link="19" vehicle="94" />
-    <event time="22877" type="left link" link="19" vehicle="84" />
-    <event time="22877" type="left link" link="19" vehicle="170" />
-    <event time="22877" type="left link" link="19" vehicle="76" />
     <event time="22877" type="PersonLeavesVehicle" person="46" vehicle="94" />
     <event time="22877" type="arrival" person="46" link="19" legMode="car" />
     <event time="22877" type="actstart" person="46" link="19" actType="w" />
@@ -1092,18 +1044,12 @@
     <event time="22877" type="PersonLeavesVehicle" person="37" vehicle="76" />
     <event time="22877" type="arrival" person="37" link="19" legMode="car" />
     <event time="22877" type="actstart" person="37" link="19" actType="w" />
-    <event time="22878" type="left link" link="19" vehicle="58" />
-    <event time="22878" type="left link" link="19" vehicle="146" />
     <event time="22878" type="PersonLeavesVehicle" person="28" vehicle="58" />
     <event time="22878" type="arrival" person="28" link="19" legMode="car" />
     <event time="22878" type="actstart" person="28" link="19" actType="w" />
     <event time="22878" type="PersonLeavesVehicle" person="72" vehicle="146" />
     <event time="22878" type="arrival" person="72" link="19" legMode="car" />
     <event time="22878" type="actstart" person="72" link="19" actType="w" />
-    <event time="22881" type="left link" link="19" vehicle="36" />
-    <event time="22881" type="left link" link="19" vehicle="80" />
-    <event time="22881" type="left link" link="19" vehicle="166" />
-    <event time="22881" type="left link" link="19" vehicle="60" />
     <event time="22881" type="PersonLeavesVehicle" person="17" vehicle="36" />
     <event time="22881" type="arrival" person="17" link="19" legMode="car" />
     <event time="22881" type="actstart" person="17" link="19" actType="w" />
@@ -1116,18 +1062,12 @@
     <event time="22881" type="PersonLeavesVehicle" person="29" vehicle="60" />
     <event time="22881" type="arrival" person="29" link="19" legMode="car" />
     <event time="22881" type="actstart" person="29" link="19" actType="w" />
-    <event time="22882" type="left link" link="19" vehicle="56" />
-    <event time="22882" type="left link" link="19" vehicle="134" />
     <event time="22882" type="PersonLeavesVehicle" person="27" vehicle="56" />
     <event time="22882" type="arrival" person="27" link="19" legMode="car" />
     <event time="22882" type="actstart" person="27" link="19" actType="w" />
     <event time="22882" type="PersonLeavesVehicle" person="66" vehicle="134" />
     <event time="22882" type="arrival" person="66" link="19" legMode="car" />
     <event time="22882" type="actstart" person="66" link="19" actType="w" />
-    <event time="22884" type="left link" link="19" vehicle="46" />
-    <event time="22884" type="left link" link="19" vehicle="64" />
-    <event time="22884" type="left link" link="19" vehicle="164" />
-    <event time="22884" type="left link" link="19" vehicle="16" />
     <event time="22884" type="PersonLeavesVehicle" person="22" vehicle="46" />
     <event time="22884" type="arrival" person="22" link="19" legMode="car" />
     <event time="22884" type="actstart" person="22" link="19" actType="w" />
@@ -1140,13 +1080,9 @@
     <event time="22884" type="PersonLeavesVehicle" person="7" vehicle="16" />
     <event time="22884" type="arrival" person="7" link="19" legMode="car" />
     <event time="22884" type="actstart" person="7" link="19" actType="w" />
-    <event time="22885" type="left link" link="19" vehicle="132" />
     <event time="22885" type="PersonLeavesVehicle" person="65" vehicle="132" />
     <event time="22885" type="arrival" person="65" link="19" legMode="car" />
     <event time="22885" type="actstart" person="65" link="19" actType="w" />
-    <event time="22888" type="left link" link="19" vehicle="20" />
-    <event time="22888" type="left link" link="19" vehicle="24" />
-    <event time="22888" type="left link" link="19" vehicle="158" />
     <event time="22888" type="PersonLeavesVehicle" person="9" vehicle="20" />
     <event time="22888" type="arrival" person="9" link="19" legMode="car" />
     <event time="22888" type="actstart" person="9" link="19" actType="w" />
@@ -1156,13 +1092,9 @@
     <event time="22888" type="PersonLeavesVehicle" person="78" vehicle="158" />
     <event time="22888" type="arrival" person="78" link="19" legMode="car" />
     <event time="22888" type="actstart" person="78" link="19" actType="w" />
-    <event time="22889" type="left link" link="19" vehicle="116" />
     <event time="22889" type="PersonLeavesVehicle" person="57" vehicle="116" />
     <event time="22889" type="arrival" person="57" link="19" legMode="car" />
     <event time="22889" type="actstart" person="57" link="19" actType="w" />
-    <event time="22891" type="left link" link="19" vehicle="4" />
-    <event time="22891" type="left link" link="19" vehicle="28" />
-    <event time="22891" type="left link" link="19" vehicle="156" />
     <event time="22891" type="PersonLeavesVehicle" person="1" vehicle="4" />
     <event time="22891" type="arrival" person="1" link="19" legMode="car" />
     <event time="22891" type="actstart" person="1" link="19" actType="w" />
@@ -1172,138 +1104,105 @@
     <event time="22891" type="PersonLeavesVehicle" person="77" vehicle="156" />
     <event time="22891" type="arrival" person="77" link="19" legMode="car" />
     <event time="22891" type="actstart" person="77" link="19" actType="w" />
-    <event time="22892" type="left link" link="19" vehicle="100" />
     <event time="22892" type="PersonLeavesVehicle" person="49" vehicle="100" />
     <event time="22892" type="arrival" person="49" link="19" legMode="car" />
     <event time="22892" type="actstart" person="49" link="19" actType="w" />
-    <event time="22895" type="left link" link="19" vehicle="8" />
-    <event time="22895" type="left link" link="19" vehicle="154" />
     <event time="22895" type="PersonLeavesVehicle" person="3" vehicle="8" />
     <event time="22895" type="arrival" person="3" link="19" legMode="car" />
     <event time="22895" type="actstart" person="3" link="19" actType="w" />
     <event time="22895" type="PersonLeavesVehicle" person="76" vehicle="154" />
     <event time="22895" type="arrival" person="76" link="19" legMode="car" />
     <event time="22895" type="actstart" person="76" link="19" actType="w" />
-    <event time="22896" type="left link" link="19" vehicle="92" />
     <event time="22896" type="PersonLeavesVehicle" person="45" vehicle="92" />
     <event time="22896" type="arrival" person="45" link="19" legMode="car" />
     <event time="22896" type="actstart" person="45" link="19" actType="w" />
-    <event time="22899" type="left link" link="19" vehicle="144" />
     <event time="22899" type="PersonLeavesVehicle" person="71" vehicle="144" />
     <event time="22899" type="arrival" person="71" link="19" legMode="car" />
     <event time="22899" type="actstart" person="71" link="19" actType="w" />
-    <event time="22900" type="left link" link="19" vehicle="82" />
     <event time="22900" type="PersonLeavesVehicle" person="40" vehicle="82" />
     <event time="22900" type="arrival" person="40" link="19" legMode="car" />
     <event time="22900" type="actstart" person="40" link="19" actType="w" />
-    <event time="22902" type="left link" link="19" vehicle="136" />
     <event time="22902" type="PersonLeavesVehicle" person="67" vehicle="136" />
     <event time="22902" type="arrival" person="67" link="19" legMode="car" />
     <event time="22902" type="actstart" person="67" link="19" actType="w" />
-    <event time="22903" type="left link" link="19" vehicle="74" />
     <event time="22903" type="PersonLeavesVehicle" person="36" vehicle="74" />
     <event time="22903" type="arrival" person="36" link="19" legMode="car" />
     <event time="22903" type="actstart" person="36" link="19" actType="w" />
-    <event time="22906" type="left link" link="19" vehicle="130" />
     <event time="22906" type="PersonLeavesVehicle" person="64" vehicle="130" />
     <event time="22906" type="arrival" person="64" link="19" legMode="car" />
     <event time="22906" type="actstart" person="64" link="19" actType="w" />
-    <event time="22907" type="left link" link="19" vehicle="66" />
     <event time="22907" type="PersonLeavesVehicle" person="32" vehicle="66" />
     <event time="22907" type="arrival" person="32" link="19" legMode="car" />
     <event time="22907" type="actstart" person="32" link="19" actType="w" />
-    <event time="22909" type="left link" link="19" vehicle="118" />
     <event time="22909" type="PersonLeavesVehicle" person="58" vehicle="118" />
     <event time="22909" type="arrival" person="58" link="19" legMode="car" />
     <event time="22909" type="actstart" person="58" link="19" actType="w" />
-    <event time="22910" type="left link" link="19" vehicle="42" />
     <event time="22910" type="PersonLeavesVehicle" person="20" vehicle="42" />
     <event time="22910" type="arrival" person="20" link="19" legMode="car" />
     <event time="22910" type="actstart" person="20" link="19" actType="w" />
-    <event time="22913" type="left link" link="19" vehicle="110" />
     <event time="22913" type="PersonLeavesVehicle" person="54" vehicle="110" />
     <event time="22913" type="arrival" person="54" link="19" legMode="car" />
     <event time="22913" type="actstart" person="54" link="19" actType="w" />
-    <event time="22914" type="left link" link="19" vehicle="38" />
     <event time="22914" type="PersonLeavesVehicle" person="18" vehicle="38" />
     <event time="22914" type="arrival" person="18" link="19" legMode="car" />
     <event time="22914" type="actstart" person="18" link="19" actType="w" />
-    <event time="22917" type="left link" link="19" vehicle="108" />
     <event time="22917" type="PersonLeavesVehicle" person="53" vehicle="108" />
     <event time="22917" type="arrival" person="53" link="19" legMode="car" />
     <event time="22917" type="actstart" person="53" link="19" actType="w" />
-    <event time="22920" type="left link" link="19" vehicle="102" />
     <event time="22920" type="PersonLeavesVehicle" person="50" vehicle="102" />
     <event time="22920" type="arrival" person="50" link="19" legMode="car" />
     <event time="22920" type="actstart" person="50" link="19" actType="w" />
-    <event time="22924" type="left link" link="19" vehicle="96" />
     <event time="22924" type="PersonLeavesVehicle" person="47" vehicle="96" />
     <event time="22924" type="arrival" person="47" link="19" legMode="car" />
     <event time="22924" type="actstart" person="47" link="19" actType="w" />
-    <event time="22927" type="left link" link="19" vehicle="88" />
     <event time="22927" type="PersonLeavesVehicle" person="43" vehicle="88" />
     <event time="22927" type="arrival" person="43" link="19" legMode="car" />
     <event time="22927" type="actstart" person="43" link="19" actType="w" />
-    <event time="22931" type="left link" link="19" vehicle="78" />
     <event time="22931" type="PersonLeavesVehicle" person="38" vehicle="78" />
     <event time="22931" type="arrival" person="38" link="19" legMode="car" />
     <event time="22931" type="actstart" person="38" link="19" actType="w" />
-    <event time="22935" type="left link" link="19" vehicle="72" />
     <event time="22935" type="PersonLeavesVehicle" person="35" vehicle="72" />
     <event time="22935" type="arrival" person="35" link="19" legMode="car" />
     <event time="22935" type="actstart" person="35" link="19" actType="w" />
-    <event time="22938" type="left link" link="19" vehicle="34" />
     <event time="22938" type="PersonLeavesVehicle" person="16" vehicle="34" />
     <event time="22938" type="arrival" person="16" link="19" legMode="car" />
     <event time="22938" type="actstart" person="16" link="19" actType="w" />
-    <event time="22942" type="left link" link="19" vehicle="68" />
     <event time="22942" type="PersonLeavesVehicle" person="33" vehicle="68" />
     <event time="22942" type="arrival" person="33" link="19" legMode="car" />
     <event time="22942" type="actstart" person="33" link="19" actType="w" />
-    <event time="22945" type="left link" link="19" vehicle="54" />
     <event time="22945" type="PersonLeavesVehicle" person="26" vehicle="54" />
     <event time="22945" type="arrival" person="26" link="19" legMode="car" />
     <event time="22945" type="actstart" person="26" link="19" actType="w" />
-    <event time="22949" type="left link" link="19" vehicle="52" />
     <event time="22949" type="PersonLeavesVehicle" person="25" vehicle="52" />
     <event time="22949" type="arrival" person="25" link="19" legMode="car" />
     <event time="22949" type="actstart" person="25" link="19" actType="w" />
-    <event time="22953" type="left link" link="19" vehicle="44" />
     <event time="22953" type="PersonLeavesVehicle" person="21" vehicle="44" />
     <event time="22953" type="arrival" person="21" link="19" legMode="car" />
     <event time="22953" type="actstart" person="21" link="19" actType="w" />
-    <event time="22956" type="left link" link="19" vehicle="40" />
     <event time="22956" type="PersonLeavesVehicle" person="19" vehicle="40" />
     <event time="22956" type="arrival" person="19" link="19" legMode="car" />
     <event time="22956" type="actstart" person="19" link="19" actType="w" />
-    <event time="22960" type="left link" link="19" vehicle="32" />
     <event time="22960" type="PersonLeavesVehicle" person="15" vehicle="32" />
     <event time="22960" type="arrival" person="15" link="19" legMode="car" />
     <event time="22960" type="actstart" person="15" link="19" actType="w" />
-    <event time="22963" type="left link" link="19" vehicle="6" />
     <event time="22963" type="PersonLeavesVehicle" person="2" vehicle="6" />
     <event time="22963" type="arrival" person="2" link="19" legMode="car" />
     <event time="22963" type="actstart" person="2" link="19" actType="w" />
-    <event time="22967" type="left link" link="19" vehicle="18" />
     <event time="22967" type="PersonLeavesVehicle" person="8" vehicle="18" />
     <event time="22967" type="arrival" person="8" link="19" legMode="car" />
     <event time="22967" type="actstart" person="8" link="19" actType="w" />
-    <event time="22971" type="left link" link="19" vehicle="2" />
     <event time="22971" type="PersonLeavesVehicle" person="0" vehicle="2" />
     <event time="22971" type="arrival" person="0" link="19" legMode="car" />
     <event time="22971" type="actstart" person="0" link="19" actType="w" />
-    <event time="22974" type="left link" link="19" vehicle="22" />
     <event time="22974" type="PersonLeavesVehicle" person="10" vehicle="22" />
     <event time="22974" type="arrival" person="10" link="19" legMode="car" />
     <event time="22974" type="actstart" person="10" link="19" actType="w" />
-    <event time="22978" type="left link" link="19" vehicle="10" />
     <event time="22978" type="PersonLeavesVehicle" person="4" vehicle="10" />
     <event time="22978" type="arrival" person="4" link="19" legMode="car" />
     <event time="22978" type="actstart" person="4" link="19" actType="w" />
     <event time="23571" type="actend" person="0" link="19" actType="w" />
     <event time="23571" type="departure" person="0" link="19" legMode="car" />
     <event time="23571" type="PersonEntersVehicle" person="0" vehicle="2" />
-    <event time="23930" type="left link" link="19" vehicle="2" />
     <event time="23930" type="PersonLeavesVehicle" person="0" vehicle="2" />
     <event time="23930" type="arrival" person="0" link="19" legMode="car" />
     <event time="23930" type="actstart" person="0" link="19" actType="w" />
@@ -2352,11 +2251,6 @@
     <event time="27110" type="entered link" link="0" vehicle="22" />
     <event time="27114" type="left link" link="22" vehicle="10" />
     <event time="27114" type="entered link" link="0" vehicle="10" />
-    <event time="27351" type="left link" link="0" vehicle="14" />
-    <event time="27351" type="left link" link="0" vehicle="198" />
-    <event time="27351" type="left link" link="0" vehicle="62" />
-    <event time="27351" type="left link" link="0" vehicle="192" />
-    <event time="27351" type="left link" link="0" vehicle="194" />
     <event time="27351" type="PersonLeavesVehicle" person="6" vehicle="14" />
     <event time="27351" type="arrival" person="6" link="0" legMode="car" />
     <event time="27351" type="actstart" person="6" link="0" actType="h" />
@@ -2372,19 +2266,12 @@
     <event time="27351" type="PersonLeavesVehicle" person="96" vehicle="194" />
     <event time="27351" type="arrival" person="96" link="0" legMode="car" />
     <event time="27351" type="actstart" person="96" link="0" actType="h" />
-    <event time="27352" type="left link" link="0" vehicle="184" />
-    <event time="27352" type="left link" link="0" vehicle="174" />
     <event time="27352" type="PersonLeavesVehicle" person="91" vehicle="184" />
     <event time="27352" type="arrival" person="91" link="0" legMode="car" />
     <event time="27352" type="actstart" person="91" link="0" actType="h" />
     <event time="27352" type="PersonLeavesVehicle" person="86" vehicle="174" />
     <event time="27352" type="arrival" person="86" link="0" legMode="car" />
     <event time="27352" type="actstart" person="86" link="0" actType="h" />
-    <event time="27354" type="left link" link="0" vehicle="186" />
-    <event time="27354" type="left link" link="0" vehicle="160" />
-    <event time="27354" type="left link" link="0" vehicle="126" />
-    <event time="27354" type="left link" link="0" vehicle="172" />
-    <event time="27354" type="left link" link="0" vehicle="30" />
     <event time="27354" type="PersonLeavesVehicle" person="92" vehicle="186" />
     <event time="27354" type="arrival" person="92" link="0" legMode="car" />
     <event time="27354" type="actstart" person="92" link="0" actType="h" />
@@ -2400,19 +2287,12 @@
     <event time="27354" type="PersonLeavesVehicle" person="14" vehicle="30" />
     <event time="27354" type="arrival" person="14" link="0" legMode="car" />
     <event time="27354" type="actstart" person="14" link="0" actType="h" />
-    <event time="27355" type="left link" link="0" vehicle="120" />
-    <event time="27355" type="left link" link="0" vehicle="182" />
     <event time="27355" type="PersonLeavesVehicle" person="59" vehicle="120" />
     <event time="27355" type="arrival" person="59" link="0" legMode="car" />
     <event time="27355" type="actstart" person="59" link="0" actType="h" />
     <event time="27355" type="PersonLeavesVehicle" person="90" vehicle="182" />
     <event time="27355" type="arrival" person="90" link="0" legMode="car" />
     <event time="27355" type="actstart" person="90" link="0" actType="h" />
-    <event time="27358" type="left link" link="0" vehicle="142" />
-    <event time="27358" type="left link" link="0" vehicle="200" />
-    <event time="27358" type="left link" link="0" vehicle="106" />
-    <event time="27358" type="left link" link="0" vehicle="168" />
-    <event time="27358" type="left link" link="0" vehicle="196" />
     <event time="27358" type="PersonLeavesVehicle" person="70" vehicle="142" />
     <event time="27358" type="arrival" person="70" link="0" legMode="car" />
     <event time="27358" type="actstart" person="70" link="0" actType="h" />
@@ -2428,19 +2308,12 @@
     <event time="27358" type="PersonLeavesVehicle" person="97" vehicle="196" />
     <event time="27358" type="arrival" person="97" link="0" legMode="car" />
     <event time="27358" type="actstart" person="97" link="0" actType="h" />
-    <event time="27359" type="left link" link="0" vehicle="176" />
-    <event time="27359" type="left link" link="0" vehicle="114" />
     <event time="27359" type="PersonLeavesVehicle" person="87" vehicle="176" />
     <event time="27359" type="arrival" person="87" link="0" legMode="car" />
     <event time="27359" type="actstart" person="87" link="0" actType="h" />
     <event time="27359" type="PersonLeavesVehicle" person="56" vehicle="114" />
     <event time="27359" type="arrival" person="56" link="0" legMode="car" />
     <event time="27359" type="actstart" person="56" link="0" actType="h" />
-    <event time="27361" type="left link" link="0" vehicle="138" />
-    <event time="27361" type="left link" link="0" vehicle="190" />
-    <event time="27361" type="left link" link="0" vehicle="188" />
-    <event time="27361" type="left link" link="0" vehicle="124" />
-    <event time="27361" type="left link" link="0" vehicle="162" />
     <event time="27361" type="PersonLeavesVehicle" person="68" vehicle="138" />
     <event time="27361" type="arrival" person="68" link="0" legMode="car" />
     <event time="27361" type="actstart" person="68" link="0" actType="h" />
@@ -2456,19 +2329,12 @@
     <event time="27361" type="PersonLeavesVehicle" person="80" vehicle="162" />
     <event time="27361" type="arrival" person="80" link="0" legMode="car" />
     <event time="27361" type="actstart" person="80" link="0" actType="h" />
-    <event time="27362" type="left link" link="0" vehicle="152" />
-    <event time="27362" type="left link" link="0" vehicle="112" />
     <event time="27362" type="PersonLeavesVehicle" person="75" vehicle="152" />
     <event time="27362" type="arrival" person="75" link="0" legMode="car" />
     <event time="27362" type="actstart" person="75" link="0" actType="h" />
     <event time="27362" type="PersonLeavesVehicle" person="55" vehicle="112" />
     <event time="27362" type="arrival" person="55" link="0" legMode="car" />
     <event time="27362" type="actstart" person="55" link="0" actType="h" />
-    <event time="27365" type="left link" link="0" vehicle="122" />
-    <event time="27365" type="left link" link="0" vehicle="12" />
-    <event time="27365" type="left link" link="0" vehicle="180" />
-    <event time="27365" type="left link" link="0" vehicle="140" />
-    <event time="27365" type="left link" link="0" vehicle="128" />
     <event time="27365" type="PersonLeavesVehicle" person="60" vehicle="122" />
     <event time="27365" type="arrival" person="60" link="0" legMode="car" />
     <event time="27365" type="actstart" person="60" link="0" actType="h" />
@@ -2484,18 +2350,12 @@
     <event time="27365" type="PersonLeavesVehicle" person="63" vehicle="128" />
     <event time="27365" type="arrival" person="63" link="0" legMode="car" />
     <event time="27365" type="actstart" person="63" link="0" actType="h" />
-    <event time="27366" type="left link" link="0" vehicle="150" />
-    <event time="27366" type="left link" link="0" vehicle="104" />
     <event time="27366" type="PersonLeavesVehicle" person="74" vehicle="150" />
     <event time="27366" type="arrival" person="74" link="0" legMode="car" />
     <event time="27366" type="actstart" person="74" link="0" actType="h" />
     <event time="27366" type="PersonLeavesVehicle" person="51" vehicle="104" />
     <event time="27366" type="arrival" person="51" link="0" legMode="car" />
     <event time="27366" type="actstart" person="51" link="0" actType="h" />
-    <event time="27368" type="left link" link="0" vehicle="98" />
-    <event time="27368" type="left link" link="0" vehicle="90" />
-    <event time="27368" type="left link" link="0" vehicle="178" />
-    <event time="27368" type="left link" link="0" vehicle="50" />
     <event time="27368" type="PersonLeavesVehicle" person="48" vehicle="98" />
     <event time="27368" type="arrival" person="48" link="0" legMode="car" />
     <event time="27368" type="actstart" person="48" link="0" actType="h" />
@@ -2508,18 +2368,12 @@
     <event time="27368" type="PersonLeavesVehicle" person="24" vehicle="50" />
     <event time="27368" type="arrival" person="24" link="0" legMode="car" />
     <event time="27368" type="actstart" person="24" link="0" actType="h" />
-    <event time="27369" type="left link" link="0" vehicle="148" />
-    <event time="27369" type="left link" link="0" vehicle="86" />
     <event time="27369" type="PersonLeavesVehicle" person="73" vehicle="148" />
     <event time="27369" type="arrival" person="73" link="0" legMode="car" />
     <event time="27369" type="actstart" person="73" link="0" actType="h" />
     <event time="27369" type="PersonLeavesVehicle" person="42" vehicle="86" />
     <event time="27369" type="arrival" person="42" link="0" legMode="car" />
     <event time="27369" type="actstart" person="42" link="0" actType="h" />
-    <event time="27372" type="left link" link="0" vehicle="76" />
-    <event time="27372" type="left link" link="0" vehicle="170" />
-    <event time="27372" type="left link" link="0" vehicle="84" />
-    <event time="27372" type="left link" link="0" vehicle="94" />
     <event time="27372" type="PersonLeavesVehicle" person="37" vehicle="76" />
     <event time="27372" type="arrival" person="37" link="0" legMode="car" />
     <event time="27372" type="actstart" person="37" link="0" actType="h" />
@@ -2532,18 +2386,12 @@
     <event time="27372" type="PersonLeavesVehicle" person="46" vehicle="94" />
     <event time="27372" type="arrival" person="46" link="0" legMode="car" />
     <event time="27372" type="actstart" person="46" link="0" actType="h" />
-    <event time="27373" type="left link" link="0" vehicle="146" />
-    <event time="27373" type="left link" link="0" vehicle="58" />
     <event time="27373" type="PersonLeavesVehicle" person="72" vehicle="146" />
     <event time="27373" type="arrival" person="72" link="0" legMode="car" />
     <event time="27373" type="actstart" person="72" link="0" actType="h" />
     <event time="27373" type="PersonLeavesVehicle" person="28" vehicle="58" />
     <event time="27373" type="arrival" person="28" link="0" legMode="car" />
     <event time="27373" type="actstart" person="28" link="0" actType="h" />
-    <event time="27376" type="left link" link="0" vehicle="60" />
-    <event time="27376" type="left link" link="0" vehicle="166" />
-    <event time="27376" type="left link" link="0" vehicle="80" />
-    <event time="27376" type="left link" link="0" vehicle="36" />
     <event time="27376" type="PersonLeavesVehicle" person="29" vehicle="60" />
     <event time="27376" type="arrival" person="29" link="0" legMode="car" />
     <event time="27376" type="actstart" person="29" link="0" actType="h" />
@@ -2556,18 +2404,12 @@
     <event time="27376" type="PersonLeavesVehicle" person="17" vehicle="36" />
     <event time="27376" type="arrival" person="17" link="0" legMode="car" />
     <event time="27376" type="actstart" person="17" link="0" actType="h" />
-    <event time="27377" type="left link" link="0" vehicle="134" />
-    <event time="27377" type="left link" link="0" vehicle="56" />
     <event time="27377" type="PersonLeavesVehicle" person="66" vehicle="134" />
     <event time="27377" type="arrival" person="66" link="0" legMode="car" />
     <event time="27377" type="actstart" person="66" link="0" actType="h" />
     <event time="27377" type="PersonLeavesVehicle" person="27" vehicle="56" />
     <event time="27377" type="arrival" person="27" link="0" legMode="car" />
     <event time="27377" type="actstart" person="27" link="0" actType="h" />
-    <event time="27379" type="left link" link="0" vehicle="16" />
-    <event time="27379" type="left link" link="0" vehicle="164" />
-    <event time="27379" type="left link" link="0" vehicle="64" />
-    <event time="27379" type="left link" link="0" vehicle="46" />
     <event time="27379" type="PersonLeavesVehicle" person="7" vehicle="16" />
     <event time="27379" type="arrival" person="7" link="0" legMode="car" />
     <event time="27379" type="actstart" person="7" link="0" actType="h" />
@@ -2580,13 +2422,9 @@
     <event time="27379" type="PersonLeavesVehicle" person="22" vehicle="46" />
     <event time="27379" type="arrival" person="22" link="0" legMode="car" />
     <event time="27379" type="actstart" person="22" link="0" actType="h" />
-    <event time="27380" type="left link" link="0" vehicle="132" />
     <event time="27380" type="PersonLeavesVehicle" person="65" vehicle="132" />
     <event time="27380" type="arrival" person="65" link="0" legMode="car" />
     <event time="27380" type="actstart" person="65" link="0" actType="h" />
-    <event time="27383" type="left link" link="0" vehicle="24" />
-    <event time="27383" type="left link" link="0" vehicle="20" />
-    <event time="27383" type="left link" link="0" vehicle="158" />
     <event time="27383" type="PersonLeavesVehicle" person="11" vehicle="24" />
     <event time="27383" type="arrival" person="11" link="0" legMode="car" />
     <event time="27383" type="actstart" person="11" link="0" actType="h" />
@@ -2596,13 +2434,9 @@
     <event time="27383" type="PersonLeavesVehicle" person="78" vehicle="158" />
     <event time="27383" type="arrival" person="78" link="0" legMode="car" />
     <event time="27383" type="actstart" person="78" link="0" actType="h" />
-    <event time="27384" type="left link" link="0" vehicle="116" />
     <event time="27384" type="PersonLeavesVehicle" person="57" vehicle="116" />
     <event time="27384" type="arrival" person="57" link="0" legMode="car" />
     <event time="27384" type="actstart" person="57" link="0" actType="h" />
-    <event time="27386" type="left link" link="0" vehicle="4" />
-    <event time="27386" type="left link" link="0" vehicle="156" />
-    <event time="27386" type="left link" link="0" vehicle="28" />
     <event time="27386" type="PersonLeavesVehicle" person="1" vehicle="4" />
     <event time="27386" type="arrival" person="1" link="0" legMode="car" />
     <event time="27386" type="actstart" person="1" link="0" actType="h" />
@@ -2612,123 +2446,93 @@
     <event time="27386" type="PersonLeavesVehicle" person="13" vehicle="28" />
     <event time="27386" type="arrival" person="13" link="0" legMode="car" />
     <event time="27386" type="actstart" person="13" link="0" actType="h" />
-    <event time="27387" type="left link" link="0" vehicle="100" />
     <event time="27387" type="PersonLeavesVehicle" person="49" vehicle="100" />
     <event time="27387" type="arrival" person="49" link="0" legMode="car" />
     <event time="27387" type="actstart" person="49" link="0" actType="h" />
-    <event time="27390" type="left link" link="0" vehicle="8" />
-    <event time="27390" type="left link" link="0" vehicle="154" />
     <event time="27390" type="PersonLeavesVehicle" person="3" vehicle="8" />
     <event time="27390" type="arrival" person="3" link="0" legMode="car" />
     <event time="27390" type="actstart" person="3" link="0" actType="h" />
     <event time="27390" type="PersonLeavesVehicle" person="76" vehicle="154" />
     <event time="27390" type="arrival" person="76" link="0" legMode="car" />
     <event time="27390" type="actstart" person="76" link="0" actType="h" />
-    <event time="27394" type="left link" link="0" vehicle="144" />
     <event time="27394" type="PersonLeavesVehicle" person="71" vehicle="144" />
     <event time="27394" type="arrival" person="71" link="0" legMode="car" />
     <event time="27394" type="actstart" person="71" link="0" actType="h" />
-    <event time="27395" type="left link" link="0" vehicle="82" />
     <event time="27395" type="PersonLeavesVehicle" person="40" vehicle="82" />
     <event time="27395" type="arrival" person="40" link="0" legMode="car" />
     <event time="27395" type="actstart" person="40" link="0" actType="h" />
-    <event time="27397" type="left link" link="0" vehicle="136" />
     <event time="27397" type="PersonLeavesVehicle" person="67" vehicle="136" />
     <event time="27397" type="arrival" person="67" link="0" legMode="car" />
     <event time="27397" type="actstart" person="67" link="0" actType="h" />
-    <event time="27398" type="left link" link="0" vehicle="74" />
     <event time="27398" type="PersonLeavesVehicle" person="36" vehicle="74" />
     <event time="27398" type="arrival" person="36" link="0" legMode="car" />
     <event time="27398" type="actstart" person="36" link="0" actType="h" />
-    <event time="27401" type="left link" link="0" vehicle="130" />
     <event time="27401" type="PersonLeavesVehicle" person="64" vehicle="130" />
     <event time="27401" type="arrival" person="64" link="0" legMode="car" />
     <event time="27401" type="actstart" person="64" link="0" actType="h" />
-    <event time="27402" type="left link" link="0" vehicle="66" />
     <event time="27402" type="PersonLeavesVehicle" person="32" vehicle="66" />
     <event time="27402" type="arrival" person="32" link="0" legMode="car" />
     <event time="27402" type="actstart" person="32" link="0" actType="h" />
-    <event time="27404" type="left link" link="0" vehicle="118" />
     <event time="27404" type="PersonLeavesVehicle" person="58" vehicle="118" />
     <event time="27404" type="arrival" person="58" link="0" legMode="car" />
     <event time="27404" type="actstart" person="58" link="0" actType="h" />
-    <event time="27405" type="left link" link="0" vehicle="42" />
     <event time="27405" type="PersonLeavesVehicle" person="20" vehicle="42" />
     <event time="27405" type="arrival" person="20" link="0" legMode="car" />
     <event time="27405" type="actstart" person="20" link="0" actType="h" />
-    <event time="27408" type="left link" link="0" vehicle="110" />
     <event time="27408" type="PersonLeavesVehicle" person="54" vehicle="110" />
     <event time="27408" type="arrival" person="54" link="0" legMode="car" />
     <event time="27408" type="actstart" person="54" link="0" actType="h" />
-    <event time="27409" type="left link" link="0" vehicle="38" />
     <event time="27409" type="PersonLeavesVehicle" person="18" vehicle="38" />
     <event time="27409" type="arrival" person="18" link="0" legMode="car" />
     <event time="27409" type="actstart" person="18" link="0" actType="h" />
-    <event time="27412" type="left link" link="0" vehicle="108" />
     <event time="27412" type="PersonLeavesVehicle" person="53" vehicle="108" />
     <event time="27412" type="arrival" person="53" link="0" legMode="car" />
     <event time="27412" type="actstart" person="53" link="0" actType="h" />
-    <event time="27415" type="left link" link="0" vehicle="102" />
     <event time="27415" type="PersonLeavesVehicle" person="50" vehicle="102" />
     <event time="27415" type="arrival" person="50" link="0" legMode="car" />
     <event time="27415" type="actstart" person="50" link="0" actType="h" />
-    <event time="27419" type="left link" link="0" vehicle="96" />
     <event time="27419" type="PersonLeavesVehicle" person="47" vehicle="96" />
     <event time="27419" type="arrival" person="47" link="0" legMode="car" />
     <event time="27419" type="actstart" person="47" link="0" actType="h" />
-    <event time="27422" type="left link" link="0" vehicle="88" />
     <event time="27422" type="PersonLeavesVehicle" person="43" vehicle="88" />
     <event time="27422" type="arrival" person="43" link="0" legMode="car" />
     <event time="27422" type="actstart" person="43" link="0" actType="h" />
-    <event time="27426" type="left link" link="0" vehicle="78" />
     <event time="27426" type="PersonLeavesVehicle" person="38" vehicle="78" />
     <event time="27426" type="arrival" person="38" link="0" legMode="car" />
     <event time="27426" type="actstart" person="38" link="0" actType="h" />
-    <event time="27430" type="left link" link="0" vehicle="72" />
     <event time="27430" type="PersonLeavesVehicle" person="35" vehicle="72" />
     <event time="27430" type="arrival" person="35" link="0" legMode="car" />
     <event time="27430" type="actstart" person="35" link="0" actType="h" />
-    <event time="27433" type="left link" link="0" vehicle="34" />
     <event time="27433" type="PersonLeavesVehicle" person="16" vehicle="34" />
     <event time="27433" type="arrival" person="16" link="0" legMode="car" />
     <event time="27433" type="actstart" person="16" link="0" actType="h" />
-    <event time="27437" type="left link" link="0" vehicle="68" />
     <event time="27437" type="PersonLeavesVehicle" person="33" vehicle="68" />
     <event time="27437" type="arrival" person="33" link="0" legMode="car" />
     <event time="27437" type="actstart" person="33" link="0" actType="h" />
-    <event time="27440" type="left link" link="0" vehicle="54" />
     <event time="27440" type="PersonLeavesVehicle" person="26" vehicle="54" />
     <event time="27440" type="arrival" person="26" link="0" legMode="car" />
     <event time="27440" type="actstart" person="26" link="0" actType="h" />
-    <event time="27444" type="left link" link="0" vehicle="52" />
     <event time="27444" type="PersonLeavesVehicle" person="25" vehicle="52" />
     <event time="27444" type="arrival" person="25" link="0" legMode="car" />
     <event time="27444" type="actstart" person="25" link="0" actType="h" />
-    <event time="27448" type="left link" link="0" vehicle="44" />
     <event time="27448" type="PersonLeavesVehicle" person="21" vehicle="44" />
     <event time="27448" type="arrival" person="21" link="0" legMode="car" />
     <event time="27448" type="actstart" person="21" link="0" actType="h" />
-    <event time="27451" type="left link" link="0" vehicle="40" />
     <event time="27451" type="PersonLeavesVehicle" person="19" vehicle="40" />
     <event time="27451" type="arrival" person="19" link="0" legMode="car" />
     <event time="27451" type="actstart" person="19" link="0" actType="h" />
-    <event time="27455" type="left link" link="0" vehicle="32" />
     <event time="27455" type="PersonLeavesVehicle" person="15" vehicle="32" />
     <event time="27455" type="arrival" person="15" link="0" legMode="car" />
     <event time="27455" type="actstart" person="15" link="0" actType="h" />
-    <event time="27458" type="left link" link="0" vehicle="6" />
     <event time="27458" type="PersonLeavesVehicle" person="2" vehicle="6" />
     <event time="27458" type="arrival" person="2" link="0" legMode="car" />
     <event time="27458" type="actstart" person="2" link="0" actType="h" />
-    <event time="27462" type="left link" link="0" vehicle="18" />
     <event time="27462" type="PersonLeavesVehicle" person="8" vehicle="18" />
     <event time="27462" type="arrival" person="8" link="0" legMode="car" />
     <event time="27462" type="actstart" person="8" link="0" actType="h" />
-    <event time="27469" type="left link" link="0" vehicle="22" />
     <event time="27469" type="PersonLeavesVehicle" person="10" vehicle="22" />
     <event time="27469" type="arrival" person="10" link="0" legMode="car" />
     <event time="27469" type="actstart" person="10" link="0" actType="h" />
-    <event time="27473" type="left link" link="0" vehicle="10" />
     <event time="27473" type="PersonLeavesVehicle" person="4" vehicle="10" />
     <event time="27473" type="arrival" person="4" link="0" legMode="car" />
     <event time="27473" type="actstart" person="4" link="0" actType="h" />
@@ -2743,7 +2547,6 @@
     <event time="30143" type="entered link" link="22" vehicle="48" />
     <event time="30502" type="left link" link="22" vehicle="48" />
     <event time="30502" type="entered link" link="0" vehicle="48" />
-    <event time="30861" type="left link" link="0" vehicle="48" />
     <event time="30861" type="PersonLeavesVehicle" person="23" vehicle="48" />
     <event time="30861" type="arrival" person="23" link="0" legMode="car" />
     <event time="30861" type="actstart" person="23" link="0" actType="h" />
@@ -2769,11 +2572,9 @@
     <event time="34132" type="entered link" link="0" vehicle="26" />
     <event time="34162" type="left link" link="22" vehicle="70" />
     <event time="34162" type="entered link" link="0" vehicle="70" />
-    <event time="34491" type="left link" link="0" vehicle="26" />
     <event time="34491" type="PersonLeavesVehicle" person="12" vehicle="26" />
     <event time="34491" type="arrival" person="12" link="0" legMode="car" />
     <event time="34491" type="actstart" person="12" link="0" actType="h" />
-    <event time="34521" type="left link" link="0" vehicle="70" />
     <event time="34521" type="PersonLeavesVehicle" person="34" vehicle="70" />
     <event time="34521" type="arrival" person="34" link="0" legMode="car" />
     <event time="34521" type="actstart" person="34" link="0" actType="h" />
@@ -2788,7 +2589,6 @@
     <event time="38507" type="entered link" link="22" vehicle="2" />
     <event time="38866" type="left link" link="22" vehicle="2" />
     <event time="38866" type="entered link" link="0" vehicle="2" />
-    <event time="39225" type="left link" link="0" vehicle="2" />
     <event time="39225" type="PersonLeavesVehicle" person="0" vehicle="2" />
     <event time="39225" type="arrival" person="0" link="0" legMode="car" />
     <event time="39225" type="actstart" person="0" link="0" actType="h" />
@@ -2803,7 +2603,6 @@
     <event time="48273" type="entered link" link="22" vehicle="92" />
     <event time="48632" type="left link" link="22" vehicle="92" />
     <event time="48632" type="entered link" link="0" vehicle="92" />
-    <event time="48991" type="left link" link="0" vehicle="92" />
     <event time="48991" type="PersonLeavesVehicle" person="45" vehicle="92" />
     <event time="48991" type="arrival" person="45" link="0" legMode="car" />
     <event time="48991" type="actstart" person="45" link="0" actType="h" />

@@ -7,7 +7,6 @@
 <event time="32410" type="entered link" link="1" vehicle="0" />
 <event time="32510" type="left link" link="1" vehicle="0" />
 <event time="32510" type="entered link" link="2" vehicle="0" />
-<event time="32520" type="left link" link="2" vehicle="0" />
 <event time="32520" type="PersonLeavesVehicle" person="0" vehicle="0" />
 <event time="32520" type="arrival" person="0" link="2" legMode="car" />
 <event time="32520" type="actstart" person="0" link="2" actType="errands_2400.0" />

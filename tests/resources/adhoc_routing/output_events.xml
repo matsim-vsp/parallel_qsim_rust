@@ -7,7 +7,6 @@
     <event time="32410" type="entered link" link="5" vehicle="0" />
     <event time="32460" type="left link" link="5" vehicle="0" />
     <event time="32460" type="entered link" link="6" vehicle="0" />
-    <event time="32510" type="left link" link="6" vehicle="0" />
     <event time="32510" type="PersonLeavesVehicle" person="0" vehicle="0" />
     <event time="32510" type="arrival" person="0" link="4" legMode="car" />
     <event time="32510" type="actstart" person="0" link="4" actType="errands_2400.0" />
@@ -18,7 +17,6 @@
     <event time="33610" type="entered link" link="1" vehicle="1" />
     <event time="33620" type="left link" link="1" vehicle="1" />
     <event time="33620" type="entered link" link="2" vehicle="1" />
-    <event time="33720" type="left link" link="2" vehicle="1" />
     <event time="33720" type="PersonLeavesVehicle" person="1" vehicle="1" />
     <event time="33720" type="arrival" person="1" link="2" legMode="car" />
     <event time="33720" type="actstart" person="1" link="2" actType="errands_2400.0" />
@@ -29,7 +27,6 @@
     <event time="34210" type="entered link" link="5" vehicle="2" />
     <event time="34260" type="left link" link="5" vehicle="2" />
     <event time="34260" type="entered link" link="6" vehicle="2" />
-    <event time="34310" type="left link" link="6" vehicle="2" />
     <event time="34310" type="PersonLeavesVehicle" person="2" vehicle="2" />
     <event time="34310" type="arrival" person="2" link="3" legMode="car" />
     <event time="34310" type="actstart" person="2" link="3" actType="errands_2400.0" />
@@ -40,7 +37,6 @@
     <event time="34850" type="entered link" link="6" vehicle="3" />
     <event time="34900" type="left link" link="6" vehicle="3" />
     <event time="34900" type="entered link" link="4" vehicle="3" />
-    <event time="34910" type="left link" link="4" vehicle="3" />
     <event time="34910" type="PersonLeavesVehicle" person="3" vehicle="3" />
     <event time="34910" type="arrival" person="3" link="4" legMode="car" />
     <event time="34910" type="actstart" person="3" link="4" actType="errands_2400.0" />
