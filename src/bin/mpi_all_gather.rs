@@ -1,11 +1,11 @@
 use mpi::traits::{Communicator, CommunicatorCollectives};
-use rust_q_sim::simulation::messaging::messages::proto::TrafficInfoMessage;
+use rust_q_sim::simulation::messaging::messages::proto::TravelTimesMessage;
 
 fn main() {
     let universe = mpi::initialize().unwrap();
     let world = universe.world();
 
-    let mut message = TrafficInfoMessage::new();
+    let mut message = TravelTimesMessage::new();
     message.add_travel_time(world.rank() as u64 + 0, (world.rank() as u32 + 0) * 2);
 
     let send_traffic_info = message.serialize();
@@ -28,7 +28,7 @@ fn main() {
         println!(
             "Process {:?} gathered sequence: {:?}.",
             world.rank(),
-            TrafficInfoMessage::deserialize(m)
+            TravelTimesMessage::deserialize(m)
         );
     }
 }

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package mpi.messages;
 
-message TrafficInfoMessage {
+message TravelTimesMessage {
   map<uint64, uint32> travelTimesByLinkId = 1;
 }
 

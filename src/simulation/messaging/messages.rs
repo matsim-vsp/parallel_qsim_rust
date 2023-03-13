@@ -8,7 +8,7 @@ use crate::simulation::io::population::{
 use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::{
     Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
-    TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
+    TravelTimesMessage, Vehicle, VehicleMessage, VehicleType,
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
@@ -68,15 +68,15 @@ impl VehicleMessage {
     }
 }
 
-impl TrafficInfoMessage {
+impl TravelTimesMessage {
     pub fn new() -> Self {
-        TrafficInfoMessage {
+        TravelTimesMessage {
             travel_times_by_link_id: HashMap::new(),
         }
     }
 
     pub fn from(map: HashMap<u64, u32>) -> Self {
-        TrafficInfoMessage {
+        TravelTimesMessage {
             travel_times_by_link_id: map,
         }
     }
@@ -91,8 +91,8 @@ impl TrafficInfoMessage {
         buffer
     }
 
-    pub fn deserialize(buffer: &[u8]) -> TrafficInfoMessage {
-        TrafficInfoMessage::decode(&mut Cursor::new(buffer)).unwrap()
+    pub fn deserialize(buffer: &[u8]) -> TravelTimesMessage {
+        TravelTimesMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 

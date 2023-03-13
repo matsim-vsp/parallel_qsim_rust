@@ -1,25 +1,25 @@
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::messages::proto::{TrafficInfoMessage, Vehicle};
+use crate::simulation::messaging::messages::proto::{TravelTimesMessage, Vehicle};
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
+use crate::simulation::routing::road_router::RoadRouter;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
-use crate::simulation::routing::rust_road_router::RustRoadRouter;
-use crate::simulation::routing::traffic_message_broker::TrafficMessageBroker;
+use crate::simulation::routing::travel_times_message_broker::TravelTimesMessageBroker;
 use log::debug;
 use mpi::topology::SystemCommunicator;
 use mpi::Rank;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-pub struct RustRoadUpdateRouter<'router> {
-    router: RustRoadRouter<'router>,
-    traffic_message_broker: TrafficMessageBroker,
+pub struct TravelTimeCollectingRoadRouter<'router> {
+    router: RoadRouter<'router>,
+    traffic_message_broker: TravelTimesMessageBroker,
     link_ids_of_process: HashSet<u64>,
 }
 
-impl<'router> Router for RustRoadUpdateRouter<'router> {
+impl<'router> Router for TravelTimeCollectingRoadRouter<'router> {
     fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
         self.router.query_links(from_link, to_link)
     }
@@ -59,7 +59,7 @@ impl<'router> Router for RustRoadUpdateRouter<'router> {
     }
 }
 
-impl<'router> RustRoadUpdateRouter<'router> {
+impl<'router> TravelTimeCollectingRoadRouter<'router> {
     pub fn new(
         network: &RoutingKitNetwork,
         communicator: SystemCommunicator,
@@ -78,14 +78,14 @@ impl<'router> RustRoadUpdateRouter<'router> {
             .map(|(id, _)| *id as u64)
             .collect::<HashSet<u64>>();
 
-        RustRoadUpdateRouter {
-            router: RustRoadRouter::new(network, output_dir),
-            traffic_message_broker: TrafficMessageBroker::new(communicator, rank),
+        TravelTimeCollectingRoadRouter {
+            router: RoadRouter::new(network, output_dir),
+            traffic_message_broker: TravelTimesMessageBroker::new(communicator, rank),
             link_ids_of_process,
         }
     }
 
-    fn handle_traffic_info_messages(&mut self, traffic_info_messages: Vec<TrafficInfoMessage>) {
+    fn handle_traffic_info_messages(&mut self, traffic_info_messages: Vec<TravelTimesMessage>) {
         if traffic_info_messages.is_empty() {
             return;
         }

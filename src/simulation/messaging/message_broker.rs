@@ -1,4 +1,4 @@
-use crate::simulation::messaging::messages::proto::{TrafficInfoMessage, Vehicle, VehicleMessage};
+use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
 use crate::simulation::network::node::NodeVehicle;
 
 use mpi::topology::SystemCommunicator;
@@ -10,7 +10,6 @@ use std::sync::Arc;
 pub trait MessageBroker {
     fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
-    fn add_travel_times(&mut self, travel_times: HashMap<u64, u32>);
 }
 pub struct MpiMessageBroker {
     pub rank: Rank,
@@ -19,14 +18,10 @@ pub struct MpiMessageBroker {
     out_messages: HashMap<u32, VehicleMessage>,
     in_messages: BinaryHeap<VehicleMessage>,
     link_id_mapping: Arc<HashMap<usize, usize>>,
-    traffic_info: TrafficInfoMessage,
 }
 
 impl MessageBroker for MpiMessageBroker {
     fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
-        // preparation of traffic info messages
-        let traffic_info_message = self.traffic_info.serialize();
-
         // preparation of vehicle messages
         let vehicle_messages = self.prepare_send_recv_vehicles(now);
         let buf_msg: Vec<_> = vehicle_messages
@@ -110,10 +105,6 @@ impl MessageBroker for MpiMessageBroker {
             .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, partition));
         message.add(vehicle);
     }
-
-    fn add_travel_times(&mut self, new_travel_times: HashMap<u64, u32>) {
-        self.traffic_info.travel_times_by_link_id = new_travel_times;
-    }
 }
 
 impl MpiMessageBroker {
@@ -130,7 +121,6 @@ impl MpiMessageBroker {
             neighbors,
             rank,
             link_id_mapping,
-            traffic_info: TrafficInfoMessage::new(),
         }
     }
 

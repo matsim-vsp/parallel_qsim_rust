@@ -13,17 +13,17 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::ptr::NonNull;
 
-pub struct RustRoadRouter<'router> {
+pub struct RoadRouter<'router> {
     pub(crate) server: Pin<Box<ServerAdapter<'router>>>,
     pub(crate) current_network: RoutingKitNetwork,
     pub(crate) initial_network: RoutingKitNetwork,
 }
 
-impl<'router> RustRoadRouter<'router> {
-    pub(crate) fn new(network: &RoutingKitNetwork, output_dir: PathBuf) -> RustRoadRouter<'router> {
-        RustRoadRouter {
+impl<'router> RoadRouter<'router> {
+    pub(crate) fn new(network: &RoutingKitNetwork, output_dir: PathBuf) -> RoadRouter<'router> {
+        RoadRouter {
             server: ServerAdapter::new(
-                RustRoadRouter::perform_preprocessing(&network, output_dir),
+                RoadRouter::perform_preprocessing(&network, output_dir),
                 network,
             ),
             current_network: network.clone(),
@@ -73,7 +73,7 @@ impl<'router> RustRoadRouter<'router> {
         network: &RoutingKitNetwork,
         temp_output_folder: PathBuf,
     ) -> CCH {
-        let owned_graph = RustRoadRouter::create_owned_graph(network);
+        let owned_graph = RoadRouter::create_owned_graph(network);
 
         let inertial_flow_cutter_path = env::var("INERTIAL_FLOW_CUTTER_HOME_DIRECTORY")
             .expect("The environment variable 'INERTIAL_FLOW_CUTTER_HOME_DIRECTORY' is not set.");
@@ -140,7 +140,7 @@ impl<'router> RustRoadRouter<'router> {
                 .unwrap()
                 .update(customize(
                     cch_ref.as_ref(),
-                    &RustRoadRouter::create_owned_graph(&self.current_network),
+                    &RoadRouter::create_owned_graph(&self.current_network),
                 ));
         }
     }
@@ -177,7 +177,7 @@ impl<'adapter> ServerAdapter<'adapter> {
         unsafe {
             Pin::get_unchecked_mut(mut_ref).server = Some(Server::new(customize(
                 cch_ref.as_ref(),
-                &RustRoadRouter::create_owned_graph(&network),
+                &RoadRouter::create_owned_graph(&network),
             )));
         }
         boxed
@@ -242,7 +242,7 @@ mod test {
     use std::time::Instant;
 
     use crate::simulation::routing::network_converter::NetworkConverter;
-    use crate::simulation::routing::rust_road_router::{get_edge_path, RustRoadRouter};
+    use crate::simulation::routing::road_router::{get_edge_path, RoadRouter};
     use rand::seq::IteratorRandom;
     use rust_road_router::algo::a_star::BiDirZeroPot;
     use rust_road_router::algo::customizable_contraction_hierarchy::{customize, CCH};
@@ -326,7 +326,7 @@ mod test {
         let network =
             NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
 
-        let mut router = RustRoadRouter::new(
+        let mut router = RoadRouter::new(
             &network,
             PathBuf::from("./test_output/routing/simple_cch_update/"),
         );
@@ -349,20 +349,20 @@ mod test {
     fn compare_cch_and_dijkstra() {
         let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
 
-        let mut cch_router = RustRoadRouter::new(
+        let mut cch_router = RoadRouter::new(
             &network,
             PathBuf::from("./test_output/routing/performance/"),
         );
 
         let mut dijkstra_router =
-            DijkServer::<_, DefaultOps>::new(RustRoadRouter::create_owned_graph(&network));
+            DijkServer::<_, DefaultOps>::new(RoadRouter::create_owned_graph(&network));
 
         let mut bid_dijkstra_router =
             BidServer::<OwnedGraph, OwnedGraph, BiDirZeroPot, ChooseMinKeyDir>::new(
-                RustRoadRouter::create_owned_graph(&network),
+                RoadRouter::create_owned_graph(&network),
             );
 
-        let owned_graph = RustRoadRouter::create_owned_graph(&network);
+        let owned_graph = RoadRouter::create_owned_graph(&network);
         let number_of_nodes = owned_graph.first_out().len();
         let from_nodes: Vec<usize> =
             (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);
