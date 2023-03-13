@@ -117,6 +117,15 @@ impl NodeVehicle for Vehicle {
             }
         }
     }
+
+    fn is_current_link_last(&self) -> bool {
+        let leg = self.agent().curr_leg();
+        let route = leg.route.as_ref().unwrap();
+        match route {
+            Route::GenericRoute(_) => true,
+            Route::NetworkRoute(route) => self.curr_route_elem + 1 >= route.route.len() as u32,
+        }
+    }
 }
 
 impl EndTime for Vehicle {

@@ -8,6 +8,7 @@ pub trait NodeVehicle: Debug {
     fn id(&self) -> usize;
     fn advance_route_index(&mut self);
     fn curr_link_id(&self) -> Option<usize>;
+    fn is_current_link_last(&self) -> bool;
 }
 
 #[derive(Debug)]
@@ -55,10 +56,13 @@ impl Node {
             };
 
             for mut vehicle in vehicles {
-                events.publish_event(
-                    now,
-                    &Event::new_link_leave(*in_link_index as u64, vehicle.id() as u64),
-                );
+                if !vehicle.is_current_link_last() {
+                    events.publish_event(
+                        now,
+                        &Event::new_link_leave(*in_link_index as u64, vehicle.id() as u64),
+                    );
+                }
+
                 vehicle.advance_route_index();
                 match vehicle.curr_link_id() {
                     None => exited_vehicles.push(ExitReason::FinishRoute(vehicle)),

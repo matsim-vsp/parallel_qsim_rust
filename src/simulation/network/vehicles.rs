@@ -35,4 +35,8 @@ impl NodeVehicle for Vehicle {
     fn curr_link_id(&self) -> Option<usize> {
         self.route.get(self.route_index).map(|id| *id)
     }
+
+    fn is_current_link_last(&self) -> bool {
+        self.route_index + 1 >= self.route.len()
+    }
 }
