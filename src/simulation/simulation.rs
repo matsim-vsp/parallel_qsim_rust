@@ -3,11 +3,9 @@ use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::simulation::messaging::messages::proto::leg::Route;
-use crate::simulation::messaging::messages::proto::simulation_update_message::Type;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, GenericRoute, TrafficInfoMessage, Vehicle, VehicleMessage, VehicleType,
+    Activity, Agent, GenericRoute, Vehicle, VehicleType,
 };
-use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
@@ -15,28 +13,24 @@ use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
 use log::{debug, info};
-use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
-use std::collections::{HashMap, HashSet};
 
-pub struct Simulation<'sim> {
+pub struct Simulation {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: NetworkPartition<Vehicle>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
-    router: Option<Router<'sim>>,
-    cch: &'sim Option<CCH>,
+    router: Option<Box<dyn Router>>,
 }
 
-impl<'sim> Simulation<'sim> {
+impl Simulation {
     pub fn new(
         config: &Config,
         network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
-        router: Option<Router<'sim>>,
-        cch: &'sim Option<CCH>,
+        router: Option<Box<dyn Router>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -50,7 +44,6 @@ impl<'sim> Simulation<'sim> {
             message_broker,
             events,
             router,
-            cch,
         }
     }
 
@@ -73,6 +66,11 @@ impl<'sim> Simulation<'sim> {
             self.terminate_teleportation(now);
             self.move_nodes(now);
             self.send_receive(now);
+
+            if let Some(router) = self.router.as_mut() {
+                router.next_time_step(now, &mut self.events)
+            }
+
             now += 1;
         }
 
@@ -246,98 +244,8 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn send_receive(&mut self, now: u32) {
-        // this might be configurable
-        let traffic_update_interval_in_min = 15;
+        let vehicle_update_messages = self.message_broker.send_recv(now);
 
-        let traffic_update =
-            self.router.is_some() && now % (60 * traffic_update_interval_in_min) == 0;
-
-        if traffic_update {
-            debug!(
-                "Process {}: Traffic update at {}",
-                self.message_broker.rank, now
-            );
-            let collected_travel_times = self
-                .events
-                .get_subscriber::<TravelTimeCollector>()
-                .map(|travel_time_collector| travel_time_collector.get_travel_times());
-
-            self.message_broker.add_travel_times(
-                self.get_travel_times_by_link_to_send(collected_travel_times.unwrap()),
-            );
-
-            self.events
-                .get_subscriber::<TravelTimeCollector>()
-                .unwrap()
-                .flush();
-        }
-
-        let update_messages = self.message_broker.send_recv(now, traffic_update);
-
-        let mut vehicle_update_messages = Vec::new();
-        let mut traffic_info_messages = Vec::new();
-
-        for update in update_messages {
-            if let Some(message_type) = update.r#type {
-                match message_type {
-                    Type::VehicleMessage(message) => vehicle_update_messages.push(message),
-                    Type::TrafficInfoMessage(message) => traffic_info_messages.push(message),
-                }
-            } else {
-                panic!("The SimulationUpdateMessage is expected to be either a VehicleMessage or a TrafficInfoMessage.");
-            }
-        }
-
-        self.handle_vehicle_messages(now, vehicle_update_messages);
-        self.handle_traffic_info_messages(traffic_info_messages);
-    }
-
-    fn get_travel_times_by_link_to_send(
-        &self,
-        collected_travel_times: HashMap<u64, u32>,
-    ) -> HashMap<u64, u32> {
-        let mut result = HashMap::new();
-
-        let link_ids_of_process = self
-            .network
-            .links
-            .iter()
-            .filter(|(id, link)| match link {
-                Link::LocalLink(_) => true,
-                Link::SplitInLink(_) => true,
-                Link::SplitOutLink(_) => false,
-            })
-            .map(|(id, _)| *id as u64)
-            .collect::<HashSet<u64>>();
-
-        // for each collected travel time: add if currently known travel time is different
-        for (id, travel_time) in &collected_travel_times {
-            if *travel_time != self.get_router_ref().get_current_travel_time(*id) {
-                result.insert(*id, *travel_time);
-            } else {
-                debug!(
-                    "Process {:?} | (link {:?}, travel time: {:?}) was already there.",
-                    self.message_broker.rank, id, travel_time
-                );
-            }
-        }
-
-        // for each link about which no travel time was collected: add initial travel time if currently known travel time is different
-        for id in link_ids_of_process
-            .difference(&collected_travel_times.into_keys().collect::<HashSet<u64>>())
-        {
-            let initial_travel_time = self.get_router_ref().get_initial_travel_time(*id);
-            if self.get_router_ref().get_current_travel_time(*id) != initial_travel_time {
-                result.insert(*id, initial_travel_time);
-            }
-        }
-        if !result.is_empty() {
-            debug!("Traffic update to be sent: {:?}", result);
-        }
-        result
-    }
-
-    fn handle_vehicle_messages(&mut self, now: u32, vehicle_update_messages: Vec<VehicleMessage>) {
         let vehicles = vehicle_update_messages
             .into_iter()
             .flat_map(|msg| msg.vehicles)
@@ -355,45 +263,6 @@ impl<'sim> Simulation<'sim> {
         }
     }
 
-    fn handle_traffic_info_messages(&mut self, traffic_info_messages: Vec<TrafficInfoMessage>) {
-        if self.router.is_none() {
-            return;
-        }
-
-        if traffic_info_messages.is_empty() {
-            return;
-        }
-        debug!(
-            "Processing traffic info messages: {:?}.",
-            traffic_info_messages
-        );
-
-        let travel_times_by_link = traffic_info_messages
-            .iter()
-            .map(|info| &info.travel_times_by_link_id)
-            .fold(HashMap::new(), |result, value| {
-                result.into_iter().chain(value).collect()
-            });
-
-        let number_of_links_with_traffic_info = traffic_info_messages
-            .iter()
-            .map(|info| info.travel_times_by_link_id.len())
-            .sum::<usize>();
-
-        assert_eq!(
-            number_of_links_with_traffic_info,
-            travel_times_by_link.len()
-        );
-
-        let router = self.router.as_mut().unwrap();
-        let network_with_new_travel_times = router
-            .current_network
-            .clone_with_new_travel_times_by_link(travel_times_by_link);
-
-        debug!("There are travel time changes. Router will be customized.");
-        router.customize(self.cch.as_ref().unwrap(), network_with_new_travel_times);
-    }
-
     fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {
         let (from, to) = Simulation::process_ids_for_generic_route(route, message_broker);
         from == to
@@ -408,7 +277,7 @@ impl<'sim> Simulation<'sim> {
         (from_rank, to_rank)
     }
 
-    fn get_router_ref(&self) -> &Router {
-        self.router.as_ref().unwrap()
+    fn get_router_ref(&self) -> &dyn Router {
+        self.router.as_ref().unwrap().as_ref()
     }
 }

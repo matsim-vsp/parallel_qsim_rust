@@ -3,14 +3,14 @@ use crate::simulation::network::flow_cap::Flowcap;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Link<V: Debug> {
     LocalLink(LocalLink<V>),
     SplitInLink(SplitInLink<V>),
     SplitOutLink(SplitOutLink),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalLink<V: Debug> {
     id: usize,
     q: VecDeque<VehicleQEntry<V>>,
@@ -20,7 +20,7 @@ pub struct LocalLink<V: Debug> {
     modes: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct VehicleQEntry<V> {
     vehicle: V,
     earliest_exit_time: u32,
@@ -87,7 +87,7 @@ impl<V: Debug> LocalLink<V> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SplitOutLink {
     id: usize,
     to_part: usize,
@@ -106,7 +106,7 @@ impl SplitOutLink {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SplitInLink<V: Debug> {
     from_part: usize,
     local_link: LocalLink<V>,

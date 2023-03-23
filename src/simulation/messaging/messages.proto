@@ -2,14 +2,7 @@ syntax = "proto3";
 
 package mpi.messages;
 
-message SimulationUpdateMessage {
-  oneof type {
-    VehicleMessage vehicleMessage = 1;
-    TrafficInfoMessage trafficInfoMessage = 2;
-  }
-}
-
-message TrafficInfoMessage {
+message TravelTimesMessage {
   map<uint64, uint32> travelTimesByLinkId = 1;
 }
 

@@ -12,11 +12,11 @@ use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
+use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
 use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
-use rust_road_router::algo::customizable_contraction_hierarchy::CCH;
 use std::ffi::c_int;
 use std::fs;
 use std::fs::remove_dir_all;
@@ -60,8 +60,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         info!("Written id mappings file!");
     }
 
-    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
-
     let population = Population::from_io(
         &io_population,
         &id_mappings,
@@ -86,7 +84,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         .collect();
     let link_id_mapping = network.links_2_partition;
 
-    let message_broker = MpiMessageBroker::new(world, rank, neighbors, link_id_mapping);
+    let message_broker = MpiMessageBroker::new(world.clone(), rank, neighbors, link_id_mapping);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");
@@ -96,14 +94,16 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let mut router: Option<Router> = None;
-    let mut cch: Option<CCH> = None;
+    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
+    let mut router: Option<Box<dyn Router>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
-        cch = Some(Router::perform_preprocessing(
+        router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
             &routing_kit_network,
-            get_temp_output_folder(&config.output_dir, rank).as_str(),
-        ));
-        router = Some(Router::new(cch.as_ref().unwrap(), &routing_kit_network));
+            world.clone(),
+            rank,
+            get_temp_output_folder(&output_path, rank),
+            &network_partition,
+        )));
     }
 
     let mut simulation = Simulation::new(
@@ -113,7 +113,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         message_broker,
         events,
         router,
-        &cch,
     );
 
     let start = Instant::now();
@@ -125,7 +124,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     info!("output dir: {:?}", config.output_dir);
 
     if rank == 0 && config.routing_mode == RoutingMode::AdHoc {
-        remove_dir_all(config.output_dir + "routing")
+        remove_dir_all(output_path.join("routing"))
             .expect("Wasn't able to delete temporary routing output.")
     }
 
@@ -134,6 +133,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
     info!("Process #{rank} finishing.");
 }
 
-fn get_temp_output_folder(output_dir: &str, rank: c_int) -> String {
-    format!("{}{}{}{}", output_dir, "/routing/", rank, "/")
+fn get_temp_output_folder(output_dir: &PathBuf, rank: c_int) -> PathBuf {
+    output_dir.join("routing").join(format!("{}", rank))
 }

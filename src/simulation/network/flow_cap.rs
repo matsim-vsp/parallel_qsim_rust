@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Flowcap {
     last_update_time: u32,
     accumulated_capacity: f32,
