@@ -170,17 +170,20 @@ pub struct ServerAdapter<'adapter> {
 impl<'adapter> ServerAdapter<'adapter> {
     pub fn new(cch: CCH, network: &RoutingKitNetwork) -> Pin<Box<ServerAdapter<'adapter>>> {
         let adapter = ServerAdapter { server: None, cch };
-        let mut boxed = Box::pin(adapter);
+        let mut boxed_adapter = Box::pin(adapter);
 
-        let cch_ref = NonNull::from(&boxed.cch);
-        let mut_ref: Pin<&mut Self> = Pin::as_mut(&mut boxed);
+        let cch_ref = NonNull::from(&boxed_adapter.cch);
+        let mut_boxed_adapter_ref: Pin<&mut Self> = Pin::as_mut(&mut boxed_adapter);
+        let metric = &RoadRouter::create_owned_graph(&network);
+
+        // safety considerations
+        // TODO
         unsafe {
-            Pin::get_unchecked_mut(mut_ref).server = Some(Server::new(customize(
-                cch_ref.as_ref(),
-                &RoadRouter::create_owned_graph(&network),
-            )));
+            let customization = customize(cch_ref.as_ref(), metric);
+            Pin::get_unchecked_mut(mut_boxed_adapter_ref).server = Some(Server::new(customization));
         }
-        boxed
+
+        boxed_adapter
     }
 
     pub fn query<'q>(

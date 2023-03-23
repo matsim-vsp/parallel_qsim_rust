@@ -13,13 +13,13 @@ use mpi::Rank;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-pub struct TravelTimeCollectingRoadRouter<'router> {
+pub struct TravelTimesCollectingRoadRouter<'router> {
     router: RoadRouter<'router>,
     traffic_message_broker: TravelTimesMessageBroker,
     link_ids_of_process: HashSet<u64>,
 }
 
-impl<'router> Router for TravelTimeCollectingRoadRouter<'router> {
+impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
     fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
         self.router.query_links(from_link, to_link)
     }
@@ -59,7 +59,7 @@ impl<'router> Router for TravelTimeCollectingRoadRouter<'router> {
     }
 }
 
-impl<'router> TravelTimeCollectingRoadRouter<'router> {
+impl<'router> TravelTimesCollectingRoadRouter<'router> {
     pub fn new(
         network: &RoutingKitNetwork,
         communicator: SystemCommunicator,
@@ -78,7 +78,7 @@ impl<'router> TravelTimeCollectingRoadRouter<'router> {
             .map(|(id, _)| *id as u64)
             .collect::<HashSet<u64>>();
 
-        TravelTimeCollectingRoadRouter {
+        TravelTimesCollectingRoadRouter {
             router: RoadRouter::new(network, output_dir),
             traffic_message_broker: TravelTimesMessageBroker::new(communicator, rank),
             link_ids_of_process,

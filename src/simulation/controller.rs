@@ -12,7 +12,7 @@ use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
-use crate::simulation::routing::travel_time_collecting_road_router::TravelTimeCollectingRoadRouter;
+use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
 use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
@@ -97,7 +97,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
     let mut router: Option<Box<dyn Router>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
-        router = Some(Box::new(TravelTimeCollectingRoadRouter::new(
+        router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
             &routing_kit_network,
             world.clone(),
             rank,
