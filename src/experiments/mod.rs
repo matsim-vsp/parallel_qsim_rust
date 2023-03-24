@@ -11,6 +11,7 @@ mod link_automata_with_routes;
 mod metis_test;
 #[allow(dead_code)]
 mod ownership;
+mod pointers;
 #[allow(unused_variables, dead_code, unused_imports)]
 pub mod routing;
 #[allow(dead_code)]
