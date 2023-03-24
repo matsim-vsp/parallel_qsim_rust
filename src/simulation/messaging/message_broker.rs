@@ -1,5 +1,6 @@
 use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
 use crate::simulation::network::node::NodeVehicle;
+
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
@@ -7,7 +8,7 @@ use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::Arc;
 
 pub trait MessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<Vehicle>;
+    fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
 }
 pub struct MpiMessageBroker {
@@ -20,23 +21,17 @@ pub struct MpiMessageBroker {
 }
 
 impl MessageBroker for MpiMessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<Vehicle> {
-        let capacity = self.out_messages.len();
-        let mut messages =
-            std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
-
-        for partition in &self.neighbors {
-            let neighbor_rank = *partition;
-            messages
-                .entry(neighbor_rank)
-                .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
-        }
+    fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
+        // preparation of vehicle messages
+        let vehicle_messages = self.prepare_send_recv_vehicles(now);
+        let buf_msg: Vec<_> = vehicle_messages
+            .values()
+            .map(|m| (m, m.serialize()))
+            .collect();
 
         // prepare the receiving here.
-        let mut expected_messages = self.neighbors.clone();
-        let mut received_messages = Vec::new();
-
-        let buf_msg: Vec<_> = messages.values().map(|m| (m, m.serialize())).collect();
+        let mut expected_vehicle_messages = self.neighbors.clone();
+        let mut received_vehicle_messages = Vec::new();
 
         // we have to use at least immediate send here. Otherwise we risk blocking on send as explained
         // in https://paperpile.com/app/p/e209e0b3-9bdb-08c7-8a62-b1180a9ac954 chapter 4.3, 4.4 and 4.12.
@@ -63,11 +58,15 @@ impl MessageBroker for MpiMessageBroker {
             }
 
             // ------ Receive Part --------
-            self.pop_from_cache(&mut expected_messages, &mut received_messages, now);
+            self.pop_from_cache(
+                &mut expected_vehicle_messages,
+                &mut received_vehicle_messages,
+                now,
+            );
 
             // Use blocking MPI_recv here, since we don't have anything to do if there are no other
             // messages.
-            while !expected_messages.is_empty() {
+            while !expected_vehicle_messages.is_empty() {
                 let (encoded_msg, _status) = self.communicator.any_process().receive_vec();
                 let msg = VehicleMessage::deserialize(&encoded_msg);
                 let from_rank = msg.from_process;
@@ -76,13 +75,13 @@ impl MessageBroker for MpiMessageBroker {
                 // that partition from expected messages which indicates which partitions we are waiting
                 // for
                 if msg.time == now {
-                    expected_messages.remove(&from_rank);
+                    expected_vehicle_messages.remove(&from_rank);
                 }
                 // In case a message is for a future time step store it in the message cache, until
                 // this process reaches the time step of that message. Otherwise store it in received
                 // messages and use it in the simulation
                 if msg.time <= now {
-                    received_messages.push(msg);
+                    received_vehicle_messages.push(msg);
                 } else {
                     self.in_messages.push(msg);
                 }
@@ -94,12 +93,7 @@ impl MessageBroker for MpiMessageBroker {
             reqs.wait_all(&mut Vec::new());
         });
 
-        let result = received_messages
-            .into_iter()
-            .flat_map(|msg| msg.vehicles)
-            .collect();
-
-        result
+        received_vehicle_messages
     }
 
     fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
@@ -154,5 +148,19 @@ impl MpiMessageBroker {
                 break; // important! otherwise this is an infinite loop
             }
         }
+    }
+
+    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, VehicleMessage> {
+        let capacity = self.out_messages.len();
+        let mut messages =
+            std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
+
+        for partition in &self.neighbors {
+            let neighbor_rank = *partition;
+            messages
+                .entry(neighbor_rank)
+                .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
+        }
+        messages
     }
 }

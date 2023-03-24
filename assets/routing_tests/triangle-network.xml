@@ -3,10 +3,10 @@
 
 <network name="simple network">
     <nodes>
-        <node id="0" x="-20000" y="0"/>
-        <node id="1" x="-15000" y="0"/>
-        <node id="2" x="-865" y="5925"/>
-        <node id="3" x="-2498" y="4331"/>
+        <node id="0" x="-20000.1" y="0"/>
+        <node id="1" x="-15000.002" y="0.01"/>
+        <node id="2" x="-865.213" y="5925.2"/>
+        <node id="3" x="-2498.0" y="4331.213"/>
     </nodes>
     <links capperiod="01:00:00">
         <link id="1" from="1" to="2" length="10000.00" capacity="36000" freespeed="10000.00" permlanes="1"/>

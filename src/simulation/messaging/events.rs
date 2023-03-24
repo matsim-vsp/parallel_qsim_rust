@@ -8,6 +8,7 @@ use crate::simulation::messaging::events::proto::{
     TravelledEvent,
 };
 use log::info;
+use std::any::Any;
 use std::collections::HashMap;
 
 // Include the `events` module, which is generated from events.proto.
@@ -19,6 +20,8 @@ pub trait EventsSubscriber {
     fn receive_event(&mut self, time: u32, event: &Event);
 
     fn finish(&mut self) {}
+
+    fn as_any(&mut self) -> &mut dyn Any;
 }
 
 pub struct EventsLogger {}
@@ -26,6 +29,10 @@ pub struct EventsLogger {}
 impl EventsSubscriber for EventsLogger {
     fn receive_event(&mut self, time: u32, event: &Event) {
         info!("{time}: {event:?}");
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
@@ -84,6 +91,17 @@ impl EventsPublisher {
         for handler in self.handlers.iter_mut() {
             handler.finish();
         }
+    }
+
+    pub fn get_subscriber<T: EventsSubscriber + 'static>(&mut self) -> Option<&mut T> {
+        let mut result = None;
+        for handler in self.handlers.iter_mut() {
+            match handler.as_any().downcast_mut::<T>() {
+                Some(collector) => result = Some(collector),
+                None => {}
+            };
+        }
+        result
     }
 }
 

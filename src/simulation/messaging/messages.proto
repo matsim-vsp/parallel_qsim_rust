@@ -2,6 +2,10 @@ syntax = "proto3";
 
 package mpi.messages;
 
+message TravelTimesMessage {
+  map<uint64, uint32> travelTimesByLinkId = 1;
+}
+
 // this is a message for the mpi examples
 message ExperimentalMessage {
   uint64 timestamp = 1;

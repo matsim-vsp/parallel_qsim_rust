@@ -7,14 +7,15 @@ use crate::simulation::io::population::{
 };
 use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan, Vehicle,
-    VehicleMessage, VehicleType,
+    Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
+    TravelTimesMessage, Vehicle, VehicleMessage, VehicleType,
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
 use log::debug;
 use prost::Message;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::io::Cursor;
 
 // Include the `messages` module, which is generated from messages.proto.
@@ -64,6 +65,34 @@ impl VehicleMessage {
 
     pub fn deserialize(buffer: &[u8]) -> VehicleMessage {
         VehicleMessage::decode(&mut Cursor::new(buffer)).unwrap()
+    }
+}
+
+impl TravelTimesMessage {
+    pub fn new() -> Self {
+        TravelTimesMessage {
+            travel_times_by_link_id: HashMap::new(),
+        }
+    }
+
+    pub fn from(map: HashMap<u64, u32>) -> Self {
+        TravelTimesMessage {
+            travel_times_by_link_id: map,
+        }
+    }
+
+    pub fn add_travel_time(&mut self, link: u64, travel_time: u32) {
+        self.travel_times_by_link_id.insert(link, travel_time);
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        let mut buffer = Vec::with_capacity(self.encoded_len());
+        self.encode(&mut buffer).unwrap();
+        buffer
+    }
+
+    pub fn deserialize(buffer: &[u8]) -> TravelTimesMessage {
+        TravelTimesMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
@@ -200,15 +229,32 @@ impl Agent {
             .unwrap()
     }
 
-    pub fn push_leg(&mut self, dep_time: Option<u32>, travel_time: Option<u32>, route: Vec<u64>) {
+    pub fn push_leg(
+        &mut self,
+        dep_time: Option<u32>,
+        travel_time: Option<u32>,
+        route: Vec<u64>,
+        start_link: u64,
+        end_link: u64,
+    ) {
+        let simulation_route = match route.is_empty() {
+            true => Route::GenericRoute(GenericRoute {
+                start_link,
+                end_link,
+                trav_time: travel_time.unwrap(),
+                distance: 0.0,
+            }),
+            false => Route::NetworkRoute(NetworkRoute {
+                vehicle_id: self.id,
+                route,
+            }),
+        };
+
         self.plan.as_mut().unwrap().legs.push(Leg {
             mode: "car".to_string(),
             dep_time,
             trav_time: travel_time,
-            route: Some(Route::NetworkRoute(NetworkRoute {
-                vehicle_id: self.id,
-                route,
-            })),
+            route: Some(simulation_route),
         });
     }
 

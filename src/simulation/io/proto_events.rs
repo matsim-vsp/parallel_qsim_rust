@@ -1,6 +1,7 @@
 use crate::simulation::messaging::events::proto::{Event, TimeStep};
 use crate::simulation::messaging::events::EventsSubscriber;
 use prost::Message;
+use std::any::Any;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
 use std::path::Path;
@@ -61,6 +62,10 @@ impl EventsSubscriber for ProtoEventsWriter {
         self.writer
             .flush()
             .expect("Failed to flush buffered writer.");
+    }
+
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
     }
 }
 

@@ -12,25 +12,25 @@ use crate::simulation::network::node::{ExitReason, NodeVehicle};
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
-use log::info;
+use log::{debug, info};
 
-pub struct Simulation<'sim> {
+pub struct Simulation {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: NetworkPartition<Vehicle>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
-    router: Option<Router<'sim>>,
+    router: Option<Box<dyn Router>>,
 }
 
-impl<'sim> Simulation<'sim> {
+impl Simulation {
     pub fn new(
         config: &Config,
         network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
-        router: Option<Router<'sim>>,
+        router: Option<Box<dyn Router>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -66,6 +66,11 @@ impl<'sim> Simulation<'sim> {
             self.terminate_teleportation(now);
             self.move_nodes(now);
             self.send_receive(now);
+
+            if let Some(router) = self.router.as_mut() {
+                router.next_time_step(now, &mut self.events)
+            }
+
             now += 1;
         }
 
@@ -94,7 +99,13 @@ impl<'sim> Simulation<'sim> {
                 let (route, travel_time) = self.find_route(curr_act, next_act);
                 let dep_time = curr_act.end_time;
 
-                agent.push_leg(dep_time, travel_time, route);
+                agent.push_leg(
+                    dep_time,
+                    travel_time,
+                    route,
+                    curr_act.link_id,
+                    next_act.link_id,
+                );
             }
 
             //here, current element counter is going to be increased
@@ -143,16 +154,24 @@ impl<'sim> Simulation<'sim> {
             .router
             .as_mut()
             .unwrap()
-            .query_coordinates(from_act.x, from_act.y, to_act.x, to_act.y);
+            .query_links(from_act.link_id, to_act.link_id);
 
         let route = query_result.path.expect("There is no route!");
-        let trav_time = query_result.travel_time;
-        (route, trav_time)
+        let travel_time = query_result.travel_time;
+
+        if route.is_empty() {
+            debug!("Route between {:?} and {:?} is empty.", from_act, to_act);
+        }
+
+        (route, travel_time)
     }
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap(); // in this case there should always be a link id.
-        let link = self.network.links.get_mut(&link_id).unwrap();
+        let link = self.network.links.get_mut(&link_id).expect(&*format!(
+            "Cannot find link for link_id {:?} and vehicle {:?}",
+            link_id, vehicle
+        ));
 
         if !from_act {
             self.events
@@ -225,7 +244,13 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn send_receive(&mut self, now: u32) {
-        let vehicles = self.message_broker.send_recv(now);
+        let vehicle_update_messages = self.message_broker.send_recv(now);
+
+        let vehicles = vehicle_update_messages
+            .into_iter()
+            .flat_map(|msg| msg.vehicles)
+            .collect::<Vec<Vehicle>>();
+
         for vehicle in vehicles {
             match vehicle.r#type() {
                 VehicleType::Teleported => {
@@ -242,6 +267,7 @@ impl<'sim> Simulation<'sim> {
         let (from, to) = Simulation::process_ids_for_generic_route(route, message_broker);
         from == to
     }
+
     fn process_ids_for_generic_route(
         route: &GenericRoute,
         message_broker: &MpiMessageBroker,
@@ -249,5 +275,9 @@ impl<'sim> Simulation<'sim> {
         let from_rank = message_broker.rank_for_link(route.start_link);
         let to_rank = message_broker.rank_for_link(route.end_link);
         (from_rank, to_rank)
+    }
+
+    fn get_router_ref(&self) -> &dyn Router {
+        self.router.as_ref().unwrap().as_ref()
     }
 }
