@@ -39,4 +39,8 @@ impl NodeVehicle for Vehicle {
     fn is_current_link_last(&self) -> bool {
         self.route_index + 1 >= self.route.len()
     }
+
+    fn mode(&self) -> &str {
+        todo!()
+    }
 }

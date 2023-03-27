@@ -2,9 +2,9 @@ use crate::simulation::config::RoutingMode;
 use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
 use crate::simulation::messaging::messages::proto::Agent;
+use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::network::partitioned_network::Network;
 use std::collections::btree_map::BTreeMap;
-use std::fmt::Debug;
 
 pub struct Population {
     // We use a BTreeMap to ensure deterministic order when iterating over this map.
@@ -19,7 +19,7 @@ impl Population {
         }
     }
 
-    pub fn from_io<V: Debug>(
+    pub fn from_io<V: NodeVehicle>(
         io_population: &IOPopulation,
         id_mappings: &MatsimIdMappings,
         partition: usize,

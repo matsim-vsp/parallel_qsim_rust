@@ -1,5 +1,8 @@
 use crate::simulation::io::network::IOLink;
+use crate::simulation::io::vehicle_definitions::VehicleTypeDefinitions;
 use crate::simulation::network::flow_cap::Flowcap;
+use crate::simulation::network::node::NodeVehicle;
+use log::warn;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -26,7 +29,7 @@ struct VehicleQEntry<V> {
     earliest_exit_time: u32,
 }
 
-impl<V: Debug> LocalLink<V> {
+impl<V: Debug + NodeVehicle> LocalLink<V> {
     pub fn from_io_link(id: usize, link: &IOLink, sample_size: f32) -> Self {
         LocalLink::new(
             id,
@@ -56,8 +59,15 @@ impl<V: Debug> LocalLink<V> {
         }
     }
 
-    pub fn push_vehicle(&mut self, vehicle: V, now: u32) {
-        let earliest_exit_time = now + (self.length / self.freespeed) as u32;
+    pub fn push_vehicle(
+        &mut self,
+        vehicle: V,
+        now: u32,
+        vehicle_type_definitions: Option<&VehicleTypeDefinitions>,
+    ) {
+        let speed = self.get_speed_for_vehicle(&vehicle, vehicle_type_definitions);
+        let duration = (self.length / speed) as u32;
+        let earliest_exit_time = now + duration;
         self.q.push_back(VehicleQEntry {
             vehicle,
             earliest_exit_time,
@@ -84,6 +94,31 @@ impl<V: Debug> LocalLink<V> {
 
     pub fn id(&self) -> usize {
         self.id
+    }
+
+    fn get_speed_for_vehicle(
+        &self,
+        vehicle: &V,
+        vehicle_type_definitions: Option<&VehicleTypeDefinitions>,
+    ) -> f32 {
+        if vehicle_type_definitions.is_none() {
+            return self.freespeed;
+        }
+
+        let vehicle_max_speed = vehicle_type_definitions
+            .as_ref()
+            .unwrap()
+            .get_max_speed_for_mode(vehicle.mode());
+
+        if vehicle_max_speed.is_none() {
+            warn!(
+                "There is no max speed given for vehicle type {:?}. Using freespeed of links.",
+                vehicle.mode()
+            );
+            return self.freespeed;
+        }
+
+        self.freespeed.min(vehicle_max_speed.unwrap())
     }
 }
 
@@ -140,7 +175,7 @@ mod tests {
         let mut link = LocalLink::new(1, 1., 1., 10., vec![], 1.);
         let vehicle = Vehicle::new(veh_id, 1, vec![]);
 
-        link.push_vehicle(vehicle, 0);
+        link.push_vehicle(vehicle, 0, None);
 
         // this should put the vehicle into the queue and update the exit time correctly
         let pushed_vehicle = link.q.front().unwrap();
@@ -156,8 +191,8 @@ mod tests {
         let vehicle1 = Vehicle::new(id1, id1, vec![]);
         let vehicle2 = Vehicle::new(id2, id2, vec![]);
 
-        link.push_vehicle(vehicle1, 0);
-        link.push_vehicle(vehicle2, 0);
+        link.push_vehicle(vehicle1, 0, None);
+        link.push_vehicle(vehicle2, 0, None);
 
         // make sure that vehicles are added ad the end of the queue
         assert_eq!(2, link.q.len());
@@ -178,7 +213,7 @@ mod tests {
         let mut n: u32 = 0;
 
         while n < 10 {
-            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n);
+            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n, None);
             n += 1;
         }
 
@@ -198,7 +233,7 @@ mod tests {
         let mut n: u32 = 0;
 
         while n < 10 {
-            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n);
+            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n, None);
             n += 1;
         }
 
@@ -215,8 +250,8 @@ mod tests {
         // link has a capacity of 1 * 0.1 per second
         let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 0.1);
 
-        link.push_vehicle(Vehicle::new(1, 1, vec![]), 0);
-        link.push_vehicle(Vehicle::new(2, 2, vec![]), 0);
+        link.push_vehicle(Vehicle::new(1, 1, vec![]), 0, None);
+        link.push_vehicle(Vehicle::new(2, 2, vec![]), 0, None);
 
         let popped = link.pop_front(10);
         assert_eq!(1, popped.len());

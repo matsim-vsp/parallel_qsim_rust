@@ -14,6 +14,8 @@ pub struct Config {
     pub network_file: String,
     #[arg(long)]
     pub population_file: String,
+    #[arg(long)]
+    pub vehicle_definitions_file: Option<String>,
     #[arg(long, value_enum, default_value_t=RoutingMode::UsePlans)]
     pub routing_mode: RoutingMode,
     #[arg(long, default_value = "./")]
@@ -42,6 +44,7 @@ pub struct ConfigBuilder {
     num_parts: usize,
     network_file: String,
     population_file: String,
+    vehicle_definitions_file: Option<String>,
     routing_mode: RoutingMode,
     output_dir: String,
     events_mode: String,
@@ -53,6 +56,7 @@ impl ConfigBuilder {
         ConfigBuilder {
             network_file: String::from(""),
             population_file: String::from(""),
+            vehicle_definitions_file: None,
             output_dir: String::from("./"),
             events_mode: String::from("file"),
             num_parts: 0,
@@ -108,6 +112,14 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn set_vehicle_definitions_file(
+        mut self,
+        vehicle_definitions_file: Option<String>,
+    ) -> Self {
+        self.vehicle_definitions_file = vehicle_definitions_file;
+        self
+    }
+
     pub fn build(self) -> Config {
         Config {
             start_time: self.start_time,
@@ -115,6 +127,7 @@ impl ConfigBuilder {
             num_parts: self.num_parts,
             network_file: self.network_file,
             population_file: self.population_file,
+            vehicle_definitions_file: self.vehicle_definitions_file,
             routing_mode: self.routing_mode,
             output_dir: self.output_dir,
             events_mode: self.events_mode,
