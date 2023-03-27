@@ -87,6 +87,24 @@ impl IOVehicleDefinitions {
 }
 
 impl VehicleTypeDefinitions {
+    pub fn new() -> VehicleTypeDefinitions {
+        VehicleTypeDefinitions {
+            vehicle_types: vec![],
+        }
+    }
+
+    pub fn add_vehicle_type(
+        mut self,
+        id: String,
+        maximum_velocity: Option<f32>,
+    ) -> VehicleTypeDefinitions {
+        self.vehicle_types.push(VehicleType {
+            id,
+            maximum_velocity,
+        });
+        self
+    }
+
     pub fn from_io(io: IOVehicleDefinitions) -> VehicleTypeDefinitions {
         let vehicle_types = io
             .vehicle_types

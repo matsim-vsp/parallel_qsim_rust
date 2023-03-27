@@ -166,6 +166,7 @@ impl<V: Debug> SplitInLink<V> {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::io::vehicle_definitions::VehicleTypeDefinitions;
     use crate::simulation::network::link::LocalLink;
     use crate::simulation::network::vehicles::Vehicle;
 
@@ -173,7 +174,7 @@ mod tests {
     fn local_link_push_single_veh() {
         let veh_id = 42;
         let mut link = LocalLink::new(1, 1., 1., 10., vec![], 1.);
-        let vehicle = Vehicle::new(veh_id, 1, vec![]);
+        let vehicle = Vehicle::new(veh_id, 1, vec![], String::from("car"));
 
         link.push_vehicle(vehicle, 0, None);
 
@@ -188,8 +189,8 @@ mod tests {
         let id1 = 42;
         let id2 = 43;
         let mut link = LocalLink::new(1, 1., 1., 11.8, vec![], 1.);
-        let vehicle1 = Vehicle::new(id1, id1, vec![]);
-        let vehicle2 = Vehicle::new(id2, id2, vec![]);
+        let vehicle1 = Vehicle::new(id1, id1, vec![], String::from("car"));
+        let vehicle2 = Vehicle::new(id2, id2, vec![], String::from("car"));
 
         link.push_vehicle(vehicle1, 0, None);
         link.push_vehicle(vehicle2, 0, None);
@@ -213,7 +214,11 @@ mod tests {
         let mut n: u32 = 0;
 
         while n < 10 {
-            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n, None);
+            link.push_vehicle(
+                Vehicle::new(n as usize, n as usize, vec![], String::from("car")),
+                n,
+                None,
+            );
             n += 1;
         }
 
@@ -233,7 +238,11 @@ mod tests {
         let mut n: u32 = 0;
 
         while n < 10 {
-            link.push_vehicle(Vehicle::new(n as usize, n as usize, vec![]), n, None);
+            link.push_vehicle(
+                Vehicle::new(n as usize, n as usize, vec![], String::from("car")),
+                n,
+                None,
+            );
             n += 1;
         }
 
@@ -250,8 +259,8 @@ mod tests {
         // link has a capacity of 1 * 0.1 per second
         let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 0.1);
 
-        link.push_vehicle(Vehicle::new(1, 1, vec![]), 0, None);
-        link.push_vehicle(Vehicle::new(2, 2, vec![]), 0, None);
+        link.push_vehicle(Vehicle::new(1, 1, vec![], String::from("car")), 0, None);
+        link.push_vehicle(Vehicle::new(2, 2, vec![], String::from("car")), 0, None);
 
         let popped = link.pop_front(10);
         assert_eq!(1, popped.len());
@@ -263,5 +272,39 @@ mod tests {
 
         let popped_3 = link.pop_front(20);
         assert_eq!(1, popped_3.len());
+    }
+
+    #[test]
+    fn local_link_with_vehicle_type_definitions() {
+        let veh_id_car = 42;
+        let veh_id_buggy = 43;
+        let veh_id_bike = 44;
+        let mut link = LocalLink::new(1, 1., 10., 100., vec![], 1.);
+
+        let vehicle_type_definitions = VehicleTypeDefinitions::new()
+            .add_vehicle_type("car".to_string(), Some(20.))
+            .add_vehicle_type("buggy".to_string(), Some(10.))
+            .add_vehicle_type("bike".to_string(), Some(5.));
+
+        let car = Vehicle::new(veh_id_car, 1, vec![], String::from("car"));
+        let buggy = Vehicle::new(veh_id_buggy, 1, vec![], String::from("buggy"));
+        let bike = Vehicle::new(veh_id_bike, 1, vec![], String::from("bike"));
+
+        link.push_vehicle(car, 0, Some(&vehicle_type_definitions));
+        link.push_vehicle(buggy, 0, Some(&vehicle_type_definitions));
+        link.push_vehicle(bike, 0, Some(&vehicle_type_definitions));
+
+        // this should put the vehicle into the queue and update the exit time correctly
+        let pushed_vehicle_car = link.q.get(0).unwrap();
+        assert_eq!(veh_id_car, pushed_vehicle_car.vehicle.id);
+        assert_eq!(10, pushed_vehicle_car.earliest_exit_time);
+
+        let pushed_vehicle_buggy = link.q.get(1).unwrap();
+        assert_eq!(veh_id_buggy, pushed_vehicle_buggy.vehicle.id);
+        assert_eq!(10, pushed_vehicle_buggy.earliest_exit_time);
+
+        let pushed_vehicle_bike = link.q.get(2).unwrap();
+        assert_eq!(veh_id_bike, pushed_vehicle_bike.vehicle.id);
+        assert_eq!(20, pushed_vehicle_bike.earliest_exit_time);
     }
 }
