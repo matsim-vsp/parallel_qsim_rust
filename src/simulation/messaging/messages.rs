@@ -158,7 +158,7 @@ impl NodeVehicle for Vehicle {
     }
 
     fn mode(&self) -> &str {
-        &self.mode
+        self.mode.as_str()
     }
 }
 

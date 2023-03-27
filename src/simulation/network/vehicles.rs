@@ -9,16 +9,18 @@ pub struct Vehicle {
     pub driver_id: usize,
     //pub exit_time: u32,
     pub route_index: usize,
+    pub mode: String,
 }
 
 impl Vehicle {
-    pub fn new(id: usize, driver_id: usize, route: Vec<usize>) -> Vehicle {
+    pub fn new(id: usize, driver_id: usize, route: Vec<usize>, mode: String) -> Vehicle {
         Vehicle {
             id,
             driver_id,
             //exit_time: 0,
             route_index: 0,
             route,
+            mode,
         }
     }
 }
@@ -41,6 +43,6 @@ impl NodeVehicle for Vehicle {
     }
 
     fn mode(&self) -> &str {
-        todo!()
+        self.mode.as_str()
     }
 }

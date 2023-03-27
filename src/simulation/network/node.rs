@@ -134,7 +134,7 @@ mod tests {
     fn vehicle_in() {
         let mut node = Node::new(1);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1.);
-        let vehicle = Vehicle::new(1, 1, vec![1]);
+        let vehicle = Vehicle::new(1, 1, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
@@ -153,7 +153,7 @@ mod tests {
         let mut node = Node::new(1);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1.);
         let local_out_link = LocalLink::new(2, 20., 40., 20., vec![], 1.);
-        let vehicle = Vehicle::new(1, 1, vec![1, 2]);
+        let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(local_out_link.id());
@@ -178,7 +178,7 @@ mod tests {
         let mut node = Node::new(1);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1.);
         let split_out_link = SplitOutLink::new(2, 2);
-        let vehicle = Vehicle::new(1, 1, vec![1, 2]);
+        let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(split_out_link.id());
@@ -201,8 +201,8 @@ mod tests {
     fn vehicles_in() {
         let mut node = Node::new(1);
         let mut local_in_link = LocalLink::new(1, 3600., 40., 20., vec![], 1.);
-        let vehicle_1 = Vehicle::new(1, 1, vec![1]);
-        let vehicle_2 = Vehicle::new(2, 2, vec![1]);
+        let vehicle_1 = Vehicle::new(1, 1, vec![1], String::from("car"));
+        let vehicle_2 = Vehicle::new(2, 2, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle_1, 1, None);
         local_in_link.push_vehicle(vehicle_2, 1, None);
         node.add_in_link(local_in_link.id());
@@ -234,8 +234,8 @@ mod tests {
         let mut node = Node::new(1);
         let mut local_in_link = LocalLink::new(1, 10000., 40., 20., vec![], 1.);
         let local_out_link = LocalLink::new(2, 10000., 40., 20., vec![], 1.);
-        let vehicle_1 = Vehicle::new(1, 1, vec![1, 2]);
-        let vehicle_2 = Vehicle::new(2, 2, vec![1, 2]);
+        let vehicle_1 = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
+        let vehicle_2 = Vehicle::new(2, 2, vec![1, 2], String::from("car"));
         local_in_link.push_vehicle(vehicle_1, 1, None);
         local_in_link.push_vehicle(vehicle_2, 1, None);
         node.add_in_link(local_in_link.id());
