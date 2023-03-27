@@ -3,6 +3,7 @@ use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::network::IONetwork;
 use crate::simulation::io::population::IOPopulation;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
+use crate::simulation::io::vehicle_definitions::{IOVehicleDefinitions, VehicleTypeDefinitions};
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::messaging::messages::proto::Vehicle;
@@ -94,6 +95,14 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
+    let mut vehicle_type_definitions: Option<VehicleTypeDefinitions> = None;
+    if let Some(vehicle_definitions_file_path) = &config.vehicle_definitions_file {
+        let io_vehicle_type_definitions =
+            IOVehicleDefinitions::from_file(vehicle_definitions_file_path.as_ref());
+        vehicle_type_definitions =
+            Some(VehicleTypeDefinitions::from_io(io_vehicle_type_definitions));
+    }
+
     let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
     let mut router: Option<Box<dyn Router>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
@@ -113,6 +122,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         message_broker,
         events,
         router,
+        vehicle_type_definitions,
     );
 
     let start = Instant::now();

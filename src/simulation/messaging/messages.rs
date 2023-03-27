@@ -112,12 +112,13 @@ impl Ord for VehicleMessage {
 }
 
 impl Vehicle {
-    pub fn new(id: u64, veh_type: VehicleType, agent: Agent) -> Vehicle {
+    pub fn new(id: u64, veh_type: VehicleType, mode: String, agent: Agent) -> Vehicle {
         Vehicle {
             id,
             agent: Some(agent),
             curr_route_elem: 0,
             r#type: veh_type as i32,
+            mode,
         }
     }
 
@@ -154,6 +155,10 @@ impl NodeVehicle for Vehicle {
             Route::GenericRoute(_) => true,
             Route::NetworkRoute(route) => self.curr_route_elem + 1 >= route.route.len() as u32,
         }
+    }
+
+    fn mode(&self) -> &str {
+        &self.mode
     }
 }
 

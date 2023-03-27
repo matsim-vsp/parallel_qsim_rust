@@ -1,4 +1,5 @@
 use crate::simulation::config::Config;
+use crate::simulation::io::vehicle_definitions::VehicleTypeDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
@@ -21,6 +22,7 @@ pub struct Simulation {
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
     router: Option<Box<dyn Router>>,
+    vehicle_type_definitions: Option<VehicleTypeDefinitions>,
 }
 
 impl Simulation {
@@ -31,6 +33,7 @@ impl Simulation {
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
         router: Option<Box<dyn Router>>,
+        vehicle_type_definitions: Option<VehicleTypeDefinitions>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -44,6 +47,7 @@ impl Simulation {
             message_broker,
             events,
             router,
+            vehicle_type_definitions,
         }
     }
 
@@ -123,10 +127,20 @@ impl Simulation {
                     );
 
                     if Simulation::is_local_route(route, &self.message_broker) {
-                        let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent);
+                        let veh = Vehicle::new(
+                            agent.id,
+                            VehicleType::Teleported,
+                            leg.mode.clone(),
+                            agent,
+                        );
                         self.teleportation_q.add(veh, now);
                     } else {
-                        let veh = Vehicle::new(agent.id, VehicleType::Teleported, agent);
+                        let veh = Vehicle::new(
+                            agent.id,
+                            VehicleType::Teleported,
+                            leg.mode.clone(),
+                            agent,
+                        );
                         self.message_broker.add_veh(veh, now);
                     }
                 }
@@ -142,7 +156,12 @@ impl Simulation {
                         &Event::new_person_enters_veh(agent_id, route.vehicle_id),
                     );
 
-                    let veh = Vehicle::new(route.vehicle_id, VehicleType::Network, agent);
+                    let veh = Vehicle::new(
+                        route.vehicle_id,
+                        VehicleType::Network,
+                        leg.mode.clone(),
+                        agent,
+                    );
                     self.veh_onto_network(veh, true, now);
                 }
             }
@@ -178,10 +197,12 @@ impl Simulation {
                 .publish_event(now, &Event::new_link_enter(link_id as u64, vehicle.id));
         }
         match link {
-            Link::LocalLink(link) => link.push_vehicle(vehicle, now),
+            Link::LocalLink(link) => {
+                link.push_vehicle(vehicle, now, self.vehicle_type_definitions.as_ref())
+            }
             Link::SplitInLink(in_link) => {
                 let local_link = in_link.local_link_mut();
-                local_link.push_vehicle(vehicle, now)
+                local_link.push_vehicle(vehicle, now, self.vehicle_type_definitions.as_ref())
             }
             Link::SplitOutLink(_) => {
                 panic!("Vehicles should not start on out links...")
@@ -208,8 +229,12 @@ impl Simulation {
 
     fn move_nodes(&mut self, now: u32) {
         for node in self.network.nodes.values() {
-            let exited_vehicles =
-                node.move_vehicles(&mut self.network.links, now, &mut self.events);
+            let exited_vehicles = node.move_vehicles(
+                &mut self.network.links,
+                now,
+                &mut self.events,
+                self.vehicle_type_definitions.as_ref(),
+            );
 
             for exit_reason in exited_vehicles {
                 match exit_reason {
