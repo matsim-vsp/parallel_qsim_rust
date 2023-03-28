@@ -11,7 +11,6 @@ use crate::simulation::messaging::messages::proto::{
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
-use log::debug;
 use prost::Message;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -311,12 +310,12 @@ impl Plan {
         };
 
         match routing_mode {
-            RoutingMode::UsePlans => Plan::fill_plan_no_routing(io_plan, id_mappings),
-            RoutingMode::AdHoc => Plan::fill_plan_with_adhoc_routing(io_plan, id_mappings),
+            RoutingMode::UsePlans => Plan::get_full_plan_no_routing(io_plan, id_mappings),
+            RoutingMode::AdHoc => Plan::get_full_plan_for_routing(io_plan, id_mappings),
         }
     }
 
-    fn fill_plan_no_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+    fn get_full_plan_no_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
@@ -339,25 +338,162 @@ impl Plan {
         result
     }
 
-    fn fill_plan_with_adhoc_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+    fn get_full_plan_for_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+        let plan_type = Plan::get_plan_type(io_plan);
+        let window_size = plan_type.window_size();
+        let step_size = plan_type.step_size();
+        assert_eq!(
+            (io_plan.elements.len() - 1) % step_size,
+            0,
+            "The number of elements in the plan is wrong."
+        );
+
         let mut result = Plan::new();
 
-        for element in &io_plan.elements {
-            match element {
-                IOPlanElement::Activity(io_act) => {
-                    let act = Activity::from_io(io_act, &id_mappings.links);
-                    result.acts.push(act);
-                }
-                IOPlanElement::Leg(io_leg) => {
-                    debug!(
-                        "Internal routing is activated. The leg {:?} will be discarded.",
-                        io_leg
-                    )
-                }
+        let plan_windows = io_plan.elements.windows(window_size);
+        let number_of_plan_windows = plan_windows.len();
+        for (i, window) in plan_windows.into_iter().step_by(step_size).enumerate() {
+            let curr_activity = IOPlanElement::unwrap_activity(window.first());
+            let next_activity = IOPlanElement::unwrap_activity(window.last());
+            let mut access_walk = None;
+            let mut access_interaction = None;
+            let mut main_leg = None;
+            let mut egress_interaction = None;
+            let mut egress_walk = None;
+
+            if window_size == 3 {
+                main_leg = IOPlanElement::unwrap_leg(window.get(1));
+            }
+
+            if window_size == 7 {
+                access_walk = IOPlanElement::unwrap_leg(window.get(1));
+                access_interaction = IOPlanElement::unwrap_activity(window.get(2));
+                main_leg = IOPlanElement::unwrap_leg(window.get(3));
+                egress_interaction = IOPlanElement::unwrap_activity(window.get(4));
+                egress_walk = IOPlanElement::unwrap_leg(window.get(5));
+            }
+
+            let curr_act_link_id = *id_mappings
+                .links
+                .get_internal(curr_activity.unwrap().link.as_str())
+                .unwrap() as u64;
+            let next_act_link_id = *id_mappings
+                .links
+                .get_internal(next_activity.unwrap().link.as_str())
+                .unwrap() as u64;
+
+            // current activity
+            let act = Activity::from_io(curr_activity.unwrap(), &id_mappings.links);
+            result.acts.push(act);
+
+            // access walk and interaction
+            Self::insert_access_or_egress(
+                id_mappings,
+                &mut result,
+                access_walk,
+                access_interaction,
+                curr_act_link_id,
+            );
+
+            // main leg
+            Self::insert_main_leg(&mut result, main_leg);
+
+            // egress interaction and walk
+            Self::insert_access_or_egress(
+                id_mappings,
+                &mut result,
+                egress_walk,
+                egress_interaction,
+                next_act_link_id,
+            );
+
+            // last activity
+            if i == number_of_plan_windows - 1 {
+                let act = Activity::from_io(next_activity.unwrap(), &id_mappings.links);
+                result.acts.push(act);
             }
         }
 
         result
+    }
+
+    fn get_plan_type(io_plan: &IOPlan) -> PlanType {
+        if let IOPlanElement::Activity(_) = io_plan.elements.get(1).unwrap() {
+            return PlanType::ActivitiesOnly;
+        }
+
+        if let IOPlanElement::Activity(a) = io_plan.elements.get(2).unwrap() {
+            return if Plan::is_interaction_activity(a) {
+                PlanType::ActivitiesAndMainLegsWithInteractionAndWalk
+            } else {
+                PlanType::ActivitiesAndMainLeg
+            };
+        } else {
+            panic!("The third element should never be a leg.")
+        }
+    }
+
+    fn is_interaction_activity(io_activity: &IOActivity) -> bool {
+        io_activity.r#type.contains("interaction")
+    }
+
+    fn insert_main_leg(result: &mut Plan, main_leg: Option<&IOLeg>) {
+        if main_leg.is_some() {
+            result
+                .legs
+                .push(Leg::only_with_mode(main_leg.unwrap().mode.as_str()))
+        } else {
+            result.legs.push(Leg::only_with_mode("car")) //TODO
+        }
+    }
+
+    fn insert_access_or_egress(
+        id_mappings: &MatsimIdMappings,
+        result: &mut Plan,
+        leg: Option<&IOLeg>,
+        interaction: Option<&IOActivity>,
+        activity_link_id: u64,
+    ) {
+        if leg.is_some() && interaction.is_some() {
+            result.legs.push(Leg::from_io(leg.unwrap(), id_mappings));
+            result
+                .acts
+                .push(Activity::from_io(interaction.unwrap(), &id_mappings.links))
+        } else {
+            let access_walk_leg = Leg::only_with_mode("walk");
+            result.legs.push(access_walk_leg);
+
+            let access_interaction_act = Activity {
+                act_type: "car interaction".to_string(), //TODO
+                link_id: activity_link_id,
+                x: 0.0, //TODO filled by routing
+                y: 0.0, //TODO filled by routing
+                start_time: None,
+                end_time: None,
+                max_dur: None,
+            };
+            result.acts.push(access_interaction_act);
+        }
+    }
+}
+
+enum PlanType {
+    ActivitiesOnly,
+    ActivitiesAndMainLeg,
+    ActivitiesAndMainLegsWithInteractionAndWalk,
+}
+
+impl PlanType {
+    fn window_size(&self) -> usize {
+        match self {
+            PlanType::ActivitiesOnly => 2,
+            PlanType::ActivitiesAndMainLeg => 3,
+            PlanType::ActivitiesAndMainLegsWithInteractionAndWalk => 7,
+        }
+    }
+
+    fn step_size(&self) -> usize {
+        self.window_size() - 1
     }
 }
 
@@ -395,6 +531,15 @@ impl Leg {
             mode: io_leg.mode.clone(),
             trav_time: parse_time_opt(&io_leg.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
+        }
+    }
+
+    fn only_with_mode(mode: &str) -> Self {
+        Self {
+            mode: mode.to_string(),
+            dep_time: None,
+            trav_time: None,
+            route: None,
         }
     }
 }

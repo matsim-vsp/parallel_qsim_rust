@@ -48,6 +48,28 @@ pub enum IOPlanElement {
     Leg(IOLeg),
 }
 
+impl IOPlanElement {
+    pub fn unwrap_activity(element: Option<&IOPlanElement>) -> Option<&IOActivity> {
+        element.map_or(None, |e| {
+            if let IOPlanElement::Activity(activity) = e {
+                Some(activity)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn unwrap_leg(element: Option<&IOPlanElement>) -> Option<&IOLeg> {
+        element.map_or(None, |e| {
+            if let IOPlanElement::Leg(leg) = e {
+                Some(leg)
+            } else {
+                None
+            }
+        })
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOPlan {
     pub selected: bool,
