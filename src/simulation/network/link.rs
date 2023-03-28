@@ -1,8 +1,8 @@
 use crate::simulation::io::network::IOLink;
-use crate::simulation::io::vehicle_definitions::VehicleTypeDefinitions;
+use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::node::NodeVehicle;
-use log::warn;
+use log::{info, warn};
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -63,9 +63,9 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
         &mut self,
         vehicle: V,
         now: u32,
-        vehicle_type_definitions: Option<&VehicleTypeDefinitions>,
+        vehicle_definitions: Option<&VehicleDefinitions>,
     ) {
-        let speed = self.get_speed_for_vehicle(&vehicle, vehicle_type_definitions);
+        let speed = self.get_speed_for_vehicle(&vehicle, vehicle_definitions);
         let duration = (self.length / speed) as u32;
         let earliest_exit_time = now + duration;
         self.q.push_back(VehicleQEntry {
@@ -99,13 +99,13 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
     fn get_speed_for_vehicle(
         &self,
         vehicle: &V,
-        vehicle_type_definitions: Option<&VehicleTypeDefinitions>,
+        vehicle_definitions: Option<&VehicleDefinitions>,
     ) -> f32 {
-        if vehicle_type_definitions.is_none() {
+        if vehicle_definitions.is_none() {
             return self.freespeed;
         }
 
-        let vehicle_max_speed = vehicle_type_definitions
+        let vehicle_max_speed = vehicle_definitions
             .as_ref()
             .unwrap()
             .get_max_speed_for_mode(vehicle.mode());
@@ -166,7 +166,7 @@ impl<V: Debug> SplitInLink<V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::io::vehicle_definitions::VehicleTypeDefinitions;
+    use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
     use crate::simulation::network::link::LocalLink;
     use crate::simulation::network::vehicles::Vehicle;
 
@@ -275,24 +275,21 @@ mod tests {
     }
 
     #[test]
-    fn local_link_with_vehicle_type_definitions() {
+    fn local_link_with_vehicle_definitions() {
         let veh_id_car = 42;
         let veh_id_buggy = 43;
         let veh_id_bike = 44;
         let mut link = LocalLink::new(1, 1., 10., 100., vec![], 1.);
 
-        let vehicle_type_definitions = VehicleTypeDefinitions::new()
-            .add_vehicle_type("car".to_string(), Some(20.))
-            .add_vehicle_type("buggy".to_string(), Some(10.))
-            .add_vehicle_type("bike".to_string(), Some(5.));
+        let vehicle_definitions = create_three_vehicle_definitions();
 
         let car = Vehicle::new(veh_id_car, 1, vec![], String::from("car"));
         let buggy = Vehicle::new(veh_id_buggy, 1, vec![], String::from("buggy"));
         let bike = Vehicle::new(veh_id_bike, 1, vec![], String::from("bike"));
 
-        link.push_vehicle(car, 0, Some(&vehicle_type_definitions));
-        link.push_vehicle(buggy, 0, Some(&vehicle_type_definitions));
-        link.push_vehicle(bike, 0, Some(&vehicle_type_definitions));
+        link.push_vehicle(car, 0, Some(&vehicle_definitions));
+        link.push_vehicle(buggy, 0, Some(&vehicle_definitions));
+        link.push_vehicle(bike, 0, Some(&vehicle_definitions));
 
         // this should put the vehicle into the queue and update the exit time correctly
         let pushed_vehicle_car = link.q.get(0).unwrap();
@@ -306,5 +303,45 @@ mod tests {
         let pushed_vehicle_bike = link.q.get(2).unwrap();
         assert_eq!(veh_id_bike, pushed_vehicle_bike.vehicle.id);
         assert_eq!(20, pushed_vehicle_bike.earliest_exit_time);
+    }
+
+    #[test]
+    fn local_link_pop_with_vehicle_definitions() {
+        let veh_id_car = 42;
+        let veh_id_buggy = 43;
+        let veh_id_bike = 44;
+        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 1.);
+
+        let vehicle_definitions = create_three_vehicle_definitions();
+
+        let car = Vehicle::new(veh_id_car, 1, vec![], String::from("car"));
+        let buggy = Vehicle::new(veh_id_buggy, 1, vec![], String::from("buggy"));
+        let bike = Vehicle::new(veh_id_bike, 1, vec![], String::from("bike"));
+
+        link.push_vehicle(bike, 0, Some(&vehicle_definitions));
+        link.push_vehicle(buggy, 0, Some(&vehicle_definitions));
+        link.push_vehicle(car, 0, Some(&vehicle_definitions));
+
+        let popped = link.pop_front(10);
+        assert_eq!(0, popped.len());
+
+        let popped_2 = link.pop_front(20);
+        assert_eq!(1, popped_2.len());
+        assert!(popped_2.first().unwrap().mode.eq("bike"));
+
+        let popped_3 = link.pop_front(21);
+        assert_eq!(1, popped_3.len());
+        assert!(popped_3.first().unwrap().mode.eq("buggy"));
+
+        let popped_4 = link.pop_front(22);
+        assert_eq!(1, popped_4.len());
+        assert!(popped_4.first().unwrap().mode.eq("car"));
+    }
+
+    fn create_three_vehicle_definitions() -> VehicleDefinitions {
+        VehicleDefinitions::new()
+            .add_vehicle_type("car".to_string(), Some(20.))
+            .add_vehicle_type("buggy".to_string(), Some(10.))
+            .add_vehicle_type("bike".to_string(), Some(5.))
     }
 }

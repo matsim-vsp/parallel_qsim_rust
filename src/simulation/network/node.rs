@@ -1,4 +1,4 @@
-use crate::simulation::io::vehicle_definitions::VehicleTypeDefinitions;
+use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::link::Link;
@@ -47,7 +47,7 @@ impl Node {
         links: &mut BTreeMap<usize, Link<V>>,
         now: u32,
         events: &mut EventsPublisher,
-        vehicle_type_definitions: Option<&VehicleTypeDefinitions>,
+        vehicle_definitions: Option<&VehicleDefinitions>,
     ) -> Vec<ExitReason<V>> {
         let mut exited_vehicles = Vec::new();
 
@@ -77,7 +77,7 @@ impl Node {
                             &mut exited_vehicles,
                             now,
                             events,
-                            vehicle_type_definitions,
+                            vehicle_definitions,
                         );
                     }
                 }
@@ -94,7 +94,7 @@ impl Node {
         exited_vehicles: &mut Vec<ExitReason<V>>,
         now: u32,
         events: &mut EventsPublisher,
-        vehicle_type_definitions: Option<&VehicleTypeDefinitions>,
+        vehicle_definitions: Option<&VehicleDefinitions>,
     ) {
         match links.get_mut(&out_link_id).unwrap() {
             Link::LocalLink(local_link) => {
@@ -102,7 +102,7 @@ impl Node {
                     now,
                     &Event::new_link_enter(local_link.id() as u64, vehicle.id() as u64),
                 );
-                local_link.push_vehicle(vehicle, now, vehicle_type_definitions);
+                local_link.push_vehicle(vehicle, now, vehicle_definitions);
             }
             Link::SplitOutLink(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
             Link::SplitInLink(_) => {

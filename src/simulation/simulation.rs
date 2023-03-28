@@ -1,5 +1,5 @@
 use crate::simulation::config::Config;
-use crate::simulation::io::vehicle_definitions::VehicleTypeDefinitions;
+use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
@@ -22,7 +22,7 @@ pub struct Simulation {
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
     router: Option<Box<dyn Router>>,
-    vehicle_type_definitions: Option<VehicleTypeDefinitions>,
+    vehicle_definitions: Option<VehicleDefinitions>,
 }
 
 impl Simulation {
@@ -33,7 +33,7 @@ impl Simulation {
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
         router: Option<Box<dyn Router>>,
-        vehicle_type_definitions: Option<VehicleTypeDefinitions>,
+        vehicle_definitions: Option<VehicleDefinitions>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -47,7 +47,7 @@ impl Simulation {
             message_broker,
             events,
             router,
-            vehicle_type_definitions,
+            vehicle_definitions,
         }
     }
 
@@ -198,11 +198,11 @@ impl Simulation {
         }
         match link {
             Link::LocalLink(link) => {
-                link.push_vehicle(vehicle, now, self.vehicle_type_definitions.as_ref())
+                link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
             }
             Link::SplitInLink(in_link) => {
                 let local_link = in_link.local_link_mut();
-                local_link.push_vehicle(vehicle, now, self.vehicle_type_definitions.as_ref())
+                local_link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
             }
             Link::SplitOutLink(_) => {
                 panic!("Vehicles should not start on out links...")
@@ -233,7 +233,7 @@ impl Simulation {
                 &mut self.network.links,
                 now,
                 &mut self.events,
-                self.vehicle_type_definitions.as_ref(),
+                self.vehicle_definitions.as_ref(),
             );
 
             for exit_reason in exited_vehicles {

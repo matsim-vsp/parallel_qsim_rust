@@ -76,7 +76,7 @@ pub struct VehicleType {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct VehicleTypeDefinitions {
+pub struct VehicleDefinitions {
     pub vehicle_types: Vec<VehicleType>,
 }
 
@@ -86,9 +86,9 @@ impl IOVehicleDefinitions {
     }
 }
 
-impl VehicleTypeDefinitions {
-    pub fn new() -> VehicleTypeDefinitions {
-        VehicleTypeDefinitions {
+impl VehicleDefinitions {
+    pub fn new() -> VehicleDefinitions {
+        VehicleDefinitions {
             vehicle_types: vec![],
         }
     }
@@ -97,7 +97,7 @@ impl VehicleTypeDefinitions {
         mut self,
         id: String,
         maximum_velocity: Option<f32>,
-    ) -> VehicleTypeDefinitions {
+    ) -> VehicleDefinitions {
         self.vehicle_types.push(VehicleType {
             id,
             maximum_velocity,
@@ -105,13 +105,13 @@ impl VehicleTypeDefinitions {
         self
     }
 
-    pub fn from_io(io: IOVehicleDefinitions) -> VehicleTypeDefinitions {
+    pub fn from_io(io: IOVehicleDefinitions) -> VehicleDefinitions {
         let vehicle_types = io
             .vehicle_types
             .into_iter()
-            .map(|t| VehicleTypeDefinitions::convert_io_vehicle_type(t))
+            .map(|t| VehicleDefinitions::convert_io_vehicle_type(t))
             .collect();
-        VehicleTypeDefinitions { vehicle_types }
+        VehicleDefinitions { vehicle_types }
     }
 
     fn convert_io_vehicle_type(io: IOVehicleType) -> VehicleType {
@@ -155,7 +155,7 @@ impl VehicleTypeDefinitions {
 #[cfg(test)]
 mod test {
     use crate::simulation::io::vehicle_definitions::{
-        IOVehicleDefinitions, VehicleType, VehicleTypeDefinitions,
+        IOVehicleDefinitions, VehicleDefinitions, VehicleType,
     };
     use quick_xml::de::from_str;
 
@@ -186,10 +186,10 @@ mod test {
             "#
         ).unwrap();
 
-        let vehicle_type_definitions = VehicleTypeDefinitions::from_io(io_definitions);
+        let vehicle_definitions = VehicleDefinitions::from_io(io_definitions);
         assert_eq!(
-            vehicle_type_definitions,
-            VehicleTypeDefinitions {
+            vehicle_definitions,
+            VehicleDefinitions {
                 vehicle_types: vec![
                     VehicleType {
                         id: "car".to_string(),
