@@ -91,8 +91,10 @@ pub fn run_mpi_simulation_and_convert_events(
     population_file: &str,
     output_dir: &str,
     routing_mode: &str,
+    vehicle_definitions_file: Option<&str>,
 ) {
-    let mut child = Command::new("cargo")
+    let mut command = Command::new("cargo");
+    command
         .arg("mpirun")
         .arg("-n")
         .arg(format!("{}", number_of_parts))
@@ -106,9 +108,15 @@ pub fn run_mpi_simulation_and_convert_events(
         .arg("--output-dir")
         .arg(output_dir)
         .arg("--routing-mode")
-        .arg(routing_mode)
-        .spawn()
-        .unwrap();
+        .arg(routing_mode);
+
+    if let Some(vehicle_definitions) = vehicle_definitions_file {
+        command
+            .arg("--vehicle-definitions-file")
+            .arg(vehicle_definitions);
+    }
+
+    let mut child = command.spawn().unwrap();
 
     let simulation_status = match child.wait_timeout(Duration::from_secs(15)).unwrap() {
         None => {

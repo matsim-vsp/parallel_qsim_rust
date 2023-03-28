@@ -13,6 +13,7 @@ fn test_adhoc_routing_no_updates() {
         "assets/adhoc_routing/no_updates/agents_no_leg.xml",
         output_dir,
         "ad-hoc",
+        None,
     );
     compare_events(output_dir, "tests/resources/adhoc_routing/no_updates")
 }
@@ -27,6 +28,7 @@ fn test_adhoc_routing_with_updates() {
         "assets/adhoc_routing/with_updates/agents_no_leg.xml",
         output_dir,
         "ad-hoc",
+        None,
     );
     compare_events(output_dir, "tests/resources/adhoc_routing/with_updates")
 }

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<events version="1.0">
+<event time="32400" type="actend" person="0" link="0" actType="home_28800.0" />
+<event time="32400" type="departure" person="0" link="0" legMode="bike" />
+<event time="32400" type="PersonEntersVehicle" person="0" vehicle="0" />
+<event time="32420" type="actend" person="1" link="0" actType="home_28800.0" />
+<event time="32420" type="departure" person="1" link="0" legMode="car" />
+<event time="32420" type="PersonEntersVehicle" person="1" vehicle="1" />
+<event time="32420" type="left link" link="0" vehicle="0" />
+<event time="32420" type="entered link" link="1" vehicle="0" />
+<event time="32430" type="left link" link="0" vehicle="1" />
+<event time="32430" type="entered link" link="1" vehicle="1" />
+<event time="32512" type="actend" person="2" link="0" actType="home_28800.0" />
+<event time="32512" type="departure" person="2" link="0" legMode="car" />
+<event time="32512" type="PersonEntersVehicle" person="2" vehicle="2" />
+<event time="32522" type="left link" link="0" vehicle="2" />
+<event time="32522" type="entered link" link="1" vehicle="2" />
+<event time="32620" type="left link" link="1" vehicle="0" />
+<event time="32620" type="entered link" link="2" vehicle="0" />
+<event time="32621" type="left link" link="1" vehicle="1" />
+<event time="32621" type="entered link" link="2" vehicle="1" />
+<event time="32622" type="left link" link="1" vehicle="2" />
+<event time="32622" type="entered link" link="2" vehicle="2" />
+<event time="32640" type="PersonLeavesVehicle" person="0" vehicle="0" />
+<event time="32640" type="arrival" person="0" link="2" legMode="bike" />
+<event time="32640" type="actstart" person="0" link="2" actType="errands_2400.0" />
+<event time="32641" type="PersonLeavesVehicle" person="1" vehicle="1" />
+<event time="32641" type="arrival" person="1" link="2" legMode="car" />
+<event time="32641" type="actstart" person="1" link="2" actType="errands_2400.0" />
+<event time="32642" type="PersonLeavesVehicle" person="2" vehicle="2" />
+<event time="32642" type="arrival" person="2" link="2" legMode="car" />
+<event time="32642" type="actstart" person="2" link="2" actType="errands_2400.0" />
+</events>
