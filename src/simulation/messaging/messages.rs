@@ -1,5 +1,4 @@
 use crate::simulation::config::RoutingMode;
-use crate::simulation::config::RoutingMode::UsePlans;
 use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::population::{
@@ -309,8 +308,15 @@ impl Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
-        }
+        };
 
+        match routing_mode {
+            RoutingMode::UsePlans => Plan::fill_plan_no_routing(io_plan, id_mappings),
+            RoutingMode::AdHoc => Plan::fill_plan_with_adhoc_routing(io_plan, id_mappings),
+        }
+    }
+
+    fn fill_plan_no_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
@@ -319,23 +325,36 @@ impl Plan {
                     let act = Activity::from_io(io_act, &id_mappings.links);
                     result.acts.push(act);
                 }
-                IOPlanElement::Leg(io_leg) => match routing_mode {
-                    RoutingMode::UsePlans => {
-                        let leg = Leg::from_io(io_leg, id_mappings);
-                        result.legs.push(leg);
-                    }
-                    RoutingMode::AdHoc => {
-                        debug!(
-                            "Internal routing is activated. The leg {:?} will be discarded.",
-                            io_leg
-                        )
-                    }
-                },
+                IOPlanElement::Leg(io_leg) => {
+                    let leg = Leg::from_io(io_leg, id_mappings);
+                    result.legs.push(leg);
+                }
             }
         }
 
-        if routing_mode == UsePlans && result.acts.len() - result.legs.len() != 1 {
+        if result.acts.len() - result.legs.len() != 1 {
             panic!("Plan {:?} has less legs than expected", io_plan);
+        }
+
+        result
+    }
+
+    fn fill_plan_with_adhoc_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+        let mut result = Plan::new();
+
+        for element in &io_plan.elements {
+            match element {
+                IOPlanElement::Activity(io_act) => {
+                    let act = Activity::from_io(io_act, &id_mappings.links);
+                    result.acts.push(act);
+                }
+                IOPlanElement::Leg(io_leg) => {
+                    debug!(
+                        "Internal routing is activated. The leg {:?} will be discarded.",
+                        io_leg
+                    )
+                }
+            }
         }
 
         result

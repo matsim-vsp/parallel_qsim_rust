@@ -2,7 +2,7 @@ use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::node::NodeVehicle;
-use log::{info, warn};
+use log::warn;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
