@@ -542,7 +542,7 @@ impl Plan {
                 y: 0.0, //TODO filled by routing
                 start_time: None,
                 end_time: None,
-                max_dur: None,
+                max_dur: Some(0),
             };
             result.acts.push(access_interaction_act);
         }

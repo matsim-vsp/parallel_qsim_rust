@@ -6,6 +6,7 @@ use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::network::partitioned_network::Network;
 use std::collections::btree_map::BTreeMap;
 
+#[derive(Debug)]
 pub struct Population {
     // We use a BTreeMap to ensure deterministic order when iterating over this map.
     // Needed when inserting agents in the queue.

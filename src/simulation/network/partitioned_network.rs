@@ -79,12 +79,20 @@ impl<V: NodeVehicle> MutNetwork<V> {
     where
         F: Fn(&IONode) -> usize,
     {
-        let partition = split(node);
+        let partition_index = split(node);
         let node_id = *id_mappings.nodes.get_internal(node.id()).unwrap();
-        let network = self.partitions.get_mut(partition).unwrap();
-        network.add_node(node_id, node.x, node.y);
+        let network = self.partitions.get_mut(partition_index).unwrap();
+        network.add_local_node(node_id, node.x, node.y);
 
-        self.nodes_2_partition.insert(node_id, partition);
+        let mut other_partition_indices = Vec::from_iter(0..self.partitions.len());
+        other_partition_indices.remove(partition_index);
+
+        for i in other_partition_indices {
+            let network = self.partitions.get_mut(i).unwrap();
+            network.add_neighbour_node(node_id, node.x, node.y);
+        }
+
+        self.nodes_2_partition.insert(node_id, partition_index);
     }
 
     fn add_link(&mut self, io_link: &IOLink, sample_size: f32, id_mappings: &MatsimIdMappings) {

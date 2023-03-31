@@ -83,8 +83,8 @@ struct LinkInteraction {
 struct Travelled {
     #[serde(deserialize_with = "str_to_u64")]
     person: u64,
-    #[serde(deserialize_with = "str_to_u64")]
-    distance: u64,
+    #[serde(deserialize_with = "str_to_f32")]
+    distance: f32,
     mode: String,
 }
 
@@ -94,6 +94,14 @@ where
 {
     let s = String::deserialize(deserializer)?;
     u64::from_str(&s).map_err(de::Error::custom)
+}
+
+fn str_to_f32<'de, D>(deserializer: D) -> Result<f32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    f32::from_str(&s).map_err(de::Error::custom)
 }
 
 pub fn run_mpi_simulation_and_convert_events(

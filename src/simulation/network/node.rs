@@ -2,6 +2,7 @@ use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::link::Link;
+use crate::simulation::network::node::Node::{LocalNode, NeighbourNode};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
@@ -14,7 +15,86 @@ pub trait NodeVehicle: Debug {
 }
 
 #[derive(Debug, Clone)]
-pub struct Node {
+pub enum Node {
+    LocalNode(NodeImpl),
+    NeighbourNode(NodeImpl),
+}
+
+impl Node {
+    pub fn new_local_node(id: usize, x: f32, y: f32) -> Self {
+        LocalNode(NodeImpl {
+            id,
+            in_links: Vec::new(),
+            out_links: Vec::new(),
+            x,
+            y,
+        })
+    }
+
+    pub fn new_neighbour_node(id: usize, x: f32, y: f32) -> Self {
+        NeighbourNode(NodeImpl {
+            id,
+            in_links: Vec::new(),
+            out_links: Vec::new(),
+            x,
+            y,
+        })
+    }
+
+    pub fn add_in_link(&mut self, id: usize) {
+        match self {
+            LocalNode(n) => n.in_links.push(id),
+            NeighbourNode(_) => {
+                panic!("This function is not allowed for NeighbourNode.")
+            }
+        }
+    }
+
+    pub fn add_out_link(&mut self, id: usize) {
+        match self {
+            LocalNode(n) => {
+                n.out_links.push(id);
+            }
+            NeighbourNode(_) => {
+                panic!("This function is not allowed for NeighbourNode.")
+            }
+        }
+    }
+
+    pub fn move_vehicles<V: NodeVehicle>(
+        &self,
+        links: &mut BTreeMap<usize, Link<V>>,
+        now: u32,
+        events: &mut EventsPublisher,
+        vehicle_definitions: Option<&VehicleDefinitions>,
+    ) -> Vec<ExitReason<V>> {
+        match self {
+            LocalNode(n) => n.move_vehicles(links, now, events, vehicle_definitions),
+            NeighbourNode(_) => {
+                panic!("This function is not allowed for NeighbourNode.")
+            }
+        }
+    }
+
+    pub fn x(&self) -> f32 {
+        match self {
+            LocalNode(n) => n,
+            NeighbourNode(n) => n,
+        }
+        .x
+    }
+
+    pub fn y(&self) -> f32 {
+        match self {
+            LocalNode(n) => n,
+            NeighbourNode(n) => n,
+        }
+        .y
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeImpl {
     pub id: usize,
     pub in_links: Vec<usize>,
     pub out_links: Vec<usize>,
@@ -27,9 +107,9 @@ pub enum ExitReason<V> {
     ReachedBoundary(V),
 }
 
-impl Node {
-    pub(crate) fn new(id: usize, x: f32, y: f32) -> Node {
-        Node {
+impl NodeImpl {
+    pub(crate) fn new(id: usize, x: f32, y: f32) -> NodeImpl {
+        NodeImpl {
             id,
             in_links: Vec::new(),
             out_links: Vec::new(),
@@ -121,13 +201,13 @@ mod tests {
 
     use crate::simulation::messaging::events::EventsPublisher;
     use crate::simulation::network::link::{Link, LocalLink, SplitOutLink};
-    use crate::simulation::network::node::{ExitReason, Node};
+    use crate::simulation::network::node::{ExitReason, NodeImpl};
     use crate::simulation::network::vehicles::Vehicle;
     use std::collections::BTreeMap;
 
     #[test]
     fn init() {
-        let node = Node::new(1, 0., 0.);
+        let node = NodeImpl::new(1, 0., 0.);
 
         assert_eq!(1, node.id);
         assert!(node.in_links.is_empty());
@@ -136,7 +216,7 @@ mod tests {
 
     #[test]
     fn vehicle_in() {
-        let mut node = Node::new(1, 0., 0.);
+        let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
         let vehicle = Vehicle::new(1, 1, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
@@ -154,7 +234,7 @@ mod tests {
 
     #[test]
     fn vehicle_in_and_out() {
-        let mut node = Node::new(1, 0., 0.);
+        let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
         let local_out_link = LocalLink::new(2, 20., 40., 20., vec![], 1., 0, 0);
         let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
@@ -179,7 +259,7 @@ mod tests {
 
     #[test]
     pub fn vehicle_in_out_boundary() {
-        let mut node = Node::new(1, 0., 0.);
+        let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
         let split_out_link = SplitOutLink::new(2, 2);
         let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
@@ -203,7 +283,7 @@ mod tests {
 
     #[test]
     fn vehicles_in() {
-        let mut node = Node::new(1, 0., 0.);
+        let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 3600., 40., 20., vec![], 1., 0, 0);
         let vehicle_1 = Vehicle::new(1, 1, vec![1], String::from("car"));
         let vehicle_2 = Vehicle::new(2, 2, vec![1], String::from("car"));
@@ -235,7 +315,7 @@ mod tests {
 
     #[test]
     fn vehicles_in_and_out() {
-        let mut node = Node::new(1, 0., 0.);
+        let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 10000., 40., 20., vec![], 1., 0, 0);
         let local_out_link = LocalLink::new(2, 10000., 40., 20., vec![], 1., 0, 0);
         let vehicle_1 = Vehicle::new(1, 1, vec![1, 2], String::from("car"));

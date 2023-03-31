@@ -222,23 +222,23 @@ impl<'sim> Simulation<'sim> {
 
     fn get_walk_distance(&self, curr_act: &Activity) -> f32 {
         let curr_act_point = Point::new(curr_act.x, curr_act.y);
-        let (node_from_id, node_to_id) = self
+        let (from_node_id, to_node_id) = self
             .network
             .links
             .get(&(curr_act.link_id as usize))
             .unwrap()
             .from_to_id();
 
-        let node_from_x = self.network.nodes.get(&node_from_id).unwrap().x;
-        let node_from_y = self.network.nodes.get(&node_from_id).unwrap().y;
+        let from_node_x = self.network.nodes.get(&from_node_id).unwrap().x();
+        let from_node_y = self.network.nodes.get(&from_node_id).unwrap().y();
 
-        let node_to_x = self.network.nodes.get(&node_to_id).unwrap().x;
-        let node_to_y = self.network.nodes.get(&node_to_id).unwrap().y;
+        let to_node_x = self.network.nodes.get(&to_node_id).unwrap().x();
+        let to_node_y = self.network.nodes.get(&to_node_id).unwrap().y();
 
-        let line = Line::new(
-            Point::new(node_from_x, node_from_y),
-            Point::new(node_to_x, node_to_y),
-        );
+        let from_point = Point::new(from_node_x, from_node_y);
+        let to_point = Point::new(to_node_x, to_node_y);
+        let line = Line::new(from_point, to_point);
+
         let closest = match line.closest_point(&curr_act_point) {
             Closest::Intersection(p) => p,
             Closest::SinglePoint(p) => p,
@@ -309,7 +309,7 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn move_nodes(&mut self, now: u32) {
-        for node in self.network.nodes.values() {
+        for node in NetworkPartition::<Vehicle>::get_local_nodes(self.network.nodes.values()) {
             let exited_vehicles = node.move_vehicles(
                 &mut self.network.links,
                 now,

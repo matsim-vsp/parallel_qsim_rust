@@ -71,7 +71,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let network_partition = network.partitions.remove(rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
-        network_partition.nodes.len(),
+        network_partition.len_local_nodes(),
         network_partition.links.len(),
         population.agents.len()
     );

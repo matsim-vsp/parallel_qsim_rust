@@ -1,6 +1,7 @@
 use crate::simulation::io::network::IOLink;
 use crate::simulation::network::link::{Link, LocalLink, SplitInLink, SplitOutLink};
 use crate::simulation::network::node::{Node, NodeVehicle};
+use std::collections::btree_map::Values;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 
@@ -18,8 +19,32 @@ impl<V: NodeVehicle> NetworkPartition<V> {
         }
     }
 
-    pub fn add_node(&mut self, id: usize, x: f32, y: f32) {
-        let node = Node::new(id, x, y);
+    pub fn len_local_nodes(&self) -> usize {
+        self.nodes
+            .values()
+            .filter(|n| match n {
+                Node::LocalNode(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn get_local_nodes(nodes: Values<usize, Node>) -> Vec<&Node> {
+        nodes
+            .filter(|n| match n {
+                Node::LocalNode(_) => true,
+                _ => false,
+            })
+            .collect()
+    }
+
+    pub fn add_local_node(&mut self, id: usize, x: f32, y: f32) {
+        let node = Node::new_local_node(id, x, y);
+        self.nodes.insert(id, node);
+    }
+
+    pub fn add_neighbour_node(&mut self, id: usize, x: f32, y: f32) {
+        let node = Node::new_neighbour_node(id, x, y);
         self.nodes.insert(id, node);
     }
 
@@ -101,7 +126,7 @@ mod tests {
         let mut network_part: NetworkPartition<Vehicle> = NetworkPartition::new();
         let node_id = 1;
         let io_link = IOLink::default();
-        network_part.add_node(node_id, 0., 0.);
+        network_part.add_local_node(node_id, 0., 0.);
 
         // add split links. make sure partitions have multiple connections because the method
         // should return each neighbour partition only once.

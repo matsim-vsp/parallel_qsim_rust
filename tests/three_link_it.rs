@@ -8,7 +8,7 @@ mod event_test_utils;
 /// Network: 3 links in a line.
 /// Agents: 1 agent travelling line.
 /// Route: Given. Plan also includes walking legs and car interactions.
-fn test_three_link_without_routing() {
+fn test_three_link_default() {
     test_three_link(
         "use-plans",
         "assets/3-links/1-agent.xml",
@@ -44,7 +44,7 @@ fn test_three_link_with_routing_no_legs_in_plans() {
         "assets/3-links/1-agent-no-leg.xml",
         None,
         "/adhoc/no_legs",
-        "tests/resources/three_link",
+        "tests/resources/three_link/full_legs",
     )
 }
 
@@ -59,7 +59,7 @@ fn test_three_link_with_routing_legs_in_plans() {
         "assets/3-links/1-agent.xml",
         None,
         "adhoc/with_legs",
-        "tests/resources/three_link",
+        "tests/resources/three_link/full_legs",
     )
 }
 
