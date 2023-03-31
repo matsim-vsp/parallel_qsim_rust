@@ -13,8 +13,8 @@ use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
+use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
 use crate::simulation::time_queue::TimeQueue;
-use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
 use log::{debug, info};
 
 pub struct Simulation<'sim> {
@@ -26,6 +26,7 @@ pub struct Simulation<'sim> {
     router: Option<Box<dyn Router>>,
     vehicle_definitions: Option<VehicleDefinitions>,
     id_mappings: &'sim MatsimIdMappings,
+    walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
 }
 
 impl<'sim> Simulation<'sim> {
@@ -38,6 +39,7 @@ impl<'sim> Simulation<'sim> {
         events: EventsPublisher,
         router: Option<Box<dyn Router>>,
         vehicle_definitions: Option<VehicleDefinitions>,
+        walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -53,6 +55,7 @@ impl<'sim> Simulation<'sim> {
             router,
             vehicle_definitions,
             id_mappings,
+            walk_leg_updater,
         }
     }
 
@@ -189,64 +192,11 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn update_walk_leg(&self, agent: &mut Agent) {
-        //TODO
-        let walking_speed_in_m_per_sec = 1.2;
-
-        let curr_act = agent.curr_act();
-        let next_act = agent.next_act();
-
-        assert_eq!(curr_act.link_id, next_act.link_id);
-        assert_eq!(agent.next_leg().mode, "walk");
-
-        let dep_time;
-
-        let distance = if agent.curr_act().is_interaction() {
-            dep_time = curr_act.end_time;
-            self.get_walk_distance(next_act)
-        } else {
-            dep_time = curr_act.end_time;
-            self.get_walk_distance(curr_act)
-        };
-
-        let walking_time_in_sec = distance / walking_speed_in_m_per_sec;
-
-        agent.update_next_leg(
-            dep_time,
-            Some(walking_time_in_sec as u32),
-            vec![],
-            Some(distance),
-            curr_act.link_id,
-            next_act.link_id,
-        );
-    }
-
-    fn get_walk_distance(&self, curr_act: &Activity) -> f32 {
-        let curr_act_point = Point::new(curr_act.x, curr_act.y);
-        let (from_node_id, to_node_id) = self
-            .network
-            .links
-            .get(&(curr_act.link_id as usize))
-            .unwrap()
-            .from_to_id();
-
-        let from_node_x = self.network.nodes.get(&from_node_id).unwrap().x();
-        let from_node_y = self.network.nodes.get(&from_node_id).unwrap().y();
-
-        let to_node_x = self.network.nodes.get(&to_node_id).unwrap().x();
-        let to_node_y = self.network.nodes.get(&to_node_id).unwrap().y();
-
-        let from_point = Point::new(from_node_x, from_node_y);
-        let to_point = Point::new(to_node_x, to_node_y);
-        let line = Line::new(from_point, to_point);
-
-        let closest = match line.closest_point(&curr_act_point) {
-            Closest::Intersection(p) => p,
-            Closest::SinglePoint(p) => p,
-            Closest::Indeterminate => {
-                panic!("Couldn't find closest point.")
-            }
-        };
-        curr_act_point.euclidean_distance(&closest)
+        self.walk_leg_updater
+            .as_ref()
+            .expect("WalkLegFinder must be set, if routing is enabled.")
+            .as_ref()
+            .update_walk_leg(agent, &self.network);
     }
 
     fn find_route(&mut self, from_act: &Activity, to_act: &Activity) -> (Vec<u64>, Option<u32>) {

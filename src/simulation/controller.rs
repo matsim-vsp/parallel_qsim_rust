@@ -14,6 +14,7 @@ use crate::simulation::population::Population;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
+use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
@@ -104,6 +105,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
 
     let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
     let mut router: Option<Box<dyn Router>> = None;
+    let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
             &routing_kit_network,
@@ -112,6 +114,11 @@ pub fn run(world: SystemCommunicator, config: Config) {
             get_temp_output_folder(&output_path, rank),
             &network_partition,
         )));
+
+        let walking_speed_in_m_per_sec = 1.2;
+        walk_leg_finder = Some(Box::new(EuclideanWalkLegUpdater::new(
+            walking_speed_in_m_per_sec,
+        )))
     }
 
     let mut simulation = Simulation::new(
@@ -123,6 +130,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         events,
         router,
         vehicle_definitions,
+        walk_leg_finder,
     );
 
     let start = Instant::now();
