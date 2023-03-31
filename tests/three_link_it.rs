@@ -7,7 +7,7 @@ mod event_test_utils;
 #[serial]
 /// Network: 3 links in a line.
 /// Agents: 1 agent travelling line.
-/// Route: Given.
+/// Route: Given. Plan also includes walking legs and car interactions.
 fn test_three_link_without_routing() {
     test_three_link(
         "use-plans",
@@ -22,13 +22,28 @@ fn test_three_link_without_routing() {
 #[serial]
 /// Network: 3 links in a line.
 /// Agents: 1 agent travelling line.
+/// Route: Will be calculated during qsim. There are legs in plans file which will be discarded.
+fn test_three_link_full_legs_in_plans() {
+    test_three_link(
+        "use-plans",
+        "assets/3-links/1-agent-full-leg.xml",
+        None,
+        "static/full_legs",
+        "tests/resources/three_link/full_legs",
+    )
+}
+
+#[test]
+#[serial]
+/// Network: 3 links in a line.
+/// Agents: 1 agent travelling line.
 /// Route: Will be calculated during qsim. There are no legs in plans file.  
 fn test_three_link_with_routing_no_legs_in_plans() {
     test_three_link(
         "ad-hoc",
         "assets/3-links/1-agent-no-leg.xml",
         None,
-        "adhoc_legs",
+        "/adhoc/no_legs",
         "tests/resources/three_link",
     )
 }
@@ -37,14 +52,29 @@ fn test_three_link_with_routing_no_legs_in_plans() {
 #[serial]
 /// Network: 3 links in a line.
 /// Agents: 1 agent travelling line.
-/// Route: Will be calculated during qsim. There are legs in plans file which will be discarded.
+/// Route: Will be computed during qsim. There are main legs in plans file.
 fn test_three_link_with_routing_legs_in_plans() {
     test_three_link(
         "ad-hoc",
         "assets/3-links/1-agent.xml",
         None,
-        "adhoc_no_legs",
+        "adhoc/with_legs",
         "tests/resources/three_link",
+    )
+}
+
+#[test]
+#[serial]
+/// Network: 3 links in a line.
+/// Agents: 1 agent travelling line.
+/// Route: Will be computed during qsim. There are main + walk legs in plans file.
+fn test_three_link_with_routing_full_legs_in_plans() {
+    test_three_link(
+        "ad-hoc",
+        "assets/3-links/1-agent-full-leg.xml",
+        None,
+        "adhoc/full_legs",
+        "tests/resources/three_link/full_legs",
     )
 }
 
@@ -59,7 +89,7 @@ fn test_three_link_one_agent_with_vehicle_definitions() {
         "use-plans",
         "assets/3-links/1-agent.xml",
         Some("assets/3-links/vehicle_definitions.xml"),
-        "static",
+        "static/vehicle_definitions",
         "tests/resources/three_link",
     )
 }

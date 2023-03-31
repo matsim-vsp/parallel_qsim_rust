@@ -13,6 +13,32 @@ pub enum Link<V: Debug> {
     SplitOutLink(SplitOutLink),
 }
 
+impl<V: NodeVehicle> Link<V> {
+    pub fn from_to_id(&self) -> (usize, usize) {
+        (self.from_id(), self.to_id())
+    }
+
+    pub fn from_id(&self) -> usize {
+        match self {
+            Link::LocalLink(l) => l.from(),
+            Link::SplitInLink(l) => l.local_link().from(),
+            Link::SplitOutLink(_) => {
+                panic!("There is no from id of a split out link.")
+            }
+        }
+    }
+
+    pub fn to_id(&self) -> usize {
+        match self {
+            Link::LocalLink(l) => l.to(),
+            Link::SplitInLink(l) => l.local_link().to(),
+            Link::SplitOutLink(_) => {
+                panic!("There is no to id of a split out link.")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalLink<V: Debug> {
     id: usize,
@@ -21,6 +47,8 @@ pub struct LocalLink<V: Debug> {
     freespeed: f32,
     flowcap: Flowcap,
     modes: Vec<String>,
+    from: usize,
+    to: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +58,13 @@ struct VehicleQEntry<V> {
 }
 
 impl<V: Debug + NodeVehicle> LocalLink<V> {
-    pub fn from_io_link(id: usize, link: &IOLink, sample_size: f32) -> Self {
+    pub fn from_io_link(
+        id: usize,
+        link: &IOLink,
+        sample_size: f32,
+        from: usize,
+        to: usize,
+    ) -> Self {
         LocalLink::new(
             id,
             link.capacity,
@@ -38,6 +72,8 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
             link.length,
             link.modes(),
             sample_size,
+            from,
+            to,
         )
     }
 
@@ -48,6 +84,8 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
         length: f32,
         modes: Vec<String>,
         sample_size: f32,
+        from: usize,
+        to: usize,
     ) -> Self {
         LocalLink {
             id,
@@ -56,6 +94,8 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
             freespeed,
             modes,
             length,
+            from,
+            to,
         }
     }
 
@@ -94,6 +134,14 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
 
     pub fn id(&self) -> usize {
         self.id
+    }
+
+    pub fn from(&self) -> usize {
+        self.from
+    }
+
+    pub fn to(&self) -> usize {
+        self.to
     }
 
     fn get_speed_for_vehicle(
@@ -162,6 +210,10 @@ impl<V: Debug> SplitInLink<V> {
     pub fn local_link_mut(&mut self) -> &mut LocalLink<V> {
         &mut self.local_link
     }
+
+    pub fn local_link(&self) -> &LocalLink<V> {
+        &self.local_link
+    }
 }
 
 #[cfg(test)]
@@ -173,7 +225,7 @@ mod tests {
     #[test]
     fn local_link_push_single_veh() {
         let veh_id = 42;
-        let mut link = LocalLink::new(1, 1., 1., 10., vec![], 1.);
+        let mut link = LocalLink::new(1, 1., 1., 10., vec![], 1., 0, 0);
         let vehicle = Vehicle::new(veh_id, 1, vec![], String::from("car"));
 
         link.push_vehicle(vehicle, 0, None);
@@ -188,7 +240,7 @@ mod tests {
     fn local_link_push_multiple_veh() {
         let id1 = 42;
         let id2 = 43;
-        let mut link = LocalLink::new(1, 1., 1., 11.8, vec![], 1.);
+        let mut link = LocalLink::new(1, 1., 1., 11.8, vec![], 1., 0, 0);
         let vehicle1 = Vehicle::new(id1, id1, vec![], String::from("car"));
         let vehicle2 = Vehicle::new(id2, id2, vec![], String::from("car"));
 
@@ -209,7 +261,7 @@ mod tests {
 
     #[test]
     fn local_link_pop_with_exit_time() {
-        let mut link = LocalLink::new(1, 1000000., 10., 100., vec![], 1.);
+        let mut link = LocalLink::new(1, 1000000., 10., 100., vec![], 1., 0, 0);
 
         let mut n: u32 = 0;
 
@@ -233,7 +285,7 @@ mod tests {
     #[test]
     fn local_link_pop_with_capacity() {
         // link has capacity of 2 per second
-        let mut link = LocalLink::new(1, 7200., 10., 100., vec![], 1.);
+        let mut link = LocalLink::new(1, 7200., 10., 100., vec![], 1., 0, 0);
 
         let mut n: u32 = 0;
 
@@ -257,7 +309,7 @@ mod tests {
     #[test]
     fn local_link_pop_with_capacity_reduced() {
         // link has a capacity of 1 * 0.1 per second
-        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 0.1);
+        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 0.1, 0, 0);
 
         link.push_vehicle(Vehicle::new(1, 1, vec![], String::from("car")), 0, None);
         link.push_vehicle(Vehicle::new(2, 2, vec![], String::from("car")), 0, None);
@@ -279,7 +331,7 @@ mod tests {
         let veh_id_car = 42;
         let veh_id_buggy = 43;
         let veh_id_bike = 44;
-        let mut link = LocalLink::new(1, 1., 10., 100., vec![], 1.);
+        let mut link = LocalLink::new(1, 1., 10., 100., vec![], 1., 0, 0);
 
         let vehicle_definitions = create_three_vehicle_definitions();
 
@@ -310,7 +362,7 @@ mod tests {
         let veh_id_car = 42;
         let veh_id_buggy = 43;
         let veh_id_bike = 44;
-        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 1.);
+        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 1., 0, 0);
 
         let vehicle_definitions = create_three_vehicle_definitions();
 

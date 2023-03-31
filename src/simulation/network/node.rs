@@ -18,6 +18,8 @@ pub struct Node {
     pub id: usize,
     pub in_links: Vec<usize>,
     pub out_links: Vec<usize>,
+    pub x: f32,
+    pub y: f32,
 }
 
 pub enum ExitReason<V> {
@@ -26,11 +28,13 @@ pub enum ExitReason<V> {
 }
 
 impl Node {
-    pub(crate) fn new(id: usize) -> Node {
+    pub(crate) fn new(id: usize, x: f32, y: f32) -> Node {
         Node {
             id,
             in_links: Vec::new(),
             out_links: Vec::new(),
+            x,
+            y,
         }
     }
 
@@ -123,7 +127,7 @@ mod tests {
 
     #[test]
     fn init() {
-        let node = Node::new(1);
+        let node = Node::new(1, 0., 0.);
 
         assert_eq!(1, node.id);
         assert!(node.in_links.is_empty());
@@ -132,8 +136,8 @@ mod tests {
 
     #[test]
     fn vehicle_in() {
-        let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1.);
+        let mut node = Node::new(1, 0., 0.);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
         let vehicle = Vehicle::new(1, 1, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
@@ -150,9 +154,9 @@ mod tests {
 
     #[test]
     fn vehicle_in_and_out() {
-        let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1.);
-        let local_out_link = LocalLink::new(2, 20., 40., 20., vec![], 1.);
+        let mut node = Node::new(1, 0., 0.);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
+        let local_out_link = LocalLink::new(2, 20., 40., 20., vec![], 1., 0, 0);
         let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
@@ -175,8 +179,8 @@ mod tests {
 
     #[test]
     pub fn vehicle_in_out_boundary() {
-        let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1.);
+        let mut node = Node::new(1, 0., 0.);
+        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
         let split_out_link = SplitOutLink::new(2, 2);
         let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
@@ -199,8 +203,8 @@ mod tests {
 
     #[test]
     fn vehicles_in() {
-        let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 3600., 40., 20., vec![], 1.);
+        let mut node = Node::new(1, 0., 0.);
+        let mut local_in_link = LocalLink::new(1, 3600., 40., 20., vec![], 1., 0, 0);
         let vehicle_1 = Vehicle::new(1, 1, vec![1], String::from("car"));
         let vehicle_2 = Vehicle::new(2, 2, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle_1, 1, None);
@@ -231,9 +235,9 @@ mod tests {
 
     #[test]
     fn vehicles_in_and_out() {
-        let mut node = Node::new(1);
-        let mut local_in_link = LocalLink::new(1, 10000., 40., 20., vec![], 1.);
-        let local_out_link = LocalLink::new(2, 10000., 40., 20., vec![], 1.);
+        let mut node = Node::new(1, 0., 0.);
+        let mut local_in_link = LocalLink::new(1, 10000., 40., 20., vec![], 1., 0, 0);
+        let local_out_link = LocalLink::new(2, 10000., 40., 20., vec![], 1., 0, 0);
         let vehicle_1 = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
         let vehicle_2 = Vehicle::new(2, 2, vec![1, 2], String::from("car"));
         local_in_link.push_vehicle(vehicle_1, 1, None);

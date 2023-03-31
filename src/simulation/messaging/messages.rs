@@ -11,6 +11,7 @@ use crate::simulation::messaging::messages::proto::{
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
+use log::info;
 use prost::Message;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -193,7 +194,25 @@ impl Agent {
         self.get_act_at_index(act_index)
     }
 
+    pub fn curr_act_mut(&mut self) -> &mut Activity {
+        if self.curr_plan_elem % 2 != 0 {
+            panic!("Current element is not an activity");
+        }
+        let act_index = self.curr_plan_elem / 2;
+        self.get_act_at_index_mut(act_index)
+    }
+
     pub fn next_act(&self) -> &Activity {
+        let act_index = self.next_act_index();
+        self.get_act_at_index(act_index)
+    }
+
+    pub fn next_act_mut(&mut self) -> &mut Activity {
+        let act_index = self.next_act_index();
+        self.get_act_at_index_mut(act_index)
+    }
+
+    fn next_act_index(&self) -> u32 {
         let act_index = match self.curr_plan_elem % 2 {
             //current element is an activity => two elements after is the next activity
             0 => (self.curr_plan_elem + 2) / 2,
@@ -206,16 +225,7 @@ impl Agent {
                 )
             }
         };
-        self.get_act_at_index(act_index)
-    }
-
-    fn get_act_at_index(&self, index: u32) -> &Activity {
-        self.plan
-            .as_ref()
-            .unwrap()
-            .acts
-            .get(index as usize)
-            .unwrap()
+        act_index
     }
 
     pub fn curr_leg(&self) -> &Leg {
@@ -232,20 +242,86 @@ impl Agent {
             .unwrap()
     }
 
-    pub fn push_leg(
+    pub fn next_leg(&self) -> &Leg {
+        let next_leg_index = self.next_leg_index();
+        self.get_leg_at_index(next_leg_index)
+    }
+
+    fn next_leg_mut(&mut self) -> &mut Leg {
+        let next_leg_index = self.next_leg_index();
+        self.get_leg_at_index_mut(next_leg_index)
+    }
+
+    fn next_leg_index(&self) -> u32 {
+        let next_leg_index = match self.curr_plan_elem % 2 {
+            //current element is an activity => one element after is the next leg
+            0 => (self.curr_plan_elem + 1) / 2,
+            //current element is a leg => two elements after is the next leg
+            1 => (self.curr_plan_elem + 2) / 2,
+            _ => {
+                panic!(
+                    "There was an error while getting the next leg of agent {:?}",
+                    self.id
+                )
+            }
+        };
+        next_leg_index
+    }
+
+    fn get_act_at_index(&self, index: u32) -> &Activity {
+        self.plan
+            .as_ref()
+            .unwrap()
+            .acts
+            .get(index as usize)
+            .unwrap()
+    }
+
+    fn get_act_at_index_mut(&mut self, index: u32) -> &mut Activity {
+        self.plan
+            .as_mut()
+            .unwrap()
+            .acts
+            .get_mut(index as usize)
+            .unwrap()
+    }
+
+    fn get_leg_at_index(&self, index: u32) -> &Leg {
+        self.plan
+            .as_ref()
+            .unwrap()
+            .legs
+            .get(index as usize)
+            .unwrap()
+    }
+
+    fn get_leg_at_index_mut(&mut self, index: u32) -> &mut Leg {
+        self.plan
+            .as_mut()
+            .unwrap()
+            .legs
+            .get_mut(index as usize)
+            .unwrap()
+    }
+
+    pub fn update_next_leg(
         &mut self,
         dep_time: Option<u32>,
         travel_time: Option<u32>,
         route: Vec<u64>,
+        distance: Option<f32>,
         start_link: u64,
         end_link: u64,
     ) {
+        //info!("Leg update for agent {:?}. Departure {:?}, travel time {:?}, route {:?}, distance {:?}, start_link {:?}, end_link {:?}",
+        //    self, dep_time, travel_time, route,distance, start_link, end_link);
+
         let simulation_route = match route.is_empty() {
             true => Route::GenericRoute(GenericRoute {
                 start_link,
                 end_link,
-                trav_time: travel_time.unwrap(),
-                distance: 0.0,
+                trav_time: travel_time.expect("No travel time set for walking leg."),
+                distance: distance.expect("No distance set for walking leg."),
             }),
             false => Route::NetworkRoute(NetworkRoute {
                 vehicle_id: self.id,
@@ -253,12 +329,11 @@ impl Agent {
             }),
         };
 
-        self.plan.as_mut().unwrap().legs.push(Leg {
-            mode: "car".to_string(),
-            dep_time,
-            trav_time: travel_time,
-            route: Some(simulation_route),
-        });
+        let next_leg = self.next_leg_mut();
+
+        next_leg.dep_time = dep_time;
+        next_leg.trav_time = travel_time;
+        next_leg.route = Some(simulation_route);
     }
 
     pub fn advance_plan(&mut self) {
@@ -414,6 +489,7 @@ impl Plan {
             }
         }
 
+        info!("Extended plan: {:?}", result);
         result
     }
 
@@ -423,7 +499,7 @@ impl Plan {
         }
 
         if let IOPlanElement::Activity(a) = io_plan.elements.get(2).unwrap() {
-            return if Plan::is_interaction_activity(a) {
+            return if a.is_interaction() {
                 PlanType::ActivitiesAndMainLegsWithInteractionAndWalk
             } else {
                 PlanType::ActivitiesAndMainLeg
@@ -431,10 +507,6 @@ impl Plan {
         } else {
             panic!("The third element should never be a leg.")
         }
-    }
-
-    fn is_interaction_activity(io_activity: &IOActivity) -> bool {
-        io_activity.r#type.contains("interaction")
     }
 
     fn insert_main_leg(result: &mut Plan, main_leg: Option<&IOLeg>) {
@@ -520,6 +592,10 @@ impl Activity {
             // supposed to be an equivalent for OptionalTime.undefined() in the java code
             u32::MAX
         }
+    }
+
+    pub fn is_interaction(&self) -> bool {
+        self.act_type.contains("interaction")
     }
 }
 

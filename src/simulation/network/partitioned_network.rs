@@ -82,7 +82,7 @@ impl<V: NodeVehicle> MutNetwork<V> {
         let partition = split(node);
         let node_id = *id_mappings.nodes.get_internal(node.id()).unwrap();
         let network = self.partitions.get_mut(partition).unwrap();
-        network.add_node(node_id);
+        network.add_node(node_id, node.x, node.y);
 
         self.nodes_2_partition.insert(node_id, partition);
     }
@@ -101,7 +101,7 @@ impl<V: NodeVehicle> MutNetwork<V> {
         if from_part == to_part {
             to_network.add_local_link(io_link, sample_size, link_id, from_id, to_id);
         } else {
-            to_network.add_split_in_link(io_link, sample_size, link_id, to_id, from_part);
+            to_network.add_split_in_link(io_link, sample_size, link_id, from_id, to_id, from_part);
 
             let from_network = self.partitions.get_mut(from_part).unwrap();
             from_network.add_split_out_link(link_id, from_id, to_part);

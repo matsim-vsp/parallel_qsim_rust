@@ -30,6 +30,12 @@ pub struct IOActivity {
     pub max_dur: Option<String>,
 }
 
+impl IOActivity {
+    pub fn is_interaction(&self) -> bool {
+        self.r#type.contains("interaction")
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOLeg {
     pub mode: String,

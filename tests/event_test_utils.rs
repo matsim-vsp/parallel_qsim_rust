@@ -31,6 +31,8 @@ enum SimEvent {
     Arrival(ArrivalDeparture),
     #[serde(rename = "actstart")]
     ActivityStart(Activity),
+    #[serde(rename = "travelled")]
+    Travelled(Travelled),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -75,6 +77,15 @@ struct LinkInteraction {
     link: u64,
     #[serde(deserialize_with = "str_to_u64")]
     vehicle: u64,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+struct Travelled {
+    #[serde(deserialize_with = "str_to_u64")]
+    person: u64,
+    #[serde(deserialize_with = "str_to_u64")]
+    distance: u64,
+    mode: String,
 }
 
 fn str_to_u64<'de, D>(deserializer: D) -> Result<u64, D::Error>

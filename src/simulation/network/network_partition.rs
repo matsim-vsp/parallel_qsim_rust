@@ -18,8 +18,8 @@ impl<V: NodeVehicle> NetworkPartition<V> {
         }
     }
 
-    pub fn add_node(&mut self, id: usize) {
-        let node = Node::new(id);
+    pub fn add_node(&mut self, id: usize, x: f32, y: f32) {
+        let node = Node::new(id, x, y);
         self.nodes.insert(id, node);
     }
 
@@ -31,7 +31,7 @@ impl<V: NodeVehicle> NetworkPartition<V> {
         from: usize,
         to: usize,
     ) {
-        let new_link = LocalLink::from_io_link(id, link, sample_size);
+        let new_link = LocalLink::from_io_link(id, link, sample_size, from, to);
         self.links.insert(id, Link::LocalLink(new_link));
 
         // wire up the from and to node
@@ -55,10 +55,11 @@ impl<V: NodeVehicle> NetworkPartition<V> {
         link: &IOLink,
         sample_size: f32,
         id: usize,
+        from: usize,
         to: usize,
         from_part: usize,
     ) {
-        let local_link = LocalLink::from_io_link(id, link, sample_size);
+        let local_link = LocalLink::from_io_link(id, link, sample_size, from, to);
         let new_link = SplitInLink::new(from_part, local_link);
 
         self.links.insert(id, Link::SplitInLink(new_link));
@@ -100,15 +101,15 @@ mod tests {
         let mut network_part: NetworkPartition<Vehicle> = NetworkPartition::new();
         let node_id = 1;
         let io_link = IOLink::default();
-        network_part.add_node(node_id);
+        network_part.add_node(node_id, 0., 0.);
 
         // add split links. make sure partitions have multiple connections because the method
         // should return each neighbour partition only once.
 
         // this partition has incoming links from partition 1 and 2
-        network_part.add_split_in_link(&io_link, 1., 1, node_id, 1);
-        network_part.add_split_in_link(&io_link, 1., 2, node_id, 1);
-        network_part.add_split_in_link(&io_link, 1., 3, node_id, 2);
+        network_part.add_split_in_link(&io_link, 1., 1, 0, node_id, 1);
+        network_part.add_split_in_link(&io_link, 1., 2, 0, node_id, 1);
+        network_part.add_split_in_link(&io_link, 1., 3, 0, node_id, 2);
 
         // this partition has outgoing links to partition 2, 3 and 4
         network_part.add_split_out_link(4, node_id, 2);

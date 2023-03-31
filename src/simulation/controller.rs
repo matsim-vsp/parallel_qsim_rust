@@ -116,6 +116,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
 
     let mut simulation = Simulation::new(
         &config,
+        &id_mappings,
         network_partition,
         population,
         message_broker,

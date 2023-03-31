@@ -1,4 +1,5 @@
 use crate::simulation::config::Config;
+use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
@@ -13,9 +14,10 @@ use crate::simulation::network::node::{ExitReason, NodeVehicle};
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::time_queue::TimeQueue;
+use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
 use log::{debug, info};
 
-pub struct Simulation {
+pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: NetworkPartition<Vehicle>,
@@ -23,11 +25,13 @@ pub struct Simulation {
     events: EventsPublisher,
     router: Option<Box<dyn Router>>,
     vehicle_definitions: Option<VehicleDefinitions>,
+    id_mappings: &'sim MatsimIdMappings,
 }
 
-impl Simulation {
+impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
+        id_mappings: &'sim MatsimIdMappings,
         network: NetworkPartition<Vehicle>,
         population: Population,
         message_broker: MpiMessageBroker,
@@ -48,6 +52,7 @@ impl Simulation {
             events,
             router,
             vehicle_definitions,
+            id_mappings,
         }
     }
 
@@ -97,19 +102,17 @@ impl Simulation {
             );
 
             if self.router.is_some() {
-                let curr_act = agent.curr_act();
-                let next_act = agent.next_act();
-
-                let (route, travel_time) = self.find_route(curr_act, next_act);
-                let dep_time = curr_act.end_time;
-
-                agent.push_leg(
-                    dep_time,
-                    travel_time,
-                    route,
-                    curr_act.link_id,
-                    next_act.link_id,
-                );
+                if !agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
+                    self.update_walk_leg(&mut agent);
+                } else if agent.curr_act().is_interaction() && !agent.next_act().is_interaction() {
+                    self.update_walk_leg(&mut agent);
+                } else if agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
+                    self.update_main_leg(&mut agent);
+                } else {
+                    panic!(
+                        "Computing a leg between two interaction activities should never happen."
+                    )
+                }
             }
 
             //here, current element counter is going to be increased
@@ -166,6 +169,84 @@ impl Simulation {
                 }
             }
         }
+    }
+
+    fn update_main_leg(&mut self, agent: &mut Agent) {
+        let curr_act = agent.curr_act();
+        let next_act = agent.next_act();
+
+        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act());
+        let dep_time = curr_act.end_time;
+
+        agent.update_next_leg(
+            dep_time,
+            travel_time,
+            route,
+            None,
+            curr_act.link_id,
+            next_act.link_id,
+        );
+    }
+
+    fn update_walk_leg(&self, agent: &mut Agent) {
+        //TODO
+        let walking_speed_in_m_per_sec = 1.2;
+
+        let curr_act = agent.curr_act();
+        let next_act = agent.next_act();
+
+        assert_eq!(curr_act.link_id, next_act.link_id);
+        assert_eq!(agent.next_leg().mode, "walk");
+
+        let dep_time;
+
+        let distance = if agent.curr_act().is_interaction() {
+            dep_time = curr_act.end_time;
+            self.get_walk_distance(next_act)
+        } else {
+            dep_time = curr_act.end_time;
+            self.get_walk_distance(curr_act)
+        };
+
+        let walking_time_in_sec = distance / walking_speed_in_m_per_sec;
+
+        agent.update_next_leg(
+            dep_time,
+            Some(walking_time_in_sec as u32),
+            vec![],
+            Some(distance),
+            curr_act.link_id,
+            next_act.link_id,
+        );
+    }
+
+    fn get_walk_distance(&self, curr_act: &Activity) -> f32 {
+        let curr_act_point = Point::new(curr_act.x, curr_act.y);
+        let (node_from_id, node_to_id) = self
+            .network
+            .links
+            .get(&(curr_act.link_id as usize))
+            .unwrap()
+            .from_to_id();
+
+        let node_from_x = self.network.nodes.get(&node_from_id).unwrap().x;
+        let node_from_y = self.network.nodes.get(&node_from_id).unwrap().y;
+
+        let node_to_x = self.network.nodes.get(&node_to_id).unwrap().x;
+        let node_to_y = self.network.nodes.get(&node_to_id).unwrap().y;
+
+        let line = Line::new(
+            Point::new(node_from_x, node_from_y),
+            Point::new(node_to_x, node_to_y),
+        );
+        let closest = match line.closest_point(&curr_act_point) {
+            Closest::Intersection(p) => p,
+            Closest::SinglePoint(p) => p,
+            Closest::Indeterminate => {
+                panic!("Couldn't find closest point.")
+            }
+        };
+        curr_act_point.euclidean_distance(&closest)
     }
 
     fn find_route(&mut self, from_act: &Activity, to_act: &Activity) -> (Vec<u64>, Option<u32>) {
