@@ -538,8 +538,8 @@ impl Plan {
             let access_interaction_act = Activity {
                 act_type: "car interaction".to_string(), //TODO
                 link_id: activity_link_id,
-                x: 0.0, //TODO filled by routing
-                y: 0.0, //TODO filled by routing
+                x: 0.0, //dummy value which is never evaluated again
+                y: 0.0, //dummy value which is never evaluated again
                 start_time: None,
                 end_time: None,
                 max_dur: Some(0),
