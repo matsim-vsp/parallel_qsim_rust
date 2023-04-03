@@ -11,7 +11,6 @@ use crate::simulation::messaging::messages::proto::{
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
-use log::info;
 use prost::Message;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -430,8 +429,8 @@ impl Plan {
         let plan_windows = io_plan.elements.windows(window_size);
         let number_of_plan_windows = plan_windows.len();
         for (i, window) in plan_windows.into_iter().step_by(step_size).enumerate() {
-            let curr_activity = IOPlanElement::unwrap_activity(window.first());
-            let next_activity = IOPlanElement::unwrap_activity(window.last());
+            let curr_activity = IOPlanElement::get_activity(window.first());
+            let next_activity = IOPlanElement::get_activity(window.last());
             let mut access_walk = None;
             let mut access_interaction = None;
             let mut main_leg = None;
@@ -439,15 +438,15 @@ impl Plan {
             let mut egress_walk = None;
 
             if window_size == 3 {
-                main_leg = IOPlanElement::unwrap_leg(window.get(1));
+                main_leg = IOPlanElement::get_leg(window.get(1));
             }
 
             if window_size == 7 {
-                access_walk = IOPlanElement::unwrap_leg(window.get(1));
-                access_interaction = IOPlanElement::unwrap_activity(window.get(2));
-                main_leg = IOPlanElement::unwrap_leg(window.get(3));
-                egress_interaction = IOPlanElement::unwrap_activity(window.get(4));
-                egress_walk = IOPlanElement::unwrap_leg(window.get(5));
+                access_walk = IOPlanElement::get_leg(window.get(1));
+                access_interaction = IOPlanElement::get_activity(window.get(2));
+                main_leg = IOPlanElement::get_leg(window.get(3));
+                egress_interaction = IOPlanElement::get_activity(window.get(4));
+                egress_walk = IOPlanElement::get_leg(window.get(5));
             }
 
             let curr_act_link_id = *id_mappings

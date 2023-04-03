@@ -55,7 +55,7 @@ pub enum IOPlanElement {
 }
 
 impl IOPlanElement {
-    pub fn unwrap_activity(element: Option<&IOPlanElement>) -> Option<&IOActivity> {
+    pub fn get_activity(element: Option<&IOPlanElement>) -> Option<&IOActivity> {
         element.map_or(None, |e| {
             if let IOPlanElement::Activity(activity) = e {
                 Some(activity)
@@ -65,7 +65,7 @@ impl IOPlanElement {
         })
     }
 
-    pub fn unwrap_leg(element: Option<&IOPlanElement>) -> Option<&IOLeg> {
+    pub fn get_leg(element: Option<&IOPlanElement>) -> Option<&IOLeg> {
         element.map_or(None, |e| {
             if let IOPlanElement::Leg(leg) = e {
                 Some(leg)

@@ -49,6 +49,10 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
             .map(|travel_time_collector| travel_time_collector.get_travel_times())
             .unwrap();
 
+        if !collected_travel_times.is_empty() {
+            debug!("Collected travel times are: {:?}", collected_travel_times);
+        }
+
         //send travel times
         let vec = self
             .traffic_message_broker
@@ -106,8 +110,6 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             return;
         }
 
-        debug!("There are travel time changes. Router will be customized.");
-
         let travel_times_by_link = traffic_info_messages
             .iter()
             .map(|info| &info.travel_times_by_link_id)
@@ -127,7 +129,7 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
 
         // For each router: evaluate new travel time by link. If travel time for link was sent,
         // use maximum(new travel time, initial travel time). Otherwise use initial travel time.
-        for (_, router) in self.router_by_mode.iter_mut() {
+        for (mode, router) in self.router_by_mode.iter_mut() {
             let mut extended_travel_times_by_link_id = HashMap::new();
 
             for link_id in router.get_current_network().link_ids.iter() {
@@ -143,7 +145,14 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             let network = router
                 .get_current_network()
                 .clone_with_new_travel_times_by_link(&extended_travel_times_by_link_id);
-            router.customize(network);
+
+            if network.has_different_travel_times(router.get_current_network()) {
+                debug!(
+                    "There are travel time changes. Router for mode {:?} will be customized.",
+                    mode
+                );
+                router.customize(network);
+            }
         }
     }
 

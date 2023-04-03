@@ -62,6 +62,17 @@ impl RoutingKitNetwork {
 
         self.clone_with_new_travel_times(new_travel_time_vector)
     }
+
+    pub fn has_different_travel_times(&self, other: &RoutingKitNetwork) -> bool {
+        let x = self.travel_time != other.travel_time;
+        if x {
+            debug!(
+                "New travel times are {:?}, old travel times are {:?}",
+                self.travel_time, other.travel_time
+            );
+        }
+        x
+    }
 }
 
 #[cfg(test)]
