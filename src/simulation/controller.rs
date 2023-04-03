@@ -111,8 +111,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
             world.clone(),
             rank,
             get_temp_output_folder(&output_path, rank),
-            &network_partition,
-            vehicle_definitions.as_ref(),
+            vehicle_definitions.clone(),
         )));
 
         let walking_speed_in_m_per_sec = 1.2;

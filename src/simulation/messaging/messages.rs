@@ -367,6 +367,8 @@ impl EndTime for Agent {
 }
 
 impl Plan {
+    pub const DEFAULT_ROUTING_MODE: &'static str = "car";
+
     fn new() -> Plan {
         Plan {
             acts: Vec::new(),
@@ -488,8 +490,6 @@ impl Plan {
                 result.acts.push(act);
             }
         }
-
-        info!("Extended plan: {:?}", result);
         result
     }
 
@@ -515,7 +515,9 @@ impl Plan {
                 .legs
                 .push(Leg::only_with_mode(main_leg.unwrap().mode.as_str()))
         } else {
-            result.legs.push(Leg::only_with_mode("car")) //TODO
+            result
+                .legs
+                .push(Leg::only_with_mode(Plan::DEFAULT_ROUTING_MODE))
         }
     }
 
@@ -536,7 +538,7 @@ impl Plan {
             result.legs.push(access_walk_leg);
 
             let access_interaction_act = Activity {
-                act_type: "car interaction".to_string(), //TODO
+                act_type: String::from(Plan::DEFAULT_ROUTING_MODE) + " interaction",
                 link_id: activity_link_id,
                 x: 0.0, //dummy value which is never evaluated again
                 y: 0.0, //dummy value which is never evaluated again
