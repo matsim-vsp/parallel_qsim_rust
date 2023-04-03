@@ -11,7 +11,6 @@ use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::partitioned_network::Network;
 use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
-use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
 use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
@@ -103,16 +102,17 @@ pub fn run(world: SystemCommunicator, config: Config) {
         vehicle_definitions = Some(VehicleDefinitions::from_io(io_vehicle_definitions));
     }
 
-    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
     let mut router: Option<Box<dyn Router>> = None;
     let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
-            &routing_kit_network,
+            io_network,
+            Some(&id_mappings),
             world.clone(),
             rank,
             get_temp_output_folder(&output_path, rank),
             &network_partition,
+            vehicle_definitions.as_ref(),
         )));
 
         let walking_speed_in_m_per_sec = 1.2;

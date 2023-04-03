@@ -177,8 +177,9 @@ impl<'sim> Simulation<'sim> {
     fn update_main_leg(&mut self, agent: &mut Agent) {
         let curr_act = agent.curr_act();
         let next_act = agent.next_act();
+        let mode = agent.next_leg().mode.as_str();
 
-        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act());
+        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
         let dep_time = curr_act.end_time;
 
         agent.update_next_leg(
@@ -199,12 +200,17 @@ impl<'sim> Simulation<'sim> {
             .update_walk_leg(agent, &self.network);
     }
 
-    fn find_route(&mut self, from_act: &Activity, to_act: &Activity) -> (Vec<u64>, Option<u32>) {
-        let query_result = self
-            .router
-            .as_mut()
-            .unwrap()
-            .query_links(from_act.link_id, to_act.link_id);
+    fn find_route(
+        &mut self,
+        from_act: &Activity,
+        to_act: &Activity,
+        mode: &str,
+    ) -> (Vec<u64>, Option<u32>) {
+        let query_result =
+            self.router
+                .as_mut()
+                .unwrap()
+                .query_links(from_act.link_id, to_act.link_id, mode);
 
         let route = query_result.path.expect("There is no route!");
         let travel_time = query_result.travel_time;

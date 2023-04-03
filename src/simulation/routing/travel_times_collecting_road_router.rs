@@ -1,9 +1,13 @@
+use crate::simulation::id_mapping::MatsimIdMappings;
+use crate::simulation::io::network::IONetwork;
+use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::{TravelTimesMessage, Vehicle};
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
+use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::road_router::RoadRouter;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
 use crate::simulation::routing::travel_times_message_broker::TravelTimesMessageBroker;
@@ -14,9 +18,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 pub struct TravelTimesCollectingRoadRouter<'router> {
-    router: RoadRouter<'router>,
+    router_by_mode: HashMap<&'router str, RoadRouter<'router>>,
     traffic_message_broker: TravelTimesMessageBroker,
     link_ids_of_process: HashSet<u64>,
+    vehicle_definitions: Option<&'router VehicleDefinitions>,
 }
 
 impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
@@ -61,12 +66,16 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
 
 impl<'router> TravelTimesCollectingRoadRouter<'router> {
     pub fn new(
-        network: &RoutingKitNetwork,
+        io_network: IONetwork, //TODO change it to matsim internal network representation
+        id_mappings: Option<&MatsimIdMappings>,
         communicator: SystemCommunicator,
         rank: Rank,
         output_dir: PathBuf,
         network_partition: &NetworkPartition<Vehicle>,
+        vehicle_definitions: Option<&VehicleDefinitions>,
     ) -> Self {
+        let full_network = NetworkConverter::convert_io_network(io_network, id_mappings);
+
         let link_ids_of_process = network_partition
             .links
             .iter()
@@ -78,10 +87,24 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             .map(|(id, _)| *id as u64)
             .collect::<HashSet<u64>>();
 
+        let mut router_by_mode = HashMap::new();
+
+        if let Some(vehicle_definitions) = vehicle_definitions {
+            router_by_mode = vehicle_definitions
+                .vehicle_types
+                .iter()
+                //TODO network
+                .map(|v| (v.id.as_str(), RoadRouter::new(&full_network, output_dir)))
+                .collect::<HashMap<_, _>>()
+        } else {
+            todo!()
+        }
+
         TravelTimesCollectingRoadRouter {
-            router: RoadRouter::new(network, output_dir),
+            router_by_mode,
             traffic_message_broker: TravelTimesMessageBroker::new(communicator, rank),
             link_ids_of_process,
+            vehicle_definitions,
         }
     }
 
@@ -153,5 +176,9 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             debug!("Traffic update to be sent: {:?}", result);
         }
         result
+    }
+
+    fn get_router_by_mode(&mut self, mode: &str) -> Option<&mut RoadRouter<'router>> {
+        self.router_by_mode.get_mut(mode)
     }
 }
