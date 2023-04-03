@@ -25,8 +25,13 @@ pub struct TravelTimesCollectingRoadRouter<'router> {
 }
 
 impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
-    fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
-        self.router.query_links(from_link, to_link)
+    fn query_links(&mut self, from_link: u64, to_link: u64, mode: &str) -> CustomQueryResult {
+        self.get_router_by_mode(mode)
+            .expect(&*format!(
+                "There is no router for mode {:?}. Check the vehicle definitions.",
+                mode
+            ))
+            .query_links(from_link, to_link)
     }
 
     fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher) {
