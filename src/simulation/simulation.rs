@@ -105,16 +105,14 @@ impl<'sim> Simulation<'sim> {
             );
 
             if self.router.is_some() {
-                if !agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
-                    self.update_walk_leg(&mut agent);
-                } else if agent.curr_act().is_interaction() && !agent.next_act().is_interaction() {
+                if (!agent.curr_act().is_interaction() && agent.next_act().is_interaction())
+                    || (agent.curr_act().is_interaction() && !agent.next_act().is_interaction())
+                {
                     self.update_walk_leg(&mut agent);
                 } else if agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
                     self.update_main_leg(&mut agent);
                 } else {
-                    panic!(
-                        "Computing a leg between two interaction activities should never happen."
-                    )
+                    panic!("Computing a leg between two main activities should never happen.")
                 }
             }
 

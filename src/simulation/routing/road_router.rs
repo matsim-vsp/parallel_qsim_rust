@@ -235,8 +235,10 @@ pub(self) fn find_edge_id_of_outgoing(
     next_node: NodeId,
     network: &RoutingKitNetwork,
 ) -> u64 {
-    //TODO this is marked as unnecessary comparison - why?
-    assert!(last_out_index - first_out_index >= 0, "No outgoing edges!");
+    assert!(
+        last_out_index as i64 - first_out_index as i64 >= 0,
+        "No outgoing edges!"
+    );
     let mut result = None;
     for i in first_out_index..=last_out_index {
         if *network.head.get(i).unwrap() == next_node {
