@@ -1,105 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
 <events version="1.0">
     <event time="32460" type="actend" person="0" link="0" actType="home_28800.0" />
-    <event time="32460" type="departure" person="0" link="0" legMode="car" />
-    <event time="32460" type="PersonEntersVehicle" person="0" vehicle="0" />
-    <event time="32470" type="left link" link="0" vehicle="0" />
-    <event time="32470" type="entered link" link="1" vehicle="0" />
-    <event time="32480" type="left link" link="1" vehicle="0" />
-    <event time="32480" type="entered link" link="2" vehicle="0" />
-    <event time="32580" type="left link" link="2" vehicle="0" />
-    <event time="32580" type="entered link" link="3" vehicle="0" />
-    <event time="32590" type="left link" link="3" vehicle="0" />
-    <event time="32590" type="entered link" link="4" vehicle="0" />
-    <event time="32600" type="PersonLeavesVehicle" person="0" vehicle="0" />
-    <event time="32600" type="arrival" person="0" link="4" legMode="car" />
-    <event time="32600" type="actstart" person="0" link="4" actType="errands_2400.0" />
+    <event time="32460" type="departure" person="0" link="0" legMode="walk" />
+    <event time="32468" type="travelled" person="0" distance="10" mode="walk" />
+    <event time="32469" type="actend" person="0" link="0" actType="car interaction" />
+    <event time="32469" type="departure" person="0" link="0" legMode="car" />
+    <event time="32469" type="PersonEntersVehicle" person="0" vehicle="0" />
+    <event time="32479" type="left link" link="0" vehicle="0" />
+    <event time="32479" type="entered link" link="1" vehicle="0" />
+    <event time="32489" type="left link" link="1" vehicle="0" />
+    <event time="32489" type="entered link" link="2" vehicle="0" />
+    <event time="32589" type="left link" link="2" vehicle="0" />
+    <event time="32589" type="entered link" link="3" vehicle="0" />
+    <event time="32599" type="left link" link="3" vehicle="0" />
+    <event time="32599" type="entered link" link="4" vehicle="0" />
+    <event time="32609" type="PersonLeavesVehicle" person="0" vehicle="0" />
+    <event time="32609" type="arrival" person="0" link="4" legMode="car" />
+    <event time="32609" type="actstart" person="0" link="4" actType="car interaction" />
+    <event time="32610" type="actend" person="0" link="4" actType="car interaction" />
+    <event time="32610" type="departure" person="0" link="4" legMode="walk" />
+    <event time="32618" type="travelled" person="0" distance="10" mode="walk" />
     <event time="33360" type="actend" person="1" link="0" actType="home_28800.0" />
-    <event time="33360" type="departure" person="1" link="0" legMode="car" />
-    <event time="33360" type="PersonEntersVehicle" person="1" vehicle="1" />
-    <event time="33370" type="left link" link="0" vehicle="1" />
-    <event time="33370" type="entered link" link="1" vehicle="1" />
-    <event time="33380" type="left link" link="1" vehicle="1" />
-    <event time="33380" type="entered link" link="2" vehicle="1" />
-    <event time="33780" type="left link" link="2" vehicle="1" />
-    <event time="33780" type="entered link" link="3" vehicle="1" />
-    <event time="33790" type="left link" link="3" vehicle="1" />
-    <event time="33790" type="entered link" link="4" vehicle="1" />
-    <event time="33800" type="PersonLeavesVehicle" person="1" vehicle="1" />
-    <event time="33800" type="arrival" person="1" link="4" legMode="car" />
-    <event time="33800" type="actstart" person="1" link="4" actType="errands_2400.0" />
+    <event time="33360" type="departure" person="1" link="0" legMode="walk" />
+    <event time="33368" type="travelled" person="1" distance="10" mode="walk" />
+    <event time="33369" type="actend" person="1" link="0" actType="car interaction" />
+    <event time="33369" type="departure" person="1" link="0" legMode="car" />
+    <event time="33369" type="PersonEntersVehicle" person="1" vehicle="1" />
+    <event time="33379" type="left link" link="0" vehicle="1" />
+    <event time="33379" type="entered link" link="1" vehicle="1" />
+    <event time="33389" type="left link" link="1" vehicle="1" />
+    <event time="33389" type="entered link" link="2" vehicle="1" />
+    <event time="33789" type="left link" link="2" vehicle="1" />
+    <event time="33789" type="entered link" link="3" vehicle="1" />
+    <event time="33799" type="left link" link="3" vehicle="1" />
+    <event time="33799" type="entered link" link="4" vehicle="1" />
+    <event time="33809" type="PersonLeavesVehicle" person="1" vehicle="1" />
+    <event time="33809" type="arrival" person="1" link="4" legMode="car" />
+    <event time="33809" type="actstart" person="1" link="4" actType="car interaction" />
+    <event time="33810" type="actend" person="1" link="4" actType="car interaction" />
+    <event time="33810" type="departure" person="1" link="4" legMode="walk" />
+    <event time="33818" type="travelled" person="1" distance="10" mode="walk" />
     <event time="34260" type="actend" person="2" link="0" actType="home_28800.0" />
-    <event time="34260" type="departure" person="2" link="0" legMode="car" />
-    <event time="34260" type="PersonEntersVehicle" person="2" vehicle="2" />
-    <event time="34270" type="left link" link="0" vehicle="2" />
-    <event time="34270" type="entered link" link="1" vehicle="2" />
-    <event time="34280" type="left link" link="1" vehicle="2" />
-    <event time="34280" type="entered link" link="5" vehicle="2" />
-    <event time="34380" type="left link" link="5" vehicle="2" />
-    <event time="34380" type="entered link" link="6" vehicle="2" />
-    <event time="34480" type="left link" link="6" vehicle="2" />
-    <event time="34480" type="entered link" link="3" vehicle="2" />
-    <event time="34490" type="left link" link="3" vehicle="2" />
-    <event time="34490" type="entered link" link="4" vehicle="2" />
-    <event time="34500" type="PersonLeavesVehicle" person="2" vehicle="2" />
-    <event time="34500" type="arrival" person="2" link="4" legMode="car" />
-    <event time="34500" type="actstart" person="2" link="4" actType="errands_2400.0" />
+    <event time="34260" type="departure" person="2" link="0" legMode="walk" />
+    <event time="34268" type="travelled" person="2" distance="10" mode="walk" />
+    <event time="34269" type="actend" person="2" link="0" actType="car interaction" />
+    <event time="34269" type="departure" person="2" link="0" legMode="car" />
+    <event time="34269" type="PersonEntersVehicle" person="2" vehicle="2" />
+    <event time="34279" type="left link" link="0" vehicle="2" />
+    <event time="34279" type="entered link" link="1" vehicle="2" />
+    <event time="34289" type="left link" link="1" vehicle="2" />
+    <event time="34289" type="entered link" link="5" vehicle="2" />
+    <event time="34389" type="left link" link="5" vehicle="2" />
+    <event time="34389" type="entered link" link="6" vehicle="2" />
+    <event time="34489" type="left link" link="6" vehicle="2" />
+    <event time="34489" type="entered link" link="3" vehicle="2" />
+    <event time="34499" type="left link" link="3" vehicle="2" />
+    <event time="34499" type="entered link" link="4" vehicle="2" />
+    <event time="34509" type="PersonLeavesVehicle" person="2" vehicle="2" />
+    <event time="34509" type="arrival" person="2" link="4" legMode="car" />
+    <event time="34509" type="actstart" person="2" link="4" actType="car interaction" />
+    <event time="34510" type="actend" person="2" link="4" actType="car interaction" />
+    <event time="34510" type="departure" person="2" link="4" legMode="walk" />
+    <event time="34518" type="travelled" person="2" distance="10" mode="walk" />
     <event time="35040" type="actend" person="3" link="0" actType="home_28800.0" />
-    <event time="35040" type="departure" person="3" link="0" legMode="car" />
-    <event time="35040" type="PersonEntersVehicle" person="3" vehicle="3" />
-    <event time="35050" type="left link" link="0" vehicle="3" />
-    <event time="35050" type="entered link" link="1" vehicle="3" />
-    <event time="35060" type="left link" link="1" vehicle="3" />
-    <event time="35060" type="entered link" link="5" vehicle="3" />
+    <event time="35040" type="departure" person="3" link="0" legMode="walk" />
+    <event time="35048" type="travelled" person="3" distance="10" mode="walk" />
+    <event time="35049" type="actend" person="3" link="0" actType="car interaction" />
+    <event time="35049" type="departure" person="3" link="0" legMode="car" />
+    <event time="35049" type="PersonEntersVehicle" person="3" vehicle="3" />
+    <event time="35059" type="left link" link="0" vehicle="3" />
+    <event time="35059" type="entered link" link="1" vehicle="3" />
+    <event time="35069" type="left link" link="1" vehicle="3" />
+    <event time="35069" type="entered link" link="5" vehicle="3" />
     <event time="35160" type="actend" person="4" link="0" actType="home_28800.0" />
-    <event time="35160" type="departure" person="4" link="0" legMode="car" />
-    <event time="35160" type="PersonEntersVehicle" person="4" vehicle="4" />
-    <event time="35160" type="left link" link="5" vehicle="3" />
-    <event time="35160" type="entered link" link="6" vehicle="3" />
-    <event time="35170" type="left link" link="0" vehicle="4" />
-    <event time="35170" type="entered link" link="1" vehicle="4" />
-    <event time="35180" type="left link" link="1" vehicle="4" />
-    <event time="35180" type="entered link" link="2" vehicle="4" />
-    <event time="35260" type="left link" link="6" vehicle="3" />
-    <event time="35260" type="entered link" link="3" vehicle="3" />
-    <event time="35270" type="left link" link="3" vehicle="3" />
-    <event time="35270" type="entered link" link="4" vehicle="3" />
-    <event time="35280" type="left link" link="2" vehicle="4" />
-    <event time="35280" type="entered link" link="3" vehicle="4" />
-    <event time="35280" type="PersonLeavesVehicle" person="3" vehicle="3" />
-    <event time="35280" type="arrival" person="3" link="4" legMode="car" />
-    <event time="35280" type="actstart" person="3" link="4" actType="errands_2400.0" />
-    <event time="35305" type="left link" link="3" vehicle="4" />
-    <event time="35305" type="entered link" link="4" vehicle="4" />
-    <event time="35315" type="PersonLeavesVehicle" person="4" vehicle="4" />
-    <event time="35315" type="arrival" person="4" link="4" legMode="car" />
-    <event time="35315" type="actstart" person="4" link="4" actType="errands_2400.0" />
+    <event time="35160" type="departure" person="4" link="0" legMode="walk" />
+    <event time="35168" type="travelled" person="4" distance="10" mode="walk" />
+    <event time="35169" type="actend" person="4" link="0" actType="car interaction" />
+    <event time="35169" type="departure" person="4" link="0" legMode="car" />
+    <event time="35169" type="PersonEntersVehicle" person="4" vehicle="4" />
+    <event time="35169" type="left link" link="5" vehicle="3" />
+    <event time="35169" type="entered link" link="6" vehicle="3" />
+    <event time="35179" type="left link" link="0" vehicle="4" />
+    <event time="35179" type="entered link" link="1" vehicle="4" />
+    <event time="35189" type="left link" link="1" vehicle="4" />
+    <event time="35189" type="entered link" link="2" vehicle="4" />
+    <event time="35269" type="left link" link="6" vehicle="3" />
+    <event time="35269" type="entered link" link="3" vehicle="3" />
+    <event time="35279" type="left link" link="3" vehicle="3" />
+    <event time="35279" type="entered link" link="4" vehicle="3" />
+    <event time="35289" type="left link" link="2" vehicle="4" />
+    <event time="35289" type="entered link" link="3" vehicle="4" />
+    <event time="35289" type="PersonLeavesVehicle" person="3" vehicle="3" />
+    <event time="35289" type="arrival" person="3" link="4" legMode="car" />
+    <event time="35289" type="actstart" person="3" link="4" actType="car interaction" />
+    <event time="35290" type="actend" person="3" link="4" actType="car interaction" />
+    <event time="35290" type="departure" person="3" link="4" legMode="walk" />
+    <event time="35298" type="travelled" person="3" distance="10" mode="walk" />
+    <event time="35314" type="left link" link="3" vehicle="4" />
+    <event time="35314" type="entered link" link="4" vehicle="4" />
+    <event time="35324" type="PersonLeavesVehicle" person="4" vehicle="4" />
+    <event time="35324" type="arrival" person="4" link="4" legMode="car" />
+    <event time="35324" type="actstart" person="4" link="4" actType="car interaction" />
+    <event time="35325" type="actend" person="4" link="4" actType="car interaction" />
+    <event time="35325" type="departure" person="4" link="4" legMode="walk" />
+    <event time="35333" type="travelled" person="4" distance="10" mode="walk" />
     <event time="36310" type="actend" person="5" link="0" actType="home_28800.0" />
-    <event time="36310" type="departure" person="5" link="0" legMode="car" />
-    <event time="36310" type="PersonEntersVehicle" person="5" vehicle="5" />
-    <event time="36320" type="left link" link="0" vehicle="5" />
-    <event time="36320" type="entered link" link="1" vehicle="5" />
-    <event time="36330" type="left link" link="1" vehicle="5" />
-    <event time="36330" type="entered link" link="2" vehicle="5" />
-    <event time="36480" type="left link" link="2" vehicle="5" />
-    <event time="36480" type="entered link" link="3" vehicle="5" />
-    <event time="36490" type="left link" link="3" vehicle="5" />
-    <event time="36490" type="entered link" link="4" vehicle="5" />
-    <event time="36500" type="PersonLeavesVehicle" person="5" vehicle="5" />
-    <event time="36500" type="arrival" person="5" link="4" legMode="car" />
-    <event time="36500" type="actstart" person="5" link="4" actType="errands_2400.0" />
+    <event time="36310" type="departure" person="5" link="0" legMode="walk" />
+    <event time="36318" type="travelled" person="5" distance="10" mode="walk" />
+    <event time="36319" type="actend" person="5" link="0" actType="car interaction" />
+    <event time="36319" type="departure" person="5" link="0" legMode="car" />
+    <event time="36319" type="PersonEntersVehicle" person="5" vehicle="5" />
+    <event time="36329" type="left link" link="0" vehicle="5" />
+    <event time="36329" type="entered link" link="1" vehicle="5" />
+    <event time="36339" type="left link" link="1" vehicle="5" />
+    <event time="36339" type="entered link" link="2" vehicle="5" />
+    <event time="36489" type="left link" link="2" vehicle="5" />
+    <event time="36489" type="entered link" link="3" vehicle="5" />
+    <event time="36499" type="left link" link="3" vehicle="5" />
+    <event time="36499" type="entered link" link="4" vehicle="5" />
+    <event time="36509" type="PersonLeavesVehicle" person="5" vehicle="5" />
+    <event time="36509" type="arrival" person="5" link="4" legMode="car" />
+    <event time="36509" type="actstart" person="5" link="4" actType="car interaction" />
+    <event time="36510" type="actend" person="5" link="4" actType="car interaction" />
+    <event time="36510" type="departure" person="5" link="4" legMode="walk" />
+    <event time="36518" type="travelled" person="5" distance="10" mode="walk" />
     <event time="36960" type="actend" person="6" link="0" actType="home_28800.0" />
-    <event time="36960" type="departure" person="6" link="0" legMode="car" />
-    <event time="36960" type="PersonEntersVehicle" person="6" vehicle="6" />
-    <event time="36970" type="left link" link="0" vehicle="6" />
-    <event time="36970" type="entered link" link="1" vehicle="6" />
-    <event time="36980" type="left link" link="1" vehicle="6" />
-    <event time="36980" type="entered link" link="2" vehicle="6" />
-    <event time="37680" type="left link" link="2" vehicle="6" />
-    <event time="37680" type="entered link" link="3" vehicle="6" />
-    <event time="37690" type="left link" link="3" vehicle="6" />
-    <event time="37690" type="entered link" link="4" vehicle="6" />
-    <event time="37700" type="PersonLeavesVehicle" person="6" vehicle="6" />
-    <event time="37700" type="arrival" person="6" link="4" legMode="car" />
-    <event time="37700" type="actstart" person="6" link="4" actType="errands_2400.0" />
+    <event time="36960" type="departure" person="6" link="0" legMode="walk" />
+    <event time="36968" type="travelled" person="6" distance="10" mode="walk" />
+    <event time="36969" type="actend" person="6" link="0" actType="car interaction" />
+    <event time="36969" type="departure" person="6" link="0" legMode="car" />
+    <event time="36969" type="PersonEntersVehicle" person="6" vehicle="6" />
+    <event time="36979" type="left link" link="0" vehicle="6" />
+    <event time="36979" type="entered link" link="1" vehicle="6" />
+    <event time="36989" type="left link" link="1" vehicle="6" />
+    <event time="36989" type="entered link" link="2" vehicle="6" />
+    <event time="37689" type="left link" link="2" vehicle="6" />
+    <event time="37689" type="entered link" link="3" vehicle="6" />
+    <event time="37699" type="left link" link="3" vehicle="6" />
+    <event time="37699" type="entered link" link="4" vehicle="6" />
+    <event time="37709" type="PersonLeavesVehicle" person="6" vehicle="6" />
+    <event time="37709" type="arrival" person="6" link="4" legMode="car" />
+    <event time="37709" type="actstart" person="6" link="4" actType="car interaction" />
+    <event time="37710" type="actend" person="6" link="4" actType="car interaction" />
+    <event time="37710" type="departure" person="6" link="4" legMode="walk" />
+    <event time="37718" type="travelled" person="6" distance="10" mode="walk" />
 </events>

@@ -3,6 +3,7 @@ use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::network::IONetwork;
 use crate::simulation::io::population::IOPopulation;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
+use crate::simulation::io::vehicle_definitions::{IOVehicleDefinitions, VehicleDefinitions};
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::messaging::messages::proto::Vehicle;
@@ -10,9 +11,9 @@ use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::partitioned_network::Network;
 use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
-use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
+use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
@@ -70,7 +71,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let network_partition = network.partitions.remove(rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
-        network_partition.nodes.len(),
+        network_partition.len_local_nodes(),
         network_partition.links.len(),
         population.agents.len()
     );
@@ -94,25 +95,41 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let routing_kit_network = NetworkConverter::convert_io_network(io_network, Some(&id_mappings));
+    let mut vehicle_definitions: Option<VehicleDefinitions> = None;
+    if let Some(vehicle_definitions_file_path) = &config.vehicle_definitions_file {
+        let io_vehicle_definitions =
+            IOVehicleDefinitions::from_file(vehicle_definitions_file_path.as_ref());
+        vehicle_definitions = Some(VehicleDefinitions::from_io(io_vehicle_definitions));
+    }
+
     let mut router: Option<Box<dyn Router>> = None;
+    let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
-            &routing_kit_network,
+            io_network,
+            Some(&id_mappings),
             world.clone(),
             rank,
             get_temp_output_folder(&output_path, rank),
-            &network_partition,
+            vehicle_definitions.clone(),
         )));
+
+        let walking_speed_in_m_per_sec = 1.2;
+        walk_leg_finder = Some(Box::new(EuclideanWalkLegUpdater::new(
+            walking_speed_in_m_per_sec,
+        )))
     }
 
     let mut simulation = Simulation::new(
         &config,
+        &id_mappings,
         network_partition,
         population,
         message_broker,
         events,
         router,
+        vehicle_definitions,
+        walk_leg_finder,
     );
 
     let start = Instant::now();

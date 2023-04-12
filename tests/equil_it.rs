@@ -30,6 +30,7 @@ fn test_equil(parts: usize) {
         "assets/equil/equil-plans.xml.gz",
         output_dir.as_str(),
         "use-plans",
+        None,
     );
     compare_events(output_dir.as_str(), "tests/resources/equil")
 }

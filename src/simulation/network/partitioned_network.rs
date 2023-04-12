@@ -2,24 +2,25 @@ use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 use crate::simulation::network::network_partition::NetworkPartition;
+use crate::simulation::network::node::NodeVehicle;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct Network<V: Debug> {
+pub struct Network<V: NodeVehicle> {
     pub partitions: Vec<NetworkPartition<V>>,
     pub nodes_2_partition: Arc<HashMap<usize, usize>>,
     pub links_2_partition: Arc<HashMap<usize, usize>>,
 }
 
-pub struct MutNetwork<V: Debug> {
+pub struct MutNetwork<V: NodeVehicle> {
     pub partitions: Vec<NetworkPartition<V>>,
     pub nodes_2_partition: HashMap<usize, usize>,
     pub links_2_partition: HashMap<usize, usize>,
 }
 
-impl<V: Debug> Network<V> {
+impl<V: NodeVehicle> Network<V> {
     fn from_mut_network(network: MutNetwork<V>) -> Self {
         Network {
             partitions: network.partitions,
@@ -60,7 +61,7 @@ impl<V: Debug> Network<V> {
     }
 }
 
-impl<V: Debug> MutNetwork<V> {
+impl<V: NodeVehicle> MutNetwork<V> {
     fn new(num_parts: usize) -> Self {
         let mut partitions = Vec::with_capacity(num_parts);
         for _ in 0..num_parts {
@@ -78,12 +79,20 @@ impl<V: Debug> MutNetwork<V> {
     where
         F: Fn(&IONode) -> usize,
     {
-        let partition = split(node);
+        let partition_index = split(node);
         let node_id = *id_mappings.nodes.get_internal(node.id()).unwrap();
-        let network = self.partitions.get_mut(partition).unwrap();
-        network.add_node(node_id);
+        let network = self.partitions.get_mut(partition_index).unwrap();
+        network.add_local_node(node_id, node.x, node.y);
 
-        self.nodes_2_partition.insert(node_id, partition);
+        let mut other_partition_indices = Vec::from_iter(0..self.partitions.len());
+        other_partition_indices.remove(partition_index);
+
+        for i in other_partition_indices {
+            let network = self.partitions.get_mut(i).unwrap();
+            network.add_neighbour_node(node_id, node.x, node.y);
+        }
+
+        self.nodes_2_partition.insert(node_id, partition_index);
     }
 
     fn add_link(&mut self, io_link: &IOLink, sample_size: f32, id_mappings: &MatsimIdMappings) {
@@ -100,7 +109,7 @@ impl<V: Debug> MutNetwork<V> {
         if from_part == to_part {
             to_network.add_local_link(io_link, sample_size, link_id, from_id, to_id);
         } else {
-            to_network.add_split_in_link(io_link, sample_size, link_id, to_id, from_part);
+            to_network.add_split_in_link(io_link, sample_size, link_id, from_id, to_id, from_part);
 
             let from_network = self.partitions.get_mut(from_part).unwrap();
             from_network.add_split_out_link(link_id, from_id, to_part);

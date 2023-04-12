@@ -1,5 +1,4 @@
 use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
-use crate::simulation::routing::network_converter::NetworkConverter;
 use log::{debug, info};
 use std::fmt::Display;
 use std::fs::{create_dir_all, remove_dir_all, remove_file, File};
@@ -13,15 +12,6 @@ pub struct InertialFlowCutterAdapter {
 }
 
 impl InertialFlowCutterAdapter {
-    pub fn create_from_network_path(
-        matsim_network_path: &str,
-        inertial_flow_cutter_path: PathBuf,
-        output_folder: PathBuf,
-    ) -> InertialFlowCutterAdapter {
-        let network = NetworkConverter::convert_xml_network(matsim_network_path);
-        InertialFlowCutterAdapter::new(&network, inertial_flow_cutter_path, output_folder)
-    }
-
     pub fn new(
         routing_kit_network: &RoutingKitNetwork,
         inertial_flow_cutter_path: PathBuf,

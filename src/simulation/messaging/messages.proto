@@ -26,6 +26,7 @@ message Vehicle {
   uint32 curr_route_elem = 2;
   VehicleType type = 3;
   Agent agent = 4;
+  string mode = 5;
   // this must be extended once more people use one vehicle
 }
 

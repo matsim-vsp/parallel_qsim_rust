@@ -31,6 +31,8 @@ enum SimEvent {
     Arrival(ArrivalDeparture),
     #[serde(rename = "actstart")]
     ActivityStart(Activity),
+    #[serde(rename = "travelled")]
+    Travelled(Travelled),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -77,6 +79,15 @@ struct LinkInteraction {
     vehicle: u64,
 }
 
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+struct Travelled {
+    #[serde(deserialize_with = "str_to_u64")]
+    person: u64,
+    #[serde(deserialize_with = "str_to_f32")]
+    distance: f32,
+    mode: String,
+}
+
 fn str_to_u64<'de, D>(deserializer: D) -> Result<u64, D::Error>
 where
     D: Deserializer<'de>,
@@ -85,14 +96,24 @@ where
     u64::from_str(&s).map_err(de::Error::custom)
 }
 
+fn str_to_f32<'de, D>(deserializer: D) -> Result<f32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    f32::from_str(&s).map_err(de::Error::custom)
+}
+
 pub fn run_mpi_simulation_and_convert_events(
     number_of_parts: usize,
     network_file: &str,
     population_file: &str,
     output_dir: &str,
     routing_mode: &str,
+    vehicle_definitions_file: Option<&str>,
 ) {
-    let mut child = Command::new("cargo")
+    let mut command = Command::new("cargo");
+    command
         .arg("mpirun")
         .arg("-n")
         .arg(format!("{}", number_of_parts))
@@ -106,9 +127,15 @@ pub fn run_mpi_simulation_and_convert_events(
         .arg("--output-dir")
         .arg(output_dir)
         .arg("--routing-mode")
-        .arg(routing_mode)
-        .spawn()
-        .unwrap();
+        .arg(routing_mode);
+
+    if let Some(vehicle_definitions) = vehicle_definitions_file {
+        command
+            .arg("--vehicle-definitions-file")
+            .arg(vehicle_definitions);
+    }
+
+    let mut child = command.spawn().unwrap();
 
     let simulation_status = match child.wait_timeout(Duration::from_secs(15)).unwrap() {
         None => {

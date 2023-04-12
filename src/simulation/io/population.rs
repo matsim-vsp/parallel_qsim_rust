@@ -30,6 +30,12 @@ pub struct IOActivity {
     pub max_dur: Option<String>,
 }
 
+impl IOActivity {
+    pub fn is_interaction(&self) -> bool {
+        self.r#type.contains("interaction")
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOLeg {
     pub mode: String,
@@ -46,6 +52,28 @@ pub enum IOPlanElement {
     // Facilities at this stage.
     Activity(IOActivity),
     Leg(IOLeg),
+}
+
+impl IOPlanElement {
+    pub fn get_activity(element: Option<&IOPlanElement>) -> Option<&IOActivity> {
+        element.map_or(None, |e| {
+            if let IOPlanElement::Activity(activity) = e {
+                Some(activity)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn get_leg(element: Option<&IOPlanElement>) -> Option<&IOLeg> {
+        element.map_or(None, |e| {
+            if let IOPlanElement::Leg(leg) = e {
+                Some(leg)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

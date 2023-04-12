@@ -1,5 +1,4 @@
 use crate::simulation::config::RoutingMode;
-use crate::simulation::config::RoutingMode::UsePlans;
 use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::population::{
@@ -12,7 +11,6 @@ use crate::simulation::messaging::messages::proto::{
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
-use log::debug;
 use prost::Message;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -112,12 +110,13 @@ impl Ord for VehicleMessage {
 }
 
 impl Vehicle {
-    pub fn new(id: u64, veh_type: VehicleType, agent: Agent) -> Vehicle {
+    pub fn new(id: u64, veh_type: VehicleType, mode: String, agent: Agent) -> Vehicle {
         Vehicle {
             id,
             agent: Some(agent),
             curr_route_elem: 0,
             r#type: veh_type as i32,
+            mode,
         }
     }
 
@@ -155,6 +154,10 @@ impl NodeVehicle for Vehicle {
             Route::NetworkRoute(route) => self.curr_route_elem + 1 >= route.route.len() as u32,
         }
     }
+
+    fn mode(&self) -> &str {
+        self.mode.as_str()
+    }
 }
 
 impl EndTime for Vehicle {
@@ -190,7 +193,25 @@ impl Agent {
         self.get_act_at_index(act_index)
     }
 
+    pub fn curr_act_mut(&mut self) -> &mut Activity {
+        if self.curr_plan_elem % 2 != 0 {
+            panic!("Current element is not an activity");
+        }
+        let act_index = self.curr_plan_elem / 2;
+        self.get_act_at_index_mut(act_index)
+    }
+
     pub fn next_act(&self) -> &Activity {
+        let act_index = self.next_act_index();
+        self.get_act_at_index(act_index)
+    }
+
+    pub fn next_act_mut(&mut self) -> &mut Activity {
+        let act_index = self.next_act_index();
+        self.get_act_at_index_mut(act_index)
+    }
+
+    fn next_act_index(&self) -> u32 {
         let act_index = match self.curr_plan_elem % 2 {
             //current element is an activity => two elements after is the next activity
             0 => (self.curr_plan_elem + 2) / 2,
@@ -203,16 +224,7 @@ impl Agent {
                 )
             }
         };
-        self.get_act_at_index(act_index)
-    }
-
-    fn get_act_at_index(&self, index: u32) -> &Activity {
-        self.plan
-            .as_ref()
-            .unwrap()
-            .acts
-            .get(index as usize)
-            .unwrap()
+        act_index
     }
 
     pub fn curr_leg(&self) -> &Leg {
@@ -229,20 +241,86 @@ impl Agent {
             .unwrap()
     }
 
-    pub fn push_leg(
+    pub fn next_leg(&self) -> &Leg {
+        let next_leg_index = self.next_leg_index();
+        self.get_leg_at_index(next_leg_index)
+    }
+
+    fn next_leg_mut(&mut self) -> &mut Leg {
+        let next_leg_index = self.next_leg_index();
+        self.get_leg_at_index_mut(next_leg_index)
+    }
+
+    fn next_leg_index(&self) -> u32 {
+        let next_leg_index = match self.curr_plan_elem % 2 {
+            //current element is an activity => one element after is the next leg
+            0 => (self.curr_plan_elem + 1) / 2,
+            //current element is a leg => two elements after is the next leg
+            1 => (self.curr_plan_elem + 2) / 2,
+            _ => {
+                panic!(
+                    "There was an error while getting the next leg of agent {:?}",
+                    self.id
+                )
+            }
+        };
+        next_leg_index
+    }
+
+    fn get_act_at_index(&self, index: u32) -> &Activity {
+        self.plan
+            .as_ref()
+            .unwrap()
+            .acts
+            .get(index as usize)
+            .unwrap()
+    }
+
+    fn get_act_at_index_mut(&mut self, index: u32) -> &mut Activity {
+        self.plan
+            .as_mut()
+            .unwrap()
+            .acts
+            .get_mut(index as usize)
+            .unwrap()
+    }
+
+    fn get_leg_at_index(&self, index: u32) -> &Leg {
+        self.plan
+            .as_ref()
+            .unwrap()
+            .legs
+            .get(index as usize)
+            .unwrap()
+    }
+
+    fn get_leg_at_index_mut(&mut self, index: u32) -> &mut Leg {
+        self.plan
+            .as_mut()
+            .unwrap()
+            .legs
+            .get_mut(index as usize)
+            .unwrap()
+    }
+
+    pub fn update_next_leg(
         &mut self,
         dep_time: Option<u32>,
         travel_time: Option<u32>,
         route: Vec<u64>,
+        distance: Option<f32>,
         start_link: u64,
         end_link: u64,
     ) {
+        //info!("Leg update for agent {:?}. Departure {:?}, travel time {:?}, route {:?}, distance {:?}, start_link {:?}, end_link {:?}",
+        //    self, dep_time, travel_time, route,distance, start_link, end_link);
+
         let simulation_route = match route.is_empty() {
             true => Route::GenericRoute(GenericRoute {
                 start_link,
                 end_link,
-                trav_time: travel_time.unwrap(),
-                distance: 0.0,
+                trav_time: travel_time.expect("No travel time set for walking leg."),
+                distance: distance.expect("No distance set for walking leg."),
             }),
             false => Route::NetworkRoute(NetworkRoute {
                 vehicle_id: self.id,
@@ -250,12 +328,11 @@ impl Agent {
             }),
         };
 
-        self.plan.as_mut().unwrap().legs.push(Leg {
-            mode: "car".to_string(),
-            dep_time,
-            trav_time: travel_time,
-            route: Some(simulation_route),
-        });
+        let next_leg = self.next_leg_mut();
+
+        next_leg.dep_time = dep_time;
+        next_leg.trav_time = travel_time;
+        next_leg.route = Some(simulation_route);
     }
 
     pub fn advance_plan(&mut self) {
@@ -289,6 +366,8 @@ impl EndTime for Agent {
 }
 
 impl Plan {
+    pub const DEFAULT_ROUTING_MODE: &'static str = "car";
+
     fn new() -> Plan {
         Plan {
             acts: Vec::new(),
@@ -304,8 +383,15 @@ impl Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
-        }
+        };
 
+        match routing_mode {
+            RoutingMode::UsePlans => Plan::get_full_plan_no_routing(io_plan, id_mappings),
+            RoutingMode::AdHoc => Plan::get_full_plan_for_routing(io_plan, id_mappings),
+        }
+    }
+
+    fn get_full_plan_no_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
@@ -314,26 +400,173 @@ impl Plan {
                     let act = Activity::from_io(io_act, &id_mappings.links);
                     result.acts.push(act);
                 }
-                IOPlanElement::Leg(io_leg) => match routing_mode {
-                    RoutingMode::UsePlans => {
-                        let leg = Leg::from_io(io_leg, id_mappings);
-                        result.legs.push(leg);
-                    }
-                    RoutingMode::AdHoc => {
-                        debug!(
-                            "Internal routing is activated. The leg {:?} will be discarded.",
-                            io_leg
-                        )
-                    }
-                },
+                IOPlanElement::Leg(io_leg) => {
+                    let leg = Leg::from_io(io_leg, id_mappings);
+                    result.legs.push(leg);
+                }
             }
         }
 
-        if routing_mode == UsePlans && result.acts.len() - result.legs.len() != 1 {
+        if result.acts.len() - result.legs.len() != 1 {
             panic!("Plan {:?} has less legs than expected", io_plan);
         }
 
         result
+    }
+
+    fn get_full_plan_for_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+        let plan_type = Plan::get_plan_type(io_plan);
+        let window_size = plan_type.window_size();
+        let step_size = plan_type.step_size();
+        assert_eq!(
+            (io_plan.elements.len() - 1) % step_size,
+            0,
+            "The number of elements in the plan is wrong."
+        );
+
+        let mut result = Plan::new();
+
+        let plan_windows = io_plan.elements.windows(window_size);
+        let number_of_plan_windows = plan_windows.len();
+        for (i, window) in plan_windows.into_iter().step_by(step_size).enumerate() {
+            let curr_activity = IOPlanElement::get_activity(window.first());
+            let next_activity = IOPlanElement::get_activity(window.last());
+            let mut access_walk = None;
+            let mut access_interaction = None;
+            let mut main_leg = None;
+            let mut egress_interaction = None;
+            let mut egress_walk = None;
+
+            if window_size == 3 {
+                main_leg = IOPlanElement::get_leg(window.get(1));
+            }
+
+            if window_size == 7 {
+                access_walk = IOPlanElement::get_leg(window.get(1));
+                access_interaction = IOPlanElement::get_activity(window.get(2));
+                main_leg = IOPlanElement::get_leg(window.get(3));
+                egress_interaction = IOPlanElement::get_activity(window.get(4));
+                egress_walk = IOPlanElement::get_leg(window.get(5));
+            }
+
+            let curr_act_link_id = *id_mappings
+                .links
+                .get_internal(curr_activity.unwrap().link.as_str())
+                .unwrap() as u64;
+            let next_act_link_id = *id_mappings
+                .links
+                .get_internal(next_activity.unwrap().link.as_str())
+                .unwrap() as u64;
+
+            // current activity
+            let act = Activity::from_io(curr_activity.unwrap(), &id_mappings.links);
+            result.acts.push(act);
+
+            // access walk and interaction
+            Self::insert_access_or_egress(
+                id_mappings,
+                &mut result,
+                access_walk,
+                access_interaction,
+                curr_act_link_id,
+            );
+
+            // main leg
+            Self::insert_main_leg(&mut result, main_leg);
+
+            // egress interaction and walk
+            Self::insert_access_or_egress(
+                id_mappings,
+                &mut result,
+                egress_walk,
+                egress_interaction,
+                next_act_link_id,
+            );
+
+            // last activity
+            if i == number_of_plan_windows - 1 {
+                let act = Activity::from_io(next_activity.unwrap(), &id_mappings.links);
+                result.acts.push(act);
+            }
+        }
+        result
+    }
+
+    fn get_plan_type(io_plan: &IOPlan) -> PlanType {
+        if let IOPlanElement::Activity(_) = io_plan.elements.get(1).unwrap() {
+            return PlanType::ActivitiesOnly;
+        }
+
+        if let IOPlanElement::Activity(a) = io_plan.elements.get(2).unwrap() {
+            return if a.is_interaction() {
+                PlanType::ActivitiesAndMainLegsWithInteractionAndWalk
+            } else {
+                PlanType::ActivitiesAndMainLeg
+            };
+        } else {
+            panic!("The third element should never be a leg.")
+        }
+    }
+
+    fn insert_main_leg(result: &mut Plan, main_leg: Option<&IOLeg>) {
+        if main_leg.is_some() {
+            result
+                .legs
+                .push(Leg::only_with_mode(main_leg.unwrap().mode.as_str()))
+        } else {
+            result
+                .legs
+                .push(Leg::only_with_mode(Plan::DEFAULT_ROUTING_MODE))
+        }
+    }
+
+    fn insert_access_or_egress(
+        id_mappings: &MatsimIdMappings,
+        result: &mut Plan,
+        leg: Option<&IOLeg>,
+        interaction: Option<&IOActivity>,
+        activity_link_id: u64,
+    ) {
+        if leg.is_some() && interaction.is_some() {
+            result.legs.push(Leg::from_io(leg.unwrap(), id_mappings));
+            result
+                .acts
+                .push(Activity::from_io(interaction.unwrap(), &id_mappings.links))
+        } else {
+            let access_walk_leg = Leg::only_with_mode("walk");
+            result.legs.push(access_walk_leg);
+
+            let access_interaction_act = Activity {
+                act_type: String::from(Plan::DEFAULT_ROUTING_MODE) + " interaction",
+                link_id: activity_link_id,
+                x: 0.0, //dummy value which is never evaluated again
+                y: 0.0, //dummy value which is never evaluated again
+                start_time: None,
+                end_time: None,
+                max_dur: Some(0),
+            };
+            result.acts.push(access_interaction_act);
+        }
+    }
+}
+
+enum PlanType {
+    ActivitiesOnly,
+    ActivitiesAndMainLeg,
+    ActivitiesAndMainLegsWithInteractionAndWalk,
+}
+
+impl PlanType {
+    fn window_size(&self) -> usize {
+        match self {
+            PlanType::ActivitiesOnly => 2,
+            PlanType::ActivitiesAndMainLeg => 3,
+            PlanType::ActivitiesAndMainLegsWithInteractionAndWalk => 7,
+        }
+    }
+
+    fn step_size(&self) -> usize {
+        self.window_size() - 1
     }
 }
 
@@ -361,6 +594,10 @@ impl Activity {
             u32::MAX
         }
     }
+
+    pub fn is_interaction(&self) -> bool {
+        self.act_type.contains("interaction")
+    }
 }
 
 impl Leg {
@@ -371,6 +608,15 @@ impl Leg {
             mode: io_leg.mode.clone(),
             trav_time: parse_time_opt(&io_leg.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
+        }
+    }
+
+    fn only_with_mode(mode: &str) -> Self {
+        Self {
+            mode: mode.to_string(),
+            dep_time: None,
+            trav_time: None,
+            route: None,
         }
     }
 }
