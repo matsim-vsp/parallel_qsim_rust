@@ -10,11 +10,10 @@ use rust_road_router::datastr::graph::{NodeId, OwnedGraph, Weight};
 use rust_road_router::datastr::node_order::NodeOrder;
 use std::env;
 use std::path::PathBuf;
-use std::pin::Pin;
 use std::ptr::NonNull;
 
 pub struct RoadRouter<'router> {
-    pub(crate) server: Pin<Box<ServerAdapter<'router>>>,
+    pub(crate) server_adapter: Box<ServerAdapter<'router>>,
     pub(crate) current_network: RoutingKitNetwork,
     pub(crate) initial_network: RoutingKitNetwork,
 }
@@ -22,7 +21,7 @@ pub struct RoadRouter<'router> {
 impl<'router> RoadRouter<'router> {
     pub(crate) fn new(network: &RoutingKitNetwork, output_dir: PathBuf) -> RoadRouter<'router> {
         RoadRouter {
-            server: ServerAdapter::new(
+            server_adapter: ServerAdapter::new(
                 RoadRouter::perform_preprocessing(&network, output_dir),
                 network,
             ),
@@ -36,7 +35,7 @@ impl<'router> RoadRouter<'router> {
         from: usize,
         to: usize,
     ) -> QueryResult<PathServerWrapper<'q, CustomizedBasic<'router, CCH>>, Weight> {
-        self.server.query(from, to)
+        self.server_adapter.query(from, to)
     }
 
     fn get_end_node(&self, link_id: u64) -> usize {
@@ -129,20 +128,24 @@ impl<'router> RoadRouter<'router> {
     pub fn customize(&mut self, network: RoutingKitNetwork) {
         self.current_network = network;
 
-        let pin = &mut self.server;
-        let cch_ref = NonNull::from(&pin.cch);
-        let mut_ref = Pin::as_mut(pin);
+        let cch_ref = NonNull::from(&self.server_adapter.cch);
 
-        unsafe {
-            Pin::get_unchecked_mut(mut_ref)
-                .server
-                .as_mut()
-                .unwrap()
-                .update(customize(
-                    cch_ref.as_ref(),
-                    &RoadRouter::create_owned_graph(&self.current_network),
-                ));
-        }
+        let customization = unsafe {
+            customize(
+                cch_ref.as_ref(),
+                &RoadRouter::create_owned_graph(&self.current_network),
+            )
+        };
+
+        // Using the update method of Server is ok, because a new object of trait type Customized is created
+        // which holds a reference the CCH (which is stored in ServerAdapter).
+        // This Customized object is swapped
+        self.server_adapter
+            .as_mut()
+            .server
+            .as_mut()
+            .unwrap()
+            .update(customization);
     }
 
     pub fn get_current_network(&self) -> &RoutingKitNetwork {
@@ -163,25 +166,31 @@ pub struct ServerAdapter<'adapter> {
     cch: CCH,
 }
 
-// We need unsafe code here in order to implement the router trait. Otherwise, the instantiation and
-// update function could not be implemented.
-// This requires that the base address of cch is never moved, thus ServerAdapter must be pinned.
-// https://stackoverflow.com/questions/32300132/why-cant-i-store-a-value-and-a-reference-to-that-value-in-the-same-struct
 impl<'adapter> ServerAdapter<'adapter> {
-    pub fn new(cch: CCH, network: &RoutingKitNetwork) -> Pin<Box<ServerAdapter<'adapter>>> {
-        let adapter = ServerAdapter { server: None, cch };
-        let mut boxed_adapter = Box::pin(adapter);
+    pub fn new(cch: CCH, network: &RoutingKitNetwork) -> Box<ServerAdapter<'adapter>> {
+        let mut boxed_adapter = Box::new(ServerAdapter { server: None, cch });
 
         let cch_ref = NonNull::from(&boxed_adapter.cch);
-        let mut_boxed_adapter_ref: Pin<&mut Self> = Pin::as_mut(&mut boxed_adapter);
         let metric = &RoadRouter::create_owned_graph(&network);
 
-        // safety considerations
-        // TODO
-        unsafe {
-            let customization = customize(cch_ref.as_ref(), metric);
-            Pin::get_unchecked_mut(mut_boxed_adapter_ref).server = Some(Server::new(customization));
-        }
+        // To provide clean architecture, everything related to routing should be placed in this module.
+        // In particular, the cch has to live here. Because the Server object of the KIT library gets a reference,
+        // it has to life long enough. (Server -> Customized -> CCH) This can only be done with self-referential structs.
+        // (https://stackoverflow.com/questions/32300132/why-cant-i-store-a-value-and-a-reference-to-that-value-in-the-same-struct)
+        //
+        // Therefore, we need unsafe code.
+        //
+        // It is required that the base address of cch is never changed, thus ServerAdapter must be placed on the heap.
+        // Pinning is without effect because ServerAdapter must be mutable since every query mutates the server. :/
+        // That's why we have to use raw pointers on the ServerAdapter object which is placed on the heap.
+        //
+        // IMPORTANT: The ServerAdapter or i.e. CCH is not allowed to be reallocated after instantiation.
+        //
+        // SAFETY considerations
+        // The pointer cch_ref is valid, since the pointee is part of the ServerAdapter object.
+        // It is placed on the heap and an instance of CCH. By design of this router module it is not mutated nor reallocated.
+        let customization = unsafe { customize(cch_ref.as_ref(), metric) };
+        boxed_adapter.as_mut().server = Some(Server::new(customization));
 
         boxed_adapter
     }
