@@ -10,6 +10,7 @@ use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::partitioned_network::Network;
 use crate::simulation::partition_info::PartitionInfo;
+use crate::simulation::performance_profiling::performance_logger::measure_duration_and_trace;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
@@ -133,7 +134,10 @@ pub fn run(world: SystemCommunicator, config: Config) {
     );
 
     let start = Instant::now();
-    simulation.run(config.start_time, config.end_time);
+    measure_duration_and_trace(0, "simulation", || {
+        simulation.run(config.start_time, config.end_time)
+    });
+    //simulation.run(config.start_time, config.end_time);
     let end = Instant::now();
     let duration = end.sub(start).as_millis() / 1000;
     info!("#{rank} took: {duration}s");

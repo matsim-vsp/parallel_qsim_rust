@@ -11,6 +11,7 @@ use crate::simulation::messaging::messages::proto::{
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
+use crate::simulation::performance_profiling::performance_logger::measure_duration_and_trace;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
@@ -74,20 +75,25 @@ impl<'sim> Simulation<'sim> {
                 let _min = (now % 3600) / 60;
                 info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank);
             }
-            self.wakeup(now);
-            self.terminate_teleportation(now);
-            self.move_nodes(now);
-            self.send_receive(now);
 
             if let Some(router) = self.router.as_mut() {
                 router.next_time_step(now, &mut self.events)
             }
+
+            measure_duration_and_trace(now, "qsim", || self.qsim_steps(now));
+            measure_duration_and_trace(now, "qsim_updates", || self.send_receive(now));
 
             now += 1;
         }
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
         self.events.finish();
+    }
+
+    fn qsim_steps(&mut self, now: u32) {
+        self.wakeup(now);
+        self.terminate_teleportation(now);
+        self.move_nodes(now);
     }
 
     fn wakeup(&mut self, now: u32) {
