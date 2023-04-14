@@ -25,6 +25,9 @@ prost = "0.11.5"
 bytes = "1.3.0"
 serial_test = "1.0.0"
 wait-timeout = "0.2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3.0", features = ["json", "fmt", "std", "registry"] }
+tracing-appender = "0.2"
 
 [build-dependencies]
 # generates types based on .proto files

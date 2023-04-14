@@ -4,7 +4,6 @@ use crate::simulation::io::xml_reader;
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::network::partitioned_network::Network;
 use flate2::Compression;
-use log::info;
 use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -12,6 +11,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use tracing::info;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Attr {

@@ -2,9 +2,9 @@ use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::node::NodeVehicle;
-use log::warn;
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use tracing::warn;
 
 #[derive(Debug, Clone)]
 pub enum Link<V: Debug> {

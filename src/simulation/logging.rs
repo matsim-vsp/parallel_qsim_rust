@@ -1,28 +1,29 @@
-use flexi_logger::{detailed_format, Duplicate, FileSpec, Logger, LoggerHandle, WriteMode};
-use log::{info, warn};
+use std::io;
+use tracing::level_filters::LevelFilter;
+use tracing::Level;
+use tracing_appender::rolling;
+use tracing_subscriber::fmt;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Layer;
 
-pub fn init_logging(directory: &str, file_discriminant: Option<String>) -> Option<LoggerHandle> {
-    let result = Logger::try_with_str("info")
-        .unwrap()
-        .log_to_file(
-            FileSpec::default()
-                .o_discriminant(file_discriminant)
-                .suppress_timestamp()
-                .directory(directory),
-        )
-        .format(detailed_format)
-        .write_mode(WriteMode::Direct)
-        .duplicate_to_stdout(Duplicate::All)
-        .start();
+pub fn init_logging(directory: &str, file_discriminant: String) {
+    let mut file_name = String::from("mpi_qsim_");
+    file_name.push_str(file_discriminant.as_str());
 
-    match result {
-        Ok(logger_handle) => {
-            info!("Created logger");
-            Some(logger_handle)
-        }
-        Err(_) => {
-            warn!("Was not able to create logger.");
-            None
-        }
-    }
+    let log_file = rolling::never(directory, &file_name);
+
+    let mut perf_directory = String::from(directory);
+    perf_directory.push_str("/trace");
+    let perf_file = rolling::never(perf_directory, &file_name).with_min_level(Level::TRACE);
+
+    let collector = tracing_subscriber::registry()
+        .with(fmt::Layer::new().with_writer(log_file).with_ansi(false))
+        .with(fmt::Layer::new().with_writer(perf_file).json())
+        .with(
+            fmt::Layer::new()
+                .with_writer(io::stdout)
+                .with_filter(LevelFilter::INFO),
+        );
+    tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
 }

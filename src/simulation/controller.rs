@@ -15,7 +15,6 @@ use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
 use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::simulation::Simulation;
-use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
 use std::ffi::c_int;
@@ -24,6 +23,7 @@ use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::Instant;
+use tracing::info;
 
 pub fn run(world: SystemCommunicator, config: Config) {
     let rank = world.rank();

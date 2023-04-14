@@ -1,10 +1,10 @@
 use crate::simulation::messaging::messages::proto::TravelTimesMessage;
-use log::debug;
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::topology::{Communicator, SystemCommunicator};
 use mpi::{Count, Rank};
 use std::collections::HashMap;
+use tracing::debug;
 
 pub struct TravelTimesMessageBroker {
     pub rank: Rank,
