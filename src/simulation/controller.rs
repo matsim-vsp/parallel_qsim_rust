@@ -12,7 +12,7 @@ use crate::simulation::network::partitioned_network::Network;
 use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::performance_profiling::performance_proto::measure_duration;
 use crate::simulation::performance_profiling::proto::Metadata;
-use crate::simulation::performance_profiling::NoPerformanceProfiler;
+
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;

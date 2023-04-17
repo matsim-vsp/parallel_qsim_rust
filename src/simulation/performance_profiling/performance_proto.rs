@@ -1,13 +1,13 @@
 use crate::simulation::performance_profiling::proto::{
-    Metadata, ProfilingEvent, SimulationProfile,
+    Metadata, ProfilingEvent,
 };
-use crate::simulation::performance_profiling::PerformanceProfiler;
+
 use base64::Engine;
 use prost::Message;
-use std::fs::File;
-use std::io::{BufWriter, Write};
-use std::path::Path;
-use std::string::FromUtf8Error;
+
+
+
+
 use std::time::Instant;
 use tracing::trace;
 

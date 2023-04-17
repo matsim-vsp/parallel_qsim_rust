@@ -13,7 +13,6 @@ use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
 use crate::simulation::performance_profiling::performance_proto::measure_duration;
 use crate::simulation::performance_profiling::proto::Metadata;
-use crate::simulation::performance_profiling::{NoPerformanceProfiler, PerformanceProfiler};
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
