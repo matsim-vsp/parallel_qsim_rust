@@ -1,4 +1,3 @@
-mod performance_logger;
 pub mod performance_proto;
 mod profiling;
 
