@@ -8,7 +8,7 @@ message SimulationProfile {
 
 message ProfilingEvent {
   string key = 1;
-  uint64 duration = 2;
+  double duration = 2;
   optional uint32 simTime = 3;
   optional Metadata metadata = 4;
 }

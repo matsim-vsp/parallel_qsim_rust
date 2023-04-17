@@ -7,7 +7,7 @@ use crate::simulation::performance_profiling::proto::{
 };
 
 impl ProfilingEvent {
-    pub fn new(key: String, now: Option<u32>, duration: u64, metadata: Option<Metadata>) -> Self {
+    pub fn new(key: String, now: Option<u32>, duration: f64, metadata: Option<Metadata>) -> Self {
         Self {
             key,
             duration,
