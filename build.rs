@@ -10,6 +10,7 @@ fn main() {
         &[
             "src/simulation/messaging/messages.proto",
             "src/simulation/messaging/events.proto",
+            "src/simulation/performance_profiling/profiling.proto",
         ],
         &["src/"],
     )

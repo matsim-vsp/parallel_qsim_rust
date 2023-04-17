@@ -4,6 +4,8 @@ use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::{Plan, TravelTimesMessage};
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
+use crate::simulation::performance_profiling::performance_proto::measure_duration;
+use crate::simulation::performance_profiling::proto::Metadata;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::road_router::RoadRouter;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
@@ -44,21 +46,39 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
         );
 
         //get travel times
-        let collected_travel_times = events
-            .get_subscriber::<TravelTimeCollector>()
-            .map(|travel_time_collector| travel_time_collector.get_travel_times())
-            .unwrap();
+        let collected_travel_times: HashMap<u64, u32> =
+            measure_duration(Some(now), "travel_time_aggregation", None, || {
+                let collected_travel_times = events
+                    .get_subscriber::<TravelTimeCollector>()
+                    .map(|travel_time_collector| travel_time_collector.get_travel_times())
+                    .unwrap();
 
-        if !collected_travel_times.is_empty() {
-            debug!("Collected travel times are: {:?}", collected_travel_times);
-        }
+                if !collected_travel_times.is_empty() {
+                    debug!("Collected travel times are: {:?}", collected_travel_times);
+                }
+                collected_travel_times
+            });
 
         //send travel times
-        let vec = self
-            .traffic_message_broker
-            .send_recv(now, collected_travel_times);
+        let updates = collected_travel_times.len() as u64;
+        let vec = measure_duration(
+            Some(now),
+            "travel_time_send",
+            Some(Metadata::new_travel_time_collecting(updates)),
+            || {
+                self.traffic_message_broker
+                    .send_recv(now, collected_travel_times)
+            },
+        );
 
-        self.handle_traffic_info_messages(vec);
+        measure_duration(
+            Some(now),
+            "travel_time_handling",
+            Some(Metadata::new_travel_time_collecting(updates)),
+            || {
+                self.handle_traffic_info_messages(vec);
+            },
+        );
 
         //reset travel times
         events

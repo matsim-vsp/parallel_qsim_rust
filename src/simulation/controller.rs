@@ -10,7 +10,9 @@ use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::partitioned_network::Network;
 use crate::simulation::partition_info::PartitionInfo;
-use crate::simulation::performance_profiling::performance_logger::measure_duration_and_trace;
+use crate::simulation::performance_profiling::performance_proto::measure_duration;
+use crate::simulation::performance_profiling::proto::Metadata;
+use crate::simulation::performance_profiling::NoPerformanceProfiler;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
@@ -121,6 +123,15 @@ pub fn run(world: SystemCommunicator, config: Config) {
         )))
     }
 
+    let local_links = network_partition.len_local_links();
+    let split_in_links = network_partition.len_split_in_links();
+    let split_out_links = network_partition.len_split_out_links();
+    let neighbors = network_partition
+        .neighbors()
+        .iter()
+        .map(|&n| n as u64)
+        .collect::<Vec<u64>>();
+
     let mut simulation = Simulation::new(
         &config,
         &id_mappings,
@@ -134,10 +145,17 @@ pub fn run(world: SystemCommunicator, config: Config) {
     );
 
     let start = Instant::now();
-    measure_duration_and_trace(0, "simulation", || {
-        simulation.run(config.start_time, config.end_time)
-    });
-    //simulation.run(config.start_time, config.end_time);
+    measure_duration(
+        None,
+        "simulation",
+        Some(Metadata::new_node_information(
+            local_links as u64,
+            split_in_links as u64,
+            split_out_links as u64,
+            neighbors,
+        )),
+        || simulation.run(config.start_time, config.end_time),
+    );
     let end = Instant::now();
     let duration = end.sub(start).as_millis() / 1000;
     info!("#{rank} took: {duration}s");

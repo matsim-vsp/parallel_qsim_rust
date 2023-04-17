@@ -29,6 +29,36 @@ impl<V: NodeVehicle> NetworkPartition<V> {
             .count()
     }
 
+    pub fn len_local_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::LocalLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn len_split_in_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::SplitInLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn len_split_out_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::SplitOutLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
     pub fn get_local_nodes(nodes: Values<usize, Node>) -> Vec<&Node> {
         nodes
             .filter(|n| match n {
