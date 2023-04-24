@@ -1,34 +1,36 @@
-pub mod performance_proto;
-mod profiling;
+use serde_json::{json, Value};
+use std::env;
+use std::time::Instant;
+use tracing::trace;
 
-pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/profiling.rs"));
-}
+const DEFAULT_PERFORMANCE_INTERVAL: u32 = 900;
 
-use crate::simulation::performance_profiling::proto::Metadata;
+pub fn measure_duration<Out, F: FnOnce() -> Out>(
+    now: Option<u32>,
+    key: &str,
+    metadata: Option<Value>,
+    f: F,
+) -> Out {
+    let start = Instant::now();
+    let res = f();
+    let duration = start.elapsed();
 
-pub trait PerformanceProfiler {
-    fn measure_duration<Out, F: FnOnce() -> Out>(
-        &mut self,
-        now: Option<u32>,
-        key: &str,
-        metadata: Metadata,
-        f: F,
-    ) -> Out;
+    let interval = match env::var("RUST_Q_SIM_PERFORMANCE_TRACING_INTERVAL") {
+        Ok(interval) => interval
+            .parse::<u32>()
+            .unwrap_or(DEFAULT_PERFORMANCE_INTERVAL),
+        Err(_) => DEFAULT_PERFORMANCE_INTERVAL,
+    };
 
-    fn finish(&mut self) {}
-}
+    if now.map_or(true, |time| time % interval == 0) {
+        let event = json!({
+            "now": now,
+            "key": key,
+            "duration": duration,
+            "metadata": metadata
+        });
 
-pub struct NoPerformanceProfiler {}
-
-impl PerformanceProfiler for NoPerformanceProfiler {
-    fn measure_duration<Out, F: FnOnce() -> Out>(
-        &mut self,
-        now: Option<u32>,
-        key: &str,
-        metadata: Metadata,
-        f: F,
-    ) -> Out {
-        f()
+        trace!(event = event.to_string());
     }
+    res
 }

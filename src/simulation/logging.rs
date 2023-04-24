@@ -30,6 +30,7 @@ pub fn init_logging(directory: &str, file_discriminant: String) -> (WorkerGuard,
         .with(
             fmt::Layer::new()
                 .with_writer(log_file)
+                .json()
                 .with_ansi(false)
                 .with_filter(LevelFilter::DEBUG),
         )

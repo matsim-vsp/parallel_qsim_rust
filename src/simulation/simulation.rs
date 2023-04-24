@@ -11,8 +11,7 @@ use crate::simulation::messaging::messages::proto::{
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::{ExitReason, NodeVehicle};
-use crate::simulation::performance_profiling::performance_proto::measure_duration;
-use crate::simulation::performance_profiling::proto::Metadata;
+use crate::simulation::performance_profiling::measure_duration;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
@@ -84,7 +83,7 @@ impl<'sim> Simulation<'sim> {
             measure_duration(
                 Some(now),
                 "qsim_step",
-                Some(Metadata::new_qsim_step(0, 0)), //TODO
+                None, //TODO
                 || self.qsim_steps(now),
             );
 

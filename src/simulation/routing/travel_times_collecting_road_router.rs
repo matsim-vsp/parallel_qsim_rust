@@ -4,14 +4,14 @@ use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::{Plan, TravelTimesMessage};
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
-use crate::simulation::performance_profiling::performance_proto::measure_duration;
-use crate::simulation::performance_profiling::proto::Metadata;
+use crate::simulation::performance_profiling::measure_duration;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::road_router::RoadRouter;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
 use crate::simulation::routing::travel_times_message_broker::TravelTimesMessageBroker;
 use mpi::topology::SystemCommunicator;
 use mpi::Rank;
+use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
@@ -64,7 +64,7 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
         let vec = measure_duration(
             Some(now),
             "travel_time_send",
-            Some(Metadata::new_travel_time_collecting(updates)),
+            Some(json!({ "updates": updates })),
             || {
                 self.traffic_message_broker
                     .send_recv(now, collected_travel_times)
@@ -74,7 +74,7 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
         measure_duration(
             Some(now),
             "travel_time_handling",
-            Some(Metadata::new_travel_time_collecting(updates)),
+            Some(json!({ "updates": updates })),
             || {
                 self.handle_traffic_info_messages(vec);
             },
