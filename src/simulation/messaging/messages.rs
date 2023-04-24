@@ -15,6 +15,7 @@ use prost::Message;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::Cursor;
+use tracing::debug;
 
 // Include the `messages` module, which is generated from messages.proto.
 pub mod proto {
@@ -173,6 +174,11 @@ impl Agent {
         routing_mode: RoutingMode,
     ) -> Agent {
         let plan = Plan::from_io(io_person.selected_plan(), id_mappings, routing_mode);
+
+        if plan.acts.is_empty() {
+            debug!("There is an empty plan for person {:?}", io_person.id);
+        }
+
         let id = *id_mappings.agents.get_internal(io_person.id()).unwrap();
         Agent {
             id: id as u64,
@@ -416,6 +422,11 @@ impl Plan {
 
     fn get_full_plan_for_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
         let plan_type = Plan::get_plan_type(io_plan);
+
+        if plan_type.is_none() {
+            return Plan::new();
+        }
+
         let window_size = plan_type.window_size();
         let step_size = plan_type.step_size();
         assert_eq!(
@@ -492,16 +503,20 @@ impl Plan {
         result
     }
 
-    fn get_plan_type(io_plan: &IOPlan) -> PlanType {
+    fn get_plan_type(io_plan: &IOPlan) -> Option<PlanType> {
+        if io_plan.elements.is_empty() {
+            return None;
+        }
+
         if let IOPlanElement::Activity(_) = io_plan.elements.get(1).unwrap() {
-            return PlanType::ActivitiesOnly;
+            return Some(PlanType::ActivitiesOnly);
         }
 
         if let IOPlanElement::Activity(a) = io_plan.elements.get(2).unwrap() {
             return if a.is_interaction() {
-                PlanType::ActivitiesAndMainLegsWithInteractionAndWalk
+                Some(PlanType::ActivitiesAndMainLegsWithInteractionAndWalk)
             } else {
-                PlanType::ActivitiesAndMainLeg
+                Some(PlanType::ActivitiesAndMainLeg)
             };
         } else {
             panic!("The third element should never be a leg.")
