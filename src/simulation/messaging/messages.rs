@@ -421,14 +421,25 @@ impl Plan {
     }
 
     fn get_full_plan_for_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
-        let plan_type = Plan::get_plan_type(io_plan);
-
-        if plan_type.is_none() {
+        if io_plan.elements.is_empty() {
             return Plan::new();
         }
 
-        let window_size = plan_type.as_ref().unwrap().window_size();
-        let step_size = plan_type.as_ref().unwrap().step_size();
+        if io_plan.elements.len() == 1 {
+            let mut plan = Plan::new();
+            if let IOPlanElement::Activity(io_activity) = io_plan.elements.get(0).unwrap() {
+                plan.acts
+                    .push(Activity::from_io(io_activity, &id_mappings.links));
+            } else {
+                panic!("The first element of a plan has to be an activity.")
+            }
+            return plan;
+        }
+
+        let plan_type = Plan::get_plan_type(io_plan);
+
+        let window_size = plan_type.window_size();
+        let step_size = plan_type.step_size();
         assert_eq!(
             (io_plan.elements.len() - 1) % step_size,
             0,
@@ -503,20 +514,16 @@ impl Plan {
         result
     }
 
-    fn get_plan_type(io_plan: &IOPlan) -> Option<PlanType> {
-        if io_plan.elements.is_empty() {
-            return None;
-        }
-
+    fn get_plan_type(io_plan: &IOPlan) -> PlanType {
         if let IOPlanElement::Activity(_) = io_plan.elements.get(1).unwrap() {
-            return Some(PlanType::ActivitiesOnly);
+            return PlanType::ActivitiesOnly;
         }
 
         if let IOPlanElement::Activity(a) = io_plan.elements.get(2).unwrap() {
             return if a.is_interaction() {
-                Some(PlanType::ActivitiesAndMainLegsWithInteractionAndWalk)
+                PlanType::ActivitiesAndMainLegsWithInteractionAndWalk
             } else {
-                Some(PlanType::ActivitiesAndMainLeg)
+                PlanType::ActivitiesAndMainLeg
             };
         } else {
             panic!("The third element should never be a leg.")
