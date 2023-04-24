@@ -179,6 +179,13 @@ impl Agent {
             debug!("There is an empty plan for person {:?}", io_person.id);
         }
 
+        if plan.acts.len() == 1 {
+            debug!(
+                "There is a plan with one activity only for person {:?}",
+                io_person.id
+            );
+        }
+
         let id = *id_mappings.agents.get_internal(io_person.id()).unwrap();
         Agent {
             id: id as u64,
