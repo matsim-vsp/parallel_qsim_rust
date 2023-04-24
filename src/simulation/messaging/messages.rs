@@ -427,8 +427,8 @@ impl Plan {
             return Plan::new();
         }
 
-        let window_size = plan_type.window_size();
-        let step_size = plan_type.step_size();
+        let window_size = plan_type.as_ref().unwrap().window_size();
+        let step_size = plan_type.as_ref().unwrap().step_size();
         assert_eq!(
             (io_plan.elements.len() - 1) % step_size,
             0,
