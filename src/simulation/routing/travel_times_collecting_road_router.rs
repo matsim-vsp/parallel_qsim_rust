@@ -51,7 +51,7 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
 
         //get travel times
         let collected_travel_times: HashMap<u64, u32> =
-            measure_duration(Some(now), "travel_time_aggregation", None, || {
+            measure_duration(Some(now), "travel_time_collecting", None, || {
                 let collected_travel_times = events
                     .get_subscriber::<TravelTimeCollector>()
                     .map(|travel_time_collector| travel_time_collector.get_travel_times())
@@ -60,7 +60,12 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
             });
 
         //compute all updates of partition
-        let send_package = self.get_travel_times_by_mode_to_send(&collected_travel_times);
+        let send_package = measure_duration(
+            Some(now),
+            "travel_time_aggregating",
+            Some(json!({"updates": collected_travel_times.len()})),
+            || self.get_travel_times_by_mode_to_send(&collected_travel_times),
+        );
 
         //send travel times
         let received_messages_by_mode = send_package
@@ -88,7 +93,7 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
                 "travel_time_handling",
                 Some(json!({ "mode": mode, "updates": number_of_updates })),
                 || {
-                    self.handle_traffic_info_messages(mode, message);
+                    self.handle_traffic_info_messages(now, mode, message);
                 },
             );
         }
@@ -154,6 +159,7 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
 
     fn handle_traffic_info_messages(
         &mut self,
+        now: u32,
         mode: String,
         traffic_info_messages: Vec<TravelTimesMessage>,
     ) {
@@ -185,10 +191,17 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             .get_current_network()
             .clone_with_new_travel_times_by_link(travel_times_by_link);
 
-        self.router_by_mode
-            .get_mut(&*mode)
-            .unwrap()
-            .customize(new_network);
+        measure_duration(
+            Some(now),
+            "router_customization",
+            Some(json!({ "mode": mode })),
+            || {
+                self.router_by_mode
+                    .get_mut(&*mode)
+                    .unwrap()
+                    .customize(new_network);
+            },
+        )
     }
 
     fn get_router_by_mode(&mut self, mode: &str) -> Option<&mut RoadRouter<'router>> {
