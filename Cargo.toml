@@ -29,6 +29,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3.0", features = ["json", "fmt", "std", "registry"] }
 tracing-appender = "0.2"
 base64 = "0.21.0"
+itertools = "0.10.5"
 
 [build-dependencies]
 # generates types based on .proto files

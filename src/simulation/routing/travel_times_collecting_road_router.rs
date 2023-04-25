@@ -2,24 +2,28 @@ use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::network::IONetwork;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::messages::proto::{Plan, TravelTimesMessage};
+use crate::simulation::messaging::messages::proto::{Plan, TravelTimesMessage, Vehicle};
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
+use crate::simulation::network::link::Link;
+use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::performance_profiling::measure_duration;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::road_router::RoadRouter;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
 use crate::simulation::routing::travel_times_message_broker::TravelTimesMessageBroker;
+use itertools::Itertools;
 use mpi::topology::SystemCommunicator;
 use mpi::Rank;
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use tracing::debug;
 
 pub struct TravelTimesCollectingRoadRouter<'router> {
-    router_by_mode: HashMap<String, RoadRouter<'router>>,
+    router_by_mode: BTreeMap<String, RoadRouter<'router>>,
     traffic_message_broker: TravelTimesMessageBroker,
     vehicle_definitions: Option<VehicleDefinitions>,
+    link_ids_of_process: HashSet<u64>,
 }
 
 impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
@@ -52,33 +56,42 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
                     .get_subscriber::<TravelTimeCollector>()
                     .map(|travel_time_collector| travel_time_collector.get_travel_times())
                     .unwrap();
-
-                if !collected_travel_times.is_empty() {
-                    debug!("Collected travel times are: {:?}", collected_travel_times);
-                }
                 collected_travel_times
             });
 
-        //send travel times
-        let updates = collected_travel_times.len() as u64;
-        let vec = measure_duration(
-            Some(now),
-            "travel_time_send",
-            Some(json!({ "updates": updates })),
-            || {
-                self.traffic_message_broker
-                    .send_recv(now, collected_travel_times)
-            },
-        );
+        //compute all updates of partition
+        let send_package = self.get_travel_times_by_mode_to_send(&collected_travel_times);
 
-        measure_duration(
-            Some(now),
-            "travel_time_handling",
-            Some(json!({ "updates": updates })),
-            || {
-                self.handle_traffic_info_messages(vec);
-            },
-        );
+        //send travel times
+        let received_messages_by_mode = send_package
+            .into_iter()
+            .map(|(mode, updates)| {
+                let number_of_updates = updates.len() as u64;
+                let received_messages = measure_duration(
+                    Some(now),
+                    "travel_time_send",
+                    Some(json!({ "mode": mode, "updates": number_of_updates })),
+                    || self.traffic_message_broker.send_recv(now, updates),
+                );
+                (mode, received_messages)
+            })
+            .collect::<BTreeMap<String, Vec<TravelTimesMessage>>>();
+
+        //handle travel times
+        for (mode, message) in received_messages_by_mode.into_iter() {
+            let number_of_updates: usize = message
+                .iter()
+                .map(|m| m.travel_times_by_link_id.len())
+                .sum();
+            measure_duration(
+                Some(now),
+                "travel_time_handling",
+                Some(json!({ "mode": mode, "updates": number_of_updates })),
+                || {
+                    self.handle_traffic_info_messages(mode, message);
+                },
+            );
+        }
 
         //reset travel times
         events
@@ -96,6 +109,7 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
         rank: Rank,
         output_dir: PathBuf,
         vehicle_definitions: Option<VehicleDefinitions>,
+        network_partition: &NetworkPartition<Vehicle>,
     ) -> Self {
         let router_by_mode = if let Some(vehicle_definitions) = vehicle_definitions.as_ref() {
             NetworkConverter::convert_io_network_with_vehicle_definitions(
@@ -105,9 +119,10 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             )
             .iter()
             .map(|(m, r)| (m.clone(), RoadRouter::new(r, output_dir.join(m))))
-            .collect::<HashMap<_, _>>()
+            .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
+            .collect::<BTreeMap<_, _>>()
         } else {
-            let mut map = HashMap::new();
+            let mut map = BTreeMap::new();
             map.insert(
                 Plan::DEFAULT_ROUTING_MODE.to_string(),
                 RoadRouter::new(
@@ -118,14 +133,30 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             map
         };
 
+        let link_ids_of_process = network_partition
+            .links
+            .iter()
+            .filter(|(id, link)| match link {
+                Link::LocalLink(_) => true,
+                Link::SplitInLink(_) => true,
+                Link::SplitOutLink(_) => false,
+            })
+            .map(|(id, _)| *id as u64)
+            .collect::<HashSet<u64>>();
+
         TravelTimesCollectingRoadRouter {
             router_by_mode,
             traffic_message_broker: TravelTimesMessageBroker::new(communicator, rank),
             vehicle_definitions,
+            link_ids_of_process,
         }
     }
 
-    fn handle_traffic_info_messages(&mut self, traffic_info_messages: Vec<TravelTimesMessage>) {
+    fn handle_traffic_info_messages(
+        &mut self,
+        mode: String,
+        traffic_info_messages: Vec<TravelTimesMessage>,
+    ) {
         if traffic_info_messages.is_empty() {
             return;
         }
@@ -147,36 +178,53 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             travel_times_by_link.len()
         );
 
-        // For each router: evaluate new travel time by link. If travel time for link was sent,
-        // use maximum(new travel time, initial travel time). Otherwise use initial travel time.
-        for (mode, router) in self.router_by_mode.iter_mut() {
-            let mut extended_travel_times_by_link_id = HashMap::new();
+        let new_network = self
+            .router_by_mode
+            .get(&*mode)
+            .unwrap()
+            .get_current_network()
+            .clone_with_new_travel_times_by_link(travel_times_by_link);
 
-            for link_id in router.get_current_network().link_ids.iter() {
-                let new_travel_time = if let Some(travel_time) = travel_times_by_link.get(link_id) {
-                    **travel_time.max(&&router.get_initial_travel_time(*link_id))
-                } else {
-                    router.get_initial_travel_time(*link_id)
-                };
-
-                extended_travel_times_by_link_id.insert(link_id, new_travel_time);
-            }
-
-            let network = router
-                .get_current_network()
-                .clone_with_new_travel_times_by_link(&extended_travel_times_by_link_id);
-
-            if network.has_different_travel_times(router.get_current_network()) {
-                debug!(
-                    "There are travel time changes. Router for mode {:?} will be customized.",
-                    mode
-                );
-                router.customize(network);
-            }
-        }
+        self.router_by_mode
+            .get_mut(&*mode)
+            .unwrap()
+            .customize(new_network);
     }
 
     fn get_router_by_mode(&mut self, mode: &str) -> Option<&mut RoadRouter<'router>> {
         self.router_by_mode.get_mut(mode)
+    }
+
+    fn get_travel_times_by_mode_to_send(
+        &mut self,
+        collected_travel_times: &HashMap<u64, u32>,
+    ) -> BTreeMap<String, HashMap<u64, u32>> {
+        let mut result = BTreeMap::new();
+        for (mode, router) in self.router_by_mode.iter_mut() {
+            let mut extended_travel_times_by_link_id = HashMap::new();
+
+            // for each collected travel time: add if currently known travel time is different
+            for (id, travel_time) in collected_travel_times {
+                let new_travel_time = (*travel_time).max(router.get_initial_travel_time(*id));
+                if new_travel_time != router.get_current_travel_time(*id) {
+                    extended_travel_times_by_link_id.insert(*id, new_travel_time);
+                }
+            }
+
+            // for each link which has no new travel time: add initial travel time if currently known travel time is different
+            for id in self.link_ids_of_process.difference(
+                &collected_travel_times
+                    .clone() //TODO
+                    .into_keys()
+                    .collect::<HashSet<u64>>(),
+            ) {
+                let initial_travel_time = router.get_initial_travel_time(*id);
+                if router.get_current_travel_time(*id) != initial_travel_time {
+                    extended_travel_times_by_link_id.insert(*id, initial_travel_time);
+                }
+            }
+            result.insert(String::from(mode), extended_travel_times_by_link_id);
+        }
+        result
     }
 }
