@@ -146,7 +146,7 @@ impl IONetwork {
 
         // to make via swollow this, it neads an xml tag, as well as a dtd header.
         let network_header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v2.dtd\">";
-        writer.write(network_header.as_ref()).unwrap();
+        writer.write_all(network_header.as_ref()).unwrap();
 
         // write the actual network
         to_writer(writer, self).unwrap();
