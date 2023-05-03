@@ -1,8 +1,8 @@
 use crate::simulation::id_mapping::MatsimIdMapping;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::xml_reader;
+use crate::simulation::network::network::Network;
 use crate::simulation::network::node::NodeVehicle;
-use crate::simulation::network::partitioned_network::Network;
 use flate2::Compression;
 use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
