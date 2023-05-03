@@ -1460,7 +1460,7 @@ dependencies = [
 [[package]]
 name = "rust_road_router"
 version = "0.1.0"
-source = "git+https://github.com/kit-algo/rust_road_router#f7da6d1e1f0f317042dd0198ca8b062ebd215694"
+source = "git+https://github.com/paulheinr/rust_road_router?branch=clean_log#6d1fb97f09a42c76d9dd59e6ef67b7f58cf2a68b"
 dependencies = [
  "affinity",
  "built",

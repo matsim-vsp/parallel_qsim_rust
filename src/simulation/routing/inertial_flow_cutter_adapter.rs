@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::fs::{create_dir_all, remove_dir_all, remove_file, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub struct InertialFlowCutterAdapter {
     pub inertial_flow_cutter_path: PathBuf,
@@ -95,6 +95,7 @@ impl InertialFlowCutterAdapter {
                     .to_owned()
                     + "_bin",
             )
+            .stdout(Stdio::null())
             .status()
             .expect("Failed to compute ordering");
     }
