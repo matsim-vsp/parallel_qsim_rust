@@ -56,8 +56,8 @@ impl NetworkConverter {
         let mut head = Vec::new();
         let mut travel_time = Vec::new();
         let mut link_ids = Vec::new();
-        let mut latitude = Vec::new();
-        let mut longitude = Vec::new();
+        let mut x = Vec::new();
+        let mut y = Vec::new();
 
         Self::check_network_valid(&matsim_network);
 
@@ -74,8 +74,8 @@ impl NetworkConverter {
 
         for node in matsim_network.nodes() {
             //TODO: make sure, that the coordinate system is correct
-            longitude.push(node.x);
-            latitude.push(node.y);
+            y.push(node.x);
+            x.push(node.y);
 
             first_out.push((links_before) as EdgeId);
 
@@ -117,8 +117,8 @@ impl NetworkConverter {
             head,
             travel_time,
             link_ids,
-            latitude,
-            longitude,
+            x,
+            y,
         }
     }
 
@@ -158,7 +158,7 @@ mod test {
         assert_eq!(network.head, vec![2, 3, 2, 3, 1, 2]);
         assert_eq!(network.travel_time, vec![1, 2, 1, 4, 2, 5]);
         assert_eq!(network.link_ids, Vec::<u64>::new());
-        // we don't check latitude and longitude so far
+        // we don't check y and y so far
     }
 
     #[test]

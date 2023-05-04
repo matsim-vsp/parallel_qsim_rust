@@ -158,12 +158,15 @@ impl InertialFlowCutterAdapter {
             &routing_kit_network.travel_time,
             self.temp_output_path().join("travel_time"),
         );
+
+        // the InertialFlowCutter script expects these file names but interprets them as Euclidean coordinates
+        // (https://github.com/Janekdererste/rust_q_sim/issues/10)
         InertialFlowCutterAdapter::serialize_vector(
-            &routing_kit_network.latitude,
+            &routing_kit_network.x,
             self.temp_output_path().join("latitude"),
         );
         InertialFlowCutterAdapter::serialize_vector(
-            &routing_kit_network.longitude,
+            &routing_kit_network.y,
             self.temp_output_path().join("longitude"),
         );
     }
