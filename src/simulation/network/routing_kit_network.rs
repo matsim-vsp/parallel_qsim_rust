@@ -9,8 +9,8 @@ pub struct RoutingKitNetwork {
     pub(crate) head: Vec<NodeId>,
     pub(crate) travel_time: Vec<Weight>,
     pub(crate) link_ids: Vec<u64>,
-    pub(crate) latitude: Vec<f32>,
-    pub(crate) longitude: Vec<f32>,
+    pub(crate) x: Vec<f32>,
+    pub(crate) y: Vec<f32>,
 }
 
 impl RoutingKitNetwork {
@@ -20,8 +20,8 @@ impl RoutingKitNetwork {
             head: Vec::new(),
             travel_time: Vec::new(),
             link_ids: Vec::new(),
-            latitude: Vec::new(),
-            longitude: Vec::new(),
+            x: Vec::new(),
+            y: Vec::new(),
         }
     }
 

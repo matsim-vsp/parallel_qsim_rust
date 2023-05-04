@@ -2,8 +2,8 @@ use crate::simulation::config::RoutingMode;
 use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
 use crate::simulation::messaging::messages::proto::Agent;
+use crate::simulation::network::network::Network;
 use crate::simulation::network::node::NodeVehicle;
-use crate::simulation::network::partitioned_network::Network;
 use std::collections::btree_map::BTreeMap;
 
 #[derive(Debug)]

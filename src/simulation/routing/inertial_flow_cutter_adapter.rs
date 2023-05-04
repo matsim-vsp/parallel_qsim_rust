@@ -4,7 +4,7 @@ use std::fmt::Display;
 use std::fs::{create_dir_all, remove_dir_all, remove_file, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 pub struct InertialFlowCutterAdapter {
     pub inertial_flow_cutter_path: PathBuf,
@@ -95,6 +95,7 @@ impl InertialFlowCutterAdapter {
                     .to_owned()
                     + "_bin",
             )
+            .stdout(Stdio::null())
             .status()
             .expect("Failed to compute ordering");
     }
@@ -157,12 +158,15 @@ impl InertialFlowCutterAdapter {
             &routing_kit_network.travel_time,
             self.temp_output_path().join("travel_time"),
         );
+
+        // the InertialFlowCutter script expects these file names but interprets them as Euclidean coordinates
+        // (https://github.com/Janekdererste/rust_q_sim/issues/10)
         InertialFlowCutterAdapter::serialize_vector(
-            &routing_kit_network.latitude,
+            &routing_kit_network.x,
             self.temp_output_path().join("latitude"),
         );
         InertialFlowCutterAdapter::serialize_vector(
-            &routing_kit_network.longitude,
+            &routing_kit_network.y,
             self.temp_output_path().join("longitude"),
         );
     }
