@@ -1,17 +1,18 @@
-use crate::simulation::io::network::IOLink;
-use crate::simulation::network::link::{Link, LocalLink, SplitInLink, SplitOutLink};
-use crate::simulation::network::node::{Node, NodeVehicle};
 use std::collections::btree_map::Values;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 
+use crate::simulation::io::network::IOLink;
+use crate::simulation::network::link::{Link, LocalLink, SplitInLink, SplitOutLink};
+use crate::simulation::network::node::Node;
+
 #[derive(Debug, Clone)]
-pub struct NetworkPartition<V: NodeVehicle> {
-    pub links: BTreeMap<usize, Link<V>>,
+pub struct NetworkPartition {
+    pub links: BTreeMap<usize, Link>,
     pub nodes: BTreeMap<usize, Node>,
 }
 
-impl<V: NodeVehicle> NetworkPartition<V> {
+impl NetworkPartition {
     pub fn new() -> Self {
         Self {
             links: BTreeMap::new(),
@@ -118,12 +119,11 @@ impl<V: NodeVehicle> NetworkPartition<V> {
 mod tests {
     use crate::simulation::io::network::IOLink;
     use crate::simulation::network::network_partition::NetworkPartition;
-    use crate::simulation::network::vehicles::Vehicle;
 
     /// create a partition with one node which has multiple in and out links
     #[test]
     fn neighbors() {
-        let mut network_part: NetworkPartition<Vehicle> = NetworkPartition::new();
+        let mut network_part: NetworkPartition = NetworkPartition::new();
         let node_id = 1;
         let io_link = IOLink::default();
         network_part.add_local_node(node_id, 0., 0.);

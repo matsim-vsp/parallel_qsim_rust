@@ -20,7 +20,7 @@ use log::{debug, info};
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
-    network: NetworkPartition<Vehicle>,
+    network: NetworkPartition,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
     router: Option<Box<dyn Router>>,
@@ -33,7 +33,7 @@ impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
         id_mappings: &'sim MatsimIdMappings,
-        network: NetworkPartition<Vehicle>,
+        network: NetworkPartition,
         population: Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
@@ -263,7 +263,7 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn move_nodes(&mut self, now: u32) {
-        for node in NetworkPartition::<Vehicle>::get_local_nodes(self.network.nodes.values()) {
+        for node in NetworkPartition::get_local_nodes(self.network.nodes.values()) {
             let exited_vehicles = node.move_vehicles(
                 &mut self.network.links,
                 now,

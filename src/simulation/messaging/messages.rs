@@ -1,3 +1,9 @@
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::io::Cursor;
+
+use prost::Message;
+
 use crate::simulation::config::RoutingMode;
 use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::simulation::io::matsim_id::MatsimId;
@@ -11,10 +17,6 @@ use crate::simulation::messaging::messages::proto::{
 };
 use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
-use prost::Message;
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::io::Cursor;
 
 // Include the `messages` module, which is generated from messages.proto.
 pub mod proto {
@@ -178,6 +180,14 @@ impl Agent {
             id: id as u64,
             plan: Some(plan),
             curr_plan_elem: 0,
+        }
+    }
+
+    pub fn new(id: u64, plan: Plan) -> Self {
+        Agent {
+            id,
+            curr_plan_elem: 0,
+            plan: Some(plan),
         }
     }
 
@@ -368,7 +378,7 @@ impl EndTime for Agent {
 impl Plan {
     pub const DEFAULT_ROUTING_MODE: &'static str = "car";
 
-    fn new() -> Plan {
+    pub fn new() -> Plan {
         Plan {
             acts: Vec::new(),
             legs: Vec::new(),
@@ -492,6 +502,14 @@ impl Plan {
         result
     }
 
+    pub fn add_leg(&mut self, leg: Leg) {
+        self.legs.push(leg);
+    }
+
+    pub fn add_act(&mut self, activity: Activity) {
+        self.acts.push(activity);
+    }
+
     fn get_plan_type(io_plan: &IOPlan) -> PlanType {
         if let IOPlanElement::Activity(_) = io_plan.elements.get(1).unwrap() {
             return PlanType::ActivitiesOnly;
@@ -584,6 +602,26 @@ impl Activity {
         }
     }
 
+    pub fn new(
+        x: f32,
+        y: f32,
+        act_type: String,
+        link_id: u64,
+        start_time: Option<u32>,
+        end_time: Option<u32>,
+        max_dur: Option<u32>,
+    ) -> Self {
+        Activity {
+            x,
+            y,
+            act_type,
+            link_id,
+            start_time,
+            end_time,
+            max_dur,
+        }
+    }
+
     fn cmp_end_time(&self, now: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
@@ -608,6 +646,15 @@ impl Leg {
             mode: io_leg.mode.clone(),
             trav_time: parse_time_opt(&io_leg.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
+        }
+    }
+
+    pub fn new(route: Route, mode: &str, trav_time: Option<u32>, dep_time: Option<u32>) -> Self {
+        Self {
+            route: Some(route),
+            mode: String::from(mode),
+            trav_time,
+            dep_time,
         }
     }
 
@@ -684,6 +731,13 @@ impl NetworkRoute {
         Self {
             route: link_ids,
             vehicle_id: *veh_id as u64,
+        }
+    }
+
+    pub fn new(vehicle_id: u64, link_ids: Vec<u64>) -> Self {
+        Self {
+            vehicle_id,
+            route: link_ids,
         }
     }
 }

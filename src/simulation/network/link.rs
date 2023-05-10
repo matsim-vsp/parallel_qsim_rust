@@ -1,19 +1,22 @@
-use crate::simulation::io::network::IOLink;
-use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
-use crate::simulation::network::flow_cap::Flowcap;
-use crate::simulation::network::node::NodeVehicle;
-use log::warn;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
+use log::warn;
+
+use crate::simulation::io::network::IOLink;
+use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
+use crate::simulation::messaging::messages::proto::Vehicle;
+use crate::simulation::network::flow_cap::Flowcap;
+use crate::simulation::network::node::NodeVehicle;
+
 #[derive(Debug, Clone)]
-pub enum Link<V: Debug> {
-    LocalLink(LocalLink<V>),
-    SplitInLink(SplitInLink<V>),
+pub enum Link {
+    LocalLink(LocalLink),
+    SplitInLink(SplitInLink),
     SplitOutLink(SplitOutLink),
 }
 
-impl<V: NodeVehicle> Link<V> {
+impl Link {
     pub fn from_to_id(&self) -> (usize, usize) {
         (self.from_id(), self.to_id())
     }
@@ -40,9 +43,9 @@ impl<V: NodeVehicle> Link<V> {
 }
 
 #[derive(Debug, Clone)]
-pub struct LocalLink<V: Debug> {
+pub struct LocalLink {
     id: usize,
-    q: VecDeque<VehicleQEntry<V>>,
+    q: VecDeque<VehicleQEntry<Vehicle>>,
     length: f32,
     freespeed: f32,
     flowcap: Flowcap,
@@ -57,7 +60,7 @@ struct VehicleQEntry<V> {
     earliest_exit_time: u32,
 }
 
-impl<V: Debug + NodeVehicle> LocalLink<V> {
+impl LocalLink {
     pub fn from_io_link(
         id: usize,
         link: &IOLink,
@@ -101,7 +104,7 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
 
     pub fn push_vehicle(
         &mut self,
-        vehicle: V,
+        vehicle: Vehicle,
         now: u32,
         vehicle_definitions: Option<&VehicleDefinitions>,
     ) {
@@ -114,7 +117,7 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
         });
     }
 
-    pub fn pop_front(&mut self, now: u32) -> Vec<V> {
+    pub fn pop_front(&mut self, now: u32) -> Vec<Vehicle> {
         self.flowcap.update_capacity(now);
 
         let mut popped_veh = Vec::new();
@@ -146,7 +149,7 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
 
     fn get_speed_for_vehicle(
         &self,
-        vehicle: &V,
+        vehicle: &Vehicle,
         vehicle_definitions: Option<&VehicleDefinitions>,
     ) -> f32 {
         if vehicle_definitions.is_none() {
@@ -190,13 +193,13 @@ impl SplitOutLink {
 }
 
 #[derive(Debug, Clone)]
-pub struct SplitInLink<V: Debug> {
+pub struct SplitInLink {
     from_part: usize,
-    local_link: LocalLink<V>,
+    local_link: LocalLink,
 }
 
-impl<V: Debug> SplitInLink<V> {
-    pub fn new(from_part: usize, local_link: LocalLink<V>) -> Self {
+impl SplitInLink {
+    pub fn new(from_part: usize, local_link: LocalLink) -> Self {
         SplitInLink {
             from_part,
             local_link,
@@ -207,11 +210,11 @@ impl<V: Debug> SplitInLink<V> {
         self.from_part
     }
 
-    pub fn local_link_mut(&mut self) -> &mut LocalLink<V> {
+    pub fn local_link_mut(&mut self) -> &mut LocalLink {
         &mut self.local_link
     }
 
-    pub fn local_link(&self) -> &LocalLink<V> {
+    pub fn local_link(&self) -> &LocalLink {
         &self.local_link
     }
 }
@@ -219,14 +222,17 @@ impl<V: Debug> SplitInLink<V> {
 #[cfg(test)]
 mod tests {
     use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
+    use crate::simulation::messaging::messages::proto::leg::Route;
+    use crate::simulation::messaging::messages::proto::{Activity, NetworkRoute};
+    use crate::simulation::messaging::messages::proto::{Agent, Leg, Plan, Vehicle, VehicleType};
     use crate::simulation::network::link::LocalLink;
-    use crate::simulation::network::vehicles::Vehicle;
 
     #[test]
     fn local_link_push_single_veh() {
         let veh_id = 42;
         let mut link = LocalLink::new(1, 1., 1., 10., vec![], 1., 0, 0);
-        let vehicle = Vehicle::new(veh_id, 1, vec![], String::from("car"));
+        let agent = create_agent(1, vec![]);
+        let vehicle = Vehicle::new(veh_id, VehicleType::Network, String::from("car"), agent);
 
         link.push_vehicle(vehicle, 0, None);
 
@@ -241,8 +247,11 @@ mod tests {
         let id1 = 42;
         let id2 = 43;
         let mut link = LocalLink::new(1, 1., 1., 11.8, vec![], 1., 0, 0);
-        let vehicle1 = Vehicle::new(id1, id1, vec![], String::from("car"));
-        let vehicle2 = Vehicle::new(id2, id2, vec![], String::from("car"));
+
+        let agent1 = create_agent(1, vec![]);
+        let vehicle1 = Vehicle::new(id1, VehicleType::Network, String::from("car"), agent1);
+        let agent2 = create_agent(1, vec![]);
+        let vehicle2 = Vehicle::new(id2, VehicleType::Network, String::from("car"), agent2);
 
         link.push_vehicle(vehicle1, 0, None);
         link.push_vehicle(vehicle2, 0, None);
@@ -266,11 +275,9 @@ mod tests {
         let mut n: u32 = 0;
 
         while n < 10 {
-            link.push_vehicle(
-                Vehicle::new(n as usize, n as usize, vec![], String::from("car")),
-                n,
-                None,
-            );
+            let agent = create_agent(n as u64, vec![]);
+            let vehicle = Vehicle::new(n as u64, VehicleType::Network, String::from("car"), agent);
+            link.push_vehicle(vehicle, n, None);
             n += 1;
         }
 
@@ -290,11 +297,9 @@ mod tests {
         let mut n: u32 = 0;
 
         while n < 10 {
-            link.push_vehicle(
-                Vehicle::new(n as usize, n as usize, vec![], String::from("car")),
-                n,
-                None,
-            );
+            let agent = create_agent(n as u64, vec![]);
+            let vehicle = Vehicle::new(n as u64, VehicleType::Network, String::from("car"), agent);
+            link.push_vehicle(vehicle, n, None);
             n += 1;
         }
 
@@ -311,8 +316,12 @@ mod tests {
         // link has a capacity of 1 * 0.1 per second
         let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 0.1, 0, 0);
 
-        link.push_vehicle(Vehicle::new(1, 1, vec![], String::from("car")), 0, None);
-        link.push_vehicle(Vehicle::new(2, 2, vec![], String::from("car")), 0, None);
+        let agent1 = create_agent(1, vec![]);
+        let vehicle1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent1);
+        let agent2 = create_agent(2, vec![]);
+        let vehicle2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent2);
+        link.push_vehicle(vehicle1, 0, None);
+        link.push_vehicle(vehicle2, 0, None);
 
         let popped = link.pop_front(10);
         assert_eq!(1, popped.len());
@@ -335,9 +344,27 @@ mod tests {
 
         let vehicle_definitions = create_three_vehicle_definitions();
 
-        let car = Vehicle::new(veh_id_car, 1, vec![], String::from("car"));
-        let buggy = Vehicle::new(veh_id_buggy, 1, vec![], String::from("buggy"));
-        let bike = Vehicle::new(veh_id_bike, 1, vec![], String::from("bike"));
+        let agent1 = create_agent(1, vec![]);
+        let car = Vehicle::new(
+            veh_id_car,
+            VehicleType::Network,
+            String::from("car"),
+            agent1,
+        );
+        let agent2 = create_agent(2, vec![]);
+        let buggy = Vehicle::new(
+            veh_id_buggy,
+            VehicleType::Network,
+            String::from("buggy"),
+            agent2,
+        );
+        let agent3 = create_agent(3, vec![]);
+        let bike = Vehicle::new(
+            veh_id_bike,
+            VehicleType::Network,
+            String::from("bike"),
+            agent3,
+        );
 
         link.push_vehicle(car, 0, Some(&vehicle_definitions));
         link.push_vehicle(buggy, 0, Some(&vehicle_definitions));
@@ -366,9 +393,27 @@ mod tests {
 
         let vehicle_definitions = create_three_vehicle_definitions();
 
-        let car = Vehicle::new(veh_id_car, 1, vec![], String::from("car"));
-        let buggy = Vehicle::new(veh_id_buggy, 1, vec![], String::from("buggy"));
-        let bike = Vehicle::new(veh_id_bike, 1, vec![], String::from("bike"));
+        let agent1 = create_agent(1, vec![]);
+        let car = Vehicle::new(
+            veh_id_car,
+            VehicleType::Network,
+            String::from("car"),
+            agent1,
+        );
+        let agent2 = create_agent(1, vec![]);
+        let buggy = Vehicle::new(
+            veh_id_buggy,
+            VehicleType::Network,
+            String::from("buggy"),
+            agent2,
+        );
+        let agent3 = create_agent(1, vec![]);
+        let bike = Vehicle::new(
+            veh_id_bike,
+            VehicleType::Network,
+            String::from("bike"),
+            agent3,
+        );
 
         link.push_vehicle(bike, 0, Some(&vehicle_definitions));
         link.push_vehicle(buggy, 0, Some(&vehicle_definitions));
@@ -395,5 +440,18 @@ mod tests {
             .add_vehicle_type("car".to_string(), Some(20.))
             .add_vehicle_type("buggy".to_string(), Some(10.))
             .add_vehicle_type("bike".to_string(), Some(5.))
+    }
+
+    fn create_agent(id: u64, route: Vec<u64>) -> Agent {
+        let route = Route::NetworkRoute(NetworkRoute::new(id, route));
+        let leg = Leg::new(route, "car", None, None);
+        let act = Activity::new(0., 0., String::from("some-type"), 1, None, None, None);
+        let mut plan = Plan::new();
+        plan.add_act(act);
+        plan.add_leg(leg);
+        let mut agent = Agent::new(id, plan);
+        agent.advance_plan();
+
+        agent
     }
 }

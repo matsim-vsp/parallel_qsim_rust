@@ -1,9 +1,9 @@
-use crate::simulation::messaging::messages::proto::{Activity, Agent, Vehicle};
+use crate::simulation::messaging::messages::proto::{Activity, Agent};
 use crate::simulation::network::network_partition::NetworkPartition;
 use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
 
 pub trait WalkLegUpdater {
-    fn update_walk_leg(&self, agent: &mut Agent, network: &NetworkPartition<Vehicle>);
+    fn update_walk_leg(&self, agent: &mut Agent, network: &NetworkPartition);
 }
 
 pub struct EuclideanWalkLegUpdater {
@@ -17,7 +17,7 @@ impl EuclideanWalkLegUpdater {
         }
     }
 
-    fn get_walk_distance(&self, curr_act: &Activity, network: &NetworkPartition<Vehicle>) -> f32 {
+    fn get_walk_distance(&self, curr_act: &Activity, network: &NetworkPartition) -> f32 {
         let curr_act_point = Point::new(curr_act.x, curr_act.y);
         let (from_node_id, to_node_id) = network
             .links
@@ -47,7 +47,7 @@ impl EuclideanWalkLegUpdater {
 }
 
 impl WalkLegUpdater for EuclideanWalkLegUpdater {
-    fn update_walk_leg(&self, agent: &mut Agent, network: &NetworkPartition<Vehicle>) {
+    fn update_walk_leg(&self, agent: &mut Agent, network: &NetworkPartition) {
         let curr_act = agent.curr_act();
         let next_act = agent.next_act();
 

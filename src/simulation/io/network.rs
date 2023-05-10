@@ -2,7 +2,6 @@ use crate::simulation::id_mapping::MatsimIdMapping;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::xml_reader;
 use crate::simulation::network::network::Network;
-use crate::simulation::network::node::NodeVehicle;
 use flate2::Compression;
 use log::info;
 use quick_xml::se::to_writer;
@@ -154,9 +153,9 @@ impl IONetwork {
         info!("IONetwork: Finished writing network.");
     }
 
-    pub fn clone_with_internal_ids<V: NodeVehicle>(
+    pub fn clone_with_internal_ids(
         &self,
-        network: &Network<V>,
+        network: &Network,
         link_id_mapping: &MatsimIdMapping,
         node_id_mapping: &MatsimIdMapping,
     ) -> IONetwork {
