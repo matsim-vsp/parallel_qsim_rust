@@ -1,5 +1,4 @@
 use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
-use crate::simulation::network::node::NodeVehicle;
 
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};

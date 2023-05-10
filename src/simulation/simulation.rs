@@ -10,7 +10,7 @@ use crate::simulation::messaging::messages::proto::{
 };
 use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
-use crate::simulation::network::node::{ExitReason, NodeVehicle};
+use crate::simulation::network::node::ExitReason;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;

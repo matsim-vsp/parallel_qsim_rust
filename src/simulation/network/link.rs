@@ -7,7 +7,6 @@ use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
-use crate::simulation::network::node::NodeVehicle;
 
 #[derive(Debug, Clone)]
 pub enum Link {
