@@ -1,6 +1,7 @@
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::node::Node::{LocalNode, NeighbourNode};
 use std::collections::BTreeMap;
@@ -61,13 +62,13 @@ impl Node {
         }
     }
 
-    pub fn move_vehicles<V: NodeVehicle>(
+    pub fn move_vehicles(
         &self,
-        links: &mut BTreeMap<usize, Link<V>>,
+        links: &mut BTreeMap<usize, Link>,
         now: u32,
         events: &mut EventsPublisher,
         vehicle_definitions: Option<&VehicleDefinitions>,
-    ) -> Vec<ExitReason<V>> {
+    ) -> Vec<ExitReason> {
         match self {
             LocalNode(n) => n.move_vehicles(links, now, events, vehicle_definitions),
             NeighbourNode(_) => {
@@ -102,9 +103,9 @@ pub struct NodeImpl {
     pub y: f32,
 }
 
-pub enum ExitReason<V> {
-    FinishRoute(V),
-    ReachedBoundary(V),
+pub enum ExitReason {
+    FinishRoute(Vehicle),
+    ReachedBoundary(Vehicle),
 }
 
 impl NodeImpl {
@@ -126,17 +127,17 @@ impl NodeImpl {
         self.out_links.push(id);
     }
 
-    pub fn move_vehicles<V: NodeVehicle>(
+    pub fn move_vehicles(
         &self,
-        links: &mut BTreeMap<usize, Link<V>>,
+        links: &mut BTreeMap<usize, Link>,
         now: u32,
         events: &mut EventsPublisher,
         vehicle_definitions: Option<&VehicleDefinitions>,
-    ) -> Vec<ExitReason<V>> {
+    ) -> Vec<ExitReason> {
         let mut exited_vehicles = Vec::new();
 
         for in_link_index in &self.in_links {
-            let vehicles: Vec<V> = match links.get_mut(in_link_index).unwrap() {
+            let vehicles: Vec<Vehicle> = match links.get_mut(in_link_index).unwrap() {
                 Link::LocalLink(link) => link.pop_front(now),
                 Link::SplitInLink(split_link) => split_link.local_link_mut().pop_front(now),
                 Link::SplitOutLink(_) => panic!("No split out link expected as in link of a node."),
@@ -170,12 +171,12 @@ impl NodeImpl {
         exited_vehicles
     }
 
-    fn move_vehicle<V: NodeVehicle>(
+    fn move_vehicle(
         &self,
-        links: &mut BTreeMap<usize, Link<V>>,
+        links: &mut BTreeMap<usize, Link>,
         out_link_id: usize,
-        vehicle: V,
-        exited_vehicles: &mut Vec<ExitReason<V>>,
+        vehicle: Vehicle,
+        exited_vehicles: &mut Vec<ExitReason>,
         now: u32,
         events: &mut EventsPublisher,
         vehicle_definitions: Option<&VehicleDefinitions>,

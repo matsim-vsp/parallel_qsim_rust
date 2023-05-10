@@ -6,7 +6,6 @@ use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::io::vehicle_definitions::{IOVehicleDefinitions, VehicleDefinitions};
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::MpiMessageBroker;
-use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::network::Network;
 use crate::simulation::partition_info::PartitionInfo;
@@ -38,7 +37,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let io_population = IOPopulation::from_file(config.population_file.as_ref());
     let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
     let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, size as usize);
-    let mut network: Network<Vehicle> = Network::from_io(
+    let mut network: Network = Network::from_io(
         &io_network,
         size as usize,
         config.sample_size,

@@ -3,7 +3,6 @@ use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
 use crate::simulation::messaging::messages::proto::Agent;
 use crate::simulation::network::network::Network;
-use crate::simulation::network::node::NodeVehicle;
 use std::collections::btree_map::BTreeMap;
 
 #[derive(Debug)]
@@ -20,11 +19,11 @@ impl Population {
         }
     }
 
-    pub fn from_io<V: NodeVehicle>(
+    pub fn from_io(
         io_population: &IOPopulation,
         id_mappings: &MatsimIdMappings,
         partition: usize,
-        network: &Network<V>,
+        network: &Network,
         routing_mode: RoutingMode,
     ) -> Population {
         let mut result = Population::new();

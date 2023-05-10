@@ -1,17 +1,17 @@
 use crate::simulation::io::network::IOLink;
 use crate::simulation::network::link::{Link, LocalLink, SplitInLink, SplitOutLink};
-use crate::simulation::network::node::{Node, NodeVehicle};
+use crate::simulation::network::node::{Node};
 use std::collections::btree_map::Values;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
-pub struct NetworkPartition<V: NodeVehicle> {
-    pub links: BTreeMap<usize, Link<V>>,
+pub struct NetworkPartition {
+    pub links: BTreeMap<usize, Link>,
     pub nodes: BTreeMap<usize, Node>,
 }
 
-impl<V: NodeVehicle> NetworkPartition<V> {
+impl NetworkPartition {
     pub fn new() -> Self {
         Self {
             links: BTreeMap::new(),

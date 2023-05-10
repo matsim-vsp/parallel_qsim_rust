@@ -1,5 +1,6 @@
 use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
+use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::node::NodeVehicle;
 use log::warn;
@@ -7,13 +8,13 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 #[derive(Debug, Clone)]
-pub enum Link<V: Debug> {
-    LocalLink(LocalLink<V>),
-    SplitInLink(SplitInLink<V>),
+pub enum Link {
+    LocalLink(LocalLink),
+    SplitInLink(SplitInLink),
     SplitOutLink(SplitOutLink),
 }
 
-impl<V: NodeVehicle> Link<V> {
+impl Link {
     pub fn from_to_id(&self) -> (usize, usize) {
         (self.from_id(), self.to_id())
     }
@@ -40,9 +41,9 @@ impl<V: NodeVehicle> Link<V> {
 }
 
 #[derive(Debug, Clone)]
-pub struct LocalLink<V: Debug> {
+pub struct LocalLink {
     id: usize,
-    q: VecDeque<VehicleQEntry<V>>,
+    q: VecDeque<VehicleQEntry<Vehicle>>,
     length: f32,
     freespeed: f32,
     flowcap: Flowcap,
@@ -57,7 +58,7 @@ struct VehicleQEntry<V> {
     earliest_exit_time: u32,
 }
 
-impl<V: Debug + NodeVehicle> LocalLink<V> {
+impl LocalLink {
     pub fn from_io_link(
         id: usize,
         link: &IOLink,
@@ -101,7 +102,7 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
 
     pub fn push_vehicle(
         &mut self,
-        vehicle: V,
+        vehicle: Vehicle,
         now: u32,
         vehicle_definitions: Option<&VehicleDefinitions>,
     ) {
@@ -114,7 +115,7 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
         });
     }
 
-    pub fn pop_front(&mut self, now: u32) -> Vec<V> {
+    pub fn pop_front(&mut self, now: u32) -> Vec<Vehicle> {
         self.flowcap.update_capacity(now);
 
         let mut popped_veh = Vec::new();
@@ -146,7 +147,7 @@ impl<V: Debug + NodeVehicle> LocalLink<V> {
 
     fn get_speed_for_vehicle(
         &self,
-        vehicle: &V,
+        vehicle: &Vehicle,
         vehicle_definitions: Option<&VehicleDefinitions>,
     ) -> f32 {
         if vehicle_definitions.is_none() {
@@ -190,13 +191,13 @@ impl SplitOutLink {
 }
 
 #[derive(Debug, Clone)]
-pub struct SplitInLink<V: Debug> {
+pub struct SplitInLink {
     from_part: usize,
-    local_link: LocalLink<V>,
+    local_link: LocalLink,
 }
 
-impl<V: Debug> SplitInLink<V> {
-    pub fn new(from_part: usize, local_link: LocalLink<V>) -> Self {
+impl SplitInLink {
+    pub fn new(from_part: usize, local_link: LocalLink) -> Self {
         SplitInLink {
             from_part,
             local_link,
@@ -207,11 +208,11 @@ impl<V: Debug> SplitInLink<V> {
         self.from_part
     }
 
-    pub fn local_link_mut(&mut self) -> &mut LocalLink<V> {
+    pub fn local_link_mut(&mut self) -> &mut LocalLink {
         &mut self.local_link
     }
 
-    pub fn local_link(&self) -> &LocalLink<V> {
+    pub fn local_link(&self) -> &LocalLink {
         &self.local_link
     }
 }

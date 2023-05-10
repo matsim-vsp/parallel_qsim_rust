@@ -2,26 +2,25 @@ use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 use crate::simulation::network::network_partition::NetworkPartition;
-use crate::simulation::network::node::NodeVehicle;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
 #[derive(Debug)]
-pub struct Network<V: NodeVehicle> {
-    pub partitions: Vec<NetworkPartition<V>>,
+pub struct Network {
+    pub partitions: Vec<NetworkPartition>,
     pub nodes_2_partition: Arc<HashMap<usize, usize>>,
     pub links_2_partition: Arc<HashMap<usize, usize>>,
 }
 
-pub struct MutNetwork<V: NodeVehicle> {
-    pub partitions: Vec<NetworkPartition<V>>,
+pub struct MutNetwork {
+    pub partitions: Vec<NetworkPartition>,
     pub nodes_2_partition: HashMap<usize, usize>,
     pub links_2_partition: HashMap<usize, usize>,
 }
 
-impl<V: NodeVehicle> Network<V> {
-    fn from_mut_network(network: MutNetwork<V>) -> Self {
+impl Network {
+    fn from_mut_network(network: MutNetwork) -> Self {
         Network {
             partitions: network.partitions,
             nodes_2_partition: Arc::new(network.nodes_2_partition),
@@ -61,7 +60,7 @@ impl<V: NodeVehicle> Network<V> {
     }
 }
 
-impl<V: NodeVehicle> MutNetwork<V> {
+impl MutNetwork {
     fn new(num_parts: usize) -> Self {
         let mut partitions = Vec::with_capacity(num_parts);
         for _ in 0..num_parts {
