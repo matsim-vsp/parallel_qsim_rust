@@ -8,14 +8,6 @@ use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::node::Node::{LocalNode, NeighbourNode};
 
-pub trait NodeVehicle: Debug {
-    fn id(&self) -> usize;
-    fn advance_route_index(&mut self);
-    fn curr_link_id(&self) -> Option<usize>;
-    fn is_current_link_last(&self) -> bool;
-    fn mode(&self) -> &str;
-}
-
 #[derive(Debug, Clone)]
 pub enum Node {
     LocalNode(NodeImpl),

@@ -15,7 +15,6 @@ use crate::simulation::messaging::messages::proto::{
     Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
     TravelTimesMessage, Vehicle, VehicleMessage, VehicleType,
 };
-use crate::simulation::network::node::NodeVehicle;
 use crate::simulation::time_queue::EndTime;
 
 // Include the `messages` module, which is generated from messages.proto.
@@ -125,18 +124,16 @@ impl Vehicle {
     fn agent(&self) -> &Agent {
         self.agent.as_ref().unwrap()
     }
-}
 
-impl NodeVehicle for Vehicle {
-    fn id(&self) -> usize {
+    pub fn id(&self) -> usize {
         self.id as usize
     }
 
-    fn advance_route_index(&mut self) {
+    pub fn advance_route_index(&mut self) {
         self.curr_route_elem += 1;
     }
 
-    fn curr_link_id(&self) -> Option<usize> {
+    pub fn curr_link_id(&self) -> Option<usize> {
         let leg = self.agent().curr_leg();
         let route = leg.route.as_ref().unwrap();
         match route {
@@ -148,7 +145,7 @@ impl NodeVehicle for Vehicle {
         }
     }
 
-    fn is_current_link_last(&self) -> bool {
+    pub fn is_current_link_last(&self) -> bool {
         let leg = self.agent().curr_leg();
         let route = leg.route.as_ref().unwrap();
         match route {
@@ -157,7 +154,7 @@ impl NodeVehicle for Vehicle {
         }
     }
 
-    fn mode(&self) -> &str {
+    pub fn mode(&self) -> &str {
         self.mode.as_str()
     }
 }
