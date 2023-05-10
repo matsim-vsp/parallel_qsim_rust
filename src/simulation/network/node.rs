@@ -1,11 +1,12 @@
+use std::collections::BTreeMap;
+use std::fmt::Debug;
+
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::link::Link;
 use crate::simulation::network::node::Node::{LocalNode, NeighbourNode};
-use std::collections::BTreeMap;
-use std::fmt::Debug;
 
 pub trait NodeVehicle: Debug {
     fn id(&self) -> usize;
@@ -199,12 +200,15 @@ impl NodeImpl {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
 
     use crate::simulation::messaging::events::EventsPublisher;
+    use crate::simulation::messaging::messages::proto::leg::Route;
+    use crate::simulation::messaging::messages::proto::{
+        Activity, Agent, Leg, NetworkRoute, Plan, Vehicle, VehicleType,
+    };
     use crate::simulation::network::link::{Link, LocalLink, SplitOutLink};
     use crate::simulation::network::node::{ExitReason, NodeImpl};
-    use crate::simulation::network::vehicles::Vehicle;
-    use std::collections::BTreeMap;
 
     #[test]
     fn init() {
@@ -219,11 +223,13 @@ mod tests {
     fn vehicle_in() {
         let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
-        let vehicle = Vehicle::new(1, 1, vec![1], String::from("car"));
+        let agent = create_agent(1, vec![1]);
+        let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
+        //let vehicle = Vehicle::new(1, 1, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
-        let mut links: BTreeMap<usize, Link<Vehicle>> = BTreeMap::from([(1, in_link)]);
+        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -238,14 +244,14 @@ mod tests {
         let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
         let local_out_link = LocalLink::new(2, 20., 40., 20., vec![], 1., 0, 0);
-        let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
+        let agent = create_agent(1, vec![1, 2]);
+        let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(local_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
-        let mut links: BTreeMap<usize, Link<Vehicle>> =
-            BTreeMap::from([(1, in_link), (2, out_link)]);
+        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -263,14 +269,14 @@ mod tests {
         let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
         let split_out_link = SplitOutLink::new(2, 2);
-        let vehicle = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
+        let agent = create_agent(1, vec![1, 2]);
+        let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(split_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::SplitOutLink(split_out_link);
-        let mut links: BTreeMap<usize, Link<Vehicle>> =
-            BTreeMap::from([(1, in_link), (2, out_link)]);
+        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -286,13 +292,17 @@ mod tests {
     fn vehicles_in() {
         let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 3600., 40., 20., vec![], 1., 0, 0);
-        let vehicle_1 = Vehicle::new(1, 1, vec![1], String::from("car"));
-        let vehicle_2 = Vehicle::new(2, 2, vec![1], String::from("car"));
+
+        let agent_1 = create_agent(1, vec![1]);
+        let vehicle_1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent_1);
+        let agent_2 = create_agent(2, vec![1]);
+        let vehicle_2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent_2);
+
         local_in_link.push_vehicle(vehicle_1, 1, None);
         local_in_link.push_vehicle(vehicle_2, 1, None);
         node.add_in_link(local_in_link.id());
         let in_link = Link::LocalLink(local_in_link);
-        let mut links: BTreeMap<usize, Link<Vehicle>> = BTreeMap::from([(1, in_link)]);
+        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -319,16 +329,19 @@ mod tests {
         let mut node = NodeImpl::new(1, 0., 0.);
         let mut local_in_link = LocalLink::new(1, 10000., 40., 20., vec![], 1., 0, 0);
         let local_out_link = LocalLink::new(2, 10000., 40., 20., vec![], 1., 0, 0);
-        let vehicle_1 = Vehicle::new(1, 1, vec![1, 2], String::from("car"));
-        let vehicle_2 = Vehicle::new(2, 2, vec![1, 2], String::from("car"));
+
+        let agent_1 = create_agent(1, vec![1, 2]);
+        let vehicle_1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent_1);
+        let agent_2 = create_agent(2, vec![1, 2]);
+        let vehicle_2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent_2);
+
         local_in_link.push_vehicle(vehicle_1, 1, None);
         local_in_link.push_vehicle(vehicle_2, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(local_out_link.id());
         let in_link = Link::LocalLink(local_in_link);
         let out_link = Link::LocalLink(local_out_link);
-        let mut links: BTreeMap<usize, Link<Vehicle>> =
-            BTreeMap::from([(1, in_link), (2, out_link)]);
+        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -339,5 +352,18 @@ mod tests {
             let vehicles = local_out.pop_front(1);
             assert_eq!(2, vehicles.len());
         }
+    }
+
+    fn create_agent(id: u64, route: Vec<u64>) -> Agent {
+        let route = Route::NetworkRoute(NetworkRoute::new(id, route));
+        let leg = Leg::new(route, "car", None, None);
+        let act = Activity::new(0., 0., String::from("some-type"), 1, None, None, None);
+        let mut plan = Plan::new();
+        plan.add_act(act);
+        plan.add_leg(leg);
+        let mut agent = Agent::new(id, plan);
+        agent.advance_plan();
+
+        agent
     }
 }

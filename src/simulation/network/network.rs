@@ -128,7 +128,6 @@ mod tests {
     use crate::simulation::id_mapping::MatsimIdMappings;
     use crate::simulation::io::network::{IONetwork, IONode};
     use crate::simulation::io::population::IOPopulation;
-    use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::link::Link;
     use std::collections::HashSet;
 
@@ -146,7 +145,7 @@ mod tests {
             "node2" => 0,
             _ => 1,
         };
-        let network: Network<Vehicle> = Network::from_io(&io_network, 2, 1.0, split, &id_mappings);
+        let network: Network = Network::from_io(&io_network, 2, 1.0, split, &id_mappings);
         assert_eq!(2, network.partitions.len());
 
         let partition1 = network.partitions.get(0).unwrap();
@@ -212,7 +211,7 @@ mod tests {
             "node4" => 2, // right
             _ => 1,       // center
         };
-        let network: Network<Vehicle> = Network::from_io(&io_network, 3, 1.0, split, &id_mappings);
+        let network: Network = Network::from_io(&io_network, 3, 1.0, split, &id_mappings);
 
         assert_eq!(3, network.partitions.len());
 
