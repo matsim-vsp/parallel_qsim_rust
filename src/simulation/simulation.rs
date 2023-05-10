@@ -104,6 +104,10 @@ impl<'sim> Simulation<'sim> {
                 ),
             );
 
+          //  if self.router.is_some() {
+          //      self.router.plan_next_trip(&mut agent);
+          //  }
+
             if self.router.is_some() {
                 if (!agent.curr_act().is_interaction() && agent.next_act().is_interaction())
                     || (agent.curr_act().is_interaction() && !agent.next_act().is_interaction())

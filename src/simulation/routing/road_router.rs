@@ -95,7 +95,7 @@ impl<'router> RoadRouter<'router> {
         OwnedGraph::new(
             routing_kit_network.first_out.to_owned(),
             routing_kit_network.head.to_owned(),
-            routing_kit_network.travel_time.to_owned(),
+            routing_kit_network.travel_times.to_owned(),
         )
     }
 

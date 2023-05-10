@@ -221,6 +221,19 @@ impl Agent {
         self.get_act_at_index_mut(act_index)
     }
 
+    pub fn next_main_act(&self) -> &Activity {
+
+        let mut next_act_index = self.next_act_index();
+        let mut next_act = self.get_act_at_index(next_act_index);
+
+        while next_act.is_interaction() {
+            next_act_index += 1;
+            next_act = self.get_act_at_index(next_act_index);
+        }
+
+        next_act
+    }
+
     fn next_act_index(&self) -> u32 {
         let act_index = match self.curr_plan_elem % 2 {
             //current element is an activity => two elements after is the next activity

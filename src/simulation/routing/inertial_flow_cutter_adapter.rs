@@ -155,7 +155,7 @@ impl InertialFlowCutterAdapter {
             self.temp_output_path().join("head"),
         );
         InertialFlowCutterAdapter::serialize_vector(
-            &routing_kit_network.travel_time,
+            &routing_kit_network.travel_times,
             self.temp_output_path().join("travel_time"),
         );
 
