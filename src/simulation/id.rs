@@ -34,6 +34,7 @@ impl<T> Hash for IdImpl<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct IdStore<'ext, T> {
     ids: Vec<Id<T>>,
     mapping: HashMap<&'ext str, usize>,
@@ -75,7 +76,10 @@ impl<'ext, T> IdStore<'ext, T> {
     }
 
     pub fn get_from_ext(&self, external: &str) -> Id<T> {
-        let index = self.mapping.get(external).expect(format!("Could not find id for external id: {external}",).as_str());
+        let index = self
+            .mapping
+            .get(external)
+            .expect(format!("Could not find id for external id: {external}",).as_str());
         self.ids.get(*index).unwrap().clone()
     }
 }

@@ -76,23 +76,23 @@ impl IOLink {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-struct Nodes {
+pub struct Nodes {
     #[serde(rename = "node", default)]
-    nodes: Vec<IONode>,
+    pub nodes: Vec<IONode>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-struct Links {
+pub struct Links {
     #[serde(rename = "link", default)]
-    links: Vec<IOLink>,
+    pub links: Vec<IOLink>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename = "network")]
 pub struct IONetwork {
-    name: Option<String>,
-    nodes: Nodes,
-    links: Links,
+    pub name: Option<String>,
+    pub nodes: Nodes,
+    pub links: Links,
 }
 
 impl IONetwork {
