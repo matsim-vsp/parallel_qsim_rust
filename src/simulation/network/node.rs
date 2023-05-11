@@ -5,7 +5,7 @@ use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::Vehicle;
-use crate::simulation::network::link::Link;
+use crate::simulation::network::link::SimLink;
 use crate::simulation::network::node::Node::{LocalNode, NeighbourNode};
 
 #[derive(Debug, Clone)]
@@ -57,7 +57,7 @@ impl Node {
 
     pub fn move_vehicles(
         &self,
-        links: &mut BTreeMap<usize, Link>,
+        links: &mut BTreeMap<usize, SimLink>,
         now: u32,
         events: &mut EventsPublisher,
         vehicle_definitions: Option<&VehicleDefinitions>,
@@ -122,7 +122,7 @@ impl NodeImpl {
 
     pub fn move_vehicles(
         &self,
-        links: &mut BTreeMap<usize, Link>,
+        links: &mut BTreeMap<usize, SimLink>,
         now: u32,
         events: &mut EventsPublisher,
         vehicle_definitions: Option<&VehicleDefinitions>,
@@ -131,9 +131,11 @@ impl NodeImpl {
 
         for in_link_index in &self.in_links {
             let vehicles: Vec<Vehicle> = match links.get_mut(in_link_index).unwrap() {
-                Link::LocalLink(link) => link.pop_front(now),
-                Link::SplitInLink(split_link) => split_link.local_link_mut().pop_front(now),
-                Link::SplitOutLink(_) => panic!("No split out link expected as in link of a node."),
+                SimLink::LocalLink(link) => link.pop_front(now),
+                SimLink::SplitInLink(split_link) => split_link.local_link_mut().pop_front(now),
+                SimLink::SplitOutLink(_) => {
+                    panic!("No split out link expected as in link of a node.")
+                }
             };
 
             for mut vehicle in vehicles {
@@ -166,7 +168,7 @@ impl NodeImpl {
 
     fn move_vehicle(
         &self,
-        links: &mut BTreeMap<usize, Link>,
+        links: &mut BTreeMap<usize, SimLink>,
         out_link_id: usize,
         vehicle: Vehicle,
         exited_vehicles: &mut Vec<ExitReason>,
@@ -175,15 +177,15 @@ impl NodeImpl {
         vehicle_definitions: Option<&VehicleDefinitions>,
     ) {
         match links.get_mut(&out_link_id).unwrap() {
-            Link::LocalLink(local_link) => {
+            SimLink::LocalLink(local_link) => {
                 events.publish_event(
                     now,
                     &Event::new_link_enter(local_link.id() as u64, vehicle.id() as u64),
                 );
                 local_link.push_vehicle(vehicle, now, vehicle_definitions);
             }
-            Link::SplitOutLink(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
-            Link::SplitInLink(_) => {
+            SimLink::SplitOutLink(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
+            SimLink::SplitInLink(_) => {
                 panic!("Not expecting to move a vehicle onto a split in link.")
             }
         }
@@ -199,7 +201,7 @@ mod tests {
     use crate::simulation::messaging::messages::proto::{
         Activity, Agent, Leg, NetworkRoute, Plan, Vehicle, VehicleType,
     };
-    use crate::simulation::network::link::{Link, LocalLink, SplitOutLink};
+    use crate::simulation::network::link::{LocalLink, SimLink, SplitOutLink};
     use crate::simulation::network::node::{ExitReason, NodeImpl};
 
     #[test]
@@ -220,8 +222,8 @@ mod tests {
         //let vehicle = Vehicle::new(1, 1, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
-        let in_link = Link::LocalLink(local_in_link);
-        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link)]);
+        let in_link = SimLink::LocalLink(local_in_link);
+        let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -241,16 +243,16 @@ mod tests {
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(local_out_link.id());
-        let in_link = Link::LocalLink(local_in_link);
-        let out_link = Link::LocalLink(local_out_link);
-        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link), (2, out_link)]);
+        let in_link = SimLink::LocalLink(local_in_link);
+        let out_link = SimLink::LocalLink(local_out_link);
+        let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
 
         assert_eq!(0, exited_vehicles.len());
         let out_link_ref = links.get_mut(&2).unwrap();
-        if let Link::LocalLink(local_out) = out_link_ref {
+        if let SimLink::LocalLink(local_out) = out_link_ref {
             let vehicles = local_out.pop_front(1);
             assert_eq!(1, vehicles.len());
         }
@@ -266,9 +268,9 @@ mod tests {
         local_in_link.push_vehicle(vehicle, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(split_out_link.id());
-        let in_link = Link::LocalLink(local_in_link);
-        let out_link = Link::SplitOutLink(split_out_link);
-        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link), (2, out_link)]);
+        let in_link = SimLink::LocalLink(local_in_link);
+        let out_link = SimLink::SplitOutLink(split_out_link);
+        let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -293,8 +295,8 @@ mod tests {
         local_in_link.push_vehicle(vehicle_1, 1, None);
         local_in_link.push_vehicle(vehicle_2, 1, None);
         node.add_in_link(local_in_link.id());
-        let in_link = Link::LocalLink(local_in_link);
-        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link)]);
+        let in_link = SimLink::LocalLink(local_in_link);
+        let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
@@ -331,16 +333,16 @@ mod tests {
         local_in_link.push_vehicle(vehicle_2, 1, None);
         node.add_in_link(local_in_link.id());
         node.add_out_link(local_out_link.id());
-        let in_link = Link::LocalLink(local_in_link);
-        let out_link = Link::LocalLink(local_out_link);
-        let mut links: BTreeMap<usize, Link> = BTreeMap::from([(1, in_link), (2, out_link)]);
+        let in_link = SimLink::LocalLink(local_in_link);
+        let out_link = SimLink::LocalLink(local_out_link);
+        let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link), (2, out_link)]);
         let mut events = EventsPublisher::new();
 
         let exited_vehicles = node.move_vehicles(&mut links, 1, &mut events, None);
         assert_eq!(0, exited_vehicles.len());
 
         let out_link_ref = links.get_mut(&2).unwrap();
-        if let Link::LocalLink(local_out) = out_link_ref {
+        if let SimLink::LocalLink(local_out) = out_link_ref {
             let vehicles = local_out.pop_front(1);
             assert_eq!(2, vehicles.len());
         }

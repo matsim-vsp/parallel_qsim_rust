@@ -9,22 +9,22 @@ use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 
 #[derive(Debug, Clone)]
-pub enum Link {
+pub enum SimLink {
     LocalLink(LocalLink),
     SplitInLink(SplitInLink),
     SplitOutLink(SplitOutLink),
 }
 
-impl Link {
+impl SimLink {
     pub fn from_to_id(&self) -> (usize, usize) {
         (self.from_id(), self.to_id())
     }
 
     pub fn from_id(&self) -> usize {
         match self {
-            Link::LocalLink(l) => l.from(),
-            Link::SplitInLink(l) => l.local_link().from(),
-            Link::SplitOutLink(_) => {
+            SimLink::LocalLink(l) => l.from(),
+            SimLink::SplitInLink(l) => l.local_link().from(),
+            SimLink::SplitOutLink(_) => {
                 panic!("There is no from id of a split out link.")
             }
         }
@@ -32,9 +32,9 @@ impl Link {
 
     pub fn to_id(&self) -> usize {
         match self {
-            Link::LocalLink(l) => l.to(),
-            Link::SplitInLink(l) => l.local_link().to(),
-            Link::SplitOutLink(_) => {
+            SimLink::LocalLink(l) => l.to(),
+            SimLink::SplitInLink(l) => l.local_link().to(),
+            SimLink::SplitOutLink(_) => {
                 panic!("There is no to id of a split out link.")
             }
         }

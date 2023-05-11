@@ -3,12 +3,12 @@ use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 
 use crate::simulation::io::network::IOLink;
-use crate::simulation::network::link::{Link, LocalLink, SplitInLink, SplitOutLink};
+use crate::simulation::network::link::{LocalLink, SimLink, SplitInLink, SplitOutLink};
 use crate::simulation::network::node::Node;
 
 #[derive(Debug, Clone)]
 pub struct NetworkPartition {
-    pub links: BTreeMap<usize, Link>,
+    pub links: BTreeMap<usize, SimLink>,
     pub nodes: BTreeMap<usize, Node>,
 }
 
@@ -58,7 +58,7 @@ impl NetworkPartition {
         to: usize,
     ) {
         let new_link = LocalLink::from_io_link(id, link, sample_size, from, to);
-        self.links.insert(id, Link::LocalLink(new_link));
+        self.links.insert(id, SimLink::LocalLink(new_link));
 
         // wire up the from and to node
         let from = self.nodes.get_mut(&from).unwrap();
@@ -69,7 +69,7 @@ impl NetworkPartition {
 
     pub fn add_split_out_link(&mut self, id: usize, from: usize, to_part: usize) {
         let new_link = SplitOutLink::new(id, to_part);
-        self.links.insert(id, Link::SplitOutLink(new_link));
+        self.links.insert(id, SimLink::SplitOutLink(new_link));
 
         // wire up from node
         let from_node = self.nodes.get_mut(&from).unwrap();
@@ -88,7 +88,7 @@ impl NetworkPartition {
         let local_link = LocalLink::from_io_link(id, link, sample_size, from, to);
         let new_link = SplitInLink::new(from_part, local_link);
 
-        self.links.insert(id, Link::SplitInLink(new_link));
+        self.links.insert(id, SimLink::SplitInLink(new_link));
 
         // wire up to node
         let to_node = self.nodes.get_mut(&to).unwrap();
@@ -100,14 +100,14 @@ impl NetworkPartition {
             .links
             .values()
             .filter(|link| match link {
-                Link::LocalLink(_) => false,
-                Link::SplitInLink(_) => true,
-                Link::SplitOutLink(_) => true,
+                SimLink::LocalLink(_) => false,
+                SimLink::SplitInLink(_) => true,
+                SimLink::SplitOutLink(_) => true,
             })
             .map(|link| match link {
-                Link::LocalLink(_) => panic!("Should be filtered."),
-                Link::SplitInLink(link) => link.neighbor_partition_id(),
-                Link::SplitOutLink(link) => link.neighbor_partition_id(),
+                SimLink::LocalLink(_) => panic!("Should be filtered."),
+                SimLink::SplitInLink(link) => link.neighbor_partition_id(),
+                SimLink::SplitOutLink(link) => link.neighbor_partition_id(),
             })
             .collect();
 

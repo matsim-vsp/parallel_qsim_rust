@@ -128,7 +128,7 @@ mod tests {
     use crate::simulation::id_mapping::MatsimIdMappings;
     use crate::simulation::io::network::{IONetwork, IONode};
     use crate::simulation::io::population::IOPopulation;
-    use crate::simulation::network::link::Link;
+    use crate::simulation::network::link::SimLink;
     use std::collections::HashSet;
 
     /// This splits the network into 2 parts
@@ -165,12 +165,12 @@ mod tests {
             .links
             .get(id_mappings.links.get_internal("link1").unwrap())
             .unwrap();
-        assert!(matches!(link1, Link::LocalLink(_)));
+        assert!(matches!(link1, SimLink::LocalLink(_)));
         let link2 = partition1
             .links
             .get(id_mappings.links.get_internal("link2").unwrap())
             .unwrap();
-        assert!(matches!(link2, Link::SplitOutLink(_)));
+        assert!(matches!(link2, SimLink::SplitOutLink(_)));
 
         let partition2 = network.partitions.get(1).unwrap();
         assert!(partition2
@@ -189,12 +189,12 @@ mod tests {
             .links
             .get(id_mappings.links.get_internal("link2").unwrap())
             .unwrap();
-        assert!(matches!(link2, Link::SplitInLink(_)));
+        assert!(matches!(link2, SimLink::SplitInLink(_)));
         let link3 = partition2
             .links
             .get(id_mappings.links.get_internal("link3").unwrap())
             .unwrap();
-        assert!(matches!(link3, Link::LocalLink(_)));
+        assert!(matches!(link3, SimLink::LocalLink(_)));
     }
 
     /// This splits the network into 3 parts, so that we have neighbours and none neighbours

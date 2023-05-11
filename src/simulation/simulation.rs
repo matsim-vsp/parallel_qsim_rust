@@ -8,7 +8,7 @@ use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::{
     Activity, Agent, GenericRoute, Vehicle, VehicleType,
 };
-use crate::simulation::network::link::Link;
+use crate::simulation::network::link::SimLink;
 use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::ExitReason;
 use crate::simulation::population::Population;
@@ -232,14 +232,14 @@ impl<'sim> Simulation<'sim> {
                 .publish_event(now, &Event::new_link_enter(link_id as u64, vehicle.id));
         }
         match link {
-            Link::LocalLink(link) => {
+            SimLink::LocalLink(link) => {
                 link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
             }
-            Link::SplitInLink(in_link) => {
+            SimLink::SplitInLink(in_link) => {
                 let local_link = in_link.local_link_mut();
                 local_link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
             }
-            Link::SplitOutLink(_) => {
+            SimLink::SplitOutLink(_) => {
                 panic!("Vehicles should not start on out links...")
             }
         }
