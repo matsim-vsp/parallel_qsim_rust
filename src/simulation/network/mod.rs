@@ -1,4 +1,5 @@
 mod flow_cap;
+pub mod global_network;
 pub mod link;
 pub mod network;
 pub mod network_partition;
