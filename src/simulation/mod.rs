@@ -1,5 +1,6 @@
 pub mod config;
 pub mod controller;
+pub mod id;
 mod id_mapping;
 pub mod io;
 pub mod logging;
