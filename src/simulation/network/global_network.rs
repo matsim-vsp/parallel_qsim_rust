@@ -316,7 +316,6 @@ mod tests {
 
     #[test]
     fn from_file() {
-
         let network = Network::from_file("./assets/equil/equil-network.xml", 6);
 
         // check partitioning
@@ -336,7 +335,7 @@ mod tests {
                 11 => {
                     assert_eq!(9, node.in_links.len());
                     assert_eq!(1, node.out_links.len());
-                },
+                }
                 1 => {
                     assert_eq!(9, node.out_links.len());
                     assert_eq!(1, node.in_links.len());
