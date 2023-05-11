@@ -50,7 +50,7 @@ pub struct IOLink {
     pub freespeed: f32,
     pub permlanes: f32,
     #[serde(default)]
-    modes: String,
+    pub modes: String,
     pub attributes: Option<Attrs>,
 }
 
