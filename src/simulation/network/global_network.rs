@@ -5,6 +5,8 @@ use crate::simulation::{
     io::network::{Attr, IOLink, IONetwork, IONode},
 };
 
+use super::metis_partitioning;
+
 /// This is called global network but could also be renamed into network when things are sorted out a little
 #[derive(Debug)]
 pub struct Network<'a> {
@@ -25,7 +27,8 @@ pub struct Node {
     pub id: Id<Node>,
     pub attrs: Vec<Attr>,
     pub in_links: Vec<Id<Link>>,
-    pub out_links: Vec<Id<Link>>
+    pub out_links: Vec<Id<Link>>,
+    pub partition: usize,
 }
 
 #[derive(Debug)]
@@ -39,6 +42,7 @@ pub struct Link {
     pub permlanes: f32,
     pub modes: HashSet<Id<String>>,
     pub attributes: Vec<Attr>,
+    pub partition: usize,
 }
 
 impl<'a> Network<'a> {
@@ -50,6 +54,14 @@ impl<'a> Network<'a> {
             nodes: Vec::new(),
             links: Vec::new(),
         }
+    }
+
+    fn from_file(file_path: &str, num_parts: usize) -> Self {
+        let io_network = IONetwork::from_file(file_path);
+        let mut result = Network::new();
+        Self::init_nodes_and_links(&mut result, io_network);
+        Self::partition_network(&mut result, num_parts);
+        result
     }
 
     pub fn add_node(&mut self, io_node: IONode) {
@@ -94,8 +106,16 @@ impl<'a> Network<'a> {
         let from_id = self.node_ids.get_from_ext(&io_link.from);
         let to_id = self.node_ids.get_from_ext(&io_link.to);
 
-        self.nodes.get_mut(from_id.internal).unwrap().out_links.push(id.clone());
-        self.nodes.get_mut(to_id.internal).unwrap().in_links.push(id.clone());
+        self.nodes
+            .get_mut(from_id.internal)
+            .unwrap()
+            .out_links
+            .push(id.clone());
+        self.nodes
+            .get_mut(to_id.internal)
+            .unwrap()
+            .in_links
+            .push(id.clone());
 
         let link = Link::new(
             id,
@@ -118,27 +138,43 @@ impl<'a> Network<'a> {
     pub fn get_link(&self, id: &Id<Link>) -> &Link {
         self.links.get(id.internal).unwrap()
     }
-}
 
-impl<'a> From<IONetwork> for Network<'a> {
-    fn from(io_network: IONetwork) -> Self {
-        let mut result = Network::new();
-
+    fn init_nodes_and_links(network: &mut Network, io_network: IONetwork) {
         for node in io_network.nodes.nodes {
-            result.add_node(node)
+            network.add_node(node)
         }
 
         for link in io_network.links.links {
-            result.add_link(link)
+            network.add_link(link)
         }
+    }
 
-        result
+    fn partition_network(network: &mut Network, num_parts: usize) {
+        let partitions = metis_partitioning::partition(network, num_parts);
+        println!("{partitions:?}");
+        for node in network.nodes.iter_mut() {
+            let partition = partitions[node.id.internal] as usize;
+            node.partition = partition;
+
+            for link_id in &node.in_links {
+                let link = network.links.get_mut(link_id.internal).unwrap();
+                link.partition = partition;
+            }
+        }
     }
 }
 
 impl Node {
     fn new(id: Id<Node>, x: f32, y: f32, attrs: Vec<Attr>) -> Self {
-        Node { id, x, y, attrs, in_links: Vec::new(), out_links: Vec::new() }
+        Node {
+            id,
+            x,
+            y,
+            attrs,
+            in_links: Vec::new(),
+            out_links: Vec::new(),
+            partition: 0,
+        }
     }
 }
 
@@ -164,6 +200,7 @@ impl Link {
             permlanes,
             modes,
             attributes,
+            partition: 0,
         }
     }
 }
@@ -275,5 +312,40 @@ mod tests {
         assert!(link.modes.contains(&network.modes.get_from_ext("car")));
         assert!(link.modes.contains(&network.modes.get_from_ext("ride")));
         assert!(link.modes.contains(&network.modes.get_from_ext("bike")));
+    }
+
+    #[test]
+    fn from_file() {
+
+        let network = Network::from_file("./assets/equil/equil-network.xml", 6);
+
+        // check partitioning
+        let expected_partitions = vec![1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 0, 2, 2, 2];
+        for node in &network.nodes {
+            let expected_partition = expected_partitions[node.id.internal];
+            assert_eq!(expected_partition, node.partition);
+        }
+        for link in &network.links {
+            let expected_partition = expected_partitions[link.to.internal];
+            assert_eq!(expected_partition, link.partition);
+        }
+
+        // probe in and out links
+        for node in &network.nodes {
+            match &node.id.internal {
+                11 => {
+                    assert_eq!(9, node.in_links.len());
+                    assert_eq!(1, node.out_links.len());
+                },
+                1 => {
+                    assert_eq!(9, node.out_links.len());
+                    assert_eq!(1, node.in_links.len());
+                }
+                _ => {
+                    assert_eq!(1, node.in_links.len());
+                    assert_eq!(1, node.out_links.len());
+                }
+            }
+        }
     }
 }
