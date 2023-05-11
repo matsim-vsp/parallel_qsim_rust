@@ -8,22 +8,24 @@ use crate::simulation::{
 /// This is called global network but could also be renamed into network when things are sorted out a little
 #[derive(Debug)]
 pub struct Network<'a> {
-    node_ids: IdStore<'a, Node>,
-    link_ids: IdStore<'a, Link>,
+    pub node_ids: IdStore<'a, Node>,
+    pub link_ids: IdStore<'a, Link>,
     // we make sure to store each mode only once. This could be optimized further if we'd
     // cache the HashSets which we store in the links. I.e. each combination of modes is only
     // one hash set.
     modes: IdStore<'a, String>,
-    nodes: Vec<Node>,
-    links: Vec<Link>,
+    pub nodes: Vec<Node>,
+    pub links: Vec<Link>,
 }
 
 #[derive(Debug)]
 pub struct Node {
-    x: f32,
-    y: f32,
-    id: Id<Node>,
-    attrs: Vec<Attr>,
+    pub x: f32,
+    pub y: f32,
+    pub id: Id<Node>,
+    pub attrs: Vec<Attr>,
+    pub in_links: Vec<Id<Link>>,
+    pub out_links: Vec<Id<Link>>
 }
 
 #[derive(Debug)]
@@ -89,13 +91,16 @@ impl<'a> Network<'a> {
             .map(|s| s.trim())
             .map(|mode| self.modes.create_id(mode))
             .collect();
-        let from = self.node_ids.get_from_ext(&io_link.from);
-        let to = self.node_ids.get_from_ext(&io_link.to);
+        let from_id = self.node_ids.get_from_ext(&io_link.from);
+        let to_id = self.node_ids.get_from_ext(&io_link.to);
+
+        self.nodes.get_mut(from_id.internal).unwrap().out_links.push(id.clone());
+        self.nodes.get_mut(to_id.internal).unwrap().in_links.push(id.clone());
 
         let link = Link::new(
             id,
-            from,
-            to,
+            from_id,
+            to_id,
             io_link.length,
             io_link.capacity,
             io_link.freespeed,
@@ -133,7 +138,7 @@ impl<'a> From<IONetwork> for Network<'a> {
 
 impl Node {
     fn new(id: Id<Node>, x: f32, y: f32, attrs: Vec<Attr>) -> Self {
-        Node { id, x, y, attrs }
+        Node { id, x, y, attrs, in_links: Vec::new(), out_links: Vec::new() }
     }
 }
 

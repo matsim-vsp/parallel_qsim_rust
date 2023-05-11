@@ -1,6 +1,7 @@
 mod flow_cap;
 pub mod global_network;
 pub mod link;
+mod metis_partitioning;
 pub mod network;
 pub mod network_partition;
 pub mod node;
