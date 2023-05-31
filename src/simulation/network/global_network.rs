@@ -1,8 +1,11 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use crate::simulation::{
     id::{Id, IdStore},
-    io::network::{Attr, IOLink, IONetwork, IONode},
+    io::network::{Attr, Attrs, IOLink, IONetwork, IONode},
 };
 
 use super::metis_partitioning;
@@ -15,7 +18,7 @@ pub struct Network<'a> {
     // we make sure to store each mode only once. This could be optimized further if we'd
     // cache the HashSets which we store in the links. I.e. each combination of modes is only
     // one hash set.
-    modes: IdStore<'a, String>,
+    pub modes: IdStore<'a, String>,
     pub nodes: Vec<Node>,
     pub links: Vec<Link>,
 }
@@ -56,7 +59,7 @@ impl<'a> Network<'a> {
         }
     }
 
-    fn from_file(file_path: &str, num_parts: usize) -> Self {
+    pub fn from_file(file_path: &str, num_parts: usize) -> Self {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
         Self::init_nodes_and_links(&mut result, io_network);
@@ -64,26 +67,105 @@ impl<'a> Network<'a> {
         result
     }
 
-    pub fn add_node(&mut self, io_node: IONode) {
-        let id = self.node_ids.create_id(&io_node.id);
+    pub fn to_file(&self, file_path: &Path) {
+        let mut result = IONetwork::new(None);
+
+        for node in &self.nodes {
+            let attributes = Attrs {
+                attributes: vec![Attr {
+                    name: String::from("partition"),
+                    value: node.partition.to_string(),
+                    class: String::from("java.lang.Integer"),
+                }],
+            };
+            let io_node = IONode {
+                id: node.id.external.clone(),
+                x: node.x,
+                y: node.y,
+                attributes: Some(attributes),
+            };
+            result.nodes_mut().push(io_node);
+        }
+
+        for link in &self.links {
+            let modes = link
+                .modes
+                .iter()
+                .map(|m| m.external.clone())
+                .reduce(|modes, mode| format!("{modes},{mode}"))
+                .unwrap();
+            let attributes = Attrs {
+                attributes: vec![Attr {
+                    name: String::from("partition"),
+                    value: link.partition.to_string(),
+                    class: String::from("java.lang.Integer"),
+                }],
+            };
+
+            let io_link = IOLink {
+                id: link.id.external.clone(),
+                from: link.from.external.clone(),
+                to: link.to.external.clone(),
+                length: link.length,
+                capacity: link.capacity,
+                freespeed: link.freespeed,
+                permlanes: link.permlanes,
+                modes,
+                attributes: Some(attributes),
+            };
+            result.links_mut().push(io_link);
+        }
+
+        result.to_file(file_path);
+    }
+
+    pub fn add_node(&mut self, node: Node) {
         assert_eq!(
-            id.internal,
+            node.id.internal,
             self.nodes.len(),
             "internal id {} and slot in node vec {} were note the same. Probably, node id {} already exsists.",
-            id.internal,
+            node.id.internal,
             self.nodes.len(),
-            io_node.id
+            node.id.external
         );
+        self.nodes.push(node);
+    }
 
+    pub fn add_io_node(&mut self, io_node: IONode) {
+        let id = self.node_ids.create_id(&io_node.id);
         let attrs = match io_node.attributes {
             Some(attrs) => attrs.attributes,
             None => Vec::new(),
         };
         let node = Node::new(id, io_node.x, io_node.y, attrs);
-        self.nodes.push(node);
+        self.add_node(node);
     }
 
-    pub fn add_link(&mut self, io_link: IOLink) {
+    pub fn add_link(&mut self, link: Link) {
+        assert_eq!(
+            link.id.internal,
+            self.links.len(),
+            "internal id {} and slot in link vec {} were note the same. Probably, this link id {} already exists",
+            link.id.internal,
+            self.links.len(),
+            link.id.external
+        );
+
+        // wire up in and out links and push link to the links vec
+        self.nodes
+            .get_mut(link.from.internal)
+            .unwrap()
+            .out_links
+            .push(link.id.clone());
+        self.nodes
+            .get_mut(link.to.internal)
+            .unwrap()
+            .in_links
+            .push(link.id.clone());
+        self.links.push(link);
+    }
+
+    pub fn add_io_link(&mut self, io_link: IOLink) {
         let id = self.link_ids.create_id(&io_link.id);
         assert_eq!(
             id.internal,
@@ -106,17 +188,6 @@ impl<'a> Network<'a> {
         let from_id = self.node_ids.get_from_ext(&io_link.from);
         let to_id = self.node_ids.get_from_ext(&io_link.to);
 
-        self.nodes
-            .get_mut(from_id.internal)
-            .unwrap()
-            .out_links
-            .push(id.clone());
-        self.nodes
-            .get_mut(to_id.internal)
-            .unwrap()
-            .in_links
-            .push(id.clone());
-
         let link = Link::new(
             id,
             from_id,
@@ -128,7 +199,7 @@ impl<'a> Network<'a> {
             modes,
             attrs,
         );
-        self.links.push(link);
+        self.add_link(link);
     }
 
     pub fn get_node(&self, id: &Id<Node>) -> &Node {
@@ -141,11 +212,11 @@ impl<'a> Network<'a> {
 
     fn init_nodes_and_links(network: &mut Network, io_network: IONetwork) {
         for node in io_network.nodes.nodes {
-            network.add_node(node)
+            network.add_io_node(node)
         }
 
         for link in io_network.links.links {
-            network.add_link(link)
+            network.add_io_link(link)
         }
     }
 
@@ -203,6 +274,22 @@ impl Link {
             partition: 0,
         }
     }
+
+    pub fn new_with_default(id: Id<Link>, from: &Node, to: &Node) -> Self {
+        // compute eucledean distance between from and to node
+        let length = ((from.x - to.x).powi(2) + (from.y - to.y).powi(2)).sqrt();
+        Link::new(
+            id,
+            from.id.clone(),
+            to.id.clone(),
+            length,
+            1.,
+            1.,
+            1.,
+            HashSet::default(),
+            Vec::default(),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -210,10 +297,81 @@ mod tests {
 
     use crate::simulation::io::network::{IOLink, IONode};
 
-    use super::Network;
+    use super::{Network, Node, Link};
 
     #[test]
     fn add_node() {
+        let mut network = Network::new();
+        let id = network.node_ids.create_id("node-id");
+        let node = Node::new(id.clone(), 1., 1., Vec::default());
+
+        assert_eq!(0, network.nodes.len());
+        network.add_node(node);
+        assert_eq!(1, network.nodes.len());
+        assert_eq!(id, network.get_node(&id).id);
+    }
+
+#[test]
+    #[should_panic]
+    fn add_node_reject_duplicate() {
+
+        let mut network = Network::new();
+        let id = network.node_ids.create_id("node-id");
+        let node = Node::new(id.clone(), 1., 1., Vec::default());
+        let duplicate = Node::new(id.clone(), 2., 2., Vec::default());
+
+        assert_eq!(0, network.nodes.len());
+        network.add_node(node);
+        network.add_node(duplicate); // expecting panic here.
+    }
+
+    #[test]
+    fn add_link() {
+        let mut network = Network::new();
+        let from = Node::new(network.node_ids.create_id("from"), 0., 0., Vec::default());
+        let to = Node::new(network.node_ids.create_id("to"), 3., 4., Vec::default());
+        let id = network.link_ids.create_id("link-id");
+        let link = Link::new_with_default(id.clone(), &from, &to);
+
+        network.add_node(from);
+        network.add_node(to);
+        network.add_link(link);
+
+        assert_eq!(2, network.nodes.len());
+        assert_eq!(1, network.links.len());
+        assert_eq!(id, network.get_link(&id).id);
+
+        let link = network.get_link(&id);
+        let from = network.get_node(&link.from);
+        let to = network.get_node(&link.to);
+
+        assert_eq!(id,link.id);
+        assert_eq!(0, from.in_links.len());
+        assert_eq!(1, from.out_links.len());
+        assert_eq!(&id, from.out_links.get(0).unwrap());
+        assert_eq!(0, to.out_links.len());
+        assert_eq!(1, to.in_links.len());
+        assert_eq!(&id, to.in_links.get(0).unwrap());
+    }
+
+    #[test]
+    #[should_panic]
+    fn add_link_reject_duplicate() {
+        let mut network = Network::new();
+        let from = Node::new(network.node_ids.create_id("from"), 0., 0., Vec::default());
+        let to = Node::new(network.node_ids.create_id("to"), 3., 4., Vec::default());
+        let id = network.link_ids.create_id("link-id");
+        let link = Link::new_with_default(id.clone(), &from, &to);
+        let duplicate = Link::new_with_default(id.clone(), &from, &to);
+
+        network.add_node(from);
+        network.add_node(to);
+        network.add_link(link);
+        network.add_link(duplicate); // expecting panic here
+    }
+
+    #[test]
+    fn add_io_node() {
         let external_id = String::from("some-id");
         let x = 1.;
         let y = 2.;
@@ -225,7 +383,7 @@ mod tests {
         };
         let mut network = Network::new();
 
-        network.add_node(io_node);
+        network.add_io_node(io_node);
 
         // the node should be in nodes vec and there should be a node id
         let id = network.node_ids.get_from_ext(&external_id);
@@ -239,31 +397,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn add_node_reject_duplicate() {
-        let external_id = String::from("some-id");
-        let x = 1.;
-        let y = 2.;
-        let io_node = IONode {
-            id: external_id.clone(),
-            x,
-            y,
-            attributes: None,
-        };
-        let io_node_duplicate = IONode {
-            id: external_id.clone(),
-            x,
-            y,
-            attributes: None,
-        };
-        let mut network = Network::new();
-
-        network.add_node(io_node);
-        network.add_node(io_node_duplicate);
-    }
-
-    #[test]
-    fn add_link() {
+    fn add_io_link() {
         let ext_from_id = String::from("from");
         let ext_to_id = String::from("to");
         let ext_link_id = String::from("link");
@@ -293,9 +427,9 @@ mod tests {
         };
 
         let mut network = Network::new();
-        network.add_node(io_from);
-        network.add_node(io_to);
-        network.add_link(io_link.clone());
+        network.add_io_node(io_from);
+        network.add_io_node(io_to);
+        network.add_io_link(io_link.clone());
 
         let from = network.get_node(&network.node_ids.get_from_ext(&ext_from_id));
         let to = network.get_node(&network.node_ids.get_from_ext(&ext_to_id));
