@@ -1,7 +1,4 @@
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashSet, path::Path};
 
 use crate::simulation::{
     id::{Id, IdStore},
@@ -137,7 +134,8 @@ impl<'a> Network<'a> {
             Some(attrs) => attrs.attributes,
             None => Vec::new(),
         };
-        let node = Node::new(id, io_node.x, io_node.y, attrs);
+        let mut node = Node::new(id, io_node.x, io_node.y);
+        node.attrs = attrs;
         self.add_node(node);
     }
 
@@ -236,12 +234,12 @@ impl<'a> Network<'a> {
 }
 
 impl Node {
-    fn new(id: Id<Node>, x: f32, y: f32, attrs: Vec<Attr>) -> Self {
+    pub fn new(id: Id<Node>, x: f32, y: f32) -> Self {
         Node {
             id,
             x,
             y,
-            attrs,
+            attrs: Vec::new(),
             in_links: Vec::new(),
             out_links: Vec::new(),
             partition: 0,
@@ -297,13 +295,13 @@ mod tests {
 
     use crate::simulation::io::network::{IOLink, IONode};
 
-    use super::{Network, Node, Link};
+    use super::{Link, Network, Node};
 
     #[test]
     fn add_node() {
         let mut network = Network::new();
         let id = network.node_ids.create_id("node-id");
-        let node = Node::new(id.clone(), 1., 1., Vec::default());
+        let node = Node::new(id.clone(), 1., 1.);
 
         assert_eq!(0, network.nodes.len());
         network.add_node(node);
@@ -311,14 +309,13 @@ mod tests {
         assert_eq!(id, network.get_node(&id).id);
     }
 
-#[test]
+    #[test]
     #[should_panic]
     fn add_node_reject_duplicate() {
-
         let mut network = Network::new();
         let id = network.node_ids.create_id("node-id");
-        let node = Node::new(id.clone(), 1., 1., Vec::default());
-        let duplicate = Node::new(id.clone(), 2., 2., Vec::default());
+        let node = Node::new(id.clone(), 1., 1.);
+        let duplicate = Node::new(id.clone(), 2., 2.);
 
         assert_eq!(0, network.nodes.len());
         network.add_node(node);
@@ -328,8 +325,8 @@ mod tests {
     #[test]
     fn add_link() {
         let mut network = Network::new();
-        let from = Node::new(network.node_ids.create_id("from"), 0., 0., Vec::default());
-        let to = Node::new(network.node_ids.create_id("to"), 3., 4., Vec::default());
+        let from = Node::new(network.node_ids.create_id("from"), 0., 0.);
+        let to = Node::new(network.node_ids.create_id("to"), 3., 4.);
         let id = network.link_ids.create_id("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
 
@@ -345,7 +342,7 @@ mod tests {
         let from = network.get_node(&link.from);
         let to = network.get_node(&link.to);
 
-        assert_eq!(id,link.id);
+        assert_eq!(id, link.id);
         assert_eq!(0, from.in_links.len());
         assert_eq!(1, from.out_links.len());
         assert_eq!(&id, from.out_links.get(0).unwrap());
@@ -358,8 +355,8 @@ mod tests {
     #[should_panic]
     fn add_link_reject_duplicate() {
         let mut network = Network::new();
-        let from = Node::new(network.node_ids.create_id("from"), 0., 0., Vec::default());
-        let to = Node::new(network.node_ids.create_id("to"), 3., 4., Vec::default());
+        let from = Node::new(network.node_ids.create_id("from"), 0., 0.);
+        let to = Node::new(network.node_ids.create_id("to"), 3., 4.);
         let id = network.link_ids.create_id("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
         let duplicate = Link::new_with_default(id.clone(), &from, &to);
@@ -480,5 +477,19 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn link_new_with_default() {
+        let mut network = Network::new();
+        let from = Node::new(network.node_ids.create_id("from"), 0., 0.);
+        let to = Node::new(network.node_ids.create_id("to"), 3., 4.);
+        let id = network.link_ids.create_id("link-id");
+        let link = Link::new_with_default(id.clone(), &from, &to);
+
+        assert_eq!(id, link.id);
+        assert_eq!(5., link.length);
+        assert_eq!(from.id, link.from);
+        assert_eq!(to.id, link.to);
     }
 }

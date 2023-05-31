@@ -8,6 +8,8 @@ use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 
+use super::global_network::Link;
+
 #[derive(Debug, Clone)]
 pub enum SimLink {
     LocalLink(LocalLink),
@@ -76,6 +78,25 @@ impl LocalLink {
             sample_size,
             from,
             to,
+        )
+    }
+
+    pub fn from_link(link: &Link, sample_size: f32) -> Self {
+        //TODO This should take the modes as set of ids, as well as ids, instead of the internal representation.
+        let modes = link
+            .modes
+            .iter()
+            .map(|mode_id| mode_id.external.clone())
+            .collect();
+        LocalLink::new(
+            link.id.internal,
+            link.capacity,
+            link.capacity,
+            link.length,
+            modes,
+            sample_size,
+            link.from.internal,
+            link.to.internal,
         )
     }
 

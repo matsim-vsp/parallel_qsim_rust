@@ -4,6 +4,10 @@ use metis::{Graph, Idx};
 use super::global_network::Network;
 
 pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
+    if num_parts == 1 {
+        return vec![0; network.nodes.len()];
+    }
+
     info!("Counting in links on nodes");
     // count in links
     let node_count =
