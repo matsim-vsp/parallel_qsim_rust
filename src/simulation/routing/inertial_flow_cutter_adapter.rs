@@ -1,10 +1,10 @@
 use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
-use log::{debug, info};
 use std::fmt::Display;
 use std::fs::{create_dir_all, remove_dir_all, remove_file, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use tracing::{debug, info};
 
 pub struct InertialFlowCutterAdapter {
     pub inertial_flow_cutter_path: PathBuf,

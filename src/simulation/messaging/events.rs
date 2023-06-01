@@ -7,9 +7,9 @@ use crate::simulation::messaging::events::proto::{
     LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
     TravelledEvent,
 };
-use log::info;
 use std::any::Any;
 use std::collections::HashMap;
+use tracing::info;
 
 // Include the `events` module, which is generated from events.proto.
 pub mod proto {

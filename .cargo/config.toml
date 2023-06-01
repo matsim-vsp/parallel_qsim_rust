@@ -1,4 +1,5 @@
 [env]
 # If you placed InertialFlowCutter in another directory, you have to set an environment variable with the corresponding path.
 # This variable has only to be set if you want to use a router.
-INERTIAL_FLOW_CUTTER_HOME_DIRECTORY= "../InertialFlowCutter"
+INERTIAL_FLOW_CUTTER_HOME_DIRECTORY="../InertialFlowCutter"
+RUST_Q_SIM_PERFORMANCE_TRACING_INTERVAL="900"

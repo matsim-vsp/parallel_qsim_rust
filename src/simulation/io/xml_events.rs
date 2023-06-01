@@ -1,11 +1,11 @@
 use crate::simulation::messaging::events::proto::event::Type;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsSubscriber;
-use log::info;
 use std::any::Any;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+use tracing::info;
 
 pub struct XmlEventsWriter {
     writer: BufWriter<File>,

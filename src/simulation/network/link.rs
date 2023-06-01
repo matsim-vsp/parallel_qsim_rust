@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use log::warn;
+use tracing::warn;
 
 use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
