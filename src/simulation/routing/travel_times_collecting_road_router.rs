@@ -184,23 +184,19 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
         let mut result = BTreeMap::new();
         for (mode, router) in self.router_by_mode.iter_mut() {
             let mut extended_travel_times_by_link_id = HashMap::new();
-            // for each collected travel time: add if currently known travel time is different
-            for (id, travel_time) in collected_travel_times {
-                let new_travel_time = (*travel_time).max(router.get_initial_travel_time(*id));
-                if new_travel_time != router.get_current_travel_time(*id) {
-                    extended_travel_times_by_link_id.insert(*id, new_travel_time);
-                }
-            }
-            // for each link which has no new travel time: add initial travel time if currently known travel time is different
-            for id in self.link_ids_of_process.difference(
-                &collected_travel_times
-                    .clone() //TODO
-                    .into_keys()
-                    .collect::<HashSet<u64>>(),
-            ) {
-                let initial_travel_time = router.get_initial_travel_time(*id);
-                if router.get_current_travel_time(*id) != initial_travel_time {
-                    extended_travel_times_by_link_id.insert(*id, initial_travel_time);
+            for id in &self.link_ids_of_process {
+                if let Some(travel_time) = collected_travel_times.get(&id) {
+                    // for each collected travel time: add if currently known travel time is different
+                    let new_travel_time = (*travel_time).max(router.get_initial_travel_time(*id));
+                    if new_travel_time != router.get_current_travel_time(*id) {
+                        extended_travel_times_by_link_id.insert(*id, new_travel_time);
+                    }
+                } else {
+                    // for each link which has no new travel time: add initial travel time if currently known travel time is different
+                    let initial_travel_time = router.get_initial_travel_time(*id);
+                    if router.get_current_travel_time(*id) != initial_travel_time {
+                        extended_travel_times_by_link_id.insert(*id, initial_travel_time);
+                    }
                 }
             }
             result.insert(String::from(mode), extended_travel_times_by_link_id);
