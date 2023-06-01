@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::Cursor;
 
+use log::debug;
 use prost::Message;
 
 use crate::simulation::config::RoutingMode;
@@ -172,6 +173,18 @@ impl Agent {
         routing_mode: RoutingMode,
     ) -> Agent {
         let plan = Plan::from_io(io_person.selected_plan(), id_mappings, routing_mode);
+
+        if plan.acts.is_empty() {
+            debug!("There is an empty plan for person {:?}", io_person.id);
+        }
+
+        if plan.acts.len() == 1 {
+            debug!(
+                "There is a plan with one activity only for person {:?}",
+                io_person.id
+            );
+        }
+
         let id = *id_mappings.agents.get_internal(io_person.id()).unwrap();
         Agent {
             id: id as u64,
@@ -422,6 +435,21 @@ impl Plan {
     }
 
     fn get_full_plan_for_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+        if io_plan.elements.is_empty() {
+            return Plan::new();
+        }
+
+        if io_plan.elements.len() == 1 {
+            let mut plan = Plan::new();
+            if let IOPlanElement::Activity(io_activity) = io_plan.elements.get(0).unwrap() {
+                plan.acts
+                    .push(Activity::from_io(io_activity, &id_mappings.links));
+            } else {
+                panic!("The first element of a plan has to be an activity.")
+            }
+            return plan;
+        }
+
         let plan_type = Plan::get_plan_type(io_plan);
         let window_size = plan_type.window_size();
         let step_size = plan_type.step_size();

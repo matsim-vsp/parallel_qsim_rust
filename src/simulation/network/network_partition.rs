@@ -20,6 +20,36 @@ impl NetworkPartition {
         }
     }
 
+    pub fn len_local_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::LocalLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn len_split_in_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::SplitInLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn len_split_out_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::SplitOutLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
     pub fn len_local_nodes(&self) -> usize {
         self.nodes
             .values()
