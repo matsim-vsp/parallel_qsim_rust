@@ -474,9 +474,9 @@ mod tests {
 
     fn create_three_vehicle_definitions() -> VehicleDefinitions {
         VehicleDefinitions::new()
-            .add_vehicle_type("car".to_string(), Some(20.))
-            .add_vehicle_type("buggy".to_string(), Some(10.))
-            .add_vehicle_type("bike".to_string(), Some(5.))
+            .add_vehicle_type("car".to_string(), Some(20.), "car".to_string())
+            .add_vehicle_type("buggy".to_string(), Some(10.), "buggy".to_string())
+            .add_vehicle_type("bike".to_string(), Some(5.), "bike".to_string())
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {

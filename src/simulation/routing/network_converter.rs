@@ -133,8 +133,8 @@ mod test {
     #[test]
     fn test_simple_network_with_modes() {
         let vehicle_definitions = VehicleDefinitions::new()
-            .add_vehicle_type("car".to_string(), Some(5.))
-            .add_vehicle_type("bike".to_string(), Some(2.));
+            .add_vehicle_type("car".to_string(), Some(5.), "car".to_string())
+            .add_vehicle_type("bike".to_string(), Some(2.), "bike".to_string());
 
         let io_network = IONetwork::from_file("./assets/routing_tests/network_different_modes.xml");
         let io_population = IOPopulation::empty();
