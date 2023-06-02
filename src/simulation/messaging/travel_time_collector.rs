@@ -67,19 +67,22 @@ impl TravelTimeCollector {
     }
 
     fn process_person_leaves_vehicle_event(&mut self, time: u32, event: &PersonLeavesVehicleEvent) {
-        let link_id = self
-            .current_link_by_vehicle
-            .get(&event.vehicle).copied()
-            .expect("Before a person can leave a vehicle, it must have entered the link and thus a current link must be available.");
+        // if there is no current link id of vehicle of link enter event, cache doesn't have to be cleaned up
+        let link_id = self.current_link_by_vehicle.get(&event.vehicle).copied();
+        if link_id.is_none() {
+            return;
+        }
 
-        let index_of_link_enter = self
-            .get_index_of_link_enter_event(link_id, event.vehicle)
-            .expect("Before a person can leave a vehicle, it must have entered the link and thus traffic information must be available.");
+        let index_of_link_enter =
+            self.get_index_of_link_enter_event(link_id.unwrap(), event.vehicle);
+        if index_of_link_enter.is_none() {
+            return;
+        }
 
         self.cache_traffic_information_by_link
-            .get_mut(&link_id)
+            .get_mut(&link_id.unwrap())
             .unwrap()
-            .remove(index_of_link_enter);
+            .remove(index_of_link_enter.unwrap());
     }
 
     fn get_index_of_link_enter_event(&mut self, link: u64, vehicle: u64) -> Option<usize> {

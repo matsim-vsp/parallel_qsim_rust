@@ -1,11 +1,9 @@
-use crate::simulation::id_mapping::MatsimIdMappings;
-use crate::simulation::io::network::IONetwork;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::{Plan, TravelTimesMessage};
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
-use crate::simulation::network::link::Link;
-use crate::simulation::network::network_partition::NetworkPartition;
+use crate::simulation::network::network::Network;
+use crate::simulation::network::routing_kit_network::RoutingKitNetwork;
 use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::road_router::RoadRouter;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
@@ -85,46 +83,17 @@ impl<'router> Router for TravelTimesCollectingRoadRouter<'router> {
 
 impl<'router> TravelTimesCollectingRoadRouter<'router> {
     pub fn new(
-        io_network: IONetwork, //TODO change it to matsim internal network representation
-        id_mappings: Option<&MatsimIdMappings>,
+        routing_kit_network_by_mode: HashMap<String, RoutingKitNetwork>,
         communicator: SystemCommunicator,
         rank: Rank,
         output_dir: PathBuf,
-        vehicle_definitions: Option<VehicleDefinitions>,
-        network_partition: &NetworkPartition,
+        link_ids_of_process: HashSet<u64>,
     ) -> Self {
-        let router_by_mode = if let Some(vehicle_definitions) = vehicle_definitions.as_ref() {
-            NetworkConverter::convert_io_network_with_vehicle_definitions(
-                io_network,
-                id_mappings,
-                vehicle_definitions,
-            )
+        let router_by_mode = routing_kit_network_by_mode
             .iter()
             .map(|(m, r)| (m.clone(), RoadRouter::new(r, output_dir.join(m))))
             .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
-            .collect::<BTreeMap<_, _>>()
-        } else {
-            let mut map = BTreeMap::new();
-            map.insert(
-                Plan::DEFAULT_ROUTING_MODE.to_string(),
-                RoadRouter::new(
-                    &NetworkConverter::convert_io_network(io_network, id_mappings, None, None),
-                    output_dir,
-                ),
-            );
-            map
-        };
-
-        let link_ids_of_process = network_partition
-            .links
-            .iter()
-            .filter(|(id, link)| match link {
-                Link::LocalLink(_) => true,
-                Link::SplitInLink(_) => true,
-                Link::SplitOutLink(_) => false,
-            })
-            .map(|(id, _)| *id as u64)
-            .collect::<HashSet<u64>>();
+            .collect::<BTreeMap<_, _>>();
 
         TravelTimesCollectingRoadRouter {
             router_by_mode,
@@ -202,5 +171,21 @@ impl<'router> TravelTimesCollectingRoadRouter<'router> {
             result.insert(String::from(mode), extended_travel_times_by_link_id);
         }
         result
+    }
+
+    pub fn get_routing_kit_network_by_mode(
+        network: &Network,
+        vehicle_definitions: Option<&VehicleDefinitions>,
+    ) -> HashMap<String, RoutingKitNetwork> {
+        if let Some(vehicle_definitions) = vehicle_definitions {
+            NetworkConverter::convert_network_with_vehicle_definitions(network, vehicle_definitions)
+        } else {
+            let mut map = HashMap::new();
+            map.insert(
+                Plan::DEFAULT_ROUTING_MODE.to_string(),
+                NetworkConverter::convert_network(network, None, None),
+            );
+            map
+        }
     }
 }

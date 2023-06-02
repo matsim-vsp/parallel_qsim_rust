@@ -143,6 +143,18 @@ impl NetworkPartition {
 
         distinct_thread_ids
     }
+
+    pub fn get_link_ids(&self) -> HashSet<u64> {
+        self.links
+            .iter()
+            .filter(|(id, link)| match link {
+                Link::LocalLink(_) => true,
+                Link::SplitInLink(_) => true,
+                Link::SplitOutLink(_) => false,
+            })
+            .map(|(id, _)| *id as u64)
+            .collect::<HashSet<u64>>()
+    }
 }
 
 #[cfg(test)]

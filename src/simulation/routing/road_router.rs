@@ -255,6 +255,11 @@ mod test {
     use std::path::PathBuf;
     use std::time::Instant;
 
+    use crate::simulation::id_mapping::MatsimIdMappings;
+    use crate::simulation::io::network::IONetwork;
+    use crate::simulation::io::population::IOPopulation;
+    use crate::simulation::network::network::Network;
+    use crate::simulation::partition_info::PartitionInfo;
     use crate::simulation::routing::network_converter::NetworkConverter;
     use crate::simulation::routing::road_router::{get_edge_path, RoadRouter};
     use rand::seq::IteratorRandom;
@@ -322,8 +327,23 @@ mod test {
 
     #[test]
     fn test_get_edge_path() {
-        let mut network =
-            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
+        let num_parts = 1;
+
+        let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
+        let io_population = IOPopulation::empty();
+        let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
+        let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, num_parts);
+
+        let network = Network::from_io(
+            &io_network,
+            num_parts,
+            1.0,
+            |node| partition_info.get_partition(node),
+            &MatsimIdMappings::from_io(&io_network, &io_population),
+        );
+
+        let mut network = NetworkConverter::convert_network(&network, None, None);
+
         network.link_ids = vec![0, 1, 2, 3, 4, 5];
 
         assert_eq!(get_edge_path(vec![1, 2, 3], &network), vec![0, 3]);
@@ -336,9 +356,22 @@ mod test {
 
     #[test]
     fn test_simple_cch_with_router_and_update() {
-        //does only work locally
-        let network =
-            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
+        let num_parts = 1;
+
+        let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
+        let io_population = IOPopulation::empty();
+        let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
+        let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, num_parts);
+
+        let network = Network::from_io(
+            &io_network,
+            num_parts,
+            1.0,
+            |node| partition_info.get_partition(node),
+            &MatsimIdMappings::from_io(&io_network, &io_population),
+        );
+
+        let network = NetworkConverter::convert_network(&network, None, None);
 
         let mut router = RoadRouter::new(
             &network,
@@ -361,7 +394,22 @@ mod test {
     #[ignore]
     #[test]
     fn compare_cch_and_dijkstra() {
-        let network = NetworkConverter::convert_xml_network("./assets/andorra-network.xml.gz");
+        let num_parts = 1;
+
+        let io_network = IONetwork::from_file("./assets/andorra-network.xml.gz");
+        let io_population = IOPopulation::empty();
+        let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
+        let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, num_parts);
+
+        let network = Network::from_io(
+            &io_network,
+            num_parts,
+            1.0,
+            |node| partition_info.get_partition(node),
+            &id_mappings,
+        );
+
+        let network = NetworkConverter::convert_network(&network, None, None);
 
         let mut cch_router = RoadRouter::new(
             &network,

@@ -1,7 +1,10 @@
 use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
+use crate::simulation::network::link::Link;
 use crate::simulation::network::network_partition::NetworkPartition;
+use crate::simulation::network::node::Node;
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -57,6 +60,34 @@ impl Network {
 
     pub fn partition_for_link(&self, link_id: &usize) -> &usize {
         self.links_2_partition.get(link_id).unwrap()
+    }
+
+    pub fn get_all_nodes_sorted(&self) -> Vec<&Node> {
+        self.partitions
+            .iter()
+            .flat_map(|p| p.nodes.values())
+            .filter(|&n| match n {
+                Node::LocalNode(n) => true,
+                Node::NeighbourNode(_) => false,
+            })
+            .sorted_by_key(|&n| match n {
+                Node::LocalNode(n) => n,
+                Node::NeighbourNode(_) => panic!("There are no neighbour nodes any more."),
+            }.id)
+            .collect::<Vec<&Node>>()
+    }
+
+    pub fn get_all_links_sorted(&self) -> Vec<&Link> {
+        self.partitions
+            .iter()
+            .flat_map(|p| p.links.values())
+            .filter(|&l| match l {
+                Link::LocalLink(_) => true,
+                Link::SplitInLink(_) => true,
+                Link::SplitOutLink(_) => false,
+            })
+            .sorted_by_key(|&l| l.from_id())
+            .collect::<Vec<&Link>>()
     }
 }
 
