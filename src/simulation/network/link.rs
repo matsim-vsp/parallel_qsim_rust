@@ -91,7 +91,7 @@ impl LocalLink {
         LocalLink::new(
             link.id.internal,
             link.capacity,
-            link.capacity,
+            link.freespeed,
             link.length,
             modes,
             sample_size,
