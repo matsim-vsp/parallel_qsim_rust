@@ -72,7 +72,7 @@ impl<'ext, T> IdStore<'ext, T> {
     }
 
     pub fn get(&self, internal: usize) -> Id<T> {
-        self.ids.get(internal).unwrap().clone()
+        self.ids.get(internal).expect(format!("No id found for internal {internal}").as_str()).clone()
     }
 
     pub fn get_from_ext(&self, external: &str) -> Id<T> {
