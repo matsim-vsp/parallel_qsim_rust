@@ -39,7 +39,7 @@ impl<'n> SimNetworkPartition<'n> {
             .map(|link| {
                 (
                     link.id.clone(),
-                    Self::create_sim_link(link, &global_network.nodes),
+                    Self::create_sim_link(link, partition, &global_network.nodes),
                 )
             })
             .collect();
@@ -47,7 +47,7 @@ impl<'n> SimNetworkPartition<'n> {
         Self::new(Vec::from_iter(nodes), links, global_network)
     }
 
-    fn create_sim_link(link: &Link, all_nodes: &Vec<Node>) -> SimLink {
+    fn create_sim_link(link: &Link, partition: usize, all_nodes: &Vec<Node>) -> SimLink {
         let from_part = all_nodes.get(link.from.internal).unwrap().partition;
         let to_part = all_nodes.get(link.to.internal).unwrap().partition;
         let id = &link.id;
@@ -60,8 +60,7 @@ impl<'n> SimNetworkPartition<'n> {
         return if from_part == to_part {
             SimLink::LocalLink(LocalLink::from_link(link, 1.0))
         } else {
-            let partition = link.partition;
-            if to_part == link.partition {
+            if to_part == partition {
                 let local_link = LocalLink::from_link(&link, 1.0);
                 SimLink::SplitInLink(SplitInLink::new(from_part, local_link))
             } else {
@@ -186,9 +185,35 @@ mod tests {
     use super::SimNetworkPartition;
 
     #[test]
+    fn from_network() {
+        let mut network = Network::new();
+        let mut sim_nets = create_single_node_sim_network_with_partition(&mut network);
+        let net1 = sim_nets.get_mut(0).unwrap();
+
+        // we expect two nodes
+        assert_eq!(2, net1.nodes.len());
+        // we expect two links one local and one out link
+        assert_eq!(2, net1.links.len());
+        let local_link = net1.links.get(&net1.global_network.link_ids.get(0)).unwrap();
+        assert!(matches!(local_link, SimLink::LocalLink(_)));
+        let out_link = net1.links.get(&net1.global_network.link_ids.get(1)).unwrap();
+        assert!(matches!(out_link, SimLink::SplitOutLink(_)));
+
+        let net2 = sim_nets.get_mut(1).unwrap();
+        // we expect one nodes
+        assert_eq!(1, net2.nodes.len());
+        // we expect two links one local and one in link
+        assert_eq!(2, net2.links.len());
+        let local_link = net2.links.get(&net2.global_network.link_ids.get(1)).unwrap();
+        assert!(matches!(local_link, SimLink::SplitInLink(_)));
+        let out_link = net2.links.get(&net2.global_network.link_ids.get(2)).unwrap();
+        assert!(matches!(out_link, SimLink::LocalLink(_)));
+    }
+
+    #[test]
     fn move_nodes_single_node_vehicles_in() {
         let mut network = Network::new();
-        let mut sim_network = create_single_node_network(&mut network);
+        let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
@@ -206,7 +231,7 @@ mod tests {
     #[test]
     fn vehicle_in_and_out() {
         let mut network = Network::new();
-        let mut sim_network = create_single_node_network(&mut network);
+        let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0, 1]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
@@ -225,9 +250,31 @@ mod tests {
         }
     }
 
-//TODO move other test cases
+    #[test]
+    pub fn vehicle_in_out_boundary() {
+        let mut network = Network::new();
+        init_single_node_network(&mut network);
+        let node3 = network.nodes.get_mut(2).unwrap();
+        node3.partition = 1;
+        let link2 = network.links.get_mut(1).unwrap();
+        link2.partition = 1;
+        let mut sim_network = SimNetworkPartition::from_network(&network, 0);
+        let mut publisher = EventsPublisher::new();
+        let agent = create_agent(1, vec![0, 1]);
+        let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
+        let in_link_id = sim_network.global_network.link_ids.get(0);
+        if let SimLink::LocalLink(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
+            link1.push_vehicle(vehicle, 1, None);
+        }
 
-    fn create_single_node_network<'n>(network: &'n mut Network) -> SimNetworkPartition<'n> {
+        let exits = sim_network.move_nodes(&mut publisher, None, 1000);
+
+        assert_eq!(1, exits.len());
+    }
+
+    //TODO move other test cases
+
+    fn init_single_node_network<'n>(network: &'n mut Network) {
         let node1 = Node::new(network.node_ids.create_id("node-1"), -100., 0.);
         let node2 = Node::new(network.node_ids.create_id("node-2"), 0., 0.);
         let node3 = Node::new(network.node_ids.create_id("node-3"), 100., 0.);
@@ -239,7 +286,19 @@ mod tests {
         network.add_node(node3);
         network.add_link(link1);
         network.add_link(link2);
+    }
 
+    fn create_single_node_sim_network_with_partition<'n>(mut network: &'n mut Network) -> Vec<SimNetworkPartition<'n>> {
+        init_single_node_network(&mut network);
+        let node3 = network.nodes.get_mut(2).unwrap();
+        node3.partition = 1;
+        let link2 = network.links.get_mut(1).unwrap();
+        link2.partition = 1;
+        vec![SimNetworkPartition::from_network(network, 0), SimNetworkPartition::from_network(network, 1)]
+    }
+
+    fn create_single_node_sim_network<'n>(mut network: &'n mut Network) -> SimNetworkPartition<'n> {
+        init_single_node_network(&mut network);
         SimNetworkPartition::from_network(network, 0)
     }
 
