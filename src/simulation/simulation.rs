@@ -11,7 +11,6 @@ use crate::simulation::messaging::messages::proto::{
 use crate::simulation::network::link::SimLink;
 use crate::simulation::network::node::ExitReason;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
 use crate::simulation::time_queue::TimeQueue;
@@ -34,7 +33,7 @@ impl<'sim> Simulation<'sim> {
         config: &Config,
         id_mappings: &'sim MatsimIdMappings,
         network: SimNetworkPartition<'sim>,
-        population: Population,
+        population: crate::simulation::population::population::Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
         router: Option<Box<dyn Router>>,

@@ -9,7 +9,6 @@ use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::partition_info::PartitionInfo;
-use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
 use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
@@ -60,7 +59,13 @@ pub fn run(world: SystemCommunicator, config: Config) {
     );
 
      */
-    let population = Population::new(); // TODO this is empty. Change to new network implementation
+
+    let population = crate::simulation::population::population::Population::from_file(
+        config.population_file.as_ref(),
+        &network,
+        rank as usize,
+        config.routing_mode,
+    );
     let network_partition = SimNetworkPartition::from_network(&network, rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",

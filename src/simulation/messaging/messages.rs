@@ -5,8 +5,6 @@ use std::io::Cursor;
 use prost::Message;
 
 use crate::simulation::config::RoutingMode;
-use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
-use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
@@ -15,6 +13,8 @@ use crate::simulation::messaging::messages::proto::{
     Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
     TravelTimesMessage, Vehicle, VehicleMessage, VehicleType,
 };
+use crate::simulation::network::global_network::Network;
+use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::EndTime;
 
 // Include the `messages` module, which is generated from messages.proto.
@@ -46,8 +46,8 @@ impl VehicleMessage {
     pub fn new(time: u32, from: u32, to: u32) -> VehicleMessage {
         VehicleMessage {
             time,
-            from_process: from as u32,
-            to_process: to as u32,
+            from_process: from,
+            to_process: to,
             vehicles: Vec::new(),
         }
     }
@@ -168,13 +168,14 @@ impl EndTime for Vehicle {
 impl Agent {
     pub fn from_io(
         io_person: &IOPerson,
-        id_mappings: &MatsimIdMappings,
+        net: &Network,
+        pop: &Population,
         routing_mode: RoutingMode,
     ) -> Agent {
-        let plan = Plan::from_io(io_person.selected_plan(), id_mappings, routing_mode);
-        let id = *id_mappings.agents.get_internal(io_person.id()).unwrap();
+        let plan = Plan::from_io(io_person.selected_plan(), net, pop, routing_mode);
+        let id = pop.agent_ids.get_from_ext(&io_person.id);
         Agent {
-            id: id as u64,
+            id: id.internal as u64,
             plan: Some(plan),
             curr_plan_elem: 0,
         }
@@ -384,7 +385,8 @@ impl Plan {
 
     fn from_io(
         io_plan: &IOPlan,
-        id_mappings: &MatsimIdMappings,
+        net: &Network,
+        pop: &Population,
         routing_mode: RoutingMode,
     ) -> Plan {
         assert!(!io_plan.elements.is_empty());
@@ -393,22 +395,22 @@ impl Plan {
         };
 
         match routing_mode {
-            RoutingMode::UsePlans => Plan::get_full_plan_no_routing(io_plan, id_mappings),
-            RoutingMode::AdHoc => Plan::get_full_plan_for_routing(io_plan, id_mappings),
+            RoutingMode::UsePlans => Plan::get_full_plan_no_routing(io_plan, net, pop),
+            RoutingMode::AdHoc => Plan::get_full_plan_for_routing(io_plan, net, pop),
         }
     }
 
-    fn get_full_plan_no_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+    fn get_full_plan_no_routing(io_plan: &IOPlan, net: &Network, pop: &Population) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
             match element {
                 IOPlanElement::Activity(io_act) => {
-                    let act = Activity::from_io(io_act, &id_mappings.links);
+                    let act = Activity::from_io(io_act, net);
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => {
-                    let leg = Leg::from_io(io_leg, id_mappings);
+                    let leg = Leg::from_io(io_leg, net, pop);
                     result.legs.push(leg);
                 }
             }
@@ -421,7 +423,7 @@ impl Plan {
         result
     }
 
-    fn get_full_plan_for_routing(io_plan: &IOPlan, id_mappings: &MatsimIdMappings) -> Plan {
+    fn get_full_plan_for_routing(io_plan: &IOPlan, net: &Network, pop: &Population) -> Plan {
         let plan_type = Plan::get_plan_type(io_plan);
         let window_size = plan_type.window_size();
         let step_size = plan_type.step_size();
@@ -456,26 +458,21 @@ impl Plan {
                 egress_walk = IOPlanElement::get_leg(window.get(5));
             }
 
-            let curr_act_link_id = *id_mappings
-                .links
-                .get_internal(curr_activity.unwrap().link.as_str())
-                .unwrap() as u64;
-            let next_act_link_id = *id_mappings
-                .links
-                .get_internal(next_activity.unwrap().link.as_str())
-                .unwrap() as u64;
+            let curr_act_link_id = net.link_ids.get_from_ext(&curr_activity.unwrap().link);
+            let next_act_link_id = net.link_ids.get_from_ext(&curr_activity.unwrap().link);
 
             // current activity
-            let act = Activity::from_io(curr_activity.unwrap(), &id_mappings.links);
+            let act = Activity::from_io(curr_activity.unwrap(), net);
             result.acts.push(act);
 
             // access walk and interaction
             Self::insert_access_or_egress(
-                id_mappings,
+                net,
+                pop,
                 &mut result,
                 access_walk,
                 access_interaction,
-                curr_act_link_id,
+                curr_act_link_id.internal as u64,
             );
 
             // main leg
@@ -483,16 +480,17 @@ impl Plan {
 
             // egress interaction and walk
             Self::insert_access_or_egress(
-                id_mappings,
+                net,
+                pop,
                 &mut result,
                 egress_walk,
                 egress_interaction,
-                next_act_link_id,
+                next_act_link_id.internal as u64,
             );
 
             // last activity
             if i == number_of_plan_windows - 1 {
-                let act = Activity::from_io(next_activity.unwrap(), &id_mappings.links);
+                let act = Activity::from_io(next_activity.unwrap(), net);
                 result.acts.push(act);
             }
         }
@@ -536,17 +534,18 @@ impl Plan {
     }
 
     fn insert_access_or_egress(
-        id_mappings: &MatsimIdMappings,
+        net: &Network,
+        pop: &Population,
         result: &mut Plan,
         leg: Option<&IOLeg>,
         interaction: Option<&IOActivity>,
         activity_link_id: u64,
     ) {
         if leg.is_some() && interaction.is_some() {
-            result.legs.push(Leg::from_io(leg.unwrap(), id_mappings));
+            result.legs.push(Leg::from_io(leg.unwrap(), net, pop));
             result
                 .acts
-                .push(Activity::from_io(interaction.unwrap(), &id_mappings.links))
+                .push(Activity::from_io(interaction.unwrap(), net))
         } else {
             let access_walk_leg = Leg::only_with_mode("walk");
             result.legs.push(access_walk_leg);
@@ -586,13 +585,13 @@ impl PlanType {
 }
 
 impl Activity {
-    fn from_io(io_act: &IOActivity, link_id_mapping: &MatsimIdMapping) -> Self {
-        let link_id = *link_id_mapping.get_internal(io_act.link.as_str()).unwrap();
+    fn from_io(io_act: &IOActivity, net: &Network) -> Self {
+        let link_id = net.link_ids.get_from_ext(&io_act.link);
         Activity {
             x: io_act.x,
             y: io_act.y,
             act_type: io_act.r#type.clone(),
-            link_id: link_id as u64,
+            link_id: link_id.internal as u64,
             start_time: parse_time_opt(&io_act.start_time),
             end_time: parse_time_opt(&io_act.end_time),
             max_dur: parse_time_opt(&io_act.max_dur),
@@ -636,8 +635,8 @@ impl Activity {
 }
 
 impl Leg {
-    fn from_io(io_leg: &IOLeg, id_mappings: &MatsimIdMappings) -> Self {
-        let route = Route::from_io(&io_leg.route, id_mappings);
+    fn from_io(io_leg: &IOLeg, net: &Network, pop: &Population) -> Self {
+        let route = Route::from_io(&io_leg.route, net, pop);
         Self {
             route: Some(route),
             mode: io_leg.mode.clone(),
@@ -666,17 +665,17 @@ impl Leg {
 }
 
 impl Route {
-    fn from_io(io_route: &IORoute, id_mappings: &MatsimIdMappings) -> Self {
+    fn from_io(io_route: &IORoute, net: &Network, pop: &Population) -> Self {
         match io_route.r#type.as_str() {
-            "generic" => Route::GenericRoute(GenericRoute::from_io(io_route, &id_mappings.links)),
+            "generic" => Route::GenericRoute(GenericRoute::from_io(io_route, net)),
             "links" => {
                 if let Some(vehicle_id) = &io_route.vehicle {
                     // catch this special case because we have "null" as vehicle ids for modes which are
                     // routed but not simulated on the network.
                     if vehicle_id.eq("null") {
-                        Route::GenericRoute(GenericRoute::from_io(io_route, &id_mappings.links))
+                        Route::GenericRoute(GenericRoute::from_io(io_route, net))
                     } else {
-                        Route::NetworkRoute(NetworkRoute::from_io(io_route, id_mappings))
+                        Route::NetworkRoute(NetworkRoute::from_io(io_route, net, pop))
                     }
                 } else {
                     panic!("vehicle id is expected to be set. ")
@@ -688,18 +687,14 @@ impl Route {
 }
 
 impl GenericRoute {
-    fn from_io(io_route: &IORoute, link_id_mapping: &MatsimIdMapping) -> Self {
-        let start_link = *link_id_mapping
-            .get_internal(io_route.start_link.as_str())
-            .unwrap();
-        let end_link = *link_id_mapping
-            .get_internal(io_route.end_link.as_str())
-            .unwrap();
+    fn from_io(io_route: &IORoute, net: &Network) -> Self {
+        let start_link = net.link_ids.get_from_ext(&io_route.start_link);
+        let end_link = net.link_ids.get_from_ext(&io_route.end_link);
         let trav_time = parse_time_opt(&io_route.trav_time).unwrap();
 
         Self {
-            start_link: start_link as u64,
-            end_link: end_link as u64,
+            start_link: start_link.internal as u64,
+            end_link: end_link.internal as u64,
             trav_time,
             distance: io_route.distance,
         }
@@ -707,27 +702,23 @@ impl GenericRoute {
 }
 
 impl NetworkRoute {
-    fn from_io(io_route: &IORoute, id_mappings: &MatsimIdMappings) -> Self {
+    fn from_io(io_route: &IORoute, net: &Network, pop: &Population) -> Self {
         let matsim_veh_id = io_route
             .vehicle
             .as_ref()
             .unwrap_or_else(|| panic!("Couldn't find veh-id for route {io_route:?} "));
-        let veh_id = id_mappings
-            .vehicles
-            .get_internal(matsim_veh_id.as_str())
-            .unwrap_or_else(|| {
-                panic!("Couldn't find veh-id: {matsim_veh_id:?} for route {io_route:?}")
-            });
+        let veh_id = pop.vehicle_ids.get_from_ext(matsim_veh_id);
+
         let link_ids = match &io_route.route {
             None => Vec::new(),
             Some(encoded_links) => encoded_links
                 .split(' ')
-                .map(|matsim_id| *id_mappings.links.get_internal(matsim_id).unwrap() as u64)
+                .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal as u64)
                 .collect(),
         };
         Self {
             route: link_ids,
-            vehicle_id: *veh_id as u64,
+            vehicle_id: veh_id.internal as u64,
         }
     }
 
