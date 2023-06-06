@@ -180,7 +180,7 @@ impl NodeImpl {
             SimLink::LocalLink(local_link) => {
                 events.publish_event(
                     now,
-                    &Event::new_link_enter(local_link.id() as u64, vehicle.id() as u64),
+                    &Event::new_link_enter(local_link.id.internal as u64, vehicle.id() as u64),
                 );
                 local_link.push_vehicle(vehicle, now, vehicle_definitions);
             }
@@ -194,6 +194,7 @@ impl NodeImpl {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::id::IdImpl;
     use std::collections::BTreeMap;
 
     use crate::simulation::messaging::events::EventsPublisher;
@@ -216,12 +217,21 @@ mod tests {
     #[test]
     fn vehicle_in() {
         let mut node = NodeImpl::new(1, 0., 0.);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
+        let mut local_in_link = LocalLink::new(
+            IdImpl::new_internal(1),
+            20.,
+            40.,
+            20.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
         let agent = create_agent(1, vec![1]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         //let vehicle = Vehicle::new(1, 1, vec![1], String::from("car"));
         local_in_link.push_vehicle(vehicle, 1, None);
-        node.add_in_link(local_in_link.id());
+        node.add_in_link(local_in_link.id.internal);
         let in_link = SimLink::LocalLink(local_in_link);
         let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
@@ -236,13 +246,31 @@ mod tests {
     #[test]
     fn vehicle_in_and_out() {
         let mut node = NodeImpl::new(1, 0., 0.);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
-        let local_out_link = LocalLink::new(2, 20., 40., 20., vec![], 1., 0, 0);
+        let mut local_in_link = LocalLink::new(
+            IdImpl::new_internal(1),
+            20.,
+            40.,
+            20.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
+        let local_out_link = LocalLink::new(
+            IdImpl::new_internal(2),
+            20.,
+            40.,
+            20.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
         let agent = create_agent(1, vec![1, 2]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         local_in_link.push_vehicle(vehicle, 1, None);
-        node.add_in_link(local_in_link.id());
-        node.add_out_link(local_out_link.id());
+        node.add_in_link(local_in_link.id.internal);
+        node.add_out_link(local_out_link.id.internal);
         let in_link = SimLink::LocalLink(local_in_link);
         let out_link = SimLink::LocalLink(local_out_link);
         let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link), (2, out_link)]);
@@ -261,13 +289,22 @@ mod tests {
     #[test]
     pub fn vehicle_in_out_boundary() {
         let mut node = NodeImpl::new(1, 0., 0.);
-        let mut local_in_link = LocalLink::new(1, 20., 40., 20., vec![], 1., 0, 0);
-        let split_out_link = SplitOutLink::new(2, 2);
+        let mut local_in_link = LocalLink::new(
+            IdImpl::new_internal(1),
+            20.,
+            40.,
+            20.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
+        let split_out_link = SplitOutLink::new(IdImpl::new_internal(2), 2);
         let agent = create_agent(1, vec![1, 2]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         local_in_link.push_vehicle(vehicle, 1, None);
-        node.add_in_link(local_in_link.id());
-        node.add_out_link(split_out_link.id());
+        node.add_in_link(local_in_link.id.internal);
+        node.add_out_link(split_out_link.id.internal);
         let in_link = SimLink::LocalLink(local_in_link);
         let out_link = SimLink::SplitOutLink(split_out_link);
         let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link), (2, out_link)]);
@@ -285,7 +322,16 @@ mod tests {
     #[test]
     fn vehicles_in() {
         let mut node = NodeImpl::new(1, 0., 0.);
-        let mut local_in_link = LocalLink::new(1, 3600., 40., 20., vec![], 1., 0, 0);
+        let mut local_in_link = LocalLink::new(
+            IdImpl::new_internal(1),
+            3600.,
+            40.,
+            20.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let agent_1 = create_agent(1, vec![1]);
         let vehicle_1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent_1);
@@ -294,7 +340,7 @@ mod tests {
 
         local_in_link.push_vehicle(vehicle_1, 1, None);
         local_in_link.push_vehicle(vehicle_2, 1, None);
-        node.add_in_link(local_in_link.id());
+        node.add_in_link(local_in_link.id.internal);
         let in_link = SimLink::LocalLink(local_in_link);
         let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link)]);
         let mut events = EventsPublisher::new();
@@ -321,8 +367,26 @@ mod tests {
     #[test]
     fn vehicles_in_and_out() {
         let mut node = NodeImpl::new(1, 0., 0.);
-        let mut local_in_link = LocalLink::new(1, 10000., 40., 20., vec![], 1., 0, 0);
-        let local_out_link = LocalLink::new(2, 10000., 40., 20., vec![], 1., 0, 0);
+        let mut local_in_link = LocalLink::new(
+            IdImpl::new_internal(1),
+            10000.,
+            40.,
+            20.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
+        let local_out_link = LocalLink::new(
+            IdImpl::new_internal(2),
+            10000.,
+            40.,
+            20.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let agent_1 = create_agent(1, vec![1, 2]);
         let vehicle_1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent_1);
@@ -331,8 +395,8 @@ mod tests {
 
         local_in_link.push_vehicle(vehicle_1, 1, None);
         local_in_link.push_vehicle(vehicle_2, 1, None);
-        node.add_in_link(local_in_link.id());
-        node.add_out_link(local_out_link.id());
+        node.add_in_link(local_in_link.id.internal);
+        node.add_out_link(local_out_link.id.internal);
         let in_link = SimLink::LocalLink(local_in_link);
         let out_link = SimLink::LocalLink(local_out_link);
         let mut links: BTreeMap<usize, SimLink> = BTreeMap::from([(1, in_link), (2, out_link)]);

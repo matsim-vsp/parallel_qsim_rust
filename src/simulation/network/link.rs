@@ -1,12 +1,14 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
+use crate::simulation::id::{Id, IdImpl};
 use log::warn;
 
 use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
+use crate::simulation::network::global_network::Node;
 
 use super::global_network::Link;
 
@@ -18,24 +20,20 @@ pub enum SimLink {
 }
 
 impl SimLink {
-    pub fn from_to_id(&self) -> (usize, usize) {
-        (self.from_id(), self.to_id())
-    }
-
-    pub fn from_id(&self) -> usize {
+    pub fn from(&self) -> &Id<Node> {
         match self {
-            SimLink::LocalLink(l) => l.from(),
-            SimLink::SplitInLink(l) => l.local_link().from(),
+            SimLink::LocalLink(l) => &l.from,
+            SimLink::SplitInLink(l) => &l.local_link.from,
             SimLink::SplitOutLink(_) => {
                 panic!("There is no from id of a split out link.")
             }
         }
     }
 
-    pub fn to_id(&self) -> usize {
+    pub fn to(&self) -> &Id<Node> {
         match self {
-            SimLink::LocalLink(l) => l.to(),
-            SimLink::SplitInLink(l) => l.local_link().to(),
+            SimLink::LocalLink(l) => &l.to,
+            SimLink::SplitInLink(l) => &l.local_link.to,
             SimLink::SplitOutLink(_) => {
                 panic!("There is no to id of a split out link.")
             }
@@ -45,14 +43,14 @@ impl SimLink {
 
 #[derive(Debug, Clone)]
 pub struct LocalLink {
-    id: usize,
+    pub id: Id<Link>,
     q: VecDeque<VehicleQEntry<Vehicle>>,
     length: f32,
     freespeed: f32,
     flowcap: Flowcap,
     modes: Vec<String>,
-    from: usize,
-    to: usize,
+    pub from: Id<Node>,
+    pub to: Id<Node>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,15 +67,19 @@ impl LocalLink {
         from: usize,
         to: usize,
     ) -> Self {
+        // TODO: remove this method or change parameters to Id<T>
+        let wrapped_id = IdImpl::new_internal(id);
+        let from_id = IdImpl::new_internal(from);
+        let to_id = IdImpl::new_internal(to);
         LocalLink::new(
-            id,
+            wrapped_id,
             link.capacity,
             link.freespeed,
             link.length,
             link.modes(),
             sample_size,
-            from,
-            to,
+            from_id,
+            to_id,
         )
     }
 
@@ -89,26 +91,26 @@ impl LocalLink {
             .map(|mode_id| mode_id.external.clone())
             .collect();
         LocalLink::new(
-            link.id.internal,
+            link.id.clone(),
             link.capacity,
             link.freespeed,
             link.length,
             modes,
             sample_size,
-            link.from.internal,
-            link.to.internal,
+            link.from.clone(),
+            link.to.clone(),
         )
     }
 
     pub fn new(
-        id: usize,
+        id: Id<Link>,
         capacity_h: f32,
         freespeed: f32,
         length: f32,
         modes: Vec<String>,
         sample_size: f32,
-        from: usize,
-        to: usize,
+        from: Id<Node>,
+        to: Id<Node>,
     ) -> Self {
         LocalLink {
             id,
@@ -155,18 +157,6 @@ impl LocalLink {
         popped_veh
     }
 
-    pub fn id(&self) -> usize {
-        self.id
-    }
-
-    pub fn from(&self) -> usize {
-        self.from
-    }
-
-    pub fn to(&self) -> usize {
-        self.to
-    }
-
     fn get_speed_for_vehicle(
         &self,
         vehicle: &Vehicle,
@@ -195,20 +185,17 @@ impl LocalLink {
 
 #[derive(Debug, Clone)]
 pub struct SplitOutLink {
-    id: usize,
+    pub(crate) id: Id<Link>,
     to_part: usize,
 }
 
 impl SplitOutLink {
-    pub fn new(id: usize, to_part: usize) -> SplitOutLink {
+    pub fn new(id: Id<Link>, to_part: usize) -> SplitOutLink {
         SplitOutLink { id, to_part }
     }
 
     pub fn neighbor_partition_id(&self) -> usize {
         self.to_part
-    }
-    pub fn id(&self) -> usize {
-        self.id
     }
 }
 
@@ -241,6 +228,7 @@ impl SplitInLink {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::id::IdImpl;
     use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
     use crate::simulation::messaging::messages::proto::leg::Route;
     use crate::simulation::messaging::messages::proto::{Activity, NetworkRoute};
@@ -250,7 +238,16 @@ mod tests {
     #[test]
     fn local_link_push_single_veh() {
         let veh_id = 42;
-        let mut link = LocalLink::new(1, 1., 1., 10., vec![], 1., 0, 0);
+        let mut link = LocalLink::new(
+            IdImpl::new_internal(1),
+            1.,
+            1.,
+            10.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
         let agent = create_agent(1, vec![]);
         let vehicle = Vehicle::new(veh_id, VehicleType::Network, String::from("car"), agent);
 
@@ -266,7 +263,16 @@ mod tests {
     fn local_link_push_multiple_veh() {
         let id1 = 42;
         let id2 = 43;
-        let mut link = LocalLink::new(1, 1., 1., 11.8, vec![], 1., 0, 0);
+        let mut link = LocalLink::new(
+            IdImpl::new_internal(1),
+            1.,
+            1.,
+            11.8,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let agent1 = create_agent(1, vec![]);
         let vehicle1 = Vehicle::new(id1, VehicleType::Network, String::from("car"), agent1);
@@ -290,7 +296,16 @@ mod tests {
 
     #[test]
     fn local_link_pop_with_exit_time() {
-        let mut link = LocalLink::new(1, 1000000., 10., 100., vec![], 1., 0, 0);
+        let mut link = LocalLink::new(
+            IdImpl::new_internal(1),
+            1000000.,
+            10.,
+            100.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let mut n: u32 = 0;
 
@@ -312,7 +327,16 @@ mod tests {
     #[test]
     fn local_link_pop_with_capacity() {
         // link has capacity of 2 per second
-        let mut link = LocalLink::new(1, 7200., 10., 100., vec![], 1., 0, 0);
+        let mut link = LocalLink::new(
+            IdImpl::new_internal(1),
+            7200.,
+            10.,
+            100.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let mut n: u32 = 0;
 
@@ -334,7 +358,16 @@ mod tests {
     #[test]
     fn local_link_pop_with_capacity_reduced() {
         // link has a capacity of 1 * 0.1 per second
-        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 0.1, 0, 0);
+        let mut link = LocalLink::new(
+            IdImpl::new_internal(1),
+            3600.,
+            10.,
+            100.,
+            vec![],
+            0.1,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let agent1 = create_agent(1, vec![]);
         let vehicle1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent1);
@@ -360,7 +393,16 @@ mod tests {
         let veh_id_car = 42;
         let veh_id_buggy = 43;
         let veh_id_bike = 44;
-        let mut link = LocalLink::new(1, 1., 10., 100., vec![], 1., 0, 0);
+        let mut link = LocalLink::new(
+            IdImpl::new_internal(1),
+            1.,
+            10.,
+            100.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let vehicle_definitions = create_three_vehicle_definitions();
 
@@ -409,7 +451,16 @@ mod tests {
         let veh_id_car = 42;
         let veh_id_buggy = 43;
         let veh_id_bike = 44;
-        let mut link = LocalLink::new(1, 3600., 10., 100., vec![], 1., 0, 0);
+        let mut link = LocalLink::new(
+            IdImpl::new_internal(1),
+            3600.,
+            10.,
+            100.,
+            vec![],
+            1.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
 
         let vehicle_definitions = create_three_vehicle_definitions();
 

@@ -1,3 +1,4 @@
+use crate::simulation::id::IdImpl;
 use std::collections::btree_map::Values;
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
@@ -68,7 +69,8 @@ impl NetworkPartition {
     }
 
     pub fn add_split_out_link(&mut self, id: usize, from: usize, to_part: usize) {
-        let new_link = SplitOutLink::new(id, to_part);
+        let wrapped_id = IdImpl::new_internal(id);
+        let new_link = SplitOutLink::new(wrapped_id, to_part);
         self.links.insert(id, SimLink::SplitOutLink(new_link));
 
         // wire up from node

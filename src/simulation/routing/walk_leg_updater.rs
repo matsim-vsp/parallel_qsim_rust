@@ -24,16 +24,11 @@ impl EuclideanWalkLegUpdater {
             .link_ids
             .get(curr_act.link_id as usize);
         let link = network.links.get(&link_id).unwrap();
-        let (from_node_id, to_node_id) = link.from_to_id();
+        let from = network.global_network.get_node(link.from());
+        let to = network.global_network.get_node(link.to());
 
-        let from_node_x = network.global_network.nodes.get(from_node_id).unwrap().x;
-        let from_node_y = network.global_network.nodes.get(from_node_id).unwrap().y;
-
-        let to_node_x = network.global_network.nodes.get(to_node_id).unwrap().x;
-        let to_node_y = network.global_network.nodes.get(to_node_id).unwrap().y;
-
-        let from_point = Point::new(from_node_x, from_node_y);
-        let to_point = Point::new(to_node_x, to_node_y);
+        let from_point = Point::new(from.x, from.y);
+        let to_point = Point::new(to.x, to.y);
         let line = Line::new(from_point, to_point);
 
         let closest = match line.closest_point(&curr_act_point) {

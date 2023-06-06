@@ -80,7 +80,7 @@ impl<'n> SimNetworkPartition<'n> {
                 let local_link = LocalLink::from_link(&link, 1.0);
                 SimLink::SplitInLink(SplitInLink::new(from_part, local_link))
             } else {
-                SimLink::SplitOutLink(SplitOutLink::new(link.id.internal, to_part))
+                SimLink::SplitOutLink(SplitOutLink::new(link.id.clone(), to_part))
             }
         };
     }
@@ -187,7 +187,10 @@ impl<'n> SimNetworkPartition<'n> {
             .get(vehicle.curr_route_elem as usize);
         match links.get_mut(&link_id).unwrap() {
             SimLink::LocalLink(l) => {
-                events.publish_event(now, &Event::new_link_enter(l.id() as u64, vehicle.id));
+                events.publish_event(
+                    now,
+                    &Event::new_link_enter(l.id.internal as u64, vehicle.id),
+                );
                 l.push_vehicle(vehicle, now, veh_def);
                 None
             }

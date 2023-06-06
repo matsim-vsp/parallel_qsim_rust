@@ -18,6 +18,17 @@ impl<T> IdImpl<T> {
         };
         Rc::new(id)
     }
+
+    /// Creates an id which is not attached to any id storage. This method is intended for test
+    /// cases. The intended way of creating ids is to use IdStore::create_id(external);
+    pub fn new_internal(internal: usize) -> Id<T> {
+        let id = IdImpl {
+            internal,
+            external: String::from(""),
+            _type_marker: PhantomData,
+        };
+        Rc::new(id)
+    }
 }
 
 impl<T> PartialEq for IdImpl<T> {
@@ -72,7 +83,10 @@ impl<'ext, T> IdStore<'ext, T> {
     }
 
     pub fn get(&self, internal: usize) -> Id<T> {
-        self.ids.get(internal).expect(format!("No id found for internal {internal}").as_str()).clone()
+        self.ids
+            .get(internal)
+            .expect(format!("No id found for internal {internal}").as_str())
+            .clone()
     }
 
     pub fn get_from_ext(&self, external: &str) -> Id<T> {
