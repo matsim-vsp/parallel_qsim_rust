@@ -13,7 +13,7 @@ pub struct Population {
 }
 
 impl Population {
-    fn new() -> Population {
+    pub fn new() -> Population {
         Population {
             agents: BTreeMap::new(),
         }

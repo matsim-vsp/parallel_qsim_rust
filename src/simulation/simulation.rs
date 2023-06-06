@@ -9,8 +9,8 @@ use crate::simulation::messaging::messages::proto::{
     Activity, Agent, GenericRoute, Vehicle, VehicleType,
 };
 use crate::simulation::network::link::SimLink;
-use crate::simulation::network::network_partition::NetworkPartition;
 use crate::simulation::network::node::ExitReason;
+use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
@@ -20,7 +20,7 @@ use log::{debug, info};
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
-    network: NetworkPartition,
+    network: SimNetworkPartition<'sim>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
     router: Option<Box<dyn Router>>,
@@ -33,7 +33,7 @@ impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
         id_mappings: &'sim MatsimIdMappings,
-        network: NetworkPartition,
+        network: SimNetworkPartition<'sim>,
         population: Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
@@ -221,15 +221,18 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
-        let link_id = vehicle.curr_link_id().unwrap(); // in this case there should always be a link id.
+        let link_id_internal = vehicle.curr_link_id().unwrap(); // in this case there should always be a link id.
+        let link_id = self.network.global_network.link_ids.get(link_id_internal);
         let link = self.network.links.get_mut(&link_id).expect(&*format!(
             "Cannot find link for link_id {:?} and vehicle {:?}",
             link_id, vehicle
         ));
 
         if !from_act {
-            self.events
-                .publish_event(now, &Event::new_link_enter(link_id as u64, vehicle.id));
+            self.events.publish_event(
+                now,
+                &Event::new_link_enter(link_id.internal as u64, vehicle.id),
+            );
         }
         match link {
             SimLink::LocalLink(link) => {
@@ -263,41 +266,34 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn move_nodes(&mut self, now: u32) {
-        for node in NetworkPartition::get_local_nodes(self.network.nodes.values()) {
-            let exited_vehicles = node.move_vehicles(
-                &mut self.network.links,
-                now,
-                &mut self.events,
-                self.vehicle_definitions.as_ref(),
-            );
+        let exited_vehicles =
+            self.network
+                .move_nodes(&mut self.events, self.vehicle_definitions.as_ref(), now);
 
-            for exit_reason in exited_vehicles {
-                match exit_reason {
-                    ExitReason::FinishRoute(vehicle) => {
-                        let veh_id = vehicle.id;
-                        let mut agent = vehicle.agent.unwrap();
-                        let leg_mode = agent.curr_leg().mode.clone();
+        for exit_reason in exited_vehicles {
+            match exit_reason {
+                ExitReason::FinishRoute(vehicle) => {
+                    let veh_id = vehicle.id;
+                    let mut agent = vehicle.agent.unwrap();
+                    let leg_mode = agent.curr_leg().mode.clone();
 
-                        self.events
-                            .publish_event(now, &Event::new_person_leaves_veh(agent.id, veh_id));
+                    self.events
+                        .publish_event(now, &Event::new_person_leaves_veh(agent.id, veh_id));
 
-                        agent.advance_plan();
-                        let act = agent.curr_act();
+                    agent.advance_plan();
+                    let act = agent.curr_act();
 
-                        self.events.publish_event(
-                            now,
-                            &Event::new_arrival(agent.id, act.link_id, leg_mode),
-                        );
+                    self.events
+                        .publish_event(now, &Event::new_arrival(agent.id, act.link_id, leg_mode));
 
-                        self.events.publish_event(
-                            now,
-                            &Event::new_act_start(agent.id, act.link_id, act.act_type.clone()),
-                        );
-                        self.activity_q.add(agent, now);
-                    }
-                    ExitReason::ReachedBoundary(vehicle) => {
-                        self.message_broker.add_veh(vehicle, now);
-                    }
+                    self.events.publish_event(
+                        now,
+                        &Event::new_act_start(agent.id, act.link_id, act.act_type.clone()),
+                    );
+                    self.activity_q.add(agent, now);
+                }
+                ExitReason::ReachedBoundary(vehicle) => {
+                    self.message_broker.add_veh(vehicle, now);
                 }
             }
         }

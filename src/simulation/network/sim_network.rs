@@ -17,9 +17,9 @@ use super::{
 
 #[derive(Debug)]
 pub struct SimNetworkPartition<'n> {
-    nodes: Vec<Id<Node>>,
-    links: HashMap<Id<Link>, SimLink>,
-    global_network: &'n Network<'n>,
+    pub nodes: Vec<Id<Node>>,
+    pub links: HashMap<Id<Link>, SimLink>,
+    pub global_network: &'n Network<'n>,
 }
 
 impl<'n> SimNetworkPartition<'n> {
@@ -31,9 +31,14 @@ impl<'n> SimNetworkPartition<'n> {
             .map(|node| node.id.clone())
             .collect();
 
-        let links : HashMap<_, _> = global_network.links.iter()
+        let links: HashMap<_, _> = global_network
+            .links
+            .iter()
             .map(|link| {
-                (link.id.clone(), Self::create_sim_link(link, partition, &global_network.nodes))
+                (
+                    link.id.clone(),
+                    Self::create_sim_link(link, partition, &global_network.nodes),
+                )
             })
             .collect();
 
@@ -44,7 +49,8 @@ impl<'n> SimNetworkPartition<'n> {
             .flat_map(|node| node.in_links.iter().chain(node.out_links.iter()))
             .collect(); // collect here to get each link id only once
 
-        let links : HashMap<_, _> = link_ids.iter()
+        let links: HashMap<_, _> = link_ids
+            .iter()
             .map(|link_id| global_network.links.get(link_id.internal).unwrap())
             .map(|link| {
                 (
@@ -89,6 +95,24 @@ impl<'n> SimNetworkPartition<'n> {
             links,
             global_network,
         }
+    }
+
+    pub fn neighbors(&self) -> HashSet<usize> {
+        let distinct_partitions: HashSet<usize> = self
+            .links
+            .values()
+            .filter(|link| match link {
+                SimLink::LocalLink(_) => false,
+                SimLink::SplitInLink(_) => true,
+                SimLink::SplitOutLink(_) => true,
+            })
+            .map(|link| match link {
+                SimLink::LocalLink(_) => panic!("Should be filtered."),
+                SimLink::SplitInLink(link) => link.neighbor_partition_id(),
+                SimLink::SplitOutLink(link) => link.neighbor_partition_id(),
+            })
+            .collect();
+        distinct_partitions
     }
 
     pub fn move_nodes(
@@ -204,9 +228,15 @@ mod tests {
         assert_eq!(2, net1.nodes.len());
         // we expect two links one local and one out link
         assert_eq!(2, net1.links.len());
-        let local_link = net1.links.get(&net1.global_network.link_ids.get(0)).unwrap();
+        let local_link = net1
+            .links
+            .get(&net1.global_network.link_ids.get(0))
+            .unwrap();
         assert!(matches!(local_link, SimLink::LocalLink(_)));
-        let out_link = net1.links.get(&net1.global_network.link_ids.get(1)).unwrap();
+        let out_link = net1
+            .links
+            .get(&net1.global_network.link_ids.get(1))
+            .unwrap();
         assert!(matches!(out_link, SimLink::SplitOutLink(_)));
 
         let net2 = sim_nets.get_mut(1).unwrap();
@@ -215,7 +245,10 @@ mod tests {
         assert_eq!(1, net2.nodes.len());
         // we expect one in link
         assert_eq!(1, net2.links.len());
-        let in_link = net2.links.get(&net2.global_network.link_ids.get(1)).unwrap();
+        let in_link = net2
+            .links
+            .get(&net2.global_network.link_ids.get(1))
+            .unwrap();
         assert!(matches!(in_link, SimLink::SplitInLink(_)));
     }
 
@@ -281,7 +314,6 @@ mod tests {
 
     #[test]
     fn vehicles_in() {
-
         let mut network = Network::new();
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
@@ -333,7 +365,10 @@ mod tests {
         let exited_vehicles = sim_network.move_nodes(&mut publisher, None, 12);
         assert_eq!(0, exited_vehicles.len());
 
-        let out_link = sim_network.links.get_mut(&sim_network.global_network.link_ids.get(1)).unwrap();
+        let out_link = sim_network
+            .links
+            .get_mut(&sim_network.global_network.link_ids.get(1))
+            .unwrap();
         if let SimLink::LocalLink(local_out) = out_link {
             let vehicles = local_out.pop_front(23);
             assert_eq!(1, vehicles.len());
@@ -342,14 +377,74 @@ mod tests {
         }
     }
 
+    #[test]
+    fn neighbors() {
+        let mut net = Network::new();
+        let mut node = Node::new(net.node_ids.create_id("node-1"), -0., 0.);
+        node.partition = 0;
+
+        let mut node_1_1 = Node::new(net.node_ids.create_id("node-1-1"), -0., 0.);
+        node_1_1.partition = 1;
+        let mut node_1_2 = Node::new(net.node_ids.create_id("node-1-2"), -0., 0.);
+        node_1_2.partition = 1;
+
+        let mut node_2_1 = Node::new(net.node_ids.create_id("node-2-1"), -0., 0.);
+        node_2_1.partition = 2;
+        let mut node_3_1 = Node::new(net.node_ids.create_id("node-3-1"), -0., 0.);
+        node_3_1.partition = 3;
+        let mut node_4_1 = Node::new(net.node_ids.create_id("not-a-neighbor"), 0., 0.);
+        node_4_1.partition = 4;
+
+        // create in links from partitions 1 and 2. 2 incoming links from partition 1, one incoming from
+        // partition 2
+        let in_link_1_1 =
+            Link::new_with_default(net.link_ids.create_id("in-link-1-1"), &node_1_1, &node);
+        let in_link_1_2 =
+            Link::new_with_default(net.link_ids.create_id("in-link-1-2"), &node_1_2, &node);
+        let in_link_2_1 =
+            Link::new_with_default(net.link_ids.create_id("in-link-2-1"), &node_2_1, &node);
+
+        // create out links to partitions 1 and 3
+        let out_link_1_1 =
+            Link::new_with_default(net.link_ids.create_id("out-link-1-1"), &node, &node_1_1);
+        let out_link_1_2 =
+            Link::new_with_default(net.link_ids.create_id("out-link-1-2"), &node, &node_1_2);
+        let out_link_3_1 =
+            Link::new_with_default(net.link_ids.create_id("out-link-3-1"), &node, &node_3_1);
+
+        net.add_node(node);
+        net.add_node(node_1_1);
+        net.add_node(node_1_2);
+        net.add_node(node_2_1);
+        net.add_node(node_3_1);
+        net.add_node(node_4_1);
+        net.add_link(in_link_1_1);
+        net.add_link(in_link_1_2);
+        net.add_link(in_link_2_1);
+        net.add_link(out_link_1_1);
+        net.add_link(out_link_1_2);
+        net.add_link(out_link_3_1);
+
+        let sim_net = SimNetworkPartition::from_network(&net, 0);
+
+        let neighbors = sim_net.neighbors();
+        assert_eq!(3, neighbors.len());
+        assert!(neighbors.contains(&1));
+        assert!(neighbors.contains(&2));
+        assert!(neighbors.contains(&3));
+        assert!(!neighbors.contains(&4));
+    }
+
     fn init_single_node_network(network: &mut Network) {
         let node1 = Node::new(network.node_ids.create_id("node-1"), -100., 0.);
         let node2 = Node::new(network.node_ids.create_id("node-2"), 0., 0.);
         let node3 = Node::new(network.node_ids.create_id("node-3"), 100., 0.);
-        let mut link1 = Link::new_with_default(network.link_ids.create_id("link-1"), &node1, &node2);
+        let mut link1 =
+            Link::new_with_default(network.link_ids.create_id("link-1"), &node1, &node2);
         link1.capacity = 3600.;
         link1.freespeed = 10.;
-        let mut link2 = Link::new_with_default(network.link_ids.create_id("link-2"), &node2, &node3);
+        let mut link2 =
+            Link::new_with_default(network.link_ids.create_id("link-2"), &node2, &node3);
         link2.capacity = 3600.;
         link2.freespeed = 10.;
 
@@ -360,26 +455,23 @@ mod tests {
         network.add_link(link2);
     }
 
-    fn create_single_node_sim_network_with_partition<'n>(mut network: &'n mut Network) -> Vec<SimNetworkPartition<'n>> {
+    fn create_single_node_sim_network_with_partition<'n>(
+        mut network: &'n mut Network,
+    ) -> Vec<SimNetworkPartition<'n>> {
         init_single_node_network(&mut network);
         let node3 = network.nodes.get_mut(2).unwrap();
         node3.partition = 1;
         let link2 = network.links.get_mut(1).unwrap();
         link2.partition = 1;
-        vec![SimNetworkPartition::from_network(network, 0), SimNetworkPartition::from_network(network, 1)]
+        vec![
+            SimNetworkPartition::from_network(network, 0),
+            SimNetworkPartition::from_network(network, 1),
+        ]
     }
 
     fn create_single_node_sim_network<'n>(mut network: &'n mut Network) -> SimNetworkPartition<'n> {
         init_single_node_network(&mut network);
         SimNetworkPartition::from_network(network, 0)
-    }
-
-    fn indirection<'n>(net: &'n Network<'n>) -> SimNetworkPartition<'n> {
-        SimNetworkPartition {
-            nodes: Vec::default(),
-            links: std::collections::HashMap::default(),
-            global_network: net,
-        }
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {

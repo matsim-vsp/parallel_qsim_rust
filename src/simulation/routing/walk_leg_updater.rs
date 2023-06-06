@@ -1,9 +1,9 @@
 use crate::simulation::messaging::messages::proto::{Activity, Agent};
-use crate::simulation::network::network_partition::NetworkPartition;
+use crate::simulation::network::sim_network::SimNetworkPartition;
 use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
 
 pub trait WalkLegUpdater {
-    fn update_walk_leg(&self, agent: &mut Agent, network: &NetworkPartition);
+    fn update_walk_leg(&self, agent: &mut Agent, network: &SimNetworkPartition);
 }
 
 pub struct EuclideanWalkLegUpdater {
@@ -17,19 +17,20 @@ impl EuclideanWalkLegUpdater {
         }
     }
 
-    fn get_walk_distance(&self, curr_act: &Activity, network: &NetworkPartition) -> f32 {
+    fn get_walk_distance(&self, curr_act: &Activity, network: &SimNetworkPartition) -> f32 {
         let curr_act_point = Point::new(curr_act.x, curr_act.y);
-        let (from_node_id, to_node_id) = network
-            .links
-            .get(&(curr_act.link_id as usize))
-            .unwrap()
-            .from_to_id();
+        let link_id = network
+            .global_network
+            .link_ids
+            .get(curr_act.link_id as usize);
+        let link = network.links.get(&link_id).unwrap();
+        let (from_node_id, to_node_id) = link.from_to_id();
 
-        let from_node_x = network.nodes.get(&from_node_id).unwrap().x();
-        let from_node_y = network.nodes.get(&from_node_id).unwrap().y();
+        let from_node_x = network.global_network.nodes.get(from_node_id).unwrap().x;
+        let from_node_y = network.global_network.nodes.get(from_node_id).unwrap().y;
 
-        let to_node_x = network.nodes.get(&to_node_id).unwrap().x();
-        let to_node_y = network.nodes.get(&to_node_id).unwrap().y();
+        let to_node_x = network.global_network.nodes.get(to_node_id).unwrap().x;
+        let to_node_y = network.global_network.nodes.get(to_node_id).unwrap().y;
 
         let from_point = Point::new(from_node_x, from_node_y);
         let to_point = Point::new(to_node_x, to_node_y);
@@ -47,7 +48,7 @@ impl EuclideanWalkLegUpdater {
 }
 
 impl WalkLegUpdater for EuclideanWalkLegUpdater {
-    fn update_walk_leg(&self, agent: &mut Agent, network: &NetworkPartition) {
+    fn update_walk_leg(&self, agent: &mut Agent, network: &SimNetworkPartition) {
         let curr_act = agent.curr_act();
         let next_act = agent.next_act();
 

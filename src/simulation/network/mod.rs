@@ -6,4 +6,4 @@ pub mod network;
 pub mod network_partition;
 pub mod node;
 pub mod routing_kit_network;
-mod sim_network;
+pub mod sim_network;

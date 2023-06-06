@@ -7,7 +7,7 @@ use crate::simulation::io::vehicle_definitions::{IOVehicleDefinitions, VehicleDe
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
-use crate::simulation::network::network::Network;
+use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::partition_info::PartitionInfo;
 use crate::simulation::population::Population;
 use crate::simulation::routing::router::Router;
@@ -17,11 +17,13 @@ use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
+use std::collections::HashMap;
 use std::ffi::c_int;
 use std::fs;
 use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 pub fn run(world: SystemCommunicator, config: Config) {
@@ -33,44 +35,36 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let output_path = PathBuf::from(&config.output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
+    // TODO remove io_network once all parts are switched to new network impl
     let io_network = IONetwork::from_file(config.network_file.as_ref());
     let io_population = IOPopulation::from_file(config.population_file.as_ref());
     let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
     let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, size as usize);
-    let mut network: Network = Network::from_io(
-        &io_network,
-        size as usize,
-        config.sample_size,
-        |node| partition_info.get_partition(node),
-        &id_mappings,
+
+    let network = crate::simulation::network::global_network::Network::from_file(
+        config.network_file.as_ref(),
+        config.num_parts,
     );
 
     // write network with new ids to output but only once.
     if rank == 0 {
-        let out_network =
-            io_network.clone_with_internal_ids(&network, &id_mappings.links, &id_mappings.nodes);
-        out_network.to_file(&output_path.join("output_network.xml.gz"));
-
-        let id_mappings_string = serde_json::to_string(id_mappings.links.as_ref()).unwrap();
-        fs::write(
-            config.output_dir.to_owned() + "/id_mappings.json",
-            id_mappings_string,
-        )
-        .expect("Unable to write file");
-        info!("Written id mappings file!");
+        network.to_file(&output_path.join("output_network.xml.gz"));
     }
 
-    let population = Population::from_io(
+    /*let population = Population::from_io(
         &io_population,
         &id_mappings,
         rank as usize,
         &network,
         config.routing_mode,
     );
-    let network_partition = network.partitions.remove(rank as usize);
+
+     */
+    let population = Population::new(); // TODO this is empty. Change to new network implementation
+    let network_partition = SimNetworkPartition::from_network(&network, rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
-        network_partition.len_local_nodes(),
+        network_partition.nodes.len(),
         network_partition.links.len(),
         population.agents.len()
     );
@@ -82,7 +76,8 @@ pub fn run(world: SystemCommunicator, config: Config) {
         // we have to use u32 or u64.
         .map(|u| *u as u32)
         .collect();
-    let link_id_mapping = network.links_2_partition;
+    //let link_id_mapping = network.links_2_partition;
+    let link_id_mapping = Arc::new(HashMap::new()); // TODO this is empty
 
     let message_broker = MpiMessageBroker::new(world.clone(), rank, neighbors, link_id_mapping);
     let mut events = EventsPublisher::new();
@@ -105,7 +100,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
-            io_network,
+            io_network, // TODO switch this to new network
             Some(&id_mappings),
             world.clone(),
             rank,
