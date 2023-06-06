@@ -1,3 +1,4 @@
 # use nighly build because rust road router need experimental features.
 [toolchain]
-channel = "nightly"
+# due to https://github.com/intellij-rust/intellij-rust/issues/10427
+channel = "nightly-2023-05-01"
