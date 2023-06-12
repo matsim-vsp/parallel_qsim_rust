@@ -2,10 +2,10 @@ use crate::simulation::id_mapping::{MatsimIdMapping, MatsimIdMappings};
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 use crate::simulation::io::population::{IOPlanElement, IOPopulation};
-use log::info;
 use metis::{Graph, Idx};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::info;
 
 #[derive(Debug)]
 struct PartitionNode {

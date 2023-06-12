@@ -1,9 +1,9 @@
-use log::{debug, info};
 use quick_xml::de::from_reader;
 use serde::de::DeserializeOwned;
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
+use tracing::{debug, info};
 
 pub fn read<T>(file_path: &str) -> T
 where

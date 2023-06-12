@@ -8,11 +8,11 @@ use crate::simulation::routing::network_converter::NetworkConverter;
 use crate::simulation::routing::road_router::RoadRouter;
 use crate::simulation::routing::router::{CustomQueryResult, Router};
 use crate::simulation::routing::travel_times_message_broker::TravelTimesMessageBroker;
-use log::debug;
 use mpi::topology::SystemCommunicator;
 use mpi::Rank;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tracing::debug;
 
 pub struct TravelTimesCollectingRoadRouter<'router> {
     router_by_mode: HashMap<String, RoadRouter<'router>>,
