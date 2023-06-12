@@ -25,7 +25,7 @@ impl Link {
             Link::LocalLink(l) => l.from(),
             Link::SplitInLink(l) => l.local_link().from(),
             Link::SplitOutLink(_) => {
-                panic!("There is no from id of a split out link.")
+                panic!("There is no from_id of a split out link.")
             }
         }
     }
@@ -35,8 +35,46 @@ impl Link {
             Link::LocalLink(l) => l.to(),
             Link::SplitInLink(l) => l.local_link().to(),
             Link::SplitOutLink(_) => {
-                panic!("There is no to id of a split out link.")
+                panic!("There is no to_id of a split out link.")
             }
+        }
+    }
+
+    pub fn contains_mode(&self, mode: &String) -> bool {
+        match self {
+            Link::LocalLink(l) => l.modes.contains(mode),
+            Link::SplitInLink(l) => l.local_link.modes.contains(mode),
+            Link::SplitOutLink(_) => {
+                panic!("There is not enough information for SplitOutLinks to evaluate.")
+            }
+        }
+    }
+
+    pub fn freespeed(&self) -> f32 {
+        match self {
+            Link::LocalLink(l) => l.freespeed,
+            Link::SplitInLink(l) => l.local_link.freespeed,
+            Link::SplitOutLink(_) => {
+                panic!("There is no freespeed of a split out link.")
+            }
+        }
+    }
+
+    pub fn length(&self) -> f32 {
+        match self {
+            Link::LocalLink(l) => l.length,
+            Link::SplitInLink(l) => l.local_link.length,
+            Link::SplitOutLink(_) => {
+                panic!("There is no length of a split out link.")
+            }
+        }
+    }
+
+    pub fn id(&self) -> usize {
+        match self {
+            Link::LocalLink(l) => l.id,
+            Link::SplitInLink(l) => l.local_link.id,
+            Link::SplitOutLink(l) => l.id,
         }
     }
 }
@@ -436,9 +474,9 @@ mod tests {
 
     fn create_three_vehicle_definitions() -> VehicleDefinitions {
         VehicleDefinitions::new()
-            .add_vehicle_type("car".to_string(), Some(20.))
-            .add_vehicle_type("buggy".to_string(), Some(10.))
-            .add_vehicle_type("bike".to_string(), Some(5.))
+            .add_vehicle_type("car".to_string(), Some(20.), "car".to_string())
+            .add_vehicle_type("buggy".to_string(), Some(10.), "buggy".to_string())
+            .add_vehicle_type("bike".to_string(), Some(5.), "bike".to_string())
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {

@@ -181,6 +181,10 @@ impl InertialFlowCutterAdapter {
 
 #[cfg(test)]
 mod test {
+    use crate::simulation::id_mapping::MatsimIdMappings;
+    use crate::simulation::io::network::IONetwork;
+    use crate::simulation::io::population::IOPopulation;
+    use crate::simulation::network::network::Network;
     use crate::simulation::routing::inertial_flow_cutter_adapter::InertialFlowCutterAdapter;
     use crate::simulation::routing::network_converter::NetworkConverter;
     use std::env;
@@ -191,8 +195,19 @@ mod test {
         let inertial_flow_cutter_path = env::var("INERTIAL_FLOW_CUTTER_HOME_DIRECTORY")
             .expect("The environment variable 'INERTIAL_FLOW_CUTTER_HOME_DIRECTORY' is not set.");
 
-        let network =
-            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
+        let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
+        let io_population = IOPopulation::empty();
+
+        let network = Network::from_io(
+            &io_network,
+            1,
+            1.0,
+            |_| 0,
+            &MatsimIdMappings::from_io(&io_network, &io_population),
+        );
+
+        let network = NetworkConverter::convert_network(&network, None, None);
+
         let mut flow_cutter = InertialFlowCutterAdapter::new(
             &network,
             PathBuf::from(inertial_flow_cutter_path),
@@ -206,8 +221,19 @@ mod test {
 
     #[test]
     fn test_serialization() {
-        let network =
-            NetworkConverter::convert_xml_network("./assets/routing_tests/triangle-network.xml");
+        let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
+        let io_population = IOPopulation::empty();
+
+        let network = Network::from_io(
+            &io_network,
+            1,
+            1.0,
+            |_| 0,
+            &MatsimIdMappings::from_io(&io_network, &io_population),
+        );
+
+        let network = NetworkConverter::convert_network(&network, None, None);
+
         let adapter = InertialFlowCutterAdapter {
             inertial_flow_cutter_path: PathBuf::from(""),
             output_folder: PathBuf::from(

@@ -20,6 +20,36 @@ impl NetworkPartition {
         }
     }
 
+    pub fn len_local_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::LocalLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn len_split_in_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::SplitInLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
+    pub fn len_split_out_links(&self) -> usize {
+        self.links
+            .values()
+            .filter(|l| match l {
+                Link::SplitOutLink(_) => true,
+                _ => false,
+            })
+            .count()
+    }
+
     pub fn len_local_nodes(&self) -> usize {
         self.nodes
             .values()
@@ -112,6 +142,18 @@ impl NetworkPartition {
             .collect();
 
         distinct_thread_ids
+    }
+
+    pub fn get_link_ids(&self) -> HashSet<u64> {
+        self.links
+            .iter()
+            .filter(|(id, link)| match link {
+                Link::LocalLink(_) => true,
+                Link::SplitInLink(_) => true,
+                Link::SplitOutLink(_) => false,
+            })
+            .map(|(id, _)| *id as u64)
+            .collect::<HashSet<u64>>()
     }
 }
 

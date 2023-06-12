@@ -67,6 +67,20 @@ pub fn run(world: SystemCommunicator, config: Config) {
         &network,
         config.routing_mode,
     );
+
+    let mut vehicle_definitions: Option<VehicleDefinitions> = None;
+    if let Some(vehicle_definitions_file_path) = &config.vehicle_definitions_file {
+        let io_vehicle_definitions =
+            IOVehicleDefinitions::from_file(vehicle_definitions_file_path.as_ref());
+        vehicle_definitions = Some(VehicleDefinitions::from_io(io_vehicle_definitions));
+    }
+
+    let routing_kit_network_by_mode =
+        TravelTimesCollectingRoadRouter::get_routing_kit_network_by_mode(
+            &network,
+            vehicle_definitions.as_ref(),
+        );
+
     let network_partition = network.partitions.remove(rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
@@ -94,23 +108,15 @@ pub fn run(world: SystemCommunicator, config: Config) {
     events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let mut vehicle_definitions: Option<VehicleDefinitions> = None;
-    if let Some(vehicle_definitions_file_path) = &config.vehicle_definitions_file {
-        let io_vehicle_definitions =
-            IOVehicleDefinitions::from_file(vehicle_definitions_file_path.as_ref());
-        vehicle_definitions = Some(VehicleDefinitions::from_io(io_vehicle_definitions));
-    }
-
     let mut router: Option<Box<dyn Router>> = None;
     let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
-            io_network,
-            Some(&id_mappings),
+            routing_kit_network_by_mode,
             world.clone(),
             rank,
             get_temp_output_folder(&output_path, rank),
-            vehicle_definitions.clone(),
+            network_partition.get_link_ids(),
         )));
 
         let walking_speed_in_m_per_sec = 1.2;
