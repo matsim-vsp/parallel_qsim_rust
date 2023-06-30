@@ -1,6 +1,6 @@
-use log::debug;
 use rust_road_router::datastr::graph::{EdgeId, NodeId, Weight};
 use std::collections::HashMap;
+use tracing::debug;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RoutingKitNetwork {
@@ -46,14 +46,14 @@ impl RoutingKitNetwork {
 
     pub fn clone_with_new_travel_times_by_link(
         &self,
-        new_travel_times_by_link: &HashMap<&u64, u32>,
+        new_travel_times_by_link: HashMap<&u64, &u32>,
     ) -> RoutingKitNetwork {
         let mut new_travel_time_vector = Vec::new();
 
         assert_eq!(self.link_ids.len(), self.travel_time.len());
         for (index, &id) in self.link_ids.iter().enumerate() {
-            if let Some(new_travel_time) = new_travel_times_by_link.get(&(id as u64)) {
-                new_travel_time_vector.push(*new_travel_time);
+            if let Some(&&new_travel_time) = new_travel_times_by_link.get(&(id as u64)) {
+                new_travel_time_vector.push(new_travel_time);
                 debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
             } else {
                 new_travel_time_vector.push(*self.travel_time.get(index).unwrap())
@@ -64,14 +64,7 @@ impl RoutingKitNetwork {
     }
 
     pub fn has_different_travel_times(&self, other: &RoutingKitNetwork) -> bool {
-        let x = self.travel_time != other.travel_time;
-        if x {
-            debug!(
-                "New travel times are {:?}, old travel times are {:?}",
-                self.travel_time, other.travel_time
-            );
-        }
-        x
+        self.travel_time != other.travel_time
     }
 }
 

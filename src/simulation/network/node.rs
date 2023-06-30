@@ -85,6 +85,14 @@ impl Node {
         }
         .y
     }
+
+    pub fn id(&self) -> usize {
+        match self {
+            LocalNode(n) => n,
+            NeighbourNode(n) => n,
+        }
+        .id
+    }
 }
 
 #[derive(Debug, Clone)]

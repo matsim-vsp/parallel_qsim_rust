@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::simulation::id::{Id, IdImpl};
-use log::warn;
+use tracing::warn;
 
 use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
@@ -37,6 +37,44 @@ impl SimLink {
             SimLink::SplitOutLink(_) => {
                 panic!("There is no to id of a split out link.")
             }
+        }
+    }
+
+    pub fn contains_mode(&self, mode: &String) -> bool {
+        match self {
+            Link::LocalLink(l) => l.modes.contains(mode),
+            Link::SplitInLink(l) => l.local_link.modes.contains(mode),
+            Link::SplitOutLink(_) => {
+                panic!("There is not enough information for SplitOutLinks to evaluate.")
+            }
+        }
+    }
+
+    pub fn freespeed(&self) -> f32 {
+        match self {
+            Link::LocalLink(l) => l.freespeed,
+            Link::SplitInLink(l) => l.local_link.freespeed,
+            Link::SplitOutLink(_) => {
+                panic!("There is no freespeed of a split out link.")
+            }
+        }
+    }
+
+    pub fn length(&self) -> f32 {
+        match self {
+            Link::LocalLink(l) => l.length,
+            Link::SplitInLink(l) => l.local_link.length,
+            Link::SplitOutLink(_) => {
+                panic!("There is no length of a split out link.")
+            }
+        }
+    }
+
+    pub fn id(&self) -> usize {
+        match self {
+            Link::LocalLink(l) => l.id,
+            Link::SplitInLink(l) => l.local_link.id,
+            Link::SplitOutLink(l) => l.id,
         }
     }
 }

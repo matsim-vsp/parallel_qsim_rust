@@ -1,10 +1,10 @@
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::network::IONetwork;
 use crate::simulation::io::population::{IOPlanElement, IOPopulation};
-use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::info;
 
 #[derive(Debug)]
 pub struct MatsimIdMappings {

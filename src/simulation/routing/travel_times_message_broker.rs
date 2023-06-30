@@ -1,5 +1,4 @@
 use crate::simulation::messaging::messages::proto::TravelTimesMessage;
-use log::debug;
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::topology::{Communicator, SystemCommunicator};
@@ -21,8 +20,6 @@ impl TravelTimesMessageBroker {
         now: u32,
         travel_times: HashMap<u64, u32>,
     ) -> Vec<TravelTimesMessage> {
-        debug!("Process {}: Traffic update at {}", self.rank, now);
-
         let travel_times_message = TravelTimesMessage::from(travel_times);
         let serial_travel_times_message = travel_times_message.serialize();
 

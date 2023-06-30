@@ -14,7 +14,7 @@ use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::routing::router::Router;
 use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
 use crate::simulation::time_queue::TimeQueue;
-use log::{debug, info};
+use tracing::{debug, info};
 
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,

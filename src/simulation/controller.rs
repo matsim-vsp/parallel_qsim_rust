@@ -13,7 +13,6 @@ use crate::simulation::routing::router::Router;
 use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
 use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::simulation::Simulation;
-use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
 use std::ffi::c_int;
@@ -22,6 +21,7 @@ use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::Instant;
+use tracing::info;
 
 pub fn run(world: SystemCommunicator, config: Config) {
     let rank = world.rank();
@@ -79,16 +79,21 @@ pub fn run(world: SystemCommunicator, config: Config) {
         vehicle_definitions = Some(VehicleDefinitions::from_io(io_vehicle_definitions));
     }
 
+    let routing_kit_network_by_mode =
+        TravelTimesCollectingRoadRouter::get_routing_kit_network_by_mode(
+            &network,
+            vehicle_definitions.as_ref(),
+        );
+
     let mut router: Option<Box<dyn Router>> = None;
     let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
-            io_network, // TODO switch this to new network
-            Some(&id_mappings),
+            routing_kit_network_by_mode,
             world.clone(),
             rank,
             get_temp_output_folder(&output_path, rank),
-            vehicle_definitions.clone(),
+            network_partition.get_link_ids(),
         )));
 
         let walking_speed_in_m_per_sec = 1.2;
