@@ -16,13 +16,11 @@ use crate::simulation::simulation::Simulation;
 use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
-use std::collections::HashMap;
 use std::ffi::c_int;
 use std::fs;
 use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::time::Instant;
 
 pub fn run(world: SystemCommunicator, config: Config) {
@@ -50,16 +48,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         network.to_file(&output_path.join("output_network.xml.gz"));
     }
 
-    /*let population = Population::from_io(
-        &io_population,
-        &id_mappings,
-        rank as usize,
-        &network,
-        config.routing_mode,
-    );
-
-     */
-
     let population = crate::simulation::population::population::Population::from_file(
         config.population_file.as_ref(),
         &network,
@@ -74,17 +62,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         population.agents.len()
     );
 
-    let neighbors = network_partition
-        .neighbors()
-        .iter()
-        // cast this here. change the api to not use usize all the time, since with mpi and protobuf
-        // we have to use u32 or u64.
-        .map(|u| *u as u32)
-        .collect();
-    //let link_id_mapping = network.links_2_partition;
-    let link_id_mapping = Arc::new(HashMap::new()); // TODO this is empty
-
-    let message_broker = MpiMessageBroker::new(world.clone(), rank, neighbors, link_id_mapping);
+    let message_broker = MpiMessageBroker::new(world.clone(), rank, &network_partition);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");
