@@ -251,15 +251,6 @@ pub(self) fn find_edge_id_of_outgoing(
 
 #[cfg(test)]
 mod test {
-    use std::fmt::Debug;
-    use std::path::PathBuf;
-    use std::time::Instant;
-
-    use crate::simulation::id_mapping::MatsimIdMappings;
-    use crate::simulation::io::network::IONetwork;
-    use crate::simulation::io::population::IOPopulation;
-    use crate::simulation::network::network::Network;
-    use crate::simulation::partition_info::PartitionInfo;
     use crate::simulation::routing::network_converter::NetworkConverter;
     use crate::simulation::routing::road_router::{get_edge_path, RoadRouter};
     use rand::seq::IteratorRandom;
@@ -274,6 +265,9 @@ mod test {
     use rust_road_router::algo::{Query, QueryServer};
     use rust_road_router::datastr::graph::{NodeId, OwnedGraph};
     use rust_road_router::datastr::node_order::NodeOrder;
+    use std::fmt::Debug;
+    use std::path::PathBuf;
+    use std::time::Instant;
 
     fn create_graph() -> OwnedGraph {
         /*
@@ -327,54 +321,32 @@ mod test {
 
     #[test]
     fn test_get_edge_path() {
-        let num_parts = 1;
-
-        let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
-        let io_population = IOPopulation::empty();
-        let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
-        let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, num_parts);
-
-        let network = Network::from_io(
-            &io_network,
-            num_parts,
-            1.0,
-            |node| partition_info.get_partition(node),
-            &MatsimIdMappings::from_io(&io_network, &io_population),
+        let network = crate::simulation::network::global_network::Network::from_file(
+            "./assets/andorra-network.xml.gz",
+            1,
         );
+        let mut routing_network = NetworkConverter::convert_network(&network, None, None);
 
-        let mut network = NetworkConverter::convert_network(&network, None, None);
+        routing_network.link_ids = vec![0, 1, 2, 3, 4, 5];
 
-        network.link_ids = vec![0, 1, 2, 3, 4, 5];
-
-        assert_eq!(get_edge_path(vec![1, 2, 3], &network), vec![0, 3]);
-        assert_eq!(get_edge_path(vec![1, 3, 2], &network), vec![1, 5]);
+        assert_eq!(get_edge_path(vec![1, 2, 3], &routing_network), vec![0, 3]);
+        assert_eq!(get_edge_path(vec![1, 3, 2], &routing_network), vec![1, 5]);
         assert_eq!(
-            get_edge_path(vec![1, 2, 3, 1, 2, 3], &network),
+            get_edge_path(vec![1, 2, 3, 1, 2, 3], &routing_network),
             vec![0, 3, 4, 0, 3]
         );
     }
 
     #[test]
     fn test_simple_cch_with_router_and_update() {
-        let num_parts = 1;
-
-        let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
-        let io_population = IOPopulation::empty();
-        let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
-        let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, num_parts);
-
-        let network = Network::from_io(
-            &io_network,
-            num_parts,
-            1.0,
-            |node| partition_info.get_partition(node),
-            &MatsimIdMappings::from_io(&io_network, &io_population),
+        let network = crate::simulation::network::global_network::Network::from_file(
+            "./assets/andorra-network.xml.gz",
+            1,
         );
-
-        let network = NetworkConverter::convert_network(&network, None, None);
+        let routing_network = NetworkConverter::convert_network(&network, None, None);
 
         let mut router = RoadRouter::new(
-            &network,
+            &routing_network,
             PathBuf::from("./test_output/routing/simple_cch_update/"),
         );
 
@@ -385,7 +357,8 @@ mod test {
 
         println!("Assign new travel time to edge 1-2: 4");
 
-        let network_new_weights = network.clone_with_new_travel_times(vec![4, 2, 1, 4, 2, 5]);
+        let network_new_weights =
+            routing_network.clone_with_new_travel_times(vec![4, 2, 1, 4, 2, 5]);
         router.customize(network_new_weights);
         let new_result = router.query(3, 2);
         test_query_result(new_result, 5, vec![3, 2]);
@@ -394,37 +367,26 @@ mod test {
     #[ignore]
     #[test]
     fn compare_cch_and_dijkstra() {
-        let num_parts = 1;
-
-        let io_network = IONetwork::from_file("./assets/andorra-network.xml.gz");
-        let io_population = IOPopulation::empty();
-        let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
-        let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, num_parts);
-
-        let network = Network::from_io(
-            &io_network,
-            num_parts,
-            1.0,
-            |node| partition_info.get_partition(node),
-            &id_mappings,
+        let network = crate::simulation::network::global_network::Network::from_file(
+            "./assets/andorra-network.xml.gz",
+            1,
         );
-
-        let network = NetworkConverter::convert_network(&network, None, None);
+        let routing_network = NetworkConverter::convert_network(&network, None, None);
 
         let mut cch_router = RoadRouter::new(
-            &network,
+            &routing_network,
             PathBuf::from("./test_output/routing/performance/"),
         );
 
         let mut dijkstra_router =
-            DijkServer::<_, DefaultOps>::new(RoadRouter::create_owned_graph(&network));
+            DijkServer::<_, DefaultOps>::new(RoadRouter::create_owned_graph(&routing_network));
 
         let mut bid_dijkstra_router =
             BidServer::<OwnedGraph, OwnedGraph, BiDirZeroPot, ChooseMinKeyDir>::new(
-                RoadRouter::create_owned_graph(&network),
+                RoadRouter::create_owned_graph(&routing_network),
             );
 
-        let owned_graph = RoadRouter::create_owned_graph(&network);
+        let owned_graph = RoadRouter::create_owned_graph(&routing_network);
         let number_of_nodes = owned_graph.first_out().len();
         let from_nodes: Vec<usize> =
             (0..number_of_nodes - 1).choose_multiple(&mut rand::thread_rng(), 1000);

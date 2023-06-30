@@ -1,4 +1,5 @@
 use crate::simulation::config::Config;
+use crate::simulation::id::Id;
 use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
@@ -175,8 +176,10 @@ impl<'sim> Simulation<'sim> {
         let curr_act = agent.curr_act();
         let next_act = agent.next_act();
         let mode = agent.next_leg().mode.as_str();
+        let mode_id = self.network.global_network.modes.get_from_ext(mode);
 
-        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
+        let (route, travel_time) =
+            self.find_route(agent.curr_act(), agent.next_act(), mode_id.clone());
         let dep_time = curr_act.end_time;
 
         agent.update_next_leg(
@@ -201,7 +204,7 @@ impl<'sim> Simulation<'sim> {
         &mut self,
         from_act: &Activity,
         to_act: &Activity,
-        mode: &str,
+        mode: Id<String>,
     ) -> (Vec<u64>, Option<u32>) {
         let query_result =
             self.router

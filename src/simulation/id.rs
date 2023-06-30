@@ -2,7 +2,7 @@ use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData, r
 
 pub type Id<T> = Rc<IdImpl<T>>;
 
-#[derive(Debug)]
+#[derive(Debug, Ord, PartialOrd)]
 pub struct IdImpl<T> {
     _type_marker: PhantomData<T>,
     pub internal: usize,

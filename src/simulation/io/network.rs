@@ -1,7 +1,5 @@
-use crate::simulation::id_mapping::MatsimIdMapping;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::xml_reader;
-use crate::simulation::network::network::Network;
 use flate2::Compression;
 use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
@@ -151,50 +149,6 @@ impl IONetwork {
         to_writer(writer, self).unwrap();
 
         info!("IONetwork: Finished writing network.");
-    }
-
-    pub fn clone_with_internal_ids(
-        &self,
-        network: &Network,
-        link_id_mapping: &MatsimIdMapping,
-        node_id_mapping: &MatsimIdMapping,
-    ) -> IONetwork {
-        let mut result = IONetwork::new(None);
-
-        for node in self.nodes.nodes.iter() {
-            let internal_id = node_id_mapping.get_internal(&node.id).unwrap();
-            let partition = network.nodes_2_partition.get(internal_id).unwrap();
-            let attrs = IONetwork::create_partition_attr(*partition);
-            let new_node = IONode {
-                id: internal_id.to_string(),
-                x: node.x,
-                y: node.y,
-                attributes: attrs,
-            };
-            result.nodes_mut().push(new_node);
-        }
-
-        for link in self.links.links.iter() {
-            let internal_id = link_id_mapping.get_internal(&link.id).unwrap();
-            let internal_from = node_id_mapping.get_internal(&link.from).unwrap();
-            let internal_to = node_id_mapping.get_internal(&link.to).unwrap();
-            let partition = network.links_2_partition.get(internal_id).unwrap();
-            let attrs = IONetwork::create_partition_attr(*partition);
-            let new_link = IOLink {
-                id: internal_id.to_string(),
-                from: internal_from.to_string(),
-                to: internal_to.to_string(),
-                freespeed: link.freespeed,
-                capacity: link.capacity,
-                length: link.length,
-                permlanes: link.permlanes,
-                modes: link.modes.clone(),
-                attributes: attrs,
-            };
-            result.links_mut().push(new_link);
-        }
-
-        result
     }
 
     fn create_partition_attr(partition: usize) -> Option<Attrs> {

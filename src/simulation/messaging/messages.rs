@@ -444,8 +444,7 @@ impl Plan {
         if io_plan.elements.len() == 1 {
             let mut plan = Plan::new();
             if let IOPlanElement::Activity(io_activity) = io_plan.elements.get(0).unwrap() {
-                plan.acts
-                    .push(Activity::from_io(io_activity, &id_mappings.links));
+                plan.acts.push(Activity::from_io(io_activity, net));
             } else {
                 panic!("The first element of a plan has to be an activity.")
             }

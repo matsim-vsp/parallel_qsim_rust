@@ -15,6 +15,7 @@ use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, Walk
 use crate::simulation::simulation::Simulation;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
+use std::collections::HashSet;
 use std::ffi::c_int;
 use std::fs;
 use std::fs::remove_dir_all;
@@ -88,12 +89,17 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let mut router: Option<Box<dyn Router>> = None;
     let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
+        let link_ids: HashSet<_> = network_partition
+            .links
+            .iter()
+            .map(|(id, _)| id.internal as u64)
+            .collect();
         router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
             routing_kit_network_by_mode,
             world.clone(),
             rank,
             get_temp_output_folder(&output_path, rank),
-            network_partition.get_link_ids(),
+            link_ids,
         )));
 
         let walking_speed_in_m_per_sec = 1.2;

@@ -42,9 +42,9 @@ impl SimLink {
 
     pub fn contains_mode(&self, mode: &String) -> bool {
         match self {
-            Link::LocalLink(l) => l.modes.contains(mode),
-            Link::SplitInLink(l) => l.local_link.modes.contains(mode),
-            Link::SplitOutLink(_) => {
+            SimLink::LocalLink(l) => l.modes.contains(mode),
+            SimLink::SplitInLink(l) => l.local_link.modes.contains(mode),
+            SimLink::SplitOutLink(_) => {
                 panic!("There is not enough information for SplitOutLinks to evaluate.")
             }
         }
@@ -52,9 +52,9 @@ impl SimLink {
 
     pub fn freespeed(&self) -> f32 {
         match self {
-            Link::LocalLink(l) => l.freespeed,
-            Link::SplitInLink(l) => l.local_link.freespeed,
-            Link::SplitOutLink(_) => {
+            SimLink::LocalLink(l) => l.freespeed,
+            SimLink::SplitInLink(l) => l.local_link.freespeed,
+            SimLink::SplitOutLink(_) => {
                 panic!("There is no freespeed of a split out link.")
             }
         }
@@ -62,19 +62,19 @@ impl SimLink {
 
     pub fn length(&self) -> f32 {
         match self {
-            Link::LocalLink(l) => l.length,
-            Link::SplitInLink(l) => l.local_link.length,
-            Link::SplitOutLink(_) => {
+            SimLink::LocalLink(l) => l.length,
+            SimLink::SplitInLink(l) => l.local_link.length,
+            SimLink::SplitOutLink(_) => {
                 panic!("There is no length of a split out link.")
             }
         }
     }
 
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> Id<Link> {
         match self {
-            Link::LocalLink(l) => l.id,
-            Link::SplitInLink(l) => l.local_link.id,
-            Link::SplitOutLink(l) => l.id,
+            SimLink::LocalLink(l) => l.id.clone(),
+            SimLink::SplitInLink(l) => l.local_link.id.clone(),
+            SimLink::SplitOutLink(l) => l.id.clone(),
         }
     }
 }
@@ -546,9 +546,9 @@ mod tests {
 
     fn create_three_vehicle_definitions() -> VehicleDefinitions {
         VehicleDefinitions::new()
-            .add_vehicle_type("car".to_string(), Some(20.))
-            .add_vehicle_type("buggy".to_string(), Some(10.))
-            .add_vehicle_type("bike".to_string(), Some(5.))
+            .add_vehicle_type("car".to_string(), Some(20.), String::from("car"))
+            .add_vehicle_type("buggy".to_string(), Some(10.), String::from("buggy"))
+            .add_vehicle_type("bike".to_string(), Some(5.), String::from("bike"))
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {

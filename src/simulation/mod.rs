@@ -9,8 +9,8 @@ pub mod messaging;
 mod network;
 #[allow(dead_code)]
 mod partition_info;
-pub mod population;
 pub mod performance_profiling;
+pub mod population;
 #[allow(unused_comparisons, dead_code)]
 mod routing;
 mod simulation;

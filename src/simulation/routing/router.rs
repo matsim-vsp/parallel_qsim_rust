@@ -1,7 +1,8 @@
+use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
 
 pub trait Router {
-    fn query_links(&mut self, from_link: u64, to_link: u64, mode: &str) -> CustomQueryResult;
+    fn query_links(&mut self, from_link: u64, to_link: u64, mode: Id<String>) -> CustomQueryResult;
 
     fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher);
 }
