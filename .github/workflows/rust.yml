@@ -16,28 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Install InertialFlowCutter libraries
-        run: |
-          sudo apt-get update &&
-          sudo apt-get -y install libtbb-dev libreadline8 libreadline-dev zlib1g-dev libopenmpi-dev llvm-dev libopenmpi3 ccache libllvm10
-      - name: Clone InertialFlowCutter
-        uses: actions/checkout@v3
-        with:
-          repository: paulheinr/InertialFlowCutter
-          ref: master
-          submodules: true
-          path: ${{ env.INERTIAL_FLOW_CUTTER_HOME_DIRECTORY }}
-      - name: Install InertialFlowCutter
-        run: |
-          cd $INERTIAL_FLOW_CUTTER_HOME_DIRECTORY
-          mkdir build
-          cd build
-          cmake --debug-find -DCMAKE_BUILD_TYPE=Release ..
-          make
       - name: Install other libraries
         run: sudo apt -y install libclang-dev libmetis-dev
-      - name: Set Rust to nightly
-        run: rustup default nightly
       - name: Install mpirun
         run: cargo install --force cargo-mpirun
       - name: Build
