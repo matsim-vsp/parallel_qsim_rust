@@ -11,7 +11,5 @@ mod network;
 mod partition_info;
 pub mod performance_profiling;
 pub mod population;
-#[allow(unused_comparisons, dead_code)]
-mod routing;
 mod simulation;
 pub mod time_queue;

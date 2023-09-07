@@ -10,7 +10,6 @@ mod event_test_utils;
 /// Route: Given. Plan also includes walking legs and car interactions.
 fn test_three_link_default() {
     test_three_link(
-        "use-plans",
         "assets/3-links/1-agent.xml",
         None,
         "static",
@@ -25,7 +24,6 @@ fn test_three_link_default() {
 /// Route: Will be calculated during qsim. There are legs in plans file which will be discarded.
 fn test_three_link_full_legs_in_plans() {
     test_three_link(
-        "use-plans",
         "assets/3-links/1-agent-full-leg.xml",
         None,
         "static/full_legs",
@@ -37,43 +35,12 @@ fn test_three_link_full_legs_in_plans() {
 #[serial]
 /// Network: 3 links in a line.
 /// Agents: 1 agent travelling line.
-/// Route: Will be calculated during qsim. There are no legs in plans file.  
-fn test_three_link_with_routing_no_legs_in_plans() {
-    test_three_link(
-        "ad-hoc",
-        "assets/3-links/1-agent-no-leg.xml",
-        None,
-        "/adhoc/no_legs",
-        "tests/resources/three_link/full_legs",
-    )
-}
-
-#[test]
-#[serial]
-/// Network: 3 links in a line.
-/// Agents: 1 agent travelling line.
 /// Route: Will be computed during qsim. There are main legs in plans file.
 fn test_three_link_with_routing_legs_in_plans() {
     test_three_link(
-        "ad-hoc",
         "assets/3-links/1-agent.xml",
         None,
         "adhoc/with_legs",
-        "tests/resources/three_link/full_legs",
-    )
-}
-
-#[test]
-#[serial]
-/// Network: 3 links in a line.
-/// Agents: 1 agent travelling line.
-/// Route: Will be computed during qsim. There are main + walk legs in plans file.
-fn test_three_link_with_routing_full_legs_in_plans() {
-    test_three_link(
-        "ad-hoc",
-        "assets/3-links/1-agent-full-leg.xml",
-        None,
-        "adhoc/full_legs",
         "tests/resources/three_link/full_legs",
     )
 }
@@ -86,7 +53,6 @@ fn test_three_link_with_routing_full_legs_in_plans() {
 /// Vehicle definitions: Given. Everything should be like simple test case without routing.
 fn test_three_link_one_agent_with_vehicle_definitions() {
     test_three_link(
-        "use-plans",
         "assets/3-links/1-agent.xml",
         Some("assets/3-links/vehicle_definitions.xml"),
         "static/vehicle_definitions",
@@ -102,7 +68,6 @@ fn test_three_link_one_agent_with_vehicle_definitions() {
 /// Vehicle definitions: Given. Bike travel time is longer than car.
 fn test_three_link_multiple_agents_with_vehicle_definitions() {
     test_three_link(
-        "use-plans",
         "assets/3-links/3-agent.xml",
         Some("assets/3-links/vehicle_definitions.xml"),
         "static/multiple_agents/no_jam",
@@ -118,7 +83,6 @@ fn test_three_link_multiple_agents_with_vehicle_definitions() {
 /// Vehicle definitions: Given. Bike travel time is longer than car. Car
 fn test_three_link_multiple_agents_with_jam_by_vehicle_definitions() {
     test_three_link(
-        "use-plans",
         "assets/3-links/3-agent_jam.xml",
         Some("assets/3-links/vehicle_definitions.xml"),
         "static/multiple_agents/with_jam",
@@ -127,7 +91,6 @@ fn test_three_link_multiple_agents_with_jam_by_vehicle_definitions() {
 }
 
 fn test_three_link(
-    routing_mode: &str,
     plans_file: &str,
     vehicle_definitions_file: Option<&str>,
     output_dir: &str,
@@ -139,7 +102,6 @@ fn test_three_link(
         "assets/3-links/3-links-network.xml",
         plans_file,
         output_dir.as_str(),
-        routing_mode,
         vehicle_definitions_file,
     );
     compare_events(output_dir.as_str(), expected_events_dir)

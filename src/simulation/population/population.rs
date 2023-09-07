@@ -1,4 +1,3 @@
-use crate::simulation::config::RoutingMode;
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation, IORoute};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
@@ -25,22 +24,12 @@ impl<'p> Population<'p> {
         }
     }
 
-    pub fn from_file(
-        file: &str,
-        net: &Network,
-        partition: usize,
-        routing_mode: RoutingMode,
-    ) -> Self {
+    pub fn from_file(file: &str, net: &Network, partition: usize) -> Self {
         let io_population = IOPopulation::from_file(file);
-        Self::from_io(&io_population, &net, partition, routing_mode)
+        Self::from_io(&io_population, &net, partition)
     }
 
-    pub fn from_io(
-        io_population: &IOPopulation,
-        network: &Network,
-        partition: usize,
-        routing_mode: RoutingMode,
-    ) -> Self {
+    pub fn from_io(io_population: &IOPopulation, network: &Network, partition: usize) -> Self {
         let mut result = Population::new();
 
         // first pass to set ids globally
@@ -52,7 +41,7 @@ impl<'p> Population<'p> {
         for io in io_population.persons.iter() {
             let link = Self::link_first_act(io, network);
             if partition == link.partition {
-                let agent = Agent::from_io(io, network, &result, routing_mode);
+                let agent = Agent::from_io(io, network, &result);
                 result
                     .agents
                     .insert(result.agent_ids.get(agent.id as usize), agent);
@@ -109,16 +98,14 @@ impl<'p> Population<'p> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::config::RoutingMode;
     use crate::simulation::messaging::messages::proto::leg::Route;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::population::Population;
 
     #[test]
     fn from_io_1_plan() {
-
         let net = Network::from_file("./assets/equil/equil-network.xml", 2);
-        let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, 1, RoutingMode::UsePlans);
+        let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, 0);
 
         assert_eq!(1, pop.agents.len());
 
@@ -131,10 +118,13 @@ mod tests {
 
         let home_act = plan.acts.first().unwrap();
         assert_eq!("h", home_act.act_type.as_str());
-        assert_eq!(net.link_ids.get_from_ext("1").internal as u64, home_act.link_id);
+        assert_eq!(
+            net.link_ids.get_from_ext("1").internal as u64,
+            home_act.link_id
+        );
         assert_eq!(-25000., home_act.x);
         assert_eq!(0., home_act.y);
-        assert_eq!(Some(6*3600), home_act.end_time);
+        assert_eq!(Some(6 * 3600), home_act.end_time);
         assert_eq!(None, home_act.start_time);
         assert_eq!(None, home_act.max_dur);
 
@@ -143,13 +133,19 @@ mod tests {
         assert_eq!(None, leg.dep_time);
         assert!(matches!(leg.route, Some(_)));
         if let Route::NetworkRoute(net_route) = leg.route.as_ref().unwrap() {
-            assert_eq!(pop.vehicle_ids.get_from_ext("1").internal as u64, net_route.vehicle_id);
-            assert_eq!(vec![
-                net.link_ids.get_from_ext("1").internal as u64,
-                net.link_ids.get_from_ext("6").internal as u64,
-                net.link_ids.get_from_ext("15").internal as u64,
-                net.link_ids.get_from_ext("20").internal as u64,
-            ], net_route.route);
+            assert_eq!(
+                pop.vehicle_ids.get_from_ext("1").internal as u64,
+                net_route.vehicle_id
+            );
+            assert_eq!(
+                vec![
+                    net.link_ids.get_from_ext("1").internal as u64,
+                    net.link_ids.get_from_ext("6").internal as u64,
+                    net.link_ids.get_from_ext("15").internal as u64,
+                    net.link_ids.get_from_ext("20").internal as u64,
+                ],
+                net_route.route
+            );
         } else {
             panic!("Expected network route as first leg.")
         }
@@ -157,9 +153,8 @@ mod tests {
 
     #[test]
     fn from_io() {
-
         let net = Network::from_file("./assets/equil/equil-network.xml", 2);
-        let pop = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, 1, RoutingMode::UsePlans);
+        let pop = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, 0);
 
         assert_eq!(100, pop.agents.len());
     }

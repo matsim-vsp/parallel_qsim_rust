@@ -447,10 +447,10 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let network = Network::from_file("./assets/equil/equil-network.xml", 6);
+        let network = Network::from_file("./assets/equil/equil-network.xml", 2);
 
         // check partitioning
-        let expected_partitions = vec![1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 0, 2, 2, 2];
+        let expected_partitions = vec![1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1];
         for node in &network.nodes {
             let expected_partition = expected_partitions[node.id.internal];
             assert_eq!(expected_partition, node.partition);

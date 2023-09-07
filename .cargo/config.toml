@@ -3,3 +3,11 @@
 # This variable has only to be set if you want to use a router.
 INERTIAL_FLOW_CUTTER_HOME_DIRECTORY="../InertialFlowCutter"
 RUST_Q_SIM_PERFORMANCE_TRACING_INTERVAL="900"
+
+# this mimmics 'export CPATH=$HOMEBREW_PREFIX/include' to link to the metis library if it was installed via homebrew on macOS
+CPATH = { value = "/opt/homebrew/include" }
+
+# this mimmics 'export RUSTFLAGS="-L$HOMEBREW_PREFIX/lib" to tell rustc where to search for the metis library which must
+# be linked. This assumes that metis is installed via homebrew on macOS
+[target.aarch64-apple-darwin]
+rustflags = ["-L/opt/homebrew//lib"]

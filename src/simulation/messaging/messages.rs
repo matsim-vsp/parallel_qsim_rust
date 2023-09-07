@@ -5,7 +5,6 @@ use std::io::Cursor;
 use log::debug;
 use prost::Message;
 
-use crate::simulation::config::RoutingMode;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
@@ -167,13 +166,8 @@ impl EndTime for Vehicle {
 }
 
 impl Agent {
-    pub fn from_io(
-        io_person: &IOPerson,
-        net: &Network,
-        pop: &Population,
-        routing_mode: RoutingMode,
-    ) -> Agent {
-        let plan = Plan::from_io(io_person.selected_plan(), net, pop, routing_mode);
+    pub fn from_io(io_person: &IOPerson, net: &Network, pop: &Population) -> Agent {
+        let plan = Plan::from_io(io_person.selected_plan(), net, pop);
 
         if plan.acts.is_empty() {
             debug!("There is an empty plan for person {:?}", io_person.id);
@@ -396,21 +390,13 @@ impl Plan {
         }
     }
 
-    fn from_io(
-        io_plan: &IOPlan,
-        net: &Network,
-        pop: &Population,
-        routing_mode: RoutingMode,
-    ) -> Plan {
+    fn from_io(io_plan: &IOPlan, net: &Network, pop: &Population) -> Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
         };
 
-        match routing_mode {
-            RoutingMode::UsePlans => Plan::get_full_plan_no_routing(io_plan, net, pop),
-            RoutingMode::AdHoc => Plan::get_full_plan_for_routing(io_plan, net, pop),
-        }
+        Plan::get_full_plan_no_routing(io_plan, net, pop)
     }
 
     fn get_full_plan_no_routing(io_plan: &IOPlan, net: &Network, pop: &Population) -> Plan {
@@ -436,178 +422,12 @@ impl Plan {
         result
     }
 
-    fn get_full_plan_for_routing(io_plan: &IOPlan, net: &Network, pop: &Population) -> Plan {
-        if io_plan.elements.is_empty() {
-            return Plan::new();
-        }
-
-        if io_plan.elements.len() == 1 {
-            let mut plan = Plan::new();
-            if let IOPlanElement::Activity(io_activity) = io_plan.elements.get(0).unwrap() {
-                plan.acts.push(Activity::from_io(io_activity, net));
-            } else {
-                panic!("The first element of a plan has to be an activity.")
-            }
-            return plan;
-        }
-
-        let plan_type = Plan::get_plan_type(io_plan);
-        let window_size = plan_type.window_size();
-        let step_size = plan_type.step_size();
-        assert_eq!(
-            (io_plan.elements.len() - 1) % step_size,
-            0,
-            "The number of elements in the plan is wrong."
-        );
-
-        let mut result = Plan::new();
-
-        let plan_windows = io_plan.elements.windows(window_size);
-        let number_of_plan_windows = plan_windows.len();
-        for (i, window) in plan_windows.into_iter().step_by(step_size).enumerate() {
-            let curr_activity = IOPlanElement::get_activity(window.first());
-            let next_activity = IOPlanElement::get_activity(window.last());
-            let mut access_walk = None;
-            let mut access_interaction = None;
-            let mut main_leg = None;
-            let mut egress_interaction = None;
-            let mut egress_walk = None;
-
-            if window_size == 3 {
-                main_leg = IOPlanElement::get_leg(window.get(1));
-            }
-
-            if window_size == 7 {
-                access_walk = IOPlanElement::get_leg(window.get(1));
-                access_interaction = IOPlanElement::get_activity(window.get(2));
-                main_leg = IOPlanElement::get_leg(window.get(3));
-                egress_interaction = IOPlanElement::get_activity(window.get(4));
-                egress_walk = IOPlanElement::get_leg(window.get(5));
-            }
-
-            let curr_act_link_id = net.link_ids.get_from_ext(&curr_activity.unwrap().link);
-            let next_act_link_id = net.link_ids.get_from_ext(&curr_activity.unwrap().link);
-
-            // current activity
-            let act = Activity::from_io(curr_activity.unwrap(), net);
-            result.acts.push(act);
-
-            // access walk and interaction
-            Self::insert_access_or_egress(
-                net,
-                pop,
-                &mut result,
-                access_walk,
-                access_interaction,
-                curr_act_link_id.internal as u64,
-            );
-
-            // main leg
-            Self::insert_main_leg(&mut result, main_leg);
-
-            // egress interaction and walk
-            Self::insert_access_or_egress(
-                net,
-                pop,
-                &mut result,
-                egress_walk,
-                egress_interaction,
-                next_act_link_id.internal as u64,
-            );
-
-            // last activity
-            if i == number_of_plan_windows - 1 {
-                let act = Activity::from_io(next_activity.unwrap(), net);
-                result.acts.push(act);
-            }
-        }
-        result
-    }
-
     pub fn add_leg(&mut self, leg: Leg) {
         self.legs.push(leg);
     }
 
     pub fn add_act(&mut self, activity: Activity) {
         self.acts.push(activity);
-    }
-
-    fn get_plan_type(io_plan: &IOPlan) -> PlanType {
-        if let IOPlanElement::Activity(_) = io_plan.elements.get(1).unwrap() {
-            return PlanType::ActivitiesOnly;
-        }
-
-        if let IOPlanElement::Activity(a) = io_plan.elements.get(2).unwrap() {
-            return if a.is_interaction() {
-                PlanType::ActivitiesAndMainLegsWithInteractionAndWalk
-            } else {
-                PlanType::ActivitiesAndMainLeg
-            };
-        } else {
-            panic!("The third element should never be a leg.")
-        }
-    }
-
-    fn insert_main_leg(result: &mut Plan, main_leg: Option<&IOLeg>) {
-        if main_leg.is_some() {
-            result
-                .legs
-                .push(Leg::only_with_mode(main_leg.unwrap().mode.as_str()))
-        } else {
-            result
-                .legs
-                .push(Leg::only_with_mode(Plan::DEFAULT_ROUTING_MODE))
-        }
-    }
-
-    fn insert_access_or_egress(
-        net: &Network,
-        pop: &Population,
-        result: &mut Plan,
-        leg: Option<&IOLeg>,
-        interaction: Option<&IOActivity>,
-        activity_link_id: u64,
-    ) {
-        if leg.is_some() && interaction.is_some() {
-            result.legs.push(Leg::from_io(leg.unwrap(), net, pop));
-            result
-                .acts
-                .push(Activity::from_io(interaction.unwrap(), net))
-        } else {
-            let access_walk_leg = Leg::only_with_mode("walk");
-            result.legs.push(access_walk_leg);
-
-            let access_interaction_act = Activity {
-                act_type: String::from(Plan::DEFAULT_ROUTING_MODE) + " interaction",
-                link_id: activity_link_id,
-                x: 0.0, //dummy value which is never evaluated again
-                y: 0.0, //dummy value which is never evaluated again
-                start_time: None,
-                end_time: None,
-                max_dur: Some(0),
-            };
-            result.acts.push(access_interaction_act);
-        }
-    }
-}
-
-enum PlanType {
-    ActivitiesOnly,
-    ActivitiesAndMainLeg,
-    ActivitiesAndMainLegsWithInteractionAndWalk,
-}
-
-impl PlanType {
-    fn window_size(&self) -> usize {
-        match self {
-            PlanType::ActivitiesOnly => 2,
-            PlanType::ActivitiesAndMainLeg => 3,
-            PlanType::ActivitiesAndMainLegsWithInteractionAndWalk => 7,
-        }
-    }
-
-    fn step_size(&self) -> usize {
-        self.window_size() - 1
     }
 }
 

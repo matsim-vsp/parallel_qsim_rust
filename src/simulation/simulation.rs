@@ -1,21 +1,17 @@
 use crate::simulation::config::Config;
-use crate::simulation::id::Id;
 use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::simulation::messaging::messages::proto::leg::Route;
-use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, GenericRoute, Vehicle, VehicleType,
+use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle, VehicleType,
 };
 use crate::simulation::network::link::SimLink;
 use crate::simulation::network::node::ExitReason;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::routing::router::Router;
-use crate::simulation::routing::walk_leg_updater::WalkLegUpdater;
 use crate::simulation::time_queue::TimeQueue;
-use tracing::{debug, info};
+use tracing::info;
 
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
@@ -23,10 +19,8 @@ pub struct Simulation<'sim> {
     network: SimNetworkPartition<'sim>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
-    router: Option<Box<dyn Router>>,
     vehicle_definitions: Option<VehicleDefinitions>,
     id_mappings: &'sim MatsimIdMappings,
-    walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
 }
 
 impl<'sim> Simulation<'sim> {
@@ -37,9 +31,7 @@ impl<'sim> Simulation<'sim> {
         population: crate::simulation::population::population::Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
-        router: Option<Box<dyn Router>>,
         vehicle_definitions: Option<VehicleDefinitions>,
-        walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -52,10 +44,8 @@ impl<'sim> Simulation<'sim> {
             activity_q,
             message_broker,
             events,
-            router,
             vehicle_definitions,
             id_mappings,
-            walk_leg_updater,
         }
     }
 
@@ -79,10 +69,6 @@ impl<'sim> Simulation<'sim> {
             self.move_nodes(now);
             self.send_receive(now);
 
-            if let Some(router) = self.router.as_mut() {
-                router.next_time_step(now, &mut self.events)
-            }
-
             now += 1;
         }
 
@@ -103,18 +89,6 @@ impl<'sim> Simulation<'sim> {
                     agent.curr_act().act_type.clone(),
                 ),
             );
-
-            if self.router.is_some() {
-                if (!agent.curr_act().is_interaction() && agent.next_act().is_interaction())
-                    || (agent.curr_act().is_interaction() && !agent.next_act().is_interaction())
-                {
-                    self.update_walk_leg(&mut agent);
-                } else if agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
-                    self.update_main_leg(&mut agent);
-                } else {
-                    panic!("Computing a leg between two main activities should never happen.")
-                }
-            }
 
             //here, current element counter is going to be increased
             agent.advance_plan();
@@ -170,56 +144,6 @@ impl<'sim> Simulation<'sim> {
                 }
             }
         }
-    }
-
-    fn update_main_leg(&mut self, agent: &mut Agent) {
-        let curr_act = agent.curr_act();
-        let next_act = agent.next_act();
-        let mode = agent.next_leg().mode.as_str();
-        let mode_id = self.network.global_network.modes.get_from_ext(mode);
-
-        let (route, travel_time) =
-            self.find_route(agent.curr_act(), agent.next_act(), mode_id.clone());
-        let dep_time = curr_act.end_time;
-
-        agent.update_next_leg(
-            dep_time,
-            travel_time,
-            route,
-            None,
-            curr_act.link_id,
-            next_act.link_id,
-        );
-    }
-
-    fn update_walk_leg(&self, agent: &mut Agent) {
-        self.walk_leg_updater
-            .as_ref()
-            .expect("WalkLegFinder must be set, if routing is enabled.")
-            .as_ref()
-            .update_walk_leg(agent, &self.network);
-    }
-
-    fn find_route(
-        &mut self,
-        from_act: &Activity,
-        to_act: &Activity,
-        mode: Id<String>,
-    ) -> (Vec<u64>, Option<u32>) {
-        let query_result =
-            self.router
-                .as_mut()
-                .unwrap()
-                .query_links(from_act.link_id, to_act.link_id, mode);
-
-        let route = query_result.path.expect("There is no route!");
-        let travel_time = query_result.travel_time;
-
-        if route.is_empty() {
-            debug!("Route between {:?} and {:?} is empty.", from_act, to_act);
-        }
-
-        (route, travel_time)
     }
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
@@ -333,9 +257,5 @@ impl<'sim> Simulation<'sim> {
         let from_rank = message_broker.rank_for_link(route.start_link);
         let to_rank = message_broker.rank_for_link(route.end_link);
         (from_rank, to_rank)
-    }
-
-    fn get_router_ref(&self) -> &dyn Router {
-        self.router.as_ref().unwrap().as_ref()
     }
 }

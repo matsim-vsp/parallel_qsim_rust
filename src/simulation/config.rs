@@ -1,5 +1,4 @@
-use crate::simulation::config::RoutingMode::UsePlans;
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -16,20 +15,12 @@ pub struct Config {
     pub population_file: String,
     #[arg(long)]
     pub vehicle_definitions_file: Option<String>,
-    #[arg(long, value_enum, default_value_t=RoutingMode::UsePlans)]
-    pub routing_mode: RoutingMode,
     #[arg(long, default_value = "./")]
     pub output_dir: String,
     #[arg(long, default_value = "file")]
     pub events_mode: String,
     #[arg(long, default_value_t = 1.0)]
     pub sample_size: f32,
-}
-
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy)]
-pub enum RoutingMode {
-    AdHoc,
-    UsePlans,
 }
 
 impl Config {
@@ -45,7 +36,6 @@ pub struct ConfigBuilder {
     network_file: String,
     population_file: String,
     vehicle_definitions_file: Option<String>,
-    routing_mode: RoutingMode,
     output_dir: String,
     events_mode: String,
     sample_size: f32,
@@ -63,7 +53,6 @@ impl ConfigBuilder {
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,
-            routing_mode: UsePlans,
         }
     }
 
@@ -89,11 +78,6 @@ impl ConfigBuilder {
 
     pub fn population_file(mut self, file: String) -> Self {
         self.population_file = file;
-        self
-    }
-
-    pub fn set_routing_mode(mut self, routing_mode: RoutingMode) -> Self {
-        self.routing_mode = routing_mode;
         self
     }
 
@@ -128,7 +112,6 @@ impl ConfigBuilder {
             network_file: self.network_file,
             population_file: self.population_file,
             vehicle_definitions_file: self.vehicle_definitions_file,
-            routing_mode: self.routing_mode,
             output_dir: self.output_dir,
             events_mode: self.events_mode,
             sample_size: self.sample_size,

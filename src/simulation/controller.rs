@@ -1,4 +1,4 @@
-use crate::simulation::config::{Config, RoutingMode};
+use crate::simulation::config::Config;
 use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::network::IONetwork;
 use crate::simulation::io::population::IOPopulation;
@@ -8,17 +8,11 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::partition_info::PartitionInfo;
-use crate::simulation::routing::router::Router;
-use crate::simulation::routing::travel_times_collecting_road_router::TravelTimesCollectingRoadRouter;
-use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::simulation::Simulation;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
-use std::collections::HashSet;
 use std::ffi::c_int;
 use std::fs;
-use std::fs::remove_dir_all;
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -37,7 +31,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let io_network = IONetwork::from_file(config.network_file.as_ref());
     let io_population = IOPopulation::from_file(config.population_file.as_ref());
     let id_mappings = MatsimIdMappings::from_io(&io_network, &io_population);
-    let partition_info = PartitionInfo::from_io_network(&io_network, &id_mappings, size as usize);
 
     let network = crate::simulation::network::global_network::Network::from_file(
         config.network_file.as_ref(),
@@ -53,7 +46,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         config.population_file.as_ref(),
         &network,
         rank as usize,
-        config.routing_mode,
     );
     let network_partition = SimNetworkPartition::from_network(&network, rank as usize);
     info!(
@@ -80,34 +72,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
         vehicle_definitions = Some(VehicleDefinitions::from_io(io_vehicle_definitions));
     }
 
-    let routing_kit_network_by_mode =
-        TravelTimesCollectingRoadRouter::get_routing_kit_network_by_mode(
-            &network,
-            vehicle_definitions.as_ref(),
-        );
-
-    let mut router: Option<Box<dyn Router>> = None;
-    let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
-    if config.routing_mode == RoutingMode::AdHoc {
-        let link_ids: HashSet<_> = network_partition
-            .links
-            .iter()
-            .map(|(id, _)| id.internal as u64)
-            .collect();
-        router = Some(Box::new(TravelTimesCollectingRoadRouter::new(
-            routing_kit_network_by_mode,
-            world.clone(),
-            rank,
-            get_temp_output_folder(&output_path, rank),
-            link_ids,
-        )));
-
-        let walking_speed_in_m_per_sec = 1.2;
-        walk_leg_finder = Some(Box::new(EuclideanWalkLegUpdater::new(
-            walking_speed_in_m_per_sec,
-        )))
-    }
-
     let mut simulation = Simulation::new(
         &config,
         &id_mappings,
@@ -115,9 +79,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         population,
         message_broker,
         events,
-        router,
         vehicle_definitions,
-        walk_leg_finder,
     );
 
     let start = Instant::now();
@@ -127,11 +89,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
     info!("#{rank} took: {duration}s");
 
     info!("output dir: {:?}", config.output_dir);
-
-    if rank == 0 && config.routing_mode == RoutingMode::AdHoc {
-        remove_dir_all(output_path.join("routing"))
-            .expect("Wasn't able to delete temporary routing output.")
-    }
 
     info!("#{rank} at barrier.");
     world.barrier();
