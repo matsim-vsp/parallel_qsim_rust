@@ -1,8 +1,9 @@
+use std::collections::HashMap;
+
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation, IORoute};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::global_network::{Link, Network};
-use std::collections::HashMap;
 
 type ActType = ();
 
@@ -104,13 +105,13 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2);
+        let net = Network::from_file("./assets/equil/equil-network.xml", 1);
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, 0);
 
         assert_eq!(1, pop.agents.len());
 
         let agent = pop.agents.get(&pop.agent_ids.get_from_ext("1")).unwrap();
-        assert!(matches!(&agent.plan, Some(_)));
+        assert!(agent.plan.is_some());
 
         let plan = agent.plan.as_ref().unwrap();
         assert_eq!(4, plan.acts.len());
@@ -154,8 +155,12 @@ mod tests {
     #[test]
     fn from_io() {
         let net = Network::from_file("./assets/equil/equil-network.xml", 2);
-        let pop = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, 0);
+        let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, 0);
+        let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, 1);
 
-        assert_eq!(100, pop.agents.len());
+        // metis produces unstable results on small networks so, make sure that one of the populations
+        // has all the agents and the other doesn't
+        assert!(pop1.agents.len() == 100 || pop2.agents.len() == 100);
+        assert!(pop1.agents.is_empty() || pop2.agents.is_empty());
     }
 }

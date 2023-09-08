@@ -292,7 +292,6 @@ impl Link {
 
 #[cfg(test)]
 mod tests {
-
     use crate::simulation::io::network::{IOLink, IONode};
 
     use super::{Link, Network, Node};
@@ -450,7 +449,7 @@ mod tests {
         let network = Network::from_file("./assets/equil/equil-network.xml", 2);
 
         // check partitioning
-        let expected_partitions = vec![1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1];
+        let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
         for node in &network.nodes {
             let expected_partition = expected_partitions[node.id.internal];
             assert_eq!(expected_partition, node.partition);

@@ -51,10 +51,36 @@ pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
 
     info!("Calling Metis Partitioning Library");
     Graph::new(1, num_parts as Idx, &mut xadj, &mut adjncy)
-        .set_vwgt(&mut vwgt)
+        //.set_vwgt(&mut vwgt)
         .set_option(metis::option::Seed(4711))
         .part_kway(&mut result)
         .unwrap();
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::simulation::network::global_network::{Link, Network, Node};
+    use crate::simulation::network::metis_partitioning::partition;
+
+    #[test]
+    fn simple_graph() {
+        let mut net = Network::new();
+        let from_id = net.node_ids.create_id("from");
+        let to_id = net.node_ids.create_id("to");
+        net.add_node(Node::new(from_id.clone(), 0., 0.));
+        net.add_node(Node::new(to_id.clone(), 100., 0.));
+        let link_id = net.link_ids.create_id("link");
+        net.add_link(Link::new_with_default(
+            link_id,
+            net.get_node(&from_id),
+            net.get_node(&to_id),
+        ));
+
+        for _n in 0..100 {
+            let partition_result = partition(&net, 2);
+            println!("{partition_result:?}");
+        }
+    }
 }
