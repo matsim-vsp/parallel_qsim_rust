@@ -1,10 +1,12 @@
+use std::io::{Read, Seek};
+use std::path::PathBuf;
+
 use clap::Parser;
+
 use rust_q_sim::simulation::io::proto_events::EventsReader;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::events::proto::Event;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;
-use std::io::{Read, Seek};
-use std::path::PathBuf;
 
 struct StatefulReader<R: Read + Seek> {
     reader: EventsReader<R>,
@@ -78,7 +80,7 @@ fn main() {
 
 fn process_events(time: u32, events: &Vec<Event>, publisher: &mut EventsPublisher) {
     for event in events {
-        publisher.publish_event(time, &event);
+        publisher.publish_event(time, event);
     }
 }
 

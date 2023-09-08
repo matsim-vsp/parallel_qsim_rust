@@ -500,15 +500,6 @@ impl Leg {
             dep_time,
         }
     }
-
-    fn only_with_mode(mode: &str) -> Self {
-        Self {
-            mode: mode.to_string(),
-            dep_time: None,
-            trav_time: None,
-            route: None,
-        }
-    }
 }
 
 impl Route {
