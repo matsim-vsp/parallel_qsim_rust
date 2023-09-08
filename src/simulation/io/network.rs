@@ -1,14 +1,16 @@
-use crate::simulation::io::matsim_id::MatsimId;
-use crate::simulation::io::xml_reader;
-use flate2::Compression;
-use quick_xml::se::to_writer;
-use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::Path;
+
+use flate2::Compression;
+use quick_xml::se::to_writer;
+use serde::{Deserialize, Serialize};
 use tracing::info;
+
+use crate::simulation::io::matsim_id::MatsimId;
+use crate::simulation::io::xml_reader;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Attr {
@@ -65,10 +67,9 @@ impl IOLink {
         };
 
         self.modes
-            .replace(" ", "")
-            .split(",")
-            .into_iter()
-            .map(|s| String::from(s))
+            .replace(' ', "")
+            .split(',')
+            .map(String::from)
             .collect()
     }
 }
@@ -150,25 +151,15 @@ impl IONetwork {
 
         info!("IONetwork: Finished writing network.");
     }
-
-    fn create_partition_attr(partition: usize) -> Option<Attrs> {
-        let attrs = Attrs {
-            attributes: vec![Attr {
-                name: String::from("partition"),
-                value: partition.to_string(),
-                class: String::from("java.lang.Integer"),
-            }],
-        };
-        Some(attrs)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use quick_xml::de::from_str;
     use std::error::Error;
     use std::fs;
     use std::path::PathBuf;
+
+    use quick_xml::de::from_str;
 
     use crate::simulation::io::network::IONetwork;
 
@@ -193,7 +184,7 @@ mod tests {
     fn write_and_read_simple_network() {
         // set up
         let test_name = "write_and_read_simple_network";
-        clear_output_folder(&test_name);
+        clear_output_folder(test_name);
 
         let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
                 <!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v1.dtd\">
@@ -208,7 +199,7 @@ mod tests {
             ";
 
         let network: IONetwork = from_str(xml).unwrap();
-        let file_path = get_output_folder(&test_name).join("network.xml.gz");
+        let file_path = get_output_folder(test_name).join("network.xml.gz");
         network.to_file(&file_path);
 
         let result = IONetwork::from_file(file_path.to_str().unwrap());
