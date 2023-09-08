@@ -45,7 +45,7 @@ impl<T> Hash for IdImpl<T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct IdStore<'ext, T> {
     ids: Vec<Id<T>>,
     mapping: HashMap<&'ext str, usize>,
@@ -67,7 +67,7 @@ impl<'ext, T> IdStore<'ext, T> {
     pub fn create_id(&mut self, id: &str) -> Id<T> {
         if self.mapping.contains_key(id) {
             let index = *self.mapping.get(id).unwrap();
-            return self.ids.get(index as usize).unwrap().clone();
+            return self.ids.get(index).unwrap().clone();
         }
 
         // no id yet. create one
@@ -85,7 +85,7 @@ impl<'ext, T> IdStore<'ext, T> {
     pub fn get(&self, internal: usize) -> Id<T> {
         self.ids
             .get(internal)
-            .expect(format!("No id found for internal {internal}").as_str())
+            .unwrap_or_else(|| panic!("No id found for internal {internal}"))
             .clone()
     }
 
@@ -93,7 +93,7 @@ impl<'ext, T> IdStore<'ext, T> {
         let index = self
             .mapping
             .get(external)
-            .expect(format!("Could not find id for external id: {external}",).as_str());
+            .unwrap_or_else(|| panic!("Could not find id for external id: {external}"));
         self.ids.get(*index).unwrap().clone()
     }
 }

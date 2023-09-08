@@ -8,8 +8,7 @@ use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBrok
 use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle, VehicleType};
 use crate::simulation::network::link::SimLink;
-use crate::simulation::network::node::ExitReason;
-use crate::simulation::network::sim_network::SimNetworkPartition;
+use crate::simulation::network::sim_network::{ExitReason, SimNetworkPartition};
 use crate::simulation::time_queue::TimeQueue;
 
 pub struct Simulation<'sim> {
@@ -159,14 +158,14 @@ impl<'sim> Simulation<'sim> {
             );
         }
         match link {
-            SimLink::LocalLink(link) => {
+            SimLink::Local(link) => {
                 link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
             }
-            SimLink::SplitInLink(in_link) => {
+            SimLink::In(in_link) => {
                 let local_link = in_link.local_link_mut();
                 local_link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
             }
-            SimLink::SplitOutLink(_) => {
+            SimLink::Out(_) => {
                 panic!("Vehicles should not start on out links...")
             }
         }

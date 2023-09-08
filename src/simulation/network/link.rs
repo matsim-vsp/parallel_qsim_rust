@@ -1,9 +1,9 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use crate::simulation::id::{Id, IdImpl};
 use tracing::warn;
 
+use crate::simulation::id::{Id, IdImpl};
 use crate::simulation::io::network::IOLink;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::messages::proto::Vehicle;
@@ -14,17 +14,17 @@ use super::global_network::Link;
 
 #[derive(Debug, Clone)]
 pub enum SimLink {
-    LocalLink(LocalLink),
-    SplitInLink(SplitInLink),
-    SplitOutLink(SplitOutLink),
+    Local(LocalLink),
+    In(SplitInLink),
+    Out(SplitOutLink),
 }
 
 impl SimLink {
     pub fn from(&self) -> &Id<Node> {
         match self {
-            SimLink::LocalLink(l) => &l.from,
-            SimLink::SplitInLink(l) => &l.local_link.from,
-            SimLink::SplitOutLink(_) => {
+            SimLink::Local(l) => &l.from,
+            SimLink::In(l) => &l.local_link.from,
+            SimLink::Out(_) => {
                 panic!("There is no from id of a split out link.")
             }
         }
@@ -32,9 +32,9 @@ impl SimLink {
 
     pub fn to(&self) -> &Id<Node> {
         match self {
-            SimLink::LocalLink(l) => &l.to,
-            SimLink::SplitInLink(l) => &l.local_link.to,
-            SimLink::SplitOutLink(_) => {
+            SimLink::Local(l) => &l.to,
+            SimLink::In(l) => &l.local_link.to,
+            SimLink::Out(_) => {
                 panic!("There is no to id of a split out link.")
             }
         }
@@ -42,9 +42,9 @@ impl SimLink {
 
     pub fn contains_mode(&self, mode: &String) -> bool {
         match self {
-            SimLink::LocalLink(l) => l.modes.contains(mode),
-            SimLink::SplitInLink(l) => l.local_link.modes.contains(mode),
-            SimLink::SplitOutLink(_) => {
+            SimLink::Local(l) => l.modes.contains(mode),
+            SimLink::In(l) => l.local_link.modes.contains(mode),
+            SimLink::Out(_) => {
                 panic!("There is not enough information for SplitOutLinks to evaluate.")
             }
         }
@@ -52,9 +52,9 @@ impl SimLink {
 
     pub fn freespeed(&self) -> f32 {
         match self {
-            SimLink::LocalLink(l) => l.freespeed,
-            SimLink::SplitInLink(l) => l.local_link.freespeed,
-            SimLink::SplitOutLink(_) => {
+            SimLink::Local(l) => l.freespeed,
+            SimLink::In(l) => l.local_link.freespeed,
+            SimLink::Out(_) => {
                 panic!("There is no freespeed of a split out link.")
             }
         }
@@ -62,9 +62,9 @@ impl SimLink {
 
     pub fn length(&self) -> f32 {
         match self {
-            SimLink::LocalLink(l) => l.length,
-            SimLink::SplitInLink(l) => l.local_link.length,
-            SimLink::SplitOutLink(_) => {
+            SimLink::Local(l) => l.length,
+            SimLink::In(l) => l.local_link.length,
+            SimLink::Out(_) => {
                 panic!("There is no length of a split out link.")
             }
         }
@@ -72,9 +72,9 @@ impl SimLink {
 
     pub fn id(&self) -> Id<Link> {
         match self {
-            SimLink::LocalLink(l) => l.id.clone(),
-            SimLink::SplitInLink(l) => l.local_link.id.clone(),
-            SimLink::SplitOutLink(l) => l.id.clone(),
+            SimLink::Local(l) => l.id.clone(),
+            SimLink::In(l) => l.local_link.id.clone(),
+            SimLink::Out(l) => l.id.clone(),
         }
     }
 }
@@ -140,6 +140,7 @@ impl LocalLink {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Id<Link>,
         capacity_h: f32,

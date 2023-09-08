@@ -7,11 +7,12 @@ use crate::simulation::network::global_network::{Link, Network};
 
 type ActType = ();
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Population<'p> {
     pub agents: HashMap<Id<Agent>, Agent>,
     pub agent_ids: IdStore<'p, Agent>,
-    pub vehicle_ids: IdStore<'p, Vehicle>, // TODO this should probably go somewhere else
+    pub vehicle_ids: IdStore<'p, Vehicle>,
+    // TODO this should probably go somewhere else
     pub act_types: IdStore<'p, ActType>,
 }
 
@@ -27,7 +28,7 @@ impl<'p> Population<'p> {
 
     pub fn from_file(file: &str, net: &Network, partition: usize) -> Self {
         let io_population = IOPopulation::from_file(file);
-        Self::from_io(&io_population, &net, partition)
+        Self::from_io(&io_population, net, partition)
     }
 
     pub fn from_io(io_population: &IOPopulation, network: &Network, partition: usize) -> Self {
@@ -132,7 +133,7 @@ mod tests {
         let leg = plan.legs.first().unwrap();
         assert_eq!(None, leg.trav_time);
         assert_eq!(None, leg.dep_time);
-        assert!(matches!(leg.route, Some(_)));
+        assert!(leg.route.is_some());
         if let Route::NetworkRoute(net_route) = leg.route.as_ref().unwrap() {
             assert_eq!(
                 pop.vehicle_ids.get_from_ext("1").internal as u64,

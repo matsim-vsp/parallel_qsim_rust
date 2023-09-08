@@ -42,6 +42,7 @@ where
     }
 }
 
+#[derive(Default)]
 pub struct TimeQueue<T>
 where
     T: EndTime,

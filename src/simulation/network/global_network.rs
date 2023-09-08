@@ -45,6 +45,12 @@ pub struct Link {
     pub partition: usize,
 }
 
+impl<'a> Default for Network<'a> {
+    fn default() -> Self {
+        Network::new()
+    }
+}
+
 impl<'a> Network<'a> {
     pub fn new() -> Self {
         Network {
@@ -179,7 +185,7 @@ impl<'a> Network<'a> {
         };
         let modes: HashSet<Id<String>> = io_link
             .modes
-            .split(",")
+            .split(',')
             .map(|s| s.trim())
             .map(|mode| self.modes.create_id(mode))
             .collect();
@@ -248,6 +254,7 @@ impl Node {
 }
 
 impl Link {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         id: Id<Link>,
         from: Id<Node>,

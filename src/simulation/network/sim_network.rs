@@ -12,8 +12,12 @@ use crate::simulation::{
 use super::{
     global_network::{Link, Network, Node},
     link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
-    node::ExitReason,
 };
+
+pub enum ExitReason {
+    FinishRoute(Vehicle),
+    ReachedBoundary(Vehicle),
+}
 
 #[derive(Debug)]
 pub struct SimNetworkPartition<'n> {
@@ -29,17 +33,6 @@ impl<'n> SimNetworkPartition<'n> {
             .iter()
             .filter(|node| node.partition == partition)
             .map(|node| node.id.clone())
-            .collect();
-
-        let links: HashMap<_, _> = global_network
-            .links
-            .iter()
-            .map(|link| {
-                (
-                    link.id.clone(),
-                    Self::create_sim_link(link, partition, &global_network.nodes),
-                )
-            })
             .collect();
 
         let link_ids: HashSet<_> = nodes
@@ -66,22 +59,14 @@ impl<'n> SimNetworkPartition<'n> {
     fn create_sim_link(link: &Link, partition: usize, all_nodes: &Vec<Node>) -> SimLink {
         let from_part = all_nodes.get(link.from.internal).unwrap().partition;
         let to_part = all_nodes.get(link.to.internal).unwrap().partition;
-        let id = &link.id;
-        let from_id = &link.from;
-        let to_id = &link.to;
-
-        let from_node = all_nodes.get(link.from.internal).unwrap();
-        let to_node = all_nodes.get(link.to.internal).unwrap();
 
         return if from_part == to_part {
-            SimLink::LocalLink(LocalLink::from_link(link, 1.0))
+            SimLink::Local(LocalLink::from_link(link, 1.0))
+        } else if to_part == partition {
+            let local_link = LocalLink::from_link(&link, 1.0);
+            SimLink::In(SplitInLink::new(from_part, local_link))
         } else {
-            if to_part == partition {
-                let local_link = LocalLink::from_link(&link, 1.0);
-                SimLink::SplitInLink(SplitInLink::new(from_part, local_link))
-            } else {
-                SimLink::SplitOutLink(SplitOutLink::new(link.id.clone(), to_part))
-            }
+            SimLink::Out(SplitOutLink::new(link.id.clone(), to_part))
         };
     }
 
@@ -102,14 +87,14 @@ impl<'n> SimNetworkPartition<'n> {
             .links
             .values()
             .filter(|link| match link {
-                SimLink::LocalLink(_) => false,
-                SimLink::SplitInLink(_) => true,
-                SimLink::SplitOutLink(_) => true,
+                SimLink::Local(_) => false,
+                SimLink::In(_) => true,
+                SimLink::Out(_) => true,
             })
             .map(|link| match link {
-                SimLink::LocalLink(_) => panic!("Should be filtered."),
-                SimLink::SplitInLink(link) => link.neighbor_partition_id(),
-                SimLink::SplitOutLink(link) => link.neighbor_partition_id(),
+                SimLink::Local(_) => panic!("Should be filtered."),
+                SimLink::In(link) => link.neighbor_partition_id(),
+                SimLink::Out(link) => link.neighbor_partition_id(),
             })
             .collect();
         distinct_partitions
@@ -150,20 +135,18 @@ impl<'n> SimNetworkPartition<'n> {
         let node = global_network.get_node(node_id);
         for link_id in &node.in_links {
             let vehicles = match links.get_mut(link_id).unwrap() {
-                SimLink::LocalLink(l) => l.pop_front(now),
-                SimLink::SplitInLink(sl) => sl.local_link_mut().pop_front(now),
-                SimLink::SplitOutLink(_) => panic!("No out link expected as in link of a node."),
+                SimLink::Local(l) => l.pop_front(now),
+                SimLink::In(sl) => sl.local_link_mut().pop_front(now),
+                SimLink::Out(_) => panic!("No out link expected as in link of a node."),
             };
             for mut vehicle in vehicles {
                 if vehicle.is_current_link_last() {
                     vehicle.advance_route_index();
                     exited_vehicles.push(ExitReason::FinishRoute(vehicle));
-                } else {
-                    if let Some(exit_reason) =
-                        Self::move_vehicle(vehicle, veh_def, global_network, links, events, now)
-                    {
-                        exited_vehicles.push(exit_reason);
-                    }
+                } else if let Some(exit_reason) =
+                    Self::move_vehicle(vehicle, veh_def, global_network, links, events, now)
+                {
+                    exited_vehicles.push(exit_reason);
                 }
             }
         }
@@ -186,7 +169,7 @@ impl<'n> SimNetworkPartition<'n> {
             .link_ids
             .get(vehicle.curr_route_elem as usize);
         match links.get_mut(&link_id).unwrap() {
-            SimLink::LocalLink(l) => {
+            SimLink::Local(l) => {
                 events.publish_event(
                     now,
                     &Event::new_link_enter(l.id.internal as u64, vehicle.id),
@@ -194,8 +177,8 @@ impl<'n> SimNetworkPartition<'n> {
                 l.push_vehicle(vehicle, now, veh_def);
                 None
             }
-            SimLink::SplitOutLink(_) => Some(ExitReason::ReachedBoundary(vehicle)),
-            SimLink::SplitInLink(_) => {
+            SimLink::Out(_) => Some(ExitReason::ReachedBoundary(vehicle)),
+            SimLink::In(_) => {
                 panic!("Not expecting to move a vehicle onto a split in link.")
             }
         }
@@ -204,7 +187,6 @@ impl<'n> SimNetworkPartition<'n> {
 
 #[cfg(test)]
 mod tests {
-
     use crate::simulation::{
         messaging::{
             events::EventsPublisher,
@@ -215,10 +197,10 @@ mod tests {
         network::{
             global_network::{Link, Network, Node},
             link::SimLink,
-            node::ExitReason,
         },
     };
 
+    use super::ExitReason;
     use super::SimNetworkPartition;
 
     #[test]
@@ -235,12 +217,12 @@ mod tests {
             .links
             .get(&net1.global_network.link_ids.get(0))
             .unwrap();
-        assert!(matches!(local_link, SimLink::LocalLink(_)));
+        assert!(matches!(local_link, SimLink::Local(_)));
         let out_link = net1
             .links
             .get(&net1.global_network.link_ids.get(1))
             .unwrap();
-        assert!(matches!(out_link, SimLink::SplitOutLink(_)));
+        assert!(matches!(out_link, SimLink::Out(_)));
 
         let net2 = sim_nets.get_mut(1).unwrap();
         println!("{net2:#?}");
@@ -252,7 +234,7 @@ mod tests {
             .links
             .get(&net2.global_network.link_ids.get(1))
             .unwrap();
-        assert!(matches!(in_link, SimLink::SplitInLink(_)));
+        assert!(matches!(in_link, SimLink::In(_)));
     }
 
     #[test]
@@ -263,7 +245,7 @@ mod tests {
         let agent = create_agent(1, vec![0]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         let in_link_id = sim_network.global_network.link_ids.get(0);
-        if let SimLink::LocalLink(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
+        if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle, 1, None);
         }
 
@@ -281,7 +263,7 @@ mod tests {
         let agent = create_agent(1, vec![0, 1]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         let in_link_id = sim_network.global_network.link_ids.get(0);
-        if let SimLink::LocalLink(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
+        if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle, 1, None);
         }
 
@@ -289,7 +271,7 @@ mod tests {
 
         assert_eq!(0, exits.len());
         let out_id = sim_network.global_network.link_ids.get(1);
-        if let SimLink::LocalLink(out_link) = sim_network.links.get_mut(&out_id).unwrap() {
+        if let SimLink::Local(out_link) = sim_network.links.get_mut(&out_id).unwrap() {
             let vehicles = out_link.pop_front(22);
             assert_eq!(1, vehicles.len());
         }
@@ -304,7 +286,7 @@ mod tests {
         let agent = create_agent(1, vec![0, 1]);
         let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
         let in_link_id = sim_network.global_network.link_ids.get(0);
-        if let SimLink::LocalLink(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
+        if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle, 1, None);
         }
 
@@ -325,7 +307,7 @@ mod tests {
         let agent2 = create_agent(2, vec![0]);
         let vehicle2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent2);
         let in_link_id = sim_network.global_network.link_ids.get(0);
-        if let SimLink::LocalLink(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
+        if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle1, 1, None);
             link1.push_vehicle(vehicle2, 1, None);
         }
@@ -358,7 +340,7 @@ mod tests {
         let agent2 = create_agent(2, vec![0, 1]);
         let vehicle2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent2);
         let in_link_id = sim_network.global_network.link_ids.get(0);
-        if let SimLink::LocalLink(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
+        if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle1, 1, None);
             link1.push_vehicle(vehicle2, 1, None);
         }
@@ -372,7 +354,7 @@ mod tests {
             .links
             .get_mut(&sim_network.global_network.link_ids.get(1))
             .unwrap();
-        if let SimLink::LocalLink(local_out) = out_link {
+        if let SimLink::Local(local_out) = out_link {
             let vehicles = local_out.pop_front(23);
             assert_eq!(1, vehicles.len());
             let vehicles = local_out.pop_front(24);
