@@ -103,6 +103,23 @@ prerequisites can be loaded as follows:
 $ module load gcc/9.3.0 llvm/9.0.0 openmpi/gcc.9/4.1.4 metis/5.1.0
 ```
 
+#### MacOS
+Install metis dependency
+```
+$ homebrew install metis
+```
+Install open-mpi dependency
+```
+$ homebrew install open-mpi
+```
+The paths for open-mpi dependencies are figure out by `rsmpi` automagically. For `metis` these paths must be set manually
+```
+export CPATH=$HOMEBREW_PREFIX/include
+export RUSTFLAGS="-L$HOMEBREW_PREFIX/lib"
+```
+So far, the build doesn't execute, as `rust_road_router` uses the `affinity` crate which currently only works on Windows and Linux :-(
+
+
 ### Set up in IntelliJ/CLion
 
 Programming Rust in IntelliJ is possible by installing
