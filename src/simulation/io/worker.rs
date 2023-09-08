@@ -1,9 +1,9 @@
+use crate::simulation::io::non_blocking_io::Msg;
 /// This entire module is copied from the tracing_appender crate
 use std::fmt::Debug;
 use std::io::Write;
 use std::sync::mpsc::{Receiver, RecvError, TryRecvError};
 use std::{io, thread};
-use crate::simulation::io::non_blocking_io::Msg;
 
 pub(crate) struct Worker<T: Write + Send + Sync + 'static> {
     writer: T,

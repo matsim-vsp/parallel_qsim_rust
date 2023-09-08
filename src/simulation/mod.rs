@@ -1,16 +1,11 @@
 pub mod config;
 pub mod controller;
-mod id_mapping;
+pub mod id;
 pub mod io;
 pub mod logging;
 pub mod messaging;
-#[allow(dead_code)]
 mod network;
-#[allow(dead_code)]
-mod partition_info;
 pub mod performance_profiling;
-mod population;
-#[allow(unused_comparisons, dead_code)]
-mod routing;
+pub mod population;
 mod simulation;
 pub mod time_queue;

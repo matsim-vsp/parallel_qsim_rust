@@ -1,10 +1,9 @@
 use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
-
+use crate::simulation::network::sim_network::SimNetworkPartition;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::sync::Arc;
 
 pub trait MessageBroker {
     fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage>;
@@ -16,7 +15,9 @@ pub struct MpiMessageBroker {
     neighbors: HashSet<u32>,
     out_messages: HashMap<u32, VehicleMessage>,
     in_messages: BinaryHeap<VehicleMessage>,
-    link_id_mapping: Arc<HashMap<usize, usize>>,
+    // store link mapping with internal ids instead of id structs, because vehicles only store internal
+    // ids (usize) and this way we don't need to keep a reference to the global network's id store
+    link_mapping: HashMap<usize, usize>,
 }
 
 impl MessageBroker for MpiMessageBroker {
@@ -97,7 +98,7 @@ impl MessageBroker for MpiMessageBroker {
 
     fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap();
-        let partition = *self.link_id_mapping.get(&link_id).unwrap() as u32;
+        let partition = *self.link_mapping.get(&link_id).unwrap() as u32;
         let message = self
             .out_messages
             .entry(partition)
@@ -110,21 +111,31 @@ impl MpiMessageBroker {
     pub fn new(
         communicator: SystemCommunicator,
         rank: Rank,
-        neighbors: HashSet<u32>,
-        link_id_mapping: Arc<HashMap<usize, usize>>,
+        network: &SimNetworkPartition,
     ) -> Self {
+        let neighbors = network
+            .neighbors()
+            .iter()
+            .map(|rank| *rank as u32)
+            .collect();
+        let link_mapping = network
+            .global_network
+            .links
+            .iter()
+            .map(|link| (link.id.internal, link.partition))
+            .collect();
         MpiMessageBroker {
             out_messages: HashMap::new(),
             in_messages: BinaryHeap::new(),
             communicator,
             neighbors,
             rank,
-            link_id_mapping,
+            link_mapping,
         }
     }
 
     pub fn rank_for_link(&self, link_id: u64) -> u64 {
-        *self.link_id_mapping.get(&(link_id as usize)).unwrap() as u64
+        *self.link_mapping.get(&(link_id as usize)).unwrap() as u64
     }
 
     fn pop_from_cache(
@@ -161,5 +172,18 @@ impl MpiMessageBroker {
                 .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
         }
         messages
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mpi::traits::Communicator;
+
+    #[test]
+    fn some_test() {
+        let universe = mpi::initialize().unwrap();
+        let rank = universe.world().rank();
+
+        println!("This test was run!!! {}", rank)
     }
 }

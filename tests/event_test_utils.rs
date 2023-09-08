@@ -109,7 +109,6 @@ pub fn run_mpi_simulation_and_convert_events(
     network_file: &str,
     population_file: &str,
     output_dir: &str,
-    routing_mode: &str,
     vehicle_definitions_file: Option<&str>,
 ) {
     let mut command = Command::new("cargo");
@@ -125,9 +124,7 @@ pub fn run_mpi_simulation_and_convert_events(
         .arg("--population-file")
         .arg(population_file)
         .arg("--output-dir")
-        .arg(output_dir)
-        .arg("--routing-mode")
-        .arg(routing_mode);
+        .arg(output_dir);
 
     if let Some(vehicle_definitions) = vehicle_definitions_file {
         command
