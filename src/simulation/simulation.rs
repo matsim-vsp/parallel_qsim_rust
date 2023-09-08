@@ -1,17 +1,16 @@
+use tracing::info;
+
 use crate::simulation::config::Config;
-use crate::simulation::id_mapping::MatsimIdMappings;
 use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::simulation::messaging::messages::proto::leg::Route;
-use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle, VehicleType,
-};
+use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle, VehicleType};
 use crate::simulation::network::link::SimLink;
 use crate::simulation::network::node::ExitReason;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::time_queue::TimeQueue;
-use tracing::info;
 
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
@@ -20,13 +19,11 @@ pub struct Simulation<'sim> {
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
     vehicle_definitions: Option<VehicleDefinitions>,
-    id_mappings: &'sim MatsimIdMappings,
 }
 
 impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
-        id_mappings: &'sim MatsimIdMappings,
         network: SimNetworkPartition<'sim>,
         population: crate::simulation::population::population::Population,
         message_broker: MpiMessageBroker,
@@ -45,7 +42,6 @@ impl<'sim> Simulation<'sim> {
             message_broker,
             events,
             vehicle_definitions,
-            id_mappings,
         }
     }
 
@@ -123,7 +119,7 @@ impl<'sim> Simulation<'sim> {
                     }
                 }
                 Route::NetworkRoute(route) => {
-                    let link_id = route.route.get(0).unwrap();
+                    let link_id = route.route.first().unwrap();
                     self.events.publish_event(
                         now,
                         &Event::new_departure(agent_id, *link_id, leg.mode.clone()),
@@ -149,10 +145,12 @@ impl<'sim> Simulation<'sim> {
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
         let link_id_internal = vehicle.curr_link_id().unwrap(); // in this case there should always be a link id.
         let link_id = self.network.global_network.link_ids.get(link_id_internal);
-        let link = self.network.links.get_mut(&link_id).expect(&*format!(
-            "Cannot find link for link_id {:?} and vehicle {:?}",
-            link_id, vehicle
-        ));
+        let link = self.network.links.get_mut(&link_id).unwrap_or_else(|| {
+            panic!(
+                "Cannot find link for link_id {:?} and vehicle {:?}",
+                link_id, vehicle
+            )
+        });
 
         if !from_act {
             self.events.publish_event(
