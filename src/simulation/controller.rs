@@ -9,7 +9,6 @@ use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::io::vehicle_definitions::{IOVehicleDefinitions, VehicleDefinitions};
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -55,20 +54,12 @@ pub fn run(world: SystemCommunicator, config: Config) {
     //events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let mut vehicle_definitions: Option<VehicleDefinitions> = None;
-    if let Some(vehicle_definitions_file_path) = &config.vehicle_definitions_file {
-        let io_vehicle_definitions =
-            IOVehicleDefinitions::from_file(vehicle_definitions_file_path.as_ref());
-        vehicle_definitions = Some(VehicleDefinitions::from_io(io_vehicle_definitions));
-    }
-
     let mut simulation = Simulation::new(
         &config,
         network_partition,
         population,
         message_broker,
         events,
-        vehicle_definitions,
     );
 
     let start = Instant::now();

@@ -1,8 +1,9 @@
 use std::{collections::HashSet, path::Path};
 
+use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::{
     id::{Id, IdStore},
-    io::network::{Attr, Attrs, IOLink, IONetwork, IONode},
+    io::network::{IOLink, IONetwork, IONode},
 };
 
 use super::metis_partitioning;

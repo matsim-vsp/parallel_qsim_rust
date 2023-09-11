@@ -9,22 +9,9 @@ use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::xml_reader;
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct Attr {
-    pub name: String,
-    pub class: String,
-    #[serde(rename = "$value")]
-    pub value: String,
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct Attrs {
-    #[serde(rename = "attribute", default)]
-    pub attributes: Vec<Attr>,
-}
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IONode {
