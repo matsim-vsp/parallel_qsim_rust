@@ -1,12 +1,11 @@
 use tracing::info;
 
 use crate::simulation::config::Config;
-use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::simulation::messaging::messages::proto::leg::Route;
-use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle, VehicleType};
+use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle};
 use crate::simulation::network::link::SimLink;
 use crate::simulation::network::sim_network::{ExitReason, SimNetworkPartition};
 use crate::simulation::time_queue::TimeQueue;
@@ -17,7 +16,6 @@ pub struct Simulation<'sim> {
     network: SimNetworkPartition<'sim>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
-    vehicle_definitions: Option<VehicleDefinitions>,
 }
 
 impl<'sim> Simulation<'sim> {
@@ -27,7 +25,6 @@ impl<'sim> Simulation<'sim> {
         population: crate::simulation::population::population::Population,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
-        vehicle_definitions: Option<VehicleDefinitions>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
         for agent in population.agents.into_values() {
@@ -40,7 +37,6 @@ impl<'sim> Simulation<'sim> {
             activity_q,
             message_broker,
             events,
-            vehicle_definitions,
         }
     }
 
@@ -96,24 +92,14 @@ impl<'sim> Simulation<'sim> {
                 Route::GenericRoute(route) => {
                     self.events.publish_event(
                         now,
-                        &Event::new_departure(agent_id, route.start_link, leg.mode.clone()),
+                        &Event::new_departure(agent_id, route.start_link, String::from("")),
                     );
 
                     if Simulation::is_local_route(route, &self.message_broker) {
-                        let veh = Vehicle::new(
-                            agent.id,
-                            VehicleType::Teleported,
-                            leg.mode.clone(),
-                            agent,
-                        );
+                        let veh = Vehicle::new(agent.id, 1, leg.mode.clone(), agent);
                         self.teleportation_q.add(veh, now);
                     } else {
-                        let veh = Vehicle::new(
-                            agent.id,
-                            VehicleType::Teleported,
-                            leg.mode.clone(),
-                            agent,
-                        );
+                        let veh = Vehicle::new(agent.id, 1, leg.mode.clone(), agent);
                         self.message_broker.add_veh(veh, now);
                     }
                 }
@@ -121,7 +107,7 @@ impl<'sim> Simulation<'sim> {
                     let link_id = route.route.first().unwrap();
                     self.events.publish_event(
                         now,
-                        &Event::new_departure(agent_id, *link_id, leg.mode.clone()),
+                        &Event::new_departure(agent_id, *link_id, String::from("")),
                     );
 
                     self.events.publish_event(
@@ -129,12 +115,7 @@ impl<'sim> Simulation<'sim> {
                         &Event::new_person_enters_veh(agent_id, route.vehicle_id),
                     );
 
-                    let veh = Vehicle::new(
-                        route.vehicle_id,
-                        VehicleType::Network,
-                        leg.mode.clone(),
-                        agent,
-                    );
+                    let veh = Vehicle::new(route.vehicle_id, 0, leg.mode.clone(), agent);
                     self.veh_onto_network(veh, true, now);
                 }
             }
@@ -158,12 +139,10 @@ impl<'sim> Simulation<'sim> {
             );
         }
         match link {
-            SimLink::Local(link) => {
-                link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
-            }
+            SimLink::Local(link) => link.push_vehicle(vehicle, now),
             SimLink::In(in_link) => {
                 let local_link = in_link.local_link_mut();
-                local_link.push_vehicle(vehicle, now, self.vehicle_definitions.as_ref())
+                local_link.push_vehicle(vehicle, now)
             }
             SimLink::Out(_) => {
                 panic!("Vehicles should not start on out links...")
@@ -180,7 +159,7 @@ impl<'sim> Simulation<'sim> {
             if let Route::GenericRoute(route) = &leg.route.as_ref().unwrap() {
                 self.events.publish_event(
                     now,
-                    &Event::new_travelled(agent.id, route.distance, leg.mode.clone()),
+                    &Event::new_travelled(agent.id, route.distance, String::from("")),
                 );
             }
             agent.advance_plan();
@@ -189,16 +168,14 @@ impl<'sim> Simulation<'sim> {
     }
 
     fn move_nodes(&mut self, now: u32) {
-        let exited_vehicles =
-            self.network
-                .move_nodes(&mut self.events, self.vehicle_definitions.as_ref(), now);
+        let exited_vehicles = self.network.move_nodes(&mut self.events, now);
 
         for exit_reason in exited_vehicles {
             match exit_reason {
                 ExitReason::FinishRoute(vehicle) => {
                     let veh_id = vehicle.id;
                     let mut agent = vehicle.agent.unwrap();
-                    let leg_mode = agent.curr_leg().mode.clone();
+                    let leg_mode = 0; // todo fix mode
 
                     self.events
                         .publish_event(now, &Event::new_person_leaves_veh(agent.id, veh_id));
@@ -206,8 +183,10 @@ impl<'sim> Simulation<'sim> {
                     agent.advance_plan();
                     let act = agent.curr_act();
 
-                    self.events
-                        .publish_event(now, &Event::new_arrival(agent.id, act.link_id, leg_mode));
+                    self.events.publish_event(
+                        now,
+                        &Event::new_arrival(agent.id, act.link_id, String::from("some mode")),
+                    ); //todo fix  mode
 
                     self.events.publish_event(
                         now,
@@ -231,13 +210,14 @@ impl<'sim> Simulation<'sim> {
             .collect::<Vec<Vehicle>>();
 
         for vehicle in vehicles {
-            match vehicle.r#type() {
-                VehicleType::Teleported => {
+            match vehicle.r#type {
+                1 => {
                     self.teleportation_q.add(vehicle, now);
                 }
-                VehicleType::Network => {
+                0 => {
                     self.veh_onto_network(vehicle, false, now);
                 }
+                _ => {}
             }
         }
     }

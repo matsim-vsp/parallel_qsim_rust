@@ -11,7 +11,7 @@ use crate::simulation::io::population::{
 use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::{
     Activity, Agent, ExperimentalMessage, GenericRoute, Leg, NetworkRoute, Plan,
-    TravelTimesMessage, Vehicle, VehicleMessage, VehicleType,
+    TravelTimesMessage, Vehicle, VehicleMessage,
 };
 use crate::simulation::network::global_network::Network;
 use crate::simulation::population::population::Population;
@@ -111,13 +111,14 @@ impl Ord for VehicleMessage {
 }
 
 impl Vehicle {
-    pub fn new(id: u64, veh_type: VehicleType, mode: String, agent: Agent) -> Vehicle {
+    // todo, fix type and mode
+    pub fn new(id: u64, veh_type: u64, mode: u64, agent: Agent) -> Vehicle {
         Vehicle {
             id,
             agent: Some(agent),
             curr_route_elem: 0,
-            r#type: veh_type as i32,
-            mode,
+            r#type: 0,
+            mode: 0,
         }
     }
 
@@ -152,10 +153,6 @@ impl Vehicle {
             Route::GenericRoute(_) => true,
             Route::NetworkRoute(route) => self.curr_route_elem + 1 >= route.route.len() as u32,
         }
-    }
-
-    pub fn mode(&self) -> &str {
-        self.mode.as_str()
     }
 }
 
@@ -486,7 +483,7 @@ impl Leg {
         let route = Route::from_io(&io_leg.route, net, pop);
         Self {
             route: Some(route),
-            mode: io_leg.mode.clone(),
+            mode: 0, //todo fix mode
             trav_time: parse_time_opt(&io_leg.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
         }
@@ -495,7 +492,7 @@ impl Leg {
     pub fn new(route: Route, mode: &str, trav_time: Option<u32>, dep_time: Option<u32>) -> Self {
         Self {
             route: Some(route),
-            mode: String::from(mode),
+            mode: 0, //todo fix mode
             trav_time,
             dep_time,
         }
