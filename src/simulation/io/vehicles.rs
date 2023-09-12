@@ -18,35 +18,60 @@ pub struct IOVehicles {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct IOVehicleType {
     pub id: String,
-    pub descr: String,
-    pub capacity: IOCapacity,
-    pub length: f32,
-    pub width: f32,
-    pub maximum_velocity: f32,
-    pub engine_information: IOEngineInformation,
-    pub cost_information: IOCostInformation,
-    pub passenger_car_equivalents: f32,
-    pub network_mode: String,
-    pub flow_efficiency_factor: f32,
+    pub description: Option<String>,
+    pub capacity: Option<IOCapacity>,
+    pub length: Option<IODimension>,
+    pub width: Option<IODimension>,
+    pub maximum_velocity: Option<IOVelocity>,
+    pub engine_information: Option<IOEngineInformation>,
+    pub cost_information: Option<IOCostInformation>,
+    pub passenger_car_equivalents: Option<IOPassengerCarEquivalents>,
+    pub network_mode: Option<IONetworkMode>,
+    pub flow_efficiency_factor: Option<IOFowEfficiencyFactor>,
     pub attributes: Option<Attrs>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-#[serde(rename = "capacity")]
 pub struct IOCapacity {
     // leave emtpy for now
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-#[serde(rename = "capacity")]
+pub struct IODimension {
+    meter: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct IOVelocity {
+    meter_per_second: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct IOPassengerCarEquivalents {
+    pce: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct IONetworkMode {
+    network_mode: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct IOFowEfficiencyFactor {
+    factor: f32,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOEngineInformation {
     // leave empty for now.
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-#[serde(rename = "capacity")]
 pub struct IOCostInformation {
     // leave empty for now.
 }
@@ -59,11 +84,82 @@ impl IOVehicleDefinitions {
 
 #[cfg(test)]
 mod test {
+    use quick_xml::de::from_str;
+
     use crate::simulation::io::vehicles::IOVehicleDefinitions;
 
     #[test]
+    fn from_string_empty_type() {
+        let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+                            <vehicleDefinitions xmlns=\"http://www.matsim.org/files/dtd\">\
+                                <vehicleType id=\"some-vehicle-id\">\
+                                </vehicleType>\
+                            </vehicleDefinitions>\
+                        ";
+        let veh_def: IOVehicleDefinitions = from_str(xml).unwrap();
+
+        assert_eq!(1, veh_def.veh_types.len());
+
+        let veh_type = veh_def.veh_types.first().unwrap();
+        assert_eq!("some-vehicle-id", veh_type.id.as_str());
+    }
+
+    #[test]
+    fn from_string_full_type() {
+        let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+                            <vehicleDefinitions xmlns=\"http://www.matsim.org/files/dtd\">\
+                                <vehicleType id=\"some-vehicle-id\">\
+                                    <description>some-description</description>\
+                                    <length meter=\"9.5\"/>\
+                                    <width meter=\"9.5\"/>\
+                                    <maximumVelocity meterPerSecond=\"9.5\"/>\
+                                    <passengerCarEquivalents pce=\"9.5\"/>\
+                                    <networkMode networkMode=\"some-network-mode\"/>\
+                                    <flowEfficiencyFactor factor=\"9.5\"/>\
+                                </vehicleType>\
+                            </vehicleDefinitions>\
+                        ";
+
+        let veh_def: IOVehicleDefinitions = from_str(xml).unwrap();
+
+        assert_eq!(1, veh_def.veh_types.len());
+
+        let veh_type = veh_def.veh_types.first().unwrap();
+        assert_eq!("some-vehicle-id", veh_type.id.as_str());
+        assert_eq!(
+            "some-description",
+            veh_type.description.as_ref().unwrap().as_str()
+        );
+        assert_eq!(
+            "some-network-mode",
+            veh_type
+                .network_mode
+                .as_ref()
+                .unwrap()
+                .network_mode
+                .as_str()
+        );
+        assert_eq!(9.5, veh_type.length.as_ref().unwrap().meter);
+        assert_eq!(9.5, veh_type.width.as_ref().unwrap().meter);
+        assert_eq!(
+            9.5,
+            veh_type.maximum_velocity.as_ref().unwrap().meter_per_second
+        );
+        assert_eq!(
+            9.5,
+            veh_type.passenger_car_equivalents.as_ref().unwrap().pce
+        );
+        assert_eq!(
+            9.5,
+            veh_type.flow_efficiency_factor.as_ref().unwrap().factor
+        );
+    }
+
+    #[test]
     fn test_from_file() {
-        let io_vehicles = IOVehicleDefinitions::from_file("./assets/vehicles/vehicles_v2.xml");
-        println!("{io_vehicles:#?}")
+        let veh_def = IOVehicleDefinitions::from_file("./assets/vehicles/vehicles_v2.xml");
+        assert_eq!(3, veh_def.veh_types.len());
+        // no further assertions here, as the tests above test the individual properties.
+        // so, this test mainly tests whether the vehicles implementation calls the xml_reader
     }
 }

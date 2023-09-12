@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<vehicleDefinitions xmlns="http://www.matsim.org/files/dtd"
->
+<vehicleDefinitions xmlns="http://www.matsim.org/files/dtd">
 
     <vehicleType id="normal&amp;Car">
         <attributes>

@@ -1,9 +1,9 @@
-use quick_xml::de::from_reader;
-use serde::de::DeserializeOwned;
-use std::fs;
 use std::fs::File;
 use std::io::BufReader;
-use tracing::{debug, info};
+
+use quick_xml::de::from_reader;
+use serde::de::DeserializeOwned;
+use tracing::info;
 
 pub fn read<T>(file_path: &str) -> T
 where
@@ -15,26 +15,26 @@ where
     let buffered_reader = BufReader::new(file);
 
     // I guess this could be prettier, but I don't know how to achieve this in Rust yet :-/
-    return if file_path.ends_with(".xml.gz") {
+    if file_path.ends_with(".xml.gz") {
         // use full name, to avoid ambiguity
         let decoder = flate2::read::GzDecoder::new(buffered_reader);
         let buffered_decoder = BufReader::new(decoder);
         let result: T = from_reader(buffered_decoder).unwrap();
         result
     } else if file_path.ends_with(".xml") {
-        let s = fs::read_to_string(file_path).expect("Couldn't find file.");
-        debug!("File content of {}:\n{}", file_path, s);
         let result: Result<T, _> = from_reader(buffered_reader);
         match result {
             Ok(x) => x,
-            Err(e) => panic!("Problem reading file: {:?}", e),
+            Err(_e) => {
+                panic!("Problem reading file: {_e:?}")
+            }
         }
     } else {
         panic!(
             "xml_reader::read: Can't open file path: {}. Only files with endings '.xml' or '.xml.gz' are supported.",
             file_path
         );
-    };
+    }
 }
 
 #[cfg(test)]
