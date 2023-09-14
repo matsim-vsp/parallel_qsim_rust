@@ -112,13 +112,12 @@ impl Ord for VehicleMessage {
 
 impl Vehicle {
     // todo, fix type and mode
-    pub fn new(id: u64, veh_type: u64, mode: u64, agent: Agent) -> Vehicle {
+    pub fn new(id: u64, veh_type: u64, agent: Option<Agent>) -> Vehicle {
         Vehicle {
-            id,
-            agent: Some(agent),
+            id: id,
+            agent,
             curr_route_elem: 0,
-            r#type: 0,
-            mode: 0,
+            r#type: veh_type,
         }
     }
 
@@ -402,7 +401,7 @@ impl Plan {
         for element in &io_plan.elements {
             match element {
                 IOPlanElement::Activity(io_act) => {
-                    let act = Activity::from_io(io_act, net);
+                    let act = Activity::from_io(io_act, net, pop);
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => {
@@ -429,12 +428,13 @@ impl Plan {
 }
 
 impl Activity {
-    fn from_io(io_act: &IOActivity, net: &Network) -> Self {
+    fn from_io(io_act: &IOActivity, net: &Network, pop: &Population) -> Self {
         let link_id = net.link_ids.get_from_ext(&io_act.link);
+        let act_type = pop.act_types.get_from_ext(&io_act.r#type);
         Activity {
             x: io_act.x,
             y: io_act.y,
-            act_type: io_act.r#type.clone(),
+            act_type: act_type.internal as u64,
             link_id: link_id.internal as u64,
             start_time: parse_time_opt(&io_act.start_time),
             end_time: parse_time_opt(&io_act.end_time),
@@ -445,7 +445,7 @@ impl Activity {
     pub fn new(
         x: f32,
         y: f32,
-        act_type: String,
+        act_type: u64,
         link_id: u64,
         start_time: Option<u32>,
         end_time: Option<u32>,
@@ -471,10 +471,6 @@ impl Activity {
             // supposed to be an equivalent for OptionalTime.undefined() in the java code
             u32::MAX
         }
-    }
-
-    pub fn is_interaction(&self) -> bool {
-        self.act_type.contains("interaction")
     }
 }
 

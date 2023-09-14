@@ -14,6 +14,7 @@ use crate::simulation::messaging::message_broker::MpiMessageBroker;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
 use crate::simulation::simulation::Simulation;
+use crate::simulation::vehicles::garage::Garage;
 
 pub fn run(world: SystemCommunicator, config: Config) {
     let rank = world.rank();
@@ -34,8 +35,14 @@ pub fn run(world: SystemCommunicator, config: Config) {
         network.to_file(&output_path.join("output_network.xml.gz"));
     }
 
-    let population =
-        Population::from_file(config.population_file.as_ref(), &network, rank as usize);
+    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
+
+    let population = Population::from_file(
+        config.population_file.as_ref(),
+        &network,
+        &mut garage,
+        rank as usize,
+    );
     let network_partition = SimNetworkPartition::from_network(&network, rank as usize);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",

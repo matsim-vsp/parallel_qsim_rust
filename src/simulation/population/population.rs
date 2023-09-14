@@ -4,6 +4,7 @@ use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation, IORoute};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::global_network::{Link, Network};
+use crate::simulation::vehicles::garage::Garage;
 
 type ActType = ();
 
@@ -26,17 +27,22 @@ impl<'p> Population<'p> {
         }
     }
 
-    pub fn from_file(file: &str, net: &Network, partition: usize) -> Self {
+    pub fn from_file(file: &str, net: &Network, garage: &mut Garage, partition: usize) -> Self {
         let io_population = IOPopulation::from_file(file);
-        Self::from_io(&io_population, net, partition)
+        Self::from_io(&io_population, net, garage, partition)
     }
 
-    pub fn from_io(io_population: &IOPopulation, network: &Network, partition: usize) -> Self {
+    pub fn from_io(
+        io_population: &IOPopulation,
+        network: &Network,
+        garage: &mut Garage,
+        partition: usize,
+    ) -> Self {
         let mut result = Population::new();
 
         // first pass to set ids globally
         for io in io_population.persons.iter() {
-            Self::agent_id(io, &mut result);
+            Self::agent_id(io, &mut result, garage);
         }
 
         // then copy the agents on this partition
@@ -63,7 +69,7 @@ impl<'p> Population<'p> {
         panic!("First element should be activity.");
     }
 
-    fn agent_id(io: &IOPerson, pop: &mut Population) {
+    fn agent_id(io: &IOPerson, pop: &mut Population, garage: &mut Garage) {
         pop.agent_ids.create_id(&io.id);
         for io_plan in io.plans.iter() {
             for element in io_plan.elements.iter() {
@@ -72,14 +78,14 @@ impl<'p> Population<'p> {
                         pop.act_types.create_id(&a.r#type);
                     }
                     IOPlanElement::Leg(l) => {
-                        Self::route_ids(&l.route, pop);
+                        Self::route_ids(&l.route, garage);
                     }
                 }
             }
         }
     }
 
-    fn route_ids(io: &IORoute, pop: &mut Population) {
+    fn route_ids(io: &IORoute, garage: &mut Garage) {
         match io.r#type.as_str() {
             "links" => {
                 let veh_id = io
@@ -89,7 +95,7 @@ impl<'p> Population<'p> {
                 match veh_id.as_str() {
                     "null" => (),
                     _ => {
-                        pop.vehicle_ids.create_id(veh_id);
+                        garage.add_veh_id(veh_id);
                     }
                 };
             }
@@ -103,11 +109,13 @@ mod tests {
     use crate::simulation::messaging::messages::proto::leg::Route;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::population::Population;
+    use crate::simulation::vehicles::garage::Garage;
 
     #[test]
     fn from_io_1_plan() {
         let net = Network::from_file("./assets/equil/equil-network.xml", 1);
-        let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, 0);
+        let mut garage = Garage::new();
+        let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
         assert_eq!(1, pop.agents.len());
 
@@ -119,7 +127,8 @@ mod tests {
         assert_eq!(3, plan.legs.len());
 
         let home_act = plan.acts.first().unwrap();
-        assert_eq!("h", home_act.act_type.as_str());
+        let act_type = pop.act_types.get_from_wire(home_act.act_type);
+        assert_eq!("h", act_type.external.as_str());
         assert_eq!(
             net.link_ids.get_from_ext("1").internal as u64,
             home_act.link_id
@@ -156,8 +165,9 @@ mod tests {
     #[test]
     fn from_io() {
         let net = Network::from_file("./assets/equil/equil-network.xml", 2);
-        let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, 0);
-        let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, 1);
+        let mut garage = Garage::new();
+        let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
+        let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);
 
         // metis produces unstable results on small networks so, make sure that one of the populations
         // has all the agents and the other doesn't

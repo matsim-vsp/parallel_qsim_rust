@@ -89,6 +89,10 @@ impl<'ext, T> IdStore<'ext, T> {
             .clone()
     }
 
+    pub fn get_from_wire(&self, internal: u64) -> Id<T> {
+        self.get(internal as usize)
+    }
+
     pub fn get_from_ext(&self, external: &str) -> Id<T> {
         let index = self
             .mapping

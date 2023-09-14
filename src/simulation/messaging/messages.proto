@@ -26,7 +26,6 @@ message Vehicle {
   uint32 curr_route_elem = 2;
   uint64 type = 3;
   Agent agent = 4;
-  uint64 mode = 5;
   // this must be extended once more people use one vehicle
 }
 
@@ -42,7 +41,7 @@ message Plan {
 }
 
 message Activity {
-  string act_type = 1;
+  uint64 act_type = 1;
   uint64 link_id = 2;
   float x = 3;
   float y = 4;

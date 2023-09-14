@@ -1,2 +1,2 @@
-mod garage;
-mod vehicle_type;
+pub mod garage;
+pub mod vehicle_type;

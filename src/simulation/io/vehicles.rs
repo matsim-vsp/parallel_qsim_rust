@@ -7,7 +7,7 @@ use crate::simulation::io::xml_reader;
 #[serde(rename = "vehicleDefinitions")]
 pub struct IOVehicleDefinitions {
     #[serde(rename = "vehicleType")]
-    veh_types: Vec<IOVehicleType>,
+    pub veh_types: Vec<IOVehicleType>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
