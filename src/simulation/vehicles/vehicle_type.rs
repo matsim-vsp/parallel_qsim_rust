@@ -2,13 +2,13 @@ use crate::simulation::id::Id;
 
 #[derive(Debug)]
 pub struct VehicleType {
-    id: Id<VehicleType>,
-    length: f32,
-    width: f32,
-    max_v: f32,
-    pce: f32,
-    fef: f32,
-    net_mode: Id<String>,
+    pub(crate) id: Id<VehicleType>,
+    pub(crate) length: f32,
+    pub(crate) width: f32,
+    pub(crate) max_v: f32,
+    pub(crate) pce: f32,
+    pub(crate) fef: f32,
+    pub(crate) net_mode: Id<String>,
 }
 
 impl VehicleType {
