@@ -161,7 +161,7 @@ impl LocalLink {
     }
 
     pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
-        let speed = self.get_speed_for_vehicle(&vehicle);
+        let speed = self.freespeed.min(vehicle.max_v);
         let duration = (self.length / speed) as u32;
         let earliest_exit_time = now + duration;
         self.q.push_back(VehicleQEntry {
@@ -186,31 +186,6 @@ impl LocalLink {
         }
 
         popped_veh
-    }
-
-    fn get_speed_for_vehicle(&self, vehicle: &Vehicle) -> f32 {
-        panic!("not implemented");
-        /*
-        if vehicle_definitions.is_none() {
-            return self.freespeed;
-        }
-
-        let vehicle_max_speed = vehicle_definitions
-            .as_ref()
-            .unwrap()
-            .get_max_speed_for_mode(0); //todo fix mode
-
-        if vehicle_max_speed.is_none() {
-            warn!(
-                "There is no max speed given for vehicle type {:?}. Using freespeed of links.",
-                0 // todo fix mode
-            );
-            return self.freespeed;
-        }
-
-        self.freespeed.min(vehicle_max_speed.unwrap())
-
-         */
     }
 }
 
