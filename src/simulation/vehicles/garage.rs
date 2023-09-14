@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::simulation::id::{Id, IdStore};
-use crate::simulation::io::vehicles::IOVehicleType;
+use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::vehicles::vehicle_type::VehicleType;
 
@@ -29,6 +29,15 @@ impl<'g> Garage<'g> {
             vehicle_type_ids: IdStore::new(),
             modes: Default::default(),
         }
+    }
+
+    pub fn from_file(file_path: &str) -> Self {
+        let io_veh_definition = IOVehicleDefinitions::from_file(file_path);
+        let mut result = Self::new();
+        for io_veh_type in io_veh_definition.veh_types {
+            result.add_io_veh_type(io_veh_type);
+        }
+        result
     }
 
     pub fn add_io_veh_type(&mut self, io_veh_type: IOVehicleType) {
@@ -69,6 +78,10 @@ impl<'g> Garage<'g> {
         );
 
         self.vehicle_types.push(veh_type);
+    }
+
+    pub fn add_veh_id(&mut self, external_id: &str) -> Id<Vehicle> {
+        self.vehicle_ids.create_id(external_id)
     }
 }
 
@@ -128,5 +141,11 @@ mod tests {
         assert_eq!(0, garage.vehicle_type_ids.get_from_ext("some-id").internal);
 
         assert!(garage.vehicle_types.get(0).is_some());
+    }
+
+    #[test]
+    fn from_file() {
+        let garage = Garage::from_file("./assets/vehicles/vehicles_v2.xml");
+        assert_eq!(3, garage.vehicle_types.len());
     }
 }

@@ -8,12 +8,14 @@ use crate::simulation::messaging::messages::proto::leg::Route;
 use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle};
 use crate::simulation::network::link::SimLink;
 use crate::simulation::network::sim_network::{ExitReason, SimNetworkPartition};
+use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::TimeQueue;
 
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: SimNetworkPartition<'sim>,
+    population: Population<'sim>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
 }
@@ -22,17 +24,23 @@ impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
         network: SimNetworkPartition<'sim>,
-        population: crate::simulation::population::population::Population,
+        mut population: Population<'sim>,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
-        for agent in population.agents.into_values() {
+
+        // take agents and copy them into queues. This way we can keep population around to tranlate
+        // ids for events processing...
+        let agents = std::mem::take(&mut population.agents);
+
+        for agent in agents.into_values() {
             activity_q.add(agent, config.start_time);
         }
 
         Simulation {
             network,
+            population,
             teleportation_q: TimeQueue::new(),
             activity_q,
             message_broker,
@@ -72,12 +80,16 @@ impl<'sim> Simulation<'sim> {
 
         for mut agent in agents {
             let agent_id = agent.id;
+            let act_type = self
+                .population
+                .act_types
+                .get_from_wire(agent.curr_act().act_type);
             self.events.publish_event(
                 now,
                 &Event::new_act_end(
                     agent_id,
                     agent.curr_act().link_id,
-                    agent.curr_act().act_type.clone(),
+                    act_type.external.clone(),
                 ),
             );
 
@@ -96,10 +108,10 @@ impl<'sim> Simulation<'sim> {
                     );
 
                     if Simulation::is_local_route(route, &self.message_broker) {
-                        let veh = Vehicle::new(agent.id, 1, leg.mode.clone(), agent);
+                        let veh = Vehicle::new(agent.id, 1, Some(agent));
                         self.teleportation_q.add(veh, now);
                     } else {
-                        let veh = Vehicle::new(agent.id, 1, leg.mode.clone(), agent);
+                        let veh = Vehicle::new(agent.id, 1, Some(agent));
                         self.message_broker.add_veh(veh, now);
                     }
                 }
@@ -115,7 +127,7 @@ impl<'sim> Simulation<'sim> {
                         &Event::new_person_enters_veh(agent_id, route.vehicle_id),
                     );
 
-                    let veh = Vehicle::new(route.vehicle_id, 0, leg.mode.clone(), agent);
+                    let veh = Vehicle::new(route.vehicle_id, 0, Some(agent));
                     self.veh_onto_network(veh, true, now);
                 }
             }
@@ -188,9 +200,10 @@ impl<'sim> Simulation<'sim> {
                         &Event::new_arrival(agent.id, act.link_id, String::from("some mode")),
                     ); //todo fix  mode
 
+                    let act_type = self.population.act_types.get_from_wire(act.act_type);
                     self.events.publish_event(
                         now,
-                        &Event::new_act_start(agent.id, act.link_id, act.act_type.clone()),
+                        &Event::new_act_start(agent.id, act.link_id, act_type.external.clone()),
                     );
                     self.activity_q.add(agent, now);
                 }

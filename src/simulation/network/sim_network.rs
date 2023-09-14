@@ -156,9 +156,7 @@ impl<'n> SimNetworkPartition<'n> {
             &Event::new_link_leave(vehicle.curr_route_elem as u64, vehicle.id),
         );
         vehicle.advance_route_index();
-        let link_id = global_network
-            .link_ids
-            .get(vehicle.curr_route_elem as usize);
+        let link_id = global_network.link_ids.get(vehicle.curr_link_id().unwrap());
         match links.get_mut(&link_id).unwrap() {
             SimLink::Local(l) => {
                 events.publish_event(
@@ -232,7 +230,7 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0]);
-        let vehicle = Vehicle::new(1, 0, 0, agent);
+        let vehicle = Vehicle::new(1, 0, Some(agent));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle, 1);
@@ -250,7 +248,7 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0, 1]);
-        let vehicle = Vehicle::new(1, 0, 0, agent);
+        let vehicle = Vehicle::new(1, 0, Some(agent));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle, 1);
@@ -273,7 +271,7 @@ mod tests {
         let sim_network = sim_nets.get_mut(0).unwrap();
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0, 1]);
-        let vehicle = Vehicle::new(1, 0, 0, agent);
+        let vehicle = Vehicle::new(1, 0, Some(agent));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle, 1);
@@ -292,9 +290,9 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent1 = create_agent(1, vec![0]);
-        let vehicle1 = Vehicle::new(1, 0, 0, agent1);
+        let vehicle1 = Vehicle::new(1, 0, Some(agent1));
         let agent2 = create_agent(2, vec![0]);
-        let vehicle2 = Vehicle::new(2, 0, 0, agent2);
+        let vehicle2 = Vehicle::new(2, 0, Some(agent2));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle1, 1);
@@ -325,9 +323,9 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent1 = create_agent(1, vec![0, 1]);
-        let vehicle1 = Vehicle::new(1, 0, 0, agent1);
+        let vehicle1 = Vehicle::new(1, 0, Some(agent1));
         let agent2 = create_agent(2, vec![0, 1]);
-        let vehicle2 = Vehicle::new(2, 0, 0, agent2);
+        let vehicle2 = Vehicle::new(2, 0, Some(agent2));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
             link1.push_vehicle(vehicle1, 1);
@@ -451,7 +449,7 @@ mod tests {
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {
         let route = Route::NetworkRoute(NetworkRoute::new(id, route));
         let leg = Leg::new(route, "car", None, None);
-        let act = Activity::new(0., 0., String::from("some-type"), 1, None, None, None);
+        let act = Activity::new(0., 0., 0, 1, None, None, None);
         let mut plan = Plan::new();
         plan.add_act(act);
         plan.add_leg(leg);
