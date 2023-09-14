@@ -113,12 +113,14 @@ impl Ord for VehicleMessage {
 
 impl Vehicle {
     // todo, fix type and mode
-    pub fn new(id: u64, veh_type: u64, agent: Option<Agent>) -> Vehicle {
+    pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32, agent: Option<Agent>) -> Vehicle {
         Vehicle {
             id: id,
             agent,
             curr_route_elem: 0,
             r#type: veh_type,
+            max_v,
+            pce,
         }
     }
 

@@ -111,8 +111,8 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 1);
         let mut garage = Garage::new();
+        let net = Network::from_file("./assets/equil/equil-network.xml", 1, &mut garage);
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
         assert_eq!(1, pop.agents.len());
@@ -162,8 +162,8 @@ mod tests {
 
     #[test]
     fn from_io() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2);
         let mut garage = Garage::new();
+        let net = Network::from_file("./assets/equil/equil-network.xml", 2, &mut garage);
         let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
         let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);
 

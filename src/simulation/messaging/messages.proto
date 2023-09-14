@@ -25,7 +25,9 @@ message Vehicle {
   uint64 id = 1;
   uint32 curr_route_elem = 2;
   uint64 type = 3;
-  Agent agent = 4;
+  float max_v = 4;
+  float pce = 5;
+  Agent agent = 6;
   // this must be extended once more people use one vehicle
 }
 

@@ -108,10 +108,10 @@ impl<'sim> Simulation<'sim> {
                     );
 
                     if Simulation::is_local_route(route, &self.message_broker) {
-                        let veh = Vehicle::new(agent.id, 1, Some(agent));
+                        let veh = Vehicle::new(agent.id, 1, 10., 1., Some(agent));
                         self.teleportation_q.add(veh, now);
                     } else {
-                        let veh = Vehicle::new(agent.id, 1, Some(agent));
+                        let veh = Vehicle::new(agent.id, 1, 10., 1., Some(agent));
                         self.message_broker.add_veh(veh, now);
                     }
                 }
@@ -127,7 +127,7 @@ impl<'sim> Simulation<'sim> {
                         &Event::new_person_enters_veh(agent_id, route.vehicle_id),
                     );
 
-                    let veh = Vehicle::new(route.vehicle_id, 0, Some(agent));
+                    let veh = Vehicle::new(route.vehicle_id, 0, 10., 1., Some(agent));
                     self.veh_onto_network(veh, true, now);
                 }
             }

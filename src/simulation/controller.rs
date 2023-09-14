@@ -25,17 +25,18 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let output_path = PathBuf::from(&config.output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
+    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
+
     let network = crate::simulation::network::global_network::Network::from_file(
         config.network_file.as_ref(),
         config.num_parts,
+        &mut garage,
     );
 
     // write network with new ids to output but only once.
     if rank == 0 {
         network.to_file(&output_path.join("output_network.xml.gz"));
     }
-
-    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
     let population = Population::from_file(
         config.population_file.as_ref(),

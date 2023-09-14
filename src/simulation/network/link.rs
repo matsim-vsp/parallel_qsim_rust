@@ -279,7 +279,7 @@ mod tests {
             IdImpl::new_internal(0),
         );
         let agent = create_agent(1, vec![]);
-        let vehicle = Vehicle::new(veh_id, 0, Some(agent));
+        let vehicle = Vehicle::new(veh_id, 0, 10., 1., Some(agent));
 
         link.push_vehicle(vehicle, 0);
 
@@ -305,9 +305,9 @@ mod tests {
         );
 
         let agent1 = create_agent(1, vec![]);
-        let vehicle1 = Vehicle::new(id1, 0, Some(agent1));
+        let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent(1, vec![]);
-        let vehicle2 = Vehicle::new(id2, 0, Some(agent2));
+        let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
 
         link.push_vehicle(vehicle1, 0);
         link.push_vehicle(vehicle2, 0);
@@ -341,7 +341,7 @@ mod tests {
 
         while n < 10 {
             let agent = create_agent(n as u64, vec![]);
-            let vehicle = Vehicle::new(n as u64, 0, Some(agent));
+            let vehicle = Vehicle::new(n as u64, 0, 10., 1., Some(agent));
             link.push_vehicle(vehicle, n);
             n += 1;
         }
@@ -372,7 +372,7 @@ mod tests {
 
         while n < 10 {
             let agent = create_agent(n as u64, vec![]);
-            let vehicle = Vehicle::new(n as u64, 0, Some(agent));
+            let vehicle = Vehicle::new(n as u64, 0, 10., 1., Some(agent));
             link.push_vehicle(vehicle, n);
             n += 1;
         }
@@ -400,9 +400,9 @@ mod tests {
         );
 
         let agent1 = create_agent(1, vec![]);
-        let vehicle1 = Vehicle::new(1, 0, Some(agent1));
+        let vehicle1 = Vehicle::new(1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent(2, vec![]);
-        let vehicle2 = Vehicle::new(2, 0, Some(agent2));
+        let vehicle2 = Vehicle::new(2, 0, 10., 1., Some(agent2));
         link.push_vehicle(vehicle1, 0);
         link.push_vehicle(vehicle2, 0);
 
