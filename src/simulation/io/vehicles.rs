@@ -41,29 +41,63 @@ pub struct IOCapacity {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IODimension {
-    meter: f32,
+    pub(crate) meter: f32,
+}
+
+impl Default for IODimension {
+    fn default() -> Self {
+        Self { meter: 1. }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IOVelocity {
-    meter_per_second: f32,
+    pub(crate) meter_per_second: f32,
+}
+
+impl Default for IOVelocity {
+    fn default() -> Self {
+        Self {
+            meter_per_second: f32::MAX,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOPassengerCarEquivalents {
-    pce: f32,
+    pub(crate) pce: f32,
+}
+
+impl Default for IOPassengerCarEquivalents {
+    fn default() -> Self {
+        Self { pce: 1. }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IONetworkMode {
-    network_mode: String,
+    pub(crate) network_mode: String,
+}
+
+impl Default for IONetworkMode {
+    fn default() -> Self {
+        Self {
+            network_mode: String::from("car"),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOFowEfficiencyFactor {
-    factor: f32,
+    pub(crate) factor: f32,
+}
+
+impl Default for IOFowEfficiencyFactor {
+    fn default() -> Self {
+        Self { factor: 1. }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
