@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation, IORoute};
-use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
+use crate::simulation::messaging::messages::proto::Agent;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::vehicles::garage::Garage;
 
@@ -12,7 +12,6 @@ type ActType = ();
 pub struct Population<'p> {
     pub agents: HashMap<Id<Agent>, Agent>,
     pub agent_ids: IdStore<'p, Agent>,
-    pub vehicle_ids: IdStore<'p, Vehicle>,
     // TODO this should probably go somewhere else
     pub act_types: IdStore<'p, ActType>,
 }
@@ -22,7 +21,6 @@ impl<'p> Population<'p> {
         Population {
             agents: HashMap::default(),
             agent_ids: IdStore::new(),
-            vehicle_ids: IdStore::new(),
             act_types: IdStore::new(),
         }
     }
@@ -49,7 +47,7 @@ impl<'p> Population<'p> {
         for io in io_population.persons.iter() {
             let link = Self::link_first_act(io, network);
             if partition == link.partition {
-                let agent = Agent::from_io(io, network, &result);
+                let agent = Agent::from_io(io, network, &result, garage);
                 result
                     .agents
                     .insert(result.agent_ids.get(agent.id as usize), agent);
@@ -145,7 +143,7 @@ mod tests {
         assert!(leg.route.is_some());
         if let Route::NetworkRoute(net_route) = leg.route.as_ref().unwrap() {
             assert_eq!(
-                pop.vehicle_ids.get_from_ext("1").internal as u64,
+                garage.vehicle_ids.get_from_ext("1").internal as u64,
                 net_route.vehicle_id
             );
             assert_eq!(

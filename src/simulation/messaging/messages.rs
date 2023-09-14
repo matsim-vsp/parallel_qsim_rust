@@ -16,6 +16,7 @@ use crate::simulation::messaging::messages::proto::{
 use crate::simulation::network::global_network::Network;
 use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::EndTime;
+use crate::simulation::vehicles::garage::Garage;
 
 // Include the `messages` module, which is generated from messages.proto.
 pub mod proto {
@@ -162,8 +163,13 @@ impl EndTime for Vehicle {
 }
 
 impl Agent {
-    pub fn from_io(io_person: &IOPerson, net: &Network, pop: &Population) -> Agent {
-        let plan = Plan::from_io(io_person.selected_plan(), net, pop);
+    pub fn from_io(
+        io_person: &IOPerson,
+        net: &Network,
+        pop: &Population,
+        garage: &Garage,
+    ) -> Agent {
+        let plan = Plan::from_io(io_person.selected_plan(), net, pop, garage);
 
         if plan.acts.is_empty() {
             debug!("There is an empty plan for person {:?}", io_person.id);
@@ -386,16 +392,21 @@ impl Plan {
         }
     }
 
-    fn from_io(io_plan: &IOPlan, net: &Network, pop: &Population) -> Plan {
+    fn from_io(io_plan: &IOPlan, net: &Network, pop: &Population, garage: &Garage) -> Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
         };
 
-        Plan::get_full_plan_no_routing(io_plan, net, pop)
+        Plan::get_full_plan_no_routing(io_plan, net, pop, garage)
     }
 
-    fn get_full_plan_no_routing(io_plan: &IOPlan, net: &Network, pop: &Population) -> Plan {
+    fn get_full_plan_no_routing(
+        io_plan: &IOPlan,
+        net: &Network,
+        pop: &Population,
+        garage: &Garage,
+    ) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
@@ -405,7 +416,7 @@ impl Plan {
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => {
-                    let leg = Leg::from_io(io_leg, net, pop);
+                    let leg = Leg::from_io(io_leg, net, garage);
                     result.legs.push(leg);
                 }
             }
@@ -475,8 +486,8 @@ impl Activity {
 }
 
 impl Leg {
-    fn from_io(io_leg: &IOLeg, net: &Network, pop: &Population) -> Self {
-        let route = Route::from_io(&io_leg.route, net, pop);
+    fn from_io(io_leg: &IOLeg, net: &Network, garage: &Garage) -> Self {
+        let route = Route::from_io(&io_leg.route, net, garage);
         Self {
             route: Some(route),
             mode: 0, //todo fix mode
@@ -496,7 +507,7 @@ impl Leg {
 }
 
 impl Route {
-    fn from_io(io_route: &IORoute, net: &Network, pop: &Population) -> Self {
+    fn from_io(io_route: &IORoute, net: &Network, garage: &Garage) -> Self {
         match io_route.r#type.as_str() {
             "generic" => Route::GenericRoute(GenericRoute::from_io(io_route, net)),
             "links" => {
@@ -506,7 +517,7 @@ impl Route {
                     if vehicle_id.eq("null") {
                         Route::GenericRoute(GenericRoute::from_io(io_route, net))
                     } else {
-                        Route::NetworkRoute(NetworkRoute::from_io(io_route, net, pop))
+                        Route::NetworkRoute(NetworkRoute::from_io(io_route, net, garage))
                     }
                 } else {
                     panic!("vehicle id is expected to be set. ")
@@ -533,12 +544,12 @@ impl GenericRoute {
 }
 
 impl NetworkRoute {
-    fn from_io(io_route: &IORoute, net: &Network, pop: &Population) -> Self {
+    fn from_io(io_route: &IORoute, net: &Network, garage: &Garage) -> Self {
         let matsim_veh_id = io_route
             .vehicle
             .as_ref()
             .unwrap_or_else(|| panic!("Couldn't find veh-id for route {io_route:?} "));
-        let veh_id = pop.vehicle_ids.get_from_ext(matsim_veh_id);
+        let veh_id = garage.vehicle_ids.get_from_ext(matsim_veh_id);
 
         let link_ids = match &io_route.route {
             None => Vec::new(),

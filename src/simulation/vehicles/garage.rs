@@ -7,11 +7,11 @@ use crate::simulation::vehicles::vehicle_type::VehicleType;
 
 #[derive(Debug)]
 pub struct Garage<'g> {
-    vehicles: HashMap<Id<Vehicle>, Vehicle>,
-    vehicle_ids: IdStore<'g, Vehicle>,
-    vehicle_types: Vec<VehicleType>,
-    vehicle_type_ids: IdStore<'g, VehicleType>,
-    modes: IdStore<'g, String>,
+    pub vehicles: HashMap<Id<Vehicle>, Vehicle>,
+    pub vehicle_ids: IdStore<'g, Vehicle>,
+    pub vehicle_types: Vec<VehicleType>,
+    pub vehicle_type_ids: IdStore<'g, VehicleType>,
+    pub modes: IdStore<'g, String>,
 }
 
 impl<'g> Default for Garage<'g> {
