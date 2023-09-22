@@ -149,8 +149,8 @@ mod tets {
         let mut store: IdStore<()> = IdStore::new();
         let external_1 = String::from("id-1");
         let external_2 = String::from("id-2");
-        let id_1 = store.create_id(&external_1);
-        let id_2 = store.create_id(&external_2);
+        let _id_1 = store.create_id(&external_1);
+        let _id_2 = store.create_id(&external_2);
 
         assert_eq!(2, store.ids.len());
         assert_eq!(2, store.mapping.len());

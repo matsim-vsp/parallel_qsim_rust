@@ -1,4 +1,5 @@
 use mpi::traits::{Communicator, CommunicatorCollectives};
+
 use rust_q_sim::simulation::messaging::messages::proto::TravelTimesMessage;
 
 fn main() {
@@ -6,7 +7,7 @@ fn main() {
     let world = universe.world();
 
     let mut message = TravelTimesMessage::new();
-    message.add_travel_time(world.rank() as u64 + 0, (world.rank() as u32 + 0) * 2);
+    message.add_travel_time(world.rank() as u64, world.rank() as u32 * 2);
 
     let send_traffic_info = message.serialize();
     println!(
