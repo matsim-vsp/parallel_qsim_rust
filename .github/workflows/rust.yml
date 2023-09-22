@@ -19,7 +19,7 @@ jobs:
       - name: Install other libraries
         run: sudo apt -y install libclang-dev llvm-dev libmetis-dev libopenmpi-dev
       - name: Build
-        run: cargo build --verbose
+        run: cargo build
       - name: Install mpirun
         run: cargo install --force cargo-mpirun
       - name: Run tests

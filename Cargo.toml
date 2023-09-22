@@ -11,11 +11,13 @@ serde_json = "1.0.93"
 quick-xml = { version = "0.23.0", features = ["serialize"] }
 flate2 = { version = "1.0.24" }
 rand = "0.8.5"
-metis = { git = "https://github.com/Janekdererste/metis-rs"}
+metis = "0.1.2"
 flexi_logger = { version = "0.22", features = ["async"] }
 log = "0.4"
 clap = { version = "4.0.29", features = ["derive"] }
-mpi = "0.6"
+# point to the github repo directly because we need a more recent version of bindgen. Otherwise the build fails
+# due to some incompatibility starting with macOs 13.6
+mpi = { git = "https://github.com/rsmpi/rsmpi", rev = "1622101c9fc3a78620e9649f7f895616289d3558" }
 # dependencies for serialization with protobuf
 prost = "0.11.5"
 # bytes replaces the signature of std::io::Cursor to implemnt Buf somehow...
@@ -35,4 +37,4 @@ prost-build = "0.11"
 protobuf-src = "1.1.0"
 
 [profile.bench]
-debug=true
+debug = true
