@@ -89,7 +89,7 @@ impl<'g> Garage<'g> {
         assert_eq!(
             veh_type.id.internal,
             self.vehicle_types.len(),
-            "internal id {} and slot in node vec {} were note the same. Probably, node id {} already exsists.",
+            "internal id {} and slot in node vec {} were note the same. Probably, vehicle type {} already exists.",
             veh_type.id.internal,
             self.vehicle_types.len(),
             veh_type.id.external
@@ -100,6 +100,14 @@ impl<'g> Garage<'g> {
 
     pub fn add_veh_id(&mut self, external_id: &str) -> Id<Vehicle> {
         self.vehicle_ids.create_id(external_id)
+    }
+
+    pub fn add_veh(&mut self, veh_id: Id<Vehicle>, veh_type: Id<VehicleType>) {
+        let vehicle = GarageVehicle {
+            id: veh_id,
+            veh_type,
+        };
+        self.vehicles.insert(vehicle.id.clone(), vehicle);
     }
 }
 
