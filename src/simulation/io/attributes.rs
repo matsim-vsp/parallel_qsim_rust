@@ -8,7 +8,17 @@ pub struct Attr {
     pub value: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+impl Attr {
+    pub fn new(name: String, value: String) -> Self {
+        Attr {
+            name,
+            class: "".to_string(),
+            value,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct Attrs {
     #[serde(rename = "attribute", default)]
     pub attributes: Vec<Attr>,

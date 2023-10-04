@@ -3,15 +3,21 @@ use std::collections::HashMap;
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
 use crate::simulation::messaging::messages::proto::Vehicle;
-use crate::simulation::vehicles::vehicle_type::VehicleType;
+use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
 
 #[derive(Debug)]
 pub struct Garage<'g> {
-    pub vehicles: HashMap<Id<Vehicle>, Vehicle>,
+    pub vehicles: HashMap<Id<Vehicle>, GarageVehicle>,
     pub vehicle_ids: IdStore<'g, Vehicle>,
     pub vehicle_types: Vec<VehicleType>,
     pub vehicle_type_ids: IdStore<'g, VehicleType>,
     pub modes: IdStore<'g, String>,
+}
+
+#[derive(Debug)]
+pub struct GarageVehicle {
+    pub id: Id<Vehicle>,
+    pub veh_type: Id<VehicleType>,
 }
 
 impl<'g> Default for Garage<'g> {
@@ -45,6 +51,17 @@ impl<'g> Garage<'g> {
         let net_mode = self
             .modes
             .create_id(&io_veh_type.network_mode.unwrap_or_default().network_mode);
+        let lod = if let Some(attr) = io_veh_type
+            .attributes
+            .unwrap_or_default()
+            .attributes
+            .iter()
+            .find(|&attr| attr.name.eq("lod"))
+        {
+            LevelOfDetail::from(attr.value.as_str())
+        } else {
+            LevelOfDetail::from("network")
+        };
 
         let veh_type = VehicleType {
             id,
@@ -63,6 +80,7 @@ impl<'g> Garage<'g> {
                 .unwrap_or_default()
                 .factor,
             net_mode,
+            lod,
         };
         self.add_veh_type(veh_type);
     }
@@ -87,9 +105,13 @@ impl<'g> Garage<'g> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::io::vehicles::IOVehicleType;
+    use crate::simulation::io::attributes::{Attr, Attrs};
+    use crate::simulation::io::vehicles::{
+        IODimension, IOFowEfficiencyFactor, IONetworkMode, IOPassengerCarEquivalents,
+        IOVehicleType, IOVelocity,
+    };
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::vehicle_type::VehicleType;
+    use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
 
     #[test]
     fn add_veh_type() {
@@ -117,7 +139,7 @@ mod tests {
     }
 
     #[test]
-    fn add_io_veh_type() {
+    fn add_empty_io_veh_type() {
         let io_veh_type = IOVehicleType {
             id: "some-id".to_string(),
             description: None,
@@ -140,7 +162,52 @@ mod tests {
         assert_eq!(0, garage.modes.get_from_ext("car").internal);
         assert_eq!(0, garage.vehicle_type_ids.get_from_ext("some-id").internal);
 
-        assert!(garage.vehicle_types.get(0).is_some());
+        let veh_type_opt = garage.vehicle_types.first();
+        assert!(veh_type_opt.is_some());
+        let veh_type = veh_type_opt.unwrap();
+        assert!(matches!(veh_type.lod, LevelOfDetail::Network));
+    }
+
+    #[test]
+    fn add_io_veh_type() {
+        let io_veh_type = IOVehicleType {
+            id: "some-id".to_string(),
+            description: None,
+            capacity: None,
+            length: Some(IODimension { meter: 10. }),
+            width: Some(IODimension { meter: 5. }),
+            maximum_velocity: Some(IOVelocity {
+                meter_per_second: 100.,
+            }),
+            engine_information: None,
+            cost_information: None,
+            passenger_car_equivalents: Some(IOPassengerCarEquivalents { pce: 21.0 }),
+            network_mode: Some(IONetworkMode {
+                network_mode: "some_mode".to_string(),
+            }),
+            flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: 2. }),
+            attributes: Some(Attrs {
+                attributes: vec![Attr::new(String::from("lod"), String::from("teleported"))],
+            }),
+        };
+        let mut garage = Garage::new();
+
+        garage.add_io_veh_type(io_veh_type);
+
+        let expected_id = garage.vehicle_type_ids.get_from_ext("some-id");
+        let expected_mode = garage.modes.get_from_ext("some_mode");
+
+        let veh_type_opt = garage.vehicle_types.first();
+        assert!(veh_type_opt.is_some());
+        let veh_type = veh_type_opt.unwrap();
+        assert!(matches!(veh_type.lod, LevelOfDetail::Teleported));
+        assert_eq!(veh_type.max_v, 100.);
+        assert_eq!(veh_type.width, 5.0);
+        assert_eq!(veh_type.length, 10.);
+        assert_eq!(veh_type.pce, 21.);
+        assert_eq!(veh_type.fef, 2.);
+        assert_eq!(veh_type.id, expected_id);
+        assert_eq!(veh_type.net_mode, expected_mode)
     }
 
     #[test]
