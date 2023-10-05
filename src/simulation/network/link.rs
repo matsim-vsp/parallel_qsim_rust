@@ -235,8 +235,7 @@ impl SplitInLink {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::IdImpl;
-    use crate::simulation::messaging::messages::proto::leg::Route;
-    use crate::simulation::messaging::messages::proto::{Activity, NetworkRoute};
+    use crate::simulation::messaging::messages::proto::Activity;
     use crate::simulation::messaging::messages::proto::{Agent, Leg, Plan, Vehicle};
     use crate::simulation::network::link::LocalLink;
 

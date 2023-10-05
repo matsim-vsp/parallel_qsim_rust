@@ -59,7 +59,7 @@ impl<'p> Population<'p> {
                 garage
                     .vehicle_types
                     .iter()
-                    .map(move |veh_type| Self::create_veh_id_string(&p_id, &veh_type.id))
+                    .map(move |(type_id, _veh_type)| Self::create_veh_id_string(&p_id, &type_id))
             })
             .collect();
 
@@ -115,14 +115,14 @@ impl<'p> Population<'p> {
                 garage
                     .vehicle_types
                     .iter()
-                    .map(move |veh_type| (p_id, veh_type.id.clone()))
+                    .map(move |(type_id, _veh_type)| (p_id, type_id.clone()))
             })
             .collect();
 
         for (person_id, veh_type) in person_mode {
             let vehicle_id_ext = Self::create_veh_id_string(&person_id, &veh_type);
             let vehicle_id = garage.vehicle_ids.get_from_ext(vehicle_id_ext.as_str());
-            garage.add_veh(vehicle_id, veh_type);
+            garage.add_veh(vehicle_id, person_id.clone(), veh_type);
         }
     }
 
@@ -150,7 +150,6 @@ impl<'p> Population<'p> {
 mod tests {
     use std::collections::HashSet;
 
-    use crate::simulation::messaging::messages::proto::leg::Route;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::population::Population;
     use crate::simulation::vehicles::garage::Garage;
@@ -187,23 +186,20 @@ mod tests {
         assert_eq!(None, leg.trav_time);
         assert_eq!(None, leg.dep_time);
         assert!(leg.route.is_some());
-        if let Route::NetworkRoute(net_route) = leg.route.as_ref().unwrap() {
-            assert_eq!(
-                garage.vehicle_ids.get_from_ext("1_car").internal as u64,
-                net_route.vehicle_id
-            );
-            assert_eq!(
-                vec![
-                    net.link_ids.get_from_ext("1").internal as u64,
-                    net.link_ids.get_from_ext("6").internal as u64,
-                    net.link_ids.get_from_ext("15").internal as u64,
-                    net.link_ids.get_from_ext("20").internal as u64,
-                ],
-                net_route.route
-            );
-        } else {
-            panic!("Expected network route as first leg.")
-        }
+        let net_route = leg.route.as_ref().unwrap();
+        assert_eq!(
+            garage.vehicle_ids.get_from_ext("1_car").internal as u64,
+            net_route.veh_id
+        );
+        assert_eq!(
+            vec![
+                net.link_ids.get_from_ext("1").internal as u64,
+                net.link_ids.get_from_ext("6").internal as u64,
+                net.link_ids.get_from_ext("15").internal as u64,
+                net.link_ids.get_from_ext("20").internal as u64,
+            ],
+            net_route.route
+        );
     }
 
     #[test]
@@ -238,6 +234,8 @@ mod tests {
 
         // we expect three agents overall
         assert_eq!(3, pop.agents.len());
+
+        // todo test bookkeeping of garage person_2_vehicle
 
         println!("{pop:#?}");
     }

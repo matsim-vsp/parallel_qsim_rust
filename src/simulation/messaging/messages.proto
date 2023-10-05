@@ -54,23 +54,14 @@ message Activity {
 
 message Leg {
   uint64 mode = 1;
-  optional uint32 dep_time = 2;
-  optional uint32 trav_time = 3;
-  oneof route {
-    GenericRoute generic_route = 4;
-    NetworkRoute network_route = 5;
-  }
+  uint64 routing_mode = 2;
+  optional uint32 dep_time = 3;
+  optional uint32 trav_time = 4;
+  Route route = 5;
 }
 
-message NetworkRoute {
-  // is the vehicle id important? So far this is sent inside a vehicle
-  uint64 vehicle_id = 1;
-  repeated uint64 route = 2;
-}
-
-message GenericRoute {
-  uint64 start_link = 1;
-  uint64 end_link = 2;
-  uint32 trav_time = 3;
-  float distance = 4;
+message Route {
+  uint64 veh_id = 1;
+  float distance = 2;
+  repeated uint64 route = 3;
 }

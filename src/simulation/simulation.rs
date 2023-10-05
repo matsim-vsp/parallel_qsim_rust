@@ -4,18 +4,20 @@ use crate::simulation::config::Config;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
-use crate::simulation::messaging::messages::proto::leg::Route;
-use crate::simulation::messaging::messages::proto::{Agent, GenericRoute, Vehicle};
+use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::link::SimLink;
 use crate::simulation::network::sim_network::{ExitReason, SimNetworkPartition};
 use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::TimeQueue;
+use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
 
 pub struct Simulation<'sim> {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: SimNetworkPartition<'sim>,
     population: Population<'sim>,
+    garage: Garage<'sim>,
     message_broker: MpiMessageBroker,
     events: EventsPublisher,
 }
@@ -24,6 +26,7 @@ impl<'sim> Simulation<'sim> {
     pub fn new(
         config: &Config,
         network: SimNetworkPartition<'sim>,
+        garage: Garage<'sim>,
         mut population: Population<'sim>,
         message_broker: MpiMessageBroker,
         events: EventsPublisher,
@@ -41,6 +44,7 @@ impl<'sim> Simulation<'sim> {
         Simulation {
             network,
             population,
+            garage,
             teleportation_q: TimeQueue::new(),
             activity_q,
             message_broker,
@@ -93,45 +97,46 @@ impl<'sim> Simulation<'sim> {
                 ),
             );
 
-            //here, current element counter is going to be increased
-            agent.advance_plan();
+            let mut vehicle = self.departure(agent, now);
+            let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(vehicle.r#type);
+            let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
 
-            assert_ne!(agent.curr_plan_elem % 2, 0);
-
-            let leg = agent.curr_leg();
-
-            match leg.route.as_ref().unwrap() {
-                Route::GenericRoute(route) => {
-                    self.events.publish_event(
-                        now,
-                        &Event::new_departure(agent_id, route.start_link, String::from("")),
-                    );
-
-                    if Simulation::is_local_route(route, &self.message_broker) {
-                        let veh = Vehicle::new(agent.id, 1, 10., 1., Some(agent));
-                        self.teleportation_q.add(veh, now);
-                    } else {
-                        let veh = Vehicle::new(agent.id, 1, 10., 1., Some(agent));
-                        self.message_broker.add_veh(veh, now);
-                    }
+            match veh_type.lod {
+                LevelOfDetail::Network => {
+                    self.events
+                        .publish_event(now, &Event::new_person_enters_veh(agent_id, vehicle.id));
+                    self.veh_onto_network(vehicle, true, now);
                 }
-                Route::NetworkRoute(route) => {
-                    let link_id = route.route.first().unwrap();
-                    self.events.publish_event(
-                        now,
-                        &Event::new_departure(agent_id, *link_id, String::from("")),
-                    );
-
-                    self.events.publish_event(
-                        now,
-                        &Event::new_person_enters_veh(agent_id, route.vehicle_id),
-                    );
-
-                    let veh = Vehicle::new(route.vehicle_id, 0, 10., 1., Some(agent));
-                    self.veh_onto_network(veh, true, now);
+                LevelOfDetail::Teleported => {
+                    if Simulation::is_local_route(&vehicle, &self.message_broker) {
+                        self.teleportation_q.add(vehicle, now);
+                    } else {
+                        // we need to call advance here, so that the vehicle's current link index
+                        // points to the end link of the route array.
+                        vehicle.advance_route_index();
+                        self.message_broker.add_veh(vehicle, now);
+                    }
                 }
             }
         }
+    }
+
+    fn departure(&mut self, mut agent: Agent, now: u32) -> Vehicle {
+        //here, current element counter is going to be increased
+        agent.advance_plan();
+
+        assert_ne!(agent.curr_plan_elem % 2, 0);
+
+        let leg = agent.curr_leg();
+        let route = leg.route.as_ref().unwrap();
+        let leg_mode = self.garage.modes.get_from_wire(leg.mode);
+        self.events.publish_event(
+            now,
+            &Event::new_departure(agent.id, route.start_link(), leg_mode.external.clone()),
+        );
+
+        let veh_id = self.garage.vehicle_ids.get_from_wire(route.veh_id);
+        self.garage.unpark_veh(agent, &veh_id)
     }
 
     fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
@@ -144,6 +149,7 @@ impl<'sim> Simulation<'sim> {
             )
         });
 
+        // todo, can we do this differently maybe...
         if !from_act {
             self.events.publish_event(
                 now,
@@ -168,12 +174,12 @@ impl<'sim> Simulation<'sim> {
             // handle travelled
             let mut agent = vehicle.agent.unwrap();
             let leg = agent.curr_leg();
-            if let Route::GenericRoute(route) = &leg.route.as_ref().unwrap() {
-                self.events.publish_event(
-                    now,
-                    &Event::new_travelled(agent.id, route.distance, String::from("")),
-                );
-            }
+            let route = leg.route.as_ref().unwrap();
+            let mode = self.garage.modes.get_from_wire(leg.mode);
+            self.events.publish_event(
+                now,
+                &Event::new_travelled(agent.id, route.distance, mode.external.clone()),
+            );
             agent.advance_plan();
             self.activity_q.add(agent, now);
         }
@@ -235,17 +241,11 @@ impl<'sim> Simulation<'sim> {
         }
     }
 
-    fn is_local_route(route: &GenericRoute, message_broker: &MpiMessageBroker) -> bool {
-        let (from, to) = Simulation::process_ids_for_generic_route(route, message_broker);
+    fn is_local_route(veh: &Vehicle, message_broker: &MpiMessageBroker) -> bool {
+        let leg = veh.agent.as_ref().unwrap().curr_leg();
+        let route = leg.route.as_ref().unwrap();
+        let from = message_broker.rank_for_link(route.start_link());
+        let to = message_broker.rank_for_link(route.end_link());
         from == to
-    }
-
-    fn process_ids_for_generic_route(
-        route: &GenericRoute,
-        message_broker: &MpiMessageBroker,
-    ) -> (u64, u64) {
-        let from_rank = message_broker.rank_for_link(route.start_link);
-        let to_rank = message_broker.rank_for_link(route.end_link);
-        (from_rank, to_rank)
     }
 }

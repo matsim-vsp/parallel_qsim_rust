@@ -23,3 +23,19 @@ pub struct Attrs {
     #[serde(rename = "attribute", default)]
     pub attributes: Vec<Attr>,
 }
+
+impl Attrs {
+    pub fn find_or_else<'a, F>(&self, name: &str, f: F) -> &str
+    where
+        F: FnOnce() -> &'a str,
+    {
+        let opt_attr = self.attributes.iter().find(|&attr| attr.name.eq(name));
+        let value = if let Some(&attr) = opt_attr {
+            attr.value.as_str()
+        } else {
+            f()
+        };
+
+        value
+    }
+}

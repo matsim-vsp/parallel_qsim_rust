@@ -2,14 +2,17 @@ use std::collections::HashMap;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
-use crate::simulation::messaging::messages::proto::Vehicle;
+use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
 
 #[derive(Debug)]
 pub struct Garage<'g> {
     pub vehicles: HashMap<Id<Vehicle>, GarageVehicle>,
+    // don't know whether this is a good place to do this kind of book keeping
+    // we need this information to extract vehicles from io::Plans though.
+    pub person_2_vehicle: HashMap<Id<Agent>, HashMap<Id<String>, Id<Vehicle>>>,
     pub vehicle_ids: IdStore<'g, Vehicle>,
-    pub vehicle_types: Vec<VehicleType>,
+    pub vehicle_types: HashMap<Id<VehicleType>, VehicleType>,
     pub vehicle_type_ids: IdStore<'g, VehicleType>,
     pub modes: IdStore<'g, String>,
 }
@@ -30,8 +33,9 @@ impl<'g> Garage<'g> {
     pub fn new() -> Self {
         Garage {
             vehicles: Default::default(),
+            person_2_vehicle: Default::default(),
             vehicle_ids: Default::default(),
-            vehicle_types: vec![],
+            vehicle_types: Default::default(),
             vehicle_type_ids: IdStore::new(),
             modes: Default::default(),
         }
@@ -95,19 +99,52 @@ impl<'g> Garage<'g> {
             veh_type.id.external
         );
 
-        self.vehicle_types.push(veh_type);
+        self.vehicle_types.insert(veh_type.id.clone(), veh_type);
     }
 
     pub fn add_veh_id(&mut self, external_id: &str) -> Id<Vehicle> {
         self.vehicle_ids.create_id(external_id)
     }
 
-    pub fn add_veh(&mut self, veh_id: Id<Vehicle>, veh_type: Id<VehicleType>) {
+    pub fn add_veh(
+        &mut self,
+        veh_id: Id<Vehicle>,
+        person_id: Id<Agent>,
+        veh_type_id: Id<VehicleType>,
+    ) {
         let vehicle = GarageVehicle {
-            id: veh_id,
-            veh_type,
+            id: veh_id.clone(),
+            veh_type: veh_type_id.clone(),
         };
         self.vehicles.insert(vehicle.id.clone(), vehicle);
+        let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
+        self.person_2_vehicle
+            .entry(person_id)
+            .or_default()
+            .insert(veh_type.net_mode.clone(), veh_id);
+    }
+
+    pub fn get_veh_id(&self, person_id: &Id<Agent>, mode: &Id<String>) -> Id<Vehicle> {
+        self.person_2_vehicle
+            .get(person_id)
+            .unwrap()
+            .get(mode)
+            .unwrap()
+            .clone()
+    }
+
+    pub fn unpark_veh(&mut self, person: Agent, id: &Id<Vehicle>) -> Vehicle {
+        let garage_veh = self.vehicles.remove(id).unwrap();
+        let veh_type = self.vehicle_types.get(&garage_veh.veh_type).unwrap();
+
+        Vehicle {
+            id: id.internal as u64,
+            curr_route_elem: 0,
+            r#type: veh_type.id.internal as u64,
+            max_v: veh_type.max_v,
+            pce: veh_type.pce,
+            agent: Some(person),
+        }
     }
 }
 
@@ -170,9 +207,9 @@ mod tests {
         assert_eq!(0, garage.modes.get_from_ext("car").internal);
         assert_eq!(0, garage.vehicle_type_ids.get_from_ext("some-id").internal);
 
-        let veh_type_opt = garage.vehicle_types.first();
+        let veh_type_opt = garage.vehicle_types.iter().next();
         assert!(veh_type_opt.is_some());
-        let veh_type = veh_type_opt.unwrap();
+        let (type_id, veh_type) = veh_type_opt.unwrap();
         assert!(matches!(veh_type.lod, LevelOfDetail::Network));
     }
 
@@ -205,9 +242,9 @@ mod tests {
         let expected_id = garage.vehicle_type_ids.get_from_ext("some-id");
         let expected_mode = garage.modes.get_from_ext("some_mode");
 
-        let veh_type_opt = garage.vehicle_types.first();
+        let veh_type_opt = garage.vehicle_types.iter().next();
         assert!(veh_type_opt.is_some());
-        let veh_type = veh_type_opt.unwrap();
+        let (type_id, veh_type) = veh_type_opt.unwrap();
         assert!(matches!(veh_type.lod, LevelOfDetail::Teleported));
         assert_eq!(veh_type.max_v, 100.);
         assert_eq!(veh_type.width, 5.0);
