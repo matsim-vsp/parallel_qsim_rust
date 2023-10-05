@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let garage = Garage::from_file("./assets/vehicles/vehicles_v2.xml");
+        let garage = Garage::from_file("./assets/3-links/vehicles.xml");
         assert_eq!(3, garage.vehicle_types.len());
     }
 }

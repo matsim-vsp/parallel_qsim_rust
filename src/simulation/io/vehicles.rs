@@ -191,7 +191,7 @@ mod test {
 
     #[test]
     fn test_from_file() {
-        let veh_def = IOVehicleDefinitions::from_file("./assets/vehicles/vehicles_v2.xml");
+        let veh_def = IOVehicleDefinitions::from_file("./assets/3-links/vehicles.xml");
         assert_eq!(3, veh_def.veh_types.len());
         // no further assertions here, as the tests above test the individual properties.
         // so, this test mainly tests whether the vehicles implementation calls the xml_reader

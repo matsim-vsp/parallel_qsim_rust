@@ -148,6 +148,8 @@ impl<'p> Population<'p> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use crate::simulation::messaging::messages::proto::leg::Route;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::population::Population;
@@ -210,7 +212,33 @@ mod tests {
         let net = Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
         let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
 
-        println!("{garage:#?}");
+        // check that we have all three vehicle types
+        let expected_veh_types = HashSet::from(["car", "bike", "walk"]);
+        assert_eq!(3, garage.vehicle_types.len());
+        assert!(garage
+            .vehicle_types
+            .iter()
+            .all(|veh_type| expected_veh_types.contains(veh_type.id.external.as_str())));
+
+        // check that we have a vehicle for each mode and for each person
+        assert_eq!(9, garage.vehicles.len());
+
+        // check population
+        // activity types should be done as id. If id is not present this will crash
+        assert_eq!("home", pop.act_types.get_from_ext("home").external.as_str());
+        assert_eq!(
+            "errands",
+            pop.act_types.get_from_ext("errands").external.as_str()
+        );
+
+        // agents should also have ids
+        assert_eq!("100", pop.agent_ids.get_from_ext("100").external.as_str());
+        assert_eq!("200", pop.agent_ids.get_from_ext("200").external.as_str());
+        assert_eq!("300", pop.agent_ids.get_from_ext("300").external.as_str());
+
+        // we expect three agents overall
+        assert_eq!(3, pop.agents.len());
+
         println!("{pop:#?}");
     }
 
