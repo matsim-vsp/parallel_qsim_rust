@@ -55,14 +55,14 @@ impl<'n> SimNetworkPartition<'n> {
         Self::new(Vec::from_iter(nodes), links, global_network)
     }
 
-    fn create_sim_link(link: &Link, partition: usize, all_nodes: &Vec<Node>) -> SimLink {
+    fn create_sim_link(link: &Link, partition: usize, all_nodes: &[Node]) -> SimLink {
         let from_part = all_nodes.get(link.from.internal).unwrap().partition;
         let to_part = all_nodes.get(link.to.internal).unwrap().partition;
 
         if from_part == to_part {
             SimLink::Local(LocalLink::from_link(link, 1.0))
         } else if to_part == partition {
-            let local_link = LocalLink::from_link(&link, 1.0);
+            let local_link = LocalLink::from_link(link, 1.0);
             SimLink::In(SplitInLink::new(from_part, local_link))
         } else {
             SimLink::Out(SplitOutLink::new(link.id.clone(), to_part))
@@ -176,10 +176,11 @@ impl<'n> SimNetworkPartition<'n> {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
         messaging::{
             events::EventsPublisher,
-            messages::proto::{leg::Route, Activity, Agent, Leg, NetworkRoute, Plan, Vehicle},
+            messages::proto::{Activity, Agent, Leg, Plan, Vehicle},
         },
         network::{
             global_network::{Link, Network, Node},
@@ -447,8 +448,12 @@ mod tests {
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {
-        let route = Route::NetworkRoute(NetworkRoute::new(id, route));
-        let leg = Leg::new(route, "car", None, None);
+        let route = Route {
+            veh_id: id,
+            distance: 0.0,
+            route,
+        };
+        let leg = Leg::new(route, 0, None, None);
         let act = Activity::new(0., 0., 0, 1, None, None, None);
         let mut plan = Plan::new();
         plan.add_act(act);

@@ -58,8 +58,8 @@ impl<'p> Population<'p> {
             .flat_map(|p_id| {
                 garage
                     .vehicle_types
-                    .iter()
-                    .map(move |(type_id, _veh_type)| Self::create_veh_id_string(&p_id, &type_id))
+                    .keys()
+                    .map(move |type_id| Self::create_veh_id_string(&p_id, type_id))
             })
             .collect();
 
@@ -114,13 +114,13 @@ impl<'p> Population<'p> {
             .flat_map(|p_id| {
                 garage
                     .vehicle_types
-                    .iter()
-                    .map(move |(type_id, _veh_type)| (p_id, type_id.clone()))
+                    .keys()
+                    .map(move |type_id| (p_id, type_id.clone()))
             })
             .collect();
 
         for (person_id, veh_type) in person_mode {
-            let vehicle_id_ext = Self::create_veh_id_string(&person_id, &veh_type);
+            let vehicle_id_ext = Self::create_veh_id_string(person_id, &veh_type);
             let vehicle_id = garage.vehicle_ids.get_from_ext(vehicle_id_ext.as_str());
             garage.add_veh(vehicle_id, person_id.clone(), veh_type);
         }
@@ -213,8 +213,8 @@ mod tests {
         assert_eq!(3, garage.vehicle_types.len());
         assert!(garage
             .vehicle_types
-            .iter()
-            .all(|veh_type| expected_veh_types.contains(veh_type.id.external.as_str())));
+            .keys()
+            .all(|type_id| expected_veh_types.contains(type_id.external.as_str())));
 
         // check that we have a vehicle for each mode and for each person
         assert_eq!(9, garage.vehicles.len());

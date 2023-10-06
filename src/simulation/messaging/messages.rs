@@ -6,6 +6,7 @@ use log::debug;
 use prost::Message;
 
 use crate::simulation::id::Id;
+use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
@@ -115,7 +116,7 @@ impl Vehicle {
     // todo, fix type and mode
     pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32, agent: Option<Agent>) -> Vehicle {
         Vehicle {
-            id: id,
+            id,
             agent,
             curr_route_elem: 0,
             r#type: veh_type,
@@ -124,7 +125,7 @@ impl Vehicle {
         }
     }
 
-    fn agent(&self) -> &Agent {
+    pub fn agent(&self) -> &Agent {
         self.agent.as_ref().unwrap()
     }
 
@@ -227,7 +228,7 @@ impl Agent {
     }
 
     fn next_act_index(&self) -> u32 {
-        let act_index = match self.curr_plan_elem % 2 {
+        match self.curr_plan_elem % 2 {
             //current element is an activity => two elements after is the next activity
             0 => (self.curr_plan_elem + 2) / 2,
             //current element is a leg => one element after is the next activity
@@ -238,8 +239,7 @@ impl Agent {
                     self.id
                 )
             }
-        };
-        act_index
+        }
     }
 
     pub fn curr_leg(&self) -> &Leg {
@@ -261,13 +261,8 @@ impl Agent {
         self.get_leg_at_index(next_leg_index)
     }
 
-    fn next_leg_mut(&mut self) -> &mut Leg {
-        let next_leg_index = self.next_leg_index();
-        self.get_leg_at_index_mut(next_leg_index)
-    }
-
     fn next_leg_index(&self) -> u32 {
-        let next_leg_index = match self.curr_plan_elem % 2 {
+        match self.curr_plan_elem % 2 {
             //current element is an activity => one element after is the next leg
             0 => (self.curr_plan_elem + 1) / 2,
             //current element is a leg => two elements after is the next leg
@@ -278,8 +273,7 @@ impl Agent {
                     self.id
                 )
             }
-        };
-        next_leg_index
+        }
     }
 
     fn get_act_at_index(&self, index: u32) -> &Activity {
@@ -306,15 +300,6 @@ impl Agent {
             .unwrap()
             .legs
             .get(index as usize)
-            .unwrap()
-    }
-
-    fn get_leg_at_index_mut(&mut self, index: u32) -> &mut Leg {
-        self.plan
-            .as_mut()
-            .unwrap()
-            .legs
-            .get_mut(index as usize)
             .unwrap()
     }
 
@@ -454,8 +439,7 @@ impl Activity {
 
 impl Leg {
     fn from_io(io_leg: &IOLeg, person_id: &Id<Agent>, net: &Network, garage: &Garage) -> Self {
-        let attrs = io_leg.attributes.as_ref().unwrap_or_default();
-        let routing_mode_ext = attrs.find_or_else("routingMode", || "car");
+        let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
         let routing_mode = garage.modes.get_from_ext(routing_mode_ext);
         let mode = garage.modes.get_from_ext(io_leg.mode.as_str());
@@ -470,11 +454,10 @@ impl Leg {
         }
     }
 
-    // todo fix mode!!
-    pub fn new(route: Route, mode: &str, trav_time: Option<u32>, dep_time: Option<u32>) -> Self {
+    pub fn new(route: Route, mode: u64, trav_time: Option<u32>, dep_time: Option<u32>) -> Self {
         Self {
             route: Some(route),
-            mode: 0, //todo fix mode
+            mode,
             trav_time,
             dep_time,
             routing_mode: 0,

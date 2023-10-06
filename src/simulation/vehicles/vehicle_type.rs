@@ -1,6 +1,7 @@
 use crate::simulation::id::Id;
 
 #[derive(Debug)]
+#[allow(dead_code)] // allow dead code here, as we have some props which are not used yet.
 pub struct VehicleType {
     pub(crate) id: Id<VehicleType>,
     pub(crate) length: f32,

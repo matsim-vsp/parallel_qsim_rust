@@ -235,7 +235,7 @@ impl SplitInLink {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::IdImpl;
-    use crate::simulation::messaging::messages::proto::Activity;
+    use crate::simulation::messaging::messages::proto::{Activity, Route};
     use crate::simulation::messaging::messages::proto::{Agent, Leg, Plan, Vehicle};
     use crate::simulation::network::link::LocalLink;
 
@@ -393,8 +393,12 @@ mod tests {
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {
-        let route = Route::NetworkRoute(NetworkRoute::new(id, route));
-        let leg = Leg::new(route, "car", None, None);
+        let route = Route {
+            veh_id: id,
+            distance: 0.0,
+            route,
+        };
+        let leg = Leg::new(route, 0, None, None);
         let act = Activity::new(0., 0., 0, 1, None, None, None);
         let mut plan = Plan::new();
         plan.add_act(act);

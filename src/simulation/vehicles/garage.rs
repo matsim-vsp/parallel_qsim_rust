@@ -133,6 +133,15 @@ impl<'g> Garage<'g> {
             .clone()
     }
 
+    pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Agent {
+        let id = self.vehicle_ids.get_from_wire(vehicle.id);
+        let veh_type = self.vehicle_type_ids.get_from_wire(vehicle.r#type);
+        let garage_veh = GarageVehicle { id, veh_type };
+        self.vehicles.insert(garage_veh.id.clone(), garage_veh);
+
+        vehicle.agent.unwrap()
+    }
+
     pub fn unpark_veh(&mut self, person: Agent, id: &Id<Vehicle>) -> Vehicle {
         let garage_veh = self.vehicles.remove(id).unwrap();
         let veh_type = self.vehicle_types.get(&garage_veh.veh_type).unwrap();
@@ -207,9 +216,9 @@ mod tests {
         assert_eq!(0, garage.modes.get_from_ext("car").internal);
         assert_eq!(0, garage.vehicle_type_ids.get_from_ext("some-id").internal);
 
-        let veh_type_opt = garage.vehicle_types.iter().next();
+        let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
-        let (type_id, veh_type) = veh_type_opt.unwrap();
+        let veh_type = veh_type_opt.unwrap();
         assert!(matches!(veh_type.lod, LevelOfDetail::Network));
     }
 
@@ -242,9 +251,9 @@ mod tests {
         let expected_id = garage.vehicle_type_ids.get_from_ext("some-id");
         let expected_mode = garage.modes.get_from_ext("some_mode");
 
-        let veh_type_opt = garage.vehicle_types.iter().next();
+        let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
-        let (type_id, veh_type) = veh_type_opt.unwrap();
+        let veh_type = veh_type_opt.unwrap();
         assert!(matches!(veh_type.lod, LevelOfDetail::Teleported));
         assert_eq!(veh_type.max_v, 100.);
         assert_eq!(veh_type.width, 5.0);

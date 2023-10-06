@@ -82,8 +82,7 @@ impl<'sim> Simulation<'sim> {
     fn wakeup(&mut self, now: u32) {
         let agents = self.activity_q.pop(now);
 
-        for mut agent in agents {
-            let agent_id = agent.id;
+        for agent in agents {
             let act_type = self
                 .population
                 .act_types
@@ -91,7 +90,7 @@ impl<'sim> Simulation<'sim> {
             self.events.publish_event(
                 now,
                 &Event::new_act_end(
-                    agent_id,
+                    agent.id,
                     agent.curr_act().link_id,
                     act_type.external.clone(),
                 ),
@@ -103,8 +102,10 @@ impl<'sim> Simulation<'sim> {
 
             match veh_type.lod {
                 LevelOfDetail::Network => {
-                    self.events
-                        .publish_event(now, &Event::new_person_enters_veh(agent_id, vehicle.id));
+                    self.events.publish_event(
+                        now,
+                        &Event::new_person_enters_veh(vehicle.agent().id, vehicle.id),
+                    );
                     self.veh_onto_network(vehicle, true, now);
                 }
                 LevelOfDetail::Teleported => {
@@ -171,8 +172,10 @@ impl<'sim> Simulation<'sim> {
     fn terminate_teleportation(&mut self, now: u32) {
         let teleportation_vehicles = self.teleportation_q.pop(now);
         for vehicle in teleportation_vehicles {
+            // park the vehice - get the agent out of the vehicle
+            let mut agent = self.garage.park_veh(vehicle);
+
             // handle travelled
-            let mut agent = vehicle.agent.unwrap();
             let leg = agent.curr_leg();
             let route = leg.route.as_ref().unwrap();
             let mode = self.garage.modes.get_from_wire(leg.mode);
@@ -180,6 +183,8 @@ impl<'sim> Simulation<'sim> {
                 now,
                 &Event::new_travelled(agent.id, route.distance, mode.external.clone()),
             );
+
+            // advance plan to activity and put agent into activity q.
             agent.advance_plan();
             self.activity_q.add(agent, now);
         }
@@ -191,21 +196,21 @@ impl<'sim> Simulation<'sim> {
         for exit_reason in exited_vehicles {
             match exit_reason {
                 ExitReason::FinishRoute(vehicle) => {
-                    let veh_id = vehicle.id;
-                    let mut agent = vehicle.agent.unwrap();
-                    let leg_mode = 0; // todo fix mode
-
-                    self.events
-                        .publish_event(now, &Event::new_person_leaves_veh(agent.id, veh_id));
-
-                    agent.advance_plan();
-                    let act = agent.curr_act();
-
+                    // finish driving - get agent out of vehicle, remember mode for arrival event
                     self.events.publish_event(
                         now,
-                        &Event::new_arrival(agent.id, act.link_id, String::from("some mode")),
-                    ); //todo fix  mode
+                        &Event::new_person_leaves_veh(vehicle.agent().id, vehicle.id),
+                    );
+                    let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(vehicle.id);
+                    let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
+                    let mode = veh_type.net_mode.external.clone();
+                    let mut agent = self.garage.park_veh(vehicle);
 
+                    // move to next activity
+                    agent.advance_plan();
+                    let act = agent.curr_act();
+                    self.events
+                        .publish_event(now, &Event::new_arrival(agent.id, act.link_id, mode));
                     let act_type = self.population.act_types.get_from_wire(act.act_type);
                     self.events.publish_event(
                         now,
