@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use tracing::info;
 
+use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::xml_reader;
 
@@ -42,6 +43,7 @@ pub struct IOLeg {
     pub dep_time: Option<String>,
     pub trav_time: Option<String>,
     pub route: IORoute,
+    pub attributes: Option<Attrs>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

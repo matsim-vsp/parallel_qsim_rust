@@ -4,35 +4,35 @@
 <population desc="single agent on three links network">
     <person id="100">
         <plan score="92.61490939414003" selected="yes">
-            <activity type="home_28800.0" link="link1" x="0" y="0.0" end_time="9:00:00"/>
+            <activity type="home" link="link1" x="0" y="0.0" end_time="9:00:00"/>
             <leg mode="car" dep_time="9:00:00" trav_time="">
                 <route type="links" start_link="link1" end_link="link3" trav_time=""
                        distance="1200" vehicleRefId="100_car">link1 link2 link3
                 </route>
             </leg>
-            <activity type="errands_2400.0" link="link3" x="1100.0" y="0.0" start_time="15:51:00" />
+            <activity type="errands" link="link3" x="1100.0" y="0.0" start_time="15:51:00"/>
         </plan>
     </person>
     <person id="200">
         <plan score="92.61490939414003" selected="yes">
-            <activity type="home_28800.0" link="link1" x="0" y="0.0" end_time="9:10:00"/>
+            <activity type="home" link="link1" x="0" y="0.0" end_time="9:10:00"/>
             <leg mode="bike" dep_time="9:00:00" trav_time="">
                 <route type="links" start_link="link1" end_link="link3" trav_time=""
-                       distance="1200" vehicleRefId="200_car">link1 link2 link3
+                       distance="1200" vehicleRefId="200_bike">link1 link2 link3
                 </route>
             </leg>
-            <activity type="errands_2400.0" link="link3" x="1100.0" y="0.0" start_time="15:51:00" />
+            <activity type="errands" link="link3" x="1100.0" y="0.0" start_time="15:51:00"/>
         </plan>
     </person>
     <person id="300">
         <plan score="92.61490939414003" selected="yes">
-            <activity type="home_28800.0" link="link1" x="0" y="0.0" end_time="9:20:00"/>
+            <activity type="home" link="link1" x="0" y="0.0" end_time="9:20:00"/>
             <leg mode="car" dep_time="9:00:00" trav_time="">
                 <route type="links" start_link="link1" end_link="link3" trav_time=""
                        distance="1200" vehicleRefId="300_car">link1 link2 link3
                 </route>
             </leg>
-            <activity type="errands_2400.0" link="link3" x="1100.0" y="0.0" start_time="15:51:00" />
+            <activity type="errands" link="link3" x="1100.0" y="0.0" start_time="15:51:00"/>
         </plan>
     </person>
 </population>

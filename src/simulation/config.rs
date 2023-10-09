@@ -14,6 +14,8 @@ pub struct Config {
     #[arg(long)]
     pub population_file: String,
     #[arg(long)]
+    pub vehicles_file: String,
+    #[arg(long)]
     pub vehicle_definitions_file: Option<String>,
     #[arg(long, default_value = "./")]
     pub output_dir: String,
@@ -35,6 +37,7 @@ pub struct ConfigBuilder {
     num_parts: usize,
     network_file: String,
     population_file: String,
+    vehicles_file: String,
     vehicle_definitions_file: Option<String>,
     output_dir: String,
     events_mode: String,
@@ -46,6 +49,7 @@ impl ConfigBuilder {
         ConfigBuilder {
             network_file: String::from(""),
             population_file: String::from(""),
+            vehicles_file: String::from(""),
             vehicle_definitions_file: None,
             output_dir: String::from("./"),
             events_mode: String::from("file"),
@@ -81,6 +85,11 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn vehicles_file(mut self, file: String) -> Self {
+        self.vehicles_file = file;
+        self
+    }
+
     pub fn output_dir(mut self, dir: String) -> Self {
         self.output_dir = dir;
         self
@@ -111,6 +120,7 @@ impl ConfigBuilder {
             num_parts: self.num_parts,
             network_file: self.network_file,
             population_file: self.population_file,
+            vehicles_file: self.vehicles_file,
             vehicle_definitions_file: self.vehicle_definitions_file,
             output_dir: self.output_dir,
             events_mode: self.events_mode,

@@ -1,8 +1,10 @@
 use std::{collections::HashSet, path::Path};
 
+use crate::simulation::io::attributes::{Attr, Attrs};
+use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{
     id::{Id, IdStore},
-    io::network::{Attr, Attrs, IOLink, IONetwork, IONode},
+    io::network::{IOLink, IONetwork, IONode},
 };
 
 use super::metis_partitioning;
@@ -15,7 +17,7 @@ pub struct Network<'a> {
     // we make sure to store each mode only once. This could be optimized further if we'd
     // cache the HashSets which we store in the links. I.e. each combination of modes is only
     // one hash set.
-    pub modes: IdStore<'a, String>,
+    //  pub modes: IdStore<'a, String>,
     pub nodes: Vec<Node>,
     pub links: Vec<Link>,
 }
@@ -56,16 +58,15 @@ impl<'a> Network<'a> {
         Network {
             node_ids: IdStore::new(),
             link_ids: IdStore::new(),
-            modes: IdStore::new(),
             nodes: Vec::new(),
             links: Vec::new(),
         }
     }
 
-    pub fn from_file(file_path: &str, num_parts: usize) -> Self {
+    pub fn from_file(file_path: &str, num_parts: usize, garage: &mut Garage) -> Self {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
-        Self::init_nodes_and_links(&mut result, io_network);
+        Self::init_nodes_and_links(&mut result, io_network, garage);
         Self::partition_network(&mut result, num_parts);
         result
     }
@@ -82,7 +83,8 @@ impl<'a> Network<'a> {
                 }],
             };
             let io_node = IONode {
-                id: node.id.external.clone(),
+                //id: node.id.external.clone(),
+                id: node.id.internal.to_string(), // todo replace this with external id, once all output is written using external ids
                 x: node.x,
                 y: node.y,
                 attributes: Some(attributes),
@@ -106,9 +108,12 @@ impl<'a> Network<'a> {
             };
 
             let io_link = IOLink {
-                id: link.id.external.clone(),
-                from: link.from.external.clone(),
-                to: link.to.external.clone(),
+                //id: link.id.external.clone(),
+                id: link.id.internal.to_string(), // todo replace with external id again, once all output translates to external ids
+                //from: link.from.external.clone(),
+                from: link.from.internal.to_string(),
+                //to: link.to.external.clone(),
+                to: link.to.internal.to_string(),
                 length: link.length,
                 capacity: link.capacity,
                 freespeed: link.freespeed,
@@ -169,7 +174,7 @@ impl<'a> Network<'a> {
         self.links.push(link);
     }
 
-    pub fn add_io_link(&mut self, io_link: IOLink) {
+    pub fn add_io_link(&mut self, io_link: IOLink, garage: &mut Garage) {
         let id = self.link_ids.create_id(&io_link.id);
         assert_eq!(
             id.internal,
@@ -187,7 +192,7 @@ impl<'a> Network<'a> {
             .modes
             .split(',')
             .map(|s| s.trim())
-            .map(|mode| self.modes.create_id(mode))
+            .map(|mode| garage.modes.create_id(mode))
             .collect();
         let from_id = self.node_ids.get_from_ext(&io_link.from);
         let to_id = self.node_ids.get_from_ext(&io_link.to);
@@ -214,13 +219,13 @@ impl<'a> Network<'a> {
         self.links.get(id.internal).unwrap()
     }
 
-    fn init_nodes_and_links(network: &mut Network, io_network: IONetwork) {
+    fn init_nodes_and_links(network: &mut Network, io_network: IONetwork, garage: &mut Garage) {
         for node in io_network.nodes.nodes {
             network.add_io_node(node)
         }
 
         for link in io_network.links.links {
-            network.add_io_link(link)
+            network.add_io_link(link, garage)
         }
     }
 
@@ -300,6 +305,7 @@ impl Link {
 #[cfg(test)]
 mod tests {
     use crate::simulation::io::network::{IOLink, IONode};
+    use crate::simulation::vehicles::garage::Garage;
 
     use super::{Link, Network, Node};
 
@@ -429,10 +435,11 @@ mod tests {
             attributes: None,
         };
 
+        let mut garage = Garage::new();
         let mut network = Network::new();
         network.add_io_node(io_from);
         network.add_io_node(io_to);
-        network.add_io_link(io_link.clone());
+        network.add_io_link(io_link.clone(), &mut garage);
 
         let from = network.get_node(&network.node_ids.get_from_ext(&ext_from_id));
         let to = network.get_node(&network.node_ids.get_from_ext(&ext_to_id));
@@ -446,14 +453,15 @@ mod tests {
         assert_eq!(io_link.freespeed, link.freespeed);
         assert_eq!(io_link.permlanes, link.permlanes);
 
-        assert!(link.modes.contains(&network.modes.get_from_ext("car")));
-        assert!(link.modes.contains(&network.modes.get_from_ext("ride")));
-        assert!(link.modes.contains(&network.modes.get_from_ext("bike")));
+        assert!(link.modes.contains(&garage.modes.get_from_ext("car")));
+        assert!(link.modes.contains(&garage.modes.get_from_ext("ride")));
+        assert!(link.modes.contains(&garage.modes.get_from_ext("bike")));
     }
 
     #[test]
     fn from_file() {
-        let network = Network::from_file("./assets/equil/equil-network.xml", 2);
+        let mut garage = Garage::default();
+        let network = Network::from_file("./assets/equil/equil-network.xml", 2, &mut garage);
 
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];

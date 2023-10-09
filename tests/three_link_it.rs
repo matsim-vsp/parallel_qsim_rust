@@ -59,7 +59,7 @@ fn test_three_link_with_routing_legs_in_plans() {
 fn test_three_link_one_agent_with_vehicle_definitions() {
     test_three_link(
         "assets/3-links/1-agent.xml",
-        Some("assets/3-links/vehicle_definitions.xml"),
+        Some("assets/3-links/vehicles.xml"),
         "static/vehicle_definitions",
         "tests/resources/three_link",
     )
@@ -75,7 +75,7 @@ fn test_three_link_one_agent_with_vehicle_definitions() {
 fn test_three_link_multiple_agents_with_vehicle_definitions() {
     test_three_link(
         "assets/3-links/3-agent.xml",
-        Some("assets/3-links/vehicle_definitions.xml"),
+        Some("assets/3-links/vehicles.xml"),
         "static/multiple_agents/no_jam",
         "tests/resources/three_link/multiple_agents/no_jam",
     )
@@ -91,7 +91,7 @@ fn test_three_link_multiple_agents_with_vehicle_definitions() {
 fn test_three_link_multiple_agents_with_jam_by_vehicle_definitions() {
     test_three_link(
         "assets/3-links/3-agent_jam.xml",
-        Some("assets/3-links/vehicle_definitions.xml"),
+        Some("assets/3-links/vehicles.xml"),
         "static/multiple_agents/with_jam",
         "tests/resources/three_link/multiple_agents/with_jam",
     )

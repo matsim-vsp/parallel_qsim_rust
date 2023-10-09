@@ -1,3 +1,4 @@
+use std::slice::Iter;
 use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData, rc::Rc};
 
 pub type Id<T> = Rc<IdImpl<T>>;
@@ -89,6 +90,10 @@ impl<'ext, T> IdStore<'ext, T> {
             .clone()
     }
 
+    pub fn get_from_wire(&self, internal: u64) -> Id<T> {
+        self.get(internal as usize)
+    }
+
     pub fn get_from_ext(&self, external: &str) -> Id<T> {
         let index = self
             .mapping
@@ -96,10 +101,18 @@ impl<'ext, T> IdStore<'ext, T> {
             .unwrap_or_else(|| panic!("Could not find id for external id: {external}"));
         self.ids.get(*index).unwrap().clone()
     }
+
+    pub fn exists(&self, id: Id<T>) -> bool {
+        self.ids.get(id.internal).is_some()
+    }
+
+    pub fn iter(&self) -> Iter<'_, Id<T>> {
+        self.ids.iter()
+    }
 }
 
 #[cfg(test)]
-mod tets {
+mod tests {
     use super::{Id, IdImpl, IdStore};
 
     #[test]

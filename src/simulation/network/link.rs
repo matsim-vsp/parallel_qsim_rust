@@ -1,11 +1,8 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use tracing::warn;
-
 use crate::simulation::id::{Id, IdImpl};
 use crate::simulation::io::network::IOLink;
-use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::global_network::Node;
@@ -163,13 +160,8 @@ impl LocalLink {
         }
     }
 
-    pub fn push_vehicle(
-        &mut self,
-        vehicle: Vehicle,
-        now: u32,
-        vehicle_definitions: Option<&VehicleDefinitions>,
-    ) {
-        let speed = self.get_speed_for_vehicle(&vehicle, vehicle_definitions);
+    pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
+        let speed = self.freespeed.min(vehicle.max_v);
         let duration = (self.length / speed) as u32;
         let earliest_exit_time = now + duration;
         self.q.push_back(VehicleQEntry {
@@ -194,31 +186,6 @@ impl LocalLink {
         }
 
         popped_veh
-    }
-
-    fn get_speed_for_vehicle(
-        &self,
-        vehicle: &Vehicle,
-        vehicle_definitions: Option<&VehicleDefinitions>,
-    ) -> f32 {
-        if vehicle_definitions.is_none() {
-            return self.freespeed;
-        }
-
-        let vehicle_max_speed = vehicle_definitions
-            .as_ref()
-            .unwrap()
-            .get_max_speed_for_mode(vehicle.mode());
-
-        if vehicle_max_speed.is_none() {
-            warn!(
-                "There is no max speed given for vehicle type {:?}. Using freespeed of links.",
-                vehicle.mode()
-            );
-            return self.freespeed;
-        }
-
-        self.freespeed.min(vehicle_max_speed.unwrap())
     }
 }
 
@@ -268,10 +235,8 @@ impl SplitInLink {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::IdImpl;
-    use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
-    use crate::simulation::messaging::messages::proto::leg::Route;
-    use crate::simulation::messaging::messages::proto::{Activity, NetworkRoute};
-    use crate::simulation::messaging::messages::proto::{Agent, Leg, Plan, Vehicle, VehicleType};
+    use crate::simulation::messaging::messages::proto::{Activity, Route};
+    use crate::simulation::messaging::messages::proto::{Agent, Leg, Plan, Vehicle};
     use crate::simulation::network::link::LocalLink;
 
     #[test]
@@ -288,9 +253,9 @@ mod tests {
             IdImpl::new_internal(0),
         );
         let agent = create_agent(1, vec![]);
-        let vehicle = Vehicle::new(veh_id, VehicleType::Network, String::from("car"), agent);
+        let vehicle = Vehicle::new(veh_id, 0, 10., 1., Some(agent));
 
-        link.push_vehicle(vehicle, 0, None);
+        link.push_vehicle(vehicle, 0);
 
         // this should put the vehicle into the queue and update the exit time correctly
         let pushed_vehicle = link.q.front().unwrap();
@@ -314,12 +279,12 @@ mod tests {
         );
 
         let agent1 = create_agent(1, vec![]);
-        let vehicle1 = Vehicle::new(id1, VehicleType::Network, String::from("car"), agent1);
+        let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent(1, vec![]);
-        let vehicle2 = Vehicle::new(id2, VehicleType::Network, String::from("car"), agent2);
+        let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
 
-        link.push_vehicle(vehicle1, 0, None);
-        link.push_vehicle(vehicle2, 0, None);
+        link.push_vehicle(vehicle1, 0);
+        link.push_vehicle(vehicle2, 0);
 
         // make sure that vehicles are added ad the end of the queue
         assert_eq!(2, link.q.len());
@@ -350,8 +315,8 @@ mod tests {
 
         while n < 10 {
             let agent = create_agent(n as u64, vec![]);
-            let vehicle = Vehicle::new(n as u64, VehicleType::Network, String::from("car"), agent);
-            link.push_vehicle(vehicle, n, None);
+            let vehicle = Vehicle::new(n as u64, 0, 10., 1., Some(agent));
+            link.push_vehicle(vehicle, n);
             n += 1;
         }
 
@@ -381,8 +346,8 @@ mod tests {
 
         while n < 10 {
             let agent = create_agent(n as u64, vec![]);
-            let vehicle = Vehicle::new(n as u64, VehicleType::Network, String::from("car"), agent);
-            link.push_vehicle(vehicle, n, None);
+            let vehicle = Vehicle::new(n as u64, 0, 10., 1., Some(agent));
+            link.push_vehicle(vehicle, n);
             n += 1;
         }
 
@@ -409,11 +374,11 @@ mod tests {
         );
 
         let agent1 = create_agent(1, vec![]);
-        let vehicle1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent1);
+        let vehicle1 = Vehicle::new(1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent(2, vec![]);
-        let vehicle2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent2);
-        link.push_vehicle(vehicle1, 0, None);
-        link.push_vehicle(vehicle2, 0, None);
+        let vehicle2 = Vehicle::new(2, 0, 10., 1., Some(agent2));
+        link.push_vehicle(vehicle1, 0);
+        link.push_vehicle(vehicle2, 0);
 
         let popped = link.pop_front(10);
         assert_eq!(1, popped.len());
@@ -427,135 +392,14 @@ mod tests {
         assert_eq!(1, popped_3.len());
     }
 
-    #[test]
-    fn local_link_with_vehicle_definitions() {
-        let veh_id_car = 42;
-        let veh_id_buggy = 43;
-        let veh_id_bike = 44;
-        let mut link = LocalLink::new(
-            IdImpl::new_internal(1),
-            1.,
-            10.,
-            100.,
-            vec![],
-            1.,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
-        );
-
-        let vehicle_definitions = create_three_vehicle_definitions();
-
-        let agent1 = create_agent(1, vec![]);
-        let car = Vehicle::new(
-            veh_id_car,
-            VehicleType::Network,
-            String::from("car"),
-            agent1,
-        );
-        let agent2 = create_agent(2, vec![]);
-        let buggy = Vehicle::new(
-            veh_id_buggy,
-            VehicleType::Network,
-            String::from("buggy"),
-            agent2,
-        );
-        let agent3 = create_agent(3, vec![]);
-        let bike = Vehicle::new(
-            veh_id_bike,
-            VehicleType::Network,
-            String::from("bike"),
-            agent3,
-        );
-
-        link.push_vehicle(car, 0, Some(&vehicle_definitions));
-        link.push_vehicle(buggy, 0, Some(&vehicle_definitions));
-        link.push_vehicle(bike, 0, Some(&vehicle_definitions));
-
-        // this should put the vehicle into the queue and update the exit time correctly
-        let pushed_vehicle_car = link.q.get(0).unwrap();
-        assert_eq!(veh_id_car, pushed_vehicle_car.vehicle.id);
-        assert_eq!(10, pushed_vehicle_car.earliest_exit_time);
-
-        let pushed_vehicle_buggy = link.q.get(1).unwrap();
-        assert_eq!(veh_id_buggy, pushed_vehicle_buggy.vehicle.id);
-        assert_eq!(10, pushed_vehicle_buggy.earliest_exit_time);
-
-        let pushed_vehicle_bike = link.q.get(2).unwrap();
-        assert_eq!(veh_id_bike, pushed_vehicle_bike.vehicle.id);
-        assert_eq!(20, pushed_vehicle_bike.earliest_exit_time);
-    }
-
-    #[test]
-    fn local_link_pop_with_vehicle_definitions() {
-        let veh_id_car = 42;
-        let veh_id_buggy = 43;
-        let veh_id_bike = 44;
-        let mut link = LocalLink::new(
-            IdImpl::new_internal(1),
-            3600.,
-            10.,
-            100.,
-            vec![],
-            1.,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
-        );
-
-        let vehicle_definitions = create_three_vehicle_definitions();
-
-        let agent1 = create_agent(1, vec![]);
-        let car = Vehicle::new(
-            veh_id_car,
-            VehicleType::Network,
-            String::from("car"),
-            agent1,
-        );
-        let agent2 = create_agent(1, vec![]);
-        let buggy = Vehicle::new(
-            veh_id_buggy,
-            VehicleType::Network,
-            String::from("buggy"),
-            agent2,
-        );
-        let agent3 = create_agent(1, vec![]);
-        let bike = Vehicle::new(
-            veh_id_bike,
-            VehicleType::Network,
-            String::from("bike"),
-            agent3,
-        );
-
-        link.push_vehicle(bike, 0, Some(&vehicle_definitions));
-        link.push_vehicle(buggy, 0, Some(&vehicle_definitions));
-        link.push_vehicle(car, 0, Some(&vehicle_definitions));
-
-        let popped = link.pop_front(10);
-        assert_eq!(0, popped.len());
-
-        let popped_2 = link.pop_front(20);
-        assert_eq!(1, popped_2.len());
-        assert!(popped_2.first().unwrap().mode.eq("bike"));
-
-        let popped_3 = link.pop_front(21);
-        assert_eq!(1, popped_3.len());
-        assert!(popped_3.first().unwrap().mode.eq("buggy"));
-
-        let popped_4 = link.pop_front(22);
-        assert_eq!(1, popped_4.len());
-        assert!(popped_4.first().unwrap().mode.eq("car"));
-    }
-
-    fn create_three_vehicle_definitions() -> VehicleDefinitions {
-        VehicleDefinitions::new()
-            .add_vehicle_type("car".to_string(), Some(20.), String::from("car"))
-            .add_vehicle_type("buggy".to_string(), Some(10.), String::from("buggy"))
-            .add_vehicle_type("bike".to_string(), Some(5.), String::from("bike"))
-    }
-
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {
-        let route = Route::NetworkRoute(NetworkRoute::new(id, route));
-        let leg = Leg::new(route, "car", None, None);
-        let act = Activity::new(0., 0., String::from("some-type"), 1, None, None, None);
+        let route = Route {
+            veh_id: id,
+            distance: 0.0,
+            route,
+        };
+        let leg = Leg::new(route, 0, None, None);
+        let act = Activity::new(0., 0., 0, 1, None, None, None);
         let mut plan = Plan::new();
         plan.add_act(act);
         plan.add_leg(leg);

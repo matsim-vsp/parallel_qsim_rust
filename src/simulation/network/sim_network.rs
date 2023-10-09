@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 
 use crate::simulation::{
     id::Id,
-    io::vehicle_definitions::VehicleDefinitions,
     messaging::{
         events::{proto::Event, EventsPublisher},
         messages::proto::Vehicle,
@@ -56,18 +55,18 @@ impl<'n> SimNetworkPartition<'n> {
         Self::new(Vec::from_iter(nodes), links, global_network)
     }
 
-    fn create_sim_link(link: &Link, partition: usize, all_nodes: &Vec<Node>) -> SimLink {
+    fn create_sim_link(link: &Link, partition: usize, all_nodes: &[Node]) -> SimLink {
         let from_part = all_nodes.get(link.from.internal).unwrap().partition;
         let to_part = all_nodes.get(link.to.internal).unwrap().partition;
 
-        return if from_part == to_part {
+        if from_part == to_part {
             SimLink::Local(LocalLink::from_link(link, 1.0))
         } else if to_part == partition {
-            let local_link = LocalLink::from_link(&link, 1.0);
+            let local_link = LocalLink::from_link(link, 1.0);
             SimLink::In(SplitInLink::new(from_part, local_link))
         } else {
             SimLink::Out(SplitOutLink::new(link.id.clone(), to_part))
-        };
+        }
     }
 
     pub fn new(
@@ -100,22 +99,16 @@ impl<'n> SimNetworkPartition<'n> {
         distinct_partitions
     }
 
-    pub fn move_nodes(
-        &mut self,
-        events: &mut EventsPublisher,
-        veh_def: Option<&VehicleDefinitions>,
-        now: u32,
-    ) -> Vec<ExitReason> {
+    pub fn move_nodes(&mut self, events: &mut EventsPublisher, now: u32) -> Vec<ExitReason> {
         let mut exited_vehicles = Vec::new();
 
         for node_id in &self.nodes {
             Self::move_node(
                 node_id,
-                &self.global_network,
+                self.global_network,
                 &mut self.links,
                 &mut exited_vehicles,
                 events,
-                veh_def,
                 now,
             );
         }
@@ -129,7 +122,6 @@ impl<'n> SimNetworkPartition<'n> {
         links: &mut HashMap<Id<Link>, SimLink>,
         exited_vehicles: &mut Vec<ExitReason>,
         events: &mut EventsPublisher,
-        veh_def: Option<&VehicleDefinitions>,
         now: u32,
     ) {
         let node = global_network.get_node(node_id);
@@ -144,7 +136,7 @@ impl<'n> SimNetworkPartition<'n> {
                     vehicle.advance_route_index();
                     exited_vehicles.push(ExitReason::FinishRoute(vehicle));
                 } else if let Some(exit_reason) =
-                    Self::move_vehicle(vehicle, veh_def, global_network, links, events, now)
+                    Self::move_vehicle(vehicle, global_network, links, events, now)
                 {
                     exited_vehicles.push(exit_reason);
                 }
@@ -154,7 +146,6 @@ impl<'n> SimNetworkPartition<'n> {
 
     fn move_vehicle(
         mut vehicle: Vehicle,
-        veh_def: Option<&VehicleDefinitions>,
         global_network: &Network,
         links: &mut HashMap<Id<Link>, SimLink>,
         events: &mut EventsPublisher,
@@ -165,16 +156,14 @@ impl<'n> SimNetworkPartition<'n> {
             &Event::new_link_leave(vehicle.curr_route_elem as u64, vehicle.id),
         );
         vehicle.advance_route_index();
-        let link_id = global_network
-            .link_ids
-            .get(vehicle.curr_route_elem as usize);
+        let link_id = global_network.link_ids.get(vehicle.curr_link_id().unwrap());
         match links.get_mut(&link_id).unwrap() {
             SimLink::Local(l) => {
                 events.publish_event(
                     now,
                     &Event::new_link_enter(l.id.internal as u64, vehicle.id),
                 );
-                l.push_vehicle(vehicle, now, veh_def);
+                l.push_vehicle(vehicle, now);
                 None
             }
             SimLink::Out(_) => Some(ExitReason::ReachedBoundary(vehicle)),
@@ -187,12 +176,11 @@ impl<'n> SimNetworkPartition<'n> {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
         messaging::{
             events::EventsPublisher,
-            messages::proto::{
-                leg::Route, Activity, Agent, Leg, NetworkRoute, Plan, Vehicle, VehicleType,
-            },
+            messages::proto::{Activity, Agent, Leg, Plan, Vehicle},
         },
         network::{
             global_network::{Link, Network, Node},
@@ -243,13 +231,13 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0]);
-        let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
+        let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
-            link1.push_vehicle(vehicle, 1, None);
+            link1.push_vehicle(vehicle, 1);
         }
 
-        let exits = sim_network.move_nodes(&mut publisher, None, 11);
+        let exits = sim_network.move_nodes(&mut publisher, 11);
 
         assert_eq!(1, exits.len());
         assert!(matches!(exits.get(0).unwrap(), ExitReason::FinishRoute(_)));
@@ -261,13 +249,13 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0, 1]);
-        let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
+        let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
-            link1.push_vehicle(vehicle, 1, None);
+            link1.push_vehicle(vehicle, 1);
         }
 
-        let exits = sim_network.move_nodes(&mut publisher, None, 11);
+        let exits = sim_network.move_nodes(&mut publisher, 11);
 
         assert_eq!(0, exits.len());
         let out_id = sim_network.global_network.link_ids.get(1);
@@ -284,13 +272,13 @@ mod tests {
         let sim_network = sim_nets.get_mut(0).unwrap();
         let mut publisher = EventsPublisher::new();
         let agent = create_agent(1, vec![0, 1]);
-        let vehicle = Vehicle::new(1, VehicleType::Network, String::from("car"), agent);
+        let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
-            link1.push_vehicle(vehicle, 1, None);
+            link1.push_vehicle(vehicle, 1);
         }
 
-        let exits = sim_network.move_nodes(&mut publisher, None, 11);
+        let exits = sim_network.move_nodes(&mut publisher, 11);
 
         assert_eq!(1, exits.len());
         let exit = exits.first().unwrap();
@@ -303,15 +291,15 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent1 = create_agent(1, vec![0]);
-        let vehicle1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent1);
+        let vehicle1 = Vehicle::new(1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent(2, vec![0]);
-        let vehicle2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent2);
+        let vehicle2 = Vehicle::new(2, 0, 10., 1., Some(agent2));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
-            link1.push_vehicle(vehicle1, 1, None);
-            link1.push_vehicle(vehicle2, 1, None);
+            link1.push_vehicle(vehicle1, 1);
+            link1.push_vehicle(vehicle2, 1);
         }
-        let exited_vehicles = sim_network.move_nodes(&mut publisher, None, 11);
+        let exited_vehicles = sim_network.move_nodes(&mut publisher, 11);
 
         assert_eq!(1, exited_vehicles.len());
         let entry = exited_vehicles.get(0).unwrap();
@@ -320,7 +308,7 @@ mod tests {
             assert_eq!(1, vehicle.id);
         }
 
-        let exited_vehicles = sim_network.move_nodes(&mut publisher, None, 21);
+        let exited_vehicles = sim_network.move_nodes(&mut publisher, 21);
 
         assert_eq!(1, exited_vehicles.len());
         let entry = exited_vehicles.get(0).unwrap();
@@ -336,18 +324,18 @@ mod tests {
         let mut sim_network = create_single_node_sim_network(&mut network);
         let mut publisher = EventsPublisher::new();
         let agent1 = create_agent(1, vec![0, 1]);
-        let vehicle1 = Vehicle::new(1, VehicleType::Network, String::from("car"), agent1);
+        let vehicle1 = Vehicle::new(1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent(2, vec![0, 1]);
-        let vehicle2 = Vehicle::new(2, VehicleType::Network, String::from("car"), agent2);
+        let vehicle2 = Vehicle::new(2, 0, 10., 1., Some(agent2));
         let in_link_id = sim_network.global_network.link_ids.get(0);
         if let SimLink::Local(link1) = sim_network.links.get_mut(&in_link_id).unwrap() {
-            link1.push_vehicle(vehicle1, 1, None);
-            link1.push_vehicle(vehicle2, 1, None);
+            link1.push_vehicle(vehicle1, 1);
+            link1.push_vehicle(vehicle2, 1);
         }
 
-        let exited_vehicles = sim_network.move_nodes(&mut publisher, None, 11);
+        let exited_vehicles = sim_network.move_nodes(&mut publisher, 11);
         assert_eq!(0, exited_vehicles.len());
-        let exited_vehicles = sim_network.move_nodes(&mut publisher, None, 12);
+        let exited_vehicles = sim_network.move_nodes(&mut publisher, 12);
         assert_eq!(0, exited_vehicles.len());
 
         let out_link = sim_network
@@ -460,9 +448,13 @@ mod tests {
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {
-        let route = Route::NetworkRoute(NetworkRoute::new(id, route));
-        let leg = Leg::new(route, "car", None, None);
-        let act = Activity::new(0., 0., String::from("some-type"), 1, None, None, None);
+        let route = Route {
+            veh_id: id,
+            distance: 0.0,
+            route,
+        };
+        let leg = Leg::new(route, 0, None, None);
+        let act = Activity::new(0., 0., 0, 1, None, None, None);
         let mut plan = Plan::new();
         plan.add_act(act);
         plan.add_leg(leg);
