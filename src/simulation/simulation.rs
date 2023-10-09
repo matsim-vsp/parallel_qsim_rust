@@ -201,7 +201,7 @@ impl<'sim> Simulation<'sim> {
                         now,
                         &Event::new_person_leaves_veh(vehicle.agent().id, vehicle.id),
                     );
-                    let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(vehicle.id);
+                    let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(vehicle.r#type);
                     let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
                     let mode = veh_type.net_mode.external.clone();
                     let mut agent = self.garage.park_veh(vehicle);

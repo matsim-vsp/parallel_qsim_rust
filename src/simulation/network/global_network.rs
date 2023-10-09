@@ -83,7 +83,8 @@ impl<'a> Network<'a> {
                 }],
             };
             let io_node = IONode {
-                id: node.id.external.clone(),
+                //id: node.id.external.clone(),
+                id: node.id.internal.to_string(), // todo replace this with external id, once all output is written using external ids
                 x: node.x,
                 y: node.y,
                 attributes: Some(attributes),
@@ -107,9 +108,12 @@ impl<'a> Network<'a> {
             };
 
             let io_link = IOLink {
-                id: link.id.external.clone(),
-                from: link.from.external.clone(),
-                to: link.to.external.clone(),
+                //id: link.id.external.clone(),
+                id: link.id.internal.to_string(), // todo replace with external id again, once all output translates to external ids
+                //from: link.from.external.clone(),
+                from: link.from.internal.to_string(),
+                //to: link.to.external.clone(),
+                to: link.to.internal.to_string(),
                 length: link.length,
                 capacity: link.capacity,
                 freespeed: link.freespeed,
