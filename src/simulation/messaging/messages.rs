@@ -152,6 +152,12 @@ impl Vehicle {
         let route = leg.route.as_ref().unwrap();
         self.curr_route_elem + 1 >= route.route.len() as u32
     }
+
+    pub fn peek_next_route_element(&self) -> Option<usize> {
+        let route = self.agent().curr_leg().route.as_ref().unwrap();
+        let next_i = self.curr_route_elem as usize + 1;
+        route.route.get(next_i).map(|i| *i as usize)
+    }
 }
 
 impl EndTime for Vehicle {

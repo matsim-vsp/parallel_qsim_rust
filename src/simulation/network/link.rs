@@ -15,6 +15,50 @@ pub enum SimLink {
     Out(SplitOutLink),
 }
 
+impl SimLink {
+    pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
+        match self {
+            SimLink::Local(ll) => ll.offers_veh(now),
+            SimLink::In(il) => il.local_link.offers_veh(now),
+            SimLink::Out(_) => {
+                panic!("can't query out links to offer vehicles.")
+            }
+        }
+    }
+
+    pub fn accepts_veh(&self) -> bool {
+        match self {
+            SimLink::Local(ll) => ll.accepts_veh(),
+            SimLink::In(_) => {
+                panic!("In Links can't accept vehicles")
+            }
+            SimLink::Out(_) => {
+                panic!("Accept veh. not yet implemented for our links")
+            }
+        }
+    }
+
+    pub fn pop_veh(&mut self) -> Vehicle {
+        match self {
+            SimLink::Local(ll) => ll.q.pop_front().unwrap().vehicle,
+            SimLink::In(il) => il.local_link.q.pop_front().unwrap().vehicle,
+            SimLink::Out(_) => {
+                panic!("Can't pop vehicle from out link")
+            }
+        }
+    }
+
+    pub fn update_flow_cap(&mut self, now: u32) {
+        match self {
+            SimLink::Local(ll) => ll.update_flow_cap(now),
+            SimLink::In(il) => il.local_link.update_flow_cap(now),
+            SimLink::Out(_) => {
+                panic!("can't update flow cap on out links.")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LocalLink {
     pub id: Id<Link>,
@@ -115,6 +159,27 @@ impl LocalLink {
         }
 
         popped_veh
+    }
+
+    pub fn update_flow_cap(&mut self, now: u32) {
+        // increase flow cap if new time step
+        self.flow_cap.update_capacity(now);
+    }
+
+    pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
+        // check if we have flow cap left for current time step, otherwise abort
+        if !self.flow_cap.has_capacity() {
+            return None;
+        }
+
+        // peek if fist vehicle in queue can leave
+        if let Some(entry) = self.q.front() {
+            if entry.earliest_exit_time <= now {
+                return Some(&entry.vehicle);
+            }
+        }
+
+        None
     }
 
     pub fn available_storage_capacity(&self) -> f32 {

@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::simulation::id::IdStore;
 use crate::simulation::{
     id::Id,
     messaging::{
@@ -23,6 +24,12 @@ pub struct SimNetworkPartition<'n> {
     pub nodes: Vec<Id<Node>>,
     pub links: HashMap<Id<Link>, SimLink>,
     pub global_network: &'n Network<'n>,
+}
+
+enum NextRouteStep {
+    NextLink(Id<Link>),
+    NextLinkFull,
+    RouteEnds,
 }
 
 impl<'n> SimNetworkPartition<'n> {
@@ -114,6 +121,62 @@ impl<'n> SimNetworkPartition<'n> {
         }
 
         exited_vehicles
+    }
+
+    fn move_node_2(
+        node_id: &Id<Node>,
+        global_network: &Network,
+        links: &mut HashMap<Id<Link>, SimLink>,
+        exited_vehicles: &mut Vec<ExitReason>,
+        events: &mut EventsPublisher,
+        now: u32,
+    ) {
+        let node = global_network.get_node(node_id);
+        for link_id in &node.in_links {
+            let in_link = links.get_mut(link_id).unwrap();
+            in_link.update_flow_cap(now);
+
+            if !Self::should_veh_move_out(link_id, links, &global_network.link_ids, now) {
+                continue;
+            }
+
+            // get the mut ref here again, so that the borrow checker lets us borrow the links map
+            // for the method above.
+            let in_link = links.get_mut(link_id).unwrap();
+            let veh = in_link.pop_veh();
+
+            // todo clean this up, so that we can use next id in the next method, which probably makes
+            // todo things in there simpler as well.
+            if let Some(next_id) = veh.peek_next_route_element() {
+                Self::move_vehicle(veh, global_network, links, events, now);
+            } else {
+                exited_vehicles.push(ExitReason::FinishRoute(veh));
+            }
+        }
+    }
+
+    fn should_veh_move_out(
+        in_id: &Id<Link>,
+        links: &HashMap<Id<Link>, SimLink>,
+        id_store: &IdStore<Link>,
+        now: u32,
+    ) -> bool {
+        let in_link = links.get(in_id).unwrap();
+        if let Some(veh_ref) = in_link.offers_veh(now) {
+            return if let Some(next_id_int) = veh_ref.peek_next_route_element() {
+                // if the vehicle has a next link id, it should move out of the current link, if the
+                // next link is free.
+                let out_link_id = id_store.get(next_id_int);
+                let out_link = links.get(&out_link_id).unwrap();
+                out_link.accepts_veh()
+            } else {
+                // if there is no next link, the vehicle is done with its route and we can take it out
+                // of the network
+                true
+            };
+        }
+        // if the link doesn't have a vehicle to offer, we don't have to do anything.
+        false
     }
 
     fn move_node(
