@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use crate::simulation::id::{Id, IdImpl};
-use crate::simulation::io::network::IOLink;
+use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::global_network::Node;
@@ -16,74 +15,15 @@ pub enum SimLink {
     Out(SplitOutLink),
 }
 
-impl SimLink {
-    pub fn from(&self) -> &Id<Node> {
-        match self {
-            SimLink::Local(l) => &l.from,
-            SimLink::In(l) => &l.local_link.from,
-            SimLink::Out(_) => {
-                panic!("There is no from id of a split out link.")
-            }
-        }
-    }
-
-    pub fn to(&self) -> &Id<Node> {
-        match self {
-            SimLink::Local(l) => &l.to,
-            SimLink::In(l) => &l.local_link.to,
-            SimLink::Out(_) => {
-                panic!("There is no to id of a split out link.")
-            }
-        }
-    }
-
-    pub fn contains_mode(&self, mode: &String) -> bool {
-        match self {
-            SimLink::Local(l) => l.modes.contains(mode),
-            SimLink::In(l) => l.local_link.modes.contains(mode),
-            SimLink::Out(_) => {
-                panic!("There is not enough information for SplitOutLinks to evaluate.")
-            }
-        }
-    }
-
-    pub fn freespeed(&self) -> f32 {
-        match self {
-            SimLink::Local(l) => l.freespeed,
-            SimLink::In(l) => l.local_link.freespeed,
-            SimLink::Out(_) => {
-                panic!("There is no freespeed of a split out link.")
-            }
-        }
-    }
-
-    pub fn length(&self) -> f32 {
-        match self {
-            SimLink::Local(l) => l.length,
-            SimLink::In(l) => l.local_link.length,
-            SimLink::Out(_) => {
-                panic!("There is no length of a split out link.")
-            }
-        }
-    }
-
-    pub fn id(&self) -> Id<Link> {
-        match self {
-            SimLink::Local(l) => l.id.clone(),
-            SimLink::In(l) => l.local_link.id.clone(),
-            SimLink::Out(l) => l.id.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct LocalLink {
     pub id: Id<Link>,
     q: VecDeque<VehicleQEntry<Vehicle>>,
     length: f32,
-    freespeed: f32,
-    flowcap: Flowcap,
-    modes: Vec<String>,
+    free_speed: f32,
+    storage_cap: f32,
+    used_storage_cap: f32,
+    flow_cap: Flowcap,
     pub from: Id<Node>,
     pub to: Id<Node>,
 }
@@ -95,43 +35,15 @@ struct VehicleQEntry<V> {
 }
 
 impl LocalLink {
-    pub fn from_io_link(
-        id: usize,
-        link: &IOLink,
-        sample_size: f32,
-        from: usize,
-        to: usize,
-    ) -> Self {
-        // TODO: remove this method or change parameters to Id<T>
-        let wrapped_id = IdImpl::new_internal(id);
-        let from_id = IdImpl::new_internal(from);
-        let to_id = IdImpl::new_internal(to);
-        LocalLink::new(
-            wrapped_id,
-            link.capacity,
-            link.freespeed,
-            link.length,
-            link.modes(),
-            sample_size,
-            from_id,
-            to_id,
-        )
-    }
-
-    pub fn from_link(link: &Link, sample_size: f32) -> Self {
-        //TODO This should take the modes as set of ids, as well as ids, instead of the internal representation.
-        let modes = link
-            .modes
-            .iter()
-            .map(|mode_id| mode_id.external.clone())
-            .collect();
+    pub fn from_link(link: &Link, sample_size: f32, effective_cell_size: f32) -> Self {
         LocalLink::new(
             link.id.clone(),
             link.capacity,
             link.freespeed,
+            link.permlanes,
             link.length,
-            modes,
             sample_size,
+            effective_cell_size,
             link.from.clone(),
             link.to.clone(),
         )
@@ -141,29 +53,43 @@ impl LocalLink {
     pub fn new(
         id: Id<Link>,
         capacity_h: f32,
-        freespeed: f32,
+        free_speed: f32,
+        perm_lanes: f32,
         length: f32,
-        modes: Vec<String>,
         sample_size: f32,
+        effective_cell_size: f32,
         from: Id<Node>,
         to: Id<Node>,
     ) -> Self {
+        let flow_cap_s = capacity_h * sample_size / 3600.;
+        let storage_cap = Self::calculate_storage_cap(
+            length,
+            perm_lanes,
+            flow_cap_s,
+            sample_size,
+            effective_cell_size,
+        );
+
         LocalLink {
             id,
             q: VecDeque::new(),
-            flowcap: Flowcap::new(capacity_h * sample_size / 3600.),
-            freespeed,
-            modes,
+            flow_cap: Flowcap::new(flow_cap_s),
+            free_speed,
             length,
             from,
             to,
+            storage_cap,
+            used_storage_cap: 0.0,
         }
     }
 
     pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
-        let speed = self.freespeed.min(vehicle.max_v);
+        let speed = self.free_speed.min(vehicle.max_v);
         let duration = (self.length / speed) as u32;
         let earliest_exit_time = now + duration;
+
+        // update state
+        self.consume_storage_cap(vehicle.pce);
         self.q.push_back(VehicleQEntry {
             vehicle,
             earliest_exit_time,
@@ -171,21 +97,55 @@ impl LocalLink {
     }
 
     pub fn pop_front(&mut self, now: u32) -> Vec<Vehicle> {
-        self.flowcap.update_capacity(now);
+        self.flow_cap.update_capacity(now);
 
         let mut popped_veh = Vec::new();
 
         while let Some(entry) = self.q.front() {
-            if entry.earliest_exit_time > now || !self.flowcap.has_capacity() {
+            if entry.earliest_exit_time > now || !self.flow_cap.has_capacity() {
                 break;
             }
 
+            // pop vehicle from queue, consume flow capacity, and release blocked storage capacity
             let vehicle = self.q.pop_front().unwrap().vehicle;
-            self.flowcap.consume_capacity(1.0);
+            self.flow_cap.consume_capacity(1.0);
+            self.release_storage_cap(vehicle.pce);
+
             popped_veh.push(vehicle);
         }
 
         popped_veh
+    }
+
+    pub fn available_storage_capacity(&self) -> f32 {
+        self.storage_cap - self.used_storage_cap
+    }
+
+    pub fn accepts_veh(&self) -> bool {
+        self.available_storage_capacity() > 0.0
+    }
+
+    fn consume_storage_cap(&mut self, cap: f32) {
+        self.used_storage_cap = self.storage_cap.min(self.used_storage_cap + cap);
+    }
+
+    fn release_storage_cap(&mut self, cap: f32) {
+        self.used_storage_cap = 0f32.max(self.used_storage_cap - cap);
+    }
+
+    fn calculate_storage_cap(
+        length: f32,
+        perm_lanes: f32,
+        flow_cap_s: f32,
+        sample_size: f32,
+        effective_cell_size: f32,
+    ) -> f32 {
+        let cap = length * perm_lanes * sample_size / effective_cell_size;
+        // storage capacity needs to be at least enough to handle the cap_per_time_step:
+        cap.max(flow_cap_s)
+
+        // the original code contains more logic to increase storage capacity for links with a low
+        // free speed. Omit this for now, as we don't want to create a feature complete qsim
     }
 }
 
@@ -234,6 +194,8 @@ impl SplitInLink {
 
 #[cfg(test)]
 mod tests {
+    use assert_approx_eq::assert_approx_eq;
+
     use crate::simulation::id::IdImpl;
     use crate::simulation::messaging::messages::proto::{Activity, Route};
     use crate::simulation::messaging::messages::proto::{Agent, Leg, Plan, Vehicle};
@@ -246,18 +208,20 @@ mod tests {
             IdImpl::new_internal(1),
             1.,
             1.,
-            10.,
-            vec![],
             1.,
+            10.,
+            1.,
+            7.5,
             IdImpl::new_internal(0),
             IdImpl::new_internal(0),
         );
         let agent = create_agent(1, vec![]);
         let vehicle = Vehicle::new(veh_id, 0, 10., 1., Some(agent));
 
+        // this should put the vehicle into the queue and update the exit time correctly
         link.push_vehicle(vehicle, 0);
 
-        // this should put the vehicle into the queue and update the exit time correctly
+        assert_eq!(0.33333337, link.available_storage_capacity());
         let pushed_vehicle = link.q.front().unwrap();
         assert_eq!(veh_id, pushed_vehicle.vehicle.id);
         assert_eq!(10, pushed_vehicle.earliest_exit_time);
@@ -271,9 +235,10 @@ mod tests {
             IdImpl::new_internal(1),
             1.,
             1.,
-            11.8,
-            vec![],
             1.,
+            11.8,
+            1.,
+            7.5,
             IdImpl::new_internal(0),
             IdImpl::new_internal(0),
         );
@@ -284,7 +249,12 @@ mod tests {
         let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
 
         link.push_vehicle(vehicle1, 0);
+        assert_approx_eq!(0.57, link.available_storage_capacity(), 0.01);
+        assert!(link.accepts_veh());
+
         link.push_vehicle(vehicle2, 0);
+        assert_approx_eq!(0., link.available_storage_capacity());
+        assert!(!link.accepts_veh());
 
         // make sure that vehicles are added ad the end of the queue
         assert_eq!(2, link.q.len());
@@ -304,9 +274,10 @@ mod tests {
             IdImpl::new_internal(1),
             1000000.,
             10.,
-            100.,
-            vec![],
             1.,
+            100.,
+            1.,
+            7.5,
             IdImpl::new_internal(0),
             IdImpl::new_internal(0),
         );
@@ -320,12 +291,16 @@ mod tests {
             n += 1;
         }
 
+        assert_approx_eq!(267.7, link.available_storage_capacity(), 0.1);
         let pop1 = link.pop_front(12);
         assert_eq!(3, pop1.len());
+        assert_approx_eq!(270.7, link.available_storage_capacity(), 0.1);
         let pop2 = link.pop_front(12);
         assert_eq!(0, pop2.len());
+        assert_approx_eq!(270.7, link.available_storage_capacity(), 0.1);
         let pop3 = link.pop_front(20);
         assert_eq!(7, pop3.len());
+        assert_approx_eq!(277.7, link.available_storage_capacity(), 0.1);
     }
 
     #[test]
@@ -336,8 +311,9 @@ mod tests {
             7200.,
             10.,
             100.,
-            vec![],
             1.,
+            1.,
+            7.5,
             IdImpl::new_internal(0),
             IdImpl::new_internal(0),
         );
@@ -366,9 +342,10 @@ mod tests {
             IdImpl::new_internal(1),
             3600.,
             10.,
+            1.,
             100.,
-            vec![],
             0.1,
+            7.5,
             IdImpl::new_internal(0),
             IdImpl::new_internal(0),
         );
@@ -390,6 +367,41 @@ mod tests {
 
         let popped_3 = link.pop_front(20);
         assert_eq!(1, popped_3.len());
+    }
+
+    #[test]
+    fn init_storage_cap() {
+        let link = LocalLink::new(
+            IdImpl::new_internal(1),
+            3600.,
+            10.,
+            2.,
+            100.,
+            0.1,
+            5.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
+
+        assert_eq!(4., link.storage_cap);
+    }
+
+    #[test]
+    fn init_storage_cap_high_cappa_link() {
+        let link = LocalLink::new(
+            IdImpl::new_internal(1),
+            36000.,
+            10.,
+            2.,
+            10.,
+            0.1,
+            5.,
+            IdImpl::new_internal(0),
+            IdImpl::new_internal(0),
+        );
+
+        // storage capacity would be 0.2, but must be increased to 1.0 to accommodate flow cap
+        assert_eq!(1., link.storage_cap);
     }
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {

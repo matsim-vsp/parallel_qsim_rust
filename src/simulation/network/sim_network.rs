@@ -60,9 +60,9 @@ impl<'n> SimNetworkPartition<'n> {
         let to_part = all_nodes.get(link.to.internal).unwrap().partition;
 
         if from_part == to_part {
-            SimLink::Local(LocalLink::from_link(link, 1.0))
+            SimLink::Local(LocalLink::from_link(link, 1.0, 7.5))
         } else if to_part == partition {
-            let local_link = LocalLink::from_link(link, 1.0);
+            let local_link = LocalLink::from_link(link, 1.0, 7.5);
             SimLink::In(SplitInLink::new(from_part, local_link))
         } else {
             SimLink::Out(SplitOutLink::new(link.id.clone(), to_part))

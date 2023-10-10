@@ -72,7 +72,7 @@ pub struct Links {
     #[serde(rename = "link", default)]
     pub links: Vec<IOLink>,
     #[serde(rename = "effectivecellsize")]
-    effective_cell_size: Option<f32>,
+    pub effective_cell_size: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -111,10 +111,7 @@ impl IONetwork {
     }
 
     pub fn effective_cell_size(&self) -> f32 {
-        match self.links.effective_cell_size {
-            None => 7.5,
-            Some(ecs) => ecs,
-        }
+        self.links.effective_cell_size.unwrap_or(7.5)
     }
 
     pub fn from_file(file_path: &str) -> IONetwork {

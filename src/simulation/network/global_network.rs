@@ -14,12 +14,9 @@ use super::metis_partitioning;
 pub struct Network<'a> {
     pub node_ids: IdStore<'a, Node>,
     pub link_ids: IdStore<'a, Link>,
-    // we make sure to store each mode only once. This could be optimized further if we'd
-    // cache the HashSets which we store in the links. I.e. each combination of modes is only
-    // one hash set.
-    //  pub modes: IdStore<'a, String>,
     pub nodes: Vec<Node>,
     pub links: Vec<Link>,
+    pub effective_cell_size: f32,
 }
 
 #[derive(Debug)]
@@ -60,6 +57,7 @@ impl<'a> Network<'a> {
             link_ids: IdStore::new(),
             nodes: Vec::new(),
             links: Vec::new(),
+            effective_cell_size: 7.5,
         }
     }
 
@@ -121,6 +119,7 @@ impl<'a> Network<'a> {
                 modes,
                 attributes: Some(attributes),
             };
+            result.links.effective_cell_size = Some(self.effective_cell_size);
             result.links_mut().push(io_link);
         }
 
@@ -491,6 +490,9 @@ mod tests {
                 }
             }
         }
+
+        // check cell size
+        assert_eq!(7.5, network.effective_cell_size);
     }
 
     #[test]
