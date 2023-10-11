@@ -20,8 +20,6 @@ pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
                 result
             });
 
-    println!("{node_count:?}");
-
     let mut xadj: Vec<Idx> = Vec::from([0]);
     let mut adjncy: Vec<Idx> = Vec::new();
     let mut adjwgt: Vec<Idx> = Vec::new();

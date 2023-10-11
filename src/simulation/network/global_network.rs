@@ -230,7 +230,7 @@ impl<'a> Network<'a> {
 
     fn partition_network(network: &mut Network, num_parts: usize) {
         let partitions = metis_partitioning::partition(network, num_parts);
-        println!("{partitions:?}");
+        println!("Node partitioning: {partitions:#?}");
         for node in network.nodes.iter_mut() {
             let partition = partitions[node.id.internal] as usize;
             node.partition = partition;

@@ -5,7 +5,6 @@ use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
-use crate::simulation::network::link::SimLink;
 use crate::simulation::network::sim_network::{ExitReason, SimNetworkPartition};
 use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::TimeQueue;
@@ -106,7 +105,7 @@ impl<'sim> Simulation<'sim> {
                         now,
                         &Event::new_person_enters_veh(vehicle.agent().id, vehicle.id),
                     );
-                    self.veh_onto_network(vehicle, true, now);
+                    self.network.send_veh_en_route(vehicle, now);
                 }
                 LevelOfDetail::Teleported => {
                     if Simulation::is_local_route(&vehicle, &self.message_broker) {
@@ -138,35 +137,6 @@ impl<'sim> Simulation<'sim> {
 
         let veh_id = self.garage.vehicle_ids.get_from_wire(route.veh_id);
         self.garage.unpark_veh(agent, &veh_id)
-    }
-
-    fn veh_onto_network(&mut self, vehicle: Vehicle, from_act: bool, now: u32) {
-        let link_id_internal = vehicle.curr_link_id().unwrap(); // in this case there should always be a link id.
-        let link_id = self.network.global_network.link_ids.get(link_id_internal);
-        let link = self.network.links.get_mut(&link_id).unwrap_or_else(|| {
-            panic!(
-                "Cannot find link for link_id {:?} and vehicle {:?}",
-                link_id, vehicle
-            )
-        });
-
-        // todo, can we do this differently maybe...
-        if !from_act {
-            self.events.publish_event(
-                now,
-                &Event::new_link_enter(link_id.internal as u64, vehicle.id),
-            );
-        }
-        match link {
-            SimLink::Local(link) => link.push_vehicle(vehicle, now),
-            SimLink::In(in_link) => {
-                let local_link = in_link.local_link_mut();
-                local_link.push_vehicle(vehicle, now)
-            }
-            SimLink::Out(_) => {
-                panic!("Vehicles should not start on out links...")
-            }
-        }
     }
 
     fn terminate_teleportation(&mut self, now: u32) {
@@ -239,7 +209,11 @@ impl<'sim> Simulation<'sim> {
                     self.teleportation_q.add(vehicle, now);
                 }
                 0 => {
-                    self.veh_onto_network(vehicle, false, now);
+                    self.events.publish_event(
+                        now,
+                        &Event::new_link_enter(vehicle.curr_link_id().unwrap() as u64, vehicle.id),
+                    );
+                    self.network.send_veh_en_route(vehicle, now);
                 }
                 _ => {}
             }
