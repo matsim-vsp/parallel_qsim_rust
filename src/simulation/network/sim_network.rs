@@ -382,7 +382,7 @@ mod tests {
                 println!("Link1 has a queue length of {} at {now}", l.veh_count());
             }
 
-            if (10..1001).contains(&now) {
+            if (10..1000).contains(&now) {
                 assert!(link1.offers_veh(now).is_some());
             } else {
                 assert!(link1.offers_veh(now).is_none());
