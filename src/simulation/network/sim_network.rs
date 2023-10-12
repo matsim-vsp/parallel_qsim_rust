@@ -1,4 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
+
+use nohash_hasher::IntMap;
 
 use crate::simulation::id::IdStore;
 use crate::simulation::{
@@ -23,29 +25,30 @@ pub enum ExitReason {
 #[derive(Debug)]
 pub struct SimNetworkPartition<'n> {
     pub nodes: Vec<Id<Node>>,
-    pub links: HashMap<Id<Link>, SimLink>,
+    pub links: IntMap<Id<Link>, SimLink>,
     pub global_network: &'n Network<'n>,
 }
 
 impl<'n> SimNetworkPartition<'n> {
     pub fn from_network(global_network: &'n Network, partition: usize) -> Self {
-        let nodes: HashSet<_> = global_network
+        let nodes: Vec<_> = global_network
             .nodes
             .iter()
             .filter(|node| node.partition == partition)
             .map(|node| node.id.clone())
             .collect();
 
-        let link_ids: HashSet<_> = nodes
+        let link_ids: Vec<_> = nodes
             .iter()
-            .map(|id| global_network.nodes.get(id.internal).unwrap())
+            .map(|id| global_network.nodes.get(id.internal()).unwrap())
             .filter(|node| node.partition == partition)
             .flat_map(|node| node.in_links.iter().chain(node.out_links.iter()))
             .collect(); // collect here to get each link id only once
 
-        let links: HashMap<_, _> = link_ids
+        //<u8, char, BuildNoHashHasher<u8>>
+        let links: IntMap<_, _> = link_ids
             .iter()
-            .map(|link_id| global_network.links.get(link_id.internal).unwrap())
+            .map(|link_id| global_network.links.get(link_id.internal()).unwrap())
             .map(|link| {
                 (
                     link.id.clone(),
@@ -59,7 +62,7 @@ impl<'n> SimNetworkPartition<'n> {
             })
             .collect();
 
-        Self::new(Vec::from_iter(nodes), links, global_network)
+        Self::new(nodes, links, global_network)
     }
 
     fn create_sim_link(
@@ -68,8 +71,8 @@ impl<'n> SimNetworkPartition<'n> {
         effective_cell_size: f32,
         all_nodes: &[Node],
     ) -> SimLink {
-        let from_part = all_nodes.get(link.from.internal).unwrap().partition;
-        let to_part = all_nodes.get(link.to.internal).unwrap().partition;
+        let from_part = all_nodes.get(link.from.internal()).unwrap().partition;
+        let to_part = all_nodes.get(link.to.internal()).unwrap().partition;
 
         if from_part == to_part {
             SimLink::Local(LocalLink::from_link(link, 1.0, effective_cell_size))
@@ -83,7 +86,8 @@ impl<'n> SimNetworkPartition<'n> {
 
     pub fn new(
         nodes: Vec<Id<Node>>,
-        links: HashMap<Id<Link>, SimLink>,
+        links: IntMap<Id<Link>, SimLink>,
+        //links: HashMap<Id<Link>, SimLink>,
         global_network: &'n Network,
     ) -> Self {
         SimNetworkPartition {
@@ -140,7 +144,7 @@ impl<'n> SimNetworkPartition<'n> {
     fn move_node_2(
         node_id: &Id<Node>,
         global_network: &Network,
-        links: &mut HashMap<Id<Link>, SimLink>,
+        links: &mut IntMap<Id<Link>, SimLink>,
         exited_vehicles: &mut Vec<ExitReason>,
         events: &mut EventsPublisher,
         now: u32,
@@ -168,7 +172,7 @@ impl<'n> SimNetworkPartition<'n> {
 
     fn should_veh_move_out(
         in_id: &Id<Link>,
-        links: &HashMap<Id<Link>, SimLink>,
+        links: &IntMap<Id<Link>, SimLink>,
         id_store: &IdStore<Link>,
         now: u32,
     ) -> bool {
@@ -193,7 +197,7 @@ impl<'n> SimNetworkPartition<'n> {
     fn move_vehicle(
         mut vehicle: Vehicle,
         global_network: &Network,
-        links: &mut HashMap<Id<Link>, SimLink>,
+        links: &mut IntMap<Id<Link>, SimLink>,
         events: &mut EventsPublisher,
         exited_vehicles: &mut Vec<ExitReason>,
         now: u32,
@@ -208,7 +212,7 @@ impl<'n> SimNetworkPartition<'n> {
             SimLink::Local(l) => {
                 events.publish_event(
                     now,
-                    &Event::new_link_enter(l.id.internal as u64, vehicle.id),
+                    &Event::new_link_enter(l.id.internal() as u64, vehicle.id),
                 );
                 l.push_vehicle(vehicle, now);
             }
@@ -362,15 +366,24 @@ mod tests {
         let id_2 = global_net.link_ids.get_from_ext("link2");
         let mut network = SimNetworkPartition::from_network(&global_net, 0);
 
+        //println!("{network:#?}");
+        for node in &network.nodes {
+            print!("{} ", node.external());
+        }
+        println!();
+        for link in network.links.keys() {
+            print!("{} ", link.external());
+        }
+
         //place 10 vehicles on link2 so that it is jammed
         for i in 0..10 {
-            let agent = create_agent(i, vec![id_2.internal as u64, 2]);
+            let agent = create_agent(i, vec![id_2.internal() as u64, 2]);
             let vehicle = Vehicle::new(i, 0, 1., 10., Some(agent));
             network.send_veh_en_route(vehicle, 0);
         }
 
         // place 1 vehicle onto link1 which has to wait until link2 has free storage cap
-        let agent = create_agent(11, vec![id_1.internal as u64, 1, 2]);
+        let agent = create_agent(11, vec![id_1.internal() as u64, 1, 2]);
         let vehicle = Vehicle::new(11, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, 0);
 
@@ -378,8 +391,8 @@ mod tests {
             network.move_nodes(&mut publisher, now);
             let link1 = network.links.get(&id_1).unwrap();
 
-            if let SimLink::Local(l) = link1 {
-                println!("Link1 has a queue length of {} at {now}", l.veh_count());
+            if let SimLink::Local(_l) = link1 {
+                // println!("Link1 has a queue length of {} at {now}", l.veh_count());
             }
 
             if (10..1000).contains(&now) {

@@ -189,7 +189,7 @@ impl Agent {
         }
 
         Agent {
-            id: person_id.internal as u64,
+            id: person_id.internal() as u64,
             plan: Some(plan),
             curr_plan_elem: 0,
         }
@@ -403,8 +403,8 @@ impl Activity {
         Activity {
             x: io_act.x,
             y: io_act.y,
-            act_type: act_type.internal as u64,
-            link_id: link_id.internal as u64,
+            act_type: act_type.internal() as u64,
+            link_id: link_id.internal() as u64,
             start_time: parse_time_opt(&io_act.start_time),
             end_time: parse_time_opt(&io_act.end_time),
             max_dur: parse_time_opt(&io_act.max_dur),
@@ -453,10 +453,10 @@ impl Leg {
 
         Self {
             route: Some(route),
-            mode: mode.internal as u64,
+            mode: mode.internal() as u64,
             trav_time: parse_time_opt(&io_leg.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
-            routing_mode: routing_mode.internal as u64,
+            routing_mode: routing_mode.internal() as u64,
         }
     }
 
@@ -509,8 +509,8 @@ impl Route {
 
         Route {
             distance: io_route.distance,
-            veh_id: veh_id.internal as u64,
-            route: vec![start_link.internal as u64, end_link.internal as u64],
+            veh_id: veh_id.internal() as u64,
+            route: vec![start_link.internal() as u64, end_link.internal() as u64],
         }
     }
 
@@ -532,12 +532,12 @@ impl Route {
                     None => Vec::new(),
                     Some(encoded_links) => encoded_links
                         .split(' ')
-                        .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal as u64)
+                        .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal() as u64)
                         .collect(),
                 };
                 Route {
                     distance: io_route.distance,
-                    veh_id: veh_id.internal as u64,
+                    veh_id: veh_id.internal() as u64,
                     route: link_ids,
                 }
             }

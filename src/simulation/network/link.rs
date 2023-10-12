@@ -220,6 +220,7 @@ impl LocalLink {
 
 #[derive(Debug, Clone)]
 pub struct SplitOutLink {
+    #[allow(dead_code)]
     pub(crate) id: Id<Link>,
     to_part: usize,
 }
@@ -265,7 +266,7 @@ impl SplitInLink {
 mod tests {
     use assert_approx_eq::assert_approx_eq;
 
-    use crate::simulation::id::IdImpl;
+    use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::{Activity, Route};
     use crate::simulation::messaging::messages::proto::{Agent, Leg, Plan, Vehicle};
     use crate::simulation::network::link::LocalLink;
@@ -274,15 +275,15 @@ mod tests {
     fn local_link_push_single_veh() {
         let veh_id = 42;
         let mut link = LocalLink::new(
-            IdImpl::new_internal(1),
+            Id::new_internal(1),
             1.,
             1.,
             1.,
             10.,
             1.,
             7.5,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
+            Id::new_internal(0),
+            Id::new_internal(0),
         );
         let agent = create_agent(1, vec![]);
         let vehicle = Vehicle::new(veh_id, 0, 10., 1., Some(agent));
@@ -301,15 +302,15 @@ mod tests {
         let id1 = 42;
         let id2 = 43;
         let mut link = LocalLink::new(
-            IdImpl::new_internal(1),
+            Id::new_internal(1),
             1.,
             1.,
             1.,
             11.8,
             1.,
             7.5,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
+            Id::new_internal(0),
+            Id::new_internal(0),
         );
 
         let agent1 = create_agent(1, vec![]);

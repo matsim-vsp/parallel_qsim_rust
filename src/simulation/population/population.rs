@@ -127,7 +127,7 @@ impl<'p> Population<'p> {
     }
 
     fn create_veh_id_string(person_id: &Id<Agent>, veh_type: &Id<VehicleType>) -> String {
-        format!("{}_{}", person_id.external, veh_type.external)
+        format!("{}_{}", person_id.external(), veh_type.external())
     }
 
     fn is_partition(io_person: &IOPerson, net: &Network, partition: usize) -> bool {
@@ -171,9 +171,9 @@ mod tests {
 
         let home_act = plan.acts.first().unwrap();
         let act_type = pop.act_types.get_from_wire(home_act.act_type);
-        assert_eq!("h", act_type.external.as_str());
+        assert_eq!("h", act_type.external());
         assert_eq!(
-            net.link_ids.get_from_ext("1").internal as u64,
+            net.link_ids.get_from_ext("1").internal() as u64,
             home_act.link_id
         );
         assert_eq!(-25000., home_act.x);
@@ -188,15 +188,15 @@ mod tests {
         assert!(leg.route.is_some());
         let net_route = leg.route.as_ref().unwrap();
         assert_eq!(
-            garage.vehicle_ids.get_from_ext("1_car").internal as u64,
+            garage.vehicle_ids.get_from_ext("1_car").internal() as u64,
             net_route.veh_id
         );
         assert_eq!(
             vec![
-                net.link_ids.get_from_ext("1").internal as u64,
-                net.link_ids.get_from_ext("6").internal as u64,
-                net.link_ids.get_from_ext("15").internal as u64,
-                net.link_ids.get_from_ext("20").internal as u64,
+                net.link_ids.get_from_ext("1").internal() as u64,
+                net.link_ids.get_from_ext("6").internal() as u64,
+                net.link_ids.get_from_ext("15").internal() as u64,
+                net.link_ids.get_from_ext("20").internal() as u64,
             ],
             net_route.route
         );
@@ -214,23 +214,20 @@ mod tests {
         assert!(garage
             .vehicle_types
             .keys()
-            .all(|type_id| expected_veh_types.contains(type_id.external.as_str())));
+            .all(|type_id| expected_veh_types.contains(type_id.external())));
 
         // check that we have a vehicle for each mode and for each person
         assert_eq!(9, garage.vehicles.len());
 
         // check population
         // activity types should be done as id. If id is not present this will crash
-        assert_eq!("home", pop.act_types.get_from_ext("home").external.as_str());
-        assert_eq!(
-            "errands",
-            pop.act_types.get_from_ext("errands").external.as_str()
-        );
+        assert_eq!("home", pop.act_types.get_from_ext("home").external());
+        assert_eq!("errands", pop.act_types.get_from_ext("errands").external());
 
         // agents should also have ids
-        assert_eq!("100", pop.agent_ids.get_from_ext("100").external.as_str());
-        assert_eq!("200", pop.agent_ids.get_from_ext("200").external.as_str());
-        assert_eq!("300", pop.agent_ids.get_from_ext("300").external.as_str());
+        assert_eq!("100", pop.agent_ids.get_from_ext("100").external());
+        assert_eq!("200", pop.agent_ids.get_from_ext("200").external());
+        assert_eq!("300", pop.agent_ids.get_from_ext("300").external());
 
         // we expect three agents overall
         assert_eq!(3, pop.agents.len());

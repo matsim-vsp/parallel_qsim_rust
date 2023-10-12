@@ -81,8 +81,8 @@ impl<'a> Network<'a> {
                 }],
             };
             let io_node = IONode {
-                //id: node.id.external.clone(),
-                id: node.id.internal.to_string(), // todo replace this with external id, once all output is written using external ids
+                //id: node.id.external().clone(),
+                id: node.id.internal().to_string(), // todo replace this with external id, once all output is written using external ids
                 x: node.x,
                 y: node.y,
                 attributes: Some(attributes),
@@ -94,7 +94,7 @@ impl<'a> Network<'a> {
             let modes = link
                 .modes
                 .iter()
-                .map(|m| m.external.clone())
+                .map(|m| m.external().to_string())
                 .reduce(|modes, mode| format!("{modes},{mode}"))
                 .unwrap();
             let attributes = Attrs {
@@ -106,12 +106,12 @@ impl<'a> Network<'a> {
             };
 
             let io_link = IOLink {
-                //id: link.id.external.clone(),
-                id: link.id.internal.to_string(), // todo replace with external id again, once all output translates to external ids
-                //from: link.from.external.clone(),
-                from: link.from.internal.to_string(),
-                //to: link.to.external.clone(),
-                to: link.to.internal.to_string(),
+                //id: link.id.external().clone(),
+                id: link.id.internal().to_string(), // todo replace with external id again, once all output translates to external ids
+                //from: link.from.external().clone(),
+                from: link.from.internal().to_string(),
+                //to: link.to.external().clone(),
+                to: link.to.internal().to_string(),
                 length: link.length,
                 capacity: link.capacity,
                 freespeed: link.freespeed,
@@ -128,17 +128,19 @@ impl<'a> Network<'a> {
 
     pub fn add_node(&mut self, node: Node) {
         assert_eq!(
-            node.id.internal,
+            node.id.internal(),
             self.nodes.len(),
             "internal id {} and slot in node vec {} were note the same. Probably, node id {} already exsists.",
-            node.id.internal,
+            node.id.internal(),
             self.nodes.len(),
-            node.id.external
+            node.id.external()
         );
         self.nodes.push(node);
     }
 
     pub fn add_io_node(&mut self, io_node: IONode) {
+        println!("Adding node: {}", io_node.id);
+
         let id = self.node_ids.create_id(&io_node.id);
         let attrs = match io_node.attributes {
             Some(attrs) => attrs.attributes,
@@ -151,22 +153,22 @@ impl<'a> Network<'a> {
 
     pub fn add_link(&mut self, link: Link) {
         assert_eq!(
-            link.id.internal,
+            link.id.internal(),
             self.links.len(),
             "internal id {} and slot in link vec {} were note the same. Probably, this link id {} already exists",
-            link.id.internal,
+            link.id.internal(),
             self.links.len(),
-            link.id.external
+            link.id.external()
         );
 
         // wire up in and out links and push link to the links vec
         self.nodes
-            .get_mut(link.from.internal)
+            .get_mut(link.from.internal())
             .unwrap()
             .out_links
             .push(link.id.clone());
         self.nodes
-            .get_mut(link.to.internal)
+            .get_mut(link.to.internal())
             .unwrap()
             .in_links
             .push(link.id.clone());
@@ -174,12 +176,13 @@ impl<'a> Network<'a> {
     }
 
     pub fn add_io_link(&mut self, io_link: IOLink, garage: &mut Garage) {
+        println!("Adding link: {}", io_link.id);
         let id = self.link_ids.create_id(&io_link.id);
         assert_eq!(
-            id.internal,
+            id.internal(),
             self.links.len(),
             "internal id {} and slot in link vec {} were note the same. Probably, this link id already exists",
-            id.internal,
+            id.internal(),
             self.links.len()
         );
 
@@ -211,11 +214,11 @@ impl<'a> Network<'a> {
     }
 
     pub fn get_node(&self, id: &Id<Node>) -> &Node {
-        self.nodes.get(id.internal).unwrap()
+        self.nodes.get(id.internal()).unwrap()
     }
 
     pub fn get_link(&self, id: &Id<Link>) -> &Link {
-        self.links.get(id.internal).unwrap()
+        self.links.get(id.internal()).unwrap()
     }
 
     fn init_nodes_and_links(network: &mut Network, io_network: IONetwork, garage: &mut Garage) {
@@ -232,11 +235,11 @@ impl<'a> Network<'a> {
         let partitions = metis_partitioning::partition(network, num_parts);
         println!("Node partitioning: {partitions:#?}");
         for node in network.nodes.iter_mut() {
-            let partition = partitions[node.id.internal] as usize;
+            let partition = partitions[node.id.internal()] as usize;
             node.partition = partition;
 
             for link_id in &node.in_links {
-                let link = network.links.get_mut(link_id.internal).unwrap();
+                let link = network.links.get_mut(link_id.internal()).unwrap();
                 link.partition = partition;
             }
         }
@@ -395,8 +398,8 @@ mod tests {
 
         // the node should be in nodes vec and there should be a node id
         let id = network.node_ids.get_from_ext(&external_id);
-        assert_eq!(0, id.internal);
-        assert_eq!(external_id, id.external);
+        assert_eq!(0, id.internal());
+        assert_eq!(external_id, id.external());
 
         let node = network.get_node(&id);
         assert_eq!(x, node.x);
@@ -446,7 +449,7 @@ mod tests {
 
         assert_eq!(from.id, link.from);
         assert_eq!(to.id, link.to);
-        assert_eq!(ext_link_id, link.id.external);
+        assert_eq!(ext_link_id, link.id.external());
         assert_eq!(io_link.length, link.length);
         assert_eq!(io_link.capacity, link.capacity);
         assert_eq!(io_link.freespeed, link.freespeed);
@@ -465,17 +468,17 @@ mod tests {
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
         for node in &network.nodes {
-            let expected_partition = expected_partitions[node.id.internal];
+            let expected_partition = expected_partitions[node.id.internal()];
             assert_eq!(expected_partition, node.partition);
         }
         for link in &network.links {
-            let expected_partition = expected_partitions[link.to.internal];
+            let expected_partition = expected_partitions[link.to.internal()];
             assert_eq!(expected_partition, link.partition);
         }
 
         // probe in and out links
         for node in &network.nodes {
-            match &node.id.internal {
+            match &node.id.internal() {
                 11 => {
                     assert_eq!(9, node.in_links.len());
                     assert_eq!(1, node.out_links.len());

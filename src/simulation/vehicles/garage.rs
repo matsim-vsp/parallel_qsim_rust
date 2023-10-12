@@ -91,12 +91,12 @@ impl<'g> Garage<'g> {
 
     pub fn add_veh_type(&mut self, veh_type: VehicleType) {
         assert_eq!(
-            veh_type.id.internal,
+            veh_type.id.internal(),
             self.vehicle_types.len(),
             "internal id {} and slot in node vec {} were note the same. Probably, vehicle type {} already exists.",
-            veh_type.id.internal,
+            veh_type.id.internal(),
             self.vehicle_types.len(),
-            veh_type.id.external
+            veh_type.id.external()
         );
 
         self.vehicle_types.insert(veh_type.id.clone(), veh_type);
@@ -147,9 +147,9 @@ impl<'g> Garage<'g> {
         let veh_type = self.vehicle_types.get(&garage_veh.veh_type).unwrap();
 
         Vehicle {
-            id: id.internal as u64,
+            id: id.internal() as u64,
             curr_route_elem: 0,
-            r#type: veh_type.id.internal as u64,
+            r#type: veh_type.id.internal() as u64,
             max_v: veh_type.max_v,
             pce: veh_type.pce,
             agent: Some(person),
@@ -213,8 +213,11 @@ mod tests {
         garage.add_io_veh_type(io_veh_type);
 
         assert_eq!(1, garage.vehicle_types.len());
-        assert_eq!(0, garage.modes.get_from_ext("car").internal);
-        assert_eq!(0, garage.vehicle_type_ids.get_from_ext("some-id").internal);
+        assert_eq!(0, garage.modes.get_from_ext("car").internal());
+        assert_eq!(
+            0,
+            garage.vehicle_type_ids.get_from_ext("some-id").internal()
+        );
 
         let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());

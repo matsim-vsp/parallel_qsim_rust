@@ -91,7 +91,7 @@ impl<'sim> Simulation<'sim> {
                 &Event::new_act_end(
                     agent.id,
                     agent.curr_act().link_id,
-                    act_type.external.clone(),
+                    act_type.external().to_string(),
                 ),
             );
 
@@ -132,7 +132,11 @@ impl<'sim> Simulation<'sim> {
         let leg_mode = self.garage.modes.get_from_wire(leg.mode);
         self.events.publish_event(
             now,
-            &Event::new_departure(agent.id, route.start_link(), leg_mode.external.clone()),
+            &Event::new_departure(
+                agent.id,
+                route.start_link(),
+                leg_mode.external().to_string(),
+            ),
         );
 
         let veh_id = self.garage.vehicle_ids.get_from_wire(route.veh_id);
@@ -151,7 +155,7 @@ impl<'sim> Simulation<'sim> {
             let mode = self.garage.modes.get_from_wire(leg.mode);
             self.events.publish_event(
                 now,
-                &Event::new_travelled(agent.id, route.distance, mode.external.clone()),
+                &Event::new_travelled(agent.id, route.distance, mode.external().to_string()),
             );
 
             // advance plan to activity and put agent into activity q.
@@ -173,7 +177,7 @@ impl<'sim> Simulation<'sim> {
                     );
                     let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(vehicle.r#type);
                     let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
-                    let mode = veh_type.net_mode.external.clone();
+                    let mode = veh_type.net_mode.external().to_string();
                     let mut agent = self.garage.park_veh(vehicle);
 
                     // move to next activity
@@ -184,7 +188,11 @@ impl<'sim> Simulation<'sim> {
                     let act_type = self.population.act_types.get_from_wire(act.act_type);
                     self.events.publish_event(
                         now,
-                        &Event::new_act_start(agent.id, act.link_id, act_type.external.clone()),
+                        &Event::new_act_start(
+                            agent.id,
+                            act.link_id,
+                            act_type.external().to_string(),
+                        ),
                     );
                     self.activity_q.add(agent, now);
                 }

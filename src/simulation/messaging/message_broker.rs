@@ -1,14 +1,17 @@
-use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
-use crate::simulation::network::sim_network::SimNetworkPartition;
+use std::collections::{BinaryHeap, HashMap, HashSet};
+
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+
+use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
+use crate::simulation::network::sim_network::SimNetworkPartition;
 
 pub trait MessageBroker {
     fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage>;
     fn add_veh(&mut self, vehicle: Vehicle, now: u32);
 }
+
 pub struct MpiMessageBroker {
     pub rank: Rank,
     communicator: SystemCommunicator,
@@ -122,7 +125,7 @@ impl MpiMessageBroker {
             .global_network
             .links
             .iter()
-            .map(|link| (link.id.internal, link.partition))
+            .map(|link| (link.id.internal(), link.partition))
             .collect();
         MpiMessageBroker {
             out_messages: HashMap::new(),
