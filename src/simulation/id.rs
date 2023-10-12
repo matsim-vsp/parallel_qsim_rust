@@ -85,8 +85,8 @@ impl<T> Clone for Id<T> {
 #[derive(Debug)]
 pub struct IdImpl<T> {
     _type_marker: PhantomData<T>,
-    pub internal: usize,
-    pub external: String,
+    internal: usize,
+    external: String,
 }
 
 #[derive(Debug, Default)]

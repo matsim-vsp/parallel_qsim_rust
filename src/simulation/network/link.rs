@@ -71,10 +71,10 @@ impl SimLink {
         }
     }
 
-    pub fn update_storage_cap(&mut self) {
+    pub fn release_storage_cap(&mut self) {
         match self {
-            SimLink::Local(l) => l.update_storage_cap(),
-            SimLink::In(l) => l.local_link.update_storage_cap(),
+            SimLink::Local(l) => l.release_storage_cap(),
+            SimLink::In(l) => l.local_link.release_storage_cap(),
             SimLink::Out(_) => {
                 panic!("Can't update storage capapcity on out link.")
             }
@@ -89,10 +89,14 @@ pub struct LocalLink {
     length: f32,
     free_speed: f32,
     max_storage_cap: f32,
-    // this property is the internal book keeping of storage capacity and is changed during move_node
-    pub curr_used_storage_cap: f32,
-    // this property is the used storage cap for queries from outside. It is updated once in update_links
-    // This way, the order in which nodes are updated doesn't matter anymore.
+    // keeps track of storage capacity released by vehicles leaving the link during one time step
+    // on release_storage_cap, the used_storage_cap is reduced to account for vehicles leaving the
+    // link. This is necessary, because we want additional storage capacity to be available only in
+    // the following time step, to keep the resulting traffic pattern independent from the order in
+    // which nodes are processed in the qsim.
+    pub released_storage_cap: f32,
+    // keeps track of the storage capacity consumed by the vehicles in the q. This property gets
+    // updated immediately once a vehicle is pushed onto the link.
     pub used_storage_cap: f32,
     flow_cap: Flowcap,
     pub from: Id<Node>,
@@ -147,16 +151,12 @@ impl LocalLink {
             length,
             free_speed,
             max_storage_cap: storage_cap,
-            curr_used_storage_cap: 0.0,
+            released_storage_cap: 0.0,
             used_storage_cap: 0.0,
             flow_cap: Flowcap::new(flow_cap_s),
             from,
             to,
         }
-    }
-
-    pub fn update_storage_cap(&mut self) {
-        self.used_storage_cap = self.curr_used_storage_cap;
     }
 
     pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
@@ -175,7 +175,7 @@ impl LocalLink {
     pub fn pop_front(&mut self) -> Vehicle {
         let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
         self.flow_cap.consume_capacity(veh.vehicle.pce);
-        self.release_storage_cap(veh.vehicle.pce);
+        self.released_storage_cap -= veh.vehicle.pce;
 
         veh.vehicle
     }
@@ -214,11 +214,12 @@ impl LocalLink {
     }
 
     fn consume_storage_cap(&mut self, cap: f32) {
-        self.curr_used_storage_cap = self.max_storage_cap.min(self.curr_used_storage_cap + cap);
+        self.used_storage_cap = self.max_storage_cap.min(self.used_storage_cap + cap);
     }
 
-    fn release_storage_cap(&mut self, cap: f32) {
-        self.curr_used_storage_cap = 0f32.max(self.curr_used_storage_cap - cap);
+    fn release_storage_cap(&mut self) {
+        self.used_storage_cap = 0f32.max(self.used_storage_cap - self.released_storage_cap);
+        self.released_storage_cap = 0.0;
     }
 
     fn calculate_storage_cap(
@@ -357,19 +358,18 @@ mod tests {
         assert_eq!(11, popped_vehicle2.earliest_exit_time);
     }
 
-    /*
     #[test]
     fn local_link_pop_with_exit_time() {
         let mut link = LocalLink::new(
-            IdImpl::new_internal(1),
+            Id::new_internal(1),
             1000000.,
             10.,
             1.,
             100.,
             1.,
             7.5,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
+            Id::new_internal(0),
+            Id::new_internal(0),
         );
 
         let mut n: u32 = 0;
@@ -382,13 +382,13 @@ mod tests {
         }
 
         assert_approx_eq!(267.7, link.available_storage_capacity(), 0.1);
-        let pop1 = link.pop_front(12);
+        let pop1 = link.pop_front();
         assert_eq!(3, pop1.len());
         assert_approx_eq!(270.7, link.available_storage_capacity(), 0.1);
-        let pop2 = link.pop_front(12);
+        let pop2 = link.pop_front();
         assert_eq!(0, pop2.len());
         assert_approx_eq!(270.7, link.available_storage_capacity(), 0.1);
-        let pop3 = link.pop_front(20);
+        let pop3 = link.pop_front();
         assert_eq!(7, pop3.len());
         assert_approx_eq!(277.7, link.available_storage_capacity(), 0.1);
     }
@@ -397,15 +397,15 @@ mod tests {
     fn local_link_pop_with_capacity() {
         // link has capacity of 2 per second
         let mut link = LocalLink::new(
-            IdImpl::new_internal(1),
+            Id::new_internal(1),
             7200.,
             10.,
             100.,
             1.,
             1.,
             7.5,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
+            Id::new_internal(0),
+            Id::new_internal(0),
         );
 
         let mut n: u32 = 0;
@@ -429,15 +429,15 @@ mod tests {
     fn local_link_pop_with_capacity_reduced() {
         // link has a capacity of 1 * 0.1 per second
         let mut link = LocalLink::new(
-            IdImpl::new_internal(1),
+            Id::new_internal(1),
             3600.,
             10.,
             1.,
             100.,
             0.1,
             7.5,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
+            Id::new_internal(0),
+            Id::new_internal(0),
         );
 
         let agent1 = create_agent(1, vec![]);
@@ -462,15 +462,15 @@ mod tests {
     #[test]
     fn init_storage_cap() {
         let link = LocalLink::new(
-            IdImpl::new_internal(1),
+            Id::new_internal(1),
             3600.,
             10.,
             2.,
             100.,
             0.1,
             5.,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
+            Id::new_internal(0),
+            Id::new_internal(0),
         );
 
         assert_eq!(4., link.storage_cap);
@@ -479,22 +479,20 @@ mod tests {
     #[test]
     fn init_storage_cap_high_cappa_link() {
         let link = LocalLink::new(
-            IdImpl::new_internal(1),
+            Id::new_internal(1),
             36000.,
             10.,
             2.,
             10.,
             0.1,
             5.,
-            IdImpl::new_internal(0),
-            IdImpl::new_internal(0),
+            Id::new_internal(0),
+            Id::new_internal(0),
         );
 
         // storage capacity would be 0.2, but must be increased to 1.0 to accommodate flow cap
         assert_eq!(1., link.storage_cap);
     }
-
-     */
 
     // todo re write tests for link behaviour.
 

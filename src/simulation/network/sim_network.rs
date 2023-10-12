@@ -126,7 +126,7 @@ impl<'n> SimNetworkPartition<'n> {
 
     pub fn move_links(&mut self) {
         for link in self.links.values_mut() {
-            link.update_storage_cap();
+            link.release_storage_cap();
         }
     }
 
