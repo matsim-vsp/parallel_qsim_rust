@@ -20,8 +20,8 @@ pub enum SimLink {
 impl SimLink {
     pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
         match self {
-            SimLink::Local(ll) => ll.offers_veh(now),
-            SimLink::In(il) => il.local_link.offers_veh(now),
+            SimLink::Local(ll) => ll.q_front(now),
+            SimLink::In(il) => il.local_link.q_front(now),
             SimLink::Out(_) => {
                 panic!("can't query out links to offer vehicles.")
             }
@@ -70,24 +70,38 @@ impl SimLink {
             }
         }
     }
+
+    pub fn update_storage_cap(&mut self) {
+        match self {
+            SimLink::Local(l) => l.update_storage_cap(),
+            SimLink::In(l) => l.local_link.update_storage_cap(),
+            SimLink::Out(_) => {
+                panic!("Can't update storage capapcity on out link.")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct LocalLink {
     pub id: Id<Link>,
-    q: VecDeque<VehicleQEntry<Vehicle>>,
+    q: VecDeque<VehicleQEntry>,
     length: f32,
     free_speed: f32,
-    storage_cap: f32,
-    used_storage_cap: f32,
+    max_storage_cap: f32,
+    // this property is the internal book keeping of storage capacity and is changed during move_node
+    pub curr_used_storage_cap: f32,
+    // this property is the used storage cap for queries from outside. It is updated once in update_links
+    // This way, the order in which nodes are updated doesn't matter anymore.
+    pub used_storage_cap: f32,
     flow_cap: Flowcap,
     pub from: Id<Node>,
     pub to: Id<Node>,
 }
 
 #[derive(Debug, Clone)]
-struct VehicleQEntry<V> {
-    vehicle: V,
+struct VehicleQEntry {
+    vehicle: Vehicle,
     earliest_exit_time: u32,
 }
 
@@ -130,14 +144,19 @@ impl LocalLink {
         LocalLink {
             id,
             q: VecDeque::new(),
-            flow_cap: Flowcap::new(flow_cap_s),
-            free_speed,
             length,
+            free_speed,
+            max_storage_cap: storage_cap,
+            curr_used_storage_cap: 0.0,
+            used_storage_cap: 0.0,
+            flow_cap: Flowcap::new(flow_cap_s),
             from,
             to,
-            storage_cap,
-            used_storage_cap: 0.0,
         }
+    }
+
+    pub fn update_storage_cap(&mut self) {
+        self.used_storage_cap = self.curr_used_storage_cap;
     }
 
     pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
@@ -166,7 +185,7 @@ impl LocalLink {
         self.flow_cap.update_capacity(now);
     }
 
-    pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
+    pub fn q_front(&self, now: u32) -> Option<&Vehicle> {
         // check if we have flow cap left for current time step, otherwise abort
         if !self.flow_cap.has_capacity() {
             return None;
@@ -183,7 +202,7 @@ impl LocalLink {
     }
 
     pub fn available_storage_capacity(&self) -> f32 {
-        self.storage_cap - self.used_storage_cap
+        self.max_storage_cap - self.used_storage_cap
     }
 
     pub fn accepts_veh(&self) -> bool {
@@ -195,11 +214,11 @@ impl LocalLink {
     }
 
     fn consume_storage_cap(&mut self, cap: f32) {
-        self.used_storage_cap = self.storage_cap.min(self.used_storage_cap + cap);
+        self.curr_used_storage_cap = self.max_storage_cap.min(self.curr_used_storage_cap + cap);
     }
 
     fn release_storage_cap(&mut self, cap: f32) {
-        self.used_storage_cap = 0f32.max(self.used_storage_cap - cap);
+        self.curr_used_storage_cap = 0f32.max(self.curr_used_storage_cap - cap);
     }
 
     fn calculate_storage_cap(

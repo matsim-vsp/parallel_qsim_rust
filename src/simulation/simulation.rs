@@ -166,6 +166,7 @@ impl<'sim> Simulation<'sim> {
 
     fn move_nodes(&mut self, now: u32) {
         let exited_vehicles = self.network.move_nodes(&mut self.events, now);
+        self.network.move_links();
 
         for exit_reason in exited_vehicles {
             match exit_reason {
