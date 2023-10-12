@@ -1,12 +1,12 @@
-use nohash_hasher::{IntMap, IntSet};
-use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
-
 use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::messaging::{
     events::{proto::Event, EventsPublisher},
     messages::proto::Vehicle,
 };
+use nohash_hasher::{IntMap, IntSet};
+use rand::rngs::ThreadRng;
+use rand::{thread_rng, Rng};
+use std::collections::HashSet;
 
 use super::{
     global_network::{Link, Network, Node},
@@ -142,6 +142,18 @@ impl SimNetworkPartition {
             .map(|link| link.neighbor_part())
             .collect();
         distinct_partitions
+    }
+
+    pub fn get_link_ids(&self) -> HashSet<u64> {
+        self.links
+            .iter()
+            .filter(|(id, link)| match link {
+                SimLink::Local(_) => true,
+                SimLink::In(_) => true,
+                SimLink::Out(_) => false,
+            })
+            .map(|(id, _)| id.internal as u64)
+            .collect::<HashSet<u64>>()
     }
 
     pub fn send_veh_en_route(&mut self, vehicle: Vehicle, now: u32) {
@@ -438,6 +450,7 @@ mod tests {
     use assert_approx_eq::assert_approx_eq;
 
     use crate::simulation::id::Id;
+    use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
         messaging::{

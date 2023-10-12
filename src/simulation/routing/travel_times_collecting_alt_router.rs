@@ -16,8 +16,9 @@ pub struct TravelTimesCollectingAltRouter {
 }
 
 impl Router for TravelTimesCollectingAltRouter {
-    fn query_links(&mut self, from_link: u64, to_link: u64, mode: &str) -> CustomQueryResult {
-        self.get_router_by_mode(mode)
+    fn query_links(&mut self, from_link: u64, to_link: u64, mode: u64) -> CustomQueryResult {
+        //TODO
+        self.get_router_by_mode(u64::to_string(&mode).as_ref())
             .expect(&*format!(
                 "There is no router for mode {:?}. Check the vehicle definitions.",
                 mode

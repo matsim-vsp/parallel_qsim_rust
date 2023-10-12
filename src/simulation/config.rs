@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -17,6 +17,8 @@ pub struct Config {
     pub vehicles_file: String,
     #[arg(long)]
     pub vehicle_definitions_file: Option<String>,
+    #[arg(long, value_enum, default_value_t = RoutingMode::UsePlans)]
+    pub routing_mode: RoutingMode,
     #[arg(long, default_value = "./")]
     pub output_dir: String,
     #[arg(long, default_value = "file")]
@@ -25,6 +27,12 @@ pub struct Config {
     pub sample_size: f32,
     #[arg(long, default_value = "metis")]
     pub partition_method: String,
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy)]
+pub enum RoutingMode {
+    AdHoc,
+    UsePlans,
 }
 
 impl Config {
@@ -41,6 +49,7 @@ pub struct ConfigBuilder {
     population_file: String,
     vehicles_file: String,
     vehicle_definitions_file: Option<String>,
+    routing_mode: RoutingMode,
     output_dir: String,
     events_mode: String,
     sample_size: f32,
@@ -60,6 +69,7 @@ impl ConfigBuilder {
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,
+            routing_mode: RoutingMode::UsePlans,
             partition_method: String::from("metis"),
         }
     }
@@ -131,6 +141,7 @@ impl ConfigBuilder {
             population_file: self.population_file,
             vehicles_file: self.vehicles_file,
             vehicle_definitions_file: self.vehicle_definitions_file,
+            routing_mode: self.routing_mode,
             output_dir: self.output_dir,
             events_mode: self.events_mode,
             sample_size: self.sample_size,

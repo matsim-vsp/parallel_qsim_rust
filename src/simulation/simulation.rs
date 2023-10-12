@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
@@ -24,6 +24,8 @@ where
     garage: Garage,
     message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
+    router: Option<Box<dyn Router>>,
+    walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
 }
 
 impl<C> Simulation<C>
@@ -37,6 +39,8 @@ where
         mut population: Population,
         message_broker: NetMessageBroker<C>,
         events: EventsPublisher,
+        router: Option<Box<dyn Router>>,
+        walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
 
@@ -55,6 +59,8 @@ where
             activity_q,
             message_broker,
             events,
+            router,
+            walk_leg_updater,
         }
     }
 
@@ -83,6 +89,10 @@ where
             now += 1;
         }
 
+        if let Some(router) = self.router.as_mut() {
+            router.next_time_step(now, &mut self.events)
+        }
+
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
         self.events.finish();
     }
@@ -100,6 +110,18 @@ where
                     act_type.external().to_string(),
                 ),
             );
+
+            if self.router.is_some() {
+                if (!agent.curr_act().is_interaction() && agent.next_act().is_interaction())
+                    || (agent.curr_act().is_interaction() && !agent.next_act().is_interaction())
+                {
+                    self.update_walk_leg(&mut agent);
+                } else if agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
+                    self.update_main_leg(&mut agent);
+                } else {
+                    panic!("Computing a leg between two main activities should never happen.")
+                }
+            }
 
             let mut vehicle = self.departure(agent, now);
             let veh_type_id = Id::get(vehicle.r#type);
@@ -125,6 +147,54 @@ where
                 }
             }
         }
+    }
+
+    fn update_main_leg(&mut self, agent: &mut Agent) {
+        let curr_act = agent.curr_act();
+        let next_act = agent.next_act();
+        let mode = agent.next_leg().mode;
+
+        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
+        let dep_time = curr_act.end_time;
+
+        agent.update_next_leg(
+            dep_time,
+            travel_time,
+            route,
+            None,
+            curr_act.link_id,
+            next_act.link_id,
+        );
+    }
+
+    fn update_walk_leg(&self, agent: &mut Agent) {
+        self.walk_leg_updater
+            .as_ref()
+            .expect("WalkLegFinder must be set, if routing is enabled.")
+            .as_ref()
+            .update_walk_leg(agent, &self.network);
+    }
+
+    fn find_route(
+        &mut self,
+        from_act: &Activity,
+        to_act: &Activity,
+        mode: u64,
+    ) -> (Vec<u64>, Option<u32>) {
+        let query_result =
+            self.router
+                .as_mut()
+                .unwrap()
+                .query_links(from_act.link_id, to_act.link_id, mode);
+
+        let route = query_result.path.expect("There is no route!");
+        let travel_time = query_result.travel_time;
+
+        if route.is_empty() {
+            debug!("Route between {:?} and {:?} is empty.", from_act, to_act);
+        }
+
+        (route, travel_time)
     }
 
     fn departure(&mut self, mut agent: Agent, now: u32) -> Vehicle {
