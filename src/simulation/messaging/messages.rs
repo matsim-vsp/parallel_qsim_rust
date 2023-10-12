@@ -258,6 +258,11 @@ impl Agent {
         self.get_leg_at_index(next_leg_index)
     }
 
+    fn next_leg_mut(&mut self) -> &mut Leg {
+        let next_leg_index = self.next_leg_index();
+        self.get_leg_at_index_mut(next_leg_index)
+    }
+
     fn next_leg_index(&self) -> u32 {
         match self.curr_plan_elem % 2 {
             //current element is an activity => one element after is the next leg
@@ -282,6 +287,7 @@ impl Agent {
             .unwrap()
     }
 
+
     fn get_act_at_index_mut(&mut self, index: u32) -> &mut Activity {
         self.plan
             .as_mut()
@@ -298,6 +304,40 @@ impl Agent {
             .legs
             .get(index as usize)
             .unwrap()
+    }
+
+    fn get_leg_at_index_mut(&mut self, index: u32) -> &mut Leg {
+        self.plan
+            .as_mut()
+            .unwrap()
+            .legs
+            .get_mut(index as usize)
+            .unwrap()
+    }
+
+    pub fn update_next_leg(
+        &mut self,
+        dep_time: Option<u32>,
+        travel_time: Option<u32>,
+        route: Vec<u64>,
+        distance: Option<f32>,
+        start_link: u64,
+        end_link: u64,
+    ) {
+        //info!("Leg update for agent {:?}. Departure {:?}, travel time {:?}, route {:?}, distance {:?}, start_link {:?}, end_link {:?}",
+        //    self, dep_time, travel_time, route,distance, start_link, end_link);
+
+        let simulation_route = Route {
+            veh_id: 0, //TODO
+            distance: distance.unwrap(),
+            route,
+        };
+
+        let next_leg = self.next_leg_mut();
+
+        next_leg.dep_time = dep_time;
+        next_leg.trav_time = travel_time;
+        next_leg.route = Some(simulation_route);
     }
 
     pub fn advance_plan(&mut self) {
@@ -419,6 +459,11 @@ impl Activity {
             // supposed to be an equivalent for OptionalTime.undefined() in the java code
             u32::MAX
         }
+    }
+
+    pub fn is_interaction(&self) -> bool {
+        //TODO
+        self.act_type == 1
     }
 }
 

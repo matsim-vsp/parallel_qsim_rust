@@ -10,3 +10,4 @@ pub mod population;
 mod simulation;
 pub mod time_queue;
 mod vehicles;
+mod routing;
