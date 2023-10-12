@@ -2,12 +2,17 @@ use std::cmp::Ordering;
 use std::slice::Iter;
 use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData, rc::Rc};
 
-use nohash_hasher::IsEnabled;
-
-//pub type Id<T> = Rc<IdImpl<T>>;
-
-// use the newtype pattern https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html
-// this way we hide the internal repesentation and we are able to mark Id<T> as IsEnabled for NoHashHasher
+/// This type represents a reference counted pointer to a matsim id. It can be used in hash maps/sets
+/// in combination with NoHashHasher, to achieve fast look ups with no randomness involved.
+///
+/// As this type wraps Rc<IdImpl<T>>, using clone produces a new Rc pointer to the actual Id and is
+/// the intended way of passing around ids.  
+///
+/// This type is intended to be used in combination with an [IdStore], which will take care of assigning
+/// unique internal ids. To create a new id use [IdStore::create_id()]
+///
+/// This type uses the newtype pattern https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html
+/// to hide internal representation and to enable implementing IsEnabled for using the NoHashHasher create
 #[derive(Debug)]
 pub struct Id<T>(Rc<IdImpl<T>>);
 
@@ -22,6 +27,7 @@ impl<T> Id<T> {
 
     /// Creates an id which is not attached to any id storage. This method is intended for test
     /// cases. The intended way of creating ids is to use IdStore::create_id(external);
+    #[cfg(test)]
     pub(crate) fn new_internal(internal: usize) -> Self {
         Self::new(internal, String::from(""))
     }
@@ -35,8 +41,13 @@ impl<T> Id<T> {
     }
 }
 
-impl<T> IsEnabled for Id<T> {}
+/// Mark Id as enabled for the nohash_hasher::NoHashHasher trait
+impl<T> nohash_hasher::IsEnabled for Id<T> {}
 
+impl<T> nohash_hasher::IsEnabled for &Id<T> {}
+
+/// Implement PartialEq, Eq, PartialOrd, Ord, so that Ids can be used in HashMaps and Ordered collections
+/// all four methods rely on the internal id.
 impl<T> PartialEq for Id<T> {
     fn eq(&self, other: &Self) -> bool {
         self.internal().eq(&other.internal())
