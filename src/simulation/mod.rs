@@ -7,7 +7,7 @@ pub mod messaging;
 pub mod network;
 pub mod performance_profiling;
 pub mod population;
+mod routing;
 mod simulation;
 pub mod time_queue;
 mod vehicles;
-mod routing;

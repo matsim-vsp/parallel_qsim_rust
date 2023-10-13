@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::str::FromStr;
 use std::{collections::HashSet, path::Path};
 
@@ -236,6 +237,20 @@ impl Network {
             panic!("Unknown partition method: {}", partition_method);
         }
     }
+
+    pub fn get_all_links_sorted(&self) -> Vec<&Link> {
+        self.links
+            .iter()
+            .sorted_by_key(|&l| &l.id)
+            .collect::<Vec<&Link>>()
+    }
+
+    pub fn get_all_nodes_sorted(&self) -> Vec<&Node> {
+        self.nodes
+            .iter()
+            .sorted_by_key(|&n| &n.id)
+            .collect::<Vec<&Node>>()
+    }
 }
 
 impl Node {
@@ -289,6 +304,13 @@ impl Link {
             1.,
             HashSet::default(),
         )
+    }
+
+    pub fn contains_mode(&self, mode: u64) -> bool {
+        self.modes
+            .iter()
+            .map(|m| m.internal)
+            .contains(&(mode as usize))
     }
 }
 

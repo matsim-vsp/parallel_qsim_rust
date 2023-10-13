@@ -152,7 +152,7 @@ where
     fn update_main_leg(&mut self, agent: &mut Agent) {
         let curr_act = agent.curr_act();
         let next_act = agent.next_act();
-        let mode = agent.next_leg().mode;
+        let mode = agent.next_leg().routing_mode;
 
         let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
         let dep_time = curr_act.end_time;

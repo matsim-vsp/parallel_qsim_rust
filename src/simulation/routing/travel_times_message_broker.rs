@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use mpi::{Count, Rank};
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::topology::{Communicator, SystemCommunicator};
+use mpi::{Count, Rank};
 
 use crate::simulation::messaging::messages::proto::TravelTimesMessage;
 

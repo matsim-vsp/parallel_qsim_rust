@@ -97,6 +97,12 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     );
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
+    let forward_backward_graph_by_mode =
+        TravelTimesCollectingAltRouter::get_forward_backward_graph_by_mode(
+            &network,
+            &garage.vehicle_types,
+        );
+
     // write network with new ids to output but only once.
     if rank == 0 {
         network.to_file(&output_path.join("output_network.xml.gz"));
@@ -126,7 +132,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
     if config.routing_mode == RoutingMode::AdHoc {
         router = Some(Box::new(TravelTimesCollectingAltRouter::new(
-            //routing_kit_network_by_mode,
+            forward_backward_graph_by_mode,
             world.clone(),
             rank,
             network_partition.get_link_ids(),

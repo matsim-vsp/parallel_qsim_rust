@@ -1,9 +1,10 @@
-pub struct AltGraph {
+#[derive(Clone, Debug)]
+pub struct ForwardBackwardGraph {
     pub forward_graph: Graph,
     pub backward_graph: Graph,
 }
 
-impl AltGraph {
+impl ForwardBackwardGraph {
     pub fn new(forward_graph: Graph, backward_graph: Graph) -> Self {
         Self {
             forward_graph,
@@ -26,11 +27,11 @@ impl AltGraph {
         &self.forward_graph.head
     }
 
-    pub fn forward_travel_time(&self) -> &Vec<u32> {
+    pub fn forward_travel_time(&self) -> &Vec<f32> {
         &self.forward_graph.travel_time
     }
 
-    pub fn forward_link_ids(&self) -> &Vec<u64> {
+    pub fn forward_link_ids(&self) -> &Vec<usize> {
         &self.forward_graph.link_ids
     }
 
@@ -43,13 +44,14 @@ impl AltGraph {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct Graph {
-    first_out: Vec<usize>,
-    head: Vec<usize>,
-    travel_time: Vec<u32>,
-    link_ids: Vec<u64>,
-    x: Vec<f32>,
-    y: Vec<f32>,
+    pub(crate) first_out: Vec<usize>,
+    pub(crate) head: Vec<usize>,
+    pub(crate) travel_time: Vec<f32>,
+    pub(crate) link_ids: Vec<usize>,
+    pub(crate) x: Vec<f32>,
+    pub(crate) y: Vec<f32>,
 }
 
 impl Graph {

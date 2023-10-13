@@ -74,7 +74,7 @@ pub fn dijkstra_path(from: usize, to: usize, graph: Graph) -> Option<ResultPath>
             }
         }
         traversed[current_id] = true;
-    };
+    }
     None
 }
 
@@ -106,12 +106,17 @@ pub fn dijkstra_distances(from: usize, graph: Graph) -> Vec<u32> {
             }
         }
         traversed[current_id] = true;
-    };
+    }
     distances
 }
 
 //To work properly we expect for n nodes to have ids from 0 to n-1.
-pub fn alt_path(from: usize, to: usize, graph: Graph, landmark_distances: Vec<Vec<u32>>) -> Option<ResultPath> {
+pub fn alt_path(
+    from: usize,
+    to: usize,
+    graph: Graph,
+    landmark_distances: Vec<Vec<u32>>,
+) -> Option<ResultPath> {
     let mut distances: Vec<u32> = (0..graph.first_out.len() - 1).map(|_| u32::MAX).collect();
     let mut f_score: Vec<u32> = (0..graph.first_out.len() - 1).map(|_| u32::MAX).collect();
     let mut parents: Vec<Option<usize>> = (0..graph.first_out.len() - 1).map(|_| None).collect();
@@ -149,12 +154,13 @@ pub fn alt_path(from: usize, to: usize, graph: Graph, landmark_distances: Vec<Ve
             if distances[neighbour] > neighbour_distance {
                 //perform update
                 distances[neighbour] = neighbour_distance;
-                f_score[neighbour] = neighbour_distance + heuristic(neighbour, to, &landmark_distances);
+                f_score[neighbour] =
+                    neighbour_distance + heuristic(neighbour, to, &landmark_distances);
                 parents[neighbour] = Some(current_id);
             }
         }
         traversed[current_id] = true;
-    };
+    }
     None
 }
 
@@ -164,14 +170,24 @@ fn heuristic(node: usize, goal: usize, landmark_distances: &Vec<Vec<u32>>) -> u3
     for l in landmark_distances {
         h = h.max(l[node] as i32 - l[goal] as i32)
     }
-    if h < 0 { 0 } else { h as u32 }
+    if h < 0 {
+        0
+    } else {
+        h as u32
+    }
 }
 
-fn get_next_node<'a>(distances: &'a Vec<u32>, traversed: &'a Vec<bool>) -> Option<(usize, (&'a u32, &'a bool))> {
+fn get_next_node<'a>(
+    distances: &'a Vec<u32>,
+    traversed: &'a Vec<bool>,
+) -> Option<(usize, (&'a u32, &'a bool))> {
     //ToDo: Never pick a node with distance == u32::MAX
-    distances.iter().zip(traversed.iter()).enumerate()
+    distances
+        .iter()
+        .zip(traversed.iter())
+        .enumerate()
         .filter(|(_, (_, &t))| !t)
-        .min_by(|a, b| a.1.0.cmp(b.1.0))
+        .min_by(|a, b| a.1 .0.cmp(b.1 .0))
 }
 
 fn extract_path(to: usize, parent: Vec<Option<usize>>) -> Vec<usize> {
@@ -204,20 +220,26 @@ mod test {
     fn test_simple_dijkstra() {
         let option = dijkstra_path(2, 1, create_network());
         println!("{:?}", option);
-        assert_eq!(option, Some(ResultPath {
-            distance: 3,
-            path: vec![2, 0, 1],
-        }))
+        assert_eq!(
+            option,
+            Some(ResultPath {
+                distance: 3,
+                path: vec![2, 0, 1],
+            })
+        )
     }
 
     #[test]
     fn test_simple_dijkstra2() {
         let option = dijkstra_path(0, 2, create_network());
         println!("{:?}", option);
-        assert_eq!(option, Some(ResultPath {
-            distance: 2,
-            path: vec![0, 2],
-        }))
+        assert_eq!(
+            option,
+            Some(ResultPath {
+                distance: 2,
+                path: vec![0, 2],
+            })
+        )
     }
 
     #[test]
@@ -248,10 +270,13 @@ mod test {
 
         let result = alt_path(2, 1, create_network(), preprocessed_landmark);
         println!("{:?}", result);
-        assert_eq!(result, Some(ResultPath {
-            distance: 3,
-            path: vec![2, 0, 1],
-        }));
+        assert_eq!(
+            result,
+            Some(ResultPath {
+                distance: 3,
+                path: vec![2, 0, 1],
+            })
+        );
     }
 
     #[test]
@@ -260,9 +285,12 @@ mod test {
         preprocessed_landmark.push(dijkstra_distances(0, create_network()));
         let result = alt_path(0, 2, create_network(), preprocessed_landmark);
         println!("{:?}", result);
-        assert_eq!(result, Some(ResultPath {
-            distance: 2,
-            path: vec![0, 2],
-        }))
+        assert_eq!(
+            result,
+            Some(ResultPath {
+                distance: 2,
+                path: vec![0, 2],
+            })
+        )
     }
 }

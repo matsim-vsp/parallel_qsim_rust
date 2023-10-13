@@ -287,7 +287,6 @@ impl Agent {
             .unwrap()
     }
 
-
     fn get_act_at_index_mut(&mut self, index: u32) -> &mut Activity {
         self.plan
             .as_mut()

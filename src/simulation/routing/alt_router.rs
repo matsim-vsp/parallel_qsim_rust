@@ -1,11 +1,11 @@
-use crate::simulation::routing::graph::AltGraph;
+use crate::simulation::routing::graph::ForwardBackwardGraph;
 use crate::simulation::routing::router::CustomQueryResult;
 
 pub struct AltRouter {
     pub landmarks: Vec<u64>,
     pub landmarks_distances: Vec<Vec<u32>>,
-    pub current_graph: AltGraph,
-    pub initial_graph: AltGraph,
+    pub current_graph: ForwardBackwardGraph,
+    pub initial_graph: ForwardBackwardGraph,
 }
 
 struct AltQueryResult {
@@ -31,16 +31,22 @@ impl AltRouter {
         AltRouter {
             landmarks: vec![],
             landmarks_distances: vec![],
-            current_graph: AltGraph::empty(),
-            initial_graph: AltGraph::empty(),
+            current_graph: ForwardBackwardGraph::empty(),
+            initial_graph: ForwardBackwardGraph::empty(),
         }
     }
 
-    fn query(
-        &mut self,
-        from: usize,
-        to: usize,
-    ) -> AltQueryResult {
+    pub fn new(graph: ForwardBackwardGraph) -> Self {
+        //TODO run preprocessing here.
+        AltRouter {
+            landmarks: vec![],
+            landmarks_distances: vec![],
+            current_graph: graph.clone(),
+            initial_graph: graph,
+        }
+    }
+
+    fn query(&mut self, from: usize, to: usize) -> AltQueryResult {
         //TODO run ALT algorithm here
         AltQueryResult::empty()
     }
@@ -70,24 +76,31 @@ impl AltRouter {
 
     fn get_end_node(&self, link_id: u64) -> usize {
         let link_id_index = self
-            .current_graph.forward_link_ids()
+            .current_graph
+            .forward_link_ids()
             .iter()
-            .position(|&id| id == link_id)
+            .position(|&id| id == link_id as usize)
             .unwrap();
-        *self.current_graph.forward_head().get(link_id_index).unwrap() as usize
+        *self
+            .current_graph
+            .forward_head()
+            .get(link_id_index)
+            .unwrap() as usize
     }
 
     fn get_start_node(&self, link_id: u64) -> usize {
         let link_id_index = self
-            .current_graph.forward_link_ids()
+            .current_graph
+            .forward_link_ids()
             .iter()
-            .position(|&id| id == link_id)
+            .position(|&id| id == link_id as usize)
             .unwrap();
 
         let mut result = None;
         for i in 0..self.current_graph.forward_first_out().len() {
             if link_id_index >= *self.current_graph.forward_first_out().get(i).unwrap() as usize
-                && link_id_index < *self.current_graph.forward_first_out().get(i + 1).unwrap() as usize
+                && link_id_index
+                    < *self.current_graph.forward_first_out().get(i + 1).unwrap() as usize
             {
                 result = Some(i as usize);
             }
@@ -100,7 +113,7 @@ impl AltRouter {
 
     pub fn customize(&mut self) {}
 
-    fn get_edge_path(path: Vec<usize>, graph: &AltGraph) -> Vec<u64> {
+    fn get_edge_path(path: Vec<usize>, graph: &ForwardBackwardGraph) -> Vec<u64> {
         let mut res = Vec::new();
         let mut last_node: Option<usize> = None;
         for node in path {
@@ -108,7 +121,8 @@ impl AltRouter {
                 None => last_node = Some(node as usize),
                 Some(n) => {
                     let first_out_index = *graph.forward_first_out().get(n).unwrap() as usize;
-                    let last_out_index = (graph.forward_first_out().get(n + 1).unwrap() - 1) as usize;
+                    let last_out_index =
+                        (graph.forward_first_out().get(n + 1).unwrap() - 1) as usize;
                     res.push(Self::find_edge_id_of_outgoing(
                         first_out_index,
                         last_out_index,
@@ -126,7 +140,7 @@ impl AltRouter {
         first_out_index: usize,
         last_out_index: usize,
         next_node: usize,
-        graph: &AltGraph,
+        graph: &ForwardBackwardGraph,
     ) -> u64 {
         assert!(
             last_out_index as i64 - first_out_index as i64 >= 0,
@@ -142,4 +156,3 @@ impl AltRouter {
         result.expect("No outgoing edge found!") as u64
     }
 }
-
