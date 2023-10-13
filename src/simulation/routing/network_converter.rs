@@ -17,7 +17,7 @@ impl NetworkConverter {
             .map(|(_, t)| {
                 (
                     t.net_mode.internal as u64,
-                    Self::convert_network(network, Some(t.net_mode.internal as u64), Some(t.max_v)),
+                    Self::convert_network(network, Some(&t.net_mode), Some(t.max_v)),
                 )
             })
             .collect::<HashMap<_, _>>()
@@ -25,7 +25,7 @@ impl NetworkConverter {
 
     pub fn convert_network(
         network: &Network,
-        mode: Option<u64>,
+        mode: Option<&Id<String>>,
         max_mode_speed: Option<f32>,
     ) -> ForwardBackwardGraph {
         assert!(
@@ -67,7 +67,7 @@ impl NetworkConverter {
                 .filter(|&l| l.from == node.id)
                 .filter(|&l| {
                     if let Some(mode) = mode {
-                        l.contains_mode(mode)
+                        l.contains_mode(mode.internal as u64)
                     } else {
                         true
                     }
@@ -80,7 +80,7 @@ impl NetworkConverter {
                 .filter(|&l| l.to == node.id)
                 .filter(|&l| {
                     if let Some(mode) = mode {
-                        l.contains_mode(mode)
+                        l.contains_mode(mode.internal as u64)
                     } else {
                         true
                     }
@@ -148,69 +148,82 @@ impl NetworkConverter {
 
 #[cfg(test)]
 mod test {
-    use crate::simulation::id_mapping::MatsimIdMappings;
     use crate::simulation::io::network::IONetwork;
     use crate::simulation::io::population::IOPopulation;
-    use crate::simulation::io::vehicle_definitions::VehicleDefinitions;
-    use crate::simulation::network::network::Network;
+    use crate::simulation::network::global_network::Network;
     use crate::simulation::routing::network_converter::NetworkConverter;
+    use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::vehicles::vehicle_type::VehicleType;
 
     #[test]
     fn test_simple_network() {
         let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
         let io_population = IOPopulation::empty();
 
-        let network = Network::from_io(
-            &io_network,
+        let mut garage = Garage::new();
+
+        let network = Network::from_file(
+            "./assets/routing_tests/triangle-network.xml",
             1,
-            1.0,
-            |_| 0,
-            &MatsimIdMappings::from_io(&io_network, &io_population),
+            &mut garage,
         );
 
-        let network = NetworkConverter::convert_network(&network, None, None);
+        let graph = NetworkConverter::convert_network(&network, None, None);
 
-        println!("{network:#?}");
+        println!("{graph:#?}");
 
-        assert_eq!(network.first_out, vec![0, 0, 2, 4, 6]);
-        assert_eq!(network.head, vec![2, 3, 2, 3, 1, 2]);
-        assert_eq!(network.travel_time, vec![1, 2, 1, 4, 2, 5]);
-        assert_eq!(network.link_ids.len(), 6);
+        assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
+        assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
+        assert_eq!(graph.forward_travel_time(), &vec![1., 2., 1., 4., 2., 5.]);
+        assert_eq!(graph.forward_link_ids().len(), 6);
+
+        assert_eq!(graph.backward_graph.first_out, vec![0usize, 0, 1, 4, 6]);
+        assert_eq!(graph.backward_graph.head, vec![3usize, 1, 2, 3, 1, 2]);
+        assert_eq!(
+            graph.backward_graph.travel_time,
+            vec![2., 1., 1., 5., 2., 4.]
+        );
+        assert_eq!(graph.backward_graph.link_ids.len(), 6);
         // we don't check y and y so far
     }
 
     #[test]
     fn test_simple_network_with_modes() {
-        let vehicle_definitions = VehicleDefinitions::new()
-            .add_vehicle_type("car".to_string(), Some(5.), "car".to_string())
-            .add_vehicle_type("bike".to_string(), Some(2.), "bike".to_string());
+        let mut garage = Garage::new();
 
-        let io_network = IONetwork::from_file("./assets/routing_tests/network_different_modes.xml");
-        let io_population = IOPopulation::empty();
+        let car_type_id = garage.vehicle_type_ids.create_id("car");
+        let car_mode = garage.modes.create_id("car");
+        let mut car_veh_type = VehicleType::new(car_type_id, car_mode);
+        car_veh_type.max_v = 5.;
+        garage.add_veh_type(car_veh_type);
 
-        let network = Network::from_io(
-            &io_network,
+        let bike_type_id = garage.vehicle_type_ids.create_id("bike");
+        let bike_mode = garage.modes.create_id("bike");
+        let mut bike_veh_type = VehicleType::new(bike_type_id, bike_mode);
+        bike_veh_type.max_v = 2.;
+        garage.add_veh_type(bike_veh_type);
+
+        let network = Network::from_file(
+            "./assets/routing_tests/network_different_modes.xml",
             1,
-            1.0,
-            |_| 0,
-            &MatsimIdMappings::from_io(&io_network, &io_population),
+            &mut garage,
         );
 
-        let mut network =
-            NetworkConverter::convert_network_with_vehicle_types(&network, &vehicle_definitions);
+        let mut graph_by_mode =
+            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
 
-        println!("{network:#?}");
+        println!("{graph_by_mode:#?}");
 
-        let car_network = network.remove("car").unwrap();
-        assert_eq!(car_network.first_out, vec![0, 0, 1, 3, 4]);
-        assert_eq!(car_network.head, vec![3, 2, 1, 2]);
-        assert_eq!(car_network.travel_time, vec![2, 2, 5, 5]);
-        assert_eq!(car_network.link_ids.len(), 4);
+        let car_network = graph_by_mode.remove(&0).unwrap();
+        assert_eq!(car_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
+        assert_eq!(car_network.forward_head(), &vec![3, 2, 1, 2]);
+        assert_eq!(car_network.forward_travel_time(), &vec![2., 2., 5., 5.]);
+        assert_eq!(car_network.forward_link_ids().len(), 4);
 
-        let bike_network = network.remove("bike").unwrap();
-        assert_eq!(bike_network.first_out, vec![0, 0, 1, 3, 4]);
-        assert_eq!(bike_network.head, vec![2, 2, 3, 1]);
-        assert_eq!(bike_network.travel_time, vec![5, 5, 5, 5]);
-        assert_eq!(bike_network.link_ids.len(), 4);
+        let bike_network = graph_by_mode.remove(&1).unwrap();
+        assert_eq!(bike_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
+        assert_eq!(bike_network.forward_head(), &vec![2, 2, 3, 1]);
+        assert_eq!(bike_network.forward_travel_time(), &vec![5., 5., 5., 5.]);
+        assert_eq!(bike_network.forward_link_ids().len(), 4);
     }
 }
