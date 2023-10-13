@@ -27,11 +27,16 @@ impl Flowcap {
     }
 
     pub fn has_capacity(&self) -> bool {
-        self.accumulated_capacity > 0.0
+        self.accumulated_capacity > 1e-10
     }
 
     pub fn consume_capacity(&mut self, by: f32) {
         self.accumulated_capacity -= by;
+    }
+
+    #[cfg(test)]
+    pub fn capacity(&self) -> f32 {
+        self.capacity_s
     }
 }
 

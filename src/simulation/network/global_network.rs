@@ -139,8 +139,6 @@ impl<'a> Network<'a> {
     }
 
     pub fn add_io_node(&mut self, io_node: IONode) {
-        println!("Adding node: {}", io_node.id);
-
         let id = self.node_ids.create_id(&io_node.id);
         let attrs = match io_node.attributes {
             Some(attrs) => attrs.attributes,
@@ -176,7 +174,6 @@ impl<'a> Network<'a> {
     }
 
     pub fn add_io_link(&mut self, io_link: IOLink, garage: &mut Garage) {
-        println!("Adding link: {}", io_link.id);
         let id = self.link_ids.create_id(&io_link.id);
         assert_eq!(
             id.internal(),
@@ -233,7 +230,6 @@ impl<'a> Network<'a> {
 
     fn partition_network(network: &mut Network, num_parts: usize) {
         let partitions = metis_partitioning::partition(network, num_parts);
-        println!("Node partitioning: {partitions:#?}");
         for node in network.nodes.iter_mut() {
             let partition = partitions[node.id.internal()] as usize;
             node.partition = partition;

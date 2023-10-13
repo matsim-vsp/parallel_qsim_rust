@@ -124,6 +124,20 @@ impl LocalLink {
         )
     }
 
+    pub fn new_with_defaults(id: Id<Link>, from: Id<Node>, to: Id<Node>) -> Self {
+        LocalLink {
+            id,
+            q: VecDeque::new(),
+            length: 1.0,
+            free_speed: 1.0,
+            max_storage_cap: 1.0,
+            released_storage_cap: 0.0,
+            used_storage_cap: 0.0,
+            flow_cap: Flowcap::new(1.0),
+            from,
+            to,
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Id<Link>,
@@ -175,7 +189,7 @@ impl LocalLink {
     pub fn pop_front(&mut self) -> Vehicle {
         let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
         self.flow_cap.consume_capacity(veh.vehicle.pce);
-        self.released_storage_cap -= veh.vehicle.pce;
+        self.released_storage_cap += veh.vehicle.pce;
 
         veh.vehicle
     }
@@ -292,6 +306,184 @@ mod tests {
     use crate::simulation::network::link::LocalLink;
 
     #[test]
+    fn storage_cap_initialized_default() {
+        let link = LocalLink::new(
+            Id::new_internal(1),
+            1.,
+            1.,
+            3.,
+            100.,
+            0.2,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        );
+
+        // we expect a storage size of 100 * 3 * 0.2 / 7.5 = 8
+        assert_eq!(8., link.max_storage_cap);
+    }
+
+    #[test]
+    fn storage_cap_initialized_large_flow() {
+        let link = LocalLink::new(
+            Id::new_internal(1),
+            360000.,
+            1.,
+            3.,
+            100.,
+            0.2,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        );
+
+        // we expect a storage size of 20. because it the flow cap/s is 20 (36000 * 0.2 / 3600)
+        assert_eq!(20., link.max_storage_cap);
+    }
+
+    #[test]
+    fn storage_cap_consumed() {
+        let mut link = LocalLink::new(
+            Id::new_internal(1),
+            3600.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        );
+        let agent = create_agent(1, vec![]);
+        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
+
+        link.push_vehicle(vehicle, 0);
+
+        // storage capacity should be consumed immediately. The expected value is max_storage_cap - pce of the vehicle
+        assert_eq!(
+            link.max_storage_cap - 1.5,
+            link.available_storage_capacity()
+        )
+    }
+
+    #[test]
+    fn storage_cap_released() {
+        let mut link = LocalLink::new(
+            Id::new_internal(1),
+            3600.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        );
+        let agent = create_agent(1, vec![]);
+        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
+
+        link.push_vehicle(vehicle, 0);
+        let _vehicle = link.pop_front();
+
+        // after the vehicle is removed from the link, the available storage_cap should NOT be updated
+        // immediately
+        assert_eq!(
+            link.max_storage_cap - 1.5,
+            link.available_storage_capacity()
+        );
+
+        // by calling release, the accumulated released storage cap, should be freed.
+        link.release_storage_cap();
+        assert_eq!(link.max_storage_cap, link.available_storage_capacity());
+        assert_eq!(0., link.released_storage_cap); // test internal prop here, because I am too lazy for a more complex test
+    }
+
+    #[test]
+    fn flow_cap_initialized() {
+        let link = LocalLink::new(
+            Id::new_internal(1),
+            3600.,
+            1.,
+            3.,
+            100.,
+            0.2,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        );
+
+        assert_eq!(0.2, link.flow_cap.capacity())
+    }
+
+    #[test]
+    fn flow_cap_accumulates() {
+        let mut link = LocalLink::new(
+            Id::new_internal(1),
+            360.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        );
+
+        let agent1 = create_agent(1, vec![]);
+        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
+        let agent2 = create_agent(2, vec![]);
+        let vehicle2 = Vehicle::new(2, 0, 10., 1.5, Some(agent2));
+
+        link.push_vehicle(vehicle1, 0);
+        link.push_vehicle(vehicle2, 0);
+        link.update_flow_cap(10);
+        // this should reduce the flow capacity, so that no other vehicle can leave during this time step
+        let popped1 = link.pop_front();
+        assert_eq!(1, popped1.id);
+
+        // as the flow cap is 0.1/s the next vehicle can leave the link 15s after the first
+        for now in 11..24 {
+            link.update_flow_cap(now);
+            assert!(link.q_front(now).is_none());
+        }
+
+        link.update_flow_cap(25);
+        if let Some(popped2) = link.q_front(25) {
+            assert_eq!(2, popped2.id);
+        } else {
+            panic!("Expected vehicle2 to be available at t=30")
+        }
+    }
+
+    #[test]
+    fn calculates_exit_time() {
+        let mut link = LocalLink::new(
+            Id::new_internal(1),
+            3600.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        );
+
+        let agent1 = create_agent(1, vec![]);
+        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
+
+        link.push_vehicle(vehicle1, 0);
+
+        // this is also implicitly tested above, but we'll do it here again, so that we have descriptive
+        // test naming
+        for now in 0..9 {
+            assert!(link.q_front(now).is_none());
+        }
+
+        assert!(link.q_front(10).is_some())
+    }
+
+    #[test]
     fn local_link_push_single_veh() {
         let veh_id = 42;
         let mut link = LocalLink::new(
@@ -357,144 +549,6 @@ mod tests {
         assert_eq!(id2, popped_vehicle2.vehicle.id);
         assert_eq!(11, popped_vehicle2.earliest_exit_time);
     }
-
-    #[test]
-    fn local_link_pop_with_exit_time() {
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            1000000.,
-            10.,
-            1.,
-            100.,
-            1.,
-            7.5,
-            Id::new_internal(0),
-            Id::new_internal(0),
-        );
-
-        let mut n: u32 = 0;
-
-        while n < 10 {
-            let agent = create_agent(n as u64, vec![]);
-            let vehicle = Vehicle::new(n as u64, 0, 10., 1., Some(agent));
-            link.push_vehicle(vehicle, n);
-            n += 1;
-        }
-
-        assert_approx_eq!(267.7, link.available_storage_capacity(), 0.1);
-        let pop1 = link.pop_front();
-        assert_eq!(3, pop1.len());
-        assert_approx_eq!(270.7, link.available_storage_capacity(), 0.1);
-        let pop2 = link.pop_front();
-        assert_eq!(0, pop2.len());
-        assert_approx_eq!(270.7, link.available_storage_capacity(), 0.1);
-        let pop3 = link.pop_front();
-        assert_eq!(7, pop3.len());
-        assert_approx_eq!(277.7, link.available_storage_capacity(), 0.1);
-    }
-
-    #[test]
-    fn local_link_pop_with_capacity() {
-        // link has capacity of 2 per second
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            7200.,
-            10.,
-            100.,
-            1.,
-            1.,
-            7.5,
-            Id::new_internal(0),
-            Id::new_internal(0),
-        );
-
-        let mut n: u32 = 0;
-
-        while n < 10 {
-            let agent = create_agent(n as u64, vec![]);
-            let vehicle = Vehicle::new(n as u64, 0, 10., 1., Some(agent));
-            link.push_vehicle(vehicle, n);
-            n += 1;
-        }
-
-        n = 0;
-        while n < 5 {
-            let popped = link.pop_front(20 + n);
-            assert_eq!(2, popped.len());
-            n += 1;
-        }
-    }
-
-    #[test]
-    fn local_link_pop_with_capacity_reduced() {
-        // link has a capacity of 1 * 0.1 per second
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            3600.,
-            10.,
-            1.,
-            100.,
-            0.1,
-            7.5,
-            Id::new_internal(0),
-            Id::new_internal(0),
-        );
-
-        let agent1 = create_agent(1, vec![]);
-        let vehicle1 = Vehicle::new(1, 0, 10., 1., Some(agent1));
-        let agent2 = create_agent(2, vec![]);
-        let vehicle2 = Vehicle::new(2, 0, 10., 1., Some(agent2));
-        link.push_vehicle(vehicle1, 0);
-        link.push_vehicle(vehicle2, 0);
-
-        let popped = link.pop_front(10);
-        assert_eq!(1, popped.len());
-
-        // actually this shouldn't let vehicles at 19 seconds as well, but due to floating point arithmatic
-        // the flowcap inside the link has a accumulated capacity slightly greater than 0 at 19 🤷‍♀️
-        let popped_2 = link.pop_front(18);
-        assert_eq!(0, popped_2.len());
-
-        let popped_3 = link.pop_front(20);
-        assert_eq!(1, popped_3.len());
-    }
-
-    #[test]
-    fn init_storage_cap() {
-        let link = LocalLink::new(
-            Id::new_internal(1),
-            3600.,
-            10.,
-            2.,
-            100.,
-            0.1,
-            5.,
-            Id::new_internal(0),
-            Id::new_internal(0),
-        );
-
-        assert_eq!(4., link.storage_cap);
-    }
-
-    #[test]
-    fn init_storage_cap_high_cappa_link() {
-        let link = LocalLink::new(
-            Id::new_internal(1),
-            36000.,
-            10.,
-            2.,
-            10.,
-            0.1,
-            5.,
-            Id::new_internal(0),
-            Id::new_internal(0),
-        );
-
-        // storage capacity would be 0.2, but must be increased to 1.0 to accommodate flow cap
-        assert_eq!(1., link.storage_cap);
-    }
-
-    // todo re write tests for link behaviour.
 
     fn create_agent(id: u64, route: Vec<u64>) -> Agent {
         let route = Route {
