@@ -10,7 +10,7 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::MpiMessageBroker;
+use crate::simulation::messaging::message_broker::{MpiNetCommunicator, NetMessageBroker};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
 use crate::simulation::simulation::Simulation;
@@ -52,7 +52,8 @@ pub fn run(world: SystemCommunicator, config: Config) {
         population.agents.len()
     );
 
-    let message_broker = MpiMessageBroker::new(world, rank, &network_partition);
+    let message_broker =
+        NetMessageBroker::<MpiNetCommunicator>::new_mpi_broker(world, &network_partition);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");

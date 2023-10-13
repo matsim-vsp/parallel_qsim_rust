@@ -3,7 +3,7 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::{MessageBroker, MpiMessageBroker};
+use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::sim_network::{ExitReason, SimNetworkPartition};
 use crate::simulation::population::population::Population;
@@ -11,23 +11,29 @@ use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
 
-pub struct Simulation<'sim> {
+pub struct Simulation<'sim, C>
+where
+    C: NetCommunicator,
+{
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: SimNetworkPartition<'sim>,
     population: Population<'sim>,
     garage: Garage<'sim>,
-    message_broker: MpiMessageBroker,
+    message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
 }
 
-impl<'sim> Simulation<'sim> {
+impl<'sim, C> Simulation<'sim, C>
+where
+    C: NetCommunicator,
+{
     pub fn new(
         config: &Config,
         network: SimNetworkPartition<'sim>,
         garage: Garage<'sim>,
         mut population: Population<'sim>,
-        message_broker: MpiMessageBroker,
+        message_broker: NetMessageBroker<C>,
         events: EventsPublisher,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
@@ -229,7 +235,7 @@ impl<'sim> Simulation<'sim> {
         }
     }
 
-    fn is_local_route(veh: &Vehicle, message_broker: &MpiMessageBroker) -> bool {
+    fn is_local_route(veh: &Vehicle, message_broker: &NetMessageBroker<C>) -> bool {
         let leg = veh.agent.as_ref().unwrap().curr_leg();
         let route = leg.route.as_ref().unwrap();
         let from = message_broker.rank_for_link(route.start_link());

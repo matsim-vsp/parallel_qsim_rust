@@ -1,5 +1,6 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 
+use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
@@ -7,34 +8,48 @@ use mpi::Rank;
 use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 
-pub trait MessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage>;
-    fn add_veh(&mut self, vehicle: Vehicle, now: u32);
+pub trait NetCommunicator {
+    fn send_receive<F>(
+        &self,
+        vehicles: HashMap<u32, VehicleMessage>,
+        expected_vehicle_messages: &mut HashSet<u32>,
+        now: u32,
+        on_msg: F,
+    ) where
+        F: FnMut(VehicleMessage);
 }
 
-pub struct MpiMessageBroker {
-    pub rank: Rank,
-    communicator: SystemCommunicator,
-    neighbors: HashSet<u32>,
-    out_messages: HashMap<u32, VehicleMessage>,
-    in_messages: BinaryHeap<VehicleMessage>,
-    // store link mapping with internal ids instead of id structs, because vehicles only store internal
-    // ids (usize) and this way we don't need to keep a reference to the global network's id store
-    link_mapping: HashMap<usize, usize>,
+pub struct DummyNetCommunicator();
+
+impl NetCommunicator for DummyNetCommunicator {
+    fn send_receive<F>(
+        &self,
+        _vehicles: HashMap<u32, VehicleMessage>,
+        _expected_vehicle_messages: &mut HashSet<u32>,
+        _now: u32,
+        _on_msg: F,
+    ) where
+        F: FnMut(VehicleMessage),
+    {
+        info!("Dummy Net Communicator doesn't do anything.")
+    }
 }
 
-impl MessageBroker for MpiMessageBroker {
-    fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
-        // preparation of vehicle messages
-        let vehicle_messages = self.prepare_send_recv_vehicles(now);
-        let buf_msg: Vec<_> = vehicle_messages
-            .values()
-            .map(|m| (m, m.serialize()))
-            .collect();
+pub struct MpiNetCommunicator {
+    mpi_communicator: SystemCommunicator,
+}
 
-        // prepare the receiving here.
-        let mut expected_vehicle_messages = self.neighbors.clone();
-        let mut received_vehicle_messages = Vec::new();
+impl NetCommunicator for MpiNetCommunicator {
+    fn send_receive<F>(
+        &self,
+        out_messages: HashMap<u32, VehicleMessage>,
+        expected_vehicle_messages: &mut HashSet<u32>,
+        now: u32,
+        mut on_msg: F,
+    ) where
+        F: FnMut(VehicleMessage),
+    {
+        let buf_msg: Vec<_> = out_messages.values().map(|m| (m, m.serialize())).collect();
 
         // we have to use at least immediate send here. Otherwise we risk blocking on send as explained
         // in https://paperpile.com/app/p/e209e0b3-9bdb-08c7-8a62-b1180a9ac954 chapter 4.3, 4.4 and 4.12.
@@ -54,23 +69,16 @@ impl MessageBroker for MpiMessageBroker {
             // ------- Send Part ---------
             for (message, buf) in buf_msg.iter() {
                 let req = self
-                    .communicator
+                    .mpi_communicator
                     .process_at_rank(message.to_process as Rank)
                     .immediate_send(scope, buf);
                 reqs.add(req);
             }
 
-            // ------ Receive Part --------
-            self.pop_from_cache(
-                &mut expected_vehicle_messages,
-                &mut received_vehicle_messages,
-                now,
-            );
-
             // Use blocking MPI_recv here, since we don't have anything to do if there are no other
             // messages.
             while !expected_vehicle_messages.is_empty() {
-                let (encoded_msg, _status) = self.communicator.any_process().receive_vec();
+                let (encoded_msg, _status) = self.mpi_communicator.any_process().receive_vec();
                 let msg = VehicleMessage::deserialize(&encoded_msg);
                 let from_rank = msg.from_process;
 
@@ -80,14 +88,8 @@ impl MessageBroker for MpiMessageBroker {
                 if msg.time == now {
                     expected_vehicle_messages.remove(&from_rank);
                 }
-                // In case a message is for a future time step store it in the message cache, until
-                // this process reaches the time step of that message. Otherwise store it in received
-                // messages and use it in the simulation
-                if msg.time <= now {
-                    received_vehicle_messages.push(msg);
-                } else {
-                    self.in_messages.push(msg);
-                }
+
+                on_msg(msg);
             }
 
             // wait here, so that all requests finish. This is necessary, because a process might send
@@ -95,27 +97,44 @@ impl MessageBroker for MpiMessageBroker {
             // partitions (teleported legs) but only receives messages from neighbor partitions.
             reqs.wait_all(&mut Vec::new());
         });
-
-        received_vehicle_messages
-    }
-
-    fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
-        let link_id = vehicle.curr_link_id().unwrap();
-        let partition = *self.link_mapping.get(&link_id).unwrap() as u32;
-        let message = self
-            .out_messages
-            .entry(partition)
-            .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, partition));
-        message.add(vehicle);
     }
 }
 
-impl MpiMessageBroker {
-    pub fn new(
-        communicator: SystemCommunicator,
-        rank: Rank,
+pub struct NetMessageBroker<C>
+where
+    C: NetCommunicator,
+{
+    pub rank: Rank,
+    //communicator: SystemCommunicator,
+    communicator: C,
+    out_messages: HashMap<u32, VehicleMessage>,
+    in_messages: BinaryHeap<VehicleMessage>,
+    // store link mapping with internal ids instead of id structs, because vehicles only store internal
+    // ids (usize) and this way we don't need to keep a reference to the global network's id store
+    link_mapping: HashMap<usize, usize>,
+    neighbors: HashSet<u32>,
+}
+
+impl<C> NetMessageBroker<C>
+where
+    C: NetCommunicator,
+{
+    pub fn new_single_partition() -> NetMessageBroker<DummyNetCommunicator> {
+        NetMessageBroker {
+            rank: 0,
+            communicator: DummyNetCommunicator(),
+            out_messages: Default::default(),
+            in_messages: Default::default(),
+            link_mapping: Default::default(),
+            neighbors: Default::default(),
+        }
+    }
+
+    pub fn new_mpi_broker(
+        world: SystemCommunicator,
         network: &SimNetworkPartition,
-    ) -> Self {
+    ) -> NetMessageBroker<MpiNetCommunicator> {
+        let rank = world.rank();
         let neighbors = network
             .neighbors()
             .iter()
@@ -127,18 +146,62 @@ impl MpiMessageBroker {
             .iter()
             .map(|link| (link.id.internal(), link.partition))
             .collect();
-        MpiMessageBroker {
+
+        let communicator = MpiNetCommunicator {
+            mpi_communicator: world,
+        };
+        NetMessageBroker {
+            rank,
+            communicator,
             out_messages: HashMap::new(),
             in_messages: BinaryHeap::new(),
-            communicator,
-            neighbors,
-            rank,
             link_mapping,
+            neighbors,
         }
     }
 
     pub fn rank_for_link(&self, link_id: u64) -> u64 {
         *self.link_mapping.get(&(link_id as usize)).unwrap() as u64
+    }
+
+    pub fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
+        let link_id = vehicle.curr_link_id().unwrap();
+        let partition = *self.link_mapping.get(&link_id).unwrap() as u32;
+        let message = self
+            .out_messages
+            .entry(partition)
+            .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, partition));
+        message.add(vehicle);
+    }
+
+    pub fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
+        let vehicles = self.prepare_send_recv_vehicles(now);
+        let mut result: Vec<VehicleMessage> = Vec::new();
+        let mut expected_vehicle_messages = self.neighbors.clone();
+
+        self.pop_from_cache(&mut expected_vehicle_messages, &mut result, now);
+
+        let a = &self.communicator;
+        let b = &mut self.in_messages;
+
+        a.send_receive(vehicles, &mut expected_vehicle_messages, now, |msg| {
+            Self::handle_incoming_msg(msg, &mut result, b, now)
+        });
+
+        return result;
+    }
+
+    fn handle_incoming_msg(
+        msg: VehicleMessage,
+        result: &mut Vec<VehicleMessage>,
+        in_messages: &mut BinaryHeap<VehicleMessage>,
+        now: u32,
+    ) {
+        if msg.time <= now {
+            result.push(msg);
+        } else {
+            in_messages.push(msg);
+        }
     }
 
     fn pop_from_cache(
