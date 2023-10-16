@@ -1,3 +1,4 @@
+pub mod alt_landmark_data;
 pub mod alt_router;
 mod graph;
 mod network_converter;

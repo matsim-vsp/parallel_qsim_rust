@@ -6,10 +6,12 @@ pub struct ForwardBackwardGraph {
 
 impl ForwardBackwardGraph {
     pub fn new(forward_graph: Graph, backward_graph: Graph) -> Self {
-        Self {
+        let graph = Self {
             forward_graph,
             backward_graph,
-        }
+        };
+        graph.validate_else_panic();
+        graph
     }
 
     pub fn empty() -> Self {
@@ -17,6 +19,21 @@ impl ForwardBackwardGraph {
             forward_graph: Graph::new(),
             backward_graph: Graph::new(),
         }
+    }
+
+    fn validate_else_panic(&self) {
+        assert_eq!(
+            self.forward_graph.head.len(),
+            self.backward_graph.head.len()
+        );
+        assert_eq!(
+            self.forward_graph.travel_time.len(),
+            self.backward_graph.travel_time.len()
+        );
+        assert_eq!(
+            self.forward_graph.first_out.len(),
+            self.backward_graph.first_out.len()
+        );
     }
 
     pub fn get_travel_time_by_link_id(&self, link_id: u64) -> u32 {
@@ -56,6 +73,10 @@ impl ForwardBackwardGraph {
 
     pub fn forward_y(&self) -> &Vec<f32> {
         &self.forward_graph.y
+    }
+
+    pub fn number_of_nodes(&self) -> usize {
+        self.forward_graph.first_out.len()
     }
 }
 
