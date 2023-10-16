@@ -99,8 +99,8 @@ impl TravelTimeCollector {
             None => None,
             Some(travel_times) => {
                 let sum: u32 = travel_times.iter().sum();
-                let len = travel_times.len() as u32;
-                Some(sum / len)
+                let len = travel_times.len();
+                Some((sum / (len as u32)))
             }
         }
     }

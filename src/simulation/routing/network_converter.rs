@@ -99,7 +99,7 @@ impl NetworkConverter {
                 } else {
                     link.freespeed
                 };
-                forward_travel_time.push((link.length / max_speed));
+                forward_travel_time.push((link.length / max_speed) as u32);
 
                 forward_link_ids.push(link.id.internal);
             }
@@ -116,7 +116,7 @@ impl NetworkConverter {
                 } else {
                     link.freespeed
                 };
-                backward_travel_time.push((link.length / max_speed));
+                backward_travel_time.push((link.length / max_speed) as u32);
 
                 backward_link_ids.push(link.id.internal);
             }
@@ -174,15 +174,12 @@ mod test {
 
         assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
         assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
-        assert_eq!(graph.forward_travel_time(), &vec![1., 2., 1., 4., 2., 5.]);
+        assert_eq!(graph.forward_travel_time(), &vec![1, 2, 1, 4, 2, 5]);
         assert_eq!(graph.forward_link_ids().len(), 6);
 
         assert_eq!(graph.backward_graph.first_out, vec![0usize, 0, 1, 4, 6]);
         assert_eq!(graph.backward_graph.head, vec![3usize, 1, 2, 3, 1, 2]);
-        assert_eq!(
-            graph.backward_graph.travel_time,
-            vec![2., 1., 1., 5., 2., 4.]
-        );
+        assert_eq!(graph.backward_graph.travel_time, vec![2, 1, 1, 5, 2, 4]);
         assert_eq!(graph.backward_graph.link_ids.len(), 6);
         // we don't check y and y so far
     }
@@ -217,13 +214,13 @@ mod test {
         let car_network = graph_by_mode.remove(&0).unwrap();
         assert_eq!(car_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(car_network.forward_head(), &vec![3, 2, 1, 2]);
-        assert_eq!(car_network.forward_travel_time(), &vec![2., 2., 5., 5.]);
+        assert_eq!(car_network.forward_travel_time(), &vec![2, 2, 5, 5]);
         assert_eq!(car_network.forward_link_ids().len(), 4);
 
         let bike_network = graph_by_mode.remove(&1).unwrap();
         assert_eq!(bike_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(bike_network.forward_head(), &vec![2, 2, 3, 1]);
-        assert_eq!(bike_network.forward_travel_time(), &vec![5., 5., 5., 5.]);
+        assert_eq!(bike_network.forward_travel_time(), &vec![5, 5, 5, 5]);
         assert_eq!(bike_network.forward_link_ids().len(), 4);
     }
 }

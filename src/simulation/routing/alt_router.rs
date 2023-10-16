@@ -113,6 +113,14 @@ impl AltRouter {
 
     pub fn customize(&mut self) {}
 
+    pub fn get_initial_travel_time(&self, link_id: u64) -> u32 {
+        self.initial_graph.get_travel_time_by_link_id(link_id)
+    }
+
+    pub fn get_current_travel_time(&self, link_id: u64) -> u32 {
+        self.current_graph.get_travel_time_by_link_id(link_id)
+    }
+
     fn get_edge_path(path: Vec<usize>, graph: &ForwardBackwardGraph) -> Vec<u64> {
         let mut res = Vec::new();
         let mut last_node: Option<usize> = None;
