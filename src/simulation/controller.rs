@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, thread};
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -10,8 +10,9 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::{EventsLogger, EventsPublisher};
+use crate::simulation::messaging::message_broker;
 use crate::simulation::messaging::message_broker::{
-    DummyNetCommunicator, MpiNetCommunicator, NetMessageBroker,
+    ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetMessageBroker,
 };
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -40,6 +41,66 @@ pub fn run_single_thread(config: Config) {
     let events_path = output_path.join("events.pbf");
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     events.add_subscriber(Box::new(EventsLogger {}));
+
+    let mut simulation = Simulation::new(
+        &config,
+        sim_network,
+        garage,
+        population,
+        message_broker,
+        events,
+    );
+
+    info!("Starting single threaded simulation");
+    simulation.run(config.start_time, config.end_time);
+    info!("Finished single threaded simulation");
+}
+
+pub fn run_local_multithreaded(config: Config) {
+    info!("Starting single threaded controller!");
+
+    let output_path = PathBuf::from(&config.output_dir);
+    fs::create_dir_all(&output_path).expect("Failed to create output path");
+
+    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
+
+    let network = Network::from_file(config.network_file.as_ref(), 0, &mut garage);
+
+    let population =
+        Population::from_file(config.population_file.as_ref(), &network, &mut garage, 0);
+
+    let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
+
+    let handles = comms.into_iter().map(|comm| {
+        let sim_network = SimNetworkPartition::from_network(&network, 0);
+        let mut events = EventsPublisher::new();
+        let events_file = format!("events.{}.pbf", comm.rank);
+        let events_path = output_path.join("events.pbf");
+        events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+        events.add_subscriber(Box::new(EventsLogger {}));
+
+        let message_broker = NetMessageBroker::<MpiNetCommunicator>::new_channel_broker(comm, &sim_network);
+
+        let mut simulation = Simulation::new(
+            &config,
+            sim_network,
+            garage,
+            population,
+            message_broker,
+            events,
+        )
+    })
+        .map(|sim| thread::spawn(move || sim.run(config.start_time, config.end_time)))
+        .collect();
+
+
+    let sim_network = SimNetworkPartition::from_network(&network, 0);
+
+    let mut events = EventsPublisher::new();
+    let events_path = output_path.join("events.pbf");
+    events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    events.add_subscriber(Box::new(EventsLogger {}));
+
 
     let mut simulation = Simulation::new(
         &config,

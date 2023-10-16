@@ -1,4 +1,5 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::sync::mpsc::{channel, Receiver, Sender};
 
 use log::info;
 use mpi::topology::SystemCommunicator;
@@ -32,6 +33,75 @@ impl NetCommunicator for DummyNetCommunicator {
         F: FnMut(VehicleMessage),
     {
         info!("Dummy Net Communicator doesn't do anything.")
+    }
+}
+
+pub struct ChannelNetCommunicator {
+    receiver: Receiver<VehicleMessage>,
+    senders: Vec<Sender<VehicleMessage>>,
+    pub rank: usize,
+}
+
+impl ChannelNetCommunicator {
+    pub fn create_n_2_n(num_parts: usize) -> Vec<ChannelNetCommunicator> {
+        let mut senders: Vec<_> = Vec::new();
+        let mut comms: Vec<_> = Vec::new();
+
+        for rank in 0..num_parts {
+            let (sender, receiver) = channel();
+            let comm = ChannelNetCommunicator {
+                receiver,
+                senders: vec![],
+                rank,
+            };
+            senders.push(sender);
+            comms.push(comm);
+        }
+
+        for comm in &mut comms {
+            for sender in &senders {
+                comm.senders.push(sender.clone());
+            }
+        }
+
+        comms
+    }
+}
+
+impl NetCommunicator for ChannelNetCommunicator {
+    fn send_receive<F>(
+        &self,
+        vehicles: HashMap<u32, VehicleMessage>,
+        expected_vehicle_messages: &mut HashSet<u32>,
+        now: u32,
+        mut on_msg: F,
+    ) where
+        F: FnMut(VehicleMessage),
+    {
+        // send messages to everyone
+        for (target, msg) in vehicles {
+            let sender = self.senders.get(target as usize).unwrap();
+            sender.send(msg);
+        }
+
+        // receive messages from everyone
+        while !expected_vehicle_messages.is_empty() {
+            let received_msg = self
+                .receiver
+                .recv()
+                .expect("Error while receiving messages");
+            let from_rank = received_msg.from_process;
+
+            // If a message was received from a neighbor partition for this very time step, remove
+            // that partition from expected messages which indicates which partitions we are waiting
+            // for
+            if received_msg.time == now {
+                expected_vehicle_messages.remove(&from_rank);
+            }
+
+            // publish the received message to the message broker
+            on_msg(received_msg);
+        }
     }
 }
 
@@ -104,7 +174,7 @@ pub struct NetMessageBroker<C>
 where
     C: NetCommunicator,
 {
-    pub rank: Rank,
+    pub rank: u32,
     //communicator: SystemCommunicator,
     communicator: C,
     out_messages: HashMap<u32, VehicleMessage>,
@@ -139,6 +209,32 @@ where
         }
     }
 
+    pub fn new_channel_broker(
+        comm: ChannelNetCommunicator,
+        network: &SimNetworkPartition,
+    ) -> NetMessageBroker<ChannelNetCommunicator> {
+        let neighbors = network
+            .neighbors()
+            .iter()
+            .map(|rank| *rank as u32)
+            .collect();
+        let link_mapping = network
+            .global_network
+            .links
+            .iter()
+            .map(|link| (link.id.internal(), link.partition))
+            .collect();
+
+        NetMessageBroker {
+            rank: comm.rank as u32,
+            communicator: comm,
+            out_messages: Default::default(),
+            in_messages: Default::default(),
+            link_mapping,
+            neighbors,
+        }
+    }
+
     pub fn new_mpi_broker(
         world: SystemCommunicator,
         network: &SimNetworkPartition,
@@ -160,7 +256,7 @@ where
             mpi_communicator: world,
         };
         NetMessageBroker {
-            rank,
+            rank: rank as u32,
             communicator,
             out_messages: HashMap::new(),
             in_messages: BinaryHeap::new(),
