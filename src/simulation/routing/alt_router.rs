@@ -173,8 +173,8 @@ impl AltRouter {
         path
     }
 
-    pub fn customize(&mut self) {
-        todo!()
+    pub fn update(&mut self, new_graph: ForwardBackwardGraph) {
+        self.current_graph = new_graph;
     }
 
     fn get_end_node(&self, link_id: u64) -> usize {
@@ -212,12 +212,18 @@ impl AltRouter {
         result.unwrap()
     }
 
+    pub fn current_graph(&self) -> &ForwardBackwardGraph {
+        &self.current_graph
+    }
+
     pub fn get_initial_travel_time(&self, link_id: u64) -> u32 {
-        self.initial_graph.get_travel_time_by_link_id(link_id)
+        self.initial_graph
+            .get_forward_travel_time_by_link_id(link_id)
     }
 
     pub fn get_current_travel_time(&self, link_id: u64) -> u32 {
-        self.current_graph.get_travel_time_by_link_id(link_id)
+        self.current_graph
+            .get_forward_travel_time_by_link_id(link_id)
     }
 
     fn get_edge_path(path: Vec<usize>, graph: &ForwardBackwardGraph) -> Vec<u64> {

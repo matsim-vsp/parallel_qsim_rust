@@ -128,18 +128,17 @@ impl TravelTimesCollectingAltRouter {
             travel_times_by_link.len()
         );
 
-        //TODO
-        // let new_network = self
-        //     .router_by_mode
-        //     .get(&*mode)
-        //     .unwrap()
-        //     .get_current_network()
-        //     .clone_with_new_travel_times_by_link(travel_times_by_link);
-        //
-        // self.router_by_mode
-        //     .get_mut(&*mode)
-        //     .unwrap()
-        //     .customize(new_network);
+        let new_graph = self
+            .router_by_mode
+            .get(&mode)
+            .unwrap()
+            .current_graph()
+            .clone_with_new_travel_times_by_link(travel_times_by_link);
+
+        self.router_by_mode
+            .get_mut(&mode)
+            .unwrap()
+            .update(new_graph);
     }
 
     fn get_router_by_mode(&mut self, mode: u64) -> Option<&mut AltRouter> {

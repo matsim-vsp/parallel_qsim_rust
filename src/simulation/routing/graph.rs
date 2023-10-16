@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use tracing::debug;
+
 #[derive(Clone, Debug)]
 pub struct ForwardBackwardGraph {
     pub forward_graph: Graph,
@@ -36,7 +40,7 @@ impl ForwardBackwardGraph {
         );
     }
 
-    pub fn get_travel_time_by_link_id(&self, link_id: u64) -> u32 {
+    pub fn get_forward_travel_time_by_link_id(&self, link_id: u64) -> u32 {
         let index = self
             .forward_link_ids()
             .iter()
@@ -78,6 +82,20 @@ impl ForwardBackwardGraph {
     pub fn number_of_nodes(&self) -> usize {
         self.forward_graph.first_out.len()
     }
+
+    pub fn clone_with_new_travel_times_by_link(
+        &self,
+        new_travel_times_by_link: HashMap<&u64, &u32>,
+    ) -> ForwardBackwardGraph {
+        ForwardBackwardGraph {
+            forward_graph: self
+                .forward_graph
+                .clone_with_new_travel_times_by_link(&new_travel_times_by_link),
+            backward_graph: self
+                .backward_graph
+                .clone_with_new_travel_times_by_link(&new_travel_times_by_link),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -100,5 +118,30 @@ impl Graph {
             x: vec![],
             y: vec![],
         }
+    }
+
+    pub fn clone_with_new_travel_times_by_link(
+        &self,
+        new_travel_times_by_link: &HashMap<&u64, &u32>,
+    ) -> Graph {
+        let mut new_travel_time_vector = Vec::new();
+
+        assert_eq!(self.link_ids.len(), self.travel_time.len());
+        for (index, &id) in self.link_ids.iter().enumerate() {
+            if let Some(&&new_travel_time) = new_travel_times_by_link.get(&(id as u64)) {
+                new_travel_time_vector.push(new_travel_time);
+                debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
+            } else {
+                new_travel_time_vector.push(*self.travel_time.get(index).unwrap())
+            }
+        }
+
+        self.clone_with_new_travel_times(new_travel_time_vector)
+    }
+
+    fn clone_with_new_travel_times(&self, travel_times: Vec<u32>) -> Graph {
+        let mut result = self.clone();
+        result.travel_time = travel_times;
+        result
     }
 }
