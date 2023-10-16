@@ -183,7 +183,6 @@ mod tests {
         assert_eq!(None, home_act.max_dur);
 
         let leg = plan.legs.first().unwrap();
-        assert_eq!(None, leg.trav_time);
         assert_eq!(None, leg.dep_time);
         assert!(leg.route.is_some());
         let net_route = leg.route.as_ref().unwrap();
@@ -233,8 +232,6 @@ mod tests {
         assert_eq!(3, pop.agents.len());
 
         // todo test bookkeeping of garage person_2_vehicle
-
-        println!("{pop:#?}");
     }
 
     #[test]

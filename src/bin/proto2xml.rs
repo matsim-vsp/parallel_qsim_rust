@@ -18,7 +18,6 @@ impl<R: Read + Seek> StatefulReader<R> {
         match self.reader.next() {
             None => None,
             Some(time_step) => {
-                //println!("load_next {}: {time_step:?}", self.id);
                 self.curr_time_step = time_step;
                 Some(())
             }
@@ -54,12 +53,7 @@ fn main() {
 
         // get the reader with the smallest curr time step and process its events
         let reader = readers.first_mut().unwrap();
-        /* println!(
-            "Process Events of {}: {:?}",
-            reader.id, reader.curr_time_step
-        );
 
-        */
         process_events(
             reader.curr_time_step.0,
             &reader.curr_time_step.1,

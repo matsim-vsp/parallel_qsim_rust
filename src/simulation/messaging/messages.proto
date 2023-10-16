@@ -56,7 +56,7 @@ message Leg {
   uint64 mode = 1;
   uint64 routing_mode = 2;
   optional uint32 dep_time = 3;
-  optional uint32 trav_time = 4;
+  uint32 trav_time = 4;
   Route route = 5;
 }
 

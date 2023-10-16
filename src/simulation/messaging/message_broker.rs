@@ -119,13 +119,22 @@ impl<C> NetMessageBroker<C>
 where
     C: NetCommunicator,
 {
-    pub fn new_single_partition() -> NetMessageBroker<DummyNetCommunicator> {
+    pub fn new_single_partition(
+        network: &SimNetworkPartition,
+    ) -> NetMessageBroker<DummyNetCommunicator> {
+        let link_mapping = network
+            .global_network
+            .links
+            .iter()
+            .map(|link| (link.id.internal(), link.partition))
+            .collect();
+
         NetMessageBroker {
             rank: 0,
             communicator: DummyNetCommunicator(),
             out_messages: Default::default(),
             in_messages: Default::default(),
-            link_mapping: Default::default(),
+            link_mapping,
             neighbors: Default::default(),
         }
     }
@@ -188,7 +197,7 @@ where
             Self::handle_incoming_msg(msg, &mut result, b, now)
         });
 
-        return result;
+        result
     }
 
     fn handle_incoming_msg(

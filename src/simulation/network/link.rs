@@ -175,7 +175,7 @@ impl LocalLink {
 
     pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
         let speed = self.free_speed.min(vehicle.max_v);
-        let duration = (self.length / speed) as u32;
+        let duration = 1.max((self.length / speed) as u32); // at least 1 second per link
         let earliest_exit_time = now + duration;
 
         // update state
@@ -556,7 +556,7 @@ mod tests {
             distance: 0.0,
             route,
         };
-        let leg = Leg::new(route, 0, None, None);
+        let leg = Leg::new(route, 0, 0, None);
         let act = Activity::new(0., 0., 0, 1, None, None, None);
         let mut plan = Plan::new();
         plan.add_act(act);

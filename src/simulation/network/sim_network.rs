@@ -371,15 +371,6 @@ mod tests {
         let id_2 = global_net.link_ids.get_from_ext("link2");
         let mut network = SimNetworkPartition::from_network(&global_net, 0);
 
-        //println!("{network:#?}");
-        for node in &network.nodes {
-            print!("{} ", node.external());
-        }
-        println!();
-        for link in network.links.keys() {
-            print!("{} ", link.external());
-        }
-
         //place 10 vehicles on link2 so that it is jammed
         // vehicles are very slow, so that the first vehicle should leave link2 at t=1000
         for i in 0..10 {
@@ -487,9 +478,9 @@ mod tests {
     }
 
     fn create_three_node_sim_network_with_partition<'n>(
-        mut network: &'n mut Network,
+        network: &'n mut Network,
     ) -> Vec<SimNetworkPartition<'n>> {
-        init_three_node_network(&mut network);
+        init_three_node_network(network);
         let node3 = network.nodes.get_mut(2).unwrap();
         node3.partition = 1;
         let link2 = network.links.get_mut(1).unwrap();
@@ -506,7 +497,7 @@ mod tests {
             distance: 0.0,
             route,
         };
-        let leg = Leg::new(route, 0, None, None);
+        let leg = Leg::new(route, 0, 0, None);
         let act = Activity::new(0., 0., 0, 1, None, None, None);
         let mut plan = Plan::new();
         plan.add_act(act);

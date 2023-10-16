@@ -328,7 +328,7 @@ impl EndTime for Agent {
         return if self.curr_plan_elem % 2 == 0 {
             self.curr_act().cmp_end_time(now)
         } else {
-            self.curr_leg().trav_time.unwrap() + now
+            self.curr_leg().trav_time + now
         };
     }
 }
@@ -454,19 +454,29 @@ impl Leg {
         Self {
             route: Some(route),
             mode: mode.internal() as u64,
-            trav_time: parse_time_opt(&io_leg.trav_time),
+            trav_time: Self::parse_trav_time(&io_leg.trav_time, &io_leg.route.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
             routing_mode: routing_mode.internal() as u64,
         }
     }
 
-    pub fn new(route: Route, mode: u64, trav_time: Option<u32>, dep_time: Option<u32>) -> Self {
+    pub fn new(route: Route, mode: u64, trav_time: u32, dep_time: Option<u32>) -> Self {
         Self {
             route: Some(route),
             mode,
             trav_time,
             dep_time,
             routing_mode: 0,
+        }
+    }
+
+    fn parse_trav_time(leg_trav_time: &Option<String>, route_trav_time: &Option<String>) -> u32 {
+        if let Some(trav_time) = parse_time_opt(&leg_trav_time) {
+            trav_time
+        } else if let Some(trav_time) = parse_time_opt(&route_trav_time) {
+            trav_time
+        } else {
+            0
         }
     }
 }
@@ -505,7 +515,7 @@ impl Route {
     ) -> Self {
         let start_link = net.link_ids.get_from_ext(&io_route.start_link);
         let end_link = net.link_ids.get_from_ext(&io_route.end_link);
-        let veh_id: Id<Vehicle> = garage.get_veh_id(person_id, mode);
+        let veh_id: Id<Vehicle> = garage.get_mode_veh_id(person_id, mode);
 
         Route {
             distance: io_route.distance,
@@ -548,16 +558,22 @@ impl Route {
 }
 
 fn parse_time_opt(value: &Option<String>) -> Option<u32> {
-    value.as_ref().map(|value| parse_time(value))
+    if let Some(time) = value.as_ref() {
+        parse_time(time)
+    } else {
+        None
+    }
 }
 
-fn parse_time(value: &str) -> u32 {
+fn parse_time(value: &str) -> Option<u32> {
     let split: Vec<&str> = value.split(':').collect();
-    assert_eq!(3, split.len());
+    if split.len() == 3 {
+        let hour: u32 = split.first().unwrap().parse().unwrap();
+        let minutes: u32 = split.get(1).unwrap().parse().unwrap();
+        let seconds: u32 = split.get(2).unwrap().parse().unwrap();
 
-    let hour: u32 = split.first().unwrap().parse().unwrap();
-    let minutes: u32 = split.get(1).unwrap().parse().unwrap();
-    let seconds: u32 = split.get(2).unwrap().parse().unwrap();
-
-    hour * 3600 + minutes * 60 + seconds
+        Some(hour * 3600 + minutes * 60 + seconds)
+    } else {
+        None
+    }
 }

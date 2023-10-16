@@ -124,13 +124,9 @@ impl<'g> Garage<'g> {
             .insert(veh_type.net_mode.clone(), veh_id);
     }
 
-    pub fn get_veh_id(&self, person_id: &Id<Agent>, mode: &Id<String>) -> Id<Vehicle> {
-        self.person_2_vehicle
-            .get(person_id)
-            .unwrap()
-            .get(mode)
-            .unwrap()
-            .clone()
+    pub fn get_mode_veh_id(&self, person_id: &Id<Agent>, mode: &Id<String>) -> Id<Vehicle> {
+        let external = format!("{}_{}", person_id.external(), mode.external());
+        self.vehicle_ids.get_from_ext(&external)
     }
 
     pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Agent {

@@ -239,8 +239,6 @@ mod tests {
     #[test]
     fn read_example_file() {
         let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml");
-        // println!("{population:#?}");
-
         assert_eq!(34, population.persons.len())
     }
 

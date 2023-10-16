@@ -1,4 +1,5 @@
 use std::io;
+
 use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -39,6 +40,7 @@ pub fn init_logging(directory: &str, file_discriminant: String) -> (WorkerGuard,
                 .with_writer(performance_file.with_min_level(Level::TRACE))
                 .json(),
         );
+    // do we need this? at least for test cases this is not usefull
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
     (_guard_log, _guard_performance)
 }

@@ -166,6 +166,14 @@ where
 
             // advance plan to activity and put agent into activity q.
             agent.advance_plan();
+
+            // handle act start event
+            let act = agent.curr_act();
+            let act_type = self.population.act_types.get_from_wire(act.act_type);
+            self.events.publish_event(
+                now,
+                &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
+            );
             self.activity_q.add(agent, now);
         }
     }

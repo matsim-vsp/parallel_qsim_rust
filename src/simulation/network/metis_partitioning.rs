@@ -4,7 +4,7 @@ use metis::{Graph, Idx};
 use super::global_network::Network;
 
 pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
-    if num_parts == 1 {
+    if num_parts <= 1 {
         return vec![0; network.nodes.len()];
     }
 
@@ -78,7 +78,6 @@ mod tests {
 
         for _n in 0..100 {
             let partition_result = partition(&net, 2);
-            println!("{partition_result:?}");
         }
     }
 }
