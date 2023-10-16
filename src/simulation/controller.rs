@@ -18,6 +18,7 @@ use crate::simulation::messaging::message_broker::{
     ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
     NetMessageBroker,
 };
+use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
@@ -115,8 +116,8 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     let events_file = format!("events.{rank}.pbf");
     let events_path = output_path.join(events_file);
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-    // let travel_time_collector = Box::new(TravelTimeCollector::new());
-    //events.add_subscriber(travel_time_collector);
+    let travel_time_collector = Box::new(TravelTimeCollector::new());
+    events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
     let mut simulation = Simulation::new(
