@@ -147,7 +147,7 @@ impl SimNetworkPartition {
     pub fn get_link_ids(&self) -> HashSet<u64> {
         self.links
             .iter()
-            .filter(|(id, link)| match link {
+            .filter(|(_, link)| match link {
                 SimLink::Local(_) => true,
                 SimLink::In(_) => true,
                 SimLink::Out(_) => false,

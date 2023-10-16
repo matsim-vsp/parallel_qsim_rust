@@ -18,13 +18,6 @@ impl ForwardBackwardGraph {
         graph
     }
 
-    pub fn empty() -> Self {
-        Self {
-            forward_graph: Graph::new(),
-            backward_graph: Graph::new(),
-        }
-    }
-
     fn validate_else_panic(&self) {
         assert_eq!(
             self.forward_graph.head.len(),
@@ -99,6 +92,7 @@ impl ForwardBackwardGraph {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct Graph {
     pub(crate) first_out: Vec<usize>,
     pub(crate) head: Vec<usize>,
@@ -109,24 +103,13 @@ pub struct Graph {
 }
 
 impl Graph {
-    pub fn new() -> Graph {
-        Graph {
-            first_out: vec![],
-            head: vec![],
-            travel_time: vec![],
-            link_ids: vec![],
-            x: vec![],
-            y: vec![],
-        }
-    }
-
     pub fn clone_with_new_travel_times_by_link(
         &self,
         new_travel_times_by_link: &HashMap<&u64, &u32>,
     ) -> Graph {
-        let mut new_travel_time_vector = Vec::new();
-
         assert_eq!(self.link_ids.len(), self.travel_time.len());
+
+        let mut new_travel_time_vector = Vec::new();
         for (index, &id) in self.link_ids.iter().enumerate() {
             if let Some(&&new_travel_time) = new_travel_times_by_link.get(&(id as u64)) {
                 new_travel_time_vector.push(new_travel_time);

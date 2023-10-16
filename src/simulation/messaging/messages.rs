@@ -320,8 +320,6 @@ impl Agent {
         travel_time: Option<u32>,
         route: Vec<u64>,
         distance: Option<f32>,
-        start_link: u64,
-        end_link: u64,
     ) {
         //info!("Leg update for agent {:?}. Departure {:?}, travel time {:?}, route {:?}, distance {:?}, start_link {:?}, end_link {:?}",
         //    self, dep_time, travel_time, route,distance, start_link, end_link);

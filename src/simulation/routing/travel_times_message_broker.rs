@@ -19,7 +19,7 @@ impl TravelTimesMessageBroker {
 
     pub fn send_recv(
         &mut self,
-        now: u32,
+        _now: u32,
         travel_times: HashMap<u64, u32>,
     ) -> Vec<TravelTimesMessage> {
         let travel_times_message = TravelTimesMessage::from(travel_times);

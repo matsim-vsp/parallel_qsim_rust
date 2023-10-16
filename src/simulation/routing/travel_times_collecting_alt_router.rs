@@ -67,10 +67,10 @@ impl Router for TravelTimesCollectingAltRouter {
 
         //handle travel times
         for (mode, message) in received_messages_by_mode.into_iter() {
-            let number_of_updates: usize = message
-                .iter()
-                .map(|m| m.travel_times_by_link_id.len())
-                .sum();
+            // let number_of_updates: usize = message
+            //     .iter()
+            //     .map(|m| m.travel_times_by_link_id.len())
+            //     .sum();
             self.handle_traffic_info_messages(now, mode, message);
         }
 
@@ -103,7 +103,7 @@ impl TravelTimesCollectingAltRouter {
 
     fn handle_traffic_info_messages(
         &mut self,
-        now: u32,
+        _now: u32,
         mode: u64,
         traffic_info_messages: Vec<TravelTimesMessage>,
     ) {

@@ -67,7 +67,11 @@ impl TravelTimeCollector {
         }
     }
 
-    fn process_person_leaves_vehicle_event(&mut self, time: u32, event: &PersonLeavesVehicleEvent) {
+    fn process_person_leaves_vehicle_event(
+        &mut self,
+        _time: u32,
+        event: &PersonLeavesVehicleEvent,
+    ) {
         // if there is no current link id of vehicle of link enter event, cache doesn't have to be cleaned up
         let link_id = self.current_link_by_vehicle.get(&event.vehicle).copied();
         if link_id.is_none() {
@@ -100,7 +104,7 @@ impl TravelTimeCollector {
             Some(travel_times) => {
                 let sum: u32 = travel_times.iter().sum();
                 let len = travel_times.len();
-                Some((sum / (len as u32)))
+                Some(sum / (len as u32))
             }
         }
     }
@@ -108,8 +112,8 @@ impl TravelTimeCollector {
     pub fn get_travel_times(&self) -> HashMap<u64, u32> {
         self.travel_times_by_link
             .iter()
-            .map(|(id, travel_time)| (*id, self.get_travel_time_of_link(*id)))
-            .filter(|(id, travel_time)| travel_time.is_some())
+            .map(|(id, _)| (*id, self.get_travel_time_of_link(*id)))
+            .filter(|(_, travel_time)| travel_time.is_some())
             .map(|(id, travel_time)| (id, travel_time.unwrap()))
             .collect::<HashMap<u64, u32>>()
     }

@@ -10,12 +10,3 @@ pub struct CustomQueryResult {
     pub travel_time: Option<u32>,
     pub path: Option<Vec<u64>>,
 }
-
-impl CustomQueryResult {
-    pub fn new() -> Self {
-        CustomQueryResult {
-            travel_time: None,
-            path: None,
-        }
-    }
-}

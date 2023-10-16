@@ -80,8 +80,6 @@ impl WalkLegUpdater for EuclideanWalkLegUpdater {
             Some(walking_time_in_sec as u32),
             vec![],
             Some(distance),
-            curr_act.link_id,
-            next_act.link_id,
         );
     }
 }

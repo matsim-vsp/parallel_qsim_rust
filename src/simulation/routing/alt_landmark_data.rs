@@ -7,19 +7,13 @@ pub type ForwardBackwardTravelTime = (u32, u32);
 
 const DEFAULT_NUMBER_OF_LANDMARKS: usize = 16;
 
+#[allow(dead_code)]
 pub struct AltLandmarkData {
     landmarks: Vec<usize>,
     travel_times_to_all: Vec<Vec<ForwardBackwardTravelTime>>,
 }
 
 impl AltLandmarkData {
-    pub fn empty() -> Self {
-        Self {
-            landmarks: vec![],
-            travel_times_to_all: vec![],
-        }
-    }
-
     pub fn new(graph: &ForwardBackwardGraph) -> AltLandmarkData {
         let landmarks: Vec<usize> = Self::choose_landmarks(&graph);
         let travel_times_to_all = Self::calculate_distances(&graph, &landmarks);
@@ -27,10 +21,6 @@ impl AltLandmarkData {
             landmarks,
             travel_times_to_all,
         }
-    }
-
-    pub fn landmarks(&self) -> &Vec<usize> {
-        &self.landmarks
     }
 
     pub fn travel_times_to_all(&self) -> &Vec<Vec<ForwardBackwardTravelTime>> {

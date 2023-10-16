@@ -27,14 +27,6 @@ pub struct AltRouter {
 }
 
 impl AltRouter {
-    pub fn empty() -> Self {
-        AltRouter {
-            landmark_data: AltLandmarkData::empty(),
-            current_graph: ForwardBackwardGraph::empty(),
-            initial_graph: ForwardBackwardGraph::empty(),
-        }
-    }
-
     pub fn new(graph: ForwardBackwardGraph) -> Self {
         let landmark_data = AltLandmarkData::new(&graph);
         AltRouter {
@@ -48,7 +40,7 @@ impl AltRouter {
         let travel_time;
         let result_edge_path;
         {
-            let mut result = self.query(self.get_end_node(from_link), self.get_start_node(to_link));
+            let result = self.query(self.get_end_node(from_link), self.get_start_node(to_link));
             travel_time = result.travel_time;
             result_edge_path = result.node_path();
         }
