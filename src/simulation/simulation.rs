@@ -39,8 +39,6 @@ where
         mut population: Population,
         message_broker: NetMessageBroker<C>,
         events: EventsPublisher,
-        router: Option<Box<dyn Router>>,
-        walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
 
@@ -52,6 +50,12 @@ where
             activity_q.add(agent, config.start_time);
         }
 
+        let (router, walk_leg_updater) = if config.routing_mode == RoutingMode::AdHoc {
+            Self::prepare_routing(&network, &garage, &message_broker)
+        } else {
+            (None, None)
+        };
+
         Simulation {
             network,
             garage,
@@ -62,6 +66,32 @@ where
             router,
             walk_leg_updater,
         }
+    }
+
+    fn prepare_routing(
+        network: &SimNetworkPartition,
+        garage: &Garage,
+        message_broker: &MpiMessageBroker,
+    ) -> (Option<Box<dyn Router>>, Option<Box<dyn WalkLegUpdater>>) {
+        let forward_backward_graph_by_mode =
+            TravelTimesCollectingAltRouter::get_forward_backward_graph_by_mode(
+                &network.global_network,
+                &garage.vehicle_types,
+            );
+
+        let router: Option<Box<dyn Router>> = Some(Box::new(TravelTimesCollectingAltRouter::new(
+            forward_backward_graph_by_mode,
+            message_broker.clone_system_communicator(),
+            message_broker.rank,
+            network.get_link_ids(),
+        )));
+
+        let walking_speed_in_m_per_sec = 1.2;
+        let walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = Some(Box::new(
+            EuclideanWalkLegUpdater::new(walking_speed_in_m_per_sec),
+        ));
+
+        (router, walk_leg_finder)
     }
 
     pub fn run(&mut self, start_time: u32, end_time: u32) {

@@ -10,7 +10,7 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::config::{Config, RoutingMode};
+use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::logging;
 use crate::simulation::messaging::events::EventsPublisher;
@@ -21,9 +21,6 @@ use crate::simulation::messaging::message_broker::{
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
-use crate::simulation::routing::router::Router;
-use crate::simulation::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
-use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
 
@@ -97,12 +94,6 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     );
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
-    let forward_backward_graph_by_mode =
-        TravelTimesCollectingAltRouter::get_forward_backward_graph_by_mode(
-            &network,
-            &garage.vehicle_types,
-        );
-
     // write network with new ids to output but only once.
     if rank == 0 {
         network.to_file(&output_path.join("output_network.xml.gz"));
@@ -128,22 +119,6 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     //events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let mut router: Option<Box<dyn Router>> = None;
-    let mut walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = None;
-    if config.routing_mode == RoutingMode::AdHoc {
-        router = Some(Box::new(TravelTimesCollectingAltRouter::new(
-            forward_backward_graph_by_mode,
-            world.clone(),
-            rank,
-            network_partition.get_link_ids(),
-        )));
-
-        let walking_speed_in_m_per_sec = 1.2;
-        walk_leg_finder = Some(Box::new(EuclideanWalkLegUpdater::new(
-            walking_speed_in_m_per_sec,
-        )))
-    }
-
     let mut simulation = Simulation::new(
         config.clone(),
         network_partition,
@@ -151,8 +126,6 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         population,
         message_broker,
         events,
-        router,
-        walk_leg_finder,
     );
 
     let start = Instant::now();
