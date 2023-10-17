@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::slice::Iter;
-use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData, rc::Rc};
+use std::sync::Arc;
+use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData};
 
 /// This type represents a reference counted pointer to a matsim id. It can be used in hash maps/sets
 /// in combination with NoHashHasher, to achieve fast look ups with no randomness involved.
@@ -14,11 +15,11 @@ use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData, r
 /// This type uses the newtype pattern https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html
 /// to hide internal representation and to enable implementing IsEnabled for using the NoHashHasher create
 #[derive(Debug)]
-pub struct Id<T>(Rc<IdImpl<T>>);
+pub struct Id<T>(Arc<IdImpl<T>>);
 
 impl<T> Id<T> {
     fn new(internal: usize, external: String) -> Self {
-        Self(Rc::new(IdImpl {
+        Self(Arc::new(IdImpl {
             _type_marker: PhantomData,
             internal,
             external,

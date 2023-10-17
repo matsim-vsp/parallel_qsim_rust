@@ -1,7 +1,8 @@
-use std::{fs, thread};
 use std::ops::Sub;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
+use std::{fs, thread};
 
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, CommunicatorCollectives};
@@ -10,7 +11,6 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::{EventsLogger, EventsPublisher};
-use crate::simulation::messaging::message_broker;
 use crate::simulation::messaging::message_broker::{
     ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetMessageBroker,
 };
@@ -41,9 +41,10 @@ pub fn run_single_thread(config: Config) {
     let events_path = output_path.join("events.pbf");
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     events.add_subscriber(Box::new(EventsLogger {}));
+    let config = Arc::new(config);
 
     let mut simulation = Simulation::new(
-        &config,
+        config.clone(),
         sim_network,
         garage,
         population,
@@ -62,58 +63,55 @@ pub fn run_local_multithreaded(config: Config) {
     let output_path = PathBuf::from(&config.output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
-    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
-
-    let network = Network::from_file(config.network_file.as_ref(), 0, &mut garage);
-
-    let population =
-        Population::from_file(config.population_file.as_ref(), &network, &mut garage, 0);
-
     let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
+    let config = Arc::new(config);
 
-    let handles = comms.into_iter().map(|comm| {
-        let sim_network = SimNetworkPartition::from_network(&network, 0);
-        let mut events = EventsPublisher::new();
-        let events_file = format!("events.{}.pbf", comm.rank);
-        let events_path = output_path.join("events.pbf");
-        events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-        events.add_subscriber(Box::new(EventsLogger {}));
+    let handles: Vec<_> = comms
+        .into_iter()
+        .map(|comm| {
+            // clone reference to config here, so that it can
+            // be moved into the threads.
+            let config = config.clone();
+            let handle = thread::spawn(move || {
+                // read the io stuff in multiple times. This can be optimized as in https://github.com/Janekdererste/rust_q_sim/issues/39
+                let mut garage = Garage::from_file(config.vehicles_file.as_ref());
+                let network = Network::from_file(config.network_file.as_ref(), 0, &mut garage);
+                let population = Population::from_file(
+                    config.population_file.as_ref(),
+                    &network,
+                    &mut garage,
+                    0,
+                );
 
-        let message_broker = NetMessageBroker::<MpiNetCommunicator>::new_channel_broker(comm, &sim_network);
+                let sim_network = SimNetworkPartition::from_network(&network, 0);
+                let mut events = EventsPublisher::new();
+                let events_file = format!("events.{}.pbf", comm.rank);
+                let events_path = PathBuf::from(&config.output_dir).join(events_file);
+                events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+                events.add_subscriber(Box::new(EventsLogger {}));
 
-        let mut simulation = Simulation::new(
-            &config,
-            sim_network,
-            garage,
-            population,
-            message_broker,
-            events,
-        )
-    })
-        .map(|sim| thread::spawn(move || sim.run(config.start_time, config.end_time)))
+                let message_broker =
+                    NetMessageBroker::<MpiNetCommunicator>::new_channel_broker(comm, &sim_network);
+
+                let mut simulation = Simulation::new(
+                    config.clone(),
+                    sim_network,
+                    garage,
+                    population,
+                    message_broker,
+                    events,
+                );
+                simulation.run(config.start_time, config.end_time)
+            });
+            handle
+        })
         .collect();
 
-
-    let sim_network = SimNetworkPartition::from_network(&network, 0);
-
-    let mut events = EventsPublisher::new();
-    let events_path = output_path.join("events.pbf");
-    events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-    events.add_subscriber(Box::new(EventsLogger {}));
-
-
-    let mut simulation = Simulation::new(
-        &config,
-        sim_network,
-        garage,
-        population,
-        message_broker,
-        events,
-    );
-
-    info!("Starting single threaded simulation");
-    simulation.run(config.start_time, config.end_time);
-    info!("Finished single threaded simulation");
+    for handle in handles {
+        handle
+            .join()
+            .expect("Error when joining the simulation threads. What now?");
+    }
 }
 
 pub fn run(world: SystemCommunicator, config: Config) {
@@ -158,9 +156,10 @@ pub fn run(world: SystemCommunicator, config: Config) {
     // let travel_time_collector = Box::new(TravelTimeCollector::new());
     //events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
+    let config = Arc::new(config);
 
     let mut simulation = Simulation::new(
-        &config,
+        config.clone(),
         network_partition,
         garage,
         population,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tracing::info;
 
 use crate::simulation::config::Config;
@@ -29,7 +31,7 @@ where
     C: NetCommunicator,
 {
     pub fn new(
-        config: &Config,
+        config: Arc<Config>,
         network: SimNetworkPartition<'sim>,
         garage: Garage<'sim>,
         mut population: Population<'sim>,
@@ -38,7 +40,7 @@ where
     ) -> Self {
         let mut activity_q = TimeQueue::new();
 
-        // take agents and copy them into queues. This way we can keep population around to tranlate
+        // take agents and copy them into queues. This way we can keep population around to translate
         // ids for events processing...
         let agents = std::mem::take(&mut population.agents);
 
