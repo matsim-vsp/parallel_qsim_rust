@@ -6,18 +6,18 @@ use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
 
-use crate::simulation::messaging::messages::proto::{Vehicle, VehicleMessage};
+use crate::simulation::messaging::messages::proto::{StorageCap, SyncMessage, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 
 pub trait NetCommunicator {
     fn send_receive<F>(
         &self,
-        vehicles: HashMap<u32, VehicleMessage>,
+        vehicles: HashMap<u32, SyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         on_msg: F,
     ) where
-        F: FnMut(VehicleMessage);
+        F: FnMut(SyncMessage);
 }
 
 pub struct DummyNetCommunicator();
@@ -25,20 +25,20 @@ pub struct DummyNetCommunicator();
 impl NetCommunicator for DummyNetCommunicator {
     fn send_receive<F>(
         &self,
-        _vehicles: HashMap<u32, VehicleMessage>,
+        _vehicles: HashMap<u32, SyncMessage>,
         _expected_vehicle_messages: &mut HashSet<u32>,
         _now: u32,
         _on_msg: F,
     ) where
-        F: FnMut(VehicleMessage),
+        F: FnMut(SyncMessage),
     {
         info!("Dummy Net Communicator doesn't do anything.")
     }
 }
 
 pub struct ChannelNetCommunicator {
-    receiver: Receiver<VehicleMessage>,
-    senders: Vec<Sender<VehicleMessage>>,
+    receiver: Receiver<SyncMessage>,
+    senders: Vec<Sender<SyncMessage>>,
     pub rank: usize,
 }
 
@@ -71,12 +71,12 @@ impl ChannelNetCommunicator {
 impl NetCommunicator for ChannelNetCommunicator {
     fn send_receive<F>(
         &self,
-        vehicles: HashMap<u32, VehicleMessage>,
+        vehicles: HashMap<u32, SyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         mut on_msg: F,
     ) where
-        F: FnMut(VehicleMessage),
+        F: FnMut(SyncMessage),
     {
         // send messages to everyone
         for (target, msg) in vehicles {
@@ -114,12 +114,12 @@ pub struct MpiNetCommunicator {
 impl NetCommunicator for MpiNetCommunicator {
     fn send_receive<F>(
         &self,
-        out_messages: HashMap<u32, VehicleMessage>,
+        out_messages: HashMap<u32, SyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         mut on_msg: F,
     ) where
-        F: FnMut(VehicleMessage),
+        F: FnMut(SyncMessage),
     {
         let buf_msg: Vec<_> = out_messages.values().map(|m| (m, m.serialize())).collect();
 
@@ -151,7 +151,7 @@ impl NetCommunicator for MpiNetCommunicator {
             // messages.
             while !expected_vehicle_messages.is_empty() {
                 let (encoded_msg, _status) = self.mpi_communicator.any_process().receive_vec();
-                let msg = VehicleMessage::deserialize(&encoded_msg);
+                let msg = SyncMessage::deserialize(&encoded_msg);
                 let from_rank = msg.from_process;
 
                 // If a message was received from a neighbor partition for this very time step, remove
@@ -179,8 +179,8 @@ where
     pub rank: u32,
     //communicator: SystemCommunicator,
     communicator: C,
-    out_messages: HashMap<u32, VehicleMessage>,
-    in_messages: BinaryHeap<VehicleMessage>,
+    out_messages: HashMap<u32, SyncMessage>,
+    in_messages: BinaryHeap<SyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
     link_mapping: HashMap<usize, usize>,
@@ -277,13 +277,17 @@ where
         let message = self
             .out_messages
             .entry(partition)
-            .or_insert_with(|| VehicleMessage::new(now, self.rank, partition));
+            .or_insert_with(|| SyncMessage::new(now, self.rank, partition));
         message.add(vehicle);
     }
 
-    pub fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
+    pub fn add_cap(&mut self, cap: StorageCap, now: u32) {
+        panic!("This needs the partition id of the split out part which we don't have here");
+    }
+
+    pub fn send_recv(&mut self, now: u32) -> Vec<SyncMessage> {
         let vehicles = self.prepare_send_recv_vehicles(now);
-        let mut result: Vec<VehicleMessage> = Vec::new();
+        let mut result: Vec<SyncMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
 
         self.pop_from_cache(&mut expected_vehicle_messages, &mut result, now);
@@ -301,9 +305,9 @@ where
     }
 
     fn handle_incoming_msg(
-        msg: VehicleMessage,
-        result: &mut Vec<VehicleMessage>,
-        in_messages: &mut BinaryHeap<VehicleMessage>,
+        msg: SyncMessage,
+        result: &mut Vec<SyncMessage>,
+        in_messages: &mut BinaryHeap<SyncMessage>,
         now: u32,
     ) {
         if msg.time <= now {
@@ -316,7 +320,7 @@ where
     fn pop_from_cache(
         &mut self,
         expected_messages: &mut HashSet<u32>,
-        messages: &mut Vec<VehicleMessage>,
+        messages: &mut Vec<SyncMessage>,
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
@@ -335,7 +339,7 @@ where
         }
     }
 
-    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, VehicleMessage> {
+    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, SyncMessage> {
         let capacity = self.out_messages.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
@@ -344,7 +348,7 @@ where
             let neighbor_rank = *partition;
             messages
                 .entry(neighbor_rank)
-                .or_insert_with(|| VehicleMessage::new(now, self.rank, neighbor_rank));
+                .or_insert_with(|| SyncMessage::new(now, self.rank, neighbor_rank));
         }
         messages
     }

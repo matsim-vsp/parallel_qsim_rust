@@ -18,12 +18,6 @@ use super::{
 };
 
 #[derive(Debug)]
-pub enum ExitReason {
-    FinishRoute(Vehicle),
-    ReachedBoundary(Vehicle),
-}
-
-#[derive(Debug)]
 pub struct SimNetworkPartition<'n> {
     pub nodes: Vec<Id<Node>>,
     // use int map as hash map variant with stable order
@@ -33,6 +27,7 @@ pub struct SimNetworkPartition<'n> {
 
 impl<'n> SimNetworkPartition<'n> {
     pub fn from_network(global_network: &'n Network, partition: usize) -> Self {
+        // todo this still needs sample size
         let nodes: Vec<_> = global_network
             .nodes
             .iter()
@@ -81,14 +76,13 @@ impl<'n> SimNetworkPartition<'n> {
             let local_link = LocalLink::from_link(link, 1.0, 7.5);
             SimLink::In(SplitInLink::new(from_part, local_link))
         } else {
-            SimLink::Out(SplitOutLink::new(link.id.clone(), to_part))
+            SimLink::Out(SplitOutLink::new(link, effective_cell_size, 1.0, to_part))
         }
     }
 
     pub fn new(
         nodes: Vec<Id<Node>>,
         links: IntMap<Id<Link>, SimLink>,
-        //links: HashMap<Id<Link>, SimLink>,
         global_network: &'n Network,
     ) -> Self {
         SimNetworkPartition {
@@ -125,15 +119,52 @@ impl<'n> SimNetworkPartition<'n> {
         link.push_veh(vehicle, now);
     }
 
-    pub fn move_links(&mut self) -> (Vec<Vehicle>, Vec<StorageCap>) {
-        for link in self.links.values_mut() {
-            link.update_released_storage_cap();
+    pub fn update_storage_caps(&mut self, storage_caps: Vec<StorageCap>) {
+        for cap in storage_caps {
+            let link_id = self.global_network.link_ids.get_from_wire(cap.link_id);
+            if let SimLink::Out(link) = self.links.get_mut(&link_id).unwrap() {
+                link.set_used_storage_cap(cap.value);
+            } else {
+                panic!("only expecting ids for split out links ")
+            }
         }
-
-        (Vec::new(), Vec::new())
     }
 
-    pub fn move_nodes(&mut self, events: &mut EventsPublisher, now: u32) -> Vec<ExitReason> {
+    pub fn move_links(&mut self) -> (Vec<Vehicle>, Vec<StorageCap>) {
+        let mut storage_cap: Vec<_> = Vec::new();
+        let mut vehicles: Vec<_> = Vec::new();
+
+        for link in self.links.values_mut() {
+            match link {
+                // update the used storage capacity by the number of pce we have released in the previous
+                // move_nodes step
+                SimLink::Local(ll) => {
+                    ll.update_released_storage_cap();
+                }
+                // update storage cap as with the local link and capture the used storage cap
+                // so that we can send it to the neighbor partition
+                SimLink::In(il) => {
+                    il.local_link_mut().update_released_storage_cap();
+                    let used_storage = il.local_link().used_storage();
+                    storage_cap.push(StorageCap {
+                        link_id: il.local_link().id.internal() as u64,
+                        value: used_storage,
+                    });
+                }
+                // take all vehicles in the out link so that we can send them to the next partition
+                SimLink::Out(ol) => {
+                    let out_q = ol.take_veh();
+                    for veh in out_q {
+                        vehicles.push(veh);
+                    }
+                }
+            }
+        }
+
+        (vehicles, storage_cap)
+    }
+
+    pub fn move_nodes(&mut self, events: &mut EventsPublisher, now: u32) -> Vec<Vehicle> {
         let mut exited_vehicles = Vec::new();
 
         for node_id in &self.nodes {
@@ -154,7 +185,7 @@ impl<'n> SimNetworkPartition<'n> {
         node_id: &Id<Node>,
         global_network: &Network,
         links: &mut IntMap<Id<Link>, SimLink>,
-        exited_vehicles: &mut Vec<ExitReason>,
+        exited_vehicles: &mut Vec<Vehicle>,
         events: &mut EventsPublisher,
         now: u32,
     ) {
@@ -171,9 +202,9 @@ impl<'n> SimNetworkPartition<'n> {
                 let veh = in_link.pop_veh();
 
                 if veh.peek_next_route_element().is_some() {
-                    Self::move_vehicle(veh, global_network, links, events, exited_vehicles, now);
+                    Self::move_vehicle(veh, global_network, links, events, now);
                 } else {
-                    exited_vehicles.push(ExitReason::FinishRoute(veh));
+                    exited_vehicles.push(veh);
                 }
             }
         }
@@ -208,7 +239,6 @@ impl<'n> SimNetworkPartition<'n> {
         global_network: &Network,
         links: &mut IntMap<Id<Link>, SimLink>,
         events: &mut EventsPublisher,
-        exited_vehicles: &mut Vec<ExitReason>,
         now: u32,
     ) {
         events.publish_event(
@@ -217,6 +247,15 @@ impl<'n> SimNetworkPartition<'n> {
         );
         vehicle.advance_route_index();
         let link_id = global_network.link_ids.get(vehicle.curr_link_id().unwrap());
+        let link = links.get_mut(&link_id).unwrap();
+        events.publish_event(
+            now,
+            &Event::new_link_enter(link.id().internal() as u64, vehicle.id),
+        );
+
+        link.push_veh(vehicle, now);
+
+        /*
         match links.get_mut(&link_id).unwrap() {
             SimLink::Local(l) => {
                 events.publish_event(
@@ -230,6 +269,8 @@ impl<'n> SimNetworkPartition<'n> {
                 panic!("Not expecting to move a vehicle onto a split in link.")
             }
         }
+
+         */
     }
 }
 
@@ -248,7 +289,6 @@ mod tests {
         },
     };
 
-    use super::ExitReason;
     use super::SimNetworkPartition;
 
     #[test]
@@ -299,11 +339,13 @@ mod tests {
 
             if i == 120 {
                 assert!(!result.is_empty());
-                if let ExitReason::FinishRoute(veh) = result.first().unwrap() {
+                /*   if let ExitReason::FinishRoute(veh) = result.first().unwrap() {
                     assert!(veh.curr_link_id().is_none());
                 } else {
                     panic!("This should have exit reason finish route.")
                 }
+                */
+                panic!("Fix this test")
             }
         }
     }
@@ -323,12 +365,16 @@ mod tests {
 
             if !result.is_empty() {
                 assert_eq!(10, i);
+                /*
                 if let ExitReason::ReachedBoundary(veh) = result.first().unwrap() {
                     assert!(veh.curr_link_id().is_some());
                     assert_eq!(1, veh.curr_link_id().unwrap());
                 } else {
                     panic!("This should have exit reason reached boundary route.")
                 }
+
+                 */
+                panic!("Fix this test")
             }
         }
     }

@@ -10,7 +10,7 @@ use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::events::{EventsLogger, EventsPublisher};
+use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{
     ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetMessageBroker,
 };
@@ -40,7 +40,7 @@ pub fn run_single_thread(config: Config) {
     let mut events = EventsPublisher::new();
     let events_path = output_path.join("events.pbf");
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-    events.add_subscriber(Box::new(EventsLogger {}));
+    // events.add_subscriber(Box::new(EventsLogger {}));
     let config = Arc::new(config);
 
     let mut simulation = Simulation::new(
@@ -88,7 +88,7 @@ pub fn run_local_multithreaded(config: Config) {
                 let events_file = format!("events.{}.pbf", comm.rank);
                 let events_path = PathBuf::from(&config.output_dir).join(events_file);
                 events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-                events.add_subscriber(Box::new(EventsLogger {}));
+                //  events.add_subscriber(Box::new(EventsLogger {}));
 
                 let message_broker =
                     NetMessageBroker::<MpiNetCommunicator>::new_channel_broker(comm, &sim_network);

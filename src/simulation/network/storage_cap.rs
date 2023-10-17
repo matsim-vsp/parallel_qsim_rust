@@ -57,7 +57,6 @@ impl StorageCap {
         available_cap > 0.0
     }
 
-    #[cfg(test)]
     pub fn available(&self) -> f32 {
         self.max - self.used
     }

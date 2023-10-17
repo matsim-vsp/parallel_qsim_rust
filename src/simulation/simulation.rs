@@ -7,7 +7,7 @@ use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
-use crate::simulation::network::sim_network::{ExitReason, SimNetworkPartition};
+use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
@@ -184,63 +184,51 @@ where
         let exited_vehicles = self.network.move_nodes(&mut self.events, now);
         self.network.move_links();
 
-        for exit_reason in exited_vehicles {
-            match exit_reason {
-                ExitReason::FinishRoute(vehicle) => {
-                    // finish driving - get agent out of vehicle, remember mode for arrival event
-                    self.events.publish_event(
-                        now,
-                        &Event::new_person_leaves_veh(vehicle.agent().id, vehicle.id),
-                    );
-                    let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(vehicle.r#type);
-                    let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
-                    let mode = veh_type.net_mode.external().to_string();
-                    let mut agent = self.garage.park_veh(vehicle);
+        for veh in exited_vehicles {
+            self.events
+                .publish_event(now, &Event::new_person_leaves_veh(veh.agent().id, veh.id));
+            let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(veh.r#type);
+            let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
+            let mode = veh_type.net_mode.external().to_string();
+            let mut agent = self.garage.park_veh(veh);
 
-                    // move to next activity
-                    agent.advance_plan();
-                    let act = agent.curr_act();
-                    self.events
-                        .publish_event(now, &Event::new_arrival(agent.id, act.link_id, mode));
-                    let act_type = self.population.act_types.get_from_wire(act.act_type);
-                    self.events.publish_event(
-                        now,
-                        &Event::new_act_start(
-                            agent.id,
-                            act.link_id,
-                            act_type.external().to_string(),
-                        ),
-                    );
-                    self.activity_q.add(agent, now);
-                }
-                ExitReason::ReachedBoundary(vehicle) => {
-                    self.message_broker.add_veh(vehicle, now);
-                }
-            }
+            // move to next activity
+            agent.advance_plan();
+            let act = agent.curr_act();
+            self.events
+                .publish_event(now, &Event::new_arrival(agent.id, act.link_id, mode));
+            let act_type = self.population.act_types.get_from_wire(act.act_type);
+            self.events.publish_event(
+                now,
+                &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
+            );
+            self.activity_q.add(agent, now);
         }
     }
 
     fn send_receive(&mut self, now: u32) {
-        let vehicle_update_messages = self.message_broker.send_recv(now);
+        let (vehicles, storage_cap) = self.network.move_links();
 
-        let vehicles = vehicle_update_messages
-            .into_iter()
-            .flat_map(|msg| msg.vehicles)
-            .collect::<Vec<Vehicle>>();
+        for veh in vehicles {
+            self.message_broker.add_veh(veh, now);
+        }
 
-        for vehicle in vehicles {
-            match vehicle.r#type {
-                1 => {
-                    self.teleportation_q.add(vehicle, now);
+        for cap in storage_cap {
+            self.message_broker.add_cap(cap, now);
+        }
+
+        let sync_messages = self.message_broker.send_recv(now);
+
+        for msg in sync_messages {
+            self.network.update_storage_caps(msg.storage_capacities);
+
+            for veh in msg.vehicles {
+                let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(veh.r#type);
+                let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
+                match veh_type.lod {
+                    LevelOfDetail::Network => self.network.send_veh_en_route(veh, now),
+                    LevelOfDetail::Teleported => self.teleportation_q.add(veh, now),
                 }
-                0 => {
-                    self.events.publish_event(
-                        now,
-                        &Event::new_link_enter(vehicle.curr_link_id().unwrap() as u64, vehicle.id),
-                    );
-                    self.network.send_veh_en_route(vehicle, now);
-                }
-                _ => {}
             }
         }
     }

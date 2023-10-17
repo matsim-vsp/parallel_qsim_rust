@@ -11,8 +11,8 @@ use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, TravelTimesMessage, Vehicle,
-    VehicleMessage,
+    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, SyncMessage, TravelTimesMessage,
+    Vehicle,
 };
 use crate::simulation::network::global_network::Network;
 use crate::simulation::population::population::Population;
@@ -44,13 +44,14 @@ impl ExperimentalMessage {
     }
 }
 
-impl VehicleMessage {
-    pub fn new(time: u32, from: u32, to: u32) -> VehicleMessage {
-        VehicleMessage {
+impl SyncMessage {
+    pub fn new(time: u32, from: u32, to: u32) -> Self {
+        Self {
             time,
             from_process: from,
             to_process: to,
             vehicles: Vec::new(),
+            storage_capacities: Vec::new(),
         }
     }
 
@@ -64,8 +65,8 @@ impl VehicleMessage {
         buffer
     }
 
-    pub fn deserialize(buffer: &[u8]) -> VehicleMessage {
-        VehicleMessage::decode(&mut Cursor::new(buffer)).unwrap()
+    pub fn deserialize(buffer: &[u8]) -> SyncMessage {
+        SyncMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
@@ -98,15 +99,15 @@ impl TravelTimesMessage {
 }
 
 // Implementation for ordering, so that vehicle messages can be put into a message queue sorted by time
-impl PartialOrd for VehicleMessage {
+impl PartialOrd for SyncMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Eq for VehicleMessage {}
+impl Eq for SyncMessage {}
 
-impl Ord for VehicleMessage {
+impl Ord for SyncMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         other.time.cmp(&self.time)
     }

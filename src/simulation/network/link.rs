@@ -1,8 +1,6 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use log::warn;
-
 use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
@@ -19,6 +17,14 @@ pub enum SimLink {
 }
 
 impl SimLink {
+    pub fn id(&self) -> &Id<Link> {
+        match self {
+            SimLink::Local(ll) => &ll.id,
+            SimLink::In(il) => &il.local_link.id,
+            SimLink::Out(ol) => &ol.id,
+        }
+    }
+
     pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
         match self {
             SimLink::Local(ll) => ll.q_front(now),
@@ -35,9 +41,16 @@ impl SimLink {
             SimLink::In(_) => {
                 panic!("In Links can't accept vehicles")
             }
+            SimLink::Out(ol) => ol.storage_cap.is_available(),
+        }
+    }
+
+    pub fn available_storage_cap(&self) -> f32 {
+        match self {
+            SimLink::Local(ll) => ll.storage_cap.available(),
+            SimLink::In(il) => il.local_link.storage_cap.available(),
             SimLink::Out(_) => {
-                warn!("accepts_veh not yet implemented for split out links. Returning true as a default for now.");
-                true
+                panic!("can't query out links for available space except for tests.")
             }
         }
     }
@@ -46,8 +59,8 @@ impl SimLink {
         match self {
             SimLink::Local(l) => l.push_vehicle(vehicle, now),
             SimLink::In(il) => il.local_link.push_vehicle(vehicle, now),
-            SimLink::Out(_) => {
-                panic!("Can't push vehicle onto out link!")
+            SimLink::Out(ol) => {
+                ol.q.push_back(vehicle);
             }
         }
     }
@@ -215,6 +228,10 @@ impl LocalLink {
         self.storage_cap.apply_released();
     }
 
+    pub fn used_storage(&self) -> f32 {
+        self.storage_cap.used
+    }
+
     fn calculate_storage_cap(
         length: f32,
         perm_lanes: f32,
@@ -233,23 +250,46 @@ impl LocalLink {
 
 #[derive(Debug, Clone)]
 pub struct SplitOutLink {
-    #[allow(dead_code)]
-    pub(crate) id: Id<Link>,
+    id: Id<Link>,
     to_part: usize,
-    q: VecDeque<VehicleQEntry>,
+    q: VecDeque<Vehicle>,
+    storage_cap: StorageCap,
 }
 
 impl SplitOutLink {
-    pub fn new(id: Id<Link>, to_part: usize) -> SplitOutLink {
+    pub fn new(
+        link: &Link,
+        effective_cell_size: f32,
+        sample_size: f32,
+        to_part: usize,
+    ) -> SplitOutLink {
+        let flow_cap_s = link.capacity * sample_size / 3600.;
+        let storage_cap = StorageCap::new(
+            link.length,
+            link.permlanes,
+            flow_cap_s,
+            sample_size,
+            effective_cell_size,
+        );
+
         SplitOutLink {
-            id,
+            id: link.id.clone(),
             to_part,
             q: VecDeque::default(),
+            storage_cap,
         }
     }
 
     pub fn neighbor_partition_id(&self) -> usize {
         self.to_part
+    }
+
+    pub fn set_used_storage_cap(&mut self, value: f32) {
+        self.storage_cap.clear_and_consume(value);
+    }
+
+    pub fn take_veh(&mut self) -> VecDeque<Vehicle> {
+        std::mem::take(&mut self.q)
     }
 }
 
