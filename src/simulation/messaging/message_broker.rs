@@ -81,7 +81,9 @@ impl NetCommunicator for ChannelNetCommunicator {
         // send messages to everyone
         for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
-            sender.send(msg);
+            sender
+                .send(msg)
+                .expect("Failed to send message in message broker");
         }
 
         // receive messages from everyone
@@ -275,7 +277,7 @@ where
         let message = self
             .out_messages
             .entry(partition)
-            .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, partition));
+            .or_insert_with(|| VehicleMessage::new(now, self.rank, partition));
         message.add(vehicle);
     }
 
@@ -286,11 +288,13 @@ where
 
         self.pop_from_cache(&mut expected_vehicle_messages, &mut result, now);
 
-        let a = &self.communicator;
-        let b = &mut self.in_messages;
+        // get refs to communicator and in_messages, so that we can have mut refs to both, instead
+        // of passing self around, which would lock them because we would hold multiple mut refs to self
+        let comm_ref = &self.communicator;
+        let in_msgs_ref = &mut self.in_messages;
 
-        a.send_receive(vehicles, &mut expected_vehicle_messages, now, |msg| {
-            Self::handle_incoming_msg(msg, &mut result, b, now)
+        comm_ref.send_receive(vehicles, &mut expected_vehicle_messages, now, |msg| {
+            Self::handle_incoming_msg(msg, &mut result, in_msgs_ref, now)
         });
 
         result
@@ -340,7 +344,7 @@ where
             let neighbor_rank = *partition;
             messages
                 .entry(neighbor_rank)
-                .or_insert_with(|| VehicleMessage::new(now, self.rank as u32, neighbor_rank));
+                .or_insert_with(|| VehicleMessage::new(now, self.rank, neighbor_rank));
         }
         messages
     }
@@ -348,13 +352,208 @@ where
 
 #[cfg(test)]
 mod tests {
-    use mpi::traits::Communicator;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::thread;
+
+    use crate::simulation::id::Id;
+    use crate::simulation::messaging::message_broker::{ChannelNetCommunicator, NetMessageBroker};
+    use crate::simulation::messaging::messages::proto::Vehicle;
+    use crate::simulation::network::global_network::{Link, Network, Node};
+    use crate::simulation::network::sim_network::SimNetworkPartition;
+    use crate::test_utils::create_agent;
 
     #[test]
-    fn some_test() {
-        let universe = mpi::initialize().unwrap();
-        let rank = universe.world().rank();
+    fn send_recv_empty_msgs() {
+        let sends = Arc::new(AtomicUsize::new(0));
 
-        println!("This test was run!!! {}", rank)
+        execute_test(move |mut broker| {
+            println!("Before send_recv {}", broker.rank);
+            sends.fetch_add(1, Ordering::Relaxed);
+            let result = broker.send_recv(0);
+
+            // all threads should block on receive. Therefore, the send count should be equal to the
+            // number of brokers (4 in our example) after the send_recv method.
+            assert_eq!(4, sends.load(Ordering::Relaxed));
+
+            // the different partitions expect varying numbers of sync messags.
+            match broker.rank {
+                0 | 1 => assert_eq!(2, result.len()),
+                2 => assert_eq!(3, result.len()),
+                3 => assert_eq!(1, result.len()),
+                _ => panic!("Not expecting this rank!"),
+            };
+
+            for msg in result {
+                assert!(msg.vehicles.is_empty());
+            }
+        });
+    }
+
+    /// This test moves a vehicle from partition 0 to 2 and then to partition 3. The test involves
+    /// Two send_recv steps.
+    #[test]
+    fn send_recv_with_vehicle_msg() {
+        let agent = create_agent(0, vec![2, 6]);
+        let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
+
+        execute_test(move |mut broker| {
+            // place vehicle into partition 0
+            if broker.rank == 0 {
+                broker.add_veh(vehicle.clone(), 0);
+            }
+
+            // do sync step for all partitions
+            let result_0 = broker.send_recv(0);
+
+            // we expect broker 2 to have received the vehicle all other messages should have no vehicles
+            if broker.rank == 2 {
+                let mut msg = result_0
+                    .into_iter()
+                    .find(|msg| msg.from_process == 0)
+                    .unwrap();
+                assert_eq!(0, msg.time);
+                assert_eq!(1, msg.vehicles.len());
+                let mut vehicle = msg.vehicles.remove(0);
+                vehicle.advance_route_index();
+                broker.add_veh(vehicle, 1);
+            } else {
+                for msg in result_0 {
+                    assert!(msg.vehicles.is_empty());
+                }
+            }
+
+            // do second sync step for all partitions
+            let result_1 = broker.send_recv(1);
+
+            // we expect broker 3 to have received the vehicle all other messages should have no vehicles
+            if broker.rank == 3 {
+                let mut msg = result_1
+                    .into_iter()
+                    .find(|msg| msg.from_process == 2)
+                    .unwrap();
+                assert_eq!(1, msg.time);
+                assert_eq!(1, msg.vehicles.len());
+                let vehicle = msg.vehicles.remove(0);
+                broker.add_veh(vehicle, 1);
+            } else {
+                for msg in result_1 {
+                    assert!(msg.vehicles.is_empty());
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn send_recv_future_message() {
+        let agent = create_agent(0, vec![6]);
+        let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
+
+        execute_test(move |mut broker| {
+            // place vehicle into partition 0 with a future timestamp
+            if broker.rank == 0 {
+                broker.add_veh(vehicle.clone(), 1);
+            }
+
+            // do sync step for all partitions for "current" time step
+            let result_0 = broker.send_recv(0);
+
+            for msg in result_0 {
+                assert_eq!(0, msg.time);
+                assert!(msg.vehicles.is_empty());
+            }
+
+            // do sync step for all partitions for "future" time step
+            let result_1 = broker.send_recv(1);
+
+            for msg in result_1 {
+                if broker.rank == 3 && msg.from_process == 0 {
+                    assert_eq!(1, msg.vehicles.len());
+                }
+
+                assert_eq!(1, msg.time);
+            }
+        });
+    }
+
+    fn execute_test<F>(test: F)
+    where
+        F: Fn(NetMessageBroker<ChannelNetCommunicator>) + Send + Sync + 'static,
+    {
+        let network = create_network();
+        let comms = ChannelNetCommunicator::create_n_2_n(network.nodes.len());
+
+        let brokers: Vec<_> = comms
+            .into_iter()
+            .map(|comm| {
+                let sim_network = SimNetworkPartition::from_network(&network, comm.rank);
+                NetMessageBroker::<ChannelNetCommunicator>::new_channel_broker(comm, &sim_network)
+            })
+            .collect();
+        let mut join_handles = Vec::new();
+
+        let test_ref = Arc::new(test);
+
+        for broker in brokers {
+            let cloned_test_ref = test_ref.clone();
+            let handle = thread::spawn(move || cloned_test_ref(broker));
+            join_handles.push(handle)
+        }
+
+        for handle in join_handles {
+            handle.join().expect("Some thread crashed");
+        }
+    }
+
+    /// use example with four partitions
+    /// 0 --- 2 --- 3
+    /// |   /
+    /// 1--/
+    /// 0, 1, 2, are neighbors, 3 is only neighbor to 2
+    fn create_network<'n>() -> Network<'n> {
+        let mut result = Network::new();
+        result.add_node(create_node(0, 0));
+        result.add_node(create_node(1, 1));
+        result.add_node(create_node(2, 2));
+        result.add_node(create_node(3, 3));
+
+        // connection 0 <-> 1
+        result.add_link(create_link(0, Id::new_internal(0), Id::new_internal(1), 1));
+        result.add_link(create_link(1, Id::new_internal(1), Id::new_internal(0), 0));
+
+        // connection 0 <-> 2
+        result.add_link(create_link(2, Id::new_internal(0), Id::new_internal(2), 2));
+        result.add_link(create_link(3, Id::new_internal(2), Id::new_internal(0), 0));
+
+        // connection 1 <-> 2
+        result.add_link(create_link(4, Id::new_internal(1), Id::new_internal(2), 2));
+        result.add_link(create_link(5, Id::new_internal(2), Id::new_internal(1), 1));
+
+        // connection 2 <-> 3
+        result.add_link(create_link(6, Id::new_internal(2), Id::new_internal(3), 3));
+        result.add_link(create_link(7, Id::new_internal(3), Id::new_internal(2), 2));
+
+        result
+    }
+
+    fn create_node(id: usize, partition: usize) -> Node {
+        let mut node = Node::new(Id::new_internal(id), 0., 0.);
+        node.partition = partition;
+        node
+    }
+
+    fn create_link(id: usize, from: Id<Node>, to: Id<Node>, partition: usize) -> Link {
+        Link {
+            id: Id::new_internal(id),
+            from,
+            to,
+            length: 0.0,
+            capacity: 0.0,
+            freespeed: 0.0,
+            permlanes: 0.0,
+            modes: Default::default(),
+            attributes: vec![],
+            partition,
+        }
     }
 }

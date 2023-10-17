@@ -77,7 +77,7 @@ mod tests {
         ));
 
         for _n in 0..100 {
-            let partition_result = partition(&net, 2);
+            let _partition_result = partition(&net, 2);
         }
     }
 }
