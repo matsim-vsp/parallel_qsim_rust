@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use nohash_hasher::{IntMap, IntSet};
 
 use crate::simulation::id::IdStore;
+use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::{
     id::Id,
     messaging::{
@@ -124,10 +125,12 @@ impl<'n> SimNetworkPartition<'n> {
         link.push_veh(vehicle, now);
     }
 
-    pub fn move_links(&mut self) {
+    pub fn move_links(&mut self) -> (Vec<Vehicle>, Vec<StorageCap>) {
         for link in self.links.values_mut() {
-            link.release_storage_cap();
+            link.update_released_storage_cap();
         }
+
+        (Vec::new(), Vec::new())
     }
 
     pub fn move_nodes(&mut self, events: &mut EventsPublisher, now: u32) -> Vec<ExitReason> {
@@ -189,7 +192,7 @@ impl<'n> SimNetworkPartition<'n> {
                 // next link is free.
                 let out_link_id = id_store.get(next_id_int);
                 let out_link = links.get(&out_link_id).unwrap();
-                out_link.accepts_veh()
+                out_link.is_available()
             } else {
                 // if there is no next link, the vehicle is done with its route and we can take it out
                 // of the network

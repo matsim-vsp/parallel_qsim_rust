@@ -7,6 +7,7 @@ use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::global_network::Node;
+use crate::simulation::network::storage_cap::StorageCap;
 
 use super::global_network::Link;
 
@@ -28,9 +29,9 @@ impl SimLink {
         }
     }
 
-    pub fn accepts_veh(&self) -> bool {
+    pub fn is_available(&self) -> bool {
         match self {
-            SimLink::Local(ll) => ll.accepts_veh(),
+            SimLink::Local(ll) => ll.is_available(),
             SimLink::In(_) => {
                 panic!("In Links can't accept vehicles")
             }
@@ -71,10 +72,10 @@ impl SimLink {
         }
     }
 
-    pub fn release_storage_cap(&mut self) {
+    pub fn update_released_storage_cap(&mut self) {
         match self {
-            SimLink::Local(l) => l.release_storage_cap(),
-            SimLink::In(l) => l.local_link.release_storage_cap(),
+            SimLink::Local(l) => l.update_released_storage_cap(),
+            SimLink::In(l) => l.local_link.update_released_storage_cap(),
             SimLink::Out(_) => {
                 panic!("Can't update storage capapcity on out link.")
             }
@@ -88,16 +89,7 @@ pub struct LocalLink {
     q: VecDeque<VehicleQEntry>,
     length: f32,
     free_speed: f32,
-    max_storage_cap: f32,
-    // keeps track of storage capacity released by vehicles leaving the link during one time step
-    // on release_storage_cap, the used_storage_cap is reduced to account for vehicles leaving the
-    // link. This is necessary, because we want additional storage capacity to be available only in
-    // the following time step, to keep the resulting traffic pattern independent from the order in
-    // which nodes are processed in the qsim.
-    pub released_storage_cap: f32,
-    // keeps track of the storage capacity consumed by the vehicles in the q. This property gets
-    // updated immediately once a vehicle is pushed onto the link.
-    pub used_storage_cap: f32,
+    storage_cap: StorageCap,
     flow_cap: Flowcap,
     pub from: Id<Node>,
     pub to: Id<Node>,
@@ -130,9 +122,7 @@ impl LocalLink {
             q: VecDeque::new(),
             length: 1.0,
             free_speed: 1.0,
-            max_storage_cap: 1.0,
-            released_storage_cap: 0.0,
-            used_storage_cap: 0.0,
+            storage_cap: StorageCap::new(0., 1., 1., 1.0, 7.5),
             flow_cap: Flowcap::new(1.0),
             from,
             to,
@@ -151,7 +141,7 @@ impl LocalLink {
         to: Id<Node>,
     ) -> Self {
         let flow_cap_s = capacity_h * sample_size / 3600.;
-        let storage_cap = Self::calculate_storage_cap(
+        let storage_cap = StorageCap::new(
             length,
             perm_lanes,
             flow_cap_s,
@@ -164,9 +154,7 @@ impl LocalLink {
             q: VecDeque::new(),
             length,
             free_speed,
-            max_storage_cap: storage_cap,
-            released_storage_cap: 0.0,
-            used_storage_cap: 0.0,
+            storage_cap,
             flow_cap: Flowcap::new(flow_cap_s),
             from,
             to,
@@ -179,7 +167,7 @@ impl LocalLink {
         let earliest_exit_time = now + duration;
 
         // update state
-        self.consume_storage_cap(vehicle.pce);
+        self.storage_cap.consume(vehicle.pce);
         self.q.push_back(VehicleQEntry {
             vehicle,
             earliest_exit_time,
@@ -189,7 +177,7 @@ impl LocalLink {
     pub fn pop_front(&mut self) -> Vehicle {
         let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
         self.flow_cap.consume_capacity(veh.vehicle.pce);
-        self.released_storage_cap += veh.vehicle.pce;
+        self.storage_cap.release(veh.vehicle.pce);
 
         veh.vehicle
     }
@@ -215,25 +203,16 @@ impl LocalLink {
         None
     }
 
-    pub fn available_storage_capacity(&self) -> f32 {
-        self.max_storage_cap - self.used_storage_cap
-    }
-
-    pub fn accepts_veh(&self) -> bool {
-        self.available_storage_capacity() > 0.0
-    }
-
     pub fn veh_count(&self) -> usize {
         self.q.len()
     }
 
-    fn consume_storage_cap(&mut self, cap: f32) {
-        self.used_storage_cap = self.max_storage_cap.min(self.used_storage_cap + cap);
+    pub fn is_available(&self) -> bool {
+        self.storage_cap.is_available()
     }
 
-    fn release_storage_cap(&mut self) {
-        self.used_storage_cap = 0f32.max(self.used_storage_cap - self.released_storage_cap);
-        self.released_storage_cap = 0.0;
+    pub fn update_released_storage_cap(&mut self) {
+        self.storage_cap.apply_released();
     }
 
     fn calculate_storage_cap(
@@ -257,11 +236,16 @@ pub struct SplitOutLink {
     #[allow(dead_code)]
     pub(crate) id: Id<Link>,
     to_part: usize,
+    q: VecDeque<VehicleQEntry>,
 }
 
 impl SplitOutLink {
     pub fn new(id: Id<Link>, to_part: usize) -> SplitOutLink {
-        SplitOutLink { id, to_part }
+        SplitOutLink {
+            id,
+            to_part,
+            q: VecDeque::default(),
+        }
     }
 
     pub fn neighbor_partition_id(&self) -> usize {
@@ -320,7 +304,7 @@ mod tests {
         );
 
         // we expect a storage size of 100 * 3 * 0.2 / 7.5 = 8
-        assert_eq!(8., link.max_storage_cap);
+        assert_eq!(8., link.storage_cap.max);
     }
 
     #[test]
@@ -338,7 +322,7 @@ mod tests {
         );
 
         // we expect a storage size of 20. because it the flow cap/s is 20 (36000 * 0.2 / 3600)
-        assert_eq!(20., link.max_storage_cap);
+        assert_eq!(20., link.storage_cap.max);
     }
 
     #[test]
@@ -360,10 +344,7 @@ mod tests {
         link.push_vehicle(vehicle, 0);
 
         // storage capacity should be consumed immediately. The expected value is max_storage_cap - pce of the vehicle
-        assert_eq!(
-            link.max_storage_cap - 1.5,
-            link.available_storage_capacity()
-        )
+        assert_eq!(link.storage_cap.max - 1.5, link.storage_cap.available())
     }
 
     #[test]
@@ -387,15 +368,12 @@ mod tests {
 
         // after the vehicle is removed from the link, the available storage_cap should NOT be updated
         // immediately
-        assert_eq!(
-            link.max_storage_cap - 1.5,
-            link.available_storage_capacity()
-        );
+        assert_eq!(link.storage_cap.max - 1.5, link.storage_cap.available());
 
         // by calling release, the accumulated released storage cap, should be freed.
-        link.release_storage_cap();
-        assert_eq!(link.max_storage_cap, link.available_storage_capacity());
-        assert_eq!(0., link.released_storage_cap); // test internal prop here, because I am too lazy for a more complex test
+        link.update_released_storage_cap();
+        assert_eq!(link.storage_cap.max, link.storage_cap.available());
+        assert_eq!(0., link.storage_cap.released); // test internal prop here, because I am too lazy for a more complex test
     }
 
     #[test]
@@ -503,7 +481,7 @@ mod tests {
         // this should put the vehicle into the queue and update the exit time correctly
         link.push_vehicle(vehicle, 0);
 
-        assert_eq!(0.33333337, link.available_storage_capacity());
+        assert_eq!(0.33333337, link.storage_cap.available());
         let pushed_vehicle = link.q.front().unwrap();
         assert_eq!(veh_id, pushed_vehicle.vehicle.id);
         assert_eq!(10, pushed_vehicle.earliest_exit_time);
@@ -531,12 +509,12 @@ mod tests {
         let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
 
         link.push_vehicle(vehicle1, 0);
-        assert_approx_eq!(0.57, link.available_storage_capacity(), 0.01);
-        assert!(link.accepts_veh());
+        assert_approx_eq!(0.57, link.storage_cap.available(), 0.01);
+        assert!(link.is_available());
 
         link.push_vehicle(vehicle2, 0);
-        assert_approx_eq!(0., link.available_storage_capacity());
-        assert!(!link.accepts_veh());
+        assert_approx_eq!(0., link.storage_cap.available());
+        assert!(!link.is_available());
 
         // make sure that vehicles are added ad the end of the queue
         assert_eq!(2, link.q.len());

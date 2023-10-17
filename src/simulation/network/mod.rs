@@ -3,3 +3,4 @@ pub mod global_network;
 pub mod link;
 mod metis_partitioning;
 pub mod sim_network;
+mod storage_cap;
