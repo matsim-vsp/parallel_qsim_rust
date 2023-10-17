@@ -368,7 +368,6 @@ mod tests {
         let sends = Arc::new(AtomicUsize::new(0));
 
         execute_test(move |mut broker| {
-            println!("Before send_recv {}", broker.rank);
             sends.fetch_add(1, Ordering::Relaxed);
             let result = broker.send_recv(0);
 
@@ -393,13 +392,12 @@ mod tests {
     /// This test moves a vehicle from partition 0 to 2 and then to partition 3. The test involves
     /// Two send_recv steps.
     #[test]
-    fn send_recv_with_vehicle_msg() {
-        let agent = create_agent(0, vec![2, 6]);
-        let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
-
-        execute_test(move |mut broker| {
+    fn send_recv_local_vehicle_msg() {
+        execute_test(|mut broker| {
             // place vehicle into partition 0
             if broker.rank == 0 {
+                let agent = create_agent(0, vec![2, 6]);
+                let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle.clone(), 0);
             }
 
@@ -445,14 +443,13 @@ mod tests {
     }
 
     #[test]
-    fn send_recv_future_message() {
-        let agent = create_agent(0, vec![6]);
-        let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
-
-        execute_test(move |mut broker| {
+    fn send_recv_remote_message() {
+        execute_test(|mut broker| {
             // place vehicle into partition 0 with a future timestamp
             if broker.rank == 0 {
-                broker.add_veh(vehicle.clone(), 1);
+                let agent = create_agent(0, vec![6]);
+                let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
+                broker.add_veh(vehicle, 1);
             }
 
             // do sync step for all partitions for "current" time step
@@ -469,6 +466,50 @@ mod tests {
             for msg in result_1 {
                 if broker.rank == 3 && msg.from_process == 0 {
                     assert_eq!(1, msg.vehicles.len());
+                }
+
+                assert_eq!(1, msg.time);
+            }
+        });
+    }
+
+    #[test]
+    fn send_recv_local_and_remote_msg() {
+        execute_test(|mut broker| {
+            if broker.rank == 0 {
+                // place vehicle into partition 0 with a future timestamp with remote destination
+                let agent = create_agent(0, vec![6]);
+                let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
+                broker.add_veh(vehicle, 1);
+            }
+
+            // do sync step for all partitions for "current" time step
+            let result_0 = broker.send_recv(0);
+
+            for msg in result_0 {
+                assert_eq!(0, msg.time);
+                assert!(msg.vehicles.is_empty());
+            }
+
+            if broker.rank == 2 {
+                // place vehicle into partition 2 with a current timestamp with neighbor destination
+                let agent = create_agent(1, vec![6]);
+                let vehicle = Vehicle::new(1, 0, 0., 0., Some(agent));
+                broker.add_veh(vehicle, 1);
+            }
+
+            // do sync step for all partitions for "future" time step
+            let result_1 = broker.send_recv(1);
+
+            for msg in result_1 {
+                if broker.rank == 3 && msg.from_process == 0 {
+                    assert_eq!(1, msg.vehicles.len());
+                    assert_eq!(0, msg.vehicles.first().unwrap().id);
+                } else if broker.rank == 3 && msg.from_process == 2 {
+                    assert_eq!(1, msg.vehicles.len());
+                    assert_eq!(1, msg.vehicles.first().unwrap().id);
+                } else {
+                    assert_eq!(0, msg.vehicles.len());
                 }
 
                 assert_eq!(1, msg.time);
