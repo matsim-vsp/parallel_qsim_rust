@@ -65,9 +65,9 @@ impl SimLink {
 
     pub fn push_veh(&mut self, vehicle: Vehicle, now: u32) {
         match self {
-            SimLink::Local(l) => l.push_vehicle(vehicle, now),
-            SimLink::In(il) => il.local_link.push_vehicle(vehicle, now),
-            SimLink::Out(ol) => ol.q.push_back(vehicle),
+            SimLink::Local(l) => l.push_veh(vehicle, now),
+            SimLink::In(il) => il.local_link.push_veh(vehicle, now),
+            SimLink::Out(ol) => ol.push_veh(vehicle),
         }
     }
 
@@ -180,7 +180,7 @@ impl LocalLink {
         }
     }
 
-    pub fn push_vehicle(&mut self, vehicle: Vehicle, now: u32) {
+    pub fn push_veh(&mut self, vehicle: Vehicle, now: u32) {
         let speed = self.free_speed.min(vehicle.max_v);
         let duration = 1.max((self.length / speed) as u32); // at least 1 second per link
         let earliest_exit_time = now + duration;
@@ -294,6 +294,11 @@ impl SplitOutLink {
     pub fn take_veh(&mut self) -> VecDeque<Vehicle> {
         self.storage_cap.clear();
         std::mem::take(&mut self.q)
+    }
+
+    pub fn push_veh(&mut self, veh: Vehicle) {
+        self.storage_cap.consume(veh.pce);
+        self.q.push_back(veh);
     }
 }
 
@@ -570,6 +575,9 @@ mod out_link_tests {
 
         link.push_veh(vehicle1, 0);
         link.push_veh(vehicle2, 0);
+
+        // storage should be consumed
+        assert_eq!(2., link.used_storage());
 
         if let SimLink::Out(ref mut ol) = link {
             let mut result = ol.take_veh();

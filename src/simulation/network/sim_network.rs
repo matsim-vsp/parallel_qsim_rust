@@ -131,17 +131,17 @@ impl<'n> SimNetworkPartition<'n> {
         let mut vehicles: Vec<_> = Vec::new();
 
         for link in self.links.values_mut() {
-            link.update_flow_cap(now);
-
             match link {
                 // update the used storage capacity by the number of pce we have released in the previous
-                // move_nodes step
+                // move_nodes step and update flow cap
                 SimLink::Local(_) => {
+                    link.update_flow_cap(now);
                     link.update_released_storage_cap();
                 }
                 // update storage cap as with the local link and capture the used storage cap
-                // so that we can send it to the neighbor partition
+                // so that we can send it to the neighbor partition and update flow cap
                 SimLink::In(_) => {
+                    link.update_flow_cap(now);
                     link.update_released_storage_cap();
                     let used_storage = link.used_storage();
                     let id = link.id().internal();
@@ -192,8 +192,6 @@ impl<'n> SimNetworkPartition<'n> {
         let node = global_network.get_node(node_id);
 
         for link_id in &node.in_links {
-            let in_link = links.get_mut(link_id).unwrap();
-
             while Self::should_veh_move_out(link_id, links, &global_network.link_ids, now) {
                 // get the mut ref here again, so that the borrow checker lets us borrow the links map
                 // for the method above.
@@ -325,7 +323,6 @@ mod tests {
 
     #[test]
     fn vehicle_travels_local() {
-        panic!("Fix this test");
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
         let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
@@ -339,19 +336,14 @@ mod tests {
 
             if i == 120 {
                 assert!(!result.is_empty());
-                /*   if let ExitReason::FinishRoute(veh) = result.first().unwrap() {
-                    assert!(veh.curr_link_id().is_none());
-                } else {
-                    panic!("This should have exit reason finish route.")
-                }
-                */
+                let veh = result.first().unwrap();
+                assert!(veh.curr_link_id().is_none());
             }
         }
     }
 
     #[test]
-    fn vehicle_crosses_boundary() {
-        panic!("Fix this test");
+    fn vehicle_reaches_boundary() {
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
         let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, &mut garage);
@@ -360,20 +352,19 @@ mod tests {
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
         network.send_veh_en_route(vehicle, 0);
 
-        for i in 0..120 {
-            let result = network.move_nodes(&mut publisher, i);
+        for now in 0..20 {
+            let node_result = network.move_nodes(&mut publisher, now);
+            assert!(node_result.is_empty());
 
-            if !result.is_empty() {
-                assert_eq!(10, i);
-                /*
-                if let ExitReason::ReachedBoundary(veh) = result.first().unwrap() {
-                    assert!(veh.curr_link_id().is_some());
-                    assert_eq!(1, veh.curr_link_id().unwrap());
-                } else {
-                    panic!("This should have exit reason reached boundary route.")
-                }
+            let (vehicles, storage_caps) = network.move_links(now);
+            assert_eq!(0, storage_caps.len()); // we expect no out links here
 
-                 */
+            // when the vehicle moves from link1 to link2, it will be placed on an out link.
+            // the stored vehicles on out links should be collected during move links.
+            if now == 10 {
+                assert_eq!(1, vehicles.len());
+            } else {
+                assert!(vehicles.is_empty());
             }
         }
     }
@@ -448,7 +439,28 @@ mod tests {
     }
 
     #[test]
-    fn storage_cap_over_boundaries() {}
+    fn storage_cap_over_boundaries() {
+        let mut garage = Garage::new();
+        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, &mut garage);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0);
+        let split_link_id = global_net.link_ids.get_from_ext("link2");
+        let agent = create_agent(1, vec![split_link_id.internal() as u64, 2]);
+        let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
+
+        // collect empty storage caps
+        let (_, storage_caps) = network.move_links(0);
+        assert_eq!(1, storage_caps.len());
+        let storage_cap = storage_caps.first().unwrap();
+        assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
+        assert_eq!(0., storage_cap.value);
+
+        // now place vehicle on network and collect storage caps again.
+        network.send_veh_en_route(vehicle, 0);
+        let (_, storage_caps) = network.move_links(0);
+        let storage_cap = storage_caps.first().unwrap(); // skip length test, because this should be the same each time
+        assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
+        assert_eq!(100., storage_cap.value);
+    }
 
     #[test]
     fn neighbors() {
