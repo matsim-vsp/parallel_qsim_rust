@@ -251,23 +251,6 @@ impl<'n> SimNetworkPartition<'n> {
         );
 
         link.push_veh(vehicle, now);
-
-        /*
-        match links.get_mut(&link_id).unwrap() {
-            SimLink::Local(l) => {
-                events.publish_event(
-                    now,
-                    &Event::new_link_enter(l.id.internal() as u64, vehicle.id),
-                );
-                l.push_vehicle(vehicle, now);
-            }
-            SimLink::Out(_) => exited_vehicles.push(ExitReason::ReachedBoundary(vehicle)),
-            SimLink::In(_) => {
-                panic!("Not expecting to move a vehicle onto a split in link.")
-            }
-        }
-
-         */
     }
 }
 
@@ -285,6 +268,7 @@ mod tests {
             link::SimLink,
         },
     };
+    use assert_approx_eq::assert_approx_eq;
 
     use super::SimNetworkPartition;
 
@@ -386,9 +370,10 @@ mod tests {
         // all vehicle only have to traverse link1. Link1 can release one vehicle/s, first one at t=10
         // this way we should have 10 vehicles released at t=20
         let mut counter = 0;
-        for i in 0..110 {
-            let result = network.move_nodes(&mut publisher, i);
-            if i < 10 {
+        for now in 0..110 {
+            let result = network.move_nodes(&mut publisher, now);
+            let _ = network.move_links(now);
+            if now < 10 {
                 assert!(result.is_empty());
             } else {
                 assert_eq!(1, result.len());
@@ -440,26 +425,29 @@ mod tests {
 
     #[test]
     fn storage_cap_over_boundaries() {
-        let mut garage = Garage::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, &mut garage);
-        let mut network = SimNetworkPartition::from_network(&global_net, 0);
-        let split_link_id = global_net.link_ids.get_from_ext("link2");
+        // use programmed network here, to avoid instabilities with metis algorithm for small
+        // network graphs
+        let mut network = Network::new();
+        let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
+        let net2 = sim_nets.get_mut(1).unwrap();
+
+        let split_link_id = net2.global_network.link_ids.get_from_ext("link-2");
         let agent = create_agent(1, vec![split_link_id.internal() as u64, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
 
         // collect empty storage caps
-        let (_, storage_caps) = network.move_links(0);
+        let (_, storage_caps) = net2.move_links(0);
         assert_eq!(1, storage_caps.len());
         let storage_cap = storage_caps.first().unwrap();
         assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
         assert_eq!(0., storage_cap.value);
 
         // now place vehicle on network and collect storage caps again.
-        network.send_veh_en_route(vehicle, 0);
-        let (_, storage_caps) = network.move_links(0);
+        net2.send_veh_en_route(vehicle, 0);
+        let (_, storage_caps) = net2.move_links(0);
         let storage_cap = storage_caps.first().unwrap(); // skip length test, because this should be the same each time
         assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
-        assert_eq!(100., storage_cap.value);
+        assert_approx_eq!(13.3333, storage_cap.value, 0.0001);
     }
 
     #[test]
