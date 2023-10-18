@@ -101,11 +101,7 @@ impl<'n> SimNetworkPartition<'n> {
                 SimLink::In(_) => true,
                 SimLink::Out(_) => true,
             })
-            .map(|link| match link {
-                SimLink::Local(_) => panic!("Should be filtered."),
-                SimLink::In(link) => link.neighbor_partition_id(),
-                SimLink::Out(link) => link.neighbor_partition_id(),
-            })
+            .map(|link| link.neighbor_part())
             .collect();
         distinct_partitions
     }
@@ -130,24 +126,28 @@ impl<'n> SimNetworkPartition<'n> {
         }
     }
 
-    pub fn move_links(&mut self) -> (Vec<Vehicle>, Vec<StorageCap>) {
+    pub fn move_links(&mut self, now: u32) -> (Vec<Vehicle>, Vec<StorageCap>) {
         let mut storage_cap: Vec<_> = Vec::new();
         let mut vehicles: Vec<_> = Vec::new();
 
         for link in self.links.values_mut() {
+            link.update_flow_cap(now);
+
             match link {
                 // update the used storage capacity by the number of pce we have released in the previous
                 // move_nodes step
-                SimLink::Local(ll) => {
-                    ll.update_released_storage_cap();
+                SimLink::Local(_) => {
+                    link.update_released_storage_cap();
                 }
                 // update storage cap as with the local link and capture the used storage cap
                 // so that we can send it to the neighbor partition
-                SimLink::In(il) => {
-                    il.local_link_mut().update_released_storage_cap();
-                    let used_storage = il.local_link().used_storage();
+                SimLink::In(_) => {
+                    link.update_released_storage_cap();
+                    let used_storage = link.used_storage();
+                    let id = link.id().internal();
+
                     storage_cap.push(StorageCap {
-                        link_id: il.local_link().id.internal() as u64,
+                        link_id: id as u64,
                         value: used_storage,
                     });
                 }
@@ -193,7 +193,6 @@ impl<'n> SimNetworkPartition<'n> {
 
         for link_id in &node.in_links {
             let in_link = links.get_mut(link_id).unwrap();
-            in_link.update_flow_cap(now);
 
             while Self::should_veh_move_out(link_id, links, &global_network.link_ids, now) {
                 // get the mut ref here again, so that the borrow checker lets us borrow the links map
@@ -325,7 +324,8 @@ mod tests {
     }
 
     #[test]
-    fn move_nodes_free_flow_exit_end() {
+    fn vehicle_travels_local() {
+        panic!("Fix this test");
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
         let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
@@ -345,13 +345,13 @@ mod tests {
                     panic!("This should have exit reason finish route.")
                 }
                 */
-                panic!("Fix this test")
             }
         }
     }
 
     #[test]
-    fn move_nodes_free_flow_exit_boundary() {
+    fn vehicle_crosses_boundary() {
+        panic!("Fix this test");
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
         let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, &mut garage);
@@ -374,7 +374,6 @@ mod tests {
                 }
 
                  */
-                panic!("Fix this test")
             }
         }
     }
@@ -437,7 +436,7 @@ mod tests {
 
         for now in 0..1010 {
             network.move_nodes(&mut publisher, now);
-            network.move_links();
+            network.move_links(now);
 
             let link1 = network.links.get(&id_1).unwrap();
             if (10..1001).contains(&now) {
@@ -447,6 +446,9 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn storage_cap_over_boundaries() {}
 
     #[test]
     fn neighbors() {

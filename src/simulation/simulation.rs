@@ -77,7 +77,7 @@ where
             self.wakeup(now);
             self.terminate_teleportation(now);
             self.move_nodes(now);
-            self.send_receive(now);
+            self.move_links(now);
 
             now += 1;
         }
@@ -182,7 +182,6 @@ where
 
     fn move_nodes(&mut self, now: u32) {
         let exited_vehicles = self.network.move_nodes(&mut self.events, now);
-        self.network.move_links();
 
         for veh in exited_vehicles {
             self.events
@@ -206,8 +205,8 @@ where
         }
     }
 
-    fn send_receive(&mut self, now: u32) {
-        let (vehicles, storage_cap) = self.network.move_links();
+    fn move_links(&mut self, now: u32) {
+        let (vehicles, storage_cap) = self.network.move_links(now);
 
         for veh in vehicles {
             self.message_broker.add_veh(veh, now);

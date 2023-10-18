@@ -25,6 +25,16 @@ impl SimLink {
         }
     }
 
+    pub fn neighbor_part(&self) -> usize {
+        match self {
+            SimLink::Local(_) => {
+                panic!("local links don't have information about neighbor partitions")
+            }
+            SimLink::In(il) => il.from_part,
+            SimLink::Out(ol) => ol.to_part,
+        }
+    }
+
     pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
         match self {
             SimLink::Local(ll) => ll.q_front(now),
@@ -45,13 +55,11 @@ impl SimLink {
         }
     }
 
-    pub fn available_storage_cap(&self) -> f32 {
+    pub fn used_storage(&self) -> f32 {
         match self {
-            SimLink::Local(ll) => ll.storage_cap.available(),
-            SimLink::In(il) => il.local_link.storage_cap.available(),
-            SimLink::Out(_) => {
-                panic!("can't query out links for available space except for tests.")
-            }
+            SimLink::Local(ll) => ll.storage_cap.used,
+            SimLink::In(il) => il.local_link.storage_cap.used,
+            SimLink::Out(ol) => ol.storage_cap.used,
         }
     }
 
@@ -59,9 +67,7 @@ impl SimLink {
         match self {
             SimLink::Local(l) => l.push_vehicle(vehicle, now),
             SimLink::In(il) => il.local_link.push_vehicle(vehicle, now),
-            SimLink::Out(ol) => {
-                ol.q.push_back(vehicle);
-            }
+            SimLink::Out(ol) => ol.q.push_back(vehicle),
         }
     }
 
@@ -280,15 +286,13 @@ impl SplitOutLink {
         }
     }
 
-    pub fn neighbor_partition_id(&self) -> usize {
-        self.to_part
-    }
-
     pub fn set_used_storage_cap(&mut self, value: f32) {
-        self.storage_cap.clear_and_consume(value);
+        self.storage_cap.clear();
+        self.storage_cap.consume(value);
     }
 
     pub fn take_veh(&mut self) -> VecDeque<Vehicle> {
+        self.storage_cap.clear();
         std::mem::take(&mut self.q)
     }
 }
@@ -306,28 +310,182 @@ impl SplitInLink {
             local_link,
         }
     }
-
-    pub fn neighbor_partition_id(&self) -> usize {
-        self.from_part
-    }
-
-    pub fn local_link_mut(&mut self) -> &mut LocalLink {
-        &mut self.local_link
-    }
-
-    pub fn local_link(&self) -> &LocalLink {
-        &self.local_link
-    }
 }
 
 #[cfg(test)]
-mod tests {
+mod sim_link_tests {
     use assert_approx_eq::assert_approx_eq;
 
     use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Vehicle;
-    use crate::simulation::network::link::LocalLink;
+    use crate::simulation::network::link::{LocalLink, SimLink};
     use crate::test_utils::create_agent;
+
+    #[test]
+    fn storage_cap_consumed() {
+        let mut link = SimLink::Local(LocalLink::new(
+            Id::new_internal(1),
+            3600.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        ));
+        let agent = create_agent(1, vec![]);
+        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
+
+        link.push_veh(vehicle, 0);
+
+        // storage capacity should be consumed immediately. The expected value is max_storage_cap - pce of the vehicle
+        assert_eq!(1.5, link.used_storage())
+    }
+
+    #[test]
+    fn storage_cap_released() {
+        let mut link = SimLink::Local(LocalLink::new(
+            Id::new_internal(1),
+            3600.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        ));
+        let agent = create_agent(1, vec![]);
+        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
+
+        link.push_veh(vehicle, 0);
+        let _vehicle = link.pop_veh();
+
+        // after the vehicle is removed from the link, the available storage_cap should NOT be updated
+        // immediately
+        assert_eq!(1.5, link.used_storage());
+
+        // by calling release, the accumulated released storage cap, should be freed.
+        link.update_released_storage_cap();
+        assert_eq!(0., link.used_storage());
+        if let SimLink::Local(ll) = link {
+            assert_eq!(0., ll.storage_cap.released); // test internal prop here, because I am too lazy for a more complex test
+        }
+    }
+
+    #[test]
+    fn flow_cap_accumulates() {
+        let mut link = SimLink::Local(LocalLink::new(
+            Id::new_internal(1),
+            360.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        ));
+
+        let agent1 = create_agent(1, vec![]);
+        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
+        let agent2 = create_agent(2, vec![]);
+        let vehicle2 = Vehicle::new(2, 0, 10., 1.5, Some(agent2));
+
+        link.push_veh(vehicle1, 0);
+        link.push_veh(vehicle2, 0);
+        link.update_flow_cap(10);
+        // this should reduce the flow capacity, so that no other vehicle can leave during this time step
+        let popped1 = link.pop_veh();
+        assert_eq!(1, popped1.id);
+
+        // as the flow cap is 0.1/s the next vehicle can leave the link 15s after the first
+        for now in 11..24 {
+            link.update_flow_cap(now);
+            assert!(link.offers_veh(now).is_none());
+        }
+
+        link.update_flow_cap(25);
+        if let Some(popped2) = link.offers_veh(25) {
+            assert_eq!(2, popped2.id);
+        } else {
+            panic!("Expected vehicle2 to be available at t=30")
+        }
+    }
+
+    #[test]
+    fn calculates_exit_time() {
+        let mut link = SimLink::Local(LocalLink::new(
+            Id::new_internal(1),
+            3600.,
+            10.,
+            3.,
+            100.,
+            1.0,
+            7.5,
+            Id::new_internal(1),
+            Id::new_internal(2),
+        ));
+
+        let agent1 = create_agent(1, vec![]);
+        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
+
+        link.push_veh(vehicle1, 0);
+
+        // this is also implicitly tested above, but we'll do it here again, so that we have descriptive
+        // test naming
+        for now in 0..9 {
+            assert!(link.offers_veh(now).is_none());
+        }
+
+        assert!(link.offers_veh(10).is_some())
+    }
+
+    #[test]
+    fn fifo_ordering() {
+        let id1 = 42;
+        let id2 = 43;
+        let mut link = SimLink::Local(LocalLink::new(
+            Id::new_internal(1),
+            1.,
+            1.,
+            1.,
+            15.0,
+            1.,
+            10.0,
+            Id::new_internal(0),
+            Id::new_internal(0),
+        ));
+
+        let agent1 = create_agent(1, vec![]);
+        let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
+        let agent2 = create_agent(1, vec![]);
+        let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
+
+        link.push_veh(vehicle1, 0);
+        assert_approx_eq!(1., link.used_storage());
+        assert!(link.is_available());
+
+        link.push_veh(vehicle2, 0);
+        // both vehicles take up 2pce, but used storage is capped at max storage, which should be
+        // 1.5 pce in this test case.
+        assert_approx_eq!(1.5, link.used_storage());
+        assert!(!link.is_available());
+
+        // make sure that vehicles are added ad the end of the queue
+        let popped_vehicle1 = link.pop_veh();
+        assert_eq!(id1, popped_vehicle1.id);
+
+        let popped_vehicle2 = link.pop_veh();
+        assert_eq!(id2, popped_vehicle2.id);
+    }
+}
+
+#[cfg(test)]
+mod local_link_tests {
+    use crate::simulation::id::Id;
+    use crate::simulation::network::link::LocalLink;
 
     #[test]
     fn storage_cap_initialized_default() {
@@ -366,57 +524,6 @@ mod tests {
     }
 
     #[test]
-    fn storage_cap_consumed() {
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            3600.,
-            10.,
-            3.,
-            100.,
-            1.0,
-            7.5,
-            Id::new_internal(1),
-            Id::new_internal(2),
-        );
-        let agent = create_agent(1, vec![]);
-        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
-
-        link.push_vehicle(vehicle, 0);
-
-        // storage capacity should be consumed immediately. The expected value is max_storage_cap - pce of the vehicle
-        assert_eq!(link.storage_cap.max - 1.5, link.storage_cap.available())
-    }
-
-    #[test]
-    fn storage_cap_released() {
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            3600.,
-            10.,
-            3.,
-            100.,
-            1.0,
-            7.5,
-            Id::new_internal(1),
-            Id::new_internal(2),
-        );
-        let agent = create_agent(1, vec![]);
-        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
-
-        link.push_vehicle(vehicle, 0);
-        let _vehicle = link.pop_front();
-
-        // after the vehicle is removed from the link, the available storage_cap should NOT be updated
-        // immediately
-        assert_eq!(link.storage_cap.max - 1.5, link.storage_cap.available());
-
-        // by calling release, the accumulated released storage cap, should be freed.
-        link.update_released_storage_cap();
-        assert_eq!(link.storage_cap.max, link.storage_cap.available());
-        assert_eq!(0., link.storage_cap.released); // test internal prop here, because I am too lazy for a more complex test
-    }
-
-    #[test]
     fn flow_cap_initialized() {
         let link = LocalLink::new(
             Id::new_internal(1),
@@ -432,139 +539,52 @@ mod tests {
 
         assert_eq!(0.2, link.flow_cap.capacity())
     }
+}
+
+#[cfg(test)]
+mod out_link_tests {
+    use crate::simulation::id::Id;
+    use crate::simulation::messaging::messages::proto::Vehicle;
+    use crate::simulation::network::link::{SimLink, SplitOutLink};
+    use crate::simulation::network::storage_cap::StorageCap;
+    use crate::test_utils::create_agent;
 
     #[test]
-    fn flow_cap_accumulates() {
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            360.,
-            10.,
-            3.,
-            100.,
-            1.0,
-            7.5,
-            Id::new_internal(1),
-            Id::new_internal(2),
-        );
-
-        let agent1 = create_agent(1, vec![]);
-        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
-        let agent2 = create_agent(2, vec![]);
-        let vehicle2 = Vehicle::new(2, 0, 10., 1.5, Some(agent2));
-
-        link.push_vehicle(vehicle1, 0);
-        link.push_vehicle(vehicle2, 0);
-        link.update_flow_cap(10);
-        // this should reduce the flow capacity, so that no other vehicle can leave during this time step
-        let popped1 = link.pop_front();
-        assert_eq!(1, popped1.id);
-
-        // as the flow cap is 0.1/s the next vehicle can leave the link 15s after the first
-        for now in 11..24 {
-            link.update_flow_cap(now);
-            assert!(link.q_front(now).is_none());
-        }
-
-        link.update_flow_cap(25);
-        if let Some(popped2) = link.q_front(25) {
-            assert_eq!(2, popped2.id);
-        } else {
-            panic!("Expected vehicle2 to be available at t=30")
-        }
-    }
-
-    #[test]
-    fn calculates_exit_time() {
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            3600.,
-            10.,
-            3.,
-            100.,
-            1.0,
-            7.5,
-            Id::new_internal(1),
-            Id::new_internal(2),
-        );
-
-        let agent1 = create_agent(1, vec![]);
-        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
-
-        link.push_vehicle(vehicle1, 0);
-
-        // this is also implicitly tested above, but we'll do it here again, so that we have descriptive
-        // test naming
-        for now in 0..9 {
-            assert!(link.q_front(now).is_none());
-        }
-
-        assert!(link.q_front(10).is_some())
-    }
-
-    #[test]
-    fn local_link_push_single_veh() {
-        let veh_id = 42;
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            1.,
-            1.,
-            1.,
-            10.,
-            1.,
-            7.5,
-            Id::new_internal(0),
-            Id::new_internal(0),
-        );
-        let agent = create_agent(1, vec![]);
-        let vehicle = Vehicle::new(veh_id, 0, 10., 1., Some(agent));
-
-        // this should put the vehicle into the queue and update the exit time correctly
-        link.push_vehicle(vehicle, 0);
-
-        assert_eq!(0.33333337, link.storage_cap.available());
-        let pushed_vehicle = link.q.front().unwrap();
-        assert_eq!(veh_id, pushed_vehicle.vehicle.id);
-        assert_eq!(10, pushed_vehicle.earliest_exit_time);
-    }
-
-    #[test]
-    fn local_link_push_multiple_veh() {
+    fn push_and_take() {
+        let mut link = SimLink::Out(SplitOutLink {
+            id: Id::new_internal(0),
+            to_part: 1,
+            q: Default::default(),
+            storage_cap: StorageCap {
+                max: 100.,
+                released: 0.0,
+                used: 0.0,
+            },
+        });
         let id1 = 42;
         let id2 = 43;
-        let mut link = LocalLink::new(
-            Id::new_internal(1),
-            1.,
-            1.,
-            1.,
-            11.8,
-            1.,
-            7.5,
-            Id::new_internal(0),
-            Id::new_internal(0),
-        );
-
         let agent1 = create_agent(1, vec![]);
         let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent(1, vec![]);
         let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
 
-        link.push_vehicle(vehicle1, 0);
-        assert_approx_eq!(0.57, link.storage_cap.available(), 0.01);
-        assert!(link.is_available());
+        link.push_veh(vehicle1, 0);
+        link.push_veh(vehicle2, 0);
 
-        link.push_vehicle(vehicle2, 0);
-        assert_approx_eq!(0., link.storage_cap.available());
-        assert!(!link.is_available());
+        if let SimLink::Out(ref mut ol) = link {
+            let mut result = ol.take_veh();
 
-        // make sure that vehicles are added ad the end of the queue
-        assert_eq!(2, link.q.len());
+            // make sure, that vehicles have correct order
+            assert_eq!(2, result.len());
+            let taken_1 = result.pop_front().unwrap();
+            assert_eq!(id1, taken_1.id);
+            let taken_2 = result.pop_front().unwrap();
+            assert_eq!(id2, taken_2.id);
 
-        let popped_vehicle1 = link.q.pop_front().unwrap();
-        assert_eq!(id1, popped_vehicle1.vehicle.id);
-        assert_eq!(11, popped_vehicle1.earliest_exit_time);
-
-        let popped_vehicle2 = link.q.pop_front().unwrap();
-        assert_eq!(id2, popped_vehicle2.vehicle.id);
-        assert_eq!(11, popped_vehicle2.earliest_exit_time);
+            // make sure storage capacity is released
+            assert_eq!(0., link.used_storage());
+        } else {
+            panic!("expected out link")
+        }
     }
 }
