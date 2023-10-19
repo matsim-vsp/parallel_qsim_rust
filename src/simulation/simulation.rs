@@ -257,6 +257,7 @@ mod tests {
     use std::thread::JoinHandle;
 
     use nohash_hasher::IntMap;
+    use tracing::info;
 
     use crate::simulation::config::Config;
     use crate::simulation::messaging::events::proto::Event;
@@ -298,13 +299,13 @@ mod tests {
                 .population_file(String::from("./assets/3-links/1-agent-full-leg.xml"))
                 .vehicles_file(String::from("./assets/3-links/vehicles.xml"))
                 .output_dir(String::from(
-                    "./test_output/simulation/execute_3_links_single_part",
+                    "./test_output/simulation/execute_3_links_2_parts",
                 ))
                 .num_parts(2)
                 .partition_method(String::from("none"))
                 .build(),
         );
-        let comms = ChannelNetCommunicator::create_n_2_n(2);
+        let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
         let mut receiver = ReceivingSubscriber::new();
 
         let mut handles: IntMap<u32, JoinHandle<()>> = comms
@@ -344,6 +345,15 @@ mod tests {
 
         let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());
         let sim_net = SimNetworkPartition::from_network(&net, comm.rank());
+
+        let id_part: Vec<_> = net
+            .links
+            .iter()
+            .map(|l| (l.id.external(), l.partition))
+            .collect();
+
+        info!("#{} {id_part:?}", comm.rank());
+
         let msg_broker = NetMessageBroker::new(comm, &sim_net);
         let mut events = EventsPublisher::new();
         events.add_subscriber(test_subscriber);

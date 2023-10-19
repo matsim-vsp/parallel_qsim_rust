@@ -1,6 +1,8 @@
 use std::str::FromStr;
 use std::{collections::HashSet, path::Path};
 
+use nohash_hasher::IntSet;
+
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{
@@ -40,7 +42,7 @@ pub struct Link {
     pub capacity: f32,
     pub freespeed: f32,
     pub permlanes: f32,
-    pub modes: HashSet<Id<String>>,
+    pub modes: IntSet<Id<String>>,
     pub attributes: Vec<Attr>,
     pub partition: u32,
 }
@@ -198,7 +200,7 @@ impl<'a> Network<'a> {
             Some(attrs) => attrs.attributes,
             None => Vec::new(),
         };
-        let modes: HashSet<Id<String>> = io_link
+        let modes: IntSet<Id<String>> = io_link
             .modes
             .split(',')
             .map(|s| s.trim())
@@ -284,7 +286,7 @@ impl Link {
         capacity: f32,
         freespeed: f32,
         permlanes: f32,
-        modes: HashSet<Id<String>>,
+        modes: IntSet<Id<String>>,
         attributes: Vec<Attr>,
     ) -> Self {
         Link {
