@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
-use tracing::info;
+use tracing::{info, Instrument};
+use tracing_subscriber::fmt::format;
 
 use crate::simulation::config::Config;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
+use crate::simulation::network::link::SimLink;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::TimeQueue;
@@ -64,15 +66,38 @@ where
         let mut now = start_time;
         info!(
             "Starting #{}. Network neighbors: {:?}, Start time {start_time}, End time {end_time}",
-            self.message_broker.rank,
+            self.message_broker.rank(),
             self.network.neighbors(),
         );
 
+        let split_links: Vec<String> = self
+            .network
+            .links
+            .values()
+            .map(|l| match l {
+                SimLink::Local(ll) => {
+                    return format!("Local '{}' ", ll.id.external());
+                }
+                SimLink::In(il) => {
+                    return format!(
+                        "In  '{}' from part #{}",
+                        il.local_link.id.external(),
+                        il.from_part
+                    );
+                }
+                SimLink::Out(ol) => {
+                    return format!("Out '{}' to part #{}", ol.id.external(), ol.to_part);
+                }
+            })
+            .collect();
+        info!("# {}: {:?}", self.message_broker.rank(), split_links);
+
         while now <= end_time {
-            if self.message_broker.rank == 0 && now % 600 == 0 {
+            //if self.message_broker.rank() == 0 && now % 600 == 0 {
+            if now % 600 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
-                info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank);
+                info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank());
             }
             self.wakeup(now);
             self.terminate_teleportation(now);
@@ -157,7 +182,7 @@ where
             // park the vehice - get the agent out of the vehicle
             let mut agent = self.garage.park_veh(vehicle);
 
-            // handle travelled
+            // emmit travelled
             let leg = agent.curr_leg();
             let route = leg.route.as_ref().unwrap();
             let mode = self.garage.modes.get_from_wire(leg.mode);
@@ -166,10 +191,16 @@ where
                 &Event::new_travelled(agent.id, route.distance, mode.external().to_string()),
             );
 
+            // emmit arrival
+            self.events.publish_event(
+                now,
+                &Event::new_arrival(agent.id, route.end_link(), mode.external().to_string()),
+            );
+
             // advance plan to activity and put agent into activity q.
             agent.advance_plan();
 
-            // handle act start event
+            // emmit act start event
             let act = agent.curr_act();
             let act_type = self.population.act_types.get_from_wire(act.act_type);
             self.events.publish_event(
@@ -238,5 +269,246 @@ where
         let from = message_broker.rank_for_link(route.start_link());
         let to = message_broker.rank_for_link(route.end_link());
         from == to
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::simulation::config::Config;
+    use crate::simulation::logging;
+    use crate::simulation::messaging::events::proto::Event;
+    use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
+    use crate::simulation::messaging::message_broker::{
+        ChannelNetCommunicator, DummyNetCommunicator, NetCommunicator, NetMessageBroker,
+    };
+    use crate::simulation::network::global_network::Network;
+    use crate::simulation::network::sim_network::SimNetworkPartition;
+    use crate::simulation::population::population::Population;
+    use crate::simulation::simulation::Simulation;
+    use crate::simulation::vehicles::garage::Garage;
+    use nohash_hasher::IntMap;
+    use std::any::Any;
+    use std::sync::mpsc::{channel, Receiver, Sender};
+    use std::sync::Arc;
+    use std::thread;
+    use std::thread::JoinHandle;
+    use tracing::info;
+
+    #[test]
+    fn execute_3_links_2_parts() {
+        let guards =
+            logging::init_logging("./test_output/simulation/controller", String::from("0"));
+
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from("./assets/3-links/3-links-network.xml"))
+                .population_file(String::from("./assets/3-links/1-agent-full-leg.xml"))
+                .vehicles_file(String::from("./assets/3-links/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/execute_3_links_single_part",
+                ))
+                .num_parts(2)
+                .partition_method(String::from("none"))
+                .build(),
+        );
+        let comms = ChannelNetCommunicator::create_n_2_n(2);
+
+        let mut receiver = ReceivingSubscriber::new();
+
+        let mut handles: IntMap<u32, JoinHandle<()>> = comms
+            .into_iter()
+            .map(|comm| {
+                let config = config.clone();
+                let subscr = SendingSubscriber {
+                    rank: comm.rank(),
+                    sender: receiver.channel.0.clone(),
+                };
+                (
+                    comm.rank(),
+                    thread::spawn(move || execute_sim(comm, Box::new(subscr), config)),
+                )
+            })
+            .collect();
+
+        // create another thread for the receiver, so that the main thread doesn't block.
+        let receiver_handle = thread::spawn(move || receiver.start_listen());
+        handles.insert(handles.len() as u32, receiver_handle);
+
+        try_join(handles);
+    }
+
+    /// Have this more complicated join logic, so that threads in the back of the handle vec can also
+    /// cause the main thread to panic.
+    fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
+        while !handles.is_empty() {
+            let mut finished = Vec::new();
+            for (i, handle) in handles.iter() {
+                if handle.is_finished() {
+                    finished.push(*i);
+                }
+            }
+            for i in finished {
+                let handle = handles.remove(&i).unwrap();
+                handle.join().expect("Error in a thread");
+            }
+        }
+    }
+
+    fn execute_sim<C: NetCommunicator>(
+        comm: C,
+        test_subscriber: Box<dyn EventsSubscriber + Send>,
+        config: Arc<Config>,
+    ) {
+        let mut garage = Garage::from_file(&config.vehicles_file);
+        let net = Network::from_file(
+            &config.network_file,
+            config.num_parts,
+            &config.partition_method,
+            &mut garage,
+        );
+
+        let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());
+        let sim_net = SimNetworkPartition::from_network(&net, comm.rank());
+        let msg_broker = NetMessageBroker::new(comm, &sim_net);
+        let mut events = EventsPublisher::new();
+        events.add_subscriber(test_subscriber);
+
+        let mut sim = Simulation::new(config.clone(), sim_net, garage, pop, msg_broker, events);
+
+        sim.run(config.start_time, config.end_time);
+    }
+
+    #[test]
+    fn execute_3_links_single_part() {
+        let guards =
+            logging::init_logging("./test_output/simulation/controller", String::from("0"));
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from("./assets/3-links/3-links-network.xml"))
+                .population_file(String::from("./assets/3-links/1-agent-full-leg.xml"))
+                .vehicles_file(String::from("./assets/3-links/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/execute_3_links_single_part",
+                ))
+                .build(),
+        );
+
+        execute_sim(
+            DummyNetCommunicator(),
+            Box::new(TestSubscriber::new()),
+            config,
+        );
+    }
+
+    struct TestSubscriber {
+        next_index: usize,
+        expected_events: Vec<(u32, Event)>,
+    }
+
+    struct ReceivingSubscriber {
+        test_subscriber: TestSubscriber,
+        channel: (Sender<(u32, Event)>, Receiver<(u32, Event)>),
+    }
+
+    struct SendingSubscriber {
+        rank: u32,
+        sender: Sender<(u32, Event)>,
+    }
+
+    impl EventsSubscriber for SendingSubscriber {
+        fn receive_event(&mut self, time: u32, event: &Event) {
+            info!("#{} at {time} {event:?}", self.rank);
+            self.sender
+                .send((time, event.clone()))
+                .expect("Failed on sending event message!");
+        }
+
+        fn as_any(&mut self) -> &mut dyn Any {
+            self
+        }
+    }
+
+    impl ReceivingSubscriber {
+        fn new() -> Self {
+            Self {
+                test_subscriber: TestSubscriber::new(),
+                channel: channel(),
+            }
+        }
+
+        fn start_listen(&mut self) {
+            while self.test_subscriber.next_index < self.test_subscriber.expected_events.len() {
+                let (time, event) = self
+                    .channel
+                    .1
+                    .recv()
+                    .expect("Something went wrong while listening for events");
+                self.test_subscriber.receive_event(time, &event);
+            }
+        }
+    }
+
+    impl TestSubscriber {
+        fn new() -> Self {
+            Self {
+                next_index: 0,
+                expected_events: Self::expected_events(),
+            }
+        }
+
+        fn expected_events() -> Vec<(u32, Event)> {
+            let result = vec![
+                (32400, Event::new_act_end(0, 0, String::from("home"))),
+                (32400, Event::new_departure(0, 0, String::from("walk"))),
+                (32408, Event::new_travelled(0, 10., String::from("walk"))),
+                (32408, Event::new_arrival(0, 0, String::from("walk"))),
+                (
+                    32408,
+                    Event::new_act_start(0, 0, String::from("car interaction")),
+                ),
+                (
+                    32409,
+                    Event::new_act_end(0, 0, String::from("car interaction")),
+                ),
+                (32409, Event::new_departure(0, 0, String::from("car"))),
+                (32409, Event::new_person_enters_veh(0, 0)),
+                // skip vehicle enters traffic
+                (32419, Event::new_link_leave(0, 0)),
+                (32419, Event::new_link_enter(1, 0)),
+                (32519, Event::new_link_leave(1, 0)),
+                (32519, Event::new_link_enter(2, 0)),
+                (32529, Event::new_person_leaves_veh(0, 0)),
+                (32529, Event::new_arrival(0, 2, String::from("car"))),
+                (
+                    32529,
+                    Event::new_act_start(0, 2, String::from("car interaction")),
+                ),
+                (
+                    32530,
+                    Event::new_act_end(0, 2, String::from("car interaction")),
+                ),
+                (32530, Event::new_departure(0, 2, String::from("walk"))),
+                (32546, Event::new_travelled(0, 20., String::from("walk"))),
+                (32546, Event::new_arrival(0, 2, String::from("walk"))),
+                (32546, Event::new_act_start(0, 2, String::from("errands"))),
+            ];
+
+            result
+        }
+    }
+
+    impl EventsSubscriber for TestSubscriber {
+        fn receive_event(&mut self, time: u32, event: &Event) {
+            info!("#MAIN\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t{time} {event:?}");
+            let (expected_time, expected_event) =
+                self.expected_events.get(self.next_index).unwrap();
+            self.next_index += 1;
+            assert_eq!(expected_time, &time);
+            assert_eq!(expected_event, event);
+        }
+
+        fn as_any(&mut self) -> &mut dyn Any {
+            self
+        }
     }
 }

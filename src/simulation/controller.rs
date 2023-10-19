@@ -10,9 +10,10 @@ use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::events::{EventsLogger, EventsPublisher};
 use crate::simulation::messaging::message_broker::{
-    ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetMessageBroker,
+    ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
+    NetMessageBroker,
 };
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -28,7 +29,12 @@ pub fn run_single_thread(config: Config) {
 
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
-    let network = Network::from_file(config.network_file.as_ref(), 0, &mut garage);
+    let network = Network::from_file(
+        config.network_file.as_ref(),
+        0,
+        &config.partition_method,
+        &mut garage,
+    );
 
     let population =
         Population::from_file(config.population_file.as_ref(), &network, &mut garage, 0);
@@ -75,20 +81,25 @@ pub fn run_local_multithreaded(config: Config) {
             let handle = thread::spawn(move || {
                 // read the io stuff in multiple times. This can be optimized as in https://github.com/Janekdererste/rust_q_sim/issues/39
                 let mut garage = Garage::from_file(config.vehicles_file.as_ref());
-                let network = Network::from_file(config.network_file.as_ref(), 0, &mut garage);
+                let network = Network::from_file(
+                    config.network_file.as_ref(),
+                    config.num_parts,
+                    &config.partition_method,
+                    &mut garage,
+                );
                 let population = Population::from_file(
                     config.population_file.as_ref(),
                     &network,
                     &mut garage,
-                    0,
+                    comm.rank(),
                 );
 
-                let sim_network = SimNetworkPartition::from_network(&network, 0);
+                let sim_network = SimNetworkPartition::from_network(&network, comm.rank());
                 let mut events = EventsPublisher::new();
-                let events_file = format!("events.{}.pbf", comm.rank);
+                let events_file = format!("events.{}.pbf", comm.rank());
                 let events_path = PathBuf::from(&config.output_dir).join(events_file);
                 events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-                //  events.add_subscriber(Box::new(EventsLogger {}));
+                events.add_subscriber(Box::new(EventsLogger {}));
 
                 let message_broker =
                     NetMessageBroker::<MpiNetCommunicator>::new_channel_broker(comm, &sim_network);
@@ -115,7 +126,7 @@ pub fn run_local_multithreaded(config: Config) {
 }
 
 pub fn run(world: SystemCommunicator, config: Config) {
-    let rank = world.rank();
+    let rank = world.rank() as u32;
     let size = world.size();
 
     info!("Process #{rank} of {size}");
@@ -125,20 +136,21 @@ pub fn run(world: SystemCommunicator, config: Config) {
 
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
-    let network = Network::from_file(config.network_file.as_ref(), config.num_parts, &mut garage);
+    let network = Network::from_file(
+        config.network_file.as_ref(),
+        config.num_parts,
+        &config.partition_method,
+        &mut garage,
+    );
 
     // write network with new ids to output but only once.
     if rank == 0 {
         network.to_file(&output_path.join("output_network.xml.gz"));
     }
 
-    let population = Population::from_file(
-        config.population_file.as_ref(),
-        &network,
-        &mut garage,
-        rank as usize,
-    );
-    let network_partition = SimNetworkPartition::from_network(&network, rank as usize);
+    let population =
+        Population::from_file(config.population_file.as_ref(), &network, &mut garage, rank);
+    let network_partition = SimNetworkPartition::from_network(&network, rank);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
         network_partition.nodes.len(),
@@ -187,7 +199,7 @@ mod test {
     use tracing_appender::non_blocking::WorkerGuard;
 
     use crate::simulation::config::Config;
-    use crate::simulation::controller::run_single_thread;
+    use crate::simulation::controller::{run_local_multithreaded, run_single_thread};
     use crate::simulation::logging;
 
     static INIT: Once = Once::new();
@@ -216,8 +228,6 @@ mod test {
             ))
             .build();
 
-        //let _guards = logging::init_logging(config.output_dir.as_ref(), String::from("0"));
-
         run_single_thread(config);
     }
 
@@ -233,8 +243,22 @@ mod test {
             ))
             .build();
 
-        //let _guards = logging::init_logging(config.output_dir.as_ref(), String::from("0"));
-
         run_single_thread(config);
+    }
+
+    #[test]
+    fn execute_equil_example_with_channels() {
+        initialize();
+        let config = Config::builder()
+            .network_file(String::from("./assets/equil/equil-network.xml"))
+            .population_file(String::from("./assets/equil/equil-plans.xml.gz"))
+            .vehicles_file(String::from("./assets/equil/equil-vehicles.xml"))
+            .output_dir(String::from(
+                "./test_output/simulation/controller/execute_equil_example_with_channels",
+            ))
+            .num_parts(2)
+            .build();
+
+        run_local_multithreaded(config);
     }
 }

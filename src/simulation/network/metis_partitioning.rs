@@ -3,7 +3,7 @@ use metis::{Graph, Idx};
 
 use super::global_network::Network;
 
-pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
+pub fn partition(network: &Network, num_parts: u32) -> Vec<Idx> {
     if num_parts <= 1 {
         return vec![0; network.nodes.len()];
     }

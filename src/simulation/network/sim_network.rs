@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use nohash_hasher::{IntMap, IntSet};
 
 use crate::simulation::id::IdStore;
@@ -17,6 +15,12 @@ use super::{
     link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
 };
 
+pub struct SplitStorage {
+    pub link_id: u64,
+    pub from_part: u32,
+    pub used: f32,
+}
+
 #[derive(Debug)]
 pub struct SimNetworkPartition<'n> {
     pub nodes: Vec<Id<Node>>,
@@ -26,7 +30,7 @@ pub struct SimNetworkPartition<'n> {
 }
 
 impl<'n> SimNetworkPartition<'n> {
-    pub fn from_network(global_network: &'n Network, partition: usize) -> Self {
+    pub fn from_network(global_network: &'n Network, partition: u32) -> Self {
         // todo this still needs sample size
         let nodes: Vec<_> = global_network
             .nodes
@@ -63,7 +67,7 @@ impl<'n> SimNetworkPartition<'n> {
 
     fn create_sim_link(
         link: &Link,
-        partition: usize,
+        partition: u32,
         effective_cell_size: f32,
         all_nodes: &[Node],
     ) -> SimLink {
@@ -92,8 +96,8 @@ impl<'n> SimNetworkPartition<'n> {
         }
     }
 
-    pub fn neighbors(&self) -> HashSet<usize> {
-        let distinct_partitions: HashSet<usize> = self
+    pub fn neighbors(&self) -> IntSet<u32> {
+        let distinct_partitions: IntSet<u32> = self
             .links
             .values()
             .filter(|link| match link {
@@ -126,7 +130,7 @@ impl<'n> SimNetworkPartition<'n> {
         }
     }
 
-    pub fn move_links(&mut self, now: u32) -> (Vec<Vehicle>, Vec<StorageCap>) {
+    pub fn move_links(&mut self, now: u32) -> (Vec<Vehicle>, Vec<SplitStorage>) {
         let mut storage_cap: Vec<_> = Vec::new();
         let mut vehicles: Vec<_> = Vec::new();
 
@@ -140,16 +144,23 @@ impl<'n> SimNetworkPartition<'n> {
                 }
                 // update storage cap as with the local link and capture the used storage cap
                 // so that we can send it to the neighbor partition and update flow cap
-                SimLink::In(_) => {
+                SimLink::In(il) => {
+                    let from_part = il.from_part;
+
                     link.update_flow_cap(now);
                     link.update_released_storage_cap();
-                    let used_storage = link.used_storage();
-                    let id = link.id().internal();
 
-                    storage_cap.push(StorageCap {
-                        link_id: id as u64,
-                        value: used_storage,
-                    });
+                    // put storage cap information into the result if there is anything to report.
+                    if link.used_storage() > 0. {
+                        let used_storage = link.used_storage();
+                        let id = link.id().internal();
+
+                        storage_cap.push(SplitStorage {
+                            link_id: id as u64,
+                            used: used_storage,
+                            from_part,
+                        });
+                    }
                 }
                 // take all vehicles in the out link so that we can send them to the next partition
                 SimLink::Out(ol) => {
@@ -309,7 +320,12 @@ mod tests {
     fn vehicle_travels_local() {
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            "metis",
+            &mut garage,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
@@ -330,7 +346,12 @@ mod tests {
     fn vehicle_reaches_boundary() {
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, &mut garage);
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            2,
+            "metis",
+            &mut garage,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 1);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
@@ -357,7 +378,12 @@ mod tests {
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            "metis",
+            &mut garage,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0);
 
         // place 100 vehicles on first link
@@ -387,8 +413,12 @@ mod tests {
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = EventsPublisher::new();
         let mut garage = Garage::new();
-        let mut global_net =
-            Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
+        let mut global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            "metis",
+            &mut garage,
+        );
         global_net.effective_cell_size = 10.;
 
         let id_1 = global_net.link_ids.get_from_ext("link1");
@@ -440,14 +470,14 @@ mod tests {
         assert_eq!(1, storage_caps.len());
         let storage_cap = storage_caps.first().unwrap();
         assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
-        assert_eq!(0., storage_cap.value);
+        assert_eq!(0., storage_cap.used);
 
         // now place vehicle on network and collect storage caps again.
         net2.send_veh_en_route(vehicle, 0);
         let (_, storage_caps) = net2.move_links(0);
         let storage_cap = storage_caps.first().unwrap(); // skip length test, because this should be the same each time
         assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
-        assert_approx_eq!(13.3333, storage_cap.value, 0.0001);
+        assert_approx_eq!(13.3333, storage_cap.used, 0.0001);
     }
 
     #[test]

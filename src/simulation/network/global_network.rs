@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::{collections::HashSet, path::Path};
 
 use crate::simulation::io::attributes::{Attr, Attrs};
@@ -27,7 +28,7 @@ pub struct Node {
     pub attrs: Vec<Attr>,
     pub in_links: Vec<Id<Link>>,
     pub out_links: Vec<Id<Link>>,
-    pub partition: usize,
+    pub partition: u32,
 }
 
 #[derive(Debug)]
@@ -41,7 +42,7 @@ pub struct Link {
     pub permlanes: f32,
     pub modes: HashSet<Id<String>>,
     pub attributes: Vec<Attr>,
-    pub partition: usize,
+    pub partition: u32,
 }
 
 impl<'a> Default for Network<'a> {
@@ -61,11 +62,16 @@ impl<'a> Network<'a> {
         }
     }
 
-    pub fn from_file(file_path: &str, num_parts: usize, garage: &mut Garage) -> Self {
+    pub fn from_file(
+        file_path: &str,
+        num_parts: u32,
+        partition_method: &str,
+        garage: &mut Garage,
+    ) -> Self {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
         Self::init_nodes_and_links(&mut result, io_network, garage);
-        Self::partition_network(&mut result, num_parts);
+        Self::partition_network(&mut result, partition_method, num_parts);
         result
     }
 
@@ -140,12 +146,16 @@ impl<'a> Network<'a> {
 
     pub fn add_io_node(&mut self, io_node: IONode) {
         let id = self.node_ids.create_id(&io_node.id);
+        let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
+        let partition = u32::from_str(part_attr).unwrap();
         let attrs = match io_node.attributes {
             Some(attrs) => attrs.attributes,
             None => Vec::new(),
         };
+
         let mut node = Node::new(id, io_node.x, io_node.y);
         node.attrs = attrs;
+        node.partition = partition;
         self.add_node(node);
     }
 
@@ -182,7 +192,8 @@ impl<'a> Network<'a> {
             id.internal(),
             self.links.len()
         );
-
+        let part_attr = Attrs::find_or_else_opt(&io_link.attributes, "partition", || "0");
+        let partition = u32::from_str(part_attr).unwrap();
         let attrs = match io_link.attributes {
             Some(attrs) => attrs.attributes,
             None => Vec::new(),
@@ -196,7 +207,7 @@ impl<'a> Network<'a> {
         let from_id = self.node_ids.get_from_ext(&io_link.from);
         let to_id = self.node_ids.get_from_ext(&io_link.to);
 
-        let link = Link::new(
+        let mut link = Link::new(
             id,
             from_id,
             to_id,
@@ -207,6 +218,7 @@ impl<'a> Network<'a> {
             modes,
             attrs,
         );
+        link.partition = partition;
         self.add_link(link);
     }
 
@@ -228,16 +240,22 @@ impl<'a> Network<'a> {
         }
     }
 
-    fn partition_network(network: &mut Network, num_parts: usize) {
-        let partitions = metis_partitioning::partition(network, num_parts);
-        for node in network.nodes.iter_mut() {
-            let partition = partitions[node.id.internal()] as usize;
-            node.partition = partition;
+    fn partition_network(network: &mut Network, partition_method: &str, num_parts: u32) {
+        if partition_method.eq("metis") {
+            let partitions = metis_partitioning::partition(network, num_parts);
+            for node in network.nodes.iter_mut() {
+                let partition = partitions[node.id.internal()] as u32;
+                node.partition = partition;
 
-            for link_id in &node.in_links {
-                let link = network.links.get_mut(link_id.internal()).unwrap();
-                link.partition = partition;
+                for link_id in &node.in_links {
+                    let link = network.links.get_mut(link_id.internal()).unwrap();
+                    link.partition = partition;
+                }
             }
+        } else if partition_method.eq("none") {
+            return;
+        } else {
+            panic!("Unknown partition method: {}", partition_method);
         }
     }
 }
@@ -459,7 +477,8 @@ mod tests {
     #[test]
     fn from_file() {
         let mut garage = Garage::default();
-        let network = Network::from_file("./assets/equil/equil-network.xml", 2, &mut garage);
+        let network =
+            Network::from_file("./assets/equil/equil-network.xml", 2, "metis", &mut garage);
 
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];

@@ -11,8 +11,8 @@ use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, SyncMessage, TravelTimesMessage,
-    Vehicle,
+    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, StorageCap, SyncMessage,
+    TravelTimesMessage, Vehicle,
 };
 use crate::simulation::network::global_network::Network;
 use crate::simulation::population::population::Population;
@@ -55,8 +55,12 @@ impl SyncMessage {
         }
     }
 
-    pub fn add(&mut self, vehicle: Vehicle) {
+    pub fn add_veh(&mut self, vehicle: Vehicle) {
         self.vehicles.push(vehicle);
+    }
+
+    pub fn add_storage_cap(&mut self, storage_cap: StorageCap) {
+        self.storage_capacities.push(storage_cap);
     }
 
     pub fn serialize(&self) -> Vec<u8> {

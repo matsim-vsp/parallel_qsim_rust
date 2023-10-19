@@ -25,7 +25,7 @@ impl SimLink {
         }
     }
 
-    pub fn neighbor_part(&self) -> usize {
+    pub fn neighbor_part(&self) -> u32 {
         match self {
             SimLink::Local(_) => {
                 panic!("local links don't have information about neighbor partitions")
@@ -256,8 +256,8 @@ impl LocalLink {
 
 #[derive(Debug, Clone)]
 pub struct SplitOutLink {
-    id: Id<Link>,
-    to_part: usize,
+    pub id: Id<Link>,
+    pub to_part: u32,
     q: VecDeque<Vehicle>,
     storage_cap: StorageCap,
 }
@@ -267,7 +267,7 @@ impl SplitOutLink {
         link: &Link,
         effective_cell_size: f32,
         sample_size: f32,
-        to_part: usize,
+        to_part: u32,
     ) -> SplitOutLink {
         let flow_cap_s = link.capacity * sample_size / 3600.;
         let storage_cap = StorageCap::new(
@@ -304,12 +304,12 @@ impl SplitOutLink {
 
 #[derive(Debug, Clone)]
 pub struct SplitInLink {
-    from_part: usize,
-    local_link: LocalLink,
+    pub from_part: u32,
+    pub local_link: LocalLink,
 }
 
 impl SplitInLink {
-    pub fn new(from_part: usize, local_link: LocalLink) -> Self {
+    pub fn new(from_part: u32, local_link: LocalLink) -> Self {
         SplitInLink {
             from_part,
             local_link,

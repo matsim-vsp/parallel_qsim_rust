@@ -1,13 +1,13 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-use log::info;
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
+use tracing::info;
 
 use crate::simulation::messaging::messages::proto::{StorageCap, SyncMessage, Vehicle};
-use crate::simulation::network::sim_network::SimNetworkPartition;
+use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
 
 pub trait NetCommunicator {
     fn send_receive<F>(
@@ -18,6 +18,8 @@ pub trait NetCommunicator {
         on_msg: F,
     ) where
         F: FnMut(SyncMessage);
+
+    fn rank(&self) -> u32;
 }
 
 pub struct DummyNetCommunicator();
@@ -32,18 +34,22 @@ impl NetCommunicator for DummyNetCommunicator {
     ) where
         F: FnMut(SyncMessage),
     {
-        info!("Dummy Net Communicator doesn't do anything.")
+        //info!("Dummy Net Communicator doesn't do anything.")
+    }
+
+    fn rank(&self) -> u32 {
+        0
     }
 }
 
 pub struct ChannelNetCommunicator {
     receiver: Receiver<SyncMessage>,
     senders: Vec<Sender<SyncMessage>>,
-    pub rank: usize,
+    rank: u32,
 }
 
 impl ChannelNetCommunicator {
-    pub fn create_n_2_n(num_parts: usize) -> Vec<ChannelNetCommunicator> {
+    pub fn create_n_2_n(num_parts: u32) -> Vec<ChannelNetCommunicator> {
         let mut senders: Vec<_> = Vec::new();
         let mut comms: Vec<_> = Vec::new();
 
@@ -81,6 +87,11 @@ impl NetCommunicator for ChannelNetCommunicator {
         // send messages to everyone
         for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
+
+            if !msg.vehicles.is_empty() || !msg.storage_capacities.is_empty() {
+                info!("#{} sends {:?}", self.rank(), msg);
+            }
+
             sender
                 .send(msg)
                 .expect("Failed to send message in message broker");
@@ -94,6 +105,10 @@ impl NetCommunicator for ChannelNetCommunicator {
                 .expect("Error while receiving messages");
             let from_rank = received_msg.from_process;
 
+            if !received_msg.vehicles.is_empty() || !received_msg.storage_capacities.is_empty() {
+                info!("#{} gets {:?}", self.rank(), received_msg);
+            }
+
             // If a message was received from a neighbor partition for this very time step, remove
             // that partition from expected messages which indicates which partitions we are waiting
             // for
@@ -104,6 +119,10 @@ impl NetCommunicator for ChannelNetCommunicator {
             // publish the received message to the message broker
             on_msg(received_msg);
         }
+    }
+
+    fn rank(&self) -> u32 {
+        self.rank
     }
 }
 
@@ -170,20 +189,23 @@ impl NetCommunicator for MpiNetCommunicator {
             reqs.wait_all(&mut Vec::new());
         });
     }
+
+    fn rank(&self) -> u32 {
+        self.mpi_communicator.rank() as u32
+    }
 }
 
 pub struct NetMessageBroker<C>
 where
     C: NetCommunicator,
 {
-    pub rank: u32,
     //communicator: SystemCommunicator,
     communicator: C,
     out_messages: HashMap<u32, SyncMessage>,
     in_messages: BinaryHeap<SyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
-    link_mapping: HashMap<usize, usize>,
+    link_mapping: HashMap<usize, u32>,
     neighbors: HashSet<u32>,
 }
 
@@ -202,7 +224,6 @@ where
             .collect();
 
         NetMessageBroker {
-            rank: 0,
             communicator: DummyNetCommunicator(),
             out_messages: Default::default(),
             in_messages: Default::default(),
@@ -228,7 +249,6 @@ where
             .collect();
 
         NetMessageBroker {
-            rank: comm.rank as u32,
             communicator: comm,
             out_messages: Default::default(),
             in_messages: Default::default(),
@@ -258,7 +278,6 @@ where
             mpi_communicator: world,
         };
         NetMessageBroker {
-            rank: rank as u32,
             communicator,
             out_messages: HashMap::new(),
             in_messages: BinaryHeap::new(),
@@ -267,22 +286,53 @@ where
         }
     }
 
+    pub fn new(comm: C, net: &SimNetworkPartition) -> Self {
+        let neighbors = net.neighbors().iter().map(|rank| *rank as u32).collect();
+        let link_mapping = net
+            .global_network
+            .links
+            .iter()
+            .map(|link| (link.id.internal(), link.partition))
+            .collect();
+
+        Self {
+            communicator: comm,
+            out_messages: Default::default(),
+            in_messages: Default::default(),
+            link_mapping,
+            neighbors,
+        }
+    }
+
+    pub fn rank(&self) -> u32 {
+        self.communicator.rank()
+    }
+
     pub fn rank_for_link(&self, link_id: u64) -> u64 {
         *self.link_mapping.get(&(link_id as usize)).unwrap() as u64
     }
 
     pub fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap();
-        let partition = *self.link_mapping.get(&link_id).unwrap() as u32;
+        let partition = *self.link_mapping.get(&link_id).unwrap();
+        let rank = self.rank();
         let message = self
             .out_messages
             .entry(partition)
-            .or_insert_with(|| SyncMessage::new(now, self.rank, partition));
-        message.add(vehicle);
+            .or_insert_with(|| SyncMessage::new(now, rank, partition));
+        message.add_veh(vehicle);
     }
 
-    pub fn add_cap(&mut self, cap: StorageCap, now: u32) {
-        panic!("This needs the partition id of the split out part which we don't have here");
+    pub fn add_cap(&mut self, cap: SplitStorage, now: u32) {
+        let rank = self.rank();
+        let message = self
+            .out_messages
+            .entry(cap.from_part)
+            .or_insert_with(|| SyncMessage::new(now, rank, cap.from_part));
+        message.add_storage_cap(StorageCap {
+            link_id: cap.link_id,
+            value: cap.used,
+        });
     }
 
     pub fn send_recv(&mut self, now: u32) -> Vec<SyncMessage> {
@@ -324,16 +374,16 @@ where
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
-            //  info!("; {}; {}; pop cache ", self.rank, now);
+            //  info!("; {}; {}; pop cache ", self.rank(), now);
             if msg.time <= now {
                 //  info!(
                 //      "; {}; {now}; pop_cache; {}; {}; {}; {expected_messages:?}",
-                //      self.rank, msg.from_process, msg.to_process, msg.time
+                //      self.rank(), msg.from_process, msg.to_process, msg.time
                 //  );
                 expected_messages.remove(&msg.from_process);
                 messages.push(self.in_messages.pop().unwrap())
             } else {
-                //  info!("; {}; {}; break in cache ", self.rank, now);
+                //  info!("; {}; {}; break in cache ", self.rank(), now);
                 break; // important! otherwise this is an infinite loop
             }
         }
@@ -348,7 +398,7 @@ where
             let neighbor_rank = *partition;
             messages
                 .entry(neighbor_rank)
-                .or_insert_with(|| SyncMessage::new(now, self.rank, neighbor_rank));
+                .or_insert_with(|| SyncMessage::new(now, self.rank(), neighbor_rank));
         }
         messages
     }
@@ -362,9 +412,9 @@ mod tests {
 
     use crate::simulation::id::Id;
     use crate::simulation::messaging::message_broker::{ChannelNetCommunicator, NetMessageBroker};
-    use crate::simulation::messaging::messages::proto::Vehicle;
+    use crate::simulation::messaging::messages::proto::{StorageCap, Vehicle};
     use crate::simulation::network::global_network::{Link, Network, Node};
-    use crate::simulation::network::sim_network::SimNetworkPartition;
+    use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
     use crate::test_utils::create_agent;
 
     #[test]
@@ -377,10 +427,15 @@ mod tests {
 
             // all threads should block on receive. Therefore, the send count should be equal to the
             // number of brokers (4 in our example) after the send_recv method.
-            assert_eq!(4, sends.load(Ordering::Relaxed));
+            assert_eq!(
+                4,
+                sends.load(Ordering::Relaxed),
+                "# {} Failed on send count.",
+                broker.rank()
+            );
 
             // the different partitions expect varying numbers of sync messags.
-            match broker.rank {
+            match broker.rank() {
                 0 | 1 => assert_eq!(2, result.len()),
                 2 => assert_eq!(3, result.len()),
                 3 => assert_eq!(1, result.len()),
@@ -399,7 +454,7 @@ mod tests {
     fn send_recv_local_vehicle_msg() {
         execute_test(|mut broker| {
             // place vehicle into partition 0
-            if broker.rank == 0 {
+            if broker.rank() == 0 {
                 let agent = create_agent(0, vec![2, 6]);
                 let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle.clone(), 0);
@@ -409,7 +464,7 @@ mod tests {
             let result_0 = broker.send_recv(0);
 
             // we expect broker 2 to have received the vehicle all other messages should have no vehicles
-            if broker.rank == 2 {
+            if broker.rank() == 2 {
                 let mut msg = result_0
                     .into_iter()
                     .find(|msg| msg.from_process == 0)
@@ -429,7 +484,7 @@ mod tests {
             let result_1 = broker.send_recv(1);
 
             // we expect broker 3 to have received the vehicle all other messages should have no vehicles
-            if broker.rank == 3 {
+            if broker.rank() == 3 {
                 let mut msg = result_1
                     .into_iter()
                     .find(|msg| msg.from_process == 2)
@@ -450,7 +505,7 @@ mod tests {
     fn send_recv_remote_message() {
         execute_test(|mut broker| {
             // place vehicle into partition 0 with a future timestamp
-            if broker.rank == 0 {
+            if broker.rank() == 0 {
                 let agent = create_agent(0, vec![6]);
                 let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle, 1);
@@ -468,7 +523,7 @@ mod tests {
             let result_1 = broker.send_recv(1);
 
             for msg in result_1 {
-                if broker.rank == 3 && msg.from_process == 0 {
+                if broker.rank() == 3 && msg.from_process == 0 {
                     assert_eq!(1, msg.vehicles.len());
                 }
 
@@ -480,7 +535,7 @@ mod tests {
     #[test]
     fn send_recv_local_and_remote_msg() {
         execute_test(|mut broker| {
-            if broker.rank == 0 {
+            if broker.rank() == 0 {
                 // place vehicle into partition 0 with a future timestamp with remote destination
                 let agent = create_agent(0, vec![6]);
                 let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
@@ -495,7 +550,7 @@ mod tests {
                 assert!(msg.vehicles.is_empty());
             }
 
-            if broker.rank == 2 {
+            if broker.rank() == 2 {
                 // place vehicle into partition 2 with a current timestamp with neighbor destination
                 let agent = create_agent(1, vec![6]);
                 let vehicle = Vehicle::new(1, 0, 0., 0., Some(agent));
@@ -506,10 +561,10 @@ mod tests {
             let result_1 = broker.send_recv(1);
 
             for msg in result_1 {
-                if broker.rank == 3 && msg.from_process == 0 {
+                if broker.rank() == 3 && msg.from_process == 0 {
                     assert_eq!(1, msg.vehicles.len());
                     assert_eq!(0, msg.vehicles.first().unwrap().id);
-                } else if broker.rank == 3 && msg.from_process == 2 {
+                } else if broker.rank() == 3 && msg.from_process == 2 {
                     assert_eq!(1, msg.vehicles.len());
                     assert_eq!(1, msg.vehicles.first().unwrap().id);
                 } else {
@@ -521,12 +576,42 @@ mod tests {
         });
     }
 
+    #[test]
+    fn send_recv_storage_cap() {
+        execute_test(|mut broker| {
+            // add a storage cap message for link 4, which connects parts 1 -> 2
+            if broker.rank() == 2 {
+                broker.add_cap(
+                    SplitStorage {
+                        link_id: 4,
+                        used: 42.0,
+                        from_part: 1,
+                    },
+                    0,
+                );
+            }
+
+            // do sync step
+            let result_0 = broker.send_recv(0);
+
+            // broker 1 should have received the StorageCap message
+            // all others should not have any storage cap messages.
+            for msg in result_0 {
+                if msg.from_process == 2 && msg.to_process == 1 {
+                    assert_eq!(1, msg.storage_capacities.len(), "{msg:?}")
+                } else {
+                    assert!(msg.storage_capacities.is_empty(), "{msg:?}");
+                }
+            }
+        });
+    }
+
     fn execute_test<F>(test: F)
     where
         F: Fn(NetMessageBroker<ChannelNetCommunicator>) + Send + Sync + 'static,
     {
         let network = create_network();
-        let comms = ChannelNetCommunicator::create_n_2_n(network.nodes.len());
+        let comms = ChannelNetCommunicator::create_n_2_n(network.nodes.len() as u32);
 
         let brokers: Vec<_> = comms
             .into_iter()
@@ -581,13 +666,13 @@ mod tests {
         result
     }
 
-    fn create_node(id: usize, partition: usize) -> Node {
+    fn create_node(id: usize, partition: u32) -> Node {
         let mut node = Node::new(Id::new_internal(id), 0., 0.);
         node.partition = partition;
         node
     }
 
-    fn create_link(id: usize, from: Id<Node>, to: Id<Node>, partition: usize) -> Link {
+    fn create_link(id: usize, from: Id<Node>, to: Id<Node>, partition: u32) -> Link {
         Link {
             id: Id::new_internal(id),
             from,

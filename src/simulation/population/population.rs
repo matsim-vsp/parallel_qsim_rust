@@ -26,7 +26,7 @@ impl<'p> Population<'p> {
         }
     }
 
-    pub fn from_file(file: &str, net: &Network, garage: &mut Garage, partition: usize) -> Self {
+    pub fn from_file(file: &str, net: &Network, garage: &mut Garage, partition: u32) -> Self {
         let io_population = IOPopulation::from_file(file);
         Self::from_io(&io_population, net, garage, partition)
     }
@@ -35,7 +35,7 @@ impl<'p> Population<'p> {
         io_population: &IOPopulation,
         network: &Network,
         garage: &mut Garage,
-        partition: usize,
+        partition: u32,
     ) -> Self {
         let mut result = Population::new();
 
@@ -59,14 +59,14 @@ impl<'p> Population<'p> {
                 garage
                     .vehicle_types
                     .keys()
-                    .map(move |type_id| Self::create_veh_id_string(&p_id, type_id))
+                    .map(move |type_id| (p_id.clone(), type_id.clone())) //Self::create_veh_id_string(&p_id, type_id))
             })
             .collect();
 
         // have this in a separate loop because we are iterating over garage's vehicle types and we
         // can't borrow vehicle types while using a &mut in add_veh.
-        for veh_id in raw_veh {
-            garage.add_veh_id(veh_id.as_str());
+        for (person_id, type_id) in raw_veh {
+            garage.add_veh_id(&person_id, &type_id);
         }
 
         // now iterate over all plans to extract activity ids
@@ -92,7 +92,7 @@ impl<'p> Population<'p> {
         io_population: &IOPopulation,
         net: &Network,
         garage: &Garage,
-        part: usize,
+        part: u32,
     ) {
         let persons: Vec<_> = io_population
             .persons
@@ -130,7 +130,7 @@ impl<'p> Population<'p> {
         format!("{}_{}", person_id.external(), veh_type.external())
     }
 
-    fn is_partition(io_person: &IOPerson, net: &Network, partition: usize) -> bool {
+    fn is_partition(io_person: &IOPerson, net: &Network, partition: u32) -> bool {
         let link = Self::link_first_act(io_person, net);
         link.partition == partition
     }
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn from_io_1_plan() {
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let net = Network::from_file("./assets/equil/equil-network.xml", 1, &mut garage);
+        let net = Network::from_file("./assets/equil/equil-network.xml", 1, "metis", &mut garage);
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
         assert_eq!(1, pop.agents.len());
@@ -204,7 +204,12 @@ mod tests {
     #[test]
     fn from_io_multi_mode() {
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let net = Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
+        let net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            "metis",
+            &mut garage,
+        );
         let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
 
         // check that we have all three vehicle types
@@ -237,7 +242,7 @@ mod tests {
     #[test]
     fn from_io() {
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2, &mut garage);
+        let net = Network::from_file("./assets/equil/equil-network.xml", 2, "metis", &mut garage);
         let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
         let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);
 
