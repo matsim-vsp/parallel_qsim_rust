@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use tracing::{info, Instrument};
-use tracing_subscriber::fmt::format;
 
 use crate::simulation::config::Config;
 use crate::simulation::messaging::events::proto::Event;
@@ -274,6 +273,15 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::any::Any;
+    use std::sync::mpsc::{channel, Receiver, Sender};
+    use std::sync::Arc;
+    use std::thread;
+    use std::thread::JoinHandle;
+
+    use nohash_hasher::IntMap;
+    use tracing::info;
+
     use crate::simulation::config::Config;
     use crate::simulation::logging;
     use crate::simulation::messaging::events::proto::Event;
@@ -286,13 +294,28 @@ mod tests {
     use crate::simulation::population::population::Population;
     use crate::simulation::simulation::Simulation;
     use crate::simulation::vehicles::garage::Garage;
-    use nohash_hasher::IntMap;
-    use std::any::Any;
-    use std::sync::mpsc::{channel, Receiver, Sender};
-    use std::sync::Arc;
-    use std::thread;
-    use std::thread::JoinHandle;
-    use tracing::info;
+
+    #[test]
+    fn execute_3_links_single_part() {
+        let guards =
+            logging::init_logging("./test_output/simulation/controller", String::from("0"));
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from("./assets/3-links/3-links-network.xml"))
+                .population_file(String::from("./assets/3-links/1-agent-full-leg.xml"))
+                .vehicles_file(String::from("./assets/3-links/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/execute_3_links_single_part",
+                ))
+                .build(),
+        );
+
+        execute_sim(
+            DummyNetCommunicator(),
+            Box::new(TestSubscriber::new()),
+            config,
+        );
+    }
 
     #[test]
     fn execute_3_links_2_parts() {
@@ -312,7 +335,6 @@ mod tests {
                 .build(),
         );
         let comms = ChannelNetCommunicator::create_n_2_n(2);
-
         let mut receiver = ReceivingSubscriber::new();
 
         let mut handles: IntMap<u32, JoinHandle<()>> = comms
@@ -335,23 +357,6 @@ mod tests {
         handles.insert(handles.len() as u32, receiver_handle);
 
         try_join(handles);
-    }
-
-    /// Have this more complicated join logic, so that threads in the back of the handle vec can also
-    /// cause the main thread to panic.
-    fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
-        while !handles.is_empty() {
-            let mut finished = Vec::new();
-            for (i, handle) in handles.iter() {
-                if handle.is_finished() {
-                    finished.push(*i);
-                }
-            }
-            for i in finished {
-                let handle = handles.remove(&i).unwrap();
-                handle.join().expect("Error in a thread");
-            }
-        }
     }
 
     fn execute_sim<C: NetCommunicator>(
@@ -378,26 +383,21 @@ mod tests {
         sim.run(config.start_time, config.end_time);
     }
 
-    #[test]
-    fn execute_3_links_single_part() {
-        let guards =
-            logging::init_logging("./test_output/simulation/controller", String::from("0"));
-        let config = Arc::new(
-            Config::builder()
-                .network_file(String::from("./assets/3-links/3-links-network.xml"))
-                .population_file(String::from("./assets/3-links/1-agent-full-leg.xml"))
-                .vehicles_file(String::from("./assets/3-links/vehicles.xml"))
-                .output_dir(String::from(
-                    "./test_output/simulation/execute_3_links_single_part",
-                ))
-                .build(),
-        );
-
-        execute_sim(
-            DummyNetCommunicator(),
-            Box::new(TestSubscriber::new()),
-            config,
-        );
+    /// Have this more complicated join logic, so that threads in the back of the handle vec can also
+    /// cause the main thread to panic.
+    fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
+        while !handles.is_empty() {
+            let mut finished = Vec::new();
+            for (i, handle) in handles.iter() {
+                if handle.is_finished() {
+                    finished.push(*i);
+                }
+            }
+            for i in finished {
+                let handle = handles.remove(&i).unwrap();
+                handle.join().expect("Error in a thread");
+            }
+        }
     }
 
     struct TestSubscriber {

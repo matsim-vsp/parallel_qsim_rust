@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
@@ -70,7 +70,7 @@ impl<'p> Population<'p> {
         }
 
         // now iterate over all plans to extract activity ids
-        let types: HashSet<_> = io
+        let types: Vec<_> = io
             .persons
             .iter()
             .flat_map(|person| person.plans.iter())
