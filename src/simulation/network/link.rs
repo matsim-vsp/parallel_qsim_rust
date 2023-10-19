@@ -237,21 +237,6 @@ impl LocalLink {
     pub fn used_storage(&self) -> f32 {
         self.storage_cap.used
     }
-
-    fn calculate_storage_cap(
-        length: f32,
-        perm_lanes: f32,
-        flow_cap_s: f32,
-        sample_size: f32,
-        effective_cell_size: f32,
-    ) -> f32 {
-        let cap = length * perm_lanes * sample_size / effective_cell_size;
-        // storage capacity needs to be at least enough to handle the cap_per_time_step:
-        cap.max(flow_cap_s)
-
-        // the original code contains more logic to increase storage capacity for links with a low
-        // free speed. Omit this for now, as we don't want to create a feature complete qsim
-    }
 }
 
 #[derive(Debug, Clone)]

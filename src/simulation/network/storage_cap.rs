@@ -55,8 +55,4 @@ impl StorageCap {
         let available_cap = self.max - self.used;
         available_cap > 0.0
     }
-
-    pub fn available(&self) -> f32 {
-        self.max - self.used
-    }
 }

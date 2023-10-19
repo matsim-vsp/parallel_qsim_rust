@@ -1,5 +1,6 @@
-use nohash_hasher::{IntMap, IntSet};
 use std::collections::HashMap;
+
+use nohash_hasher::IntMap;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
@@ -8,12 +9,12 @@ use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
 
 #[derive(Debug)]
 pub struct Garage<'g> {
-    pub vehicles: IntMap<Id<Vehicle>, GarageVehicle>,
+    pub network_vehicles: IntMap<Id<Vehicle>, GarageVehicle>,
     // don't know whether this is a good place to do this kind of book keeping
     // we need this information to extract vehicles from io::Plans though.
     pub person_2_vehicle: IntMap<Id<Agent>, HashMap<Id<String>, Id<Vehicle>>>,
     pub vehicle_ids: IdStore<'g, Vehicle>,
-    teleported_veh: IntMap<Id<Vehicle>, Id<VehicleType>>,
+    pub teleported_veh: IntMap<Id<Vehicle>, Id<VehicleType>>,
     pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,
     pub vehicle_type_ids: IdStore<'g, VehicleType>,
     pub modes: IdStore<'g, String>,
@@ -34,7 +35,7 @@ impl<'g> Default for Garage<'g> {
 impl<'g> Garage<'g> {
     pub fn new() -> Self {
         Garage {
-            vehicles: Default::default(),
+            network_vehicles: Default::default(),
             person_2_vehicle: Default::default(),
             vehicle_ids: Default::default(),
             teleported_veh: Default::default(),
@@ -134,7 +135,7 @@ impl<'g> Garage<'g> {
                     id: veh_id.clone(),
                     veh_type: veh_type_id.clone(),
                 };
-                self.vehicles.insert(vehicle.id.clone(), vehicle);
+                self.network_vehicles.insert(vehicle.id.clone(), vehicle);
                 self.person_2_vehicle
                     .entry(person_id)
                     .or_default()
@@ -153,7 +154,8 @@ impl<'g> Garage<'g> {
         let id = self.vehicle_ids.get_from_wire(vehicle.id);
         let veh_type = self.vehicle_type_ids.get_from_wire(vehicle.r#type);
         let garage_veh = GarageVehicle { id, veh_type };
-        self.vehicles.insert(garage_veh.id.clone(), garage_veh);
+        self.network_vehicles
+            .insert(garage_veh.id.clone(), garage_veh);
 
         vehicle.agent.unwrap()
     }
@@ -161,7 +163,7 @@ impl<'g> Garage<'g> {
     pub fn unpark_veh(&mut self, person: Agent, id: &Id<Vehicle>) -> Vehicle {
         let veh_type_id = if let Some(veh_type_id) = self.teleported_veh.get(id) {
             veh_type_id.clone()
-        } else if let Some(garage_veh) = self.vehicles.remove(id) {
+        } else if let Some(garage_veh) = self.network_vehicles.remove(id) {
             garage_veh.veh_type
         } else {
             panic!(

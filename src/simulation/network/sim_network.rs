@@ -267,6 +267,8 @@ impl<'n> SimNetworkPartition<'n> {
 
 #[cfg(test)]
 mod tests {
+    use assert_approx_eq::assert_approx_eq;
+
     use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::{
@@ -279,7 +281,6 @@ mod tests {
             link::SimLink,
         },
     };
-    use assert_approx_eq::assert_approx_eq;
 
     use super::SimNetworkPartition;
 
@@ -467,14 +468,12 @@ mod tests {
 
         // collect empty storage caps
         let (_, storage_caps) = net2.move_links(0);
-        assert_eq!(1, storage_caps.len());
-        let storage_cap = storage_caps.first().unwrap();
-        assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
-        assert_eq!(0., storage_cap.used);
+        assert_eq!(0, storage_caps.len());
 
         // now place vehicle on network and collect storage caps again.
         net2.send_veh_en_route(vehicle, 0);
         let (_, storage_caps) = net2.move_links(0);
+        assert_eq!(1, storage_caps.len());
         let storage_cap = storage_caps.first().unwrap(); // skip length test, because this should be the same each time
         assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
         assert_approx_eq!(13.3333, storage_cap.used, 0.0001);

@@ -221,7 +221,8 @@ mod tests {
             .all(|type_id| expected_veh_types.contains(type_id.external())));
 
         // check that we have a vehicle for each mode and for each person
-        assert_eq!(9, garage.vehicles.len());
+        assert_eq!(6, garage.network_vehicles.len());
+        assert_eq!(3, garage.teleported_veh.len());
 
         // check population
         // activity types should be done as id. If id is not present this will crash

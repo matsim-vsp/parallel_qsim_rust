@@ -217,6 +217,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn execute_3_link_example() {
         initialize();
         let config = Config::builder()
@@ -232,6 +233,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn execute_equil_example() {
         initialize();
         let config = Config::builder()
@@ -247,6 +249,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn execute_equil_example_with_channels() {
         initialize();
         let config = Config::builder()

@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use tracing::{info, Instrument};
+use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
-use crate::simulation::network::link::SimLink;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
 use crate::simulation::time_queue::TimeQueue;
@@ -69,31 +68,9 @@ where
             self.network.neighbors(),
         );
 
-        let split_links: Vec<String> = self
-            .network
-            .links
-            .values()
-            .map(|l| match l {
-                SimLink::Local(ll) => {
-                    return format!("Local '{}' ", ll.id.external());
-                }
-                SimLink::In(il) => {
-                    return format!(
-                        "In  '{}' from part #{}",
-                        il.local_link.id.external(),
-                        il.from_part
-                    );
-                }
-                SimLink::Out(ol) => {
-                    return format!("Out '{}' to part #{}", ol.id.external(), ol.to_part);
-                }
-            })
-            .collect();
-        info!("# {}: {:?}", self.message_broker.rank(), split_links);
-
         while now <= end_time {
-            //if self.message_broker.rank() == 0 && now % 600 == 0 {
-            if now % 600 == 0 {
+            if self.message_broker.rank() == 0 && now % 600 == 0 {
+                //if now % 600 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank());
@@ -280,10 +257,8 @@ mod tests {
     use std::thread::JoinHandle;
 
     use nohash_hasher::IntMap;
-    use tracing::info;
 
     use crate::simulation::config::Config;
-    use crate::simulation::logging;
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
     use crate::simulation::messaging::message_broker::{
@@ -297,8 +272,6 @@ mod tests {
 
     #[test]
     fn execute_3_links_single_part() {
-        let guards =
-            logging::init_logging("./test_output/simulation/controller", String::from("0"));
         let config = Arc::new(
             Config::builder()
                 .network_file(String::from("./assets/3-links/3-links-network.xml"))
@@ -319,9 +292,6 @@ mod tests {
 
     #[test]
     fn execute_3_links_2_parts() {
-        let guards =
-            logging::init_logging("./test_output/simulation/controller", String::from("0"));
-
         let config = Arc::new(
             Config::builder()
                 .network_file(String::from("./assets/3-links/3-links-network.xml"))
@@ -411,13 +381,13 @@ mod tests {
     }
 
     struct SendingSubscriber {
+        #[allow(dead_code)]
         rank: u32,
         sender: Sender<(u32, Event)>,
     }
 
     impl EventsSubscriber for SendingSubscriber {
         fn receive_event(&mut self, time: u32, event: &Event) {
-            info!("#{} at {time} {event:?}", self.rank);
             self.sender
                 .send((time, event.clone()))
                 .expect("Failed on sending event message!");
@@ -499,7 +469,6 @@ mod tests {
 
     impl EventsSubscriber for TestSubscriber {
         fn receive_event(&mut self, time: u32, event: &Event) {
-            info!("#MAIN\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t{time} {event:?}");
             let (expected_time, expected_event) =
                 self.expected_events.get(self.next_index).unwrap();
             self.next_index += 1;

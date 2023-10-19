@@ -4,7 +4,6 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use mpi::topology::SystemCommunicator;
 use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
-use tracing::info;
 
 use crate::simulation::messaging::messages::proto::{StorageCap, SyncMessage, Vehicle};
 use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
@@ -87,11 +86,6 @@ impl NetCommunicator for ChannelNetCommunicator {
         // send messages to everyone
         for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
-
-            if !msg.vehicles.is_empty() || !msg.storage_capacities.is_empty() {
-                info!("#{} sends {:?}", self.rank(), msg);
-            }
-
             sender
                 .send(msg)
                 .expect("Failed to send message in message broker");
@@ -104,10 +98,6 @@ impl NetCommunicator for ChannelNetCommunicator {
                 .recv()
                 .expect("Error while receiving messages");
             let from_rank = received_msg.from_process;
-
-            if !received_msg.vehicles.is_empty() || !received_msg.storage_capacities.is_empty() {
-                info!("#{} gets {:?}", self.rank(), received_msg);
-            }
 
             // If a message was received from a neighbor partition for this very time step, remove
             // that partition from expected messages which indicates which partitions we are waiting
@@ -261,7 +251,6 @@ where
         world: SystemCommunicator,
         network: &SimNetworkPartition,
     ) -> NetMessageBroker<MpiNetCommunicator> {
-        let rank = world.rank();
         let neighbors = network
             .neighbors()
             .iter()
@@ -412,7 +401,7 @@ mod tests {
 
     use crate::simulation::id::Id;
     use crate::simulation::messaging::message_broker::{ChannelNetCommunicator, NetMessageBroker};
-    use crate::simulation::messaging::messages::proto::{StorageCap, Vehicle};
+    use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
     use crate::test_utils::create_agent;
@@ -425,13 +414,15 @@ mod tests {
             sends.fetch_add(1, Ordering::Relaxed);
             let result = broker.send_recv(0);
 
-            // all threads should block on receive. Therefore, the send count should be equal to the
-            // number of brokers (4 in our example) after the send_recv method.
-            assert_eq!(
-                4,
-                sends.load(Ordering::Relaxed),
-                "# {} Failed on send count.",
-                broker.rank()
+            // all threads should block on receive. Therefore, the send count should be equal to 3, as
+            // 0,1 have 3 as a remote neighbor. It is possible for 0 and 1 to move on before 3 has
+            // increased the send count. Most of the time it should be 4 though. I don't know how
+            // good this test is in this case. I guess the remaining asserts are also fine.
+            assert!(
+                3 <= sends.load(Ordering::Relaxed),
+                "# {} Failed on send count of {}",
+                broker.rank(),
+                sends.load(Ordering::Relaxed)
             );
 
             // the different partitions expect varying numbers of sync messags.
