@@ -71,6 +71,8 @@ pub struct Nodes {
 pub struct Links {
     #[serde(rename = "link", default)]
     pub links: Vec<IOLink>,
+    #[serde(rename = "effectivecellsize")]
+    pub effective_cell_size: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -84,7 +86,10 @@ pub struct IONetwork {
 impl IONetwork {
     pub fn new(name: Option<String>) -> IONetwork {
         IONetwork {
-            links: Links { links: Vec::new() },
+            links: Links {
+                links: Vec::new(),
+                effective_cell_size: Some(7.5),
+            },
             nodes: Nodes { nodes: Vec::new() },
             name,
         }
@@ -103,6 +108,10 @@ impl IONetwork {
 
     pub fn links_mut(&mut self) -> &mut Vec<IOLink> {
         &mut self.links.links
+    }
+
+    pub fn effective_cell_size(&self) -> f32 {
+        self.links.effective_cell_size.unwrap_or(7.5)
     }
 
     pub fn from_file(file_path: &str) -> IONetwork {
@@ -179,7 +188,7 @@ mod tests {
                     <nodes>
                         <node id=\"1\" x=\"-20000\" y=\"0\"/>
                     </nodes>
-                    <links>
+                    <links effectivecellsize=\"385.3\">
                         <link id=\"23\" from=\"15\" to=\"1\" length=\"10000.00\" capacity=\"36000\" freespeed=\"27.78\" permlanes=\"1\" modes=\"car,bike\"  />
                     </links>
                 </network>
@@ -205,7 +214,7 @@ mod tests {
                             </attributes>
                         </node>
                     </nodes>
-                    <links>
+                    <links effectivecellsize=\"42.0\">
                         <link id=\"23\" from=\"15\" to=\"1\" length=\"10000.00\" capacity=\"36000\" freespeed=\"27.78\" permlanes=\"1\" modes=\"car, bike\" />
                     </links>
                 </network>
@@ -217,6 +226,7 @@ mod tests {
         assert_eq!("test network", result.name.as_ref().unwrap());
         assert_eq!(1, result.nodes().len());
         assert_eq!(1, result.links().len());
+        assert_eq!(42., result.effective_cell_size());
 
         // test node structure
         let node = result.nodes().first().unwrap();
@@ -275,8 +285,6 @@ mod tests {
                 }
             }
         }
-
-        println!("{network:#?}");
     }
 
     #[test]
@@ -288,6 +296,8 @@ mod tests {
         assert_eq!("equil test network", network.name.as_ref().unwrap());
         assert_eq!(15, network.nodes().len());
         assert_eq!(23, network.links().len());
+        // this network doesn't have an effectivecellsize set so test, whether the default works
+        assert_eq!(7.5, network.effective_cell_size());
     }
 
     #[test]

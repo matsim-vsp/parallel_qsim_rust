@@ -4,7 +4,7 @@
 <population desc="single agent on three links network">
     <person id="100">
         <plan score="92.61490939414003" selected="yes">
-            <activity type="home_28800.0" link="link1" x="5" y="10" end_time="9:00:00"/>
+            <activity type="home" link="link1" x="5" y="10" end_time="9:00:00"/>
             <leg mode="walk" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
@@ -30,7 +30,7 @@
                 </attributes>
                 <route type="generic" start_link="link3" end_link="link3" trav_time="00:00:16" distance="20"></route>
             </leg>
-            <activity type="errands_2400.0" link="link3" x="1100.0" y="20" start_time="15:51:00" />
+            <activity type="errands" link="link3" x="1100.0" y="20" start_time="15:51:00" />
         </plan>
     </person>
 </population>

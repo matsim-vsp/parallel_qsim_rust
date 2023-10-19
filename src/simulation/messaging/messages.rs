@@ -11,8 +11,8 @@ use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, TravelTimesMessage, Vehicle,
-    VehicleMessage,
+    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, StorageCap, SyncMessage,
+    TravelTimesMessage, Vehicle,
 };
 use crate::simulation::network::global_network::Network;
 use crate::simulation::population::population::Population;
@@ -44,18 +44,23 @@ impl ExperimentalMessage {
     }
 }
 
-impl VehicleMessage {
-    pub fn new(time: u32, from: u32, to: u32) -> VehicleMessage {
-        VehicleMessage {
+impl SyncMessage {
+    pub fn new(time: u32, from: u32, to: u32) -> Self {
+        Self {
             time,
             from_process: from,
             to_process: to,
             vehicles: Vec::new(),
+            storage_capacities: Vec::new(),
         }
     }
 
-    pub fn add(&mut self, vehicle: Vehicle) {
+    pub fn add_veh(&mut self, vehicle: Vehicle) {
         self.vehicles.push(vehicle);
+    }
+
+    pub fn add_storage_cap(&mut self, storage_cap: StorageCap) {
+        self.storage_capacities.push(storage_cap);
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -64,8 +69,8 @@ impl VehicleMessage {
         buffer
     }
 
-    pub fn deserialize(buffer: &[u8]) -> VehicleMessage {
-        VehicleMessage::decode(&mut Cursor::new(buffer)).unwrap()
+    pub fn deserialize(buffer: &[u8]) -> SyncMessage {
+        SyncMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
@@ -98,15 +103,15 @@ impl TravelTimesMessage {
 }
 
 // Implementation for ordering, so that vehicle messages can be put into a message queue sorted by time
-impl PartialOrd for VehicleMessage {
+impl PartialOrd for SyncMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Eq for VehicleMessage {}
+impl Eq for SyncMessage {}
 
-impl Ord for VehicleMessage {
+impl Ord for SyncMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         other.time.cmp(&self.time)
     }
@@ -152,6 +157,12 @@ impl Vehicle {
         let route = leg.route.as_ref().unwrap();
         self.curr_route_elem + 1 >= route.route.len() as u32
     }
+
+    pub fn peek_next_route_element(&self) -> Option<usize> {
+        let route = self.agent().curr_leg().route.as_ref().unwrap();
+        let next_i = self.curr_route_elem as usize + 1;
+        route.route.get(next_i).map(|i| *i as usize)
+    }
 }
 
 impl EndTime for Vehicle {
@@ -183,7 +194,7 @@ impl Agent {
         }
 
         Agent {
-            id: person_id.internal as u64,
+            id: person_id.internal() as u64,
             plan: Some(plan),
             curr_plan_elem: 0,
         }
@@ -322,7 +333,7 @@ impl EndTime for Agent {
         return if self.curr_plan_elem % 2 == 0 {
             self.curr_act().cmp_end_time(now)
         } else {
-            self.curr_leg().trav_time.unwrap() + now
+            self.curr_leg().trav_time + now
         };
     }
 }
@@ -397,8 +408,8 @@ impl Activity {
         Activity {
             x: io_act.x,
             y: io_act.y,
-            act_type: act_type.internal as u64,
-            link_id: link_id.internal as u64,
+            act_type: act_type.internal() as u64,
+            link_id: link_id.internal() as u64,
             start_time: parse_time_opt(&io_act.start_time),
             end_time: parse_time_opt(&io_act.end_time),
             max_dur: parse_time_opt(&io_act.max_dur),
@@ -447,20 +458,30 @@ impl Leg {
 
         Self {
             route: Some(route),
-            mode: mode.internal as u64,
-            trav_time: parse_time_opt(&io_leg.trav_time),
+            mode: mode.internal() as u64,
+            trav_time: Self::parse_trav_time(&io_leg.trav_time, &io_leg.route.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
-            routing_mode: routing_mode.internal as u64,
+            routing_mode: routing_mode.internal() as u64,
         }
     }
 
-    pub fn new(route: Route, mode: u64, trav_time: Option<u32>, dep_time: Option<u32>) -> Self {
+    pub fn new(route: Route, mode: u64, trav_time: u32, dep_time: Option<u32>) -> Self {
         Self {
             route: Some(route),
             mode,
             trav_time,
             dep_time,
             routing_mode: 0,
+        }
+    }
+
+    fn parse_trav_time(leg_trav_time: &Option<String>, route_trav_time: &Option<String>) -> u32 {
+        if let Some(trav_time) = parse_time_opt(&leg_trav_time) {
+            trav_time
+        } else if let Some(trav_time) = parse_time_opt(&route_trav_time) {
+            trav_time
+        } else {
+            0
         }
     }
 }
@@ -499,12 +520,12 @@ impl Route {
     ) -> Self {
         let start_link = net.link_ids.get_from_ext(&io_route.start_link);
         let end_link = net.link_ids.get_from_ext(&io_route.end_link);
-        let veh_id: Id<Vehicle> = garage.get_veh_id(person_id, mode);
+        let veh_id: Id<Vehicle> = garage.get_mode_veh_id(person_id, mode);
 
         Route {
             distance: io_route.distance,
-            veh_id: veh_id.internal as u64,
-            route: vec![start_link.internal as u64, end_link.internal as u64],
+            veh_id: veh_id.internal() as u64,
+            route: vec![start_link.internal() as u64, end_link.internal() as u64],
         }
     }
 
@@ -526,12 +547,12 @@ impl Route {
                     None => Vec::new(),
                     Some(encoded_links) => encoded_links
                         .split(' ')
-                        .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal as u64)
+                        .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal() as u64)
                         .collect(),
                 };
                 Route {
                     distance: io_route.distance,
-                    veh_id: veh_id.internal as u64,
+                    veh_id: veh_id.internal() as u64,
                     route: link_ids,
                 }
             }
@@ -542,16 +563,22 @@ impl Route {
 }
 
 fn parse_time_opt(value: &Option<String>) -> Option<u32> {
-    value.as_ref().map(|value| parse_time(value))
+    if let Some(time) = value.as_ref() {
+        parse_time(time)
+    } else {
+        None
+    }
 }
 
-fn parse_time(value: &str) -> u32 {
+fn parse_time(value: &str) -> Option<u32> {
     let split: Vec<&str> = value.split(':').collect();
-    assert_eq!(3, split.len());
+    if split.len() == 3 {
+        let hour: u32 = split.first().unwrap().parse().unwrap();
+        let minutes: u32 = split.get(1).unwrap().parse().unwrap();
+        let seconds: u32 = split.get(2).unwrap().parse().unwrap();
 
-    let hour: u32 = split.first().unwrap().parse().unwrap();
-    let minutes: u32 = split.get(1).unwrap().parse().unwrap();
-    let seconds: u32 = split.get(2).unwrap().parse().unwrap();
-
-    hour * 3600 + minutes * 60 + seconds
+        Some(hour * 3600 + minutes * 60 + seconds)
+    } else {
+        None
+    }
 }

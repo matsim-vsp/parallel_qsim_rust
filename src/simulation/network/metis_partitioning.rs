@@ -3,8 +3,8 @@ use metis::{Graph, Idx};
 
 use super::global_network::Network;
 
-pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
-    if num_parts == 1 {
+pub fn partition(network: &Network, num_parts: u32) -> Vec<Idx> {
+    if num_parts <= 1 {
         return vec![0; network.nodes.len()];
     }
 
@@ -16,11 +16,9 @@ pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
             .iter()
             .map(|l| &l.to)
             .fold(vec![0; network.nodes.len()], |mut result, id| {
-                result[id.internal] += 1;
+                result[id.internal()] += 1;
                 result
             });
-
-    println!("{node_count:?}");
 
     let mut xadj: Vec<Idx> = Vec::from([0]);
     let mut adjncy: Vec<Idx> = Vec::new();
@@ -34,17 +32,17 @@ pub fn partition(network: &Network, num_parts: usize) -> Vec<Idx> {
         let num_in_links = node.in_links.len() as Idx;
         let next_adjacency_index = xadj.last().unwrap() + num_out_links + num_in_links;
         xadj.push(next_adjacency_index);
-        vwgt.push(node_count[node.id.internal] as Idx);
+        vwgt.push(node_count[node.id.internal()] as Idx);
 
         for id in &node.out_links {
-            let link = &network.links[id.internal];
-            adjncy.push(link.to.internal as Idx);
+            let link = &network.links[id.internal()];
+            adjncy.push(link.to.internal() as Idx);
             adjwgt.push(link.capacity as Idx);
         }
 
         for id in &node.in_links {
-            let link = &network.links[id.internal];
-            adjncy.push(link.from.internal as Idx);
+            let link = &network.links[id.internal()];
+            adjncy.push(link.from.internal() as Idx);
             adjwgt.push(link.capacity as Idx);
         }
     }
@@ -79,8 +77,7 @@ mod tests {
         ));
 
         for _n in 0..100 {
-            let partition_result = partition(&net, 2);
-            println!("{partition_result:?}");
+            let _partition_result = partition(&net, 2);
         }
     }
 }

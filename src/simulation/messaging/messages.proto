@@ -14,11 +14,17 @@ message ExperimentalMessage {
 }
 
 // messages for the qsim
-message VehicleMessage {
+message SyncMessage {
   uint32 time = 1;
   uint32 from_process = 2;
   uint32 to_process = 3;
   repeated Vehicle vehicles = 4;
+  repeated StorageCap storage_capacities = 5;
+}
+
+message StorageCap {
+  uint64 link_id = 1;
+  float value = 2;
 }
 
 message Vehicle {
@@ -56,7 +62,7 @@ message Leg {
   uint64 mode = 1;
   uint64 routing_mode = 2;
   optional uint32 dep_time = 3;
-  optional uint32 trav_time = 4;
+  uint32 trav_time = 4;
   Route route = 5;
 }
 

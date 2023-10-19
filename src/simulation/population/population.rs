@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
@@ -26,7 +26,7 @@ impl<'p> Population<'p> {
         }
     }
 
-    pub fn from_file(file: &str, net: &Network, garage: &mut Garage, partition: usize) -> Self {
+    pub fn from_file(file: &str, net: &Network, garage: &mut Garage, partition: u32) -> Self {
         let io_population = IOPopulation::from_file(file);
         Self::from_io(&io_population, net, garage, partition)
     }
@@ -35,7 +35,7 @@ impl<'p> Population<'p> {
         io_population: &IOPopulation,
         network: &Network,
         garage: &mut Garage,
-        partition: usize,
+        partition: u32,
     ) -> Self {
         let mut result = Population::new();
 
@@ -59,18 +59,18 @@ impl<'p> Population<'p> {
                 garage
                     .vehicle_types
                     .keys()
-                    .map(move |type_id| Self::create_veh_id_string(&p_id, type_id))
+                    .map(move |type_id| (p_id.clone(), type_id.clone())) //Self::create_veh_id_string(&p_id, type_id))
             })
             .collect();
 
         // have this in a separate loop because we are iterating over garage's vehicle types and we
         // can't borrow vehicle types while using a &mut in add_veh.
-        for veh_id in raw_veh {
-            garage.add_veh_id(veh_id.as_str());
+        for (person_id, type_id) in raw_veh {
+            garage.add_veh_id(&person_id, &type_id);
         }
 
         // now iterate over all plans to extract activity ids
-        let types: HashSet<_> = io
+        let types: Vec<_> = io
             .persons
             .iter()
             .flat_map(|person| person.plans.iter())
@@ -92,7 +92,7 @@ impl<'p> Population<'p> {
         io_population: &IOPopulation,
         net: &Network,
         garage: &Garage,
-        part: usize,
+        part: u32,
     ) {
         let persons: Vec<_> = io_population
             .persons
@@ -127,10 +127,10 @@ impl<'p> Population<'p> {
     }
 
     fn create_veh_id_string(person_id: &Id<Agent>, veh_type: &Id<VehicleType>) -> String {
-        format!("{}_{}", person_id.external, veh_type.external)
+        format!("{}_{}", person_id.external(), veh_type.external())
     }
 
-    fn is_partition(io_person: &IOPerson, net: &Network, partition: usize) -> bool {
+    fn is_partition(io_person: &IOPerson, net: &Network, partition: u32) -> bool {
         let link = Self::link_first_act(io_person, net);
         link.partition == partition
     }
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn from_io_1_plan() {
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let net = Network::from_file("./assets/equil/equil-network.xml", 1, &mut garage);
+        let net = Network::from_file("./assets/equil/equil-network.xml", 1, "metis", &mut garage);
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
         assert_eq!(1, pop.agents.len());
@@ -171,9 +171,9 @@ mod tests {
 
         let home_act = plan.acts.first().unwrap();
         let act_type = pop.act_types.get_from_wire(home_act.act_type);
-        assert_eq!("h", act_type.external.as_str());
+        assert_eq!("h", act_type.external());
         assert_eq!(
-            net.link_ids.get_from_ext("1").internal as u64,
+            net.link_ids.get_from_ext("1").internal() as u64,
             home_act.link_id
         );
         assert_eq!(-25000., home_act.x);
@@ -183,20 +183,19 @@ mod tests {
         assert_eq!(None, home_act.max_dur);
 
         let leg = plan.legs.first().unwrap();
-        assert_eq!(None, leg.trav_time);
         assert_eq!(None, leg.dep_time);
         assert!(leg.route.is_some());
         let net_route = leg.route.as_ref().unwrap();
         assert_eq!(
-            garage.vehicle_ids.get_from_ext("1_car").internal as u64,
+            garage.vehicle_ids.get_from_ext("1_car").internal() as u64,
             net_route.veh_id
         );
         assert_eq!(
             vec![
-                net.link_ids.get_from_ext("1").internal as u64,
-                net.link_ids.get_from_ext("6").internal as u64,
-                net.link_ids.get_from_ext("15").internal as u64,
-                net.link_ids.get_from_ext("20").internal as u64,
+                net.link_ids.get_from_ext("1").internal() as u64,
+                net.link_ids.get_from_ext("6").internal() as u64,
+                net.link_ids.get_from_ext("15").internal() as u64,
+                net.link_ids.get_from_ext("20").internal() as u64,
             ],
             net_route.route
         );
@@ -205,7 +204,12 @@ mod tests {
     #[test]
     fn from_io_multi_mode() {
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let net = Network::from_file("./assets/3-links/3-links-network.xml", 1, &mut garage);
+        let net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            "metis",
+            &mut garage,
+        );
         let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
 
         // check that we have all three vehicle types
@@ -214,36 +218,32 @@ mod tests {
         assert!(garage
             .vehicle_types
             .keys()
-            .all(|type_id| expected_veh_types.contains(type_id.external.as_str())));
+            .all(|type_id| expected_veh_types.contains(type_id.external())));
 
         // check that we have a vehicle for each mode and for each person
-        assert_eq!(9, garage.vehicles.len());
+        assert_eq!(6, garage.network_vehicles.len());
+        assert_eq!(3, garage.teleported_veh.len());
 
         // check population
         // activity types should be done as id. If id is not present this will crash
-        assert_eq!("home", pop.act_types.get_from_ext("home").external.as_str());
-        assert_eq!(
-            "errands",
-            pop.act_types.get_from_ext("errands").external.as_str()
-        );
+        assert_eq!("home", pop.act_types.get_from_ext("home").external());
+        assert_eq!("errands", pop.act_types.get_from_ext("errands").external());
 
         // agents should also have ids
-        assert_eq!("100", pop.agent_ids.get_from_ext("100").external.as_str());
-        assert_eq!("200", pop.agent_ids.get_from_ext("200").external.as_str());
-        assert_eq!("300", pop.agent_ids.get_from_ext("300").external.as_str());
+        assert_eq!("100", pop.agent_ids.get_from_ext("100").external());
+        assert_eq!("200", pop.agent_ids.get_from_ext("200").external());
+        assert_eq!("300", pop.agent_ids.get_from_ext("300").external());
 
         // we expect three agents overall
         assert_eq!(3, pop.agents.len());
 
         // todo test bookkeeping of garage person_2_vehicle
-
-        println!("{pop:#?}");
     }
 
     #[test]
     fn from_io() {
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2, &mut garage);
+        let net = Network::from_file("./assets/equil/equil-network.xml", 2, "metis", &mut garage);
         let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
         let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);
 
