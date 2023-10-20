@@ -35,6 +35,16 @@ impl SimLink {
         }
     }
 
+    pub fn flow_cap(&self) -> f32 {
+        match self {
+            SimLink::Local(l) => l.flow_cap.capacity(),
+            SimLink::In(il) => il.local_link.flow_cap.capacity(),
+            SimLink::Out(_) => {
+                panic!("no flow cap for out links")
+            }
+        }
+    }
+
     pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
         match self {
             SimLink::Local(ll) => ll.q_front(now),

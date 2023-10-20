@@ -1,0 +1,8 @@
+message NetworkPartition {
+
+}
+
+message IdStore {
+  repeated uint64 internal = 1;
+  repeated string external = 2;
+}

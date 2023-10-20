@@ -34,7 +34,6 @@ impl Flowcap {
         self.accumulated_capacity -= by;
     }
 
-    #[cfg(test)]
     pub fn capacity(&self) -> f32 {
         self.capacity_s
     }
