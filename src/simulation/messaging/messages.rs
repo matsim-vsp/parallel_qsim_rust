@@ -452,8 +452,8 @@ impl Leg {
     fn from_io(io_leg: &IOLeg, person_id: &Id<Agent>, net: &Network, garage: &Garage) -> Self {
         let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
-        let routing_mode = garage.modes.get_from_ext(routing_mode_ext);
-        let mode = garage.modes.get_from_ext(io_leg.mode.as_str());
+        let routing_mode = net.modes.get_from_ext(routing_mode_ext);
+        let mode = net.modes.get_from_ext(io_leg.mode.as_str());
         let route = Route::from_io(&io_leg.route, person_id, &mode, net, garage);
 
         Self {

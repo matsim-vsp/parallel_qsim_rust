@@ -17,7 +17,6 @@ pub struct Garage<'g> {
     pub teleported_veh: IntMap<Id<Vehicle>, Id<VehicleType>>,
     pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,
     pub vehicle_type_ids: IdStore<'g, VehicleType>,
-    pub modes: IdStore<'g, String>,
 }
 
 #[derive(Debug)]
@@ -41,24 +40,26 @@ impl<'g> Garage<'g> {
             teleported_veh: Default::default(),
             vehicle_types: Default::default(),
             vehicle_type_ids: IdStore::new(),
-            modes: Default::default(),
         }
     }
 
-    pub fn from_file(file_path: &str) -> Self {
+    pub fn from_file(file_path: &str, mode_store: &mut IdStore<String>) -> Self {
         let io_veh_definition = IOVehicleDefinitions::from_file(file_path);
         let mut result = Self::new();
         for io_veh_type in io_veh_definition.veh_types {
-            result.add_io_veh_type(io_veh_type);
+            result.add_io_veh_type(io_veh_type, mode_store);
         }
         result
     }
 
-    pub fn add_io_veh_type(&mut self, io_veh_type: IOVehicleType) {
+    pub fn add_io_veh_type(
+        &mut self,
+        io_veh_type: IOVehicleType,
+        mode_store: &mut IdStore<String>,
+    ) {
         let id = self.vehicle_type_ids.create_id(&io_veh_type.id);
-        let net_mode = self
-            .modes
-            .create_id(&io_veh_type.network_mode.unwrap_or_default().network_mode);
+        let net_mode =
+            mode_store.create_id(&io_veh_type.network_mode.unwrap_or_default().network_mode);
         let lod = if let Some(attr) = io_veh_type
             .attributes
             .unwrap_or_default()
@@ -187,6 +188,7 @@ impl<'g> Garage<'g> {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::id::{Id, IdStore};
     use crate::simulation::io::attributes::{Attr, Attrs};
     use crate::simulation::io::vehicles::{
         IODimension, IOFowEfficiencyFactor, IONetworkMode, IOPassengerCarEquivalents,
@@ -199,7 +201,7 @@ mod tests {
     fn add_veh_type() {
         let mut garage = Garage::new();
         let type_id = garage.vehicle_type_ids.create_id("some-type");
-        let mode = garage.modes.create_id("default-mode");
+        let mode = Id::new_internal(0);
         let veh_type = VehicleType::new(type_id, mode);
 
         garage.add_veh_type(veh_type);
@@ -212,7 +214,7 @@ mod tests {
     fn add_veh_type_reject_duplicate() {
         let mut garage = Garage::new();
         let type_id = garage.vehicle_type_ids.create_id("some-type");
-        let mode = garage.modes.create_id("default-mode");
+        let mode = Id::new_internal(0);
         let veh_type1 = VehicleType::new(type_id.clone(), mode.clone());
         let veh_type2 = VehicleType::new(type_id.clone(), mode.clone());
 
@@ -237,11 +239,12 @@ mod tests {
             attributes: None,
         };
         let mut garage = Garage::new();
+        let mut mode_store = IdStore::new();
 
-        garage.add_io_veh_type(io_veh_type);
+        garage.add_io_veh_type(io_veh_type, &mut mode_store);
 
         assert_eq!(1, garage.vehicle_types.len());
-        assert_eq!(0, garage.modes.get_from_ext("car").internal());
+        assert_eq!(0, mode_store.get_from_ext("car").internal());
         assert_eq!(
             0,
             garage.vehicle_type_ids.get_from_ext("some-id").internal()
@@ -276,11 +279,12 @@ mod tests {
             }),
         };
         let mut garage = Garage::new();
+        let mut mode_store = IdStore::new();
 
-        garage.add_io_veh_type(io_veh_type);
+        garage.add_io_veh_type(io_veh_type, &mut mode_store);
 
         let expected_id = garage.vehicle_type_ids.get_from_ext("some-id");
-        let expected_mode = garage.modes.get_from_ext("some_mode");
+        let expected_mode = mode_store.get_from_ext("some_mode");
 
         let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
@@ -297,7 +301,8 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let garage = Garage::from_file("./assets/3-links/vehicles.xml");
+        let mut mode_store = IdStore::new();
+        let garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut mode_store);
         assert_eq!(3, garage.vehicle_types.len());
     }
 }

@@ -27,14 +27,8 @@ pub fn run_single_thread(config: Config) {
     let output_path = PathBuf::from(&config.output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
-    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
-
-    let network = Network::from_file(
-        config.network_file.as_ref(),
-        0,
-        &config.partition_method,
-        &mut garage,
-    );
+    let mut network = Network::from_file(config.network_file.as_ref(), 0, &config.partition_method);
+    let mut garage = Garage::from_file(config.vehicles_file.as_ref(), &mut network.modes);
 
     let population =
         Population::from_file(config.population_file.as_ref(), &network, &mut garage, 0);
@@ -79,13 +73,13 @@ pub fn run_local_multithreaded(config: Config) {
             let config = config.clone();
             thread::spawn(move || {
                 // read the io stuff in multiple times. This can be optimized as in https://github.com/Janekdererste/rust_q_sim/issues/39
-                let mut garage = Garage::from_file(config.vehicles_file.as_ref());
-                let network = Network::from_file(
+                let mut network = Network::from_file(
                     config.network_file.as_ref(),
                     config.num_parts,
                     &config.partition_method,
-                    &mut garage,
                 );
+                let mut garage =
+                    Garage::from_file(config.vehicles_file.as_ref(), &mut network.modes);
                 let population = Population::from_file(
                     config.population_file.as_ref(),
                     &network,
@@ -131,14 +125,12 @@ pub fn run(world: SystemCommunicator, config: Config) {
     let output_path = PathBuf::from(&config.output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
-    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
-
-    let network = Network::from_file(
+    let mut network = Network::from_file(
         config.network_file.as_ref(),
         config.num_parts,
         &config.partition_method,
-        &mut garage,
     );
+    let mut garage = Garage::from_file(config.vehicles_file.as_ref(), &mut network.modes);
 
     // write network with new ids to output but only once.
     if rank == 0 {

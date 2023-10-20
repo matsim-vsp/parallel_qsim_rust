@@ -4,7 +4,6 @@ use std::{collections::HashSet, path::Path};
 use nohash_hasher::IntSet;
 
 use crate::simulation::io::attributes::{Attr, Attrs};
-use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{
     id::{Id, IdStore},
     io::network::{IOLink, IONetwork, IONode},
@@ -20,6 +19,7 @@ pub struct Network<'a> {
     pub nodes: Vec<Node>,
     pub links: Vec<Link>,
     pub effective_cell_size: f32,
+    pub modes: IdStore<'a, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,18 +61,14 @@ impl<'a> Network<'a> {
             nodes: Vec::new(),
             links: Vec::new(),
             effective_cell_size: 7.5,
+            modes: IdStore::new(),
         }
     }
 
-    pub fn from_file(
-        file_path: &str,
-        num_parts: u32,
-        partition_method: &str,
-        garage: &mut Garage,
-    ) -> Self {
+    pub fn from_file(file_path: &str, num_parts: u32, partition_method: &str) -> Self {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
-        Self::init_nodes_and_links(&mut result, io_network, garage);
+        Self::init_nodes_and_links(&mut result, io_network);
         Self::partition_network(&mut result, partition_method, num_parts);
         result
     }
@@ -185,7 +181,7 @@ impl<'a> Network<'a> {
         self.links.push(link);
     }
 
-    pub fn add_io_link(&mut self, io_link: IOLink, garage: &mut Garage) {
+    pub fn add_io_link(&mut self, io_link: IOLink) {
         let id = self.link_ids.create_id(&io_link.id);
         assert_eq!(
             id.internal(),
@@ -204,7 +200,7 @@ impl<'a> Network<'a> {
             .modes
             .split(',')
             .map(|s| s.trim())
-            .map(|mode| garage.modes.create_id(mode))
+            .map(|mode| self.modes.create_id(mode))
             .collect();
         let from_id = self.node_ids.get_from_ext(&io_link.from);
         let to_id = self.node_ids.get_from_ext(&io_link.to);
@@ -232,13 +228,13 @@ impl<'a> Network<'a> {
         self.links.get(id.internal() as usize).unwrap()
     }
 
-    fn init_nodes_and_links(network: &mut Network, io_network: IONetwork, garage: &mut Garage) {
+    fn init_nodes_and_links(network: &mut Network, io_network: IONetwork) {
         for node in io_network.nodes.nodes {
             network.add_io_node(node)
         }
 
         for link in io_network.links.links {
-            network.add_io_link(link, garage)
+            network.add_io_link(link)
         }
     }
 
@@ -323,7 +319,6 @@ impl Link {
 #[cfg(test)]
 mod tests {
     use crate::simulation::io::network::{IOLink, IONode};
-    use crate::simulation::vehicles::garage::Garage;
 
     use super::{Link, Network, Node};
 
@@ -453,11 +448,10 @@ mod tests {
             attributes: None,
         };
 
-        let mut garage = Garage::new();
         let mut network = Network::new();
         network.add_io_node(io_from);
         network.add_io_node(io_to);
-        network.add_io_link(io_link.clone(), &mut garage);
+        network.add_io_link(io_link.clone());
 
         let from = network.get_node(&network.node_ids.get_from_ext(&ext_from_id));
         let to = network.get_node(&network.node_ids.get_from_ext(&ext_to_id));
@@ -471,16 +465,14 @@ mod tests {
         assert_eq!(io_link.freespeed, link.freespeed);
         assert_eq!(io_link.permlanes, link.permlanes);
 
-        assert!(link.modes.contains(&garage.modes.get_from_ext("car")));
-        assert!(link.modes.contains(&garage.modes.get_from_ext("ride")));
-        assert!(link.modes.contains(&garage.modes.get_from_ext("bike")));
+        assert!(link.modes.contains(&network.modes.get_from_ext("car")));
+        assert!(link.modes.contains(&network.modes.get_from_ext("ride")));
+        assert!(link.modes.contains(&network.modes.get_from_ext("bike")));
     }
 
     #[test]
     fn from_file() {
-        let mut garage = Garage::default();
-        let network =
-            Network::from_file("./assets/equil/equil-network.xml", 2, "metis", &mut garage);
+        let network = Network::from_file("./assets/equil/equil-network.xml", 2, "metis");
 
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
