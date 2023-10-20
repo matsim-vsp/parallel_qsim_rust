@@ -203,80 +203,6 @@ impl<C> NetMessageBroker<C>
 where
     C: NetCommunicator,
 {
-    /*   pub fn new_single_partition(
-          network: &SimNetworkPartition,
-      ) -> NetMessageBroker<DummyNetCommunicator> {
-          let link_mapping = network
-              .global_network
-              .links
-              .iter()
-              .map(|link| (link.id.internal(), link.partition))
-              .collect();
-
-          NetMessageBroker {
-              communicator: DummyNetCommunicator(),
-              out_messages: Default::default(),
-              in_messages: Default::default(),
-              link_mapping,
-              neighbors: Default::default(),
-          }
-      }
-
-      pub fn new_channel_broker(
-          comm: ChannelNetCommunicator,
-          network: &SimNetworkPartition,
-      ) -> NetMessageBroker<ChannelNetCommunicator> {
-          let neighbors = network
-              .neighbors()
-              .iter()
-              .map(|rank| *rank as u32)
-              .collect();
-          let link_mapping = network
-              .global_network
-              .links
-              .iter()
-              .map(|link| (link.id.internal(), link.partition))
-              .collect();
-
-          NetMessageBroker {
-              communicator: comm,
-              out_messages: Default::default(),
-              in_messages: Default::default(),
-              link_mapping,
-              neighbors,
-          }
-      }
-
-      pub fn new_mpi_broker(
-          world: SystemCommunicator,
-          network: &SimNetworkPartition,
-      ) -> NetMessageBroker<MpiNetCommunicator> {
-          let neighbors = network
-              .neighbors()
-              .iter()
-              .map(|rank| *rank as u32)
-              .collect();
-          let link_mapping = network
-              .global_network
-              .links
-              .iter()
-              .map(|link| (link.id.internal(), link.partition))
-              .collect();
-
-          let communicator = MpiNetCommunicator {
-              mpi_communicator: world,
-          };
-          NetMessageBroker {
-              communicator,
-              out_messages: HashMap::new(),
-              in_messages: BinaryHeap::new(),
-              link_mapping,
-              neighbors,
-          }
-      }
-
-
-    */
     pub fn new(comm: C, net: &SimNetworkPartition) -> Self {
         let neighbors = net.neighbors().iter().copied().collect();
         let link_mapping = net
@@ -365,16 +291,10 @@ where
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
-            //  info!("; {}; {}; pop cache ", self.rank(), now);
             if msg.time <= now {
-                //  info!(
-                //      "; {}; {now}; pop_cache; {}; {}; {}; {expected_messages:?}",
-                //      self.rank(), msg.from_process, msg.to_process, msg.time
-                //  );
                 expected_messages.remove(&msg.from_process);
                 messages.push(self.in_messages.pop().unwrap())
             } else {
-                //  info!("; {}; {}; break in cache ", self.rank(), now);
                 break; // important! otherwise this is an infinite loop
             }
         }
