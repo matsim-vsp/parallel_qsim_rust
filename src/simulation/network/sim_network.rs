@@ -1,7 +1,7 @@
 use nohash_hasher::{BuildNoHashHasher, IntMap, IntSet};
 use rand::distributions::Distribution;
 use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 use rand_distr::WeightedAliasIndex;
 
 use crate::simulation::messaging::messages::proto::StorageCap;
@@ -32,7 +32,6 @@ pub struct SimNetworkPartition<'n> {
 
 #[derive(Debug)]
 pub struct SimNode {
-    id: u64,
     in_links: Vec<u64>,
     in_links_weights: Option<WeightedAliasIndex<f32>>,
 }
@@ -74,7 +73,6 @@ impl<'n> SimNetworkPartition<'n> {
     }
 
     fn create_sim_node(node: &Node, network: &Network) -> SimNode {
-        let id = node.id.internal();
         let in_links: Vec<u64> = node.in_links.iter().map(|l_id| l_id.internal()).collect();
         let capacities: Vec<f32> = node
             .in_links
@@ -90,7 +88,6 @@ impl<'n> SimNetworkPartition<'n> {
         };
 
         SimNode {
-            id,
             in_links,
             in_links_weights,
         }
@@ -322,7 +319,6 @@ impl<'n> SimNetworkPartition<'n> {
 #[cfg(test)]
 mod tests {
     use assert_approx_eq::assert_approx_eq;
-    use itertools::Itertools;
 
     use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Route;
@@ -397,10 +393,10 @@ mod tests {
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             2,
-            "metis",
+            "none",
             &mut garage,
         );
-        let mut network = SimNetworkPartition::from_network(&global_net, 1);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
         network.send_veh_en_route(vehicle, 0);
@@ -591,8 +587,8 @@ mod tests {
 
         let mut publisher = EventsPublisher::new();
         for now in 0..1000 {
-            let result = sim_net.move_nodes(&mut publisher, now);
-            let move_links_result = sim_net.move_links(now);
+            let _ = sim_net.move_nodes(&mut publisher, now);
+            let _ = sim_net.move_links(now);
         }
 
         let link1 = sim_net.links.get(&0).unwrap().used_storage();

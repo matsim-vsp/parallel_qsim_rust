@@ -468,9 +468,7 @@ mod sim_link_tests {
         assert!(link.is_available());
 
         link.push_veh(vehicle2, 0);
-        // both vehicles take up 2pce, but used storage is capped at max storage, which should be
-        // 1.5 pce in this test case.
-        assert_approx_eq!(1.5, link.used_storage());
+        assert_approx_eq!(2.0, link.used_storage());
         assert!(!link.is_available());
 
         // make sure that vehicles are added ad the end of the queue

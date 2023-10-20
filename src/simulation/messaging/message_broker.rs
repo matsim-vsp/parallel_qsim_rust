@@ -591,7 +591,7 @@ mod tests {
             from,
             to,
             length: 0.0,
-            capacity: 0.0,
+            capacity: 1.0,
             freespeed: 0.0,
             permlanes: 0.0,
             modes: Default::default(),
