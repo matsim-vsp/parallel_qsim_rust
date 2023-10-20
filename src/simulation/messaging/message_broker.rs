@@ -117,7 +117,7 @@ impl NetCommunicator for ChannelNetCommunicator {
 }
 
 pub struct MpiNetCommunicator {
-    mpi_communicator: SystemCommunicator,
+    pub mpi_communicator: SystemCommunicator,
 }
 
 impl NetCommunicator for MpiNetCommunicator {
@@ -195,7 +195,7 @@ where
     in_messages: BinaryHeap<SyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
-    link_mapping: HashMap<usize, u32>,
+    link_mapping: HashMap<u64, u32>,
     neighbors: HashSet<u32>,
 }
 
@@ -203,80 +203,82 @@ impl<C> NetMessageBroker<C>
 where
     C: NetCommunicator,
 {
-    pub fn new_single_partition(
-        network: &SimNetworkPartition,
-    ) -> NetMessageBroker<DummyNetCommunicator> {
-        let link_mapping = network
-            .global_network
-            .links
-            .iter()
-            .map(|link| (link.id.internal(), link.partition))
-            .collect();
+    /*   pub fn new_single_partition(
+          network: &SimNetworkPartition,
+      ) -> NetMessageBroker<DummyNetCommunicator> {
+          let link_mapping = network
+              .global_network
+              .links
+              .iter()
+              .map(|link| (link.id.internal(), link.partition))
+              .collect();
 
-        NetMessageBroker {
-            communicator: DummyNetCommunicator(),
-            out_messages: Default::default(),
-            in_messages: Default::default(),
-            link_mapping,
-            neighbors: Default::default(),
-        }
-    }
+          NetMessageBroker {
+              communicator: DummyNetCommunicator(),
+              out_messages: Default::default(),
+              in_messages: Default::default(),
+              link_mapping,
+              neighbors: Default::default(),
+          }
+      }
 
-    pub fn new_channel_broker(
-        comm: ChannelNetCommunicator,
-        network: &SimNetworkPartition,
-    ) -> NetMessageBroker<ChannelNetCommunicator> {
-        let neighbors = network
-            .neighbors()
-            .iter()
-            .map(|rank| *rank as u32)
-            .collect();
-        let link_mapping = network
-            .global_network
-            .links
-            .iter()
-            .map(|link| (link.id.internal(), link.partition))
-            .collect();
+      pub fn new_channel_broker(
+          comm: ChannelNetCommunicator,
+          network: &SimNetworkPartition,
+      ) -> NetMessageBroker<ChannelNetCommunicator> {
+          let neighbors = network
+              .neighbors()
+              .iter()
+              .map(|rank| *rank as u32)
+              .collect();
+          let link_mapping = network
+              .global_network
+              .links
+              .iter()
+              .map(|link| (link.id.internal(), link.partition))
+              .collect();
 
-        NetMessageBroker {
-            communicator: comm,
-            out_messages: Default::default(),
-            in_messages: Default::default(),
-            link_mapping,
-            neighbors,
-        }
-    }
+          NetMessageBroker {
+              communicator: comm,
+              out_messages: Default::default(),
+              in_messages: Default::default(),
+              link_mapping,
+              neighbors,
+          }
+      }
 
-    pub fn new_mpi_broker(
-        world: SystemCommunicator,
-        network: &SimNetworkPartition,
-    ) -> NetMessageBroker<MpiNetCommunicator> {
-        let neighbors = network
-            .neighbors()
-            .iter()
-            .map(|rank| *rank as u32)
-            .collect();
-        let link_mapping = network
-            .global_network
-            .links
-            .iter()
-            .map(|link| (link.id.internal(), link.partition))
-            .collect();
+      pub fn new_mpi_broker(
+          world: SystemCommunicator,
+          network: &SimNetworkPartition,
+      ) -> NetMessageBroker<MpiNetCommunicator> {
+          let neighbors = network
+              .neighbors()
+              .iter()
+              .map(|rank| *rank as u32)
+              .collect();
+          let link_mapping = network
+              .global_network
+              .links
+              .iter()
+              .map(|link| (link.id.internal(), link.partition))
+              .collect();
 
-        let communicator = MpiNetCommunicator {
-            mpi_communicator: world,
-        };
-        NetMessageBroker {
-            communicator,
-            out_messages: HashMap::new(),
-            in_messages: BinaryHeap::new(),
-            link_mapping,
-            neighbors,
-        }
-    }
+          let communicator = MpiNetCommunicator {
+              mpi_communicator: world,
+          };
+          NetMessageBroker {
+              communicator,
+              out_messages: HashMap::new(),
+              in_messages: BinaryHeap::new(),
+              link_mapping,
+              neighbors,
+          }
+      }
 
+
+    */
     pub fn new(comm: C, net: &SimNetworkPartition) -> Self {
-        let neighbors = net.neighbors().iter().map(|rank| *rank as u32).collect();
+        let neighbors = net.neighbors().iter().copied().collect();
         let link_mapping = net
             .global_network
             .links
@@ -297,8 +299,8 @@ where
         self.communicator.rank()
     }
 
-    pub fn rank_for_link(&self, link_id: u64) -> u64 {
-        *self.link_mapping.get(&(link_id as usize)).unwrap() as u64
+    pub fn rank_for_link(&self, link_id: u64) -> u32 {
+        *self.link_mapping.get(&(link_id)).unwrap()
     }
 
     pub fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
@@ -608,7 +610,7 @@ mod tests {
             .into_iter()
             .map(|comm| {
                 let sim_network = SimNetworkPartition::from_network(&network, comm.rank);
-                NetMessageBroker::<ChannelNetCommunicator>::new_channel_broker(comm, &sim_network)
+                NetMessageBroker::new(comm, &sim_network)
             })
             .collect();
         let mut join_handles = Vec::new();
@@ -657,13 +659,13 @@ mod tests {
         result
     }
 
-    fn create_node(id: usize, partition: u32) -> Node {
+    fn create_node(id: u64, partition: u32) -> Node {
         let mut node = Node::new(Id::new_internal(id), 0., 0.);
         node.partition = partition;
         node
     }
 
-    fn create_link(id: usize, from: Id<Node>, to: Id<Node>, partition: u32) -> Link {
+    fn create_link(id: u64, from: Id<Node>, to: Id<Node>, partition: u32) -> Link {
         Link {
             id: Id::new_internal(id),
             from,

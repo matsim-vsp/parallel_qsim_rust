@@ -91,10 +91,7 @@ where
         let agents = self.activity_q.pop(now);
 
         for agent in agents {
-            let act_type = self
-                .population
-                .act_types
-                .get_from_wire(agent.curr_act().act_type);
+            let act_type = self.population.act_types.get(agent.curr_act().act_type);
             self.events.publish_event(
                 now,
                 &Event::new_act_end(
@@ -105,7 +102,7 @@ where
             );
 
             let mut vehicle = self.departure(agent, now);
-            let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(vehicle.r#type);
+            let veh_type_id = self.garage.vehicle_type_ids.get(vehicle.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
 
             match veh_type.lod {
@@ -138,7 +135,7 @@ where
 
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
-        let leg_mode = self.garage.modes.get_from_wire(leg.mode);
+        let leg_mode = self.garage.modes.get(leg.mode);
         self.events.publish_event(
             now,
             &Event::new_departure(
@@ -148,7 +145,7 @@ where
             ),
         );
 
-        let veh_id = self.garage.vehicle_ids.get_from_wire(route.veh_id);
+        let veh_id = self.garage.vehicle_ids.get(route.veh_id);
         self.garage.unpark_veh(agent, &veh_id)
     }
 
@@ -161,7 +158,7 @@ where
             // emmit travelled
             let leg = agent.curr_leg();
             let route = leg.route.as_ref().unwrap();
-            let mode = self.garage.modes.get_from_wire(leg.mode);
+            let mode = self.garage.modes.get(leg.mode);
             self.events.publish_event(
                 now,
                 &Event::new_travelled(agent.id, route.distance, mode.external().to_string()),
@@ -178,7 +175,7 @@ where
 
             // emmit act start event
             let act = agent.curr_act();
-            let act_type = self.population.act_types.get_from_wire(act.act_type);
+            let act_type = self.population.act_types.get(act.act_type);
             self.events.publish_event(
                 now,
                 &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
@@ -193,7 +190,7 @@ where
         for veh in exited_vehicles {
             self.events
                 .publish_event(now, &Event::new_person_leaves_veh(veh.agent().id, veh.id));
-            let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(veh.r#type);
+            let veh_type_id = self.garage.vehicle_type_ids.get(veh.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
             let mode = veh_type.net_mode.external().to_string();
             let mut agent = self.garage.park_veh(veh);
@@ -203,7 +200,7 @@ where
             let act = agent.curr_act();
             self.events
                 .publish_event(now, &Event::new_arrival(agent.id, act.link_id, mode));
-            let act_type = self.population.act_types.get_from_wire(act.act_type);
+            let act_type = self.population.act_types.get(act.act_type);
             self.events.publish_event(
                 now,
                 &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
@@ -229,7 +226,7 @@ where
             self.network.update_storage_caps(msg.storage_capacities);
 
             for veh in msg.vehicles {
-                let veh_type_id = self.garage.vehicle_type_ids.get_from_wire(veh.r#type);
+                let veh_type_id = self.garage.vehicle_type_ids.get(veh.r#type);
                 let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
                 match veh_type.lod {
                     LevelOfDetail::Network => self.network.send_veh_en_route(veh, now),

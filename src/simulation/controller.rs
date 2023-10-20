@@ -40,8 +40,7 @@ pub fn run_single_thread(config: Config) {
         Population::from_file(config.population_file.as_ref(), &network, &mut garage, 0);
 
     let sim_network = SimNetworkPartition::from_network(&network, 0);
-    let message_broker =
-        NetMessageBroker::<DummyNetCommunicator>::new_single_partition(&sim_network);
+    let message_broker = NetMessageBroker::new(DummyNetCommunicator(), &sim_network);
 
     let mut events = EventsPublisher::new();
     let events_path = output_path.join("events.pbf");
@@ -78,7 +77,7 @@ pub fn run_local_multithreaded(config: Config) {
             // clone reference to config here, so that it can
             // be moved into the threads.
             let config = config.clone();
-            let handle = thread::spawn(move || {
+            thread::spawn(move || {
                 // read the io stuff in multiple times. This can be optimized as in https://github.com/Janekdererste/rust_q_sim/issues/39
                 let mut garage = Garage::from_file(config.vehicles_file.as_ref());
                 let network = Network::from_file(
@@ -101,8 +100,7 @@ pub fn run_local_multithreaded(config: Config) {
                 events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
                 events.add_subscriber(Box::new(EventsLogger {}));
 
-                let message_broker =
-                    NetMessageBroker::<MpiNetCommunicator>::new_channel_broker(comm, &sim_network);
+                let message_broker = NetMessageBroker::new(comm, &sim_network);
 
                 let mut simulation = Simulation::new(
                     config.clone(),
@@ -113,8 +111,7 @@ pub fn run_local_multithreaded(config: Config) {
                     events,
                 );
                 simulation.run(config.start_time, config.end_time)
-            });
-            handle
+            })
         })
         .collect();
 
@@ -158,8 +155,12 @@ pub fn run(world: SystemCommunicator, config: Config) {
         population.agents.len()
     );
 
-    let message_broker =
-        NetMessageBroker::<MpiNetCommunicator>::new_mpi_broker(world, &network_partition);
+    let message_broker = NetMessageBroker::new(
+        MpiNetCommunicator {
+            mpi_communicator: world,
+        },
+        &network_partition,
+    );
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");

@@ -102,7 +102,7 @@ impl<'p> Population<'p> {
             .collect();
 
         for person in persons {
-            let person_id = result.agent_ids.get_from_wire(person.id);
+            let person_id = result.agent_ids.get(person.id);
             result.agents.insert(person_id, person);
         }
     }
@@ -170,12 +170,9 @@ mod tests {
         assert_eq!(3, plan.legs.len());
 
         let home_act = plan.acts.first().unwrap();
-        let act_type = pop.act_types.get_from_wire(home_act.act_type);
+        let act_type = pop.act_types.get(home_act.act_type);
         assert_eq!("h", act_type.external());
-        assert_eq!(
-            net.link_ids.get_from_ext("1").internal() as u64,
-            home_act.link_id
-        );
+        assert_eq!(net.link_ids.get_from_ext("1").internal(), home_act.link_id);
         assert_eq!(-25000., home_act.x);
         assert_eq!(0., home_act.y);
         assert_eq!(Some(6 * 3600), home_act.end_time);
@@ -187,15 +184,15 @@ mod tests {
         assert!(leg.route.is_some());
         let net_route = leg.route.as_ref().unwrap();
         assert_eq!(
-            garage.vehicle_ids.get_from_ext("1_car").internal() as u64,
+            garage.vehicle_ids.get_from_ext("1_car").internal(),
             net_route.veh_id
         );
         assert_eq!(
             vec![
-                net.link_ids.get_from_ext("1").internal() as u64,
-                net.link_ids.get_from_ext("6").internal() as u64,
-                net.link_ids.get_from_ext("15").internal() as u64,
-                net.link_ids.get_from_ext("20").internal() as u64,
+                net.link_ids.get_from_ext("1").internal(),
+                net.link_ids.get_from_ext("6").internal(),
+                net.link_ids.get_from_ext("15").internal(),
+                net.link_ids.get_from_ext("20").internal(),
             ],
             net_route.route
         );

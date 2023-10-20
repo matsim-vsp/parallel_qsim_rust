@@ -41,14 +41,14 @@ impl<'n> SimNetworkPartition<'n> {
 
         let link_ids: IntSet<_> = nodes
             .iter()
-            .map(|id| global_network.nodes.get(id.internal()).unwrap())
+            .map(|id| global_network.get_node(id))
             .filter(|node| node.partition == partition)
             .flat_map(|node| node.in_links.iter().chain(node.out_links.iter()))
             .collect(); // collect here to get each link id only once
 
         let links: IntMap<_, _> = link_ids
             .iter()
-            .map(|link_id| global_network.links.get(link_id.internal()).unwrap())
+            .map(|link_id| global_network.get_link(link_id))
             .map(|link| {
                 (
                     link.id.clone(),
@@ -56,7 +56,7 @@ impl<'n> SimNetworkPartition<'n> {
                         link,
                         partition,
                         global_network.effective_cell_size,
-                        &global_network.nodes,
+                        global_network,
                     ),
                 )
             })
@@ -69,10 +69,10 @@ impl<'n> SimNetworkPartition<'n> {
         link: &Link,
         partition: u32,
         effective_cell_size: f32,
-        all_nodes: &[Node],
+        global_network: &Network,
     ) -> SimLink {
-        let from_part = all_nodes.get(link.from.internal()).unwrap().partition;
-        let to_part = all_nodes.get(link.to.internal()).unwrap().partition;
+        let from_part = global_network.get_node(&link.from).partition; //all_nodes.get(link.from.internal()).unwrap().partition;
+        let to_part = global_network.get_node(&link.to).partition; //all_nodes.get(link.to.internal()).unwrap().partition;
 
         if from_part == to_part {
             SimLink::Local(LocalLink::from_link(link, 1.0, effective_cell_size))
@@ -121,7 +121,7 @@ impl<'n> SimNetworkPartition<'n> {
 
     pub fn update_storage_caps(&mut self, storage_caps: Vec<StorageCap>) {
         for cap in storage_caps {
-            let link_id = self.global_network.link_ids.get_from_wire(cap.link_id);
+            let link_id = self.global_network.link_ids.get(cap.link_id);
             if let SimLink::Out(link) = self.links.get_mut(&link_id).unwrap() {
                 link.set_used_storage_cap(cap.value);
             } else {
@@ -156,7 +156,7 @@ impl<'n> SimNetworkPartition<'n> {
                         let id = link.id().internal();
 
                         storage_cap.push(SplitStorage {
-                            link_id: id as u64,
+                            link_id: id,
                             used: used_storage,
                             from_part,
                         });
@@ -258,7 +258,7 @@ impl<'n> SimNetworkPartition<'n> {
         let link = links.get_mut(&link_id).unwrap();
         events.publish_event(
             now,
-            &Event::new_link_enter(link.id().internal() as u64, vehicle.id),
+            &Event::new_link_enter(link.id().internal(), vehicle.id),
         );
 
         link.push_veh(vehicle, now);
@@ -429,7 +429,7 @@ mod tests {
         //place 10 vehicles on link2 so that it is jammed
         // vehicles are very slow, so that the first vehicle should leave link2 at t=1000
         for i in 0..10 {
-            let agent = create_agent(i, vec![id_2.internal() as u64, 2]);
+            let agent = create_agent(i, vec![id_2.internal(), 2]);
             let vehicle = Vehicle::new(i, 0, 1., 10., Some(agent));
             network.send_veh_en_route(vehicle, 0);
         }
@@ -437,7 +437,7 @@ mod tests {
         // place 1 vehicle onto link1 which has to wait until link2 has free storage cap
         // as the first vehicle leaves link2 at t=1000 this vehicle can leave link1 and enter link2 at
         // the next timestep at t=1001
-        let agent = create_agent(11, vec![id_1.internal() as u64, 1, 2]);
+        let agent = create_agent(11, vec![id_1.internal(), 1, 2]);
         let vehicle = Vehicle::new(11, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, 0);
 
@@ -463,7 +463,7 @@ mod tests {
         let net2 = sim_nets.get_mut(1).unwrap();
 
         let split_link_id = net2.global_network.link_ids.get_from_ext("link-2");
-        let agent = create_agent(1, vec![split_link_id.internal() as u64, 2]);
+        let agent = create_agent(1, vec![split_link_id.internal(), 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
 
         // collect empty storage caps
@@ -475,7 +475,7 @@ mod tests {
         let (_, storage_caps) = net2.move_links(0);
         assert_eq!(1, storage_caps.len());
         let storage_cap = storage_caps.first().unwrap(); // skip length test, because this should be the same each time
-        assert_eq!(split_link_id.internal() as u64, storage_cap.link_id);
+        assert_eq!(split_link_id.internal(), storage_cap.link_id);
         assert_approx_eq!(13.3333, storage_cap.used, 0.0001);
     }
 

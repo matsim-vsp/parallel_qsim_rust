@@ -18,7 +18,7 @@ use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData};
 pub struct Id<T>(Arc<IdImpl<T>>);
 
 impl<T> Id<T> {
-    fn new(internal: usize, external: String) -> Self {
+    fn new(internal: u64, external: String) -> Self {
         Self(Arc::new(IdImpl {
             _type_marker: PhantomData,
             internal,
@@ -29,11 +29,11 @@ impl<T> Id<T> {
     /// Creates an id which is not attached to any id storage. This method is intended for test
     /// cases. The intended way of creating ids is to use IdStore::create_id(external);
     #[cfg(test)]
-    pub(crate) fn new_internal(internal: usize) -> Self {
+    pub(crate) fn new_internal(internal: u64) -> Self {
         Self::new(internal, String::from(""))
     }
 
-    pub fn internal(&self) -> usize {
+    pub fn internal(&self) -> u64 {
         self.0.internal
     }
 
@@ -59,8 +59,8 @@ impl<T> Eq for Id<T> {}
 
 impl<T> Hash for Id<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        // use write usize directly, so that we can use NoHashHasher with ids
-        state.write_usize(self.internal());
+        // use write u64 directly, so that we can use NoHashHasher with ids
+        state.write_u64(self.internal());
     }
 }
 
@@ -86,14 +86,14 @@ impl<T> Clone for Id<T> {
 #[derive(Debug)]
 pub struct IdImpl<T> {
     _type_marker: PhantomData<T>,
-    internal: usize,
+    internal: u64,
     external: String,
 }
 
 #[derive(Debug, Default)]
 pub struct IdStore<'ext, T> {
     ids: Vec<Id<T>>,
-    mapping: HashMap<&'ext str, usize>,
+    mapping: HashMap<&'ext str, u64>,
 }
 
 impl<'ext, T> IdStore<'ext, T> {
@@ -111,12 +111,12 @@ impl<'ext, T> IdStore<'ext, T> {
     /// reference to that id is returned
     pub fn create_id(&mut self, id: &str) -> Id<T> {
         if self.mapping.contains_key(id) {
-            let index = *self.mapping.get(id).unwrap();
+            let index = *self.mapping.get(id).unwrap() as usize;
             return self.ids.get(index).unwrap().clone();
         }
 
         // no id yet. create one
-        let next_internal = self.ids.len();
+        let next_internal = self.ids.len() as u64;
         let id = Id::new(next_internal, String::from(id));
         self.ids.push(id.clone());
 
@@ -135,27 +135,27 @@ impl<'ext, T> IdStore<'ext, T> {
         id
     }
 
-    pub fn get(&self, internal: usize) -> Id<T> {
+    pub fn get(&self, internal: u64) -> Id<T> {
         self.ids
-            .get(internal)
+            .get(internal as usize)
             .unwrap_or_else(|| panic!("No id found for internal {internal}"))
             .clone()
     }
 
-    pub fn get_from_wire(&self, internal: u64) -> Id<T> {
-        self.get(internal as usize)
-    }
+    // pub fn get_from_wire(&self, internal: u64) -> Id<T> {
+    //      self.get(internal as usize)
+    //  }
 
     pub fn get_from_ext(&self, external: &str) -> Id<T> {
         let index = self
             .mapping
             .get(external)
             .unwrap_or_else(|| panic!("Could not find id for external id: {external}"));
-        self.ids.get(*index).unwrap().clone()
+        self.ids.get(*index as usize).unwrap().clone()
     }
 
     pub fn exists(&self, id: Id<T>) -> bool {
-        self.ids.get(id.internal()).is_some()
+        self.ids.get(id.internal() as usize).is_some()
     }
 
     pub fn iter(&self) -> Iter<'_, Id<T>> {
