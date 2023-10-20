@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use nohash_hasher::IntMap;
 
 use crate::simulation::id::{Id, IdStore};
@@ -10,9 +8,6 @@ use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
 #[derive(Debug)]
 pub struct Garage<'g> {
     pub network_vehicles: IntMap<Id<Vehicle>, GarageVehicle>,
-    // don't know whether this is a good place to do this kind of book keeping
-    // we need this information to extract vehicles from io::Plans though.
-    pub person_2_vehicle: IntMap<Id<Agent>, HashMap<Id<String>, Id<Vehicle>>>,
     pub vehicle_ids: IdStore<'g, Vehicle>,
     pub teleported_veh: IntMap<Id<Vehicle>, Id<VehicleType>>,
     pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,
@@ -35,7 +30,6 @@ impl<'g> Garage<'g> {
     pub fn new() -> Self {
         Garage {
             network_vehicles: Default::default(),
-            person_2_vehicle: Default::default(),
             vehicle_ids: Default::default(),
             teleported_veh: Default::default(),
             vehicle_types: Default::default(),
@@ -123,12 +117,7 @@ impl<'g> Garage<'g> {
         veh_id
     }
 
-    pub fn add_veh(
-        &mut self,
-        veh_id: Id<Vehicle>,
-        person_id: Id<Agent>,
-        veh_type_id: Id<VehicleType>,
-    ) {
+    pub fn add_veh(&mut self, veh_id: Id<Vehicle>, veh_type_id: Id<VehicleType>) {
         let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
         match veh_type.lod {
             LevelOfDetail::Network => {
@@ -137,10 +126,6 @@ impl<'g> Garage<'g> {
                     veh_type: veh_type_id.clone(),
                 };
                 self.network_vehicles.insert(vehicle.id.clone(), vehicle);
-                self.person_2_vehicle
-                    .entry(person_id)
-                    .or_default()
-                    .insert(veh_type.net_mode.clone(), veh_id);
             }
             LevelOfDetail::Teleported => {}
         }

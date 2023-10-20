@@ -122,7 +122,7 @@ impl<'p> Population<'p> {
         for (person_id, veh_type) in person_mode {
             let vehicle_id_ext = Self::create_veh_id_string(person_id, &veh_type);
             let vehicle_id = garage.vehicle_ids.get_from_ext(vehicle_id_ext.as_str());
-            garage.add_veh(vehicle_id, person_id.clone(), veh_type);
+            garage.add_veh(vehicle_id, veh_type);
         }
     }
 
