@@ -1,6 +1,7 @@
 use mpi::datatype::PartitionMut;
 use mpi::traits::{Communicator, CommunicatorCollectives};
 use mpi::Count;
+
 use rust_q_sim::simulation::messaging::messages::proto::TravelTimesMessage;
 
 fn main() {
@@ -51,7 +52,7 @@ fn main() {
             world.rank(),
             begin_index,
             end_index,
-            TravelTimesMessage::deserialize(&all_traffic_info[begin_index..end_index as usize])
+            TravelTimesMessage::deserialize(&all_traffic_info[begin_index..end_index])
         );
         last_end_index = end_index;
     }

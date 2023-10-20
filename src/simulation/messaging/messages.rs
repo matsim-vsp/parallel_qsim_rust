@@ -144,11 +144,11 @@ impl Vehicle {
 
     // todo I have changed the way this works. Probably one needs to call
     // advance route index for teleported legs now, once the person is woken up from the activity queue
-    pub fn curr_link_id(&self) -> Option<usize> {
+    pub fn curr_link_id(&self) -> Option<u64> {
         let leg = self.agent().curr_leg();
         let route = leg.route.as_ref().unwrap();
         let index = self.curr_route_elem as usize;
-        route.route.get(index).map(|link_id| *link_id as usize)
+        route.route.get(index).copied()
     }
 
     // todo same as above
@@ -158,10 +158,10 @@ impl Vehicle {
         self.curr_route_elem + 1 >= route.route.len() as u32
     }
 
-    pub fn peek_next_route_element(&self) -> Option<usize> {
+    pub fn peek_next_route_element(&self) -> Option<u64> {
         let route = self.agent().curr_leg().route.as_ref().unwrap();
         let next_i = self.curr_route_elem as usize + 1;
-        route.route.get(next_i).map(|i| *i as usize)
+        route.route.get(next_i).copied()
     }
 }
 
@@ -194,7 +194,7 @@ impl Agent {
         }
 
         Agent {
-            id: person_id.internal() as u64,
+            id: person_id.internal(),
             plan: Some(plan),
             curr_plan_elem: 0,
         }
@@ -408,8 +408,8 @@ impl Activity {
         Activity {
             x: io_act.x,
             y: io_act.y,
-            act_type: act_type.internal() as u64,
-            link_id: link_id.internal() as u64,
+            act_type: act_type.internal(),
+            link_id: link_id.internal(),
             start_time: parse_time_opt(&io_act.start_time),
             end_time: parse_time_opt(&io_act.end_time),
             max_dur: parse_time_opt(&io_act.max_dur),
@@ -458,10 +458,10 @@ impl Leg {
 
         Self {
             route: Some(route),
-            mode: mode.internal() as u64,
+            mode: mode.internal(),
             trav_time: Self::parse_trav_time(&io_leg.trav_time, &io_leg.route.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
-            routing_mode: routing_mode.internal() as u64,
+            routing_mode: routing_mode.internal(),
         }
     }
 
@@ -476,9 +476,9 @@ impl Leg {
     }
 
     fn parse_trav_time(leg_trav_time: &Option<String>, route_trav_time: &Option<String>) -> u32 {
-        if let Some(trav_time) = parse_time_opt(&leg_trav_time) {
+        if let Some(trav_time) = parse_time_opt(leg_trav_time) {
             trav_time
-        } else if let Some(trav_time) = parse_time_opt(&route_trav_time) {
+        } else if let Some(trav_time) = parse_time_opt(route_trav_time) {
             trav_time
         } else {
             0
@@ -524,8 +524,8 @@ impl Route {
 
         Route {
             distance: io_route.distance,
-            veh_id: veh_id.internal() as u64,
-            route: vec![start_link.internal() as u64, end_link.internal() as u64],
+            veh_id: veh_id.internal(),
+            route: vec![start_link.internal(), end_link.internal()],
         }
     }
 
@@ -547,12 +547,12 @@ impl Route {
                     None => Vec::new(),
                     Some(encoded_links) => encoded_links
                         .split(' ')
-                        .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal() as u64)
+                        .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal())
                         .collect(),
                 };
                 Route {
                     distance: io_route.distance,
-                    veh_id: veh_id.internal() as u64,
+                    veh_id: veh_id.internal(),
                     route: link_ids,
                 }
             }

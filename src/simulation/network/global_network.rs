@@ -137,7 +137,7 @@ impl<'a> Network<'a> {
     pub fn add_node(&mut self, node: Node) {
         assert_eq!(
             node.id.internal(),
-            self.nodes.len(),
+            self.nodes.len() as u64,
             "internal id {} and slot in node vec {} were note the same. Probably, node id {} already exsists.",
             node.id.internal(),
             self.nodes.len(),
@@ -164,7 +164,7 @@ impl<'a> Network<'a> {
     pub fn add_link(&mut self, link: Link) {
         assert_eq!(
             link.id.internal(),
-            self.links.len(),
+            self.links.len() as u64,
             "internal id {} and slot in link vec {} were note the same. Probably, this link id {} already exists",
             link.id.internal(),
             self.links.len(),
@@ -173,12 +173,12 @@ impl<'a> Network<'a> {
 
         // wire up in and out links and push link to the links vec
         self.nodes
-            .get_mut(link.from.internal())
+            .get_mut(link.from.internal() as usize)
             .unwrap()
             .out_links
             .push(link.id.clone());
         self.nodes
-            .get_mut(link.to.internal())
+            .get_mut(link.to.internal() as usize)
             .unwrap()
             .in_links
             .push(link.id.clone());
@@ -189,7 +189,7 @@ impl<'a> Network<'a> {
         let id = self.link_ids.create_id(&io_link.id);
         assert_eq!(
             id.internal(),
-            self.links.len(),
+            self.links.len() as u64,
             "internal id {} and slot in link vec {} were note the same. Probably, this link id already exists",
             id.internal(),
             self.links.len()
@@ -225,11 +225,11 @@ impl<'a> Network<'a> {
     }
 
     pub fn get_node(&self, id: &Id<Node>) -> &Node {
-        self.nodes.get(id.internal()).unwrap()
+        self.nodes.get(id.internal() as usize).unwrap()
     }
 
     pub fn get_link(&self, id: &Id<Link>) -> &Link {
-        self.links.get(id.internal()).unwrap()
+        self.links.get(id.internal() as usize).unwrap()
     }
 
     fn init_nodes_and_links(network: &mut Network, io_network: IONetwork, garage: &mut Garage) {
@@ -246,11 +246,11 @@ impl<'a> Network<'a> {
         if partition_method.eq("metis") {
             let partitions = metis_partitioning::partition(network, num_parts);
             for node in network.nodes.iter_mut() {
-                let partition = partitions[node.id.internal()] as u32;
+                let partition = partitions[node.id.internal() as usize] as u32;
                 node.partition = partition;
 
                 for link_id in &node.in_links {
-                    let link = network.links.get_mut(link_id.internal()).unwrap();
+                    let link = network.links.get_mut(link_id.internal() as usize).unwrap();
                     link.partition = partition;
                 }
             }
@@ -485,11 +485,11 @@ mod tests {
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
         for node in &network.nodes {
-            let expected_partition = expected_partitions[node.id.internal()];
+            let expected_partition = expected_partitions[node.id.internal() as usize];
             assert_eq!(expected_partition, node.partition);
         }
         for link in &network.links {
-            let expected_partition = expected_partitions[link.to.internal()];
+            let expected_partition = expected_partitions[link.to.internal() as usize];
             assert_eq!(expected_partition, link.partition);
         }
 

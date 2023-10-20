@@ -1,3 +1,8 @@
+use std::any::Any;
+use std::collections::HashMap;
+
+use tracing::info;
+
 use crate::simulation::messaging::events::proto::event::Type::{
     ActEnd, ActStart, Arrival, Departure, Generic, LinkEnter, LinkLeave, PersonEntersVeh,
     PersonLeavesVeh, Travelled,
@@ -7,9 +12,6 @@ use crate::simulation::messaging::events::proto::{
     LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
     TravelledEvent,
 };
-use std::any::Any;
-use std::collections::HashMap;
-use tracing::info;
 
 // Include the `events` module, which is generated from events.proto.
 pub mod proto {
@@ -36,6 +38,7 @@ impl EventsSubscriber for EventsLogger {
     }
 }
 
+#[derive(Default)]
 pub struct EventsPublisher {
     handlers: Vec<Box<dyn EventsSubscriber + Send>>,
 }
@@ -96,9 +99,8 @@ impl EventsPublisher {
     pub fn get_subscriber<T: EventsSubscriber + 'static>(&mut self) -> Option<&mut T> {
         let mut result = None;
         for handler in self.handlers.iter_mut() {
-            match handler.as_any().downcast_mut::<T>() {
-                Some(collector) => result = Some(collector),
-                None => {}
+            if let Some(collector) = handler.as_any().downcast_mut::<T>() {
+                result = Some(collector)
             };
         }
         result

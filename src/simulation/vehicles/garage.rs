@@ -96,7 +96,7 @@ impl<'g> Garage<'g> {
     pub fn add_veh_type(&mut self, veh_type: VehicleType) {
         assert_eq!(
             veh_type.id.internal(),
-            self.vehicle_types.len(),
+            self.vehicle_types.len() as u64,
             "internal id {} and slot in node vec {} were note the same. Probably, vehicle type {} already exists.",
             veh_type.id.internal(),
             self.vehicle_types.len(),
@@ -151,8 +151,8 @@ impl<'g> Garage<'g> {
     }
 
     pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Agent {
-        let id = self.vehicle_ids.get_from_wire(vehicle.id);
-        let veh_type = self.vehicle_type_ids.get_from_wire(vehicle.r#type);
+        let id = self.vehicle_ids.get(vehicle.id);
+        let veh_type = self.vehicle_type_ids.get(vehicle.r#type);
         let garage_veh = GarageVehicle { id, veh_type };
         self.network_vehicles
             .insert(garage_veh.id.clone(), garage_veh);
@@ -175,9 +175,9 @@ impl<'g> Garage<'g> {
         let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
 
         Vehicle {
-            id: id.internal() as u64,
+            id: id.internal(),
             curr_route_elem: 0,
-            r#type: veh_type.id.internal() as u64,
+            r#type: veh_type.id.internal(),
             max_v: veh_type.max_v,
             pce: veh_type.pce,
             agent: Some(person),

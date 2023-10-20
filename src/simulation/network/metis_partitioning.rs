@@ -16,7 +16,7 @@ pub fn partition(network: &Network, num_parts: u32) -> Vec<Idx> {
             .iter()
             .map(|l| &l.to)
             .fold(vec![0; network.nodes.len()], |mut result, id| {
-                result[id.internal()] += 1;
+                result[id.internal() as usize] += 1;
                 result
             });
 
@@ -32,16 +32,16 @@ pub fn partition(network: &Network, num_parts: u32) -> Vec<Idx> {
         let num_in_links = node.in_links.len() as Idx;
         let next_adjacency_index = xadj.last().unwrap() + num_out_links + num_in_links;
         xadj.push(next_adjacency_index);
-        vwgt.push(node_count[node.id.internal()] as Idx);
+        vwgt.push(node_count[node.id.internal() as usize] as Idx);
 
         for id in &node.out_links {
-            let link = &network.links[id.internal()];
+            let link = &network.links[id.internal() as usize];
             adjncy.push(link.to.internal() as Idx);
             adjwgt.push(link.capacity as Idx);
         }
 
         for id in &node.in_links {
-            let link = &network.links[id.internal()];
+            let link = &network.links[id.internal() as usize];
             adjncy.push(link.from.internal() as Idx);
             adjwgt.push(link.capacity as Idx);
         }
