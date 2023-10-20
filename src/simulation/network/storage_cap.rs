@@ -35,7 +35,7 @@ impl StorageCap {
     }
 
     pub fn consume(&mut self, value: f32) {
-        self.used = self.max.min(self.used + value);
+        self.used += value; //self.max.min(self.used + value);
     }
 
     pub fn clear(&mut self) {

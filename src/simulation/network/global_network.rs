@@ -22,7 +22,7 @@ pub struct Network<'a> {
     pub effective_cell_size: f32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Node {
     pub x: f32,
     pub y: f32,
@@ -33,7 +33,7 @@ pub struct Node {
     pub partition: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Link {
     pub id: Id<Link>,
     pub from: Id<Node>,

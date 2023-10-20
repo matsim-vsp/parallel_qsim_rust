@@ -35,6 +35,16 @@ impl SimLink {
         }
     }
 
+    pub fn flow_cap(&self) -> f32 {
+        match self {
+            SimLink::Local(l) => l.flow_cap.capacity(),
+            SimLink::In(il) => il.local_link.flow_cap.capacity(),
+            SimLink::Out(_) => {
+                panic!("no flow cap for out links")
+            }
+        }
+    }
+
     pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
         match self {
             SimLink::Local(ll) => ll.q_front(now),
@@ -458,9 +468,7 @@ mod sim_link_tests {
         assert!(link.is_available());
 
         link.push_veh(vehicle2, 0);
-        // both vehicles take up 2pce, but used storage is capped at max storage, which should be
-        // 1.5 pce in this test case.
-        assert_approx_eq!(1.5, link.used_storage());
+        assert_approx_eq!(2.0, link.used_storage());
         assert!(!link.is_available());
 
         // make sure that vehicles are added ad the end of the queue
