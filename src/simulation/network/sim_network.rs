@@ -234,6 +234,7 @@ impl<'n> SimNetworkPartition<'n> {
             // draw a link id weighted on capacity and fetch that link
             let link_index = node.in_links_weights.as_ref().unwrap().sample(rnd);
             let in_link_id = node.in_links.get(link_index).unwrap();
+
             // if the link is already unavailable draw again.
             if unavailable_links.contains(in_link_id) {
                 continue;
@@ -242,7 +243,7 @@ impl<'n> SimNetworkPartition<'n> {
             else if Self::should_veh_move_out(in_link_id, links, now) {
                 // get the mut ref here again, so that the borrow checker lets us borrow the links map
                 // for the method above.
-                let in_link = links.get_mut(&in_link_id).unwrap();
+                let in_link = links.get_mut(in_link_id).unwrap();
                 let veh = in_link.pop_veh();
 
                 if veh.peek_next_route_element().is_some() {
@@ -257,23 +258,6 @@ impl<'n> SimNetworkPartition<'n> {
                 unavailable_links.insert(*in_link_id);
             }
         }
-
-        /* for link_id in &node.in_links {
-            while Self::should_veh_move_out(link_id, links, now) {
-                // get the mut ref here again, so that the borrow checker lets us borrow the links map
-                // for the method above.
-                let in_link = links.get_mut(&link_id).unwrap();
-                let veh = in_link.pop_veh();
-
-                if veh.peek_next_route_element().is_some() {
-                    Self::move_vehicle(veh, links, events, now);
-                } else {
-                    exited_vehicles.push(veh);
-                }
-            }
-        }
-
-        */
     }
 
     fn should_veh_move_out(in_id: &u64, links: &IntMap<u64, SimLink>, now: u32) -> bool {
