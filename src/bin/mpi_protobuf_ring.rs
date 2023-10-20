@@ -1,7 +1,9 @@
-use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
-use rust_q_sim::simulation::messaging::messages::proto::ExperimentalMessage;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+
+use mpi::traits::{Communicator, CommunicatorCollectives, Destination, Source};
+
+use rust_q_sim::simulation::messaging::messages::proto::ExperimentalMessage;
 
 fn main() {
     let universe = mpi::initialize().unwrap();
@@ -17,10 +19,11 @@ fn main() {
 
     // process 0 starts
     if rank == 0 {
-        let mut message: ExperimentalMessage = ExperimentalMessage::default();
-        message.timestamp = start.elapsed().as_nanos() as u64;
-        message.counter = 0;
-        message.additional_message = String::from("Test string");
+        let message: ExperimentalMessage = ExperimentalMessage {
+            timestamp: start.elapsed().as_nanos() as u64,
+            counter: 0,
+            additional_message: String::from("Test string"),
+        };
         let buf = message.serialize();
         world.process_at_rank(next_rank).send(&buf);
     }
