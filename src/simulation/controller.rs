@@ -1,16 +1,19 @@
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::thread::JoinHandle;
 use std::time::Instant;
 use std::{fs, thread};
 
-use mpi::topology::SystemCommunicator;
+use clap::Parser;
 use mpi::traits::{Communicator, CommunicatorCollectives};
+use nohash_hasher::IntMap;
 use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::events::{EventsLogger, EventsPublisher};
+use crate::simulation::logging;
+use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{
     ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
     NetMessageBroker,
@@ -21,104 +24,53 @@ use crate::simulation::population::population::Population;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
 
-pub fn run_single_thread(config: Config) {
-    info!("Starting single threaded controller!");
+pub fn run_single_partition() {
+    let config = Arc::new(Config::parse());
+    let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
+    let comm = DummyNetCommunicator();
 
-    let output_path = PathBuf::from(&config.output_dir);
-    fs::create_dir_all(&output_path).expect("Failed to create output path");
-
-    let mut network = Network::from_file(config.network_file.as_ref(), 0, &config.partition_method);
-    let mut garage = Garage::from_file(config.vehicles_file.as_ref(), &mut network.modes);
-
-    let population =
-        Population::from_file(config.population_file.as_ref(), &network, &mut garage, 0);
-
-    let sim_network = SimNetworkPartition::from_network(&network, 0);
-    let message_broker = NetMessageBroker::new(DummyNetCommunicator(), &sim_network);
-
-    let mut events = EventsPublisher::new();
-    let events_path = output_path.join("events.pbf");
-    events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-    // events.add_subscriber(Box::new(EventsLogger {}));
-    let config = Arc::new(config);
-
-    let mut simulation = Simulation::new(
-        config.clone(),
-        sim_network,
-        garage,
-        population,
-        message_broker,
-        events,
-    );
-
-    info!("Starting single threaded simulation");
-    simulation.run(config.start_time, config.end_time);
-    info!("Finished single threaded simulation");
+    execute_partition(comm, config);
 }
 
-pub fn run_local_multithreaded(config: Config) {
-    info!("Starting single threaded controller!");
-
-    let output_path = PathBuf::from(&config.output_dir);
-    fs::create_dir_all(&output_path).expect("Failed to create output path");
+pub fn run_channel() {
+    let config = Arc::new(Config::parse());
+    let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
 
     let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
-    let config = Arc::new(config);
 
-    let handles: Vec<_> = comms
+    let handles: IntMap<u32, JoinHandle<()>> = comms
         .into_iter()
         .map(|comm| {
-            // clone reference to config here, so that it can
-            // be moved into the threads.
             let config = config.clone();
-            thread::spawn(move || {
-                // read the io stuff in multiple times. This can be optimized as in https://github.com/Janekdererste/rust_q_sim/issues/39
-                let mut network = Network::from_file(
-                    config.network_file.as_ref(),
-                    config.num_parts,
-                    &config.partition_method,
-                );
-                let mut garage =
-                    Garage::from_file(config.vehicles_file.as_ref(), &mut network.modes);
-                let population = Population::from_file(
-                    config.population_file.as_ref(),
-                    &network,
-                    &mut garage,
-                    comm.rank(),
-                );
-
-                let sim_network = SimNetworkPartition::from_network(&network, comm.rank());
-                let mut events = EventsPublisher::new();
-                let events_file = format!("events.{}.pbf", comm.rank());
-                let events_path = PathBuf::from(&config.output_dir).join(events_file);
-                events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-                events.add_subscriber(Box::new(EventsLogger {}));
-
-                let message_broker = NetMessageBroker::new(comm, &sim_network);
-
-                let mut simulation = Simulation::new(
-                    config.clone(),
-                    sim_network,
-                    garage,
-                    population,
-                    message_broker,
-                    events,
-                );
-                simulation.run(config.start_time, config.end_time)
-            })
+            (
+                comm.rank(),
+                thread::spawn(move || execute_partition(comm, config)),
+            )
         })
         .collect();
 
-    for handle in handles {
-        handle
-            .join()
-            .expect("Error when joining the simulation threads. What now?");
-    }
+    try_join(handles);
 }
 
-pub fn run(world: SystemCommunicator, config: Config) {
-    let rank = world.rank() as u32;
-    let size = world.size();
+pub fn run_mpi() {
+    let universe = mpi::initialize().unwrap();
+    let world = universe.world();
+    let comm = MpiNetCommunicator {
+        mpi_communicator: world,
+    };
+    let config = Config::parse();
+    let _guards = logging::init_logging(config.output_dir.as_ref(), comm.rank().to_string());
+
+    execute_partition(comm, Arc::new(config));
+
+    info!("#{} at barrier.", world.rank());
+    universe.world().barrier();
+    info!("Process #{} finishing.", world.rank());
+}
+
+fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
+    let rank = comm.rank();
+    let size = config.num_parts;
 
     info!("Process #{rank} of {size}");
 
@@ -147,12 +99,7 @@ pub fn run(world: SystemCommunicator, config: Config) {
         population.agents.len()
     );
 
-    let message_broker = NetMessageBroker::new(
-        MpiNetCommunicator {
-            mpi_communicator: world,
-        },
-        &network_partition,
-    );
+    let message_broker = NetMessageBroker::new(comm, &network_partition);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");
@@ -161,7 +108,6 @@ pub fn run(world: SystemCommunicator, config: Config) {
     // let travel_time_collector = Box::new(TravelTimeCollector::new());
     //events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
-    let config = Arc::new(config);
 
     let mut simulation = Simulation::new(
         config.clone(),
@@ -179,82 +125,21 @@ pub fn run(world: SystemCommunicator, config: Config) {
     info!("#{rank} took: {duration}s");
 
     info!("output dir: {:?}", config.output_dir);
-
-    info!("#{rank} at barrier.");
-    world.barrier();
-    info!("Process #{rank} finishing.");
 }
 
-#[cfg(test)]
-mod test {
-    use std::sync::Once;
-
-    use tracing_appender::non_blocking::WorkerGuard;
-
-    use crate::simulation::config::Config;
-    use crate::simulation::controller::{run_local_multithreaded, run_single_thread};
-    use crate::simulation::logging;
-
-    static INIT: Once = Once::new();
-    static mut WORKER_GUARDS: Option<(WorkerGuard, WorkerGuard)> = None;
-
-    pub fn initialize() {
-        // hacky hack to initialize logger only once
-        unsafe {
-            INIT.call_once(|| {
-                let guards =
-                    logging::init_logging("./test_output/simulation/controller", String::from("0"));
-                WORKER_GUARDS = Some(guards);
-            });
+/// Have this more complicated join logic, so that threads in the back of the handle vec can also
+/// cause the main thread to panic.
+fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
+    while !handles.is_empty() {
+        let mut finished = Vec::new();
+        for (i, handle) in handles.iter() {
+            if handle.is_finished() {
+                finished.push(*i);
+            }
         }
-    }
-
-    #[test]
-    #[ignore]
-    fn execute_3_link_example() {
-        initialize();
-        let config = Config::builder()
-            .network_file(String::from("./assets/3-links/3-links-network.xml"))
-            .population_file(String::from("./assets/3-links/1-agent-full-leg.xml"))
-            .vehicles_file(String::from("./assets/3-links/vehicles.xml"))
-            .output_dir(String::from(
-                "./test_output/simulation/controller/execute_3_link_example",
-            ))
-            .build();
-
-        run_single_thread(config);
-    }
-
-    #[test]
-    #[ignore]
-    fn execute_equil_example() {
-        initialize();
-        let config = Config::builder()
-            .network_file(String::from("./assets/equil/equil-network.xml"))
-            .population_file(String::from("./assets/equil/equil-plans.xml.gz"))
-            .vehicles_file(String::from("./assets/equil/equil-vehicles.xml"))
-            .output_dir(String::from(
-                "./test_output/simulation/controller/execute_equil_example",
-            ))
-            .build();
-
-        run_single_thread(config);
-    }
-
-    #[test]
-    #[ignore]
-    fn execute_equil_example_with_channels() {
-        initialize();
-        let config = Config::builder()
-            .network_file(String::from("./assets/equil/equil-network.xml"))
-            .population_file(String::from("./assets/equil/equil-plans.xml.gz"))
-            .vehicles_file(String::from("./assets/equil/equil-vehicles.xml"))
-            .output_dir(String::from(
-                "./test_output/simulation/controller/execute_equil_example_with_channels",
-            ))
-            .num_parts(2)
-            .build();
-
-        run_local_multithreaded(config);
+        for i in finished {
+            let handle = handles.remove(&i).unwrap();
+            handle.join().expect("Error in a thread");
+        }
     }
 }
