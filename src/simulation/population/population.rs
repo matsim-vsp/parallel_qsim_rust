@@ -122,7 +122,7 @@ impl<'p> Population<'p> {
         for (person_id, veh_type) in person_mode {
             let vehicle_id_ext = Self::create_veh_id_string(person_id, &veh_type);
             let vehicle_id = garage.vehicle_ids.get_from_ext(vehicle_id_ext.as_str());
-            garage.add_veh(vehicle_id, person_id.clone(), veh_type);
+            garage.add_veh(vehicle_id, veh_type);
         }
     }
 
@@ -156,8 +156,8 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
-        let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let net = Network::from_file("./assets/equil/equil-network.xml", 1, "metis", &mut garage);
+        let mut net = Network::from_file("./assets/equil/equil-network.xml", 1, "metis");
+        let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml", &mut net.modes);
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
         assert_eq!(1, pop.agents.len());
@@ -200,13 +200,8 @@ mod tests {
 
     #[test]
     fn from_io_multi_mode() {
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let net = Network::from_file(
-            "./assets/3-links/3-links-network.xml",
-            1,
-            "metis",
-            &mut garage,
-        );
+        let mut net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut net.modes);
         let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
 
         // check that we have all three vehicle types
@@ -239,8 +234,8 @@ mod tests {
 
     #[test]
     fn from_io() {
-        let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2, "metis", &mut garage);
+        let mut net = Network::from_file("./assets/equil/equil-network.xml", 2, "metis");
+        let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml", &mut net.modes);
         let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
         let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);
 

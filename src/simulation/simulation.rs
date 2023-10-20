@@ -135,7 +135,7 @@ where
 
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
-        let leg_mode = self.garage.modes.get(leg.mode);
+        let leg_mode = self.network.global_network.modes.get(leg.mode);
         self.events.publish_event(
             now,
             &Event::new_departure(
@@ -158,7 +158,7 @@ where
             // emmit travelled
             let leg = agent.curr_leg();
             let route = leg.route.as_ref().unwrap();
-            let mode = self.garage.modes.get(leg.mode);
+            let mode = self.network.global_network.modes.get(leg.mode);
             self.events.publish_event(
                 now,
                 &Event::new_travelled(agent.id, route.distance, mode.external().to_string()),
@@ -332,14 +332,12 @@ mod tests {
         test_subscriber: Box<dyn EventsSubscriber + Send>,
         config: Arc<Config>,
     ) {
-        let mut garage = Garage::from_file(&config.vehicles_file);
-        let net = Network::from_file(
+        let mut net = Network::from_file(
             &config.network_file,
             config.num_parts,
             &config.partition_method,
-            &mut garage,
         );
-
+        let mut garage = Garage::from_file(&config.vehicles_file, &mut net.modes);
         let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());
         let sim_net = SimNetworkPartition::from_network(&net, comm.rank());
 

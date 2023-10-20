@@ -306,7 +306,6 @@ mod tests {
 
     use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Route;
-    use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::{
         messaging::{
             events::EventsPublisher,
@@ -347,13 +346,7 @@ mod tests {
     #[test]
     fn vehicle_travels_local() {
         let mut publisher = EventsPublisher::new();
-        let mut garage = Garage::new();
-        let global_net = Network::from_file(
-            "./assets/3-links/3-links-network.xml",
-            1,
-            "metis",
-            &mut garage,
-        );
+        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
         let mut network = SimNetworkPartition::from_network(&global_net, 0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
@@ -373,13 +366,7 @@ mod tests {
     #[test]
     fn vehicle_reaches_boundary() {
         let mut publisher = EventsPublisher::new();
-        let mut garage = Garage::new();
-        let global_net = Network::from_file(
-            "./assets/3-links/3-links-network.xml",
-            2,
-            "none",
-            &mut garage,
-        );
+        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, "none");
         let mut network = SimNetworkPartition::from_network(&global_net, 0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
@@ -405,13 +392,7 @@ mod tests {
     #[test]
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = EventsPublisher::new();
-        let mut garage = Garage::new();
-        let global_net = Network::from_file(
-            "./assets/3-links/3-links-network.xml",
-            1,
-            "metis",
-            &mut garage,
-        );
+        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
         let mut network = SimNetworkPartition::from_network(&global_net, 0);
 
         // place 100 vehicles on first link
@@ -440,13 +421,7 @@ mod tests {
     #[test]
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = EventsPublisher::new();
-        let mut garage = Garage::new();
-        let mut global_net = Network::from_file(
-            "./assets/3-links/3-links-network.xml",
-            1,
-            "metis",
-            &mut garage,
-        );
+        let mut global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
         global_net.effective_cell_size = 10.;
 
         let id_1 = global_net.link_ids.get_from_ext("link1");
