@@ -3,6 +3,8 @@ use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
 use crate::simulation::id::IdImpl;
 use crate::simulation::messaging::messages::proto::{Activity, Agent};
 use crate::simulation::network::sim_network::SimNetworkPartition;
+use crate::simulation::population::population::Population;
+use crate::simulation::vehicles::garage::Garage;
 
 pub trait WalkLegUpdater {
     fn update_walk_leg(&self, agent: &mut Agent, network: &SimNetworkPartition);
@@ -75,11 +77,14 @@ impl WalkLegUpdater for EuclideanWalkLegUpdater {
 
         let walking_time_in_sec = distance / self.walking_speed_in_m_per_sec;
 
+        //TODO
         agent.update_next_leg(
             dep_time,
             Some(walking_time_in_sec as u32),
             vec![],
             Some(distance),
+            &Population::new(),
+            &Garage::new(),
         );
     }
 }

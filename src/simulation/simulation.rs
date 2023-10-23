@@ -186,7 +186,14 @@ where
         let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
         let dep_time = curr_act.end_time;
 
-        agent.update_next_leg(dep_time, travel_time, route, None);
+        agent.update_next_leg(
+            dep_time,
+            travel_time,
+            route,
+            None,
+            &self.population,
+            &self.garage,
+        );
     }
 
     fn update_walk_leg(&self, agent: &mut Agent) {

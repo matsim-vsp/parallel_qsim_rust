@@ -85,15 +85,24 @@ impl AltLandmarkData {
     }
 
     fn get_next_node<'a>(
-        distances: &'a Vec<u32>,
+        travel_times: &'a Vec<u32>,
         traversed: &'a Vec<bool>,
     ) -> Option<(usize, (&'a u32, &'a bool))> {
-        //ToDo: Never pick a node with distance == u32::MAX
-        distances
+        let result = travel_times
             .iter()
             .zip(traversed.iter())
             .enumerate()
             .filter(|(_, (_, &t))| !t)
-            .min_by(|a, b| a.1 .0.cmp(b.1 .0))
+            .min_by(|a, b| a.1 .0.cmp(b.1 .0));
+
+        if result.is_none() {
+            return None;
+        }
+
+        if result.map(|(_, (t, _))| t).unwrap() >= &u32::MAX {
+            return None;
+        }
+
+        result
     }
 }

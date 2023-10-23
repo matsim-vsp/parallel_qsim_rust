@@ -320,12 +320,21 @@ impl Agent {
         travel_time: Option<u32>,
         route: Vec<u64>,
         distance: Option<f32>,
+        population: &Population,
+        garage: &Garage,
     ) {
         //info!("Leg update for agent {:?}. Departure {:?}, travel time {:?}, route {:?}, distance {:?}, start_link {:?}, end_link {:?}",
         //    self, dep_time, travel_time, route,distance, start_link, end_link);
 
+        let vehicle_id = garage
+            .get_veh_id(
+                &population.agent_ids.get(self.id as usize),
+                &garage.modes.get(self.next_leg().mode as usize),
+            )
+            .internal as u64;
+
         let simulation_route = Route {
-            veh_id: 0, //TODO
+            veh_id: vehicle_id,
             distance: distance.unwrap(),
             route,
         };
