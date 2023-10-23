@@ -313,10 +313,6 @@ where
         }
         messages
     }
-
-    pub fn clone_system_communicator(&self) -> SystemCommunicator {
-        self.communicator.clone()
-    }
 }
 
 #[cfg(test)]

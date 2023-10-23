@@ -34,10 +34,7 @@ impl ForwardBackwardGraph {
     }
 
     pub fn get_forward_travel_time_by_link_id(&self, link_id: u64) -> u32 {
-        let index = self
-            .forward_link_ids()
-            .iter()
-            .position(|&l| l == link_id as usize);
+        let index = self.forward_link_ids().iter().position(|&l| l == link_id);
         index
             .map(|i| {
                 *self
@@ -60,7 +57,7 @@ impl ForwardBackwardGraph {
         &self.forward_graph.travel_time
     }
 
-    pub fn forward_link_ids(&self) -> &Vec<usize> {
+    pub fn forward_link_ids(&self) -> &Vec<u64> {
         &self.forward_graph.link_ids
     }
 
@@ -97,7 +94,7 @@ pub struct Graph {
     pub(crate) first_out: Vec<usize>,
     pub(crate) head: Vec<usize>,
     pub(crate) travel_time: Vec<u32>,
-    pub(crate) link_ids: Vec<usize>,
+    pub(crate) link_ids: Vec<u64>,
     pub(crate) x: Vec<f32>,
     pub(crate) y: Vec<f32>,
 }

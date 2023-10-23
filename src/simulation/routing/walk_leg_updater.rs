@@ -1,6 +1,5 @@
 use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
 
-use crate::simulation::id::IdImpl;
 use crate::simulation::messaging::messages::proto::{Activity, Agent};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
@@ -25,13 +24,13 @@ impl EuclideanWalkLegUpdater {
         let curr_act_point = Point::new(curr_act.x, curr_act.y);
         let from_node_id = network
             .links
-            .get(&IdImpl::new_internal(curr_act.link_id as usize)) //TODO is it correct?
+            .get(&curr_act.link_id) //TODO is it correct?
             .unwrap()
             .from();
 
         let to_node_id = network
             .links
-            .get(&IdImpl::new_internal(curr_act.link_id as usize)) //TODO is it correct?
+            .get(&curr_act.link_id) //TODO is it correct?
             .unwrap()
             .to();
 

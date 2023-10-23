@@ -1,7 +1,7 @@
-use itertools::Itertools;
 use std::str::FromStr;
 use std::{collections::HashSet, path::Path};
 
+use itertools::Itertools;
 use nohash_hasher::IntSet;
 
 use crate::simulation::id::Id;
@@ -307,10 +307,7 @@ impl Link {
     }
 
     pub fn contains_mode(&self, mode: u64) -> bool {
-        self.modes
-            .iter()
-            .map(|m| m.internal)
-            .contains(&(mode as usize))
+        self.modes.iter().map(|m| m.internal()).contains(&mode)
     }
 }
 

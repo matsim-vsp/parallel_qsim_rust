@@ -326,12 +326,14 @@ impl Agent {
         //info!("Leg update for agent {:?}. Departure {:?}, travel time {:?}, route {:?}, distance {:?}, start_link {:?}, end_link {:?}",
         //    self, dep_time, travel_time, route,distance, start_link, end_link);
 
-        let vehicle_id = garage
-            .get_veh_id(
-                &population.agent_ids.get(self.id as usize),
-                &garage.modes.get(self.next_leg().mode as usize),
-            )
-            .internal as u64;
+        // let vehicle_id = garage
+        //     .get_mode_veh_id(
+        //         &population.agent_ids.get(self.id),
+        //         , //TODO we need network here in order to query modes
+        //     )
+        //     .internal();
+
+        let vehicle_id = 42;
 
         let simulation_route = Route {
             veh_id: vehicle_id,
@@ -342,7 +344,7 @@ impl Agent {
         let next_leg = self.next_leg_mut();
 
         next_leg.dep_time = dep_time;
-        next_leg.trav_time = travel_time;
+        next_leg.trav_time = travel_time.unwrap(); //TODO
         next_leg.route = Some(simulation_route);
     }
 

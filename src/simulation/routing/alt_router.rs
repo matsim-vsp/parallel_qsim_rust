@@ -183,7 +183,7 @@ impl AltRouter {
             .current_graph
             .forward_link_ids()
             .iter()
-            .position(|&id| id == link_id as usize)
+            .position(|&id| id == link_id)
             .unwrap();
         *self
             .current_graph
@@ -197,7 +197,7 @@ impl AltRouter {
             .current_graph
             .forward_link_ids()
             .iter()
-            .position(|&id| id == link_id as usize)
+            .position(|&id| id == link_id)
             .unwrap();
 
         let mut result = None;

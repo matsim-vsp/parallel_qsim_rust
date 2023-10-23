@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::messaging::{
     events::{proto::Event, EventsPublisher},
@@ -152,7 +154,7 @@ impl SimNetworkPartition {
                 SimLink::In(_) => true,
                 SimLink::Out(_) => false,
             })
-            .map(|(id, _)| id.internal as u64)
+            .map(|(id, _)| *id)
             .collect::<HashSet<u64>>()
     }
 

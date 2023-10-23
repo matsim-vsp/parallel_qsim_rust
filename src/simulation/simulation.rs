@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use mpi::topology::SystemCommunicator;
 use tracing::{debug, info};
 
 use crate::simulation::config::Config;
@@ -7,9 +8,12 @@ use crate::simulation::id::Id;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
-use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
+use crate::simulation::messaging::messages::proto::{Activity, Agent, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
+use crate::simulation::routing::router::Router;
+use crate::simulation::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
+use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
@@ -51,7 +55,7 @@ where
         }
 
         let (router, walk_leg_updater) = if config.routing_mode == RoutingMode::AdHoc {
-            Self::prepare_routing(&network, &garage, &message_broker)
+            Self::prepare_routing(&network, &garage)
         } else {
             (None, None)
         };
@@ -71,7 +75,6 @@ where
     fn prepare_routing(
         network: &SimNetworkPartition,
         garage: &Garage,
-        message_broker: &MpiMessageBroker,
     ) -> (Option<Box<dyn Router>>, Option<Box<dyn WalkLegUpdater>>) {
         let forward_backward_graph_by_mode =
             TravelTimesCollectingAltRouter::get_forward_backward_graph_by_mode(
@@ -79,10 +82,11 @@ where
                 &garage.vehicle_types,
             );
 
+        //TODO
         let router: Option<Box<dyn Router>> = Some(Box::new(TravelTimesCollectingAltRouter::new(
             forward_backward_graph_by_mode,
-            message_broker.clone_system_communicator(),
-            message_broker.rank,
+            SystemCommunicator::world(),
+            42,
             network.get_link_ids(),
         )));
 

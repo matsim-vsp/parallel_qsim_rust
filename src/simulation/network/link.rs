@@ -25,6 +25,26 @@ impl SimLink {
         }
     }
 
+    pub fn from(&self) -> &Id<Node> {
+        match self {
+            SimLink::Local(l) => l.from(),
+            SimLink::In(l) => l.local_link.from(),
+            SimLink::Out(_) => {
+                panic!("There is no from_id of a split out link.")
+            }
+        }
+    }
+
+    pub fn to(&self) -> &Id<Node> {
+        match self {
+            SimLink::Local(l) => l.to(),
+            SimLink::In(l) => l.local_link.to(),
+            SimLink::Out(_) => {
+                panic!("There is no from_id of a split out link.")
+            }
+        }
+    }
+
     pub fn neighbor_part(&self) -> u32 {
         match self {
             SimLink::Local(_) => {
@@ -246,6 +266,14 @@ impl LocalLink {
 
     pub fn used_storage(&self) -> f32 {
         self.storage_cap.used
+    }
+
+    pub fn from(&self) -> &Id<Node> {
+        &self.from
+    }
+
+    pub fn to(&self) -> &Id<Node> {
+        &self.to
     }
 }
 

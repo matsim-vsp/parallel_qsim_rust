@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mpi::topology::SystemCommunicator;
 use mpi::Rank;
+use nohash_hasher::IntMap;
 use tracing::debug;
 
 use crate::simulation::id::Id;
@@ -173,7 +174,7 @@ impl TravelTimesCollectingAltRouter {
 
     pub fn get_forward_backward_graph_by_mode(
         network: &Network,
-        vehicle_types: &HashMap<Id<VehicleType>, VehicleType>,
+        vehicle_types: &IntMap<Id<VehicleType>, VehicleType>,
     ) -> HashMap<u64, ForwardBackwardGraph> {
         NetworkConverter::convert_network_with_vehicle_types(network, vehicle_types)
     }

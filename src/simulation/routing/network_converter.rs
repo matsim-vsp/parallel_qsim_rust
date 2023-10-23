@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use nohash_hasher::IntMap;
+
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::routing::graph::{ForwardBackwardGraph, Graph};
@@ -10,13 +12,13 @@ pub struct NetworkConverter {}
 impl NetworkConverter {
     pub fn convert_network_with_vehicle_types(
         network: &Network,
-        vehicle_types: &HashMap<Id<VehicleType>, VehicleType>,
+        vehicle_types: &IntMap<Id<VehicleType>, VehicleType>,
     ) -> HashMap<u64, ForwardBackwardGraph> {
         vehicle_types
             .iter()
             .map(|(_, t)| {
                 (
-                    t.net_mode.internal as u64,
+                    t.net_mode.internal(),
                     Self::convert_network(network, Some(&t.net_mode), Some(t.max_v)),
                 )
             })
@@ -67,7 +69,7 @@ impl NetworkConverter {
                 .filter(|&l| l.from == node.id)
                 .filter(|&l| {
                     if let Some(mode) = mode {
-                        l.contains_mode(mode.internal as u64)
+                        l.contains_mode(mode.internal())
                     } else {
                         true
                     }
@@ -80,7 +82,7 @@ impl NetworkConverter {
                 .filter(|&l| l.to == node.id)
                 .filter(|&l| {
                     if let Some(mode) = mode {
-                        l.contains_mode(mode.internal as u64)
+                        l.contains_mode(mode.internal())
                     } else {
                         true
                     }
@@ -101,7 +103,7 @@ impl NetworkConverter {
                 };
                 forward_travel_time.push((link.length / max_speed) as u32);
 
-                forward_link_ids.push(link.id.internal);
+                forward_link_ids.push(link.id.internal());
             }
 
             //process ingoing links
@@ -118,7 +120,7 @@ impl NetworkConverter {
                 };
                 backward_travel_time.push((link.length / max_speed) as u32);
 
-                backward_link_ids.push(link.id.internal);
+                backward_link_ids.push(link.id.internal());
             }
         }
         forward_first_out.push(forward_head.len());
