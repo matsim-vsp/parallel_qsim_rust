@@ -106,3 +106,6 @@ impl AltLandmarkData {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {}

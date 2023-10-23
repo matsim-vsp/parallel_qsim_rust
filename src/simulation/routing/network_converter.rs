@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::Hash;
 
 use nohash_hasher::IntMap;
 
@@ -150,8 +151,6 @@ impl NetworkConverter {
 
 #[cfg(test)]
 mod test {
-    use crate::simulation::io::network::IONetwork;
-    use crate::simulation::io::population::IOPopulation;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
@@ -159,20 +158,9 @@ mod test {
 
     #[test]
     fn test_simple_network() {
-        let io_network = IONetwork::from_file("./assets/routing_tests/triangle-network.xml");
-        let io_population = IOPopulation::empty();
-
-        let mut garage = Garage::new();
-
-        let network = Network::from_file(
-            "./assets/routing_tests/triangle-network.xml",
-            1,
-            &mut garage,
-        );
-
+        let garage = Garage::new();
+        let network = Network::from_file("./assets/routing_tests/triangle-network.xml", 1, "metis");
         let graph = NetworkConverter::convert_network(&network, None, None);
-
-        println!("{graph:#?}");
 
         assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
         assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
@@ -188,38 +176,38 @@ mod test {
 
     #[test]
     fn test_simple_network_with_modes() {
+        let mut network = Network::from_file(
+            "./assets/routing_tests/network_different_modes.xml",
+            1,
+            "metis",
+        );
+
         let mut garage = Garage::new();
 
         let car_type_id = garage.vehicle_type_ids.create_id("car");
-        let car_mode = garage.modes.create_id("car");
-        let mut car_veh_type = VehicleType::new(car_type_id, car_mode);
+        let car_id = network.modes.get_from_ext("car");
+        let car_id_internal = car_id.internal();
+        let mut car_veh_type = VehicleType::new(car_type_id, car_id);
         car_veh_type.max_v = 5.;
         garage.add_veh_type(car_veh_type);
 
         let bike_type_id = garage.vehicle_type_ids.create_id("bike");
-        let bike_mode = garage.modes.create_id("bike");
-        let mut bike_veh_type = VehicleType::new(bike_type_id, bike_mode);
+        let bike_id = network.modes.get_from_ext("bike");
+        let bike_id_internal = bike_id.internal();
+        let mut bike_veh_type = VehicleType::new(bike_type_id, bike_id);
         bike_veh_type.max_v = 2.;
         garage.add_veh_type(bike_veh_type);
-
-        let network = Network::from_file(
-            "./assets/routing_tests/network_different_modes.xml",
-            1,
-            &mut garage,
-        );
 
         let mut graph_by_mode =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
 
-        println!("{graph_by_mode:#?}");
-
-        let car_network = graph_by_mode.remove(&0).unwrap();
+        let car_network = graph_by_mode.remove(&car_id_internal).unwrap();
         assert_eq!(car_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(car_network.forward_head(), &vec![3, 2, 1, 2]);
         assert_eq!(car_network.forward_travel_time(), &vec![2, 2, 5, 5]);
         assert_eq!(car_network.forward_link_ids().len(), 4);
 
-        let bike_network = graph_by_mode.remove(&1).unwrap();
+        let bike_network = graph_by_mode.remove(&bike_id_internal).unwrap();
         assert_eq!(bike_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(bike_network.forward_head(), &vec![2, 2, 3, 1]);
         assert_eq!(bike_network.forward_travel_time(), &vec![5, 5, 5, 5]);

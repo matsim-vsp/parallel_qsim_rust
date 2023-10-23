@@ -453,7 +453,6 @@ mod tests {
 
     use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Route;
-    use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
         messaging::{
             events::EventsPublisher,

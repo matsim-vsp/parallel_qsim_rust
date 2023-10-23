@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use clap::Parser;
 use tracing::debug;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ForwardBackwardGraph {
     pub forward_graph: Graph,
     pub backward_graph: Graph,
@@ -25,6 +26,10 @@ impl ForwardBackwardGraph {
         );
         assert_eq!(
             self.forward_graph.travel_time.len(),
+            self.backward_graph.travel_time.len()
+        );
+        assert_eq!(
+            self.forward_graph.head.len(),
             self.backward_graph.travel_time.len()
         );
         assert_eq!(
@@ -88,7 +93,7 @@ impl ForwardBackwardGraph {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct Graph {
     pub(crate) first_out: Vec<usize>,
@@ -100,6 +105,17 @@ pub struct Graph {
 }
 
 impl Graph {
+    fn new(first_out: Vec<usize>, head: Vec<usize>, travel_time: Vec<u32>) -> Graph {
+        Graph {
+            first_out,
+            head,
+            travel_time,
+            link_ids: vec![],
+            x: vec![],
+            y: vec![],
+        }
+    }
+
     pub fn clone_with_new_travel_times_by_link(
         &self,
         new_travel_times_by_link: &HashMap<&u64, &u32>,
@@ -123,5 +139,69 @@ impl Graph {
         let mut result = self.clone();
         result.travel_time = travel_times;
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::simulation::network::global_network::Network;
+    use crate::simulation::routing::graph::{ForwardBackwardGraph, Graph};
+    use crate::simulation::routing::network_converter::NetworkConverter;
+
+    fn get_test_graph() -> ForwardBackwardGraph {
+        let network = Network::from_file("./assets/routing_tests/triangle-network.xml", 1, "metis");
+        NetworkConverter::convert_network(&network, None, None)
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_graph_not_valid() {
+        let fbg = ForwardBackwardGraph::new(
+            Graph::new(
+                vec![0, 1, 2],
+                vec![0, 1, 2, 3, 4, 5],
+                vec![1, 1, 1, 1, 1, 1],
+            ),
+            Graph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4], vec![1, 1, 1, 1, 1]),
+        );
+    }
+
+    #[test]
+    fn test_graph_valid() {
+        let fbg = ForwardBackwardGraph::new(
+            Graph::new(
+                vec![0, 1, 2],
+                vec![0, 1, 2, 3, 4, 5],
+                vec![1, 1, 1, 1, 1, 1],
+            ),
+            Graph::new(
+                vec![42, 43, 44],
+                vec![8, 10, 12, 13, 14, 15],
+                vec![1, 1, 1, 1, 1, 10],
+            ),
+        );
+    }
+
+    #[test]
+    fn clone_without_change() {
+        let graph = get_test_graph();
+        let new_graph = graph.clone_with_new_travel_times_by_link(HashMap::new());
+
+        assert_eq!(graph, new_graph);
+    }
+
+    #[test]
+    fn clone_with_change() {
+        let mut graph = get_test_graph();
+        let mut change = HashMap::new();
+        change.insert(&5, &42);
+        let new_graph = graph.clone_with_new_travel_times_by_link(change);
+
+        //change manually
+        graph.forward_graph.travel_time[5] = 42;
+        graph.backward_graph.travel_time[3] = 42;
+        assert_eq!(graph, new_graph);
     }
 }
