@@ -31,6 +31,7 @@ itertools = "0.10.5"
 assert_approx_eq = "1.1.0"
 nohash-hasher = "0.2.0"
 rand_distr = "0.4.3"
+serde_path_to_error = "0.1.14"
 
 [build-dependencies]
 # generates types based on .proto files

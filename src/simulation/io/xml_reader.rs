@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::BufReader;
 
-use quick_xml::de::from_reader;
 use serde::de::DeserializeOwned;
 use tracing::info;
 
@@ -19,11 +18,17 @@ where
         // use full name, to avoid ambiguity
         let decoder = flate2::read::GzDecoder::new(buffered_reader);
         let buffered_decoder = BufReader::new(decoder);
-        let result: T = from_reader(buffered_decoder).unwrap();
-        result
+        let mut deserializer = quick_xml::de::Deserializer::from_reader(buffered_decoder);
+
+        match serde_path_to_error::deserialize(&mut deserializer) {
+            Ok(parsed) => parsed,
+            Err(_err) => {
+                panic!("{_err:#?}");
+            }
+        }
     } else if file_path.ends_with(".xml") {
-        let result: Result<T, _> = from_reader(buffered_reader);
-        match result {
+        let mut deserializer = quick_xml::de::Deserializer::from_reader(buffered_reader);
+        match serde_path_to_error::deserialize(&mut deserializer) {
             Ok(x) => x,
             Err(_e) => {
                 panic!("Problem reading file: {_e:?}")
