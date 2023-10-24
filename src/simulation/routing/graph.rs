@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use clap::Parser;
 use tracing::debug;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -158,7 +157,7 @@ pub(crate) mod tests {
     #[test]
     #[should_panic]
     fn test_graph_not_valid() {
-        let fbg = ForwardBackwardGraph::new(
+        ForwardBackwardGraph::new(
             Graph::new(
                 vec![0, 1, 2],
                 vec![0, 1, 2, 3, 4, 5],
@@ -170,7 +169,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_graph_valid() {
-        let fbg = ForwardBackwardGraph::new(
+        ForwardBackwardGraph::new(
             Graph::new(
                 vec![0, 1, 2],
                 vec![0, 1, 2, 3, 4, 5],

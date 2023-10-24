@@ -1,4 +1,5 @@
 use crate::simulation::routing::alt_landmark_data::AltLandmarkData;
+use crate::simulation::routing::dijsktra::Dijkstra;
 use crate::simulation::routing::graph::ForwardBackwardGraph;
 use crate::simulation::routing::router::CustomQueryResult;
 
@@ -73,7 +74,7 @@ impl AltRouter {
         f_score[from] = 0;
         distances[from] = 0;
 
-        while let Some(current) = Self::get_next_node(&mut f_score, &mut traversed) {
+        while let Some(current) = Dijkstra::get_next_node(&mut f_score, &mut traversed) {
             let current_id = current.0;
             let current_distance = distances[current_id];
 
@@ -137,28 +138,6 @@ impl AltRouter {
         } else {
             h as u32
         }
-    }
-
-    fn get_next_node<'a>(
-        travel_times: &'a Vec<u32>,
-        traversed: &'a Vec<bool>,
-    ) -> Option<(usize, (&'a u32, &'a bool))> {
-        let result = travel_times
-            .iter()
-            .zip(traversed.iter())
-            .enumerate()
-            .filter(|(_, (_, &t))| !t)
-            .min_by(|a, b| a.1 .0.cmp(b.1 .0));
-
-        if result.is_none() {
-            return None;
-        }
-
-        if result.map(|(_, (t, _))| t).unwrap() >= &u32::MAX {
-            return None;
-        }
-
-        result
     }
 
     fn extract_path(to: usize, parent: Vec<Option<usize>>) -> Vec<usize> {
@@ -236,7 +215,7 @@ impl AltRouter {
                 None => last_node = Some(node),
                 Some(n) => {
                     let first_out_index = *graph.forward_first_out().get(n).unwrap();
-                    let last_out_index = (graph.forward_first_out().get(n + 1).unwrap() - 1);
+                    let last_out_index = graph.forward_first_out().get(n + 1).unwrap() - 1;
                     res.push(Self::find_edge_id_of_outgoing(
                         first_out_index,
                         last_out_index,

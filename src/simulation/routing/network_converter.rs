@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::hash::Hash;
 
 use nohash_hasher::IntMap;
 
@@ -176,7 +175,7 @@ mod test {
 
     #[test]
     fn test_simple_network_with_modes() {
-        let mut network = Network::from_file(
+        let network = Network::from_file(
             "./assets/routing_tests/network_different_modes.xml",
             1,
             "metis",
