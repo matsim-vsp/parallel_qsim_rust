@@ -1,5 +1,6 @@
 use rand::prelude::IteratorRandom;
-use rand::thread_rng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 use crate::simulation::routing::graph::{ForwardBackwardGraph, Graph};
 
@@ -35,7 +36,8 @@ impl AltLandmarkData {
                 DEFAULT_NUMBER_OF_LANDMARKS
             };
         //TODO do not choose random landmarks
-        (0..graph.number_of_nodes()).choose_multiple(&mut thread_rng(), number_of_landmarks)
+        (0..graph.number_of_nodes())
+            .choose_multiple(&mut StdRng::seed_from_u64(42), number_of_landmarks)
     }
 
     fn calculate_distances(
@@ -48,10 +50,11 @@ impl AltLandmarkData {
                 Self::dijkstra_distances(*l, &graph.forward_graph)
                     .into_iter()
                     .zip(Self::dijkstra_distances(*l, &graph.backward_graph))
-                    .collect::<Vec<(u32, u32)>>()
+                    .collect::<Vec<ForwardBackwardTravelTime>>()
             })
             .collect()
     }
+
     fn dijkstra_distances(from: usize, graph: &Graph) -> Vec<u32> {
         let mut distances: Vec<u32> = (0..graph.first_out.len() - 1).map(|_| u32::MAX).collect();
         let mut traversed: Vec<bool> = (0..graph.first_out.len() - 1).map(|_| false).collect();
@@ -108,4 +111,21 @@ impl AltLandmarkData {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::simulation::routing::alt_landmark_data::AltLandmarkData;
+    use crate::simulation::routing::graph::tests::get_triangle_test_graph;
+
+    #[test]
+    fn test_landmark_choice() {
+        let graph = get_triangle_test_graph();
+        let alt_data = AltLandmarkData::new(&graph);
+
+        //selection so far by random seed
+        assert_eq!(alt_data.landmarks.len(), 1);
+        assert_eq!(alt_data.landmarks[0], 1);
+        assert_eq!(
+            alt_data.travel_times_to_all,
+            vec![vec![(u32::MAX, u32::MAX), (0, 0), (1, 6), (2, 2)]]
+        )
+    }
+}

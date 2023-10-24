@@ -24,7 +24,7 @@ pub struct TravelTimesCollectingAltRouter {
 }
 
 impl Router for TravelTimesCollectingAltRouter {
-    fn query_links(&mut self, from_link: u64, to_link: u64, mode: u64) -> CustomQueryResult {
+    fn query_links(&self, from_link: u64, to_link: u64, mode: u64) -> CustomQueryResult {
         self.get_router_by_mode(mode)
             .expect(&*format!(
                 "There is no router for mode {:?}. Check the vehicle definitions.",
@@ -141,8 +141,8 @@ impl TravelTimesCollectingAltRouter {
             .update(new_graph);
     }
 
-    fn get_router_by_mode(&mut self, mode: u64) -> Option<&mut AltRouter> {
-        self.router_by_mode.get_mut(&mode)
+    fn get_router_by_mode(&self, mode: u64) -> Option<&AltRouter> {
+        self.router_by_mode.get(&mode)
     }
 
     fn get_travel_times_by_mode_to_send(

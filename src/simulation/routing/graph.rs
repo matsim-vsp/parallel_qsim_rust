@@ -143,14 +143,14 @@ impl Graph {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::collections::HashMap;
 
     use crate::simulation::network::global_network::Network;
     use crate::simulation::routing::graph::{ForwardBackwardGraph, Graph};
     use crate::simulation::routing::network_converter::NetworkConverter;
 
-    fn get_test_graph() -> ForwardBackwardGraph {
+    pub fn get_triangle_test_graph() -> ForwardBackwardGraph {
         let network = Network::from_file("./assets/routing_tests/triangle-network.xml", 1, "metis");
         NetworkConverter::convert_network(&network, None, None)
     }
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn clone_without_change() {
-        let graph = get_test_graph();
+        let graph = get_triangle_test_graph();
         let new_graph = graph.clone_with_new_travel_times_by_link(HashMap::new());
 
         assert_eq!(graph, new_graph);
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn clone_with_change() {
-        let mut graph = get_test_graph();
+        let mut graph = get_triangle_test_graph();
         let mut change = HashMap::new();
         change.insert(&5, &42);
         let new_graph = graph.clone_with_new_travel_times_by_link(change);

@@ -2,6 +2,7 @@ use crate::simulation::routing::alt_landmark_data::AltLandmarkData;
 use crate::simulation::routing::graph::ForwardBackwardGraph;
 use crate::simulation::routing::router::CustomQueryResult;
 
+#[derive(PartialEq, Debug)]
 struct AltQueryResult {
     travel_time: Option<u32>,
     node_path: Option<Vec<usize>>,
@@ -36,7 +37,7 @@ impl AltRouter {
         }
     }
 
-    pub fn query_links(&mut self, from_link: u64, to_link: u64) -> CustomQueryResult {
+    pub fn query_links(&self, from_link: u64, to_link: u64) -> CustomQueryResult {
         let travel_time;
         let result_edge_path;
         {
@@ -59,7 +60,7 @@ impl AltRouter {
         }
     }
 
-    fn query(&mut self, from: usize, to: usize) -> AltQueryResult {
+    fn query(&self, from: usize, to: usize) -> AltQueryResult {
         let number_of_nodes = self.current_graph.forward_first_out().len() - 1;
 
         let mut distances: Vec<u32> = (0..number_of_nodes).map(|_| u32::MAX).collect();
@@ -123,11 +124,11 @@ impl AltRouter {
          */
         let mut h = 0;
         for l in landmark_data.travel_times_to_all() {
-            let node_distance = l[node];
-            let goal_distance = l[goal];
+            let node_distance = l[node]; // (SL,LS)
+            let goal_distance = l[goal]; // (LT,TL)
 
-            let forward_estimate = node_distance.0 as i32 - goal_distance.0 as i32;
-            let backward_estimate = goal_distance.1 as i32 - node_distance.1 as i32;
+            let forward_estimate = node_distance.0 as i32 - goal_distance.1 as i32;
+            let backward_estimate = goal_distance.0 as i32 - node_distance.1 as i32;
 
             h = h.max(forward_estimate.max(backward_estimate))
         }
@@ -189,7 +190,7 @@ impl AltRouter {
             .current_graph
             .forward_head()
             .get(link_id_index)
-            .unwrap() as usize
+            .unwrap()
     }
 
     fn get_start_node(&self, link_id: u64) -> usize {
@@ -232,18 +233,17 @@ impl AltRouter {
         let mut last_node: Option<usize> = None;
         for node in path {
             match last_node {
-                None => last_node = Some(node as usize),
+                None => last_node = Some(node),
                 Some(n) => {
-                    let first_out_index = *graph.forward_first_out().get(n).unwrap() as usize;
-                    let last_out_index =
-                        (graph.forward_first_out().get(n + 1).unwrap() - 1) as usize;
+                    let first_out_index = *graph.forward_first_out().get(n).unwrap();
+                    let last_out_index = (graph.forward_first_out().get(n + 1).unwrap() - 1);
                     res.push(Self::find_edge_id_of_outgoing(
                         first_out_index,
                         last_out_index,
                         node,
                         graph,
                     ));
-                    last_node = Some(node as usize)
+                    last_node = Some(node)
                 }
             }
         }
@@ -267,6 +267,45 @@ impl AltRouter {
                 break;
             }
         }
-        result.expect("No outgoing edge found!") as u64
+        result.expect("No outgoing edge found!")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::simulation::routing::alt_router::{AltQueryResult, AltRouter};
+    use crate::simulation::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::routing::graph::ForwardBackwardGraph;
+
+    fn query_and_check(
+        router: &AltRouter,
+        from: usize,
+        to: usize,
+        expected_travel_time: Option<u32>,
+        expected_path: Option<Vec<usize>>,
+    ) {
+        let result = router.query(from, to);
+        assert_eq!(
+            result,
+            AltQueryResult {
+                travel_time: expected_travel_time,
+                node_path: expected_path,
+            }
+        )
+    }
+
+    fn get_enhanced_graph() -> ForwardBackwardGraph {
+        ForwardBackwardGraph::new
+    }
+
+    #[test]
+    fn test_alt_routing() {
+        let graph = get_triangle_test_graph();
+        let router = AltRouter::new(graph);
+
+        query_and_check(&router, 2, 1, Some(6), Some(vec![2, 3, 1]));
+        query_and_check(&router, 3, 2, Some(3), Some(vec![3, 1, 2]));
+        query_and_check(&router, 2, 3, Some(4), Some(vec![2, 3]));
+        query_and_check(&router, 0, 1, None, None);
     }
 }
