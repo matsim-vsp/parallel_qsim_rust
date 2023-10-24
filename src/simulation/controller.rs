@@ -18,9 +18,9 @@ use crate::simulation::messaging::message_broker::{
     ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
     NetMessageBroker,
 };
-use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
+use crate::simulation::plan_modification::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::population::population::Population;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
