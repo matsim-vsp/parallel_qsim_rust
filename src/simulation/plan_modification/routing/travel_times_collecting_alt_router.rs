@@ -10,11 +10,11 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::TravelTimesMessage;
 use crate::simulation::messaging::travel_time_collector::TravelTimeCollector;
 use crate::simulation::network::global_network::Network;
-use crate::simulation::routing::alt_router::AltRouter;
-use crate::simulation::routing::graph::ForwardBackwardGraph;
-use crate::simulation::routing::network_converter::NetworkConverter;
-use crate::simulation::routing::router::{CustomQueryResult, Router};
-use crate::simulation::routing::travel_times_message_broker::TravelTimesMessageBroker;
+use crate::simulation::plan_modification::routing::alt_router::AltRouter;
+use crate::simulation::plan_modification::routing::graph::ForwardBackwardGraph;
+use crate::simulation::plan_modification::routing::network_converter::NetworkConverter;
+use crate::simulation::plan_modification::routing::router::{CustomQueryResult, Router};
+use crate::simulation::plan_modification::routing::travel_times_message_broker::TravelTimesMessageBroker;
 use crate::simulation::vehicles::vehicle_type::VehicleType;
 
 pub struct TravelTimesCollectingAltRouter {

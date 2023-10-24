@@ -1,19 +1,16 @@
 use std::sync::Arc;
 
-use mpi::topology::SystemCommunicator;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
-use crate::simulation::messaging::messages::proto::{Activity, Agent, Vehicle};
+use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
+use crate::simulation::plan_modification::plan_modifier::{PathFindingPlanModifier, PlanModifier};
 use crate::simulation::population::population::Population;
-use crate::simulation::routing::router::Router;
-use crate::simulation::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
-use crate::simulation::routing::walk_leg_updater::{EuclideanWalkLegUpdater, WalkLegUpdater};
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
@@ -28,8 +25,7 @@ where
     garage: Garage,
     message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
-    router: Option<Box<dyn Router>>,
-    walk_leg_updater: Option<Box<dyn WalkLegUpdater>>,
+    plan_modifier: Option<Box<dyn PlanModifier>>,
 }
 
 impl<C> Simulation<C>
@@ -54,10 +50,12 @@ where
             activity_q.add(agent, config.start_time);
         }
 
-        let (router, walk_leg_updater) = if config.routing_mode == RoutingMode::AdHoc {
-            Self::prepare_routing(&network, &garage)
+        let plan_modifier = if config.routing_mode == RoutingMode::AdHoc {
+            let modifier: Option<Box<dyn PlanModifier>> =
+                Some(Box::new(PathFindingPlanModifier::new(&network, &garage)));
+            modifier
         } else {
-            (None, None)
+            None
         };
 
         Simulation {
@@ -67,35 +65,8 @@ where
             activity_q,
             message_broker,
             events,
-            router,
-            walk_leg_updater,
+            plan_modifier,
         }
-    }
-
-    fn prepare_routing(
-        network: &SimNetworkPartition,
-        garage: &Garage,
-    ) -> (Option<Box<dyn Router>>, Option<Box<dyn WalkLegUpdater>>) {
-        let forward_backward_graph_by_mode =
-            TravelTimesCollectingAltRouter::get_forward_backward_graph_by_mode(
-                &network.global_network,
-                &garage.vehicle_types,
-            );
-
-        //TODO
-        let router: Option<Box<dyn Router>> = Some(Box::new(TravelTimesCollectingAltRouter::new(
-            forward_backward_graph_by_mode,
-            SystemCommunicator::world(),
-            42,
-            network.get_link_ids(),
-        )));
-
-        let walking_speed_in_m_per_sec = 1.2;
-        let walk_leg_finder: Option<Box<dyn WalkLegUpdater>> = Some(Box::new(
-            EuclideanWalkLegUpdater::new(walking_speed_in_m_per_sec),
-        ));
-
-        (router, walk_leg_finder)
     }
 
     pub fn run(&mut self, start_time: u32, end_time: u32) {
@@ -123,8 +94,8 @@ where
             now += 1;
         }
 
-        if let Some(router) = self.router.as_mut() {
-            router.next_time_step(now, &mut self.events)
+        if let Some(plan_modifier) = self.plan_modifier.as_mut() {
+            plan_modifier.next_time_step(now, &mut self.events)
         }
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
@@ -135,6 +106,10 @@ where
         let agents = self.activity_q.pop(now);
 
         for agent in agents {
+            if let Some(plan_modifier) = self.plan_modifier.as_mut() {
+                plan_modifier.update_agent(now, &mut agent, self.network.global_network)
+            }
+
             let act_type: Id<String> = Id::get(agent.curr_act().act_type);
             self.events.publish_event(
                 now,
@@ -144,18 +119,6 @@ where
                     act_type.external().to_string(),
                 ),
             );
-
-            if self.router.is_some() {
-                if (!agent.curr_act().is_interaction() && agent.next_act().is_interaction())
-                    || (agent.curr_act().is_interaction() && !agent.next_act().is_interaction())
-                {
-                    self.update_walk_leg(&mut agent);
-                } else if agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
-                    self.update_main_leg(&mut agent);
-                } else {
-                    panic!("Computing a leg between two main activities should never happen.")
-                }
-            }
 
             let mut vehicle = self.departure(agent, now);
             let veh_type_id = Id::get(vehicle.r#type);
@@ -181,53 +144,6 @@ where
                 }
             }
         }
-    }
-
-    fn update_main_leg(&mut self, agent: &mut Agent) {
-        let curr_act = agent.curr_act();
-        let mode = agent.next_leg().routing_mode;
-
-        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
-        let dep_time = curr_act.end_time;
-
-        agent.update_next_leg(
-            dep_time,
-            travel_time,
-            route,
-            None,
-            &self.population,
-            &self.garage,
-        );
-    }
-
-    fn update_walk_leg(&self, agent: &mut Agent) {
-        self.walk_leg_updater
-            .as_ref()
-            .expect("WalkLegFinder must be set, if routing is enabled.")
-            .as_ref()
-            .update_walk_leg(agent, &self.network);
-    }
-
-    fn find_route(
-        &mut self,
-        from_act: &Activity,
-        to_act: &Activity,
-        mode: u64,
-    ) -> (Vec<u64>, Option<u32>) {
-        let query_result =
-            self.router
-                .as_mut()
-                .unwrap()
-                .query_links(from_act.link_id, to_act.link_id, mode);
-
-        let route = query_result.path.expect("There is no route!");
-        let travel_time = query_result.travel_time;
-
-        if route.is_empty() {
-            debug!("Route between {:?} and {:?} is empty.", from_act, to_act);
-        }
-
-        (route, travel_time)
     }
 
     fn departure(&mut self, mut agent: Agent, now: u32) -> Vehicle {

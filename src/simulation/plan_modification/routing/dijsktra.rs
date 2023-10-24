@@ -1,4 +1,4 @@
-use crate::simulation::routing::graph::Graph;
+use crate::simulation::plan_modification::routing::graph::Graph;
 
 pub struct Dijkstra {}
 

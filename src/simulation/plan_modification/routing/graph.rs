@@ -65,14 +65,6 @@ impl ForwardBackwardGraph {
         &self.forward_graph.link_ids
     }
 
-    pub fn forward_x(&self) -> &Vec<f32> {
-        &self.forward_graph.x
-    }
-
-    pub fn forward_y(&self) -> &Vec<f32> {
-        &self.forward_graph.y
-    }
-
     pub fn number_of_nodes(&self) -> usize {
         self.forward_graph.first_out.len()
     }
@@ -146,8 +138,8 @@ pub(crate) mod tests {
     use std::collections::HashMap;
 
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::routing::graph::{ForwardBackwardGraph, Graph};
-    use crate::simulation::routing::network_converter::NetworkConverter;
+    use crate::simulation::plan_modification::routing::graph::{ForwardBackwardGraph, Graph};
+    use crate::simulation::plan_modification::routing::network_converter::NetworkConverter;
 
     pub fn get_triangle_test_graph() -> ForwardBackwardGraph {
         let network = Network::from_file("./assets/routing_tests/triangle-network.xml", 1, "metis");

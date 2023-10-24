@@ -1,7 +1,7 @@
-use crate::simulation::routing::alt_landmark_data::AltLandmarkData;
-use crate::simulation::routing::dijsktra::Dijkstra;
-use crate::simulation::routing::graph::ForwardBackwardGraph;
-use crate::simulation::routing::router::CustomQueryResult;
+use crate::simulation::plan_modification::routing::alt_landmark_data::AltLandmarkData;
+use crate::simulation::plan_modification::routing::dijsktra::Dijkstra;
+use crate::simulation::plan_modification::routing::graph::ForwardBackwardGraph;
+use crate::simulation::plan_modification::routing::router::CustomQueryResult;
 
 #[derive(PartialEq, Debug)]
 struct AltQueryResult {
@@ -252,8 +252,8 @@ impl AltRouter {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::routing::alt_router::{AltQueryResult, AltRouter};
-    use crate::simulation::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::plan_modification::routing::alt_router::{AltQueryResult, AltRouter};
+    use crate::simulation::plan_modification::routing::graph::tests::get_triangle_test_graph;
 
     fn query_and_check(
         router: &AltRouter,
