@@ -275,7 +275,6 @@ impl AltRouter {
 mod tests {
     use crate::simulation::routing::alt_router::{AltQueryResult, AltRouter};
     use crate::simulation::routing::graph::tests::get_triangle_test_graph;
-    use crate::simulation::routing::graph::ForwardBackwardGraph;
 
     fn query_and_check(
         router: &AltRouter,
@@ -292,10 +291,6 @@ mod tests {
                 node_path: expected_path,
             }
         )
-    }
-
-    fn get_enhanced_graph() -> ForwardBackwardGraph {
-        ForwardBackwardGraph::new
     }
 
     #[test]
