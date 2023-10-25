@@ -8,9 +8,7 @@ use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::plan_modification::routing::router::Router;
 use crate::simulation::plan_modification::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
-use crate::simulation::plan_modification::walk_calculator::{
-    EuclideanWalkCalculator, WalkCalculator,
-};
+use crate::simulation::plan_modification::walk_finder::{EuclideanWalkFinder, WalkFinder};
 use crate::simulation::population::population::ActType;
 use crate::simulation::vehicles::garage::Garage;
 
@@ -35,7 +33,7 @@ enum LegModificationType {
 
 pub struct PathFindingPlanModifier {
     router: Box<dyn Router>,
-    walk_leg_updater: Box<dyn WalkCalculator>,
+    walk_finder: Box<dyn WalkFinder>,
 }
 
 impl PlanModifier for PathFindingPlanModifier {
@@ -81,12 +79,12 @@ impl PathFindingPlanModifier {
         ));
 
         let walking_speed_in_m_per_sec = 1.2;
-        let walk_leg_updater: Box<dyn WalkCalculator> =
-            Box::new(EuclideanWalkCalculator::new(walking_speed_in_m_per_sec));
+        let walk_finder: Box<dyn WalkFinder> =
+            Box::new(EuclideanWalkFinder::new(walking_speed_in_m_per_sec));
 
         PathFindingPlanModifier {
             router,
-            walk_leg_updater,
+            walk_finder,
         }
     }
 
@@ -164,10 +162,10 @@ impl PathFindingPlanModifier {
 
         let walk = if agent.curr_act().is_interaction(act_type_id_store) {
             dep_time = curr_act.end_time;
-            self.walk_leg_updater.find_walk(next_act, network)
+            self.walk_finder.find_walk(next_act, network)
         } else {
             dep_time = curr_act.end_time;
-            self.walk_leg_updater.find_walk(curr_act, network)
+            self.walk_finder.find_walk(curr_act, network)
         };
 
         let mode_id = network.modes.get(agent.curr_leg().mode);

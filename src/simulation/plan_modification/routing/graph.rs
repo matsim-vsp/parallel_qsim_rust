@@ -91,11 +91,12 @@ pub struct Graph {
     pub(crate) head: Vec<usize>,
     pub(crate) travel_time: Vec<u32>,
     pub(crate) link_ids: Vec<u64>,
-    pub(crate) x: Vec<f32>,
-    pub(crate) y: Vec<f32>,
+    pub(crate) x: Vec<f64>,
+    pub(crate) y: Vec<f64>,
 }
 
 impl Graph {
+    #[cfg(test)]
     fn new(first_out: Vec<usize>, head: Vec<usize>, travel_time: Vec<u32>) -> Graph {
         Graph {
             first_out,

@@ -1,6 +1,6 @@
 #[derive(Debug, Clone)]
 pub struct StorageCap {
-    pub(crate) max: f32,
+    pub(crate) max: f64,
     // keeps track of storage capacity released by vehicles leaving the link during one time step
     // on release_storage_cap, the used_storage_cap is reduced to account for vehicles leaving the
     // link. This is necessary, because we want additional storage capacity to be available only in
@@ -14,15 +14,15 @@ pub struct StorageCap {
 
 impl StorageCap {
     pub fn new(
-        length: f32,
+        length: f64,
         perm_lanes: f32,
         flow_cap_s: f32,
         sample_size: f32,
         effective_cell_size: f32,
     ) -> Self {
-        let cap = length * perm_lanes * sample_size / effective_cell_size;
+        let cap = length * perm_lanes as f64 * sample_size as f64 / effective_cell_size as f64;
         // storage capacity needs to be at least enough to handle the cap_per_time_step:
-        let max_storage_cap = cap.max(flow_cap_s);
+        let max_storage_cap = cap.max(flow_cap_s as f64);
 
         // the original code contains more logic to increase storage capacity for links with a low
         // free speed. Omit this for now, as we don't want to create a feature complete qsim
@@ -52,7 +52,7 @@ impl StorageCap {
     }
 
     pub fn is_available(&self) -> bool {
-        let available_cap = self.max - self.used;
+        let available_cap = self.max - self.used as f64;
         available_cap > 0.0
     }
 }

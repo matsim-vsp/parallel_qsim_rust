@@ -136,7 +136,7 @@ impl SimLink {
 pub struct LocalLink {
     pub id: Id<Link>,
     q: VecDeque<VehicleQEntry>,
-    length: f32,
+    length: f64,
     free_speed: f32,
     storage_cap: StorageCap,
     flow_cap: Flowcap,
@@ -183,7 +183,7 @@ impl LocalLink {
         capacity_h: f32,
         free_speed: f32,
         perm_lanes: f32,
-        length: f32,
+        length: f64,
         sample_size: f32,
         effective_cell_size: f32,
         from: Id<Node>,
@@ -212,7 +212,7 @@ impl LocalLink {
 
     pub fn push_veh(&mut self, vehicle: Vehicle, now: u32) {
         let speed = self.free_speed.min(vehicle.max_v);
-        let duration = 1.max((self.length / speed) as u32); // at least 1 second per link
+        let duration = 1.max((self.length / speed as f64) as u32); // at least 1 second per link
         let earliest_exit_time = now + duration;
 
         // update state

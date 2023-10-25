@@ -101,7 +101,7 @@ impl NetworkConverter {
                 } else {
                     link.freespeed
                 };
-                forward_travel_time.push((link.length / max_speed) as u32);
+                forward_travel_time.push((link.length / max_speed as f64) as u32);
 
                 forward_link_ids.push(link.id.internal());
             }
@@ -118,7 +118,7 @@ impl NetworkConverter {
                 } else {
                     link.freespeed
                 };
-                backward_travel_time.push((link.length / max_speed) as u32);
+                backward_travel_time.push((link.length / max_speed as f64) as u32);
 
                 backward_link_ids.push(link.id.internal());
             }

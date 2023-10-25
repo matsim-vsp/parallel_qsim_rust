@@ -198,6 +198,16 @@ mod tests {
         assert_eq!("home", Id::<String>::get_from_ext("home").external());
         assert_eq!("errands", Id::<String>::get_from_ext("errands").external());
 
+        // each of the network mode should also have an interaction activity type
+        assert_eq!(
+            "car interaction",
+            pop.act_types.get_from_ext("car interaction").external()
+        );
+        assert_eq!(
+            "bike interaction",
+            pop.act_types.get_from_ext("bike interaction").external()
+        );
+
         // agents should also have ids
         assert_eq!("100", Id::<Agent>::get_from_ext("100").external());
         assert_eq!("200", Id::<Agent>::get_from_ext("200").external());

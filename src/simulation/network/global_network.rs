@@ -20,8 +20,8 @@ pub struct Network {
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    pub x: f32,
-    pub y: f32,
+    pub x: f64,
+    pub y: f64,
     pub id: Id<Node>,
     pub in_links: Vec<Id<Link>>,
     pub out_links: Vec<Id<Link>>,
@@ -33,7 +33,7 @@ pub struct Link {
     pub id: Id<Link>,
     pub from: Id<Node>,
     pub to: Id<Node>,
-    pub length: f32,
+    pub length: f64,
     pub capacity: f32,
     pub freespeed: f32,
     pub permlanes: f32,
@@ -259,7 +259,7 @@ impl Network {
 }
 
 impl Node {
-    pub fn new(id: Id<Node>, x: f32, y: f32) -> Self {
+    pub fn new(id: Id<Node>, x: f64, y: f64) -> Self {
         Node {
             id,
             x,
@@ -277,7 +277,7 @@ impl Link {
         id: Id<Link>,
         from: Id<Node>,
         to: Id<Node>,
-        length: f32,
+        length: f64,
         capacity: f32,
         freespeed: f32,
         permlanes: f32,
@@ -506,6 +506,9 @@ mod tests {
 
         // check cell size
         assert_eq!(7.5, network.effective_cell_size);
+
+        // check walk mode
+        assert_eq!(network.modes.get_from_ext("walk").external(), "walk")
     }
 
     #[test]

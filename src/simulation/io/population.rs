@@ -11,7 +11,7 @@ pub struct IORoute {
     pub start_link: String,
     pub end_link: String,
     pub trav_time: Option<String>,
-    pub distance: f32,
+    pub distance: f64,
     #[serde(rename = "vehicleRefId")]
     pub vehicle: Option<String>,
 
@@ -24,8 +24,8 @@ pub struct IORoute {
 pub struct IOActivity {
     pub r#type: String,
     pub link: String,
-    pub x: f32,
-    pub y: f32,
+    pub x: f64,
+    pub y: f64,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
     pub max_dur: Option<String>,

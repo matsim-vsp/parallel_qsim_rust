@@ -359,7 +359,7 @@ impl Agent {
         dep_time: Option<u32>,
         travel_time: Option<u32>,
         route: Vec<u64>,
-        distance: Option<f32>,
+        distance: Option<f64>,
         vehicle_id: u64,
     ) {
         let next_leg = self.next_leg_mut();
@@ -462,8 +462,8 @@ impl Activity {
     }
 
     pub fn new(
-        x: f32,
-        y: f32,
+        x: f64,
+        y: f64,
         act_type: u64,
         link_id: u64,
         start_time: Option<u32>,

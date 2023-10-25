@@ -51,8 +51,8 @@ message Plan {
 message Activity {
   uint64 act_type = 1;
   uint64 link_id = 2;
-  float x = 3;
-  float y = 4;
+  double x = 3;
+  double y = 4;
   optional uint32 start_time = 5;
   optional uint32 end_time = 6;
   optional uint32 max_dur = 7;
@@ -68,6 +68,6 @@ message Leg {
 
 message Route {
   uint64 veh_id = 1;
-  float distance = 2;
+  double distance = 2;
   repeated uint64 route = 3;
 }
