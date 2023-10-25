@@ -57,7 +57,9 @@ impl PlanModifier for PathFindingPlanModifier {
                 self.update_walk_leg(agent, agent_id, act_type_id_store, network, garage)
             }
             LegModificationType::MainLeg => self.update_main_leg(agent, agent_id, network, garage),
-            LegModificationType::DummyMainLeg => self.update_dummy_leg(agent),
+            LegModificationType::DummyMainLeg => {
+                self.update_dummy_leg(agent, act_type_id_store, network)
+            }
         }
     }
 }
@@ -88,7 +90,12 @@ impl PathFindingPlanModifier {
         }
     }
 
-    fn update_dummy_leg(&self, agent: &mut Agent) {
+    fn update_dummy_leg(
+        &self,
+        agent: &mut Agent,
+        act_type_id_store: &IdStore<ActType>,
+        network: &Network,
+    ) {
         // So far, we have:
         // act (current) - leg (next) - act (next)
         //
@@ -101,17 +108,21 @@ impl PathFindingPlanModifier {
         //
         // Anything else (routing and walk finding) is performed at next time step
 
-        //TODO interaction type
-        let new_acts = vec![
-            Activity::dummy(agent.curr_act().link_id, 0),
-            Activity::dummy(agent.next_act().link_id, 0),
-        ];
+        // Maybe we should move the creation of interaction and walk ids to some router preparing step.
+        // I'm not sure.
+        let main_leg_mode = String::from(network.modes.get(agent.next_leg().mode).external());
+        let id = act_type_id_store.get_from_ext(&format!("{} interaction", main_leg_mode));
 
+        let new_acts = vec![
+            Activity::dummy(agent.curr_act().link_id, id.internal()),
+            Activity::dummy(agent.next_act().link_id, id.internal()),
+        ];
         agent.add_act_after_curr(new_acts);
 
-        //TODO
-        let access = Leg::dummy(0, 0);
-        let egress = Leg::dummy(0, 0);
+        let walk_mode_id = network.modes.get_from_ext("walk").internal();
+
+        let access = Leg::walk_dummy(walk_mode_id);
+        let egress = Leg::walk_dummy(walk_mode_id);
         agent.add_access_egress_legs_for_next(access, egress);
     }
 

@@ -415,10 +415,6 @@ impl Plan {
             panic!("First plan element must be an activity! But was a leg.");
         };
 
-        Plan::get_full_plan_no_routing(io_plan, person_id)
-    }
-
-    fn get_full_plan_no_routing(io_plan: &IOPlan, person_id: &Id<Agent>) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
@@ -543,10 +539,10 @@ impl Leg {
         }
     }
 
-    pub fn dummy(mode: u64, routing_mode: u64) -> Self {
+    pub fn walk_dummy(mode: u64) -> Self {
         Leg {
             mode,
-            routing_mode,
+            routing_mode: mode,
             dep_time: None,
             trav_time: 0,
             route: None,

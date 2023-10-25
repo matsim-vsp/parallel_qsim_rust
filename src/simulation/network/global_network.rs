@@ -60,6 +60,7 @@ impl Network {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
         Self::init_nodes_and_links(&mut result, io_network);
+        Self::create_walk_mode(&mut result);
         Self::partition_network(&mut result, partition_method, num_parts);
         result
     }
@@ -217,6 +218,10 @@ impl Network {
         for link in io_network.links.links {
             network.add_io_link(link)
         }
+    }
+
+    fn create_walk_mode(network: &mut Network) {
+        network.modes.create_id("walk");
     }
 
     fn partition_network(network: &mut Network, partition_method: &str, num_parts: u32) {

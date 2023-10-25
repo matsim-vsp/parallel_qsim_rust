@@ -112,8 +112,8 @@ where
                     now,
                     &mut agent,
                     &agent_id,
-                    &self.population.act_types,
-                    self.network.global_network,
+                    &mut self.population.act_types,
+                    &self.network.global_network,
                     &self.garage,
                 )
             }

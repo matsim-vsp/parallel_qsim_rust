@@ -34,7 +34,7 @@ impl Population {
         let mut result = Population::new();
 
         // create person ids, and vehicles for each person
-        Self::create_ids(io_population, garage);
+        Self::create_ids(&mut result, io_population, network, garage);
         // create the actual persons for this partition
         Self::create_persons(&mut result, io_population, network, partition);
         // create a vehicles for all modes for persons belonging to this partition
@@ -43,7 +43,7 @@ impl Population {
         result
     }
 
-    fn create_ids(io: &IOPopulation, garage: &mut Garage) {
+    fn create_ids(io: &IOPopulation, network: &Network, garage: &mut Garage) {
         // create person ids and collect strings for vehicle ids
         let raw_veh: Vec<_> = io
             .persons
@@ -78,6 +78,12 @@ impl Population {
 
         for act_type in types {
             Id::<String>::create(act_type.as_str());
+        }
+
+        // no add interaction activity type for each network mode
+        for id in network.modes.iter() {
+            pop.act_types
+                .create_id(&format!("{} interaction", id.external()));
         }
     }
 
