@@ -5,7 +5,7 @@ use std::io::Cursor;
 use prost::Message;
 use tracing::debug;
 
-use crate::simulation::id::Id;
+use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
@@ -198,6 +198,38 @@ impl Agent {
         self.id as usize
     }
 
+    pub fn add_act_after_curr(&mut self, to_add: Vec<Activity>) {
+        let curr_act_index = self.curr_act_index() as usize;
+        let _ = &self
+            .plan
+            .as_mut()
+            .unwrap()
+            .acts
+            .splice(curr_act_index..curr_act_index, to_add);
+    }
+
+    pub fn add_access_egress_legs_for_next(&mut self, access: Leg, egress: Leg) {
+        //we have: last leg (current) - main leg (next)
+        //we want: last leg (current) - walk access leg (next) - main leg - walk egress leg
+        //insert walk leg after next and after current (in this order)
+
+        //insert egress
+        let next_leg_index = self.next_leg_index() as usize;
+        self.plan
+            .as_mut()
+            .unwrap()
+            .legs
+            .insert(next_leg_index + 1, egress);
+
+        //insert access
+        let curr_leg_index = self.curr_leg_index() as usize;
+        self.plan
+            .as_mut()
+            .unwrap()
+            .legs
+            .insert(curr_leg_index + 1, access);
+    }
+
     pub fn curr_act(&self) -> &Activity {
         if self.curr_plan_elem % 2 != 0 {
             panic!("Current element is not an activity");
@@ -239,6 +271,10 @@ impl Agent {
         }
     }
 
+    fn curr_act_index(&self) -> u32 {
+        self.next_act_index() - 1
+    }
+
     pub fn curr_leg(&self) -> &Leg {
         if self.curr_plan_elem % 2 != 1 {
             panic!("Current element is not a leg.");
@@ -276,6 +312,10 @@ impl Agent {
                 )
             }
         }
+    }
+
+    fn curr_leg_index(&self) -> u32 {
+        self.next_leg_index() - 1
     }
 
     fn get_act_at_index(&self, index: u32) -> &Activity {
@@ -320,28 +360,15 @@ impl Agent {
         travel_time: Option<u32>,
         route: Vec<u64>,
         distance: Option<f32>,
-        _population: &Population,
-        _garage: &Garage,
+        vehicle_id: u64,
     ) {
-        //info!("Leg update for agent {:?}. Departure {:?}, travel time {:?}, route {:?}, distance {:?}, start_link {:?}, end_link {:?}",
-        //    self, dep_time, travel_time, route,distance, start_link, end_link);
-
-        // let vehicle_id = garage
-        //     .get_mode_veh_id(
-        //         &population.agent_ids.get(self.id),
-        //         , //TODO we need network here in order to query modes
-        //     )
-        //     .internal();
-
-        let vehicle_id = 42;
+        let next_leg = self.next_leg_mut();
 
         let simulation_route = Route {
             veh_id: vehicle_id,
             distance: distance.unwrap(),
             route,
         };
-
-        let next_leg = self.next_leg_mut();
 
         next_leg.dep_time = dep_time;
         next_leg.trav_time = travel_time.unwrap(); //TODO
@@ -458,6 +485,18 @@ impl Activity {
         }
     }
 
+    pub fn dummy(link_id: u64, act_type: u64) -> Activity {
+        Activity {
+            act_type,
+            link_id,
+            x: 0.0, //dummy value which is never evaluated again
+            y: 0.0, //dummy value which is never evaluated again
+            start_time: None,
+            end_time: None,
+            max_dur: Some(0),
+        }
+    }
+
     fn cmp_end_time(&self, now: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
@@ -469,9 +508,11 @@ impl Activity {
         }
     }
 
-    pub fn is_interaction(&self) -> bool {
-        //TODO
-        self.act_type == 1
+    pub fn is_interaction(&self, act_types: &IdStore<ActType>) -> bool {
+        act_types
+            .get(self.act_type)
+            .external()
+            .contains("interaction")
     }
 }
 
@@ -499,6 +540,16 @@ impl Leg {
             trav_time,
             dep_time,
             routing_mode: 0,
+        }
+    }
+
+    pub fn dummy(mode: u64, routing_mode: u64) -> Self {
+        Leg {
+            mode,
+            routing_mode,
+            dep_time: None,
+            trav_time: 0,
+            route: None,
         }
     }
 

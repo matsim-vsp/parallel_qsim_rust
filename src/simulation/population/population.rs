@@ -6,6 +6,8 @@ use crate::simulation::messaging::messages::proto::Agent;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::vehicles::garage::Garage;
 
+pub type ActType = ();
+
 #[derive(Debug, Default)]
 pub struct Population {
     pub agents: HashMap<Id<Agent>, Agent>,

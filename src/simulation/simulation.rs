@@ -107,7 +107,15 @@ where
 
         for agent in agents {
             if let Some(plan_modifier) = self.plan_modifier.as_mut() {
-                plan_modifier.update_agent(now, &mut agent, self.network.global_network)
+                let agent_id = self.population.agent_ids.get(agent.id);
+                plan_modifier.update_agent(
+                    now,
+                    &mut agent,
+                    &agent_id,
+                    &self.population.act_types,
+                    self.network.global_network,
+                    &self.garage,
+                )
             }
 
             let act_type: Id<String> = Id::get(agent.curr_act().act_type);
