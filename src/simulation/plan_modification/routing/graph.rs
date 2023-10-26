@@ -45,7 +45,6 @@ impl ForwardBackwardGraph {
                     .forward_travel_time()
                     .get(i)
                     .expect(&*format!("There is no travel time for link {:?}", link_id))
-                    as u32
             })
             .unwrap()
     }
@@ -66,7 +65,11 @@ impl ForwardBackwardGraph {
     }
 
     pub fn number_of_nodes(&self) -> usize {
-        self.forward_graph.first_out.len()
+        self.forward_graph.first_out.len() - 1
+    }
+
+    pub fn number_of_links(&self) -> usize {
+        self.forward_graph.head.len()
     }
 
     pub fn clone_with_new_travel_times_by_link(
@@ -116,7 +119,7 @@ impl Graph {
 
         let mut new_travel_time_vector = Vec::new();
         for (index, &id) in self.link_ids.iter().enumerate() {
-            if let Some(&&new_travel_time) = new_travel_times_by_link.get(&(id as u64)) {
+            if let Some(&&new_travel_time) = new_travel_times_by_link.get(&(id)) {
                 new_travel_time_vector.push(new_travel_time);
                 debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
             } else {

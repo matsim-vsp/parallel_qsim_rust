@@ -252,8 +252,12 @@ impl AltRouter {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::network::global_network::Network;
     use crate::simulation::plan_modification::routing::alt_router::{AltQueryResult, AltRouter};
     use crate::simulation::plan_modification::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::plan_modification::routing::network_converter::NetworkConverter;
+    use crate::simulation::vehicles::garage::Garage;
+    use std::collections::HashMap;
 
     fn query_and_check(
         router: &AltRouter,
@@ -273,7 +277,7 @@ mod tests {
     }
 
     #[test]
-    fn test_alt_routing() {
+    fn test_simple_alt_routing() {
         let graph = get_triangle_test_graph();
         let router = AltRouter::new(graph);
 
@@ -281,5 +285,42 @@ mod tests {
         query_and_check(&router, 3, 2, Some(3), Some(vec![3, 1, 2]));
         query_and_check(&router, 2, 3, Some(4), Some(vec![2, 3]));
         query_and_check(&router, 0, 1, None, None);
+    }
+
+    #[test]
+    fn test_mode_alt_routing() {
+        let mut network =
+            Network::from_file("./assets/adhoc_routing/no_updates/network.xml", 1, "metis");
+        let mut garage =
+            Garage::from_file("./assets/adhoc_routing/vehicles.xml", &mut network.modes);
+
+        let graph_by_vehicle_type =
+            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+
+        let bike_id = &network.modes.get_from_ext("bike").internal();
+        let car_id = &network.modes.get_from_ext("car").internal();
+
+        let router_by_vehicle_type = graph_by_vehicle_type
+            .into_iter()
+            .map(|(id, g)| (id, AltRouter::new(g)))
+            .collect::<HashMap<_, _>>();
+
+        // check routing for bike
+        query_and_check(
+            &router_by_vehicle_type.get(bike_id).unwrap(),
+            0,
+            5,
+            Some(280),
+            Some(vec![0, 1, 2, 3, 4, 5]),
+        );
+
+        // check routing for car
+        query_and_check(
+            &router_by_vehicle_type.get(car_id).unwrap(),
+            0,
+            5,
+            Some(120),
+            Some(vec![0, 1, 6, 4, 5]),
+        )
     }
 }

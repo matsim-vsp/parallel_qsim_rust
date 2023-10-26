@@ -25,7 +25,7 @@ impl NetworkConverter {
             .collect::<HashMap<_, _>>()
     }
 
-    pub fn convert_network(
+    pub(crate) fn convert_network(
         network: &Network,
         mode: Option<&Id<String>>,
         max_mode_speed: Option<f32>,
@@ -199,6 +199,8 @@ mod test {
         let mut graph_by_mode =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
 
+        assert_eq!(graph_by_mode.keys().len(), 2);
+
         let car_network = graph_by_mode.remove(&car_id_internal).unwrap();
         assert_eq!(car_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(car_network.forward_head(), &vec![3, 2, 1, 2]);
@@ -210,5 +212,36 @@ mod test {
         assert_eq!(bike_network.forward_head(), &vec![2, 2, 3, 1]);
         assert_eq!(bike_network.forward_travel_time(), &vec![5, 5, 5, 5]);
         assert_eq!(bike_network.forward_link_ids().len(), 4);
+    }
+
+    #[test]
+    fn test_mode_filter() {
+        let mut network =
+            Network::from_file("./assets/adhoc_routing/no_updates/network.xml", 1, "metis");
+        let mut garage =
+            Garage::from_file("./assets/adhoc_routing/vehicles.xml", &mut network.modes);
+
+        let vehicle_type2graph =
+            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+
+        // No link as mode "walk". So we expect the resulting walk network as empty.
+        let walk_id = &network.modes.get_from_ext("walk").internal();
+        let node_count = vehicle_type2graph.get(walk_id).unwrap().number_of_nodes();
+        let link_count = vehicle_type2graph.get(walk_id).unwrap().number_of_links();
+
+        assert_eq!(node_count, 7);
+        assert_eq!(link_count, 0);
+
+        // Test for mode "car"
+        let car_id = &network.modes.get_from_ext("car").internal();
+        let car_graph = vehicle_type2graph.get(car_id).unwrap();
+        let link2_index = car_graph.forward_graph.first_out[2];
+        assert_eq!(car_graph.forward_graph.travel_time[link2_index], 100);
+
+        // Test for mode "bike"
+        let bike_id = &network.modes.get_from_ext("bike").internal();
+        let bike_graph = vehicle_type2graph.get(bike_id).unwrap();
+        let link2_index = bike_graph.forward_graph.first_out[2];
+        assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
     }
 }
