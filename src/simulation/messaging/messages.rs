@@ -199,13 +199,13 @@ impl Agent {
     }
 
     pub fn add_act_after_curr(&mut self, to_add: Vec<Activity>) {
-        let curr_act_index = self.curr_act_index() as usize;
+        let next_act_index = self.next_act_index() as usize;
         let _ = &self
             .plan
             .as_mut()
             .unwrap()
             .acts
-            .splice(curr_act_index..curr_act_index, to_add);
+            .splice(next_act_index..next_act_index, to_add);
     }
 
     pub fn add_access_egress_legs_for_next(&mut self, access: Leg, egress: Leg) {
@@ -222,12 +222,11 @@ impl Agent {
             .insert(next_leg_index + 1, egress);
 
         //insert access
-        let curr_leg_index = self.curr_leg_index() as usize;
         self.plan
             .as_mut()
             .unwrap()
             .legs
-            .insert(curr_leg_index + 1, access);
+            .insert(next_leg_index, access);
     }
 
     pub fn curr_act(&self) -> &Activity {
@@ -271,10 +270,6 @@ impl Agent {
         }
     }
 
-    fn curr_act_index(&self) -> u32 {
-        self.next_act_index() - 1
-    }
-
     pub fn curr_leg(&self) -> &Leg {
         if self.curr_plan_elem % 2 != 1 {
             panic!("Current element is not a leg.");
@@ -312,10 +307,6 @@ impl Agent {
                 )
             }
         }
-    }
-
-    fn curr_leg_index(&self) -> u32 {
-        self.next_leg_index() - 1
     }
 
     fn get_act_at_index(&self, index: u32) -> &Activity {
@@ -357,21 +348,21 @@ impl Agent {
     pub fn update_next_leg(
         &mut self,
         dep_time: Option<u32>,
-        travel_time: Option<u32>,
+        travel_time: u32,
         route: Vec<u64>,
-        distance: Option<f64>,
+        distance: f64,
         vehicle_id: u64,
     ) {
         let next_leg = self.next_leg_mut();
 
         let simulation_route = Route {
             veh_id: vehicle_id,
-            distance: distance.unwrap(),
+            distance,
             route,
         };
 
         next_leg.dep_time = dep_time;
-        next_leg.trav_time = travel_time.unwrap(); //TODO
+        next_leg.trav_time = travel_time;
         next_leg.route = Some(simulation_route);
     }
 

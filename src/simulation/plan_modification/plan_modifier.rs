@@ -137,10 +137,17 @@ impl PathFindingPlanModifier {
         let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
         let dep_time = curr_act.end_time;
 
-        let mode_id = network.modes.get(agent.curr_leg().mode);
+        let mode_id = network.modes.get(agent.next_leg().mode);
         let vehicle_id = garage.get_mode_veh_id(agent_id, &mode_id);
+        let distance = Self::calculate_distance(&route, &network);
 
-        agent.update_next_leg(dep_time, travel_time, route, None, vehicle_id.internal());
+        agent.update_next_leg(
+            dep_time,
+            travel_time.unwrap(),
+            route,
+            distance,
+            vehicle_id.internal(),
+        );
     }
 
     fn update_walk_leg(
@@ -155,8 +162,6 @@ impl PathFindingPlanModifier {
         let next_act = agent.next_act();
 
         assert_eq!(curr_act.link_id, next_act.link_id);
-        //TODO
-        //assert_eq!(agent.next_leg().mode, "walk");
 
         let dep_time;
 
@@ -168,14 +173,14 @@ impl PathFindingPlanModifier {
             self.walk_finder.find_walk(curr_act, network)
         };
 
-        let mode_id = network.modes.get(agent.curr_leg().mode);
+        let mode_id = network.modes.get(agent.next_leg().mode);
         let vehicle_id = garage.get_mode_veh_id(agent_id, &mode_id);
 
         agent.update_next_leg(
             dep_time,
-            Some(walk.duration),
+            walk.duration,
             vec![],
-            Some(walk.distance),
+            walk.distance,
             vehicle_id.internal(),
         );
     }
@@ -227,5 +232,224 @@ impl PathFindingPlanModifier {
         } else {
             panic!("Computing a leg between two main activities should never happen.")
         }
+    }
+
+    fn calculate_distance(route: &Vec<u64>, network: &Network) -> f64 {
+        let distance: f64 = route
+            .iter()
+            .map(|l| network.link_ids.get(*l))
+            .map(|id| {
+                network
+                    .links
+                    .iter()
+                    .find(|l| l.id == id)
+                    .expect(&*format!("No link with id {:?}", id))
+            })
+            .map(|l| l.length)
+            .sum();
+        distance
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::simulation::id::{Id, IdStore};
+    use crate::simulation::messaging::messages::proto::{Agent, Route};
+    use crate::simulation::network::global_network::Network;
+    use crate::simulation::network::sim_network::SimNetworkPartition;
+    use crate::simulation::plan_modification::plan_modifier::{
+        PathFindingPlanModifier, PlanModifier,
+    };
+    use crate::simulation::population::population::{ActType, Population};
+    use crate::simulation::vehicles::garage::Garage;
+
+    #[test]
+    fn test_dummy_leg() {
+        //prepare
+        let mut network =
+            Network::from_file("./assets/adhoc_routing/no_updates/network.xml", 1, "metis");
+        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
+        let mut population = Population::from_file(
+            "./assets/adhoc_routing/no_updates/agents.xml",
+            &network,
+            &mut garage,
+            0,
+        );
+        let sim_net = SimNetworkPartition::from_network(&network, 0);
+        let agent_id = population.agent_ids.get(0);
+        let mut agent = population.agents.get_mut(&agent_id).unwrap();
+
+        let plan_modifier = PathFindingPlanModifier::new(&sim_net, &garage);
+
+        //do change
+        plan_modifier.update_agent(
+            0,
+            &mut agent,
+            &agent_id,
+            &population.act_types,
+            &network,
+            &garage,
+        );
+
+        //check activities
+        assert_eq!(agent.plan.as_ref().unwrap().acts.len(), 4);
+        assert_eq!(
+            get_act_type_id(&population.act_types, &agent, 1).external(),
+            "car interaction"
+        );
+        assert_eq!(
+            get_act_type_id(&population.act_types, &agent, 2).external(),
+            "car interaction"
+        );
+
+        //check legs
+        assert_eq!(agent.plan.as_ref().unwrap().legs.len(), 3);
+        assert_eq!(get_mode_id(&network, &agent, 0).external(), "walk");
+        assert_eq!(get_mode_id(&network, &agent, 1).external(), "car");
+        assert_eq!(get_mode_id(&network, &agent, 2).external(), "walk");
+    }
+
+    #[test]
+    fn test_update_walk_leg() {
+        //prepare
+        let mut network = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
+        let mut population = Population::from_file(
+            "./assets/3-links/1-agent-full-leg.xml",
+            &network,
+            &mut garage,
+            0,
+        );
+        let sim_net = SimNetworkPartition::from_network(&network, 0);
+        let agent_id = population.agent_ids.get(0);
+        let mut agent = population.agents.get_mut(&agent_id).unwrap();
+
+        let plan_modifier = PathFindingPlanModifier::new(&sim_net, &garage);
+
+        //do change
+        plan_modifier.update_agent(
+            0,
+            &mut agent,
+            &agent_id,
+            &population.act_types,
+            &network,
+            &garage,
+        );
+
+        //check activities
+        assert_eq!(agent.plan.as_ref().unwrap().acts.len(), 4);
+        assert_eq!(
+            get_act_type_id(&population.act_types, &agent, 1).external(),
+            "car interaction"
+        );
+        assert_eq!(
+            get_act_type_id(&population.act_types, &agent, 2).external(),
+            "car interaction"
+        );
+
+        //check legs
+        assert_eq!(agent.plan.as_ref().unwrap().legs.len(), 3);
+        assert_eq!(get_mode_id(&network, &agent, 0).external(), "walk");
+        assert_eq!(get_mode_id(&network, &agent, 1).external(), "car");
+        assert_eq!(get_mode_id(&network, &agent, 2).external(), "walk");
+
+        let access_leg = agent.plan.as_ref().unwrap().legs.get(0);
+
+        assert_eq!(access_leg.unwrap().trav_time, 8);
+        assert_eq!(
+            access_leg
+                .as_ref()
+                .unwrap()
+                .route
+                .as_ref()
+                .unwrap()
+                .distance,
+            10.
+        );
+    }
+
+    #[test]
+    fn test_update_main_leg() {
+        //prepare
+        let mut network = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
+        let mut population = Population::from_file(
+            "./assets/3-links/1-agent-full-leg.xml",
+            &network,
+            &mut garage,
+            0,
+        );
+        let sim_net = SimNetworkPartition::from_network(&network, 0);
+        let agent_id = population.agent_ids.get(0);
+        let mut agent = population.agents.get_mut(&agent_id).unwrap();
+
+        let plan_modifier = PathFindingPlanModifier::new(&sim_net, &garage);
+
+        //do change of walk leg
+        plan_modifier.update_agent(
+            0,
+            &mut agent,
+            &agent_id,
+            &population.act_types,
+            &network,
+            &garage,
+        );
+
+        //agent is on leg now
+        agent.advance_plan();
+
+        //agent is performing car interaction
+        agent.advance_plan();
+
+        //do change
+        plan_modifier.update_agent(
+            0,
+            &mut agent,
+            &agent_id,
+            &population.act_types,
+            &network,
+            &garage,
+        );
+
+        //check main leg
+        let main_leg = agent.plan.as_ref().unwrap().legs.get(1);
+        assert_eq!(
+            main_leg.unwrap().route.as_ref().unwrap(),
+            &Route {
+                veh_id: 0,
+                distance: 1200.,
+                route: vec![0, 1, 2],
+            }
+        );
+    }
+
+    fn get_act_type_id(
+        act_types: &IdStore<ActType>,
+        agent: &Agent,
+        act_index: usize,
+    ) -> Id<ActType> {
+        act_types.get(
+            agent
+                .plan
+                .as_ref()
+                .unwrap()
+                .acts
+                .get(act_index)
+                .unwrap()
+                .act_type,
+        )
+    }
+
+    fn get_mode_id(network: &Network, agent: &Agent, leg_index: usize) -> Id<String> {
+        network.modes.get(
+            agent
+                .plan
+                .as_ref()
+                .unwrap()
+                .legs
+                .get(leg_index)
+                .unwrap()
+                .mode,
+        )
     }
 }

@@ -218,8 +218,7 @@ mod test {
     fn test_mode_filter() {
         let mut network =
             Network::from_file("./assets/adhoc_routing/no_updates/network.xml", 1, "metis");
-        let mut garage =
-            Garage::from_file("./assets/adhoc_routing/vehicles.xml", &mut network.modes);
+        let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml", &mut network.modes);
 
         let vehicle_type2graph =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
