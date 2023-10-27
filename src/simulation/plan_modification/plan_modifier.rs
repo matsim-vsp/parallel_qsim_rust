@@ -315,7 +315,7 @@ mod tests {
         let mut network = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let mut population = Population::from_file(
-            "./assets/3-links/1-agent-full-leg.xml",
+            "./assets/3-links/1-agent-full-leg-dummy.xml",
             &network,
             &mut garage,
             0,
@@ -374,7 +374,7 @@ mod tests {
         let mut network = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let mut population = Population::from_file(
-            "./assets/3-links/1-agent-full-leg.xml",
+            "./assets/3-links/1-agent-full-leg-dummy.xml",
             &network,
             &mut garage,
             0,

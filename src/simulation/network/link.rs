@@ -512,6 +512,7 @@ mod sim_link_tests {
 mod local_link_tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::link::LocalLink;
+    use assert_approx_eq::assert_approx_eq;
 
     #[test]
     fn storage_cap_initialized_default() {
@@ -528,7 +529,7 @@ mod local_link_tests {
         );
 
         // we expect a storage size of 100 * 3 * 0.2 / 7.5 = 8
-        assert_eq!(8., link.storage_cap.max);
+        assert_approx_eq!(8., link.storage_cap.max);
     }
 
     #[test]
