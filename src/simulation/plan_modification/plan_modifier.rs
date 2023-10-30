@@ -1,8 +1,9 @@
-use mpi::topology::SystemCommunicator;
+use std::rc::Rc;
 use tracing::debug;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::message_broker::SimCommunicator;
 use crate::simulation::messaging::messages::proto::{Activity, Agent, Leg};
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -63,18 +64,20 @@ impl PlanModifier for PathFindingPlanModifier {
 }
 
 impl PathFindingPlanModifier {
-    pub fn new(network: &SimNetworkPartition, garage: &Garage) -> PathFindingPlanModifier {
+    pub fn new<C: SimCommunicator + 'static>(
+        network: &SimNetworkPartition,
+        garage: &Garage,
+        communicator: Rc<C>,
+    ) -> PathFindingPlanModifier {
         let forward_backward_graph_by_mode =
-            TravelTimesCollectingAltRouter::get_forward_backward_graph_by_mode(
+            TravelTimesCollectingAltRouter::<C>::get_forward_backward_graph_by_mode(
                 &network.global_network,
                 &garage.vehicle_types,
             );
 
-        //TODO
         let router: Box<dyn Router> = Box::new(TravelTimesCollectingAltRouter::new(
             forward_backward_graph_by_mode,
-            SystemCommunicator::world(),
-            42,
+            communicator,
             network.get_link_ids(),
         ));
 
@@ -254,6 +257,7 @@ impl PathFindingPlanModifier {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::{Id, IdStore};
+    use crate::simulation::messaging::message_broker::DummySimCommunicator;
     use crate::simulation::messaging::messages::proto::{Agent, Route};
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -262,6 +266,7 @@ mod tests {
     };
     use crate::simulation::population::population::{ActType, Population};
     use crate::simulation::vehicles::garage::Garage;
+    use std::rc::Rc;
 
     #[test]
     fn test_dummy_leg() {
@@ -279,7 +284,8 @@ mod tests {
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
-        let plan_modifier = PathFindingPlanModifier::new(&sim_net, &garage);
+        let plan_modifier =
+            PathFindingPlanModifier::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change
         plan_modifier.update_agent(
@@ -324,7 +330,8 @@ mod tests {
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
-        let plan_modifier = PathFindingPlanModifier::new(&sim_net, &garage);
+        let plan_modifier =
+            PathFindingPlanModifier::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change
         plan_modifier.update_agent(
@@ -383,7 +390,8 @@ mod tests {
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
-        let plan_modifier = PathFindingPlanModifier::new(&sim_net, &garage);
+        let plan_modifier =
+            PathFindingPlanModifier::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change of walk leg
         plan_modifier.update_agent(

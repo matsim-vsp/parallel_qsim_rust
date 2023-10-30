@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use std::sync::Arc;
 
 use tracing::info;
@@ -6,7 +7,7 @@ use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
+use crate::simulation::messaging::message_broker::{NetMessageBroker, SimCommunicator};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::plan_modification::plan_modifier::{PathFindingPlanModifier, PlanModifier};
@@ -17,27 +18,27 @@ use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
 
 pub struct Simulation<C>
 where
-    C: NetCommunicator,
+    C: SimCommunicator,
 {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: SimNetworkPartition,
     garage: Garage,
-    message_broker: NetMessageBroker<C>,
+    net_message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
     plan_modifier: Option<Box<dyn PlanModifier>>,
 }
 
 impl<C> Simulation<C>
 where
-    C: NetCommunicator,
+    C: SimCommunicator + 'static,
 {
     pub fn new(
         config: Arc<Config>,
         network: SimNetworkPartition,
         garage: Garage,
         mut population: Population,
-        message_broker: NetMessageBroker<C>,
+        communicator: C,
         events: EventsPublisher,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
@@ -50,20 +51,25 @@ where
             activity_q.add(agent, config.start_time);
         }
 
+        let rc = Rc::new(communicator);
+
         let plan_modifier = if config.routing_mode == RoutingMode::AdHoc {
-            let modifier: Option<Box<dyn PlanModifier>> =
-                Some(Box::new(PathFindingPlanModifier::new(&network, &garage)));
+            let modifier: Option<Box<dyn PlanModifier>> = Some(Box::new(
+                PathFindingPlanModifier::new(&network, &garage, Rc::clone(&rc)),
+            ));
             modifier
         } else {
             None
         };
+
+        let net_message_broker = NetMessageBroker::new(rc, &network);
 
         Simulation {
             network,
             garage,
             teleportation_q: TimeQueue::new(),
             activity_q,
-            message_broker,
+            net_message_broker,
             events,
             plan_modifier,
         }
@@ -74,17 +80,17 @@ where
         let mut now = start_time;
         info!(
             "Starting #{}. Network neighbors: {:?}, Start time {start_time}, End time {end_time}",
-            self.message_broker.rank(),
+            self.net_message_broker.rank(),
             self.network.neighbors(),
         );
 
         while now <= end_time {
-            if self.message_broker.rank() == 0 && now % 1800 == 0 {
+            if self.net_message_broker.rank() == 0 && now % 1800 == 0 {
                 //if now % 600 == 0 {
                 //if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
-                info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank());
+                info!("#{} of Qsim at {_hour}:{_min}", self.net_message_broker.rank());
             }
             self.wakeup(now);
             self.terminate_teleportation(now);
@@ -141,13 +147,13 @@ where
                     self.network.send_veh_en_route(vehicle, now);
                 }
                 LevelOfDetail::Teleported => {
-                    if Simulation::is_local_route(&vehicle, &self.message_broker) {
+                    if Simulation::is_local_route(&vehicle, &self.net_message_broker) {
                         self.teleportation_q.add(vehicle, now);
                     } else {
                         // we need to call advance here, so that the vehicle's current link index
                         // points to the end link of the route array.
                         vehicle.advance_route_index();
-                        self.message_broker.add_veh(vehicle, now);
+                        self.net_message_broker.add_veh(vehicle, now);
                     }
                 }
             }
@@ -240,14 +246,14 @@ where
         let (vehicles, storage_cap) = self.network.move_links(now);
 
         for veh in vehicles {
-            self.message_broker.add_veh(veh, now);
+            self.net_message_broker.add_veh(veh, now);
         }
 
         for cap in storage_cap {
-            self.message_broker.add_cap(cap, now);
+            self.net_message_broker.add_cap(cap, now);
         }
 
-        let sync_messages = self.message_broker.send_recv(now);
+        let sync_messages = self.net_message_broker.send_recv(now);
 
         for msg in sync_messages {
             self.network.update_storage_caps(msg.storage_capacities);
@@ -288,7 +294,7 @@ mod tests {
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
     use crate::simulation::messaging::message_broker::{
-        ChannelNetCommunicator, DummyNetCommunicator, NetCommunicator, NetMessageBroker,
+        ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
     };
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -310,7 +316,7 @@ mod tests {
         );
 
         execute_sim(
-            DummyNetCommunicator(),
+            DummySimCommunicator(),
             Box::new(TestSubscriber::new()),
             config,
         );
@@ -330,7 +336,7 @@ mod tests {
                 .partition_method(String::from("none"))
                 .build(),
         );
-        let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
+        let comms = ChannelSimCommunicator::create_n_2_n(config.num_parts);
         let mut receiver = ReceivingSubscriber::new();
 
         let mut handles: IntMap<u32, JoinHandle<()>> = comms
@@ -379,7 +385,7 @@ mod tests {
         execute_sim(DummyNetCommunicator(), Box::new(EmtpySubscriber {}), config)
     }
 
-    fn execute_sim<C: NetCommunicator>(
+    fn execute_sim<C: SimCommunicator + 'static>(
         comm: C,
         test_subscriber: Box<dyn EventsSubscriber + Send>,
         config: Arc<Config>,
@@ -401,11 +407,10 @@ mod tests {
 
         info!("#{} {id_part:?}", comm.rank());
 
-        let msg_broker = NetMessageBroker::new(comm, &sim_net, &net);
         let mut events = EventsPublisher::new();
         events.add_subscriber(test_subscriber);
 
-        let mut sim = Simulation::new(config.clone(), sim_net, garage, pop, msg_broker, events);
+        let mut sim = Simulation::new(config.clone(), sim_net, garage, pop, comm, events);
 
         sim.run(config.start_time, config.end_time);
     }

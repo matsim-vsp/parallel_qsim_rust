@@ -15,8 +15,7 @@ use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::logging;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{
-    ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
-    NetMessageBroker,
+    ChannelSimCommunicator, DummySimCommunicator, MpiSimCommunicator, SimCommunicator,
 };
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -30,7 +29,8 @@ pub fn run_single_partition() {
     let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
 
     info!("Starting single Partition Simulation");
-    let comm = DummyNetCommunicator();
+    let comm = DummySimCommunicator();
+
     execute_partition(comm, config);
 }
 
@@ -42,7 +42,7 @@ pub fn run_channel() {
         "Starting Multithreaded Simulation with {} partitions.",
         config.num_parts
     );
-    let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
+    let comms = ChannelSimCommunicator::create_n_2_n(config.num_parts);
 
     let handles: IntMap<u32, JoinHandle<()>> = comms
         .into_iter()
@@ -61,7 +61,7 @@ pub fn run_channel() {
 pub fn run_mpi() {
     let universe = mpi::initialize().unwrap();
     let world = universe.world();
-    let comm = MpiNetCommunicator {
+    let comm = MpiSimCommunicator {
         mpi_communicator: world,
     };
 
@@ -79,7 +79,7 @@ pub fn run_mpi() {
     info!("Process #{} finishing.", world.rank());
 }
 
-fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
+fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>) {
     let rank = comm.rank();
     let size = config.num_parts;
 
@@ -125,7 +125,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         network_partition,
         garage,
         population,
-        message_broker,
+        comm,
         events,
     );
 

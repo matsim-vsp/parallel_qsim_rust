@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::rc::Rc;
 
-use mpi::topology::SystemCommunicator;
-use mpi::Rank;
 use nohash_hasher::IntMap;
 use tracing::debug;
 
 use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::message_broker::{SimCommunicator, TravelTimesMessageBroker};
 use crate::simulation::messaging::messages::proto::TravelTimesMessage;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::plan_modification::routing::alt_router::AltRouter;
@@ -14,16 +14,15 @@ use crate::simulation::plan_modification::routing::graph::ForwardBackwardGraph;
 use crate::simulation::plan_modification::routing::network_converter::NetworkConverter;
 use crate::simulation::plan_modification::routing::router::{CustomQueryResult, Router};
 use crate::simulation::plan_modification::routing::travel_time_collector::TravelTimeCollector;
-use crate::simulation::plan_modification::routing::travel_times_message_broker::TravelTimesMessageBroker;
 use crate::simulation::vehicles::vehicle_type::VehicleType;
 
-pub struct TravelTimesCollectingAltRouter {
+pub struct TravelTimesCollectingAltRouter<C: SimCommunicator> {
     router_by_mode: BTreeMap<u64, AltRouter>,
-    traffic_message_broker: TravelTimesMessageBroker,
+    traffic_message_broker: TravelTimesMessageBroker<C>,
     link_ids_of_process: HashSet<u64>,
 }
 
-impl Router for TravelTimesCollectingAltRouter {
+impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
     fn query_links(&self, from_link: u64, to_link: u64, mode: u64) -> CustomQueryResult {
         self.get_router_by_mode(mode)
             .expect(&*format!(
@@ -43,7 +42,7 @@ impl Router for TravelTimesCollectingAltRouter {
         let _min = (now % 3600) / 60;
         debug!(
             "#{:?} Traffic update triggered at {_hour}:{_min}",
-            self.traffic_message_broker.rank
+            self.traffic_message_broker.rank()
         );
 
         //get travel times
@@ -82,11 +81,10 @@ impl Router for TravelTimesCollectingAltRouter {
     }
 }
 
-impl TravelTimesCollectingAltRouter {
+impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
     pub fn new(
         forward_backward_graph_by_mode: HashMap<u64, ForwardBackwardGraph>,
-        communicator: SystemCommunicator,
-        rank: Rank,
+        communicator: Rc<C>,
         link_ids_of_process: HashSet<u64>,
     ) -> Self {
         let router_by_mode = forward_backward_graph_by_mode
@@ -96,7 +94,7 @@ impl TravelTimesCollectingAltRouter {
 
         TravelTimesCollectingAltRouter {
             router_by_mode,
-            traffic_message_broker: TravelTimesMessageBroker::new(communicator, rank),
+            traffic_message_broker: TravelTimesMessageBroker::new(communicator),
             link_ids_of_process,
         }
     }
