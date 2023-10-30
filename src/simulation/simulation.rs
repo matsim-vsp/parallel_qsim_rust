@@ -69,8 +69,9 @@ where
         );
 
         while now <= end_time {
-            if self.message_broker.rank() == 0 && now % 600 == 0 {
-                //if now % 600 == 0 {
+            //if self.message_broker.rank() == 0 && now % 600 == 0 {
+            //if now % 600 == 0 {
+            if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank());

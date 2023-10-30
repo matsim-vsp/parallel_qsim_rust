@@ -1,8 +1,8 @@
 use std::ops::Sub;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::thread::JoinHandle;
-use std::time::Instant;
+use std::thread::{sleep, JoinHandle};
+use std::time::{Duration, Instant};
 use std::{fs, thread};
 
 use clap::Parser;
@@ -131,6 +131,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
 /// cause the main thread to panic.
 fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
     while !handles.is_empty() {
+        sleep(Duration::from_secs(1)); // test for finished threads once a second
         let mut finished = Vec::new();
         for (i, handle) in handles.iter() {
             if handle.is_finished() {

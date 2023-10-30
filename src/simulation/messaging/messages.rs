@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::Cursor;
 
-use log::debug;
 use prost::Message;
+use tracing::debug;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;

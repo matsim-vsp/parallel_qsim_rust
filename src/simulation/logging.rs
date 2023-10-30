@@ -9,6 +9,15 @@ use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Layer;
 
+pub fn init_std_out_logging() {
+    let collector = tracing_subscriber::registry().with(
+        fmt::Layer::new()
+            .with_writer(io::stdout)
+            .with_filter(LevelFilter::INFO),
+    );
+    tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
+}
+
 pub fn init_logging(directory: &str, file_discriminant: String) -> (WorkerGuard, WorkerGuard) {
     let mut file_name = String::from("mpi_qsim_");
     file_name.push_str(file_discriminant.as_str());

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct Attr {
     pub name: String,
     pub class: String,
-    #[serde(rename = "$value")]
+    #[serde(rename = "$value", default)]
     pub value: String,
 }
 

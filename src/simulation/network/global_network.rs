@@ -520,4 +520,7 @@ mod tests {
         assert_eq!(from.id, link.from);
         assert_eq!(to.id, link.to);
     }
+
+    #[test]
+    fn test_metis_with_large_graph() {}
 }

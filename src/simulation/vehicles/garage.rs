@@ -1,4 +1,5 @@
 use nohash_hasher::IntMap;
+use tracing::info;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
@@ -43,6 +44,11 @@ impl<'g> Garage<'g> {
         for io_veh_type in io_veh_definition.veh_types {
             result.add_io_veh_type(io_veh_type, mode_store);
         }
+        let keys_ext: Vec<_> = result.vehicle_types.keys().map(|k| k.external()).collect();
+        info!(
+            "Created Garage from file with vehicle types: {:?}",
+            keys_ext
+        );
         result
     }
 
