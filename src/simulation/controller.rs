@@ -13,10 +13,10 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::logging;
-use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::{
+use crate::simulation::messaging::communication::communicators::{
     ChannelSimCommunicator, DummySimCommunicator, MpiSimCommunicator, SimCommunicator,
 };
+use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::plan_modification::routing::travel_time_collector::TravelTimeCollector;

@@ -2,8 +2,8 @@ use std::rc::Rc;
 use tracing::debug;
 
 use crate::simulation::id::{Id, IdStore};
+use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::SimCommunicator;
 use crate::simulation::messaging::messages::proto::{Activity, Agent, Leg};
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -257,7 +257,7 @@ impl PathFindingPlanModifier {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::{Id, IdStore};
-    use crate::simulation::messaging::message_broker::DummySimCommunicator;
+    use crate::simulation::messaging::communication::communicators::DummySimCommunicator;
     use crate::simulation::messaging::messages::proto::{Agent, Route};
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;

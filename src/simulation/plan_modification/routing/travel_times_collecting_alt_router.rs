@@ -5,8 +5,9 @@ use nohash_hasher::IntMap;
 use tracing::debug;
 
 use crate::simulation::id::Id;
+use crate::simulation::messaging::communication::communicators::SimCommunicator;
+use crate::simulation::messaging::communication::message_broker::TravelTimesMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::{SimCommunicator, TravelTimesMessageBroker};
 use crate::simulation::messaging::messages::proto::TravelTimesMessage;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::plan_modification::routing::alt_router::AltRouter;

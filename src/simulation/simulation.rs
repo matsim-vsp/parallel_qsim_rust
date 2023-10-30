@@ -3,11 +3,9 @@ use std::sync::Arc;
 
 use tracing::info;
 
-use crate::simulation::config::Config;
-use crate::simulation::id::Id;
+use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::{NetMessageBroker, SimCommunicator};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::plan_modification::plan_modifier::{PathFindingPlanModifier, PlanModifier};
@@ -293,9 +291,6 @@ mod tests {
     use crate::simulation::logging;
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
-    use crate::simulation::messaging::message_broker::{
-        ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
-    };
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::population::Population;
