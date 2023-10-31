@@ -2,19 +2,19 @@ syntax = "proto3";
 
 package mpi.messages;
 
+message SimMessage{
+  oneof type {
+    VehicleMessage vehicles =1 ;
+    TravelTimesMessage travelTimes = 2;
+  }
+}
+
 message TravelTimesMessage {
   map<uint64, uint32> travelTimesByLinkId = 1;
 }
 
-// this is a message for the mpi examples
-message ExperimentalMessage {
-  uint64 timestamp = 1;
-  uint32 counter = 2;
-  string additional_message = 3;
-}
-
 // messages for the qsim
-message SyncMessage {
+message VehicleMessage {
   uint32 time = 1;
   uint32 from_process = 2;
   uint32 to_process = 3;

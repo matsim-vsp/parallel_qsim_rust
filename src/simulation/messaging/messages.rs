@@ -10,9 +10,11 @@ use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
+
+use crate::simulation::messaging::messages::proto::sim_message::Type;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, StorageCap, SyncMessage,
-    TravelTimesMessage, Vehicle,
+    Activity, Agent, Leg, Plan, Route, SimMessage, StorageCap, TravelTimesMessage, Vehicle,
+    VehicleMessage,
 };
 use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
@@ -22,27 +24,49 @@ pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/mpi.messages.rs"));
 }
 
-impl ExperimentalMessage {
-    pub fn new() -> ExperimentalMessage {
-        ExperimentalMessage {
-            counter: 0,
-            timestamp: 0,
-            additional_message: String::new(),
+impl SimMessage {
+    pub fn vehicle_message(self) -> VehicleMessage {
+        match self.r#type.unwrap() {
+            Type::Vehicles(v) => v,
+            Type::TravelTimes(_) => {
+                panic!("That message is no vehicle message.")
+            }
+        }
+    }
+
+    pub fn travel_times_message(self) -> TravelTimesMessage {
+        match self.r#type.unwrap() {
+            Type::Vehicles(_) => {
+                panic!("That message is no travel times message.")
+            }
+            Type::TravelTimes(t) => t,
+        }
+    }
+
+    pub fn from_vehicle_message(m: VehicleMessage) -> SimMessage {
+        SimMessage {
+            r#type: Some(Type::Vehicles(m)),
+        }
+    }
+
+    pub fn from_travel_times_message(m: TravelTimesMessage) -> SimMessage {
+        SimMessage {
+            r#type: Some(Type::TravelTimes(m)),
         }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(self.encoded_len());
-        self.encode(&mut buf).unwrap();
-        buf
+        let mut buffer = Vec::with_capacity(self.encoded_len());
+        self.encode(&mut buffer).unwrap();
+        buffer
     }
 
-    pub fn deserialize(buf: &[u8]) -> ExperimentalMessage {
-        ExperimentalMessage::decode(&mut Cursor::new(buf)).unwrap()
+    pub fn deserialize(buffer: &[u8]) -> SimMessage {
+        SimMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
-impl SyncMessage {
+impl VehicleMessage {
     pub fn new(time: u32, from: u32, to: u32) -> Self {
         Self {
             time,
@@ -59,16 +83,6 @@ impl SyncMessage {
 
     pub fn add_storage_cap(&mut self, storage_cap: StorageCap) {
         self.storage_capacities.push(storage_cap);
-    }
-
-    pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(self.encoded_len());
-        self.encode(&mut buffer).unwrap();
-        buffer
-    }
-
-    pub fn deserialize(buffer: &[u8]) -> SyncMessage {
-        SyncMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
@@ -88,28 +102,18 @@ impl TravelTimesMessage {
     pub fn add_travel_time(&mut self, link: u64, travel_time: u32) {
         self.travel_times_by_link_id.insert(link, travel_time);
     }
-
-    pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(self.encoded_len());
-        self.encode(&mut buffer).unwrap();
-        buffer
-    }
-
-    pub fn deserialize(buffer: &[u8]) -> TravelTimesMessage {
-        TravelTimesMessage::decode(&mut Cursor::new(buffer)).unwrap()
-    }
 }
 
 // Implementation for ordering, so that vehicle messages can be put into a message queue sorted by time
-impl PartialOrd for SyncMessage {
+impl PartialOrd for VehicleMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Eq for SyncMessage {}
+impl Eq for VehicleMessage {}
 
-impl Ord for SyncMessage {
+impl Ord for VehicleMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         other.time.cmp(&self.time)
     }

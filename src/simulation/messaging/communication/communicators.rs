@@ -1,4 +1,6 @@
-use crate::simulation::messaging::messages::proto::{SyncMessage, TravelTimesMessage};
+use crate::simulation::messaging::messages::proto::{
+    SimMessage, TravelTimesMessage, VehicleMessage,
+};
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
@@ -10,12 +12,12 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        vehicles: HashMap<u32, SyncMessage>,
+        vehicles: HashMap<u32, VehicleMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         on_msg: F,
     ) where
-        F: FnMut(SyncMessage);
+        F: FnMut(VehicleMessage);
 
     fn send_receive_travel_times<F>(&self, now: u32, travel_times: HashMap<u64, u32>, on_msg: F)
     where
@@ -29,12 +31,12 @@ pub struct DummySimCommunicator();
 impl SimCommunicator for DummySimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        _vehicles: HashMap<u32, SyncMessage>,
+        _vehicles: HashMap<u32, VehicleMessage>,
         _expected_vehicle_messages: &mut HashSet<u32>,
         _now: u32,
         _on_msg: F,
     ) where
-        F: FnMut(SyncMessage),
+        F: FnMut(VehicleMessage),
     {
     }
 
@@ -56,8 +58,8 @@ impl SimCommunicator for DummySimCommunicator {
 }
 
 pub struct ChannelSimCommunicator {
-    receiver: Receiver<SyncMessage>,
-    senders: Vec<Sender<SyncMessage>>,
+    receiver: Receiver<SimMessage>,
+    senders: Vec<Sender<SimMessage>>,
     rank: u32,
 }
 
@@ -94,19 +96,19 @@ impl ChannelSimCommunicator {
 impl SimCommunicator for ChannelSimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        vehicles: HashMap<u32, SyncMessage>,
+        vehicles: HashMap<u32, VehicleMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         mut on_msg: F,
     ) where
-        F: FnMut(SyncMessage),
+        F: FnMut(VehicleMessage),
     {
         // send messages to everyone
         for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
             sender
-                .send(msg)
-                .expect("Failed to send message in message broker");
+                .send(SimMessage::from_vehicle_message(msg))
+                .expect("Failed to send vehicle message in message broker");
         }
 
         // receive messages from everyone
@@ -114,7 +116,8 @@ impl SimCommunicator for ChannelSimCommunicator {
             let received_msg = self
                 .receiver
                 .recv()
-                .expect("Error while receiving messages");
+                .expect("Error while receiving messages")
+                .vehicle_message();
             let from_rank = received_msg.from_process;
 
             // If a message was received from a neighbor partition for this very time step, remove
@@ -129,11 +132,33 @@ impl SimCommunicator for ChannelSimCommunicator {
         }
     }
 
-    fn send_receive_travel_times<F>(&self, now: u32, travel_times: HashMap<u64, u32>, mut on_msg: F)
-    where
+    fn send_receive_travel_times<F>(
+        &self,
+        _now: u32,
+        travel_times: HashMap<u64, u32>,
+        mut on_msg: F,
+    ) where
         F: FnMut(Vec<TravelTimesMessage>),
     {
-        todo!()
+        let message = TravelTimesMessage::from(travel_times);
+        //send to each
+        for sender in &self.senders {
+            sender
+                .send(SimMessage::from_travel_times_message(message.clone()))
+                .expect("Failed to send travel times message in message broker");
+        }
+
+        let mut result = Vec::new();
+        while result.len() < self.senders.len() {
+            let received_msg = self
+                .receiver
+                .recv()
+                .expect("Error while receiving messages")
+                .travel_times_message();
+            result.push(received_msg);
+        }
+
+        on_msg(result);
     }
 
     fn rank(&self) -> u32 {
@@ -148,14 +173,17 @@ pub struct MpiSimCommunicator {
 impl SimCommunicator for MpiSimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        out_messages: HashMap<u32, SyncMessage>,
+        out_messages: HashMap<u32, VehicleMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         mut on_msg: F,
     ) where
-        F: FnMut(SyncMessage),
+        F: FnMut(VehicleMessage),
     {
-        let buf_msg: Vec<_> = out_messages.values().map(|m| (m, m.serialize())).collect();
+        let buf_msg: Vec<_> = out_messages
+            .into_iter()
+            .map(|(to, m)| (to, SimMessage::from_vehicle_message(m).serialize()))
+            .collect();
 
         // we have to use at least immediate send here. Otherwise we risk blocking on send as explained
         // in https://paperpile.com/app/p/e209e0b3-9bdb-08c7-8a62-b1180a9ac954 chapter 4.3, 4.4 and 4.12.
@@ -176,7 +204,7 @@ impl SimCommunicator for MpiSimCommunicator {
             for (message, buf) in buf_msg.iter() {
                 let req = self
                     .mpi_communicator
-                    .process_at_rank(message.to_process as Rank)
+                    .process_at_rank(*message as Rank)
                     .immediate_send(scope, buf);
                 reqs.add(req);
             }
@@ -185,7 +213,7 @@ impl SimCommunicator for MpiSimCommunicator {
             // messages.
             while !expected_vehicle_messages.is_empty() {
                 let (encoded_msg, _status) = self.mpi_communicator.any_process().receive_vec();
-                let msg = SyncMessage::deserialize(&encoded_msg);
+                let msg = SimMessage::deserialize(&encoded_msg).vehicle_message();
                 let from_rank = msg.from_process;
 
                 // If a message was received from a neighbor partition for this very time step, remove
@@ -205,11 +233,16 @@ impl SimCommunicator for MpiSimCommunicator {
         });
     }
 
-    fn send_receive_travel_times<F>(&self, now: u32, travel_times: HashMap<u64, u32>, mut on_msg: F)
-    where
+    fn send_receive_travel_times<F>(
+        &self,
+        _now: u32,
+        travel_times: HashMap<u64, u32>,
+        mut on_msg: F,
+    ) where
         F: FnMut(Vec<TravelTimesMessage>),
     {
-        let travel_times_message = TravelTimesMessage::from(travel_times);
+        let travel_times_message =
+            SimMessage::from_travel_times_message(TravelTimesMessage::from(travel_times));
         let serial_travel_times_message = travel_times_message.serialize();
 
         let messages: Vec<TravelTimesMessage> =
@@ -224,11 +257,11 @@ impl SimCommunicator for MpiSimCommunicator {
 }
 
 impl MpiSimCommunicator {
-    fn gather_travel_times(&self, travel_times_message: &Vec<u8>) -> Vec<TravelTimesMessage> {
+    fn gather_travel_times(&self, sim_travel_times_message: &Vec<u8>) -> Vec<TravelTimesMessage> {
         // ------- Gather traffic info lengths -------
         let mut travel_times_length_buffer = vec![0i32; self.mpi_communicator.size() as usize];
         self.mpi_communicator.all_gather_into(
-            &(travel_times_message.len() as i32),
+            &(sim_travel_times_message.len() as i32),
             &mut travel_times_length_buffer[..],
         );
 
@@ -248,7 +281,7 @@ impl MpiSimCommunicator {
             &info_displs[..],
         );
         self.mpi_communicator
-            .all_gather_varcount_into(&travel_times_message[..], &mut partition);
+            .all_gather_varcount_into(&sim_travel_times_message[..], &mut partition);
 
         Self::deserialize_travel_times(travel_times_buffer, travel_times_length_buffer)
     }
@@ -274,11 +307,14 @@ impl MpiSimCommunicator {
         for len in lengths {
             let begin_index = last_end_index;
             let end_index = last_end_index + len as usize;
-            result.push(TravelTimesMessage::deserialize(
+            result.push(SimMessage::deserialize(
                 &all_travel_times_messages[begin_index..end_index as usize],
             ));
             last_end_index = end_index;
         }
         result
+            .into_iter()
+            .map(|s| s.travel_times_message())
+            .collect()
     }
 }

@@ -2,8 +2,9 @@ use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::simulation::messaging::messages::proto::{StorageCap, SyncMessage, Vehicle};
-use crate::simulation::network::global_network::Network;
+use crate::simulation::messaging::messages::proto::{
+    StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
+};
 use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
 
 pub struct TravelTimesMessageBroker<C>
@@ -39,8 +40,8 @@ where
 {
     //communicator: SystemCommunicator,
     communicator: Rc<C>,
-    out_messages: HashMap<u32, SyncMessage>,
-    in_messages: BinaryHeap<SyncMessage>,
+    out_messages: HashMap<u32, VehicleMessage>,
+    in_messages: BinaryHeap<VehicleMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
     link_mapping: HashMap<u64, u32>,
@@ -83,7 +84,7 @@ where
         let message = self
             .out_messages
             .entry(partition)
-            .or_insert_with(|| SyncMessage::new(now, rank, partition));
+            .or_insert_with(|| VehicleMessage::new(now, rank, partition));
         message.add_veh(vehicle);
     }
 
@@ -92,16 +93,16 @@ where
         let message = self
             .out_messages
             .entry(cap.from_part)
-            .or_insert_with(|| SyncMessage::new(now, rank, cap.from_part));
+            .or_insert_with(|| VehicleMessage::new(now, rank, cap.from_part));
         message.add_storage_cap(StorageCap {
             link_id: cap.link_id,
             value: cap.used,
         });
     }
 
-    pub fn send_recv(&mut self, now: u32) -> Vec<SyncMessage> {
+    pub fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
         let vehicles = self.prepare_send_recv_vehicles(now);
-        let mut result: Vec<SyncMessage> = Vec::new();
+        let mut result: Vec<VehicleMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
 
         self.pop_from_cache(&mut expected_vehicle_messages, &mut result, now);
@@ -119,9 +120,9 @@ where
     }
 
     fn handle_incoming_msg(
-        msg: SyncMessage,
-        result: &mut Vec<SyncMessage>,
-        in_messages: &mut BinaryHeap<SyncMessage>,
+        msg: VehicleMessage,
+        result: &mut Vec<VehicleMessage>,
+        in_messages: &mut BinaryHeap<VehicleMessage>,
         now: u32,
     ) {
         if msg.time <= now {
@@ -134,7 +135,7 @@ where
     fn pop_from_cache(
         &mut self,
         expected_messages: &mut HashSet<u32>,
-        messages: &mut Vec<SyncMessage>,
+        messages: &mut Vec<VehicleMessage>,
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
@@ -147,7 +148,7 @@ where
         }
     }
 
-    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, SyncMessage> {
+    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, VehicleMessage> {
         let capacity = self.out_messages.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
@@ -156,7 +157,7 @@ where
             let neighbor_rank = *partition;
             messages
                 .entry(neighbor_rank)
-                .or_insert_with(|| SyncMessage::new(now, self.rank(), neighbor_rank));
+                .or_insert_with(|| VehicleMessage::new(now, self.rank(), neighbor_rank));
         }
         messages
     }
@@ -164,6 +165,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::rc::Rc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
@@ -171,8 +173,10 @@ mod tests {
 
     use crate::simulation::id::Id;
     use crate::simulation::messaging::communication::communicators::ChannelSimCommunicator;
-    use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-    use crate::simulation::messaging::messages::proto::Vehicle;
+    use crate::simulation::messaging::communication::message_broker::{
+        NetMessageBroker, TravelTimesMessageBroker,
+    };
+    use crate::simulation::messaging::messages::proto::{TravelTimesMessage, Vehicle};
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
     use crate::test_utils::create_agent;
@@ -182,7 +186,7 @@ mod tests {
         let sends = Arc::new(AtomicUsize::new(0));
 
         execute_test(move |communicator| {
-            let mut broker = create_message_broker(communicator);
+            let mut broker = create_net_message_broker(communicator);
 
             sends.fetch_add(1, Ordering::Relaxed);
             let result = broker.send_recv(0);
@@ -217,7 +221,7 @@ mod tests {
     #[test]
     fn send_recv_local_vehicle_msg() {
         execute_test(|communicator| {
-            let mut broker = create_message_broker(communicator);
+            let mut broker = create_net_message_broker(communicator);
 
             // place vehicle into partition 0
             if broker.rank() == 0 {
@@ -270,7 +274,7 @@ mod tests {
     #[test]
     fn send_recv_remote_message() {
         execute_test(|communicator| {
-            let mut broker = create_message_broker(communicator);
+            let mut broker = create_net_message_broker(communicator);
 
             // place vehicle into partition 0 with a future timestamp
             if broker.rank() == 0 {
@@ -303,7 +307,7 @@ mod tests {
     #[test]
     fn send_recv_local_and_remote_msg() {
         execute_test(|communicator| {
-            let mut broker = create_message_broker(communicator);
+            let mut broker = create_net_message_broker(communicator);
 
             if broker.rank() == 0 {
                 // place vehicle into partition 0 with a future timestamp with remote destination
@@ -346,7 +350,7 @@ mod tests {
         });
     }
 
-    fn create_message_broker(
+    fn create_net_message_broker(
         communicator: ChannelSimCommunicator,
     ) -> NetMessageBroker<ChannelSimCommunicator> {
         let rank = communicator.rank();
@@ -360,7 +364,7 @@ mod tests {
     #[test]
     fn send_recv_storage_cap() {
         execute_test(|communicator| {
-            let mut broker = create_message_broker(communicator);
+            let mut broker = create_net_message_broker(communicator);
             // add a storage cap message for link 4, which connects parts 1 -> 2
             if broker.rank() == 2 {
                 broker.add_cap(
@@ -386,6 +390,56 @@ mod tests {
                 }
             }
         });
+    }
+
+    #[test]
+    fn test_travel_times_message_broker() {
+        execute_test(|communicator| {
+            let broker = TravelTimesMessageBroker::new(Rc::new(communicator));
+
+            let res;
+            if broker.rank() == 0 {
+                let mut travel_times = HashMap::new();
+                travel_times.insert(0, 20);
+                travel_times.insert(1, 20);
+                res = broker.send_recv(42, travel_times)
+            } else if broker.rank() == 1 {
+                let mut travel_times = HashMap::new();
+                travel_times.insert(2, 5);
+                travel_times.insert(3, 5);
+                res = broker.send_recv(42, travel_times)
+            } else if broker.rank() == 2 {
+                let mut travel_times = HashMap::new();
+                travel_times.insert(4, 1);
+                travel_times.insert(5, 1);
+                res = broker.send_recv(42, travel_times)
+            } else {
+                res = broker.send_recv(42, HashMap::new())
+            };
+
+            assert_eq!(res.len(), 4);
+
+            //from rank 0
+            let mut map = HashMap::new();
+            map.insert(0, 20);
+            map.insert(1, 20);
+            assert!(res.contains(&TravelTimesMessage::from(map)));
+
+            //from rank 1
+            let mut map = HashMap::new();
+            map.insert(2, 5);
+            map.insert(3, 5);
+            assert!(res.contains(&TravelTimesMessage::from(map)));
+
+            //from rank 2
+            let mut map = HashMap::new();
+            map.insert(4, 1);
+            map.insert(5, 1);
+            assert!(res.contains(&TravelTimesMessage::from(map)));
+
+            //from rank 3
+            assert!(res.contains(&TravelTimesMessage::new()));
+        })
     }
 
     fn execute_test<F>(test: F)
@@ -452,9 +506,9 @@ mod tests {
             id: Id::new_internal(id),
             from,
             to,
-            length: 0.0,
+            length: 10.0,
             capacity: 1.0,
-            freespeed: 0.0,
+            freespeed: 1.0,
             permlanes: 0.0,
             modes: Default::default(),
             partition,
