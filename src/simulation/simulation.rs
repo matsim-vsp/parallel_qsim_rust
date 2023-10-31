@@ -69,9 +69,9 @@ where
         );
 
         while now <= end_time {
-            //if self.message_broker.rank() == 0 && now % 600 == 0 {
-            //if now % 600 == 0 {
-            if now % 800 == 0 {
+            if self.message_broker.rank() == 0 && now % 1800 == 0 {
+                //if now % 600 == 0 {
+                //if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank());
@@ -340,7 +340,7 @@ mod tests {
         );
         let mut garage = Garage::from_file(&config.vehicles_file, &mut net.modes);
         let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());
-        let sim_net = SimNetworkPartition::from_network(&net, comm.rank());
+        let sim_net = SimNetworkPartition::from_network(&net, comm.rank(), config.sample_size);
 
         let id_part: Vec<_> = net
             .links

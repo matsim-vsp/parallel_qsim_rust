@@ -41,3 +41,6 @@ protobuf-src = "1.1.0"
 
 [profile.bench]
 debug = true
+
+[profile.release]
+debug = true

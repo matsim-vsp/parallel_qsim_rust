@@ -1,8 +1,6 @@
-use nohash_hasher::{BuildNoHashHasher, IntMap, IntSet};
-use rand::distributions::Distribution;
+use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
-use rand::thread_rng;
-use rand_distr::WeightedAliasIndex;
+use rand::{thread_rng, Rng};
 
 use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::messaging::{
@@ -33,10 +31,10 @@ pub struct SimNetworkPartition<'n> {
 #[derive(Debug)]
 pub struct SimNode {
     in_links: Vec<u64>,
-    in_links_weights: Option<WeightedAliasIndex<f32>>,
+    in_capacity: f32,
 }
 impl<'n> SimNetworkPartition<'n> {
-    pub fn from_network(global_network: &'n Network, partition: u32) -> Self {
+    pub fn from_network(global_network: &'n Network, partition: u32, sample_size: f32) -> Self {
         let nodes: Vec<&Node> = global_network
             .nodes
             .iter()
@@ -58,6 +56,7 @@ impl<'n> SimNetworkPartition<'n> {
                         link,
                         partition,
                         global_network.effective_cell_size,
+                        sample_size,
                         global_network,
                     ),
                 )
@@ -66,30 +65,24 @@ impl<'n> SimNetworkPartition<'n> {
 
         let sim_nodes: Vec<_> = nodes
             .iter()
-            .map(|n| Self::create_sim_node(n, global_network))
+            .map(|n| Self::create_sim_node(n, global_network, sample_size))
             .collect();
 
         Self::new(sim_nodes, sim_links, global_network)
     }
 
-    fn create_sim_node(node: &Node, network: &Network) -> SimNode {
+    fn create_sim_node(node: &Node, network: &Network, sample_size: f32) -> SimNode {
         let in_links: Vec<u64> = node.in_links.iter().map(|l_id| l_id.internal()).collect();
-        let capacities: Vec<f32> = node
+        let in_capacity = node
             .in_links
             .iter()
             .map(|l_id| network.links.get(l_id.internal() as usize).unwrap())
-            .map(|link| link.capacity)
-            .collect();
-
-        let in_links_weights = if capacities.is_empty() {
-            None
-        } else {
-            Some(WeightedAliasIndex::new(capacities).unwrap())
-        };
+            .map(|link| link.capacity * sample_size / 3600.)
+            .sum();
 
         SimNode {
             in_links,
-            in_links_weights,
+            in_capacity,
         }
     }
 
@@ -97,18 +90,24 @@ impl<'n> SimNetworkPartition<'n> {
         link: &Link,
         partition: u32,
         effective_cell_size: f32,
+        sample_size: f32,
         global_network: &Network,
     ) -> SimLink {
         let from_part = global_network.get_node(&link.from).partition; //all_nodes.get(link.from.internal()).unwrap().partition;
         let to_part = global_network.get_node(&link.to).partition; //all_nodes.get(link.to.internal()).unwrap().partition;
 
         if from_part == to_part {
-            SimLink::Local(LocalLink::from_link(link, 1.0, effective_cell_size))
+            SimLink::Local(LocalLink::from_link(link, sample_size, effective_cell_size))
         } else if to_part == partition {
-            let local_link = LocalLink::from_link(link, 1.0, 7.5);
+            let local_link = LocalLink::from_link(link, sample_size, effective_cell_size);
             SimLink::In(SplitInLink::new(from_part, local_link))
         } else {
-            SimLink::Out(SplitOutLink::new(link, effective_cell_size, 1.0, to_part))
+            SimLink::Out(SplitOutLink::new(
+                link,
+                effective_cell_size,
+                sample_size,
+                to_part,
+            ))
         }
     }
 
@@ -206,7 +205,7 @@ impl<'n> SimNetworkPartition<'n> {
         let mut exited_vehicles = Vec::new();
 
         for node in &self.nodes {
-            Self::move_node(
+            Self::move_node_capacity_priority(
                 node,
                 &mut self.links,
                 &mut exited_vehicles,
@@ -219,7 +218,55 @@ impl<'n> SimNetworkPartition<'n> {
         exited_vehicles
     }
 
-    fn move_node(
+    /// Keep this method here, in case we want to run round robin fashion
+    #[allow(dead_code)]
+    fn move_node_round_robin(
+        node: &SimNode,
+        links: &mut IntMap<u64, SimLink>,
+        exited_vehicles: &mut Vec<Vehicle>,
+        events: &mut EventsPublisher,
+        _rnd: &mut ThreadRng,
+        now: u32,
+    ) {
+        let mut avail_capacity: f32 = node.in_capacity;
+        let mut exhausted_links: Vec<Option<()>> = vec![None; node.in_links.len()];
+
+        while avail_capacity > 1e-6 {
+            // go through all in links and fetch one, which is not exhausted yet.
+            for i in 0..exhausted_links.len() {
+                // if the link is exhausted, try next link
+                if exhausted_links[i].is_some() {
+                    continue;
+                }
+
+                // take the not exhausted link and check whether it could release a vehicle and if
+                // that vehicle can move to the next link
+                let link_id = node.in_links.get(i).unwrap();
+                if Self::should_veh_move_out(link_id, links, now) {
+                    // the vehicle can move. Increase the selected capacity by the link's capacity
+                    // this way it becomes more and more likely that a link can release vehicles,
+                    // links with more capacity are more likely to release vehicles first though.
+                    let in_link = links.get_mut(link_id).unwrap();
+
+                    let veh = in_link.pop_veh();
+                    if veh.peek_next_route_element().is_some() {
+                        Self::move_vehicle(veh, links, events, now);
+                    } else {
+                        exited_vehicles.push(veh);
+                    }
+                } else {
+                    // in case the vehicle on the link can't move, we add the link to the exhausted
+                    // bookkeeping and reduce the available capacity, which makes it more likely for
+                    // other links to be able to release vehicles.
+                    exhausted_links[i] = Some(());
+                    let link = links.get(link_id).unwrap();
+                    avail_capacity -= link.flow_cap();
+                }
+            }
+        }
+    }
+
+    fn move_node_capacity_priority(
         node: &SimNode,
         links: &mut IntMap<u64, SimLink>,
         exited_vehicles: &mut Vec<Vehicle>,
@@ -227,35 +274,47 @@ impl<'n> SimNetworkPartition<'n> {
         rnd: &mut ThreadRng,
         now: u32,
     ) {
-        let mut unavailable_links =
-            IntSet::with_capacity_and_hasher(node.in_links.len(), BuildNoHashHasher::default());
+        let mut avail_capacity: f32 = node.in_capacity;
+        let mut sel_cap: f32 = 0.;
+        let mut exhausted_links: Vec<Option<()>> = vec![None; node.in_links.len()];
 
-        while unavailable_links.len() < node.in_links.len() {
-            // draw a link id weighted on capacity and fetch that link
-            let link_index = node.in_links_weights.as_ref().unwrap().sample(rnd);
-            let in_link_id = node.in_links.get(link_index).unwrap();
+        while avail_capacity > 1e-6 {
+            // draw random number between 0 and available capacity
+            let rnd_num: f32 = rnd.gen::<f32>() * avail_capacity;
 
-            // if the link is already unavailable draw again.
-            if unavailable_links.contains(in_link_id) {
-                continue;
-            }
-            // if the link has a vehicle which can move, do it.
-            else if Self::should_veh_move_out(in_link_id, links, now) {
-                // get the mut ref here again, so that the borrow checker lets us borrow the links map
-                // for the method above.
-                let in_link = links.get_mut(in_link_id).unwrap();
-                let veh = in_link.pop_veh();
-
-                if veh.peek_next_route_element().is_some() {
-                    Self::move_vehicle(veh, links, events, now);
-                } else {
-                    exited_vehicles.push(veh);
+            // go through all in links and fetch one, which is not exhausted yet.
+            for i in 0..node.in_links.len() {
+                // if the link is exhausted, try next link
+                if exhausted_links[i].is_some() {
+                    continue;
                 }
-            }
-            // if the vehicle can't move, the in_link is blocked. Add that link to the set of
-            // unavailable links, and keep trying to move vehicles.
-            else {
-                unavailable_links.insert(*in_link_id);
+
+                // take the not exhausted link and check whether it could release a vehicle and if
+                // that vehicle can move to the next link
+                let link_id = node.in_links.get(i).unwrap();
+                if Self::should_veh_move_out(link_id, links, now) {
+                    // the vehicle can move. Increase the selected capacity by the link's capacity
+                    // this way it becomes more and more likely that a link can release vehicles,
+                    // links with more capacity are more likely to release vehicles first though.
+                    let in_link = links.get_mut(link_id).unwrap();
+                    sel_cap += in_link.flow_cap();
+
+                    if sel_cap >= rnd_num {
+                        let veh = in_link.pop_veh();
+                        if veh.peek_next_route_element().is_some() {
+                            Self::move_vehicle(veh, links, events, now);
+                        } else {
+                            exited_vehicles.push(veh);
+                        }
+                    }
+                } else {
+                    // in case the vehicle on the link can't move, we add the link to the exhausted
+                    // bookkeeping and reduce the available capacity, which makes it more likely for
+                    // other links to be able to release vehicles.
+                    exhausted_links[i] = Some(());
+                    let link = links.get(link_id).unwrap();
+                    avail_capacity -= link.flow_cap();
+                }
             }
         }
     }
@@ -347,7 +406,7 @@ mod tests {
     fn vehicle_travels_local() {
         let mut publisher = EventsPublisher::new();
         let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
-        let mut network = SimNetworkPartition::from_network(&global_net, 0);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, 0);
@@ -367,7 +426,7 @@ mod tests {
     fn vehicle_reaches_boundary() {
         let mut publisher = EventsPublisher::new();
         let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, "none");
-        let mut network = SimNetworkPartition::from_network(&global_net, 0);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
         network.send_veh_en_route(vehicle, 0);
@@ -393,7 +452,7 @@ mod tests {
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = EventsPublisher::new();
         let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
-        let mut network = SimNetworkPartition::from_network(&global_net, 0);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
 
         // place 100 vehicles on first link
         for i in 0..100 {
@@ -426,7 +485,7 @@ mod tests {
 
         let id_1 = global_net.link_ids.get_from_ext("link1");
         let id_2 = global_net.link_ids.get_from_ext("link2");
-        let mut network = SimNetworkPartition::from_network(&global_net, 0);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
 
         //place 10 vehicles on link2 so that it is jammed
         // vehicles are very slow, so that the first vehicle should leave link2 at t=1000
@@ -463,7 +522,6 @@ mod tests {
             x: 0.0,
             y: 0.0,
             id: Id::new_internal(0),
-            attrs: vec![],
             in_links: vec![],
             out_links: vec![],
             partition: 0,
@@ -494,7 +552,6 @@ mod tests {
             freespeed: 100.,
             permlanes: 1.0,
             modes: Default::default(),
-            attributes: vec![],
             partition: 0,
         });
         net.add_link(Link {
@@ -506,7 +563,6 @@ mod tests {
             freespeed: 100.0,
             permlanes: 1.0,
             modes: Default::default(),
-            attributes: vec![],
             partition: 0,
         });
         net.add_link(Link {
@@ -518,10 +574,9 @@ mod tests {
             freespeed: 100.0,
             permlanes: 1.0,
             modes: Default::default(),
-            attributes: vec![],
             partition: 0,
         });
-        let mut sim_net = SimNetworkPartition::from_network(&net, 0);
+        let mut sim_net = SimNetworkPartition::from_network(&net, 0, 1.0);
 
         //place 10 vehicles on 2, so that it is jammed. The link should release 1 veh per time step.
         for i in 2000..2010 {
@@ -629,7 +684,7 @@ mod tests {
         net.add_link(out_link_1_2);
         net.add_link(out_link_3_1);
 
-        let sim_net = SimNetworkPartition::from_network(&net, 0);
+        let sim_net = SimNetworkPartition::from_network(&net, 0, 1.0);
 
         let neighbors = sim_net.neighbors();
         assert_eq!(3, neighbors.len());
@@ -668,8 +723,8 @@ mod tests {
         let link2 = network.links.get_mut(1).unwrap();
         link2.partition = 1;
         vec![
-            SimNetworkPartition::from_network(network, 0),
-            SimNetworkPartition::from_network(network, 1),
+            SimNetworkPartition::from_network(network, 0, 1.0),
+            SimNetworkPartition::from_network(network, 1, 1.0),
         ]
     }
 

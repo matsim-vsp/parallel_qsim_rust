@@ -33,6 +33,6 @@ struct InputArgs {
     pub in_path: String,
     #[arg(short, long)]
     pub out_path: String,
-    #[arg(long, default_value_t = 1)]
+    #[arg(long)]
     pub num_parts: u32,
 }
