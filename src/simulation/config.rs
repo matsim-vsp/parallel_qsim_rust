@@ -124,6 +124,11 @@ impl ConfigBuilder {
         self
     }
 
+    pub fn routing_mode(mut self, routing_mode: RoutingMode) -> Self {
+        self.routing_mode = routing_mode;
+        self
+    }
+
     pub fn set_vehicle_definitions_file(
         mut self,
         vehicle_definitions_file: Option<String>,

@@ -68,6 +68,7 @@ impl ForwardBackwardGraph {
         self.forward_graph.first_out.len() - 1
     }
 
+    #[cfg(test)]
     pub fn number_of_links(&self) -> usize {
         self.forward_graph.head.len()
     }

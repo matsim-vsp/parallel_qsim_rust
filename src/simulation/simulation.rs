@@ -109,18 +109,8 @@ where
     fn wakeup(&mut self, now: u32) {
         let agents = self.activity_q.pop(now);
 
-        for agent in agents {
-            if let Some(plan_modifier) = self.plan_modifier.as_mut() {
-                let agent_id = self.population.agent_ids.get(agent.id);
-                plan_modifier.update_agent(
-                    now,
-                    &mut agent,
-                    &agent_id,
-                    &mut self.population.act_types,
-                    &self.network.global_network,
-                    &self.garage,
-                )
-            }
+        for mut agent in agents {
+            self.update_agent_if_present(&mut agent, now);
 
             let act_type: Id<String> = Id::get(agent.curr_act().act_type);
             self.events.publish_event(
@@ -159,6 +149,8 @@ where
     }
 
     fn departure(&mut self, mut agent: Agent, now: u32) -> Vehicle {
+        self.update_agent_if_present(&mut agent, now);
+
         //here, current element counter is going to be increased
         agent.advance_plan();
 
@@ -178,6 +170,20 @@ where
 
         let veh_id = Id::get(route.veh_id);
         self.garage.unpark_veh(agent, &veh_id)
+    }
+
+    fn update_agent_if_present(&mut self, mut agent: &mut Agent, now: u32) {
+        if let Some(plan_modifier) = self.plan_modifier.as_mut() {
+            let agent_id = self.population.agent_ids.get(agent.id);
+            plan_modifier.update_agent(
+                now,
+                &mut agent,
+                &agent_id,
+                &mut self.population.act_types,
+                &self.network.global_network,
+                &self.garage,
+            )
+        }
     }
 
     fn terminate_teleportation(&mut self, now: u32) {
@@ -279,6 +285,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::any::Any;
+    use std::path::PathBuf;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::sync::Arc;
     use std::thread;
@@ -288,7 +295,9 @@ mod tests {
     use tracing::info;
 
     use crate::simulation::config::Config;
-    use crate::simulation::logging;
+    use crate::simulation::messaging::communication::communicators::{
+        ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
+    };
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
     use crate::simulation::network::global_network::Network;
@@ -331,8 +340,98 @@ mod tests {
                 .partition_method(String::from("none"))
                 .build(),
         );
+
+        execute_sim_with_channels(config, None);
+    }
+
+    #[test]
+    #[ignore]
+    fn execute_adhoc_routing_one_part_no_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/no_updates/network.xml",
+                ))
+                .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_one_part",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(1)
+                .partition_method(String::from("none"))
+                .build(),
+        );
+
+        execute_sim(
+            DummySimCommunicator(),
+            Box::new(TestSubscriber::new_with_events_from_file(
+                "./assets/adhoc_routing/no_updates/expected_events.pbf",
+            )),
+            config,
+        );
+    }
+
+    #[test]
+    fn execute_adhoc_routing_two_parts_no_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/no_updates/network.xml",
+                ))
+                .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_two_parts",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(2)
+                .partition_method(String::from("none"))
+                .build(),
+        );
+
+        execute_sim_with_channels(
+            config,
+            Some("./assets/adhoc_routing/no_updates/expected_events.pbf"),
+        );
+    }
+
+    //TODO
+    #[test]
+    fn execute_adhoc_routing_one_part_with_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/with_updates/network.xml",
+                ))
+                .population_file(String::from(
+                    "./assets/adhoc_routing/with_updates/agents.xml",
+                ))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_one_part",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(1)
+                .partition_method(String::from("none"))
+                .build(),
+        );
+
+        execute_sim(
+            DummySimCommunicator(),
+            Box::new(TestSubscriber::new_with_events_from_file(
+                "./assets/adhoc_routing/with_updates/expected_events.pbf",
+            )),
+            config,
+        );
+    }
+
+    fn execute_sim_with_channels(config: Arc<Config>, expected_events_file: Option<&str>) {
         let comms = ChannelSimCommunicator::create_n_2_n(config.num_parts);
-        let mut receiver = ReceivingSubscriber::new();
+        let mut receiver = match expected_events_file {
+            None => ReceivingSubscriber::new(),
+            Some(e) => ReceivingSubscriber::new_with_events_from_file(e),
+        };
 
         let mut handles: IntMap<u32, JoinHandle<()>> = comms
             .into_iter()
@@ -475,6 +574,13 @@ mod tests {
             }
         }
 
+        fn new_with_events_from_file(events_file: &str) -> Self {
+            Self {
+                test_subscriber: TestSubscriber::new_with_events_from_file(events_file),
+                channel: channel(),
+            }
+        }
+
         fn start_listen(&mut self) {
             while self.test_subscriber.next_index < self.test_subscriber.expected_events.len() {
                 let (time, event) = self
@@ -493,6 +599,24 @@ mod tests {
                 next_index: 0,
                 expected_events: Self::expected_events(),
             }
+        }
+
+        fn new_with_events_from_file(events_file: &str) -> Self {
+            Self {
+                next_index: 0,
+                expected_events: Self::expected_events_from_file(events_file),
+            }
+        }
+
+        fn expected_events_from_file(events_file: &str) -> Vec<(u32, Event)> {
+            let reader = EventsReader::from_file(&PathBuf::from(events_file));
+            let mut result = Vec::new();
+            for (time, events) in reader {
+                for event in events {
+                    result.push((time, event));
+                }
+            }
+            result
         }
 
         fn expected_events() -> Vec<(u32, Event)> {
@@ -542,7 +666,7 @@ mod tests {
                 self.expected_events.get(self.next_index).unwrap();
             self.next_index += 1;
             assert_eq!(expected_time, &time);
-            assert_eq!(expected_event, event);
+            assert_eq!(expected_event, event, "Unexpected Event at time {}", time);
         }
 
         fn as_any(&mut self) -> &mut dyn Any {

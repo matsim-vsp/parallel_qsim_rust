@@ -164,7 +164,10 @@ impl AltRouter {
             .forward_link_ids()
             .iter()
             .position(|&id| id == link_id)
-            .unwrap();
+            .expect(&*format!(
+                "There is no link with id {} in the current mode graph.",
+                link_id
+            ));
         *self
             .current_graph
             .forward_head()
@@ -178,7 +181,10 @@ impl AltRouter {
             .forward_link_ids()
             .iter()
             .position(|&id| id == link_id)
-            .unwrap();
+            .expect(&*format!(
+                "There is no link with id {} in the current mode graph.",
+                link_id
+            ));
 
         let mut result = None;
         for i in 0..self.current_graph.forward_first_out().len() {

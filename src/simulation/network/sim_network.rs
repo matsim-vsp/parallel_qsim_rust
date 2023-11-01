@@ -432,7 +432,7 @@ impl SimNetworkPartition {
     ) {
         events.publish_event(
             now,
-            &Event::new_link_leave(vehicle.curr_route_elem as u64, vehicle.id),
+            &Event::new_link_leave(vehicle.curr_link_id().unwrap(), vehicle.id),
         );
         vehicle.advance_route_index();
         let link_id = vehicle.curr_link_id().unwrap();

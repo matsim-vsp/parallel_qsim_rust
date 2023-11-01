@@ -14,7 +14,7 @@ use crate::simulation::population::population::ActType;
 use crate::simulation::vehicles::garage::Garage;
 
 pub trait PlanModifier {
-    fn next_time_step(&self, now: u32, events: &mut EventsPublisher);
+    fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher);
     fn update_agent(
         &self,
         now: u32,
@@ -38,8 +38,8 @@ pub struct PathFindingPlanModifier {
 }
 
 impl PlanModifier for PathFindingPlanModifier {
-    fn next_time_step(&self, _now: u32, _events: &mut EventsPublisher) {
-        todo!()
+    fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher) {
+        self.router.next_time_step(now, events)
     }
 
     fn update_agent(
@@ -182,7 +182,7 @@ impl PathFindingPlanModifier {
         agent.update_next_leg(
             dep_time,
             walk.duration,
-            vec![],
+            vec![agent.curr_act().link_id],
             walk.distance,
             vehicle_id.internal(),
         );

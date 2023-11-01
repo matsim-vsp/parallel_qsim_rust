@@ -2,13 +2,41 @@
 <!DOCTYPE network SYSTEM "http://www.matsim.org/files/dtd/network_v2.dtd">
 <network>
     <nodes>
-        <node id="node0" x="-100.0" y="0.0"/>
-        <node id="node1" x="0.0" y="0.0"/>
-        <node id="node2" x="100.0" y="0.0"/>
-        <node id="node3" x="1100.0" y="0.0"/>
-        <node id="node4" x="1200.0" y="0.0"/>
-        <node id="node5" x="1300.0" y="0.0"/>
-        <node id="node6" x="600.0" y="300.0"/>
+        <node id="node0" x="-100.0" y="0.0">
+            <attributes>
+                <attribute name="partition" class="java.lang.Integer">0</attribute>
+            </attributes>
+        </node>
+        <node id="node1" x="0.0" y="0.0">
+            <attributes>
+                <attribute name="partition" class="java.lang.Integer">0</attribute>
+            </attributes>
+        </node>
+        <node id="node2" x="100.0" y="0.0">
+            <attributes>
+                <attribute name="partition" class="java.lang.Integer">0</attribute>
+            </attributes>
+        </node>
+        <node id="node3" x="1100.0" y="0.0">
+            <attributes>
+                <attribute name="partition" class="java.lang.Integer">1</attribute>
+            </attributes>
+        </node>
+        <node id="node4" x="1200.0" y="0.0">
+            <attributes>
+                <attribute name="partition" class="java.lang.Integer">1</attribute>
+            </attributes>
+        </node>
+        <node id="node5" x="1300.0" y="0.0">
+            <attributes>
+                <attribute name="partition" class="java.lang.Integer">1</attribute>
+            </attributes>
+        </node>
+        <node id="node6" x="600.0" y="300.0">
+            <attributes>
+                <attribute name="partition" class="java.lang.Integer">0</attribute>
+            </attributes>
+        </node>
     </nodes>
     <links capperiod="01:00:00" effectivecellsize="7.5" effectivelanewidth="3.75">
         <link id="link0" from="node0" to="node1" length="100" freespeed="10" capacity="100.0" permlanes="1.0" oneway="1" modes="bike,car"/>
