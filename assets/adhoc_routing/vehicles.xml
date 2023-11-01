@@ -7,7 +7,7 @@
         <length meter="9.5"/>
         <width meter="3.0"/>
         <maximumVelocity meterPerSecond="20.0"/>
-        <passengerCarEquivalents pce="2.0"/>
+        <passengerCarEquivalents pce="1.0"/>
         <networkMode networkMode="car"/>
         <flowEfficiencyFactor factor="1.5"/>
     </vehicleType>

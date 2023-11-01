@@ -5,99 +5,99 @@
     <person id="100">
         <plan score="92.61490939414003" selected="yes">
             <!--From node0 to node5 -->
-            <activity type="home_28800.0" link="link0" x="-100" y="10.0" end_time="9:01:00"/>
+            <activity type="home_28800.0" link="0" x="-100" y="10.0" end_time="9:01:00"/>
             <leg mode="car" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="link1" end_link="link1" trav_time="00:00:08"
+                <route type="generic" start_link="1" end_link="1" trav_time="00:00:08"
                        distance="10"/>
             </leg>
-            <activity type="errands_2400.0" link="link4" x="1300.0" y="10.0" start_time="15:51:00" />
+            <activity type="errands_2400.0" link="4" x="1300.0" y="10.0" start_time="15:51:00" />
         </plan>
     </person>
     <person id="101">
         <plan score="92.61490939414003" selected="yes">
             <!--From node0 to node5 -->
-            <activity type="home_28800.0" link="link0" x="-100" y="10.0" end_time="9:16:00"/>
+            <activity type="home_28800.0" link="0" x="-100" y="10.0" end_time="9:16:00"/>
             <leg mode="car" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="link1" end_link="link1" trav_time="00:00:08"
+                <route type="generic" start_link="1" end_link="1" trav_time="00:00:08"
                        distance="10"/>
             </leg>
-            <activity type="errands_2400.0" link="link4" x="1300.0" y="10.0" start_time="15:51:00" />
+            <activity type="errands_2400.0" link="4" x="1300.0" y="10.0" start_time="15:51:00" />
         </plan>
     </person>
     <person id="102">
         <plan score="92.61490939414003" selected="yes">
             <!--From node0 to node5 -->
-            <activity type="home_28800.0" link="link0" x="-100" y="10.0" end_time="9:31:00"/>
+            <activity type="home_28800.0" link="0" x="-100" y="10.0" end_time="9:31:00"/>
             <leg mode="car" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="link1" end_link="link1" trav_time="00:00:08"
+                <route type="generic" start_link="1" end_link="1" trav_time="00:00:08"
                        distance="10"/>
             </leg>
-            <activity type="errands_2400.0" link="link4" x="1300.0" y="10.0" start_time="15:51:00" />
+            <activity type="errands_2400.0" link="4" x="1300.0" y="10.0" start_time="15:51:00" />
         </plan>
     </person>
     <person id="103">
         <plan score="92.61490939414003" selected="yes">
             <!--From node0 to node5 -->
-            <activity type="home_28800.0" link="link0" x="-100" y="10.0" end_time="9:44:00"/>
+            <activity type="home_28800.0" link="0" x="-100" y="10.0" end_time="9:44:00"/>
             <leg mode="car" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="link1" end_link="link1" trav_time="00:00:08"
+                <route type="generic" start_link="1" end_link="1" trav_time="00:00:08"
                        distance="10"/>
             </leg>
-            <activity type="errands_2400.0" link="link4" x="1300.0" y="10.0" start_time="15:51:00" />
+            <activity type="errands_2400.0" link="4" x="1300.0" y="10.0" start_time="15:51:00" />
         </plan>
     </person>
     <person id="104">
         <plan score="92.61490939414003" selected="yes">
             <!--From node0 to node5 -->
-            <activity type="home_28800.0" link="link0" x="-100" y="10.0" end_time="09:46:00"/>
+            <activity type="home_28800.0" link="0" x="-100" y="10.0" end_time="09:46:00"/>
             <leg mode="car" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="link1" end_link="link1" trav_time="00:00:08"
+                <route type="generic" start_link="1" end_link="1" trav_time="00:00:08"
                        distance="10"/>
             </leg>
-            <activity type="errands_2400.0" link="link4" x="1300.0" y="10.0" start_time="15:51:00" />
+            <activity type="errands_2400.0" link="4" x="1300.0" y="10.0" start_time="15:51:00" />
         </plan>
     </person>
     <person id="105">
         <plan score="92.61490939414003" selected="yes">
             <!--From node0 to node5 -->
-            <activity type="home_28800.0" link="link0" x="-100" y="10.0" end_time="10:05:10"/>
+            <activity type="home_28800.0" link="0" x="-100" y="10.0" end_time="10:05:10"/>
             <leg mode="car" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="link1" end_link="link1" trav_time="00:00:08"
+                <route type="generic" start_link="1" end_link="1" trav_time="00:00:08"
                        distance="10"/>
             </leg>
-            <activity type="errands_2400.0" link="link4" x="1300.0" y="10.0" start_time="15:51:00" />
+            <activity type="errands_2400.0" link="4" x="1300.0" y="10.0" start_time="15:51:00" />
         </plan>
     </person>
     <person id="106">
         <plan score="92.61490939414003" selected="yes">
             <!--From node0 to node5 -->
-            <activity type="home_28800.0" link="link0" x="-100" y="10.0" end_time="10:16:00"/>
+            <activity type="home_28800.0" link="0" x="-100" y="10.0" end_time="10:16:00"/>
             <leg mode="car" dep_time="09:17:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="link1" end_link="link1" trav_time="00:00:08"
+                <route type="generic" start_link="1" end_link="1" trav_time="00:00:08"
                        distance="10"/>
             </leg>
-            <activity type="errands_2400.0" link="link4" x="1300.0" y="10.0" start_time="15:51:00" />
+            <activity type="errands_2400.0" link="4" x="1300.0" y="10.0" start_time="15:51:00" />
         </plan>
     </person>
 </population>

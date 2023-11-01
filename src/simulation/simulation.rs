@@ -95,11 +95,11 @@ where
             self.move_nodes(now);
             self.move_links(now);
 
-            now += 1;
-        }
+            if let Some(plan_modifier) = self.plan_modifier.as_mut() {
+                plan_modifier.next_time_step(now, &mut self.events)
+            }
 
-        if let Some(plan_modifier) = self.plan_modifier.as_mut() {
-            plan_modifier.next_time_step(now, &mut self.events)
+            now += 1;
         }
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
@@ -302,6 +302,7 @@ mod tests {
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
+    use crate::simulation::plan_modification::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::population::population::Population;
     use crate::simulation::simulation::Simulation;
     use crate::simulation::vehicles::garage::Garage;
@@ -345,7 +346,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn execute_adhoc_routing_one_part_no_updates() {
         let config = Arc::new(
             Config::builder()
@@ -396,7 +396,6 @@ mod tests {
         );
     }
 
-    //TODO
     #[test]
     fn execute_adhoc_routing_one_part_with_updates() {
         let config = Arc::new(
@@ -423,6 +422,32 @@ mod tests {
                 "./assets/adhoc_routing/with_updates/expected_events.pbf",
             )),
             config,
+        );
+    }
+
+    #[test]
+    fn execute_adhoc_routing_two_parts_with_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/with_updates/network.xml",
+                ))
+                .population_file(String::from(
+                    "./assets/adhoc_routing/with_updates/agents.xml",
+                ))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_two_parts",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(2)
+                .partition_method(String::from("none"))
+                .build(),
+        );
+
+        execute_sim_with_channels(
+            config,
+            Some("./assets/adhoc_routing/with_updates/expected_events.pbf"),
         );
     }
 
@@ -503,6 +528,7 @@ mod tests {
 
         let mut events = EventsPublisher::new();
         events.add_subscriber(test_subscriber);
+        events.add_subscriber(Box::new(TravelTimeCollector::new()));
 
         let mut sim = Simulation::new(config.clone(), sim_net, garage, pop, comm, events);
 

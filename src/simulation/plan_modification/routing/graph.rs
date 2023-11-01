@@ -37,16 +37,16 @@ impl ForwardBackwardGraph {
         );
     }
 
-    pub fn get_forward_travel_time_by_link_id(&self, link_id: u64) -> u32 {
+    pub fn get_forward_travel_time_by_link_id(&self, link_id: u64) -> Option<u32> {
         let index = self.forward_link_ids().iter().position(|&l| l == link_id);
-        index
-            .map(|i| {
-                *self
-                    .forward_travel_time()
-                    .get(i)
-                    .expect(&*format!("There is no travel time for link {:?}", link_id))
-            })
-            .unwrap()
+
+        //if index is None, then there is no link with link id in graph
+        index.map(|i| {
+            *self
+                .forward_travel_time()
+                .get(i)
+                .expect(&*format!("There is no travel time for link {:?}", link_id))
+        })
     }
     pub fn forward_first_out(&self) -> &Vec<usize> {
         &self.forward_graph.first_out

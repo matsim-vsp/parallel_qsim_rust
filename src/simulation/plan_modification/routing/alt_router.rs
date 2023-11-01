@@ -203,12 +203,12 @@ impl AltRouter {
         &self.current_graph
     }
 
-    pub fn get_initial_travel_time(&self, link_id: u64) -> u32 {
+    pub fn get_initial_travel_time(&self, link_id: u64) -> Option<u32> {
         self.initial_graph
             .get_forward_travel_time_by_link_id(link_id)
     }
 
-    pub fn get_current_travel_time(&self, link_id: u64) -> u32 {
+    pub fn get_current_travel_time(&self, link_id: u64) -> Option<u32> {
         self.current_graph
             .get_forward_travel_time_by_link_id(link_id)
     }
