@@ -1,7 +1,8 @@
 use crate::simulation::plan_modification::routing::alt_landmark_data::AltLandmarkData;
-use crate::simulation::plan_modification::routing::dijsktra::Dijkstra;
+use crate::simulation::plan_modification::routing::dijsktra::{Dijkstra, Distance};
 use crate::simulation::plan_modification::routing::graph::ForwardBackwardGraph;
 use crate::simulation::plan_modification::routing::router::CustomQueryResult;
+use keyed_priority_queue::Entry;
 
 #[derive(PartialEq, Debug)]
 struct AltQueryResult {
@@ -64,19 +65,17 @@ impl AltRouter {
     fn query(&self, from: usize, to: usize) -> AltQueryResult {
         let number_of_nodes = self.current_graph.forward_first_out().len() - 1;
 
-        let mut distances: Vec<u32> = (0..number_of_nodes).map(|_| u32::MAX).collect();
-        let mut f_score: Vec<u32> = (0..number_of_nodes).map(|_| u32::MAX).collect();
+        let (mut queue, mut distances) = Dijkstra::get_initial_queue(number_of_nodes, from);
+
         let mut parents: Vec<Option<usize>> = (0..number_of_nodes).map(|_| None).collect();
 
-        let mut traversed: Vec<bool> = (0..number_of_nodes).map(|_| false).collect();
-
-        //update start node
-        f_score[from] = 0;
-        distances[from] = 0;
-
-        while let Some(current) = Dijkstra::get_next_node(&mut f_score, &mut traversed) {
-            let current_id = current.0;
+        while let Some((current_id, _)) = queue.pop() {
             let current_distance = distances[current_id];
+
+            if current_distance == u32::MAX {
+                //The smallest value in queue was unreachable. So abort here.
+                return AltQueryResult::empty();
+            }
 
             if current_id == to {
                 return AltQueryResult {
@@ -93,7 +92,7 @@ impl AltRouter {
                 //we need an update_or_insert + parent update here instead of push always.
                 let neighbour = self.current_graph.forward_graph.head[i];
 
-                if traversed[neighbour] {
+                if let Entry::Vacant(_) = queue.entry(neighbour) {
                     continue;
                 }
 
@@ -103,12 +102,22 @@ impl AltRouter {
                 if distances[neighbour] > neighbour_distance {
                     //perform update
                     distances[neighbour] = neighbour_distance;
-                    f_score[neighbour] =
-                        neighbour_distance + Self::heuristic(neighbour, to, &self.landmark_data);
+
+                    match queue.entry(neighbour) {
+                        Entry::Occupied(e) => {
+                            e.set_priority(Distance(
+                                neighbour_distance
+                                    + Self::heuristic(neighbour, to, &self.landmark_data),
+                            ));
+                        }
+                        Entry::Vacant(_) => {
+                            unreachable!()
+                        }
+                    }
+
                     parents[neighbour] = Some(current_id);
                 }
             }
-            traversed[current_id] = true;
         }
         AltQueryResult::empty()
     }

@@ -1,18 +1,40 @@
 use crate::simulation::plan_modification::routing::graph::Graph;
+use keyed_priority_queue::{Entry, KeyedPriorityQueue};
+use std::cmp::Ordering;
+
+#[derive(Eq, PartialEq)]
+pub struct Distance(pub u32);
+
+impl Ord for Distance {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0).reverse()
+    }
+}
+
+impl PartialOrd for Distance {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0).map(|o| o.reverse())
+    }
+}
+
+impl Distance {
+    pub fn get(&self) -> u32 {
+        self.0
+    }
+}
 
 pub struct Dijkstra {}
 
 impl Dijkstra {
     pub(crate) fn distance_one_2_many(from: usize, graph: &Graph) -> Vec<u32> {
-        let mut distances: Vec<u32> = (0..graph.first_out.len() - 1).map(|_| u32::MAX).collect();
-        let mut traversed: Vec<bool> = (0..graph.first_out.len() - 1).map(|_| false).collect();
+        let (mut queue, mut distances) =
+            Dijkstra::get_initial_queue(graph.first_out.len() - 1, from);
 
-        //update start node
-        distances[from] = 0;
-
-        while let Some(current) = Dijkstra::get_next_node(&mut distances, &mut traversed) {
-            let current_id = current.0;
-            let current_distance = distances[current_id];
+        while let Some((current_id, current_distance)) = queue.pop() {
+            if current_distance.get() == u32::MAX {
+                //The smallest value in queue was unreachable. So abort here.
+                return distances;
+            }
 
             let begin_index_adjacent_nodes = graph.first_out[current_id];
             let end_index_adjacent_nodes = graph.first_out[current_id + 1];
@@ -21,39 +43,46 @@ impl Dijkstra {
                 //we need an update_or_insert + parent update here instead of push always.
                 let neighbour = graph.head[i];
 
-                if traversed[neighbour] {
+                if let Entry::Vacant(_) = queue.entry(neighbour) {
                     continue;
                 }
 
-                if distances[neighbour] > current_distance + graph.travel_time[i] {
+                if queue.get_priority(&neighbour).unwrap().get()
+                    > current_distance.get() + graph.travel_time[i]
+                {
                     //perform update
-                    distances[neighbour] = current_distance + graph.travel_time[i];
+                    match queue.entry(neighbour) {
+                        Entry::Occupied(e) => {
+                            e.set_priority(Distance(current_distance.get() + graph.travel_time[i]));
+                        }
+                        Entry::Vacant(_) => {
+                            unreachable!();
+                        }
+                    }
+                    //store in distance vec to return
+                    distances[neighbour] = current_distance.get() + graph.travel_time[i];
                 }
             }
-            traversed[current_id] = true;
         }
         distances
     }
 
-    pub(crate) fn get_next_node<'a>(
-        travel_times: &'a Vec<u32>,
-        traversed: &'a Vec<bool>,
-    ) -> Option<(usize, (&'a u32, &'a bool))> {
-        let result = travel_times
-            .iter()
-            .zip(traversed.iter())
-            .enumerate()
-            .filter(|(_, (_, &t))| !t)
-            .min_by(|a, b| a.1 .0.cmp(b.1 .0));
-
-        if result.is_none() {
-            return None;
+    pub fn get_initial_queue(
+        node_count: usize,
+        from: usize,
+    ) -> (KeyedPriorityQueue<usize, Distance>, Vec<u32>) {
+        let mut queue = KeyedPriorityQueue::new();
+        let mut distances = Vec::new();
+        for i in 0..node_count {
+            let distance = if i == from {
+                //update start node
+                Distance(0)
+            } else {
+                Distance(u32::MAX)
+            };
+            distances.push(distance.0);
+            queue.push(i, distance);
         }
-
-        if result.map(|(_, (t, _))| t).unwrap() >= &u32::MAX {
-            return None;
-        }
-
-        result
+        (queue, distances)
     }
 }
