@@ -228,7 +228,7 @@ impl<'n> SimNetworkPartition<'n> {
         _rnd: &mut ThreadRng,
         now: u32,
     ) {
-        let mut avail_capacity: f32 = node.in_capacity;
+        let mut avail_capacity = node.in_capacity;
         let mut exhausted_links: Vec<Option<()>> = vec![None; node.in_links.len()];
 
         while avail_capacity > 1e-6 {
@@ -286,6 +286,10 @@ impl<'n> SimNetworkPartition<'n> {
             for i in 0..node.in_links.len() {
                 // if the link is exhausted, try next link
                 if exhausted_links[i].is_some() {
+                    // reduce the available capacity a little bit. Sometimes we have rounding errors
+                    // which will cause an infinite loop. Reducing the remaining capacity a little
+                    // bit at least prevents infinite loops.
+                    avail_capacity -= 1e-6;
                     continue;
                 }
 
