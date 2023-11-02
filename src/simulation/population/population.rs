@@ -44,7 +44,7 @@ impl<'p> Population<'p> {
         // create the actual persons for this partition
         Self::create_persons(&mut result, io_population, network, garage, partition);
         // create a vehicles for all modes for persons belonging to this partition
-        Self::create_vehicles(garage, &result);
+        //Self::create_vehicles(garage, &result);
 
         result
     }
@@ -214,7 +214,7 @@ mod tests {
 
         // check that we have a vehicle for each mode and for each person
         assert_eq!(6, garage.network_vehicles.len());
-        assert_eq!(3, garage.teleported_veh.len());
+        assert_eq!(3, garage.vehicles.len());
 
         // check population
         // activity types should be done as id. If id is not present this will crash
