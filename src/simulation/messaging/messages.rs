@@ -186,13 +186,6 @@ impl Agent {
             debug!("There is an empty plan for person {:?}", io_person.id);
         }
 
-        if plan.acts.len() == 1 {
-            debug!(
-                "There is a plan with one activity only for person {:?}",
-                io_person.id
-            );
-        }
-
         Agent {
             id: person_id.internal(),
             plan: Some(plan),
@@ -452,7 +445,7 @@ impl Leg {
     fn from_io(io_leg: &IOLeg, person_id: &Id<Agent>, net: &Network, garage: &Garage) -> Self {
         let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
-        let routing_mode = net.modes.get_from_ext(routing_mode_ext);
+        let routing_mode = garage.vehicle_type_ids.get_from_ext(routing_mode_ext);
         let mode = net.modes.get_from_ext(io_leg.mode.as_str());
         let route = Route::from_io(&io_leg.route, person_id, &mode, net, garage);
 

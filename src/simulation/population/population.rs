@@ -5,7 +5,6 @@ use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
 use crate::simulation::messaging::messages::proto::Agent;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::vehicles::vehicle_type::VehicleType;
 
 type ActType = ();
 
@@ -107,7 +106,7 @@ impl<'p> Population<'p> {
         }
     }
 
-    fn create_vehicles(garage: &mut Garage, pop: &Population) {
+    /* fn create_vehicles(garage: &mut Garage, pop: &Population) {
         let person_mode: Vec<_> = pop
             .agents
             .keys()
@@ -126,10 +125,12 @@ impl<'p> Population<'p> {
         }
     }
 
+
+
     fn create_veh_id_string(person_id: &Id<Agent>, veh_type: &Id<VehicleType>) -> String {
         format!("{}_{}", person_id.external(), veh_type.external())
     }
-
+    */
     fn is_partition(io_person: &IOPerson, net: &Network, partition: u32) -> bool {
         let link = Self::link_first_act(io_person, net);
         link.partition == partition
@@ -213,8 +214,7 @@ mod tests {
             .all(|type_id| expected_veh_types.contains(type_id.external())));
 
         // check that we have a vehicle for each mode and for each person
-        assert_eq!(6, garage.network_vehicles.len());
-        assert_eq!(3, garage.vehicles.len());
+        assert_eq!(9, garage.vehicles.len());
 
         // check population
         // activity types should be done as id. If id is not present this will crash

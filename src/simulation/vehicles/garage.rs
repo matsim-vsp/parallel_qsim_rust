@@ -115,7 +115,7 @@ impl<'g> Garage<'g> {
         veh_id
     }
 
-    pub fn add_veh(&mut self, veh_id: Id<Vehicle>, veh_type_id: Id<VehicleType>) {
+    pub fn add_veh(&mut self, _veh_id: Id<Vehicle>, _veh_type_id: Id<VehicleType>) {
         panic!(
             "This method can only be used with chained modes. Which is currently not implemented"
         );
@@ -124,7 +124,7 @@ impl<'g> Garage<'g> {
         match veh_type.lod {
             LevelOfDetail::Network => {
                 let vehicle = GarageVehicle {
-                    id: veh_id.clone(),
+                    id: _veh_id.clone(),
                     veh_type: veh_type_id.clone(),
                 };
                 self.network_vehicles.insert(vehicle.id.clone(), vehicle);

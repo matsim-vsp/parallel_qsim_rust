@@ -53,6 +53,7 @@ pub fn run_channel() {
 }
 
 pub fn run_mpi() {
+    info!("Starting run_mpi in controller!");
     let universe = mpi::initialize().unwrap();
     let world = universe.world();
     let comm = MpiNetCommunicator {
