@@ -450,6 +450,7 @@ impl SimNetworkPartition {
 mod tests {
     use assert_approx_eq::assert_approx_eq;
 
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
@@ -492,7 +493,11 @@ mod tests {
     #[test]
     fn vehicle_travels_local() {
         let mut publisher = EventsPublisher::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
@@ -512,7 +517,11 @@ mod tests {
     #[test]
     fn vehicle_reaches_boundary() {
         let mut publisher = EventsPublisher::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, "none");
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            2,
+            PartitionMethod::None,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
@@ -538,7 +547,11 @@ mod tests {
     #[test]
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = EventsPublisher::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
 
         // place 100 vehicles on first link
@@ -567,7 +580,11 @@ mod tests {
     #[test]
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = EventsPublisher::new();
-        let mut global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let mut global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         global_net.effective_cell_size = 10.;
 
         let id_1: Id<Link> = Id::get_from_ext("link1");

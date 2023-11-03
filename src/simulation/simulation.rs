@@ -327,7 +327,7 @@ mod tests {
                     "./test_output/simulation/execute_3_links_2_parts",
                 ))
                 .num_parts(2)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
 
@@ -348,7 +348,7 @@ mod tests {
                 ))
                 .routing_mode(RoutingMode::AdHoc)
                 .num_parts(1)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
 
@@ -375,7 +375,7 @@ mod tests {
                 ))
                 .routing_mode(RoutingMode::AdHoc)
                 .num_parts(2)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
 
@@ -401,7 +401,7 @@ mod tests {
                 ))
                 .routing_mode(RoutingMode::AdHoc)
                 .num_parts(1)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
 
@@ -430,7 +430,7 @@ mod tests {
                 ))
                 .routing_mode(RoutingMode::AdHoc)
                 .num_parts(2)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
 
@@ -501,7 +501,7 @@ mod tests {
         let net = Network::from_file(
             &config.network_file,
             config.num_parts,
-            &config.partition_method,
+            config.partition_method,
         );
         let mut garage = Garage::from_file(&config.vehicles_file);
         let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());

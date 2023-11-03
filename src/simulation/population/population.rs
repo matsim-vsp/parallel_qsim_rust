@@ -130,6 +130,7 @@ impl Population {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::PartitionMethod;
     use std::collections::HashSet;
 
     use crate::simulation::id::Id;
@@ -140,7 +141,7 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 1, "metis");
+        let net = Network::from_file("./assets/equil/equil-network.xml", 1, PartitionMethod::Metis);
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
@@ -184,7 +185,7 @@ mod tests {
 
     #[test]
     fn from_io_multi_mode() {
-        let net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let net = Network::from_file("./assets/3-links/3-links-network.xml", 1, PartitionMethod::Metis);
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
         let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
 
@@ -227,7 +228,7 @@ mod tests {
 
     #[test]
     fn from_io() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2, "metis");
+        let net = Network::from_file("./assets/equil/equil-network.xml", 2, PartitionMethod::Metis);
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
         let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
         let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);

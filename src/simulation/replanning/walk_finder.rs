@@ -54,18 +54,21 @@ impl WalkFinder for EuclideanWalkFinder {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::replanning::walk_finder::{
-        EuclideanWalkFinder, Walk, WalkFinder,
-    };
     use crate::simulation::population::population::Population;
+    use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, Walk, WalkFinder};
     use crate::simulation::vehicles::garage::Garage;
 
     #[test]
     fn test_walk_finder() {
         let walk_finder = EuclideanWalkFinder::new();
 
-        let mut network = Network::from_file("./assets/equil/equil-network.xml", 1, "metis");
+        let mut network = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let population =
             Population::from_file("./assets/equil/equil-1-plan.xml", &network, &mut garage, 0);

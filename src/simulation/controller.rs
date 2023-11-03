@@ -94,7 +94,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>)
     let network = Network::from_file(
         config.network_file.as_ref(),
         config.num_parts,
-        &config.partition_method,
+        config.partition_method,
     );
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 

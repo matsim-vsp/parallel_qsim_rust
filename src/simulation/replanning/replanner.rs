@@ -286,6 +286,7 @@ impl ReRouteTripReplanner {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::{Id, IdStore};
     use crate::simulation::messaging::communication::communicators::DummySimCommunicator;
     use crate::simulation::messaging::messages::proto::{Agent, Route};
@@ -299,8 +300,11 @@ mod tests {
     #[test]
     fn test_dummy_leg() {
         //prepare
-        let mut network =
-            Network::from_file("./assets/adhoc_routing/no_updates/network.xml", 1, "metis");
+        let mut network = Network::from_file(
+            "./assets/adhoc_routing/no_updates/network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let mut population = Population::from_file(
             "./assets/adhoc_routing/no_updates/agents.xml",
@@ -346,7 +350,11 @@ mod tests {
     #[test]
     fn test_update_walk_leg() {
         //prepare
-        let mut network = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let mut network = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let mut population = Population::from_file(
             "./assets/3-links/1-agent-full-leg-dummy.xml",
@@ -409,7 +417,11 @@ mod tests {
     #[test]
     fn test_update_main_leg() {
         //prepare
-        let mut network = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let mut network = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let mut population = Population::from_file(
             "./assets/3-links/1-agent-full-leg-dummy.xml",

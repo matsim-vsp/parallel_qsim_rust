@@ -140,6 +140,7 @@ impl Graph {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::simulation::config::PartitionMethod;
     use std::collections::HashMap;
 
     use crate::simulation::network::global_network::Network;
@@ -147,7 +148,11 @@ pub(crate) mod tests {
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
 
     pub fn get_triangle_test_graph() -> ForwardBackwardGraph {
-        let network = Network::from_file("./assets/routing_tests/triangle-network.xml", 1, "metis");
+        let network = Network::from_file(
+            "./assets/routing_tests/triangle-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         NetworkConverter::convert_network(&network, None, None)
     }
 

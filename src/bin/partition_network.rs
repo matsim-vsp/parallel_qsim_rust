@@ -14,7 +14,7 @@ fn main() {
         args.in_path, args.num_parts
     );
 
-    let net1 = Network::from_file(&args.in_path, args.num_parts, "metis");
+    let net1 = Network::from_file(&args.in_path, args.num_parts, PartitionMethod::Metis);
     info!(
         "Network is loaded with {} links and {} nodes.",
         net1.links.len(),

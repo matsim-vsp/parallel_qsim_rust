@@ -25,14 +25,20 @@ pub struct Config {
     pub events_mode: String,
     #[arg(long, default_value_t = 1.0)]
     pub sample_size: f32,
-    #[arg(long, default_value = "metis")]
-    pub partition_method: String,
+    #[arg(long, value_enum, default_value_t = PartitionMethod::Metis)]
+    pub partition_method: PartitionMethod,
 }
 
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy)]
 pub enum RoutingMode {
     AdHoc,
     UsePlans,
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy)]
+pub enum PartitionMethod {
+    Metis,
+    None,
 }
 
 impl Config {
@@ -53,7 +59,7 @@ pub struct ConfigBuilder {
     output_dir: String,
     events_mode: String,
     sample_size: f32,
-    partition_method: String,
+    partition_method: PartitionMethod,
 }
 
 impl ConfigBuilder {
@@ -70,7 +76,7 @@ impl ConfigBuilder {
             end_time: 86400,
             sample_size: 1.0,
             routing_mode: RoutingMode::UsePlans,
-            partition_method: String::from("metis"),
+            partition_method: PartitionMethod::Metis,
         }
     }
 
@@ -119,7 +125,7 @@ impl ConfigBuilder {
         self
     }
 
-    pub fn partition_method(mut self, method: String) -> Self {
+    pub fn partition_method(mut self, method: PartitionMethod) -> Self {
         self.partition_method = method;
         self
     }

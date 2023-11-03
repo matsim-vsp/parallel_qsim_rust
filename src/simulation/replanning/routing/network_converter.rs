@@ -150,6 +150,7 @@ impl NetworkConverter {
 
 #[cfg(test)]
 mod test {
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
@@ -157,7 +158,11 @@ mod test {
 
     #[test]
     fn test_simple_network() {
-        let network = Network::from_file("./assets/routing_tests/triangle-network.xml", 1, "metis");
+        let network = Network::from_file(
+            "./assets/routing_tests/triangle-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let graph = NetworkConverter::convert_network(&network, None, None);
 
         assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
@@ -177,7 +182,7 @@ mod test {
         let network = Network::from_file(
             "./assets/routing_tests/network_different_modes.xml",
             1,
-            "metis",
+            PartitionMethod::Metis,
         );
 
         let mut garage = Garage::new();
@@ -216,8 +221,11 @@ mod test {
 
     #[test]
     fn test_mode_filter() {
-        let mut network =
-            Network::from_file("./assets/adhoc_routing/no_updates/network.xml", 1, "metis");
+        let mut network = Network::from_file(
+            "./assets/adhoc_routing/no_updates/network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml", &mut network.modes);
 
         let vehicle_type2graph =

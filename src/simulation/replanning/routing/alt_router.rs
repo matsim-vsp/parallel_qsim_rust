@@ -268,6 +268,7 @@ impl AltRouter {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::replanning::routing::alt_router::{AltQueryResult, AltRouter};
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
@@ -305,8 +306,11 @@ mod tests {
 
     #[test]
     fn test_mode_alt_routing() {
-        let mut network =
-            Network::from_file("./assets/adhoc_routing/no_updates/network.xml", 1, "metis");
+        let mut network = Network::from_file(
+            "./assets/adhoc_routing/no_updates/network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml", &mut network.modes);
 
         let graph_by_vehicle_type =

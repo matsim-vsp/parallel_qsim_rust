@@ -5,6 +5,7 @@ use itertools::Itertools;
 use nohash_hasher::IntSet;
 
 use crate::simulation::id::Id;
+use crate::simulation::config::PartitionMethod;
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 
@@ -56,7 +57,7 @@ impl Network {
         }
     }
 
-    pub fn from_file(file_path: &str, num_parts: u32, partition_method: &str) -> Self {
+    pub fn from_file(file_path: &str, num_parts: u32, partition_method: PartitionMethod) -> Self {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
         Self::init_nodes_and_links(&mut result, io_network);
@@ -228,32 +229,33 @@ impl Network {
         network.modes.create_id("walk");
     }
 
-    fn partition_network(network: &mut Network, partition_method: &str, num_parts: u32) {
-        if partition_method.eq("metis") {
-            let partitions = metis_partitioning::partition(network, num_parts);
-            for node in network.nodes.iter_mut() {
-                let partition = partitions[node.id.internal() as usize] as u32;
-                node.partition = partition;
+    fn partition_network(network: &mut Network, partition_method: PartitionMethod, num_parts: u32) {
+        match partition_method {
+            PartitionMethod::Metis => {
+                let partitions = metis_partitioning::partition(network, num_parts);
+                for node in network.nodes.iter_mut() {
+                    let partition = partitions[node.id.internal() as usize] as u32;
+                    node.partition = partition;
 
-                for link_id in &node.in_links {
-                    let link = network.links.get_mut(link_id.internal() as usize).unwrap();
-                    link.partition = partition;
+                    for link_id in &node.in_links {
+                        let link = network.links.get_mut(link_id.internal() as usize).unwrap();
+                        link.partition = partition;
+                    }
                 }
             }
-        } else if partition_method.eq("none") {
-            // We can have the situation, that someone specified more partitions in the network file than the actual simulation is started with.
-            // Since the partitioning should normally be precomputed with the same number, it's ok to not check this here.
-            // But for testing purposes (compare base case with 1 partition and with more) we reset the partition of the nodes in that case.
-            if num_parts == 1 {
-                for n in network.nodes.iter_mut() {
-                    n.partition = 0;
-                }
-                for l in network.links.iter_mut() {
-                    l.partition = 0;
+            PartitionMethod::None => {
+                // We can have the situation, that someone specified more partitions in the network file than the actual simulation is started with.
+                // Since the partitioning should normally be precomputed with the same number, it's ok to not check this here.
+                // But for testing purposes (compare base case with 1 partition and with more) we reset the partition of the nodes in that case.
+                if num_parts == 1 {
+                    for n in network.nodes.iter_mut() {
+                        n.partition = 0;
+                    }
+                    for l in network.links.iter_mut() {
+                        l.partition = 0;
+                    }
                 }
             }
-        } else {
-            panic!("Unknown partition method: {}", partition_method);
         }
     }
 
@@ -333,6 +335,7 @@ impl Link {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::io::network::{IOLink, IONode};
 
     use super::{Link, Network, Node};
@@ -487,7 +490,11 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let network = Network::from_file("./assets/equil/equil-network.xml", 2, "metis");
+        let network = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis,
+        );
 
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
