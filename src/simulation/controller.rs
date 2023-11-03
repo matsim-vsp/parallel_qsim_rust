@@ -109,7 +109,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         population.agents.len()
     );
 
-    let message_broker = NetMessageBroker::new(comm, &network_partition);
+    let message_broker = NetMessageBroker::new(comm, &network_partition, &network);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");

@@ -14,25 +14,25 @@ use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
 
-pub struct Simulation<'sim, C>
+pub struct Simulation<C>
 where
     C: NetCommunicator,
 {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
-    network: SimNetworkPartition<'sim>,
+    network: SimNetworkPartition,
     garage: Garage,
     message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
 }
 
-impl<'sim, C> Simulation<'sim, C>
+impl<C> Simulation<C>
 where
     C: NetCommunicator,
 {
     pub fn new(
         config: Arc<Config>,
-        network: SimNetworkPartition<'sim>,
+        network: SimNetworkPartition,
         garage: Garage,
         mut population: Population,
         message_broker: NetMessageBroker<C>,
@@ -349,7 +349,7 @@ mod tests {
 
         info!("#{} {id_part:?}", comm.rank());
 
-        let msg_broker = NetMessageBroker::new(comm, &sim_net);
+        let msg_broker = NetMessageBroker::new(comm, &sim_net, &net);
         let mut events = EventsPublisher::new();
         events.add_subscriber(test_subscriber);
 

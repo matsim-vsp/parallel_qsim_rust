@@ -2,7 +2,6 @@ use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
 
-use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::messaging::{
     events::{proto::Event, EventsPublisher},
@@ -21,11 +20,10 @@ pub struct SplitStorage {
 }
 
 #[derive(Debug)]
-pub struct SimNetworkPartition<'n> {
+pub struct SimNetworkPartition {
     pub nodes: IntMap<u64, SimNode>,
     // use int map as hash map variant with stable order
     pub links: IntMap<u64, SimLink>,
-    pub global_network: &'n Network,
     rnd: ThreadRng,
     active_nodes: IntSet<u64>,
     active_links: IntSet<u64>,
@@ -37,8 +35,9 @@ pub struct SimNode {
     in_links: Vec<u64>,
     in_capacity: f32,
 }
-impl<'n> SimNetworkPartition<'n> {
-    pub fn from_network(global_network: &'n Network, partition: u32, sample_size: f32) -> Self {
+
+impl SimNetworkPartition {
+    pub fn from_network(global_network: &Network, partition: u32, sample_size: f32) -> Self {
         let nodes: Vec<&Node> = global_network
             .nodes
             .iter()
@@ -77,7 +76,7 @@ impl<'n> SimNetworkPartition<'n> {
             })
             .collect();
 
-        Self::new(sim_nodes, sim_links, global_network, partition)
+        Self::new(sim_nodes, sim_links, partition)
     }
 
     fn create_sim_node(node: &Node, network: &Network, sample_size: f32) -> SimNode {
@@ -120,16 +119,10 @@ impl<'n> SimNetworkPartition<'n> {
         }
     }
 
-    pub fn new(
-        nodes: IntMap<u64, SimNode>,
-        links: IntMap<u64, SimLink>,
-        global_network: &'n Network,
-        partition: u32,
-    ) -> Self {
+    pub fn new(nodes: IntMap<u64, SimNode>, links: IntMap<u64, SimLink>, partition: u32) -> Self {
         SimNetworkPartition {
             nodes,
             links,
-            global_network,
             rnd: thread_rng(),
             active_links: Default::default(),
             active_nodes: Default::default(),
@@ -156,12 +149,11 @@ impl<'n> SimNetworkPartition<'n> {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
         let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
-            let full_id = Id::get(link_id);
             panic!(
-                "#{} Couldn't find link for id {}.\n\n The link {:?}.\n\n The vehicle: {:?}",
+                "#{} Couldn't find link for id {}.\n\n The vehicle: {:?}",
                 self.partition,
                 link_id,
-                self.global_network.get_link(&full_id),
+                //self.global_network.get_link(&full_id),
                 vehicle
             );
         });
