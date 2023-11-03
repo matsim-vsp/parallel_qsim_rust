@@ -2,7 +2,10 @@ use std::sync::Arc;
 
 use tracing::info;
 
-use crate::simulation::config::{Config, RoutingMode};
+use crate::simulation::config::Config;
+use crate::simulation::id::Id;
+use crate::simulation::messaging::communication::communicators::SimCommunicator;
+use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
@@ -159,15 +162,7 @@ where
     }
 
     fn update_agent(&mut self, agent: &mut Agent, now: u32) {
-        let agent_id = self.population.agent_ids.get(agent.id);
-        self.replanner.replan(
-            now,
-            agent,
-            &agent_id,
-            &self.population.act_types,
-            self.network.global_network,
-            &self.garage,
-        )
+        self.replanner.replan(now, agent, &self.garage)
     }
 
     fn terminate_teleportation(&mut self, now: u32) {
@@ -279,7 +274,9 @@ mod tests {
     use nohash_hasher::IntMap;
     use tracing::info;
 
-    use crate::simulation::config::Config;
+    use crate::simulation::config::{Config, PartitionMethod, RoutingMode};
+    use crate::simulation::io::proto_events::EventsReader;
+    use crate::simulation::logging;
     use crate::simulation::messaging::communication::communicators::{
         ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
     };
@@ -484,13 +481,13 @@ mod tests {
                 ))
                 .output_dir(String::from("/Users/janek/Documents/rust_q_sim/output-wip"))
                 .num_parts(1)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
 
         let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
 
-        execute_sim(DummyNetCommunicator(), Box::new(EmtpySubscriber {}), config)
+        execute_sim(DummySimCommunicator(), Box::new(EmtpySubscriber {}), config)
     }
 
     fn execute_sim<C: SimCommunicator + 'static>(
@@ -520,10 +517,15 @@ mod tests {
         events.add_subscriber(Box::new(TravelTimeCollector::new()));
 
         let rc = Rc::new(comm);
-        let broker = NetMessageBroker::new(rc.clone(), &sim_net);
+        let broker = NetMessageBroker::new(rc.clone(), &net, &sim_net);
 
         let replanner: Box<dyn Replanner> = if config.routing_mode == RoutingMode::AdHoc {
-            Box::new(ReRouteTripReplanner::new(&sim_net, &garage, rc))
+            Box::new(ReRouteTripReplanner::new(
+                &net,
+                &sim_net,
+                &garage,
+                rc.clone(),
+            ))
         } else {
             Box::new(DummyReplanner {})
         };

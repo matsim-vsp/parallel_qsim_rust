@@ -4,7 +4,7 @@ use crate::simulation::messaging::messages::proto::Activity;
 use crate::simulation::network::global_network::Network;
 
 pub trait WalkFinder {
-    fn find_walk(&self, curr_act: &Activity, network: &Network, access_egress_speed: f32) -> Walk;
+    fn find_walk(&self, curr_act: &Activity, access_egress_speed: f32, network: &Network) -> Walk;
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -22,7 +22,7 @@ impl EuclideanWalkFinder {
 }
 
 impl WalkFinder for EuclideanWalkFinder {
-    fn find_walk(&self, curr_act: &Activity, network: &Network, access_egress_speed: f32) -> Walk {
+    fn find_walk(&self, curr_act: &Activity, access_egress_speed: f32, network: &Network) -> Walk {
         let curr_act_point = Point::new(curr_act.x, curr_act.y);
         let link = network.get_link_form_internal(curr_act.link_id);
 
@@ -55,6 +55,8 @@ impl WalkFinder for EuclideanWalkFinder {
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::PartitionMethod;
+    use crate::simulation::id::Id;
+    use crate::simulation::messaging::messages::proto::Agent;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::population::Population;
     use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, Walk, WalkFinder};
@@ -62,20 +64,24 @@ mod tests {
 
     #[test]
     fn test_walk_finder() {
-        let walk_finder = EuclideanWalkFinder::new();
-
-        let mut network = Network::from_file(
+        let network = Network::from_file(
             "./assets/equil/equil-network.xml",
             1,
             PartitionMethod::Metis,
         );
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
+
+        let walk_finder = EuclideanWalkFinder::new();
+
+        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
         let population =
             Population::from_file("./assets/equil/equil-1-plan.xml", &network, &mut garage, 0);
-        let agent = population.agents.get(&population.agent_ids.get(0)).unwrap();
+        let agent = population
+            .agents
+            .get(&Id::<Agent>::get_from_ext("1"))
+            .unwrap();
 
         // Activity(-25,000;0), Link from(-20,000;0), to(-15,000;0) => distance to link 5,000
-        let walk = walk_finder.find_walk(agent.curr_act(), &network, 1.2);
+        let walk = walk_finder.find_walk(agent.curr_act(), 1.2, &network);
         assert_eq!(
             walk,
             Walk {
@@ -85,7 +91,7 @@ mod tests {
         );
 
         // Activity(3,456;4,242), Link from(0;0), to(5,000;0) => distance to link 4,242
-        let walk = walk_finder.find_walk(agent.next_act(), &network, 1.2);
+        let walk = walk_finder.find_walk(agent.next_act(), 1.2, &network);
         assert_eq!(
             walk,
             Walk {

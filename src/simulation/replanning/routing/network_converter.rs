@@ -151,6 +151,7 @@ impl NetworkConverter {
 #[cfg(test)]
 mod test {
     use crate::simulation::config::PartitionMethod;
+    use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
@@ -187,15 +188,15 @@ mod test {
 
         let mut garage = Garage::new();
 
-        let car_type_id = garage.vehicle_type_ids.create_id("car");
-        let car_id = network.modes.get_from_ext("car");
+        let car_type_id = Id::<VehicleType>::create("car");
+        let car_id = Id::<String>::get_from_ext("car");
         let car_id_internal = car_id.internal();
         let mut car_veh_type = VehicleType::new(car_type_id, car_id);
         car_veh_type.max_v = 5.;
         garage.add_veh_type(car_veh_type);
 
-        let bike_type_id = garage.vehicle_type_ids.create_id("bike");
-        let bike_id = network.modes.get_from_ext("bike");
+        let bike_type_id = Id::<VehicleType>::create("bike");
+        let bike_id = Id::<String>::get_from_ext("bike");
         let bike_id_internal = bike_id.internal();
         let mut bike_veh_type = VehicleType::new(bike_type_id, bike_id);
         bike_veh_type.max_v = 2.;
@@ -221,18 +222,18 @@ mod test {
 
     #[test]
     fn test_mode_filter() {
-        let mut network = Network::from_file(
+        let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
             1,
             PartitionMethod::Metis,
         );
-        let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml", &mut network.modes);
+        let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml");
 
         let vehicle_type2graph =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
 
         // No link as mode "walk". So we expect the resulting walk network as empty.
-        let walk_id = &network.modes.get_from_ext("walk").internal();
+        let walk_id = &Id::<String>::get_from_ext("walk").internal();
         let node_count = vehicle_type2graph.get(walk_id).unwrap().number_of_nodes();
         let link_count = vehicle_type2graph.get(walk_id).unwrap().number_of_links();
 
@@ -240,13 +241,13 @@ mod test {
         assert_eq!(link_count, 0);
 
         // Test for mode "car"
-        let car_id = &network.modes.get_from_ext("car").internal();
+        let car_id = &Id::<String>::get_from_ext("car").internal();
         let car_graph = vehicle_type2graph.get(car_id).unwrap();
         let link2_index = car_graph.forward_graph.first_out[2];
         assert_eq!(car_graph.forward_graph.travel_time[link2_index], 100);
 
         // Test for mode "bike"
-        let bike_id = &network.modes.get_from_ext("bike").internal();
+        let bike_id = &Id::<String>::get_from_ext("bike").internal();
         let bike_graph = vehicle_type2graph.get(bike_id).unwrap();
         let link2_index = bike_graph.forward_graph.first_out[2];
         assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);

@@ -113,7 +113,6 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>)
         population.agents.len()
     );
 
-    let message_broker = NetMessageBroker::new(comm, &network_partition, &network);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");
@@ -127,6 +126,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>)
 
     let replanner: Box<dyn Replanner> = if config.routing_mode == RoutingMode::AdHoc {
         Box::new(ReRouteTripReplanner::new(
+            &network,
             &network_partition,
             &garage,
             Rc::clone(&rc),
@@ -134,7 +134,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>)
     } else {
         Box::new(DummyReplanner {})
     };
-    let net_message_broker = NetMessageBroker::new(rc, &network_partition);
+    let net_message_broker = NetMessageBroker::new(rc, &network, &network_partition);
 
     let mut simulation: Simulation<C> = Simulation::new(
         config.clone(),

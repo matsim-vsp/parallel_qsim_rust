@@ -5,7 +5,7 @@ use std::io::Cursor;
 use prost::Message;
 use tracing::debug;
 
-use crate::simulation::id::{Id, IdStore};
+use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
@@ -490,9 +490,8 @@ impl Activity {
         }
     }
 
-    pub fn is_interaction(&self, act_types: &IdStore<ActType>) -> bool {
-        act_types
-            .get(self.act_type)
+    pub fn is_interaction(&self) -> bool {
+        Id::<String>::get(self.act_type)
             .external()
             .contains("interaction")
     }

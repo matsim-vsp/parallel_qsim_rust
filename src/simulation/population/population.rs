@@ -6,8 +6,6 @@ use crate::simulation::messaging::messages::proto::Agent;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::vehicles::garage::Garage;
 
-pub type ActType = ();
-
 #[derive(Debug, Default)]
 pub struct Population {
     pub agents: HashMap<Id<Agent>, Agent>,
@@ -34,7 +32,7 @@ impl Population {
         let mut result = Population::new();
 
         // create person ids, and vehicles for each person
-        Self::create_ids(&mut result, io_population, garage, network);
+        Self::create_ids(io_population, garage);
         // create the actual persons for this partition
         Self::create_persons(&mut result, io_population, network, partition);
         // create a vehicles for all modes for persons belonging to this partition
@@ -43,7 +41,7 @@ impl Population {
         result
     }
 
-    fn create_ids(io: &IOPopulation, network: &Network, garage: &mut Garage) {
+    fn create_ids(io: &IOPopulation, garage: &mut Garage) {
         // create person ids and collect strings for vehicle ids
         let raw_veh: Vec<_> = io
             .persons
@@ -59,8 +57,7 @@ impl Population {
 
         // add interaction activity type for each vehicle type
         for (_, id) in raw_veh.iter() {
-            pop.act_types
-                .create_id(&format!("{} interaction", id.external()));
+            Id::<String>::create(&format!("{} interaction", id.external()));
         }
 
         // have this in a separate loop because we are iterating over garage's vehicle types and we
@@ -82,14 +79,9 @@ impl Population {
             .map(|act| &act.r#type)
             .collect();
 
+        //create id for modes
         for act_type in types {
             Id::<String>::create(act_type.as_str());
-        }
-
-        // no add interaction activity type for each network mode
-        for id in network.modes.iter() {
-            pop.act_types
-                .create_id(&format!("{} interaction", id.external()));
         }
     }
 
@@ -141,7 +133,11 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 1, PartitionMethod::Metis);
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
@@ -185,7 +181,11 @@ mod tests {
 
     #[test]
     fn from_io_multi_mode() {
-        let net = Network::from_file("./assets/3-links/3-links-network.xml", 1, PartitionMethod::Metis);
+        let net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
         let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
 
@@ -208,11 +208,11 @@ mod tests {
         // each of the network mode should also have an interaction activity type
         assert_eq!(
             "car interaction",
-            pop.act_types.get_from_ext("car interaction").external()
+            Id::<String>::get_from_ext("car interaction").external()
         );
         assert_eq!(
             "bike interaction",
-            pop.act_types.get_from_ext("bike interaction").external()
+            Id::<String>::get_from_ext("bike interaction").external()
         );
 
         // agents should also have ids
@@ -228,7 +228,11 @@ mod tests {
 
     #[test]
     fn from_io() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2, PartitionMethod::Metis);
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
         let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
         let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);

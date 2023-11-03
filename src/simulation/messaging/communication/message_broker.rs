@@ -5,6 +5,7 @@ use std::rc::Rc;
 use crate::simulation::messaging::messages::proto::{
     StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
 };
+use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
 
 pub struct TravelTimesMessageBroker<C>
@@ -50,7 +51,7 @@ impl<C> NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
-    pub fn new(comm: Rc<C>, net: &SimNetworkPartition, global_network: &Network) -> Self {
+    pub fn new(comm: Rc<C>, global_network: &Network, net: &SimNetworkPartition) -> Self {
         let neighbors = net.neighbors().iter().copied().collect();
         let link_mapping = global_network
             .links
@@ -354,6 +355,7 @@ mod tests {
         let rank = communicator.rank();
         let broker = NetMessageBroker::new(
             Rc::new(communicator),
+            &create_network(),
             &SimNetworkPartition::from_network(&create_network(), rank, 1.0),
         );
         broker

@@ -4,15 +4,15 @@ use std::{collections::HashSet, path::Path};
 use itertools::Itertools;
 use nohash_hasher::IntSet;
 
-use crate::simulation::id::Id;
 use crate::simulation::config::PartitionMethod;
+use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 
 use super::metis_partitioning;
 
 /// This is called global network but could also be renamed into network when things are sorted out a little
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Network {
     pub nodes: Vec<Node>,
     pub links: Vec<Link>,
@@ -61,7 +61,6 @@ impl Network {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
         Self::init_nodes_and_links(&mut result, io_network);
-        Self::create_walk_mode(&mut result);
         Self::partition_network(&mut result, partition_method, num_parts);
         result
     }
@@ -225,10 +224,6 @@ impl Network {
         }
     }
 
-    fn create_walk_mode(network: &mut Network) {
-        network.modes.create_id("walk");
-    }
-
     fn partition_network(network: &mut Network, partition_method: PartitionMethod, num_parts: u32) {
         match partition_method {
             PartitionMethod::Metis => {
@@ -334,8 +329,8 @@ impl Link {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::id::Id;
     use crate::simulation::config::PartitionMethod;
+    use crate::simulation::id::Id;
     use crate::simulation::io::network::{IOLink, IONode};
 
     use super::{Link, Network, Node};
@@ -529,7 +524,7 @@ mod tests {
         assert_eq!(7.5, network.effective_cell_size);
 
         // check walk mode
-        assert_eq!(network.modes.get_from_ext("walk").external(), "walk")
+        assert_eq!(Id::<String>::get_from_ext("walk").external(), "walk")
     }
 
     #[test]
