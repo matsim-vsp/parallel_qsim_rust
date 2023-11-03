@@ -171,10 +171,12 @@ impl AltRouter {
             .forward_link_ids()
             .iter()
             .position(|&id| id == link_id)
-            .expect(&*format!(
-                "There is no link with id {} in the current mode graph.",
-                link_id
-            ));
+            .unwrap_or_else(|| {
+                panic!(
+                    "There is no link with id {} in the current mode graph.",
+                    link_id
+                )
+            });
         *self
             .current_graph
             .forward_head()
@@ -188,18 +190,19 @@ impl AltRouter {
             .forward_link_ids()
             .iter()
             .position(|&id| id == link_id)
-            .expect(&*format!(
-                "There is no link with id {} in the current mode graph.",
-                link_id
-            ));
+            .unwrap_or_else(|| {
+                panic!(
+                    "There is no link with id {} in the current mode graph.",
+                    link_id
+                )
+            });
 
         let mut result = None;
         for i in 0..self.current_graph.forward_first_out().len() {
-            if link_id_index >= *self.current_graph.forward_first_out().get(i).unwrap() as usize
-                && link_id_index
-                    < *self.current_graph.forward_first_out().get(i + 1).unwrap() as usize
+            if link_id_index >= *self.current_graph.forward_first_out().get(i).unwrap()
+                && link_id_index < *self.current_graph.forward_first_out().get(i + 1).unwrap()
             {
-                result = Some(i as usize);
+                result = Some(i);
             }
         }
 
@@ -255,7 +258,7 @@ impl AltRouter {
         let mut result = None;
         for i in first_out_index..=last_out_index {
             if *graph.forward_head().get(i).unwrap() == next_node {
-                result = Some(graph.forward_link_ids().get(i).unwrap().clone());
+                result = Some(*graph.forward_link_ids().get(i).unwrap());
                 break;
             }
         }

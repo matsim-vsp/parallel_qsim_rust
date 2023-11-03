@@ -32,7 +32,7 @@ impl NetworkConverter {
     ) -> ForwardBackwardGraph {
         assert!(
             (mode.is_some() && max_mode_speed.is_some())
-                || (!mode.is_some() && !max_mode_speed.is_some()),
+                || (mode.is_none() && max_mode_speed.is_none()),
             "There must either be both mode and max velocity set or both not."
         );
 

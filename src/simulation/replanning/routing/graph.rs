@@ -45,7 +45,7 @@ impl ForwardBackwardGraph {
             *self
                 .forward_travel_time()
                 .get(i)
-                .expect(&*format!("There is no travel time for link {:?}", link_id))
+                .unwrap_or_else(|| panic!("There is no travel time for link {:?}", link_id))
         })
     }
     pub fn forward_first_out(&self) -> &Vec<usize> {

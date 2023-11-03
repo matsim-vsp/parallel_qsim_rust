@@ -27,10 +27,8 @@ where
     }
 
     pub fn send_recv(&self, now: u32, travel_times: HashMap<u64, u32>) -> Vec<TravelTimesMessage> {
-        let mut res = Vec::new();
         self.communicator
-            .send_receive_travel_times(now, travel_times, |m| res = m);
-        res
+            .send_receive_travel_times(now, travel_times)
     }
 }
 

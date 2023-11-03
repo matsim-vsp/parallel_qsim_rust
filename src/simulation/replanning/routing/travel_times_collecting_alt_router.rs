@@ -26,16 +26,18 @@ pub struct TravelTimesCollectingAltRouter<C: SimCommunicator> {
 impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
     fn query_links(&self, from_link: u64, to_link: u64, mode: u64) -> CustomQueryResult {
         self.get_router_by_mode(mode)
-            .expect(&*format!(
-                "There is no router for mode {:?}. Check the vehicle definitions.",
-                mode
-            ))
+            .unwrap_or_else(|| {
+                panic!(
+                    "There is no router for mode {:?}. Check the vehicle definitions.",
+                    mode
+                )
+            })
             .query_links(from_link, to_link)
     }
 
     fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher) {
         let traffic_update_interval_in_min = 15;
-        if !(now % (60 * traffic_update_interval_in_min) == 0) {
+        if now % (60 * traffic_update_interval_in_min) != 0 {
             return;
         }
 
@@ -152,11 +154,11 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
         for (mode, router) in self.router_by_mode.iter_mut() {
             let mut extended_travel_times_by_link_id = HashMap::new();
             for id in &self.link_ids_of_process {
-                if let Some(travel_time) = collected_travel_times.get(&id) {
+                if let Some(travel_time) = collected_travel_times.get(id) {
                     // for each collected travel time: add if currently known travel time is different
                     let initial = router.get_initial_travel_time(*id);
 
-                    if initial == None {
+                    if initial.is_none() {
                         continue;
                     }
 
@@ -169,7 +171,7 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
                     // for each link which has no new travel time: add initial travel time if currently known travel time is different
                     let initial = router.get_initial_travel_time(*id);
 
-                    if initial == None {
+                    if initial.is_none() {
                         continue;
                     }
 

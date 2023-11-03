@@ -155,14 +155,14 @@ where
         self.garage.unpark_veh(agent, &veh_id)
     }
 
-    fn update_agent(&mut self, mut agent: &mut Agent, now: u32) {
+    fn update_agent(&mut self, agent: &mut Agent, now: u32) {
         let agent_id = self.population.agent_ids.get(agent.id);
         self.replanner.update_agent(
             now,
-            &mut agent,
+            agent,
             &agent_id,
-            &mut self.population.act_types,
-            &self.network.global_network,
+            &self.population.act_types,
+            self.network.global_network,
             &self.garage,
         )
     }

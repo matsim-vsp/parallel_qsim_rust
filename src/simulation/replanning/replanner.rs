@@ -90,7 +90,7 @@ impl ReRouteTripReplanner {
     ) -> ReRouteTripReplanner {
         let forward_backward_graph_by_mode =
             TravelTimesCollectingAltRouter::<C>::get_forward_backward_graph_by_mode(
-                &network.global_network,
+                network.global_network,
                 &garage.vehicle_types,
             );
 
@@ -162,7 +162,7 @@ impl ReRouteTripReplanner {
 
         let mode_id = network.modes.get(agent.next_leg().mode);
         let vehicle_id = garage.get_mode_veh_id(agent_id, &mode_id);
-        let distance = Self::calculate_distance(&route, &network);
+        let distance = Self::calculate_distance(&route, network);
 
         agent.update_next_leg(
             dep_time,
@@ -237,6 +237,7 @@ impl ReRouteTripReplanner {
         (route, travel_time)
     }
 
+    #[allow(clippy::if_same_then_else)]
     fn get_leg_type(agent: &Agent, act_type_id_store: &IdStore<ActType>) -> LegType {
         //act - leg - interaction act => walk
         if !agent.curr_act().is_interaction(act_type_id_store)
@@ -266,7 +267,7 @@ impl ReRouteTripReplanner {
         }
     }
 
-    fn calculate_distance(route: &Vec<u64>, network: &Network) -> f64 {
+    fn calculate_distance(route: &[u64], network: &Network) -> f64 {
         let distance: f64 = route
             .iter()
             .map(|l| network.link_ids.get(*l))
@@ -275,7 +276,7 @@ impl ReRouteTripReplanner {
                     .links
                     .iter()
                     .find(|l| l.id == id)
-                    .expect(&*format!("No link with id {:?}", id))
+                    .unwrap_or_else(|| panic!("No link with id {:?}", id))
             })
             .map(|l| l.length)
             .sum();

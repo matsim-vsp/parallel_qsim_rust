@@ -111,8 +111,8 @@ impl TravelTimeCollector {
 
     pub fn get_travel_times(&self) -> HashMap<u64, u32> {
         self.travel_times_by_link
-            .iter()
-            .map(|(id, _)| (*id, self.get_travel_time_of_link(*id)))
+            .keys()
+            .map(|id| (*id, self.get_travel_time_of_link(*id)))
             .filter(|(_, travel_time)| travel_time.is_some())
             .map(|(id, travel_time)| (id, travel_time.unwrap()))
             .collect::<HashMap<u64, u32>>()

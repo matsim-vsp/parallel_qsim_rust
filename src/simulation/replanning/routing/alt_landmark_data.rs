@@ -17,8 +17,8 @@ pub struct AltLandmarkData {
 
 impl AltLandmarkData {
     pub fn new(graph: &ForwardBackwardGraph) -> AltLandmarkData {
-        let landmarks: Vec<usize> = Self::choose_landmarks(&graph);
-        let travel_times_to_all = Self::calculate_distances(&graph, &landmarks);
+        let landmarks: Vec<usize> = Self::choose_landmarks(graph);
+        let travel_times_to_all = Self::calculate_distances(graph, &landmarks);
         AltLandmarkData {
             landmarks,
             travel_times_to_all,
@@ -42,7 +42,7 @@ impl AltLandmarkData {
 
     fn calculate_distances(
         graph: &ForwardBackwardGraph,
-        landmarks: &Vec<usize>,
+        landmarks: &[usize],
     ) -> Vec<Vec<ForwardBackwardTravelTime>> {
         landmarks
             .iter()

@@ -19,9 +19,11 @@ pub trait SimCommunicator {
     ) where
         F: FnMut(VehicleMessage);
 
-    fn send_receive_travel_times<F>(&self, now: u32, travel_times: HashMap<u64, u32>, on_msg: F)
-    where
-        F: FnMut(Vec<TravelTimesMessage>);
+    fn send_receive_travel_times(
+        &self,
+        now: u32,
+        travel_times: HashMap<u64, u32>,
+    ) -> Vec<TravelTimesMessage>;
 
     fn rank(&self) -> u32;
 }
@@ -40,16 +42,13 @@ impl SimCommunicator for DummySimCommunicator {
     {
     }
 
-    fn send_receive_travel_times<F>(
+    fn send_receive_travel_times(
         &self,
         _now: u32,
         travel_times: HashMap<u64, u32>,
-        mut on_msg: F,
-    ) where
-        F: FnMut(Vec<TravelTimesMessage>),
-    {
+    ) -> Vec<TravelTimesMessage> {
         //process own travel times messages
-        on_msg(vec![TravelTimesMessage::from(travel_times)])
+        vec![TravelTimesMessage::from(travel_times)]
     }
 
     fn rank(&self) -> u32 {
@@ -132,14 +131,11 @@ impl SimCommunicator for ChannelSimCommunicator {
         }
     }
 
-    fn send_receive_travel_times<F>(
+    fn send_receive_travel_times(
         &self,
         _now: u32,
         travel_times: HashMap<u64, u32>,
-        mut on_msg: F,
-    ) where
-        F: FnMut(Vec<TravelTimesMessage>),
-    {
+    ) -> Vec<TravelTimesMessage> {
         let message = TravelTimesMessage::from(travel_times);
         //send to each
         for sender in &self.senders {
@@ -158,7 +154,7 @@ impl SimCommunicator for ChannelSimCommunicator {
             result.push(received_msg);
         }
 
-        on_msg(result);
+        result
     }
 
     fn rank(&self) -> u32 {
@@ -233,14 +229,11 @@ impl SimCommunicator for MpiSimCommunicator {
         });
     }
 
-    fn send_receive_travel_times<F>(
+    fn send_receive_travel_times(
         &self,
         _now: u32,
         travel_times: HashMap<u64, u32>,
-        mut on_msg: F,
-    ) where
-        F: FnMut(Vec<TravelTimesMessage>),
-    {
+    ) -> Vec<TravelTimesMessage> {
         let travel_times_message =
             SimMessage::from_travel_times_message(TravelTimesMessage::from(travel_times));
         let serial_travel_times_message = travel_times_message.serialize();
@@ -248,7 +241,7 @@ impl SimCommunicator for MpiSimCommunicator {
         let messages: Vec<TravelTimesMessage> =
             self.gather_travel_times(&serial_travel_times_message);
 
-        on_msg(messages);
+        messages
     }
 
     fn rank(&self) -> u32 {
@@ -286,7 +279,7 @@ impl MpiSimCommunicator {
         Self::deserialize_travel_times(travel_times_buffer, travel_times_length_buffer)
     }
 
-    fn get_travel_times_displs(all_travel_times_message_lengths: &mut Vec<i32>) -> Vec<Count> {
+    fn get_travel_times_displs(all_travel_times_message_lengths: &mut [i32]) -> Vec<Count> {
         // this is copied from rsmpi example immediate_all_gather_varcount
         all_travel_times_message_lengths
             .iter()
@@ -308,7 +301,7 @@ impl MpiSimCommunicator {
             let begin_index = last_end_index;
             let end_index = last_end_index + len as usize;
             result.push(SimMessage::deserialize(
-                &all_travel_times_messages[begin_index..end_index as usize],
+                &all_travel_times_messages[begin_index..end_index],
             ));
             last_end_index = end_index;
         }
