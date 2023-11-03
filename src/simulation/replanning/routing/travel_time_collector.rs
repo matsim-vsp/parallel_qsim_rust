@@ -145,7 +145,7 @@ impl EventsSubscriber for TravelTimeCollector {
 mod test {
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::EventsSubscriber;
-    use crate::simulation::plan_modification::routing::travel_time_collector::{
+    use crate::simulation::replanning::routing::travel_time_collector::{
         TrafficInformation, TravelTimeCollector,
     };
 

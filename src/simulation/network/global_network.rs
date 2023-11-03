@@ -210,6 +210,10 @@ impl Network {
         self.links.get(id.internal() as usize).unwrap()
     }
 
+    pub fn get_link_form_internal(&self, id: u64) -> &Link {
+        self.links.get(id as usize).unwrap()
+    }
+
     fn init_nodes_and_links(network: &mut Network, io_network: IONetwork) {
         for node in io_network.nodes.nodes {
             network.add_io_node(node)
@@ -242,17 +246,12 @@ impl Network {
             // But for testing purposes (compare base case with 1 partition and with more) we reset the partition of the nodes in that case.
             if num_parts == 1 {
                 for n in network.nodes.iter_mut() {
-                    n.partition = 0
+                    n.partition = 0;
+                }
+                for l in network.links.iter_mut() {
+                    l.partition = 0;
                 }
             }
-            //only update links
-            for node in network.nodes.iter_mut() {
-                for link_id in &node.in_links {
-                    let link = network.links.get_mut(link_id.internal() as usize).unwrap();
-                    link.partition = node.partition;
-                }
-            }
-            return;
         } else {
             panic!("Unknown partition method: {}", partition_method);
         }

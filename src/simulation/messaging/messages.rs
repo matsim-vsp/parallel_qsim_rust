@@ -204,33 +204,24 @@ impl Agent {
 
     pub fn add_act_after_curr(&mut self, to_add: Vec<Activity>) {
         let next_act_index = self.next_act_index() as usize;
-        let _ = &self
-            .plan
+        self.plan
             .as_mut()
             .unwrap()
             .acts
             .splice(next_act_index..next_act_index, to_add);
     }
 
-    pub fn add_access_egress_legs_for_next(&mut self, access: Leg, egress: Leg) {
-        //we have: last leg (current) - main leg (next)
-        //we want: last leg (current) - walk access leg (next) - main leg - walk egress leg
-        //insert walk leg after next and after current (in this order)
-
-        //insert egress
+    pub fn replace_next_leg(&mut self, to_add: Vec<Leg>) {
         let next_leg_index = self.next_leg_index() as usize;
-        self.plan
-            .as_mut()
-            .unwrap()
-            .legs
-            .insert(next_leg_index + 1, egress);
+        //remove next leg
+        self.plan.as_mut().unwrap().legs.remove(next_leg_index);
 
-        //insert access
+        //insert legs at next leg index
         self.plan
             .as_mut()
             .unwrap()
             .legs
-            .insert(next_leg_index, access);
+            .splice(next_leg_index..next_leg_index, to_add);
     }
 
     pub fn curr_act(&self) -> &Activity {
@@ -476,7 +467,7 @@ impl Activity {
         }
     }
 
-    pub fn dummy(link_id: u64, act_type: u64) -> Activity {
+    pub fn interaction(link_id: u64, act_type: u64) -> Activity {
         Activity {
             act_type,
             link_id,
@@ -534,7 +525,7 @@ impl Leg {
         }
     }
 
-    pub fn walk_dummy(mode: u64) -> Self {
+    pub fn access_eggress(mode: u64) -> Self {
         Leg {
             mode,
             routing_mode: mode,

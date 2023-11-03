@@ -143,8 +143,8 @@ pub(crate) mod tests {
     use std::collections::HashMap;
 
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::plan_modification::routing::graph::{ForwardBackwardGraph, Graph};
-    use crate::simulation::plan_modification::routing::network_converter::NetworkConverter;
+    use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
+    use crate::simulation::replanning::routing::network_converter::NetworkConverter;
 
     pub fn get_triangle_test_graph() -> ForwardBackwardGraph {
         let network = Network::from_file("./assets/routing_tests/triangle-network.xml", 1, "metis");

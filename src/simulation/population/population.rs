@@ -34,7 +34,7 @@ impl Population {
         let mut result = Population::new();
 
         // create person ids, and vehicles for each person
-        Self::create_ids(&mut result, io_population, network, garage);
+        Self::create_ids(&mut result, io_population, garage, network);
         // create the actual persons for this partition
         Self::create_persons(&mut result, io_population, network, partition);
         // create a vehicles for all modes for persons belonging to this partition
@@ -56,6 +56,12 @@ impl Population {
                     .map(move |type_id| (p_id.clone(), type_id.clone())) //Self::create_veh_id_string(&p_id, type_id))
             })
             .collect();
+
+        // add interaction activity type for each vehicle type
+        for (_, id) in raw_veh.iter() {
+            pop.act_types
+                .create_id(&format!("{} interaction", id.external()));
+        }
 
         // have this in a separate loop because we are iterating over garage's vehicle types and we
         // can't borrow vehicle types while using a &mut in add_veh.

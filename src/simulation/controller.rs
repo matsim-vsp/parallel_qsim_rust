@@ -1,5 +1,6 @@
 use std::ops::Sub;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
@@ -10,17 +11,19 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::config::Config;
+use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::logging;
 use crate::simulation::messaging::communication::communicators::{
     ChannelSimCommunicator, DummySimCommunicator, MpiSimCommunicator, SimCommunicator,
 };
+use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::plan_modification::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::population::population::Population;
+use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplanner, Replanner};
+use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
 
@@ -120,13 +123,27 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>)
     events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let mut simulation = Simulation::new(
+    let rc = Rc::new(comm);
+
+    let replanner: Box<dyn Replanner> = if config.routing_mode == RoutingMode::AdHoc {
+        Box::new(ReRouteTripReplanner::new(
+            &network_partition,
+            &garage,
+            Rc::clone(&rc),
+        ))
+    } else {
+        Box::new(DummyReplanner {})
+    };
+    let net_message_broker = NetMessageBroker::new(rc, &network_partition);
+
+    let mut simulation: Simulation<C> = Simulation::new(
         config.clone(),
         network_partition,
         garage,
         population,
-        comm,
+        net_message_broker,
         events,
+        replanner,
     );
 
     let start = Instant::now();

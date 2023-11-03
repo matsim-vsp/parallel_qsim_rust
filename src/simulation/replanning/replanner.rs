@@ -7,13 +7,13 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::{Activity, Agent, Leg};
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::plan_modification::routing::router::Router;
-use crate::simulation::plan_modification::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
-use crate::simulation::plan_modification::walk_finder::{EuclideanWalkFinder, WalkFinder};
 use crate::simulation::population::population::ActType;
+use crate::simulation::replanning::routing::router::Router;
+use crate::simulation::replanning::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
+use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, WalkFinder};
 use crate::simulation::vehicles::garage::Garage;
 
-pub trait PlanModifier {
+pub trait Replanner {
     fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher);
     fn update_agent(
         &self,
@@ -26,18 +26,36 @@ pub trait PlanModifier {
     );
 }
 
-enum LegModificationType {
-    WalkLeg,
-    MainLeg,
-    DummyMainLeg,
+#[derive(Eq, PartialEq)]
+enum LegType {
+    AccessEgress,
+    Main,
+    TripPlaceholder,
 }
 
-pub struct PathFindingPlanModifier {
+pub struct DummyReplanner {}
+
+impl Replanner for DummyReplanner {
+    fn next_time_step(&mut self, _now: u32, _events: &mut EventsPublisher) {}
+
+    fn update_agent(
+        &self,
+        _now: u32,
+        _agent: &mut Agent,
+        _agent_id: &Id<Agent>,
+        _activity_type_id_store: &IdStore<ActType>,
+        _network: &Network,
+        _garage: &Garage,
+    ) {
+    }
+}
+
+pub struct ReRouteTripReplanner {
     router: Box<dyn Router>,
     walk_finder: Box<dyn WalkFinder>,
 }
 
-impl PlanModifier for PathFindingPlanModifier {
+impl Replanner for ReRouteTripReplanner {
     fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher) {
         self.router.next_time_step(now, events)
     }
@@ -52,23 +70,24 @@ impl PlanModifier for PathFindingPlanModifier {
         garage: &Garage,
     ) {
         match Self::get_leg_type(agent, act_type_id_store) {
-            LegModificationType::WalkLeg => {
-                self.update_walk_leg(agent, agent_id, act_type_id_store, network, garage)
+            LegType::AccessEgress => {
+                self.update_access_egress_leg(agent, agent_id, act_type_id_store, network, garage)
             }
-            LegModificationType::MainLeg => self.update_main_leg(agent, agent_id, network, garage),
-            LegModificationType::DummyMainLeg => {
-                self.update_dummy_leg(agent, act_type_id_store, network)
+            LegType::Main => self.update_main_leg(agent, agent_id, network, garage),
+            LegType::TripPlaceholder => {
+                self.update_trip_placeholder_leg(agent, act_type_id_store, network);
+                self.update_access_egress_leg(agent, agent_id, act_type_id_store, network, garage);
             }
-        }
+        };
     }
 }
 
-impl PathFindingPlanModifier {
+impl ReRouteTripReplanner {
     pub fn new<C: SimCommunicator + 'static>(
         network: &SimNetworkPartition,
         garage: &Garage,
         communicator: Rc<C>,
-    ) -> PathFindingPlanModifier {
+    ) -> ReRouteTripReplanner {
         let forward_backward_graph_by_mode =
             TravelTimesCollectingAltRouter::<C>::get_forward_backward_graph_by_mode(
                 &network.global_network,
@@ -81,17 +100,15 @@ impl PathFindingPlanModifier {
             network.get_link_ids(),
         ));
 
-        let walking_speed_in_m_per_sec = 1.2;
-        let walk_finder: Box<dyn WalkFinder> =
-            Box::new(EuclideanWalkFinder::new(walking_speed_in_m_per_sec));
+        let walk_finder: Box<dyn WalkFinder> = Box::new(EuclideanWalkFinder::new());
 
-        PathFindingPlanModifier {
+        ReRouteTripReplanner {
             router,
             walk_finder,
         }
     }
 
-    fn update_dummy_leg(
+    fn update_trip_placeholder_leg(
         &self,
         agent: &mut Agent,
         act_type_id_store: &IdStore<ActType>,
@@ -106,25 +123,28 @@ impl PathFindingPlanModifier {
         // Thus, we need to
         // 1. insert 2 interaction activities between current and next activity
         // 2. insert access and egress walking legs before and after main leg
-        //
-        // Anything else (routing and walk finding) is performed at next time step
 
-        // Maybe we should move the creation of interaction and walk ids to some router preparing step.
-        // I'm not sure.
+        // mode on next_leg() is an internal id of network.modes, NOT of garage.vehicle_types
+        // we assume that there is exactly one network mode for each vehicle type
         let main_leg_mode = String::from(network.modes.get(agent.next_leg().mode).external());
         let id = act_type_id_store.get_from_ext(&format!("{} interaction", main_leg_mode));
 
         let new_acts = vec![
-            Activity::dummy(agent.curr_act().link_id, id.internal()),
-            Activity::dummy(agent.next_act().link_id, id.internal()),
+            Activity::interaction(agent.curr_act().link_id, id.internal()),
+            Activity::interaction(agent.next_act().link_id, id.internal()),
         ];
         agent.add_act_after_curr(new_acts);
 
-        let walk_mode_id = network.modes.get_from_ext("walk").internal();
+        //"walk" as default access egress mode is hard coded here. Could also be optional
+        let access_egress_mode_id = network.modes.get_from_ext("walk").internal();
 
-        let access = Leg::walk_dummy(walk_mode_id);
-        let egress = Leg::walk_dummy(walk_mode_id);
-        agent.add_access_egress_legs_for_next(access, egress);
+        //replace current leg()
+        let access = Leg::access_eggress(access_egress_mode_id);
+        let egress = Leg::access_eggress(access_egress_mode_id);
+
+        //we have: last leg (current) - main leg (next)
+        //we want: last leg (current) - walk access leg (next) - main leg - walk egress leg
+        agent.replace_next_leg(vec![access, agent.next_leg().clone(), egress]);
     }
 
     fn update_main_leg(
@@ -153,7 +173,7 @@ impl PathFindingPlanModifier {
         );
     }
 
-    fn update_walk_leg(
+    fn update_access_egress_leg(
         &self,
         agent: &mut Agent,
         agent_id: &Id<Agent>,
@@ -166,14 +186,23 @@ impl PathFindingPlanModifier {
 
         assert_eq!(curr_act.link_id, next_act.link_id);
 
+        let main_leg_mode = String::from(network.modes.get(agent.next_leg().mode).external());
+        let access_egress_speed = garage
+            .vehicle_types
+            .get(&garage.vehicle_type_ids.get_from_ext(&main_leg_mode))
+            .unwrap()
+            .max_v;
+
         let dep_time;
 
-        let walk = if agent.curr_act().is_interaction(act_type_id_store) {
+        let walk = if curr_act.is_interaction(act_type_id_store) {
             dep_time = curr_act.end_time;
-            self.walk_finder.find_walk(next_act, network)
+            self.walk_finder
+                .find_walk(next_act, network, access_egress_speed)
         } else {
             dep_time = curr_act.end_time;
-            self.walk_finder.find_walk(curr_act, network)
+            self.walk_finder
+                .find_walk(curr_act, network, access_egress_speed)
         };
 
         let mode_id = network.modes.get(agent.next_leg().mode);
@@ -182,7 +211,7 @@ impl PathFindingPlanModifier {
         agent.update_next_leg(
             dep_time,
             walk.duration,
-            vec![agent.curr_act().link_id],
+            vec![agent.curr_act().link_id, agent.curr_act().link_id],
             walk.distance,
             vehicle_id.internal(),
         );
@@ -208,30 +237,30 @@ impl PathFindingPlanModifier {
         (route, travel_time)
     }
 
-    fn get_leg_type(agent: &Agent, act_type_id_store: &IdStore<ActType>) -> LegModificationType {
+    fn get_leg_type(agent: &Agent, act_type_id_store: &IdStore<ActType>) -> LegType {
         //act - leg - interaction act => walk
         if !agent.curr_act().is_interaction(act_type_id_store)
             && agent.next_act().is_interaction(act_type_id_store)
         {
-            LegModificationType::WalkLeg
+            LegType::AccessEgress
         }
         //interaction act - leg - act => walk
         else if agent.curr_act().is_interaction(act_type_id_store)
             && !agent.next_act().is_interaction(act_type_id_store)
         {
-            LegModificationType::WalkLeg
+            LegType::AccessEgress
         }
         //interaction act - leg - interaction act => main leg
         else if agent.curr_act().is_interaction(act_type_id_store)
             && agent.next_act().is_interaction(act_type_id_store)
         {
-            LegModificationType::MainLeg
+            LegType::Main
         }
         //act - leg - act => dummy leg
         else if !agent.curr_act().is_interaction(act_type_id_store)
             && !agent.next_act().is_interaction(act_type_id_store)
         {
-            LegModificationType::DummyMainLeg
+            LegType::TripPlaceholder
         } else {
             panic!("Computing a leg between two main activities should never happen.")
         }
@@ -261,10 +290,8 @@ mod tests {
     use crate::simulation::messaging::messages::proto::{Agent, Route};
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
-    use crate::simulation::plan_modification::plan_modifier::{
-        PathFindingPlanModifier, PlanModifier,
-    };
     use crate::simulation::population::population::{ActType, Population};
+    use crate::simulation::replanning::replanner::{ReRouteTripReplanner, Replanner};
     use crate::simulation::vehicles::garage::Garage;
     use std::rc::Rc;
 
@@ -284,11 +311,11 @@ mod tests {
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
-        let plan_modifier =
-            PathFindingPlanModifier::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
+        let replanner =
+            ReRouteTripReplanner::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change
-        plan_modifier.update_agent(
+        replanner.update_agent(
             0,
             &mut agent,
             &agent_id,
@@ -330,11 +357,11 @@ mod tests {
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
-        let plan_modifier =
-            PathFindingPlanModifier::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
+        let replanner =
+            ReRouteTripReplanner::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change
-        plan_modifier.update_agent(
+        replanner.update_agent(
             0,
             &mut agent,
             &agent_id,
@@ -362,7 +389,10 @@ mod tests {
 
         let access_leg = agent.plan.as_ref().unwrap().legs.get(0);
 
-        assert_eq!(access_leg.unwrap().trav_time, 8);
+        assert_eq!(
+            access_leg.unwrap().trav_time,
+            (access_leg.unwrap().route.as_ref().unwrap().distance / 0.85) as u32
+        );
         assert_eq!(
             access_leg
                 .as_ref()
@@ -390,11 +420,11 @@ mod tests {
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
-        let plan_modifier =
-            PathFindingPlanModifier::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
+        let replanner =
+            ReRouteTripReplanner::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change of walk leg
-        plan_modifier.update_agent(
+        replanner.update_agent(
             0,
             &mut agent,
             &agent_id,
@@ -410,7 +440,7 @@ mod tests {
         agent.advance_plan();
 
         //do change
-        plan_modifier.update_agent(
+        replanner.update_agent(
             0,
             &mut agent,
             &agent_id,

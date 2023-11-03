@@ -1,7 +1,7 @@
-use crate::simulation::plan_modification::routing::alt_landmark_data::AltLandmarkData;
-use crate::simulation::plan_modification::routing::dijsktra::{Dijkstra, Distance};
-use crate::simulation::plan_modification::routing::graph::ForwardBackwardGraph;
-use crate::simulation::plan_modification::routing::router::CustomQueryResult;
+use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
+use crate::simulation::replanning::routing::dijsktra::{Dijkstra, Distance};
+use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
+use crate::simulation::replanning::routing::router::CustomQueryResult;
 use keyed_priority_queue::Entry;
 
 #[derive(PartialEq, Debug)]
@@ -64,9 +64,7 @@ impl AltRouter {
 
     fn query(&self, from: usize, to: usize) -> AltQueryResult {
         let number_of_nodes = self.current_graph.forward_first_out().len() - 1;
-
         let (mut queue, mut distances) = Dijkstra::get_initial_queue(number_of_nodes, from);
-
         let mut parents: Vec<Option<usize>> = (0..number_of_nodes).map(|_| None).collect();
 
         while let Some((current_id, _)) = queue.pop() {
@@ -268,9 +266,9 @@ impl AltRouter {
 #[cfg(test)]
 mod tests {
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::plan_modification::routing::alt_router::{AltQueryResult, AltRouter};
-    use crate::simulation::plan_modification::routing::graph::tests::get_triangle_test_graph;
-    use crate::simulation::plan_modification::routing::network_converter::NetworkConverter;
+    use crate::simulation::replanning::routing::alt_router::{AltQueryResult, AltRouter};
+    use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
     use std::collections::HashMap;
 

@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use std::sync::Arc;
 
 use tracing::info;
@@ -8,8 +7,8 @@ use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::plan_modification::plan_modifier::{PathFindingPlanModifier, PlanModifier};
 use crate::simulation::population::population::Population;
+use crate::simulation::replanning::replanner::Replanner;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
@@ -24,7 +23,7 @@ where
     garage: Garage,
     net_message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
-    plan_modifier: Option<Box<dyn PlanModifier>>,
+    replanner: Box<dyn Replanner>,
 }
 
 impl<C> Simulation<C>
@@ -36,8 +35,9 @@ where
         network: SimNetworkPartition,
         garage: Garage,
         mut population: Population,
-        communicator: C,
+        net_message_broker: NetMessageBroker<C>,
         events: EventsPublisher,
+        replanner: Box<dyn Replanner>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
 
@@ -49,19 +49,6 @@ where
             activity_q.add(agent, config.start_time);
         }
 
-        let rc = Rc::new(communicator);
-
-        let plan_modifier = if config.routing_mode == RoutingMode::AdHoc {
-            let modifier: Option<Box<dyn PlanModifier>> = Some(Box::new(
-                PathFindingPlanModifier::new(&network, &garage, Rc::clone(&rc)),
-            ));
-            modifier
-        } else {
-            None
-        };
-
-        let net_message_broker = NetMessageBroker::new(rc, &network);
-
         Simulation {
             network,
             garage,
@@ -69,7 +56,7 @@ where
             activity_q,
             net_message_broker,
             events,
-            plan_modifier,
+            replanner,
         }
     }
 
@@ -95,9 +82,7 @@ where
             self.move_nodes(now);
             self.move_links(now);
 
-            if let Some(plan_modifier) = self.plan_modifier.as_mut() {
-                plan_modifier.next_time_step(now, &mut self.events)
-            }
+            self.replanner.next_time_step(now, &mut self.events);
 
             now += 1;
         }
@@ -110,7 +95,7 @@ where
         let agents = self.activity_q.pop(now);
 
         for mut agent in agents {
-            self.update_agent_if_present(&mut agent, now);
+            self.update_agent(&mut agent, now);
 
             let act_type: Id<String> = Id::get(agent.curr_act().act_type);
             self.events.publish_event(
@@ -149,8 +134,6 @@ where
     }
 
     fn departure(&mut self, mut agent: Agent, now: u32) -> Vehicle {
-        self.update_agent_if_present(&mut agent, now);
-
         //here, current element counter is going to be increased
         agent.advance_plan();
 
@@ -172,18 +155,16 @@ where
         self.garage.unpark_veh(agent, &veh_id)
     }
 
-    fn update_agent_if_present(&mut self, mut agent: &mut Agent, now: u32) {
-        if let Some(plan_modifier) = self.plan_modifier.as_mut() {
-            let agent_id = self.population.agent_ids.get(agent.id);
-            plan_modifier.update_agent(
-                now,
-                &mut agent,
-                &agent_id,
-                &mut self.population.act_types,
-                &self.network.global_network,
-                &self.garage,
-            )
-        }
+    fn update_agent(&mut self, mut agent: &mut Agent, now: u32) {
+        let agent_id = self.population.agent_ids.get(agent.id);
+        self.replanner.update_agent(
+            now,
+            &mut agent,
+            &agent_id,
+            &mut self.population.act_types,
+            &self.network.global_network,
+            &self.garage,
+        )
     }
 
     fn terminate_teleportation(&mut self, now: u32) {
@@ -286,6 +267,7 @@ where
 mod tests {
     use std::any::Any;
     use std::path::PathBuf;
+    use std::rc::Rc;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::sync::Arc;
     use std::thread;
@@ -298,12 +280,16 @@ mod tests {
     use crate::simulation::messaging::communication::communicators::{
         ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
     };
+    use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
-    use crate::simulation::plan_modification::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::population::population::Population;
+    use crate::simulation::replanning::replanner::{
+        DummyReplanner, ReRouteTripReplanner, Replanner,
+    };
+    use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::simulation::Simulation;
     use crate::simulation::vehicles::garage::Garage;
 
@@ -530,7 +516,24 @@ mod tests {
         events.add_subscriber(test_subscriber);
         events.add_subscriber(Box::new(TravelTimeCollector::new()));
 
-        let mut sim = Simulation::new(config.clone(), sim_net, garage, pop, comm, events);
+        let rc = Rc::new(comm);
+        let broker = NetMessageBroker::new(rc.clone(), &sim_net);
+
+        let replanner: Box<dyn Replanner> = if config.routing_mode == RoutingMode::AdHoc {
+            Box::new(ReRouteTripReplanner::new(&sim_net, &garage, rc))
+        } else {
+            Box::new(DummyReplanner {})
+        };
+
+        let mut sim = Simulation::new(
+            config.clone(),
+            sim_net,
+            garage,
+            pop,
+            broker,
+            events,
+            replanner,
+        );
 
         sim.run(config.start_time, config.end_time);
     }

@@ -4,7 +4,7 @@ use nohash_hasher::IntMap;
 
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::{Link, Network};
-use crate::simulation::plan_modification::routing::graph::{ForwardBackwardGraph, Graph};
+use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
 use crate::simulation::vehicles::vehicle_type::VehicleType;
 
 pub struct NetworkConverter {}
@@ -151,7 +151,7 @@ impl NetworkConverter {
 #[cfg(test)]
 mod test {
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::plan_modification::routing::network_converter::NetworkConverter;
+    use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::vehicle_type::VehicleType;
 

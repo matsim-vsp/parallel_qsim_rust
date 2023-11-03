@@ -2,8 +2,8 @@ use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 
-use crate::simulation::plan_modification::routing::dijsktra::Dijkstra;
-use crate::simulation::plan_modification::routing::graph::ForwardBackwardGraph;
+use crate::simulation::replanning::routing::dijsktra::Dijkstra;
+use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
 
 pub type ForwardBackwardTravelTime = (u32, u32);
 
@@ -58,8 +58,8 @@ impl AltLandmarkData {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::plan_modification::routing::alt_landmark_data::AltLandmarkData;
-    use crate::simulation::plan_modification::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
+    use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
 
     #[test]
     fn test_landmark_choice() {
