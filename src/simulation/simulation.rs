@@ -257,6 +257,7 @@ mod tests {
     use tracing::info;
 
     use crate::simulation::config::Config;
+    use crate::simulation::logging;
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
     use crate::simulation::messaging::message_broker::{
@@ -327,6 +328,30 @@ mod tests {
         try_join(handles);
     }
 
+    #[test]
+    fn test_rvr_scenario() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "/Users/janek/Documents/rust_q_sim/input/rvr.network.xml.gz",
+                ))
+                .population_file(String::from(
+                    "/Users/janek/Documents/rust_q_sim/input/rvr.1pct.plans.xml.gz",
+                ))
+                .vehicles_file(String::from(
+                    "/Users/janek/Documents/rust_q_sim/input/rvr.vehicles.xml",
+                ))
+                .output_dir(String::from("/Users/janek/Documents/rust_q_sim/output-wip"))
+                .num_parts(1)
+                .partition_method(String::from("none"))
+                .build(),
+        );
+
+        let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
+
+        execute_sim(DummyNetCommunicator(), Box::new(EmtpySubscriber {}), config)
+    }
+
     fn execute_sim<C: NetCommunicator>(
         comm: C,
         test_subscriber: Box<dyn EventsSubscriber + Send>,
@@ -372,6 +397,18 @@ mod tests {
                 let handle = handles.remove(&i).unwrap();
                 handle.join().expect("Error in a thread");
             }
+        }
+    }
+
+    struct EmtpySubscriber {}
+
+    impl EventsSubscriber for EmtpySubscriber {
+        fn receive_event(&mut self, _time: u32, _event: &Event) {
+            // nothing.
+        }
+
+        fn as_any(&mut self) -> &mut dyn Any {
+            self
         }
     }
 

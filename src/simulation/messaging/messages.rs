@@ -426,7 +426,7 @@ impl Leg {
     fn from_io(io_leg: &IOLeg, person_id: &Id<Agent>) -> Self {
         let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
-        let routing_mode: Id<String> = Id::get_from_ext(routing_mode_ext);
+        let routing_mode: Id<String> = Id::create(routing_mode_ext);
         let mode = Id::get_from_ext(io_leg.mode.as_str());
         let route = Route::from_io(&io_leg.route, person_id, &mode);
 

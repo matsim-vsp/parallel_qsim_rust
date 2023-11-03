@@ -183,9 +183,9 @@ impl<'ext> IdStore<'ext> {
             panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids")
         });
 
-        let index = type_mapping
-            .get(external)
-            .unwrap_or_else(|| panic!("Could not find id for external id: {external}"));
+        let index = type_mapping.get(external).unwrap_or_else(|| {
+            panic!("Could not find id for external id: {external}");
+        });
 
         self.get(*index)
     }
