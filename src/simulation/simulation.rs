@@ -85,7 +85,7 @@ where
             self.move_nodes(now);
             self.move_links(now);
 
-            self.replanner.next_time_step(now, &mut self.events);
+            self.replanner.update_time(now, &mut self.events);
 
             now += 1;
         }
@@ -160,7 +160,7 @@ where
 
     fn update_agent(&mut self, agent: &mut Agent, now: u32) {
         let agent_id = self.population.agent_ids.get(agent.id);
-        self.replanner.update_agent(
+        self.replanner.replan(
             now,
             agent,
             &agent_id,

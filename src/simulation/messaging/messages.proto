@@ -4,7 +4,7 @@ package mpi.messages;
 
 message SimMessage{
   oneof type {
-    VehicleMessage vehicles =1 ;
+    SyncMessage sync = 1 ;
     TravelTimesMessage travelTimes = 2;
   }
 }
@@ -14,7 +14,7 @@ message TravelTimesMessage {
 }
 
 // messages for the qsim
-message VehicleMessage {
+message SyncMessage {
   uint32 time = 1;
   uint32 from_process = 2;
   uint32 to_process = 3;

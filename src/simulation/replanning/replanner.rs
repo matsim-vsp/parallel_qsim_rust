@@ -14,8 +14,8 @@ use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, WalkFinder
 use crate::simulation::vehicles::garage::Garage;
 
 pub trait Replanner {
-    fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher);
-    fn update_agent(
+    fn update_time(&mut self, now: u32, events: &mut EventsPublisher);
+    fn replan(
         &self,
         now: u32,
         agent: &mut Agent,
@@ -36,9 +36,9 @@ enum LegType {
 pub struct DummyReplanner {}
 
 impl Replanner for DummyReplanner {
-    fn next_time_step(&mut self, _now: u32, _events: &mut EventsPublisher) {}
+    fn update_time(&mut self, _now: u32, _events: &mut EventsPublisher) {}
 
-    fn update_agent(
+    fn replan(
         &self,
         _now: u32,
         _agent: &mut Agent,
@@ -56,11 +56,11 @@ pub struct ReRouteTripReplanner {
 }
 
 impl Replanner for ReRouteTripReplanner {
-    fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher) {
+    fn update_time(&mut self, now: u32, events: &mut EventsPublisher) {
         self.router.next_time_step(now, events)
     }
 
-    fn update_agent(
+    fn replan(
         &self,
         _now: u32,
         agent: &mut Agent,
@@ -69,15 +69,16 @@ impl Replanner for ReRouteTripReplanner {
         network: &Network,
         garage: &Garage,
     ) {
-        match Self::get_leg_type(agent, act_type_id_store) {
-            LegType::AccessEgress => {
-                self.update_access_egress_leg(agent, agent_id, act_type_id_store, network, garage)
+        let leg_type = Self::get_leg_type(agent, act_type_id_store);
+        if leg_type == LegType::TripPlaceholder {
+            self.insert_access_egress(agent, act_type_id_store, network);
+        }
+
+        match leg_type {
+            LegType::AccessEgress | LegType::TripPlaceholder => {
+                self.replan_access_egress(agent, agent_id, act_type_id_store, network, garage)
             }
-            LegType::Main => self.update_main_leg(agent, agent_id, network, garage),
-            LegType::TripPlaceholder => {
-                self.update_trip_placeholder_leg(agent, act_type_id_store, network);
-                self.update_access_egress_leg(agent, agent_id, act_type_id_store, network, garage);
-            }
+            LegType::Main => self.replan_main(agent, agent_id, network, garage),
         };
     }
 }
@@ -108,7 +109,7 @@ impl ReRouteTripReplanner {
         }
     }
 
-    fn update_trip_placeholder_leg(
+    fn insert_access_egress(
         &self,
         agent: &mut Agent,
         act_type_id_store: &IdStore<ActType>,
@@ -147,7 +148,7 @@ impl ReRouteTripReplanner {
         agent.replace_next_leg(vec![access, agent.next_leg().clone(), egress]);
     }
 
-    fn update_main_leg(
+    fn replan_main(
         &self,
         agent: &mut Agent,
         agent_id: &Id<Agent>,
@@ -173,7 +174,7 @@ impl ReRouteTripReplanner {
         );
     }
 
-    fn update_access_egress_leg(
+    fn replan_access_egress(
         &self,
         agent: &mut Agent,
         agent_id: &Id<Agent>,
@@ -298,7 +299,7 @@ mod tests {
     use std::rc::Rc;
 
     #[test]
-    fn test_dummy_leg() {
+    fn test_trip_placeholder_leg() {
         //prepare
         let mut network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
@@ -320,7 +321,7 @@ mod tests {
             ReRouteTripReplanner::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change
-        replanner.update_agent(
+        replanner.replan(
             0,
             &mut agent,
             &agent_id,
@@ -357,7 +358,7 @@ mod tests {
         );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let mut population = Population::from_file(
-            "./assets/3-links/1-agent-full-leg-dummy.xml",
+            "./assets/3-links/1-agent-trip-leg.xml",
             &network,
             &mut garage,
             0,
@@ -370,7 +371,7 @@ mod tests {
             ReRouteTripReplanner::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change
-        replanner.update_agent(
+        replanner.replan(
             0,
             &mut agent,
             &agent_id,
@@ -424,7 +425,7 @@ mod tests {
         );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut network.modes);
         let mut population = Population::from_file(
-            "./assets/3-links/1-agent-full-leg-dummy.xml",
+            "./assets/3-links/1-agent-trip-leg.xml",
             &network,
             &mut garage,
             0,
@@ -437,7 +438,7 @@ mod tests {
             ReRouteTripReplanner::new(&sim_net, &garage, Rc::new(DummySimCommunicator()));
 
         //do change of walk leg
-        replanner.update_agent(
+        replanner.replan(
             0,
             &mut agent,
             &agent_id,
@@ -453,7 +454,7 @@ mod tests {
         agent.advance_plan();
 
         //do change
-        replanner.update_agent(
+        replanner.replan(
             0,
             &mut agent,
             &agent_id,

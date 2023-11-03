@@ -1,6 +1,4 @@
-use crate::simulation::messaging::messages::proto::{
-    SimMessage, TravelTimesMessage, VehicleMessage,
-};
+use crate::simulation::messaging::messages::proto::{SimMessage, SyncMessage, TravelTimesMessage};
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
@@ -12,12 +10,12 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        vehicles: HashMap<u32, VehicleMessage>,
+        vehicles: HashMap<u32, SyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         on_msg: F,
     ) where
-        F: FnMut(VehicleMessage);
+        F: FnMut(SyncMessage);
 
     fn send_receive_travel_times(
         &self,
@@ -33,12 +31,12 @@ pub struct DummySimCommunicator();
 impl SimCommunicator for DummySimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        _vehicles: HashMap<u32, VehicleMessage>,
+        _vehicles: HashMap<u32, SyncMessage>,
         _expected_vehicle_messages: &mut HashSet<u32>,
         _now: u32,
         _on_msg: F,
     ) where
-        F: FnMut(VehicleMessage),
+        F: FnMut(SyncMessage),
     {
     }
 
@@ -95,18 +93,18 @@ impl ChannelSimCommunicator {
 impl SimCommunicator for ChannelSimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        vehicles: HashMap<u32, VehicleMessage>,
+        vehicles: HashMap<u32, SyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         mut on_msg: F,
     ) where
-        F: FnMut(VehicleMessage),
+        F: FnMut(SyncMessage),
     {
         // send messages to everyone
         for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
             sender
-                .send(SimMessage::from_vehicle_message(msg))
+                .send(SimMessage::from_sync_message(msg))
                 .expect("Failed to send vehicle message in message broker");
         }
 
@@ -116,7 +114,7 @@ impl SimCommunicator for ChannelSimCommunicator {
                 .receiver
                 .recv()
                 .expect("Error while receiving messages")
-                .vehicle_message();
+                .sync_message();
             let from_rank = received_msg.from_process;
 
             // If a message was received from a neighbor partition for this very time step, remove
@@ -169,16 +167,16 @@ pub struct MpiSimCommunicator {
 impl SimCommunicator for MpiSimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        out_messages: HashMap<u32, VehicleMessage>,
+        out_messages: HashMap<u32, SyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         mut on_msg: F,
     ) where
-        F: FnMut(VehicleMessage),
+        F: FnMut(SyncMessage),
     {
         let buf_msg: Vec<_> = out_messages
             .into_iter()
-            .map(|(to, m)| (to, SimMessage::from_vehicle_message(m).serialize()))
+            .map(|(to, m)| (to, SimMessage::from_sync_message(m).serialize()))
             .collect();
 
         // we have to use at least immediate send here. Otherwise we risk blocking on send as explained
@@ -209,7 +207,7 @@ impl SimCommunicator for MpiSimCommunicator {
             // messages.
             while !expected_vehicle_messages.is_empty() {
                 let (encoded_msg, _status) = self.mpi_communicator.any_process().receive_vec();
-                let msg = SimMessage::deserialize(&encoded_msg).vehicle_message();
+                let msg = SimMessage::deserialize(&encoded_msg).sync_message();
                 let from_rank = msg.from_process;
 
                 // If a message was received from a neighbor partition for this very time step, remove

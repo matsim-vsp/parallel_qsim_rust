@@ -38,8 +38,8 @@ where
 {
     //communicator: SystemCommunicator,
     communicator: Rc<C>,
-    out_messages: HashMap<u32, VehicleMessage>,
-    in_messages: BinaryHeap<VehicleMessage>,
+    out_messages: HashMap<u32, SyncMessage>,
+    in_messages: BinaryHeap<SyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
     link_mapping: HashMap<u64, u32>,
@@ -82,7 +82,7 @@ where
         let message = self
             .out_messages
             .entry(partition)
-            .or_insert_with(|| VehicleMessage::new(now, rank, partition));
+            .or_insert_with(|| SyncMessage::new(now, rank, partition));
         message.add_veh(vehicle);
     }
 
@@ -91,16 +91,16 @@ where
         let message = self
             .out_messages
             .entry(cap.from_part)
-            .or_insert_with(|| VehicleMessage::new(now, rank, cap.from_part));
+            .or_insert_with(|| SyncMessage::new(now, rank, cap.from_part));
         message.add_storage_cap(StorageCap {
             link_id: cap.link_id,
             value: cap.used,
         });
     }
 
-    pub fn send_recv(&mut self, now: u32) -> Vec<VehicleMessage> {
+    pub fn send_recv(&mut self, now: u32) -> Vec<SyncMessage> {
         let vehicles = self.prepare_send_recv_vehicles(now);
-        let mut result: Vec<VehicleMessage> = Vec::new();
+        let mut result: Vec<SyncMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
 
         self.pop_from_cache(&mut expected_vehicle_messages, &mut result, now);
@@ -118,9 +118,9 @@ where
     }
 
     fn handle_incoming_msg(
-        msg: VehicleMessage,
-        result: &mut Vec<VehicleMessage>,
-        in_messages: &mut BinaryHeap<VehicleMessage>,
+        msg: SyncMessage,
+        result: &mut Vec<SyncMessage>,
+        in_messages: &mut BinaryHeap<SyncMessage>,
         now: u32,
     ) {
         if msg.time <= now {
@@ -133,7 +133,7 @@ where
     fn pop_from_cache(
         &mut self,
         expected_messages: &mut HashSet<u32>,
-        messages: &mut Vec<VehicleMessage>,
+        messages: &mut Vec<SyncMessage>,
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
@@ -146,7 +146,7 @@ where
         }
     }
 
-    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, VehicleMessage> {
+    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, SyncMessage> {
         let capacity = self.out_messages.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
@@ -155,7 +155,7 @@ where
             let neighbor_rank = *partition;
             messages
                 .entry(neighbor_rank)
-                .or_insert_with(|| VehicleMessage::new(now, self.rank(), neighbor_rank));
+                .or_insert_with(|| SyncMessage::new(now, self.rank(), neighbor_rank));
         }
         messages
     }
@@ -354,7 +354,7 @@ mod tests {
         let rank = communicator.rank();
         let broker = NetMessageBroker::new(
             Rc::new(communicator),
-            &SimNetworkPartition::from_network(&create_network(), rank,1.0),
+            &SimNetworkPartition::from_network(&create_network(), rank, 1.0),
         );
         broker
     }

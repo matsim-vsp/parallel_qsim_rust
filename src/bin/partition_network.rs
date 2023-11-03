@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{arg, Parser};
+use rust_q_sim::simulation::config::PartitionMethod;
 use tracing::info;
 
 use rust_q_sim::simulation::network::global_network::Network;

@@ -57,8 +57,6 @@ impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
         //compute all updates of partition
         let send_package = self.get_travel_times_by_mode_to_send(&collected_travel_times);
 
-        // self.get_travel_times_by_mode_to_send(&collected_travel_times);
-
         let received_messages_by_mode = send_package
             .into_iter()
             .map(|(mode, updates)| {
@@ -69,10 +67,6 @@ impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
 
         //handle travel times
         for (mode, message) in received_messages_by_mode.into_iter() {
-            // let number_of_updates: usize = message
-            //     .iter()
-            //     .map(|m| m.travel_times_by_link_id.len())
-            //     .sum();
             self.handle_traffic_info_messages(now, mode, message);
         }
 

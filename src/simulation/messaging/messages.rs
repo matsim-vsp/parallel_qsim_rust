@@ -13,8 +13,8 @@ use crate::simulation::io::population::{
 
 use crate::simulation::messaging::messages::proto::sim_message::Type;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, Leg, Plan, Route, SimMessage, StorageCap, TravelTimesMessage, Vehicle,
-    VehicleMessage,
+    Activity, Agent, Leg, Plan, Route, SimMessage, StorageCap, SyncMessage, TravelTimesMessage,
+    Vehicle,
 };
 use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
@@ -25,27 +25,27 @@ pub mod proto {
 }
 
 impl SimMessage {
-    pub fn vehicle_message(self) -> VehicleMessage {
+    pub fn sync_message(self) -> SyncMessage {
         match self.r#type.unwrap() {
-            Type::Vehicles(v) => v,
+            Type::Sync(m) => m,
             Type::TravelTimes(_) => {
-                panic!("That message is no vehicle message.")
+                panic!("That message is no sync message.")
             }
         }
     }
 
     pub fn travel_times_message(self) -> TravelTimesMessage {
         match self.r#type.unwrap() {
-            Type::Vehicles(_) => {
+            Type::Sync(_) => {
                 panic!("That message is no travel times message.")
             }
             Type::TravelTimes(t) => t,
         }
     }
 
-    pub fn from_vehicle_message(m: VehicleMessage) -> SimMessage {
+    pub fn from_sync_message(m: SyncMessage) -> SimMessage {
         SimMessage {
-            r#type: Some(Type::Vehicles(m)),
+            r#type: Some(Type::Sync(m)),
         }
     }
 
@@ -66,7 +66,7 @@ impl SimMessage {
     }
 }
 
-impl VehicleMessage {
+impl SyncMessage {
     pub fn new(time: u32, from: u32, to: u32) -> Self {
         Self {
             time,
@@ -105,15 +105,15 @@ impl TravelTimesMessage {
 }
 
 // Implementation for ordering, so that vehicle messages can be put into a message queue sorted by time
-impl PartialOrd for VehicleMessage {
+impl PartialOrd for SyncMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Eq for VehicleMessage {}
+impl Eq for SyncMessage {}
 
-impl Ord for VehicleMessage {
+impl Ord for SyncMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         other.time.cmp(&self.time)
     }
