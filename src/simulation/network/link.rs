@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::global_network::Node;
@@ -316,7 +316,7 @@ impl SplitInLink {
 mod sim_link_tests {
     use assert_approx_eq::assert_approx_eq;
 
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::link::{LocalLink, SimLink};
     use crate::test_utils::create_agent;
@@ -482,7 +482,7 @@ mod sim_link_tests {
 
 #[cfg(test)]
 mod local_link_tests {
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::network::link::LocalLink;
 
     #[test]
@@ -541,7 +541,7 @@ mod local_link_tests {
 
 #[cfg(test)]
 mod out_link_tests {
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::link::{SimLink, SplitOutLink};
     use crate::simulation::network::storage_cap::StorageCap;

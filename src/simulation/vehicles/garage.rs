@@ -1,7 +1,7 @@
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
@@ -169,7 +169,7 @@ impl Garage {
         // this method would fetch parked vehicles. But as we don't want to run with mass conservation
         // we just create vehicles on the fly.
 
-        let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
+        let veh_type = self.vehicle_types.get(veh_type_id).unwrap();
 
         Vehicle {
             id: id.internal(),
@@ -184,7 +184,7 @@ impl Garage {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::io::attributes::{Attr, Attrs};
     use crate::simulation::io::vehicles::{
         IODimension, IOFowEfficiencyFactor, IONetworkMode, IOPassengerCarEquivalents,

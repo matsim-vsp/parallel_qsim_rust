@@ -321,7 +321,7 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
 
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::messaging::message_broker::{ChannelNetCommunicator, NetMessageBroker};
     use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::global_network::{Link, Network, Node};

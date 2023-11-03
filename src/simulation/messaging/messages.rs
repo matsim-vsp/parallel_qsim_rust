@@ -5,7 +5,7 @@ use std::io::Cursor;
 use prost::Message;
 use tracing::debug;
 
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,

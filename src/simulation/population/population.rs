@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
 use crate::simulation::messaging::messages::proto::Agent;
 use crate::simulation::network::global_network::{Link, Network};
@@ -89,7 +89,7 @@ impl Population {
             .persons
             .iter()
             .filter(|io_p| Self::is_partition(io_p, net, part))
-            .map(|io_p| Agent::from_io(io_p))
+            .map(Agent::from_io)
             .collect();
 
         for person in persons {
@@ -118,7 +118,7 @@ impl Population {
 mod tests {
     use std::collections::HashSet;
 
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
     use crate::simulation::network::global_network::{Link, Network};
     use crate::simulation::population::population::Population;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::simulation::config::Config;
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};

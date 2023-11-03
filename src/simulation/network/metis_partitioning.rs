@@ -59,7 +59,7 @@ pub fn partition(network: &Network, num_parts: u32) -> Vec<Idx> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::metis_partitioning::partition;
 

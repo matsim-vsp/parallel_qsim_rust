@@ -2,7 +2,7 @@ use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
 
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::messaging::{
     events::{proto::Event, EventsPublisher},
@@ -292,6 +292,7 @@ impl<'n> SimNetworkPartition<'n> {
             // draw random number between 0 and available capacity
             let rnd_num: f32 = rnd.gen::<f32>() * avail_capacity;
 
+            #[allow(clippy::needless_range_loop)]
             // go through all in links and fetch one, which is not exhausted yet.
             for i in 0..node.in_links.len() {
                 // if the link is exhausted, try next link
@@ -348,6 +349,7 @@ impl<'n> SimNetworkPartition<'n> {
         let mut exhausted_links: Vec<Option<()>> = vec![None; node.in_links.len()];
 
         while avail_capacity > 1e-6 {
+            #[allow(clippy::needless_range_loop)]
             // go through all in links and fetch one, which is not exhausted yet.
             for i in 0..exhausted_links.len() {
                 // if the link is exhausted, try next link
@@ -443,7 +445,7 @@ impl<'n> SimNetworkPartition<'n> {
 mod tests {
     use assert_approx_eq::assert_approx_eq;
 
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
         messaging::{

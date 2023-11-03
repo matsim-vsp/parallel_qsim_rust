@@ -3,7 +3,7 @@ use std::{collections::HashSet, path::Path};
 
 use nohash_hasher::IntSet;
 
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 
@@ -40,7 +40,7 @@ pub struct Link {
     pub partition: u32,
 }
 
-impl<'a> Default for Network {
+impl Default for Network {
     fn default() -> Self {
         Network::new()
     }
@@ -294,7 +294,7 @@ impl Link {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::id2::Id;
+    use crate::simulation::id::Id;
     use crate::simulation::io::network::{IOLink, IONode};
 
     use super::{Link, Network, Node};

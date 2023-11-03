@@ -1,4 +1,4 @@
-use crate::simulation::id2::Id;
+use crate::simulation::id::Id;
 
 #[derive(Debug)]
 #[allow(dead_code)] // allow dead code here, as we have some props which are not used yet.
