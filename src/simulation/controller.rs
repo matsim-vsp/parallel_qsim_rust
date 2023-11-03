@@ -27,8 +27,9 @@ use crate::simulation::vehicles::garage::Garage;
 pub fn run_single_partition() {
     let config = Arc::new(Config::parse());
     let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
-    let comm = DummyNetCommunicator();
 
+    info!("Starting single Partition Simulation");
+    let comm = DummyNetCommunicator();
     execute_partition(comm, config);
 }
 
@@ -36,6 +37,10 @@ pub fn run_channel() {
     let config = Arc::new(Config::parse());
     let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
 
+    info!(
+        "Starting Multithreaded Simulation with {} partitions.",
+        config.num_parts
+    );
     let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
 
     let handles: IntMap<u32, JoinHandle<()>> = comms
@@ -53,15 +58,19 @@ pub fn run_channel() {
 }
 
 pub fn run_mpi() {
-    info!("Starting run_mpi in controller!");
     let universe = mpi::initialize().unwrap();
     let world = universe.world();
     let comm = MpiNetCommunicator {
         mpi_communicator: world,
     };
+
     let config = Config::parse();
     let _guards = logging::init_logging(config.output_dir.as_ref(), comm.rank().to_string());
 
+    info!(
+        "Starting MPI Simulation with {} partitions",
+        config.num_parts
+    );
     execute_partition(comm, Arc::new(config));
 
     info!("#{} at barrier.", world.rank());
@@ -90,7 +99,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         network.to_file(&output_path.join("output_network.xml.gz"));
     }
 
-    let population =
+    let mut population =
         Population::from_file(config.population_file.as_ref(), &network, &mut garage, rank);
     let network_partition = SimNetworkPartition::from_network(&network, rank, config.sample_size);
     info!(
@@ -99,6 +108,9 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         network_partition.links.len(),
         population.agents.len()
     );
+    // take agents and copy them into queues. This way we can keep population around to translate
+    // ids for events processing...
+    let agents = std::mem::take(&mut population.agents);
 
     let message_broker = NetMessageBroker::new(comm, &network_partition);
     let mut events = EventsPublisher::new();
@@ -114,7 +126,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         config.clone(),
         network_partition,
         garage,
-        population,
+        agents,
         message_broker,
         events,
     );

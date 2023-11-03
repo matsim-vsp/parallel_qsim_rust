@@ -28,6 +28,7 @@ pub struct SimNetworkPartition<'n> {
     rnd: ThreadRng,
     active_nodes: IntSet<u64>,
     active_links: IntSet<u64>,
+    partition: u32,
 }
 
 #[derive(Debug)]
@@ -75,7 +76,7 @@ impl<'n> SimNetworkPartition<'n> {
             })
             .collect();
 
-        Self::new(sim_nodes, sim_links, global_network)
+        Self::new(sim_nodes, sim_links, global_network, partition)
     }
 
     fn create_sim_node(node: &Node, network: &Network, sample_size: f32) -> SimNode {
@@ -122,6 +123,7 @@ impl<'n> SimNetworkPartition<'n> {
         nodes: IntMap<u64, SimNode>,
         links: IntMap<u64, SimLink>,
         global_network: &'n Network,
+        partition: u32,
     ) -> Self {
         SimNetworkPartition {
             nodes,
@@ -130,6 +132,7 @@ impl<'n> SimNetworkPartition<'n> {
             rnd: thread_rng(),
             active_links: Default::default(),
             active_nodes: Default::default(),
+            partition,
         }
     }
 
@@ -151,7 +154,16 @@ impl<'n> SimNetworkPartition<'n> {
         let link_id = vehicle.curr_link_id().unwrap_or_else(|| {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
-        let link = self.links.get_mut(&link_id).unwrap();
+        let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
+            let full_id = self.global_network.link_ids.get(link_id);
+            panic!(
+                "#{} Couldn't find link for id {}.\n\n The link {:?}.\n\n The vehicle: {:?}",
+                self.partition,
+                link_id,
+                self.global_network.get_link(&full_id),
+                vehicle
+            );
+        });
         link.push_veh(vehicle, now);
 
         Self::activate_link(&mut self.active_links, link.id().internal());
