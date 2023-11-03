@@ -108,9 +108,6 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         network_partition.links.len(),
         population.agents.len()
     );
-    // take agents and copy them into queues. This way we can keep population around to translate
-    // ids for events processing...
-    let agents = std::mem::take(&mut population.agents);
 
     let message_broker = NetMessageBroker::new(comm, &network_partition);
     let mut events = EventsPublisher::new();
@@ -126,7 +123,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         config.clone(),
         network_partition,
         garage,
-        agents,
+        population,
         message_broker,
         events,
     );
