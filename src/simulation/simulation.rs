@@ -75,7 +75,10 @@ where
                 //if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
-                info!("#{} of Qsim at {_hour}:{_min}", self.net_message_broker.rank());
+                info!(
+                    "#{} of Qsim at {_hour}:{_min}",
+                    self.net_message_broker.rank()
+                );
             }
             self.wakeup(now);
             self.terminate_teleportation(now);

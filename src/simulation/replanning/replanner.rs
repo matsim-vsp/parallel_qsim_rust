@@ -155,9 +155,9 @@ impl ReRouteTripReplanner {
         garage: &Garage,
     ) {
         let curr_act = agent.curr_act();
-        let mode = agent.next_leg().routing_mode;
 
-        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), mode);
+        let (route, travel_time) =
+            self.find_route(agent.curr_act(), agent.next_act(), agent.next_leg().mode);
         let dep_time = curr_act.end_time;
 
         let mode_id = network.modes.get(agent.next_leg().mode);
@@ -308,7 +308,7 @@ mod tests {
             &mut garage,
             0,
         );
-        let sim_net = SimNetworkPartition::from_network(&network, 0);
+        let sim_net = SimNetworkPartition::from_network(&network, 0, 1.0);
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
@@ -354,7 +354,7 @@ mod tests {
             &mut garage,
             0,
         );
-        let sim_net = SimNetworkPartition::from_network(&network, 0);
+        let sim_net = SimNetworkPartition::from_network(&network, 0, 1.0);
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 
@@ -417,7 +417,7 @@ mod tests {
             &mut garage,
             0,
         );
-        let sim_net = SimNetworkPartition::from_network(&network, 0);
+        let sim_net = SimNetworkPartition::from_network(&network, 0, 1.0);
         let agent_id = population.agent_ids.get(0);
         let mut agent = population.agents.get_mut(&agent_id).unwrap();
 

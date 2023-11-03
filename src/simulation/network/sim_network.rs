@@ -8,7 +8,6 @@ use crate::simulation::messaging::{
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
-use std::collections::HashSet;
 
 use super::{
     global_network::{Link, Network, Node},
