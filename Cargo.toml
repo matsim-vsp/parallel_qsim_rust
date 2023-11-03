@@ -13,7 +13,6 @@ flate2 = { version = "1.0.24" }
 rand = "0.8.5"
 metis = "0.1.2"
 flexi_logger = { version = "0.22", features = ["async"] }
-log = "0.4"
 clap = { version = "4.0.29", features = ["derive"] }
 # point to the github repo directly because we need a more recent version of bindgen. Otherwise the build fails
 # due to some incompatibility starting with macOs 13.6
@@ -31,6 +30,7 @@ itertools = "0.10.5"
 assert_approx_eq = "1.1.0"
 nohash-hasher = "0.2.0"
 rand_distr = "0.4.3"
+serde_path_to_error = "0.1.14"
 
 [build-dependencies]
 # generates types based on .proto files
@@ -40,4 +40,7 @@ prost-build = "0.11"
 protobuf-src = "1.1.0"
 
 [profile.bench]
+debug = true
+
+[profile.release]
 debug = true

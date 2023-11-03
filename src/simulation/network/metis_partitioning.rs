@@ -1,5 +1,5 @@
-use log::info;
 use metis::{Graph, Idx};
+use tracing::info;
 
 use super::global_network::Network;
 

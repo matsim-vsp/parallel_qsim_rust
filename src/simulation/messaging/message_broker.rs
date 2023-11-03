@@ -529,7 +529,7 @@ mod tests {
         let brokers: Vec<_> = comms
             .into_iter()
             .map(|comm| {
-                let sim_network = SimNetworkPartition::from_network(&network, comm.rank);
+                let sim_network = SimNetworkPartition::from_network(&network, comm.rank, 1.0);
                 NetMessageBroker::new(comm, &sim_network)
             })
             .collect();
@@ -595,7 +595,6 @@ mod tests {
             freespeed: 0.0,
             permlanes: 0.0,
             modes: Default::default(),
-            attributes: vec![],
             partition,
         }
     }

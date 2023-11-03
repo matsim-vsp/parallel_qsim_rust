@@ -27,7 +27,6 @@ pub struct Node {
     pub x: f32,
     pub y: f32,
     pub id: Id<Node>,
-    pub attrs: Vec<Attr>,
     pub in_links: Vec<Id<Link>>,
     pub out_links: Vec<Id<Link>>,
     pub partition: u32,
@@ -43,7 +42,6 @@ pub struct Link {
     pub freespeed: f32,
     pub permlanes: f32,
     pub modes: IntSet<Id<String>>,
-    pub attributes: Vec<Attr>,
     pub partition: u32,
 }
 
@@ -85,8 +83,8 @@ impl<'a> Network<'a> {
                 }],
             };
             let io_node = IONode {
-                //id: node.id.external().clone(),
-                id: node.id.internal().to_string(), // todo replace this with external id, once all output is written using external ids
+                id: node.id.external().to_string(),
+                //id: node.id.internal().to_string(), // todo replace this with external id, once all output is written using external ids
                 x: node.x,
                 y: node.y,
                 attributes: Some(attributes),
@@ -110,12 +108,12 @@ impl<'a> Network<'a> {
             };
 
             let io_link = IOLink {
-                //id: link.id.external().clone(),
-                id: link.id.internal().to_string(), // todo replace with external id again, once all output translates to external ids
-                //from: link.from.external().clone(),
-                from: link.from.internal().to_string(),
-                //to: link.to.external().clone(),
-                to: link.to.internal().to_string(),
+                id: link.id.external().to_string(),
+                //id: link.id.internal().to_string(), // todo replace with external id again, once all output translates to external ids
+                from: link.from.external().to_string(),
+                //from: link.from.internal().to_string(),
+                to: link.to.external().to_string(),
+                //to: link.to.internal().to_string(),
                 length: link.length,
                 capacity: link.capacity,
                 freespeed: link.freespeed,
@@ -129,6 +127,8 @@ impl<'a> Network<'a> {
 
         result.to_file(file_path);
     }
+
+    pub fn to_proto(&self) -> () {}
 
     pub fn add_node(&mut self, node: Node) {
         assert_eq!(
@@ -146,13 +146,8 @@ impl<'a> Network<'a> {
         let id = self.node_ids.create_id(&io_node.id);
         let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
         let partition = u32::from_str(part_attr).unwrap();
-        let attrs = match io_node.attributes {
-            Some(attrs) => attrs.attributes,
-            None => Vec::new(),
-        };
 
         let mut node = Node::new(id, io_node.x, io_node.y);
-        node.attrs = attrs;
         node.partition = partition;
         self.add_node(node);
     }
@@ -192,10 +187,6 @@ impl<'a> Network<'a> {
         );
         let part_attr = Attrs::find_or_else_opt(&io_link.attributes, "partition", || "0");
         let partition = u32::from_str(part_attr).unwrap();
-        let attrs = match io_link.attributes {
-            Some(attrs) => attrs.attributes,
-            None => Vec::new(),
-        };
         let modes: IntSet<Id<String>> = io_link
             .modes
             .split(',')
@@ -214,7 +205,6 @@ impl<'a> Network<'a> {
             io_link.freespeed,
             io_link.permlanes,
             modes,
-            attrs,
         );
         link.partition = partition;
         self.add_link(link);
@@ -264,7 +254,6 @@ impl Node {
             id,
             x,
             y,
-            attrs: Vec::new(),
             in_links: Vec::new(),
             out_links: Vec::new(),
             partition: 0,
@@ -283,7 +272,6 @@ impl Link {
         freespeed: f32,
         permlanes: f32,
         modes: IntSet<Id<String>>,
-        attributes: Vec<Attr>,
     ) -> Self {
         Link {
             id,
@@ -294,7 +282,6 @@ impl Link {
             freespeed,
             permlanes,
             modes,
-            attributes,
             partition: 0,
         }
     }
@@ -311,7 +298,6 @@ impl Link {
             1.,
             1.,
             HashSet::default(),
-            Vec::default(),
         )
     }
 }
@@ -520,4 +506,7 @@ mod tests {
         assert_eq!(from.id, link.from);
         assert_eq!(to.id, link.to);
     }
+
+    #[test]
+    fn test_metis_with_large_graph() {}
 }

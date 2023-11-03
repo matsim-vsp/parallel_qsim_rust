@@ -1,4 +1,5 @@
 use nohash_hasher::IntMap;
+use tracing::info;
 
 use crate::simulation::id::{Id, IdStore};
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
@@ -7,9 +8,8 @@ use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
 
 #[derive(Debug)]
 pub struct Garage<'g> {
-    pub network_vehicles: IntMap<Id<Vehicle>, GarageVehicle>,
     pub vehicle_ids: IdStore<'g, Vehicle>,
-    pub teleported_veh: IntMap<Id<Vehicle>, Id<VehicleType>>,
+    pub vehicles: IntMap<Id<Vehicle>, Id<VehicleType>>,
     pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,
     pub vehicle_type_ids: IdStore<'g, VehicleType>,
 }
@@ -29,9 +29,8 @@ impl<'g> Default for Garage<'g> {
 impl<'g> Garage<'g> {
     pub fn new() -> Self {
         Garage {
-            network_vehicles: Default::default(),
             vehicle_ids: Default::default(),
-            teleported_veh: Default::default(),
+            vehicles: Default::default(),
             vehicle_types: Default::default(),
             vehicle_type_ids: IdStore::new(),
         }
@@ -43,6 +42,11 @@ impl<'g> Garage<'g> {
         for io_veh_type in io_veh_definition.veh_types {
             result.add_io_veh_type(io_veh_type, mode_store);
         }
+        let keys_ext: Vec<_> = result.vehicle_types.keys().map(|k| k.external()).collect();
+        info!(
+            "Created Garage from file with vehicle types: {:?}",
+            keys_ext
+        );
         result
     }
 
@@ -106,29 +110,29 @@ impl<'g> Garage<'g> {
         let veh_id = self.vehicle_ids.create_id(&veh_id_ext);
 
         let veh_type = self.vehicle_types.get(type_id).unwrap();
-        match veh_type.lod {
-            LevelOfDetail::Network => {}
-            LevelOfDetail::Teleported => {
-                self.teleported_veh
-                    .insert(veh_id.clone(), veh_type.id.clone());
-            }
-        };
+        self.vehicles.insert(veh_id.clone(), veh_type.id.clone());
 
         veh_id
     }
 
-    pub fn add_veh(&mut self, veh_id: Id<Vehicle>, veh_type_id: Id<VehicleType>) {
+    pub fn add_veh(&mut self, _veh_id: Id<Vehicle>, _veh_type_id: Id<VehicleType>) {
+        panic!(
+            "This method can only be used with chained modes. Which is currently not implemented"
+        );
+        /*
         let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
         match veh_type.lod {
             LevelOfDetail::Network => {
                 let vehicle = GarageVehicle {
-                    id: veh_id.clone(),
+                    id: _veh_id.clone(),
                     veh_type: veh_type_id.clone(),
                 };
                 self.network_vehicles.insert(vehicle.id.clone(), vehicle);
             }
             LevelOfDetail::Teleported => {}
         }
+
+         */
     }
 
     pub fn get_mode_veh_id(&self, person_id: &Id<Agent>, mode: &Id<String>) -> Id<Vehicle> {
@@ -137,17 +141,28 @@ impl<'g> Garage<'g> {
     }
 
     pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Agent {
-        let id = self.vehicle_ids.get(vehicle.id);
+        /*let id = self.vehicle_ids.get(vehicle.id);
         let veh_type = self.vehicle_type_ids.get(vehicle.r#type);
         let garage_veh = GarageVehicle { id, veh_type };
         self.network_vehicles
             .insert(garage_veh.id.clone(), garage_veh);
 
+         */
+
+        // the above logic would park a vehicle within a garage. This only works if we have mass
+        // conservation enabled. The scenario we're testing with doesn't. Therfore, we just take
+        // the agent out of the vehicle and pretend we have parked the car.
         vehicle.agent.unwrap()
     }
 
     pub fn unpark_veh(&mut self, person: Agent, id: &Id<Vehicle>) -> Vehicle {
-        let veh_type_id = if let Some(veh_type_id) = self.teleported_veh.get(id) {
+        let veh_type_id = self
+            .vehicles
+            .get(id)
+            .expect("Can't unpark vehicle with id {}. It was not parked in this garage.");
+
+        /*
+        let veh_type_id = if let Some(veh_type_id) = self.vehicles.get(id) {
             veh_type_id.clone()
         } else if let Some(garage_veh) = self.network_vehicles.remove(id) {
             garage_veh.veh_type
@@ -157,6 +172,11 @@ impl<'g> Garage<'g> {
                 id.external()
             );
         };
+
+         */
+
+        // this method would fetch parked vehicles. But as we don't want to run with mass conservation
+        // we just create vehicles on the fly.
 
         let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
 

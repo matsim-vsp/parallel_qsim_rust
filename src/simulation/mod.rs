@@ -4,7 +4,7 @@ pub mod id;
 pub mod io;
 pub mod logging;
 pub mod messaging;
-mod network;
+pub mod network;
 pub mod performance_profiling;
 pub mod population;
 mod simulation;
