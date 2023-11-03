@@ -1,17 +1,15 @@
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::id::{Id, IdStore};
+use crate::simulation::id::Id;
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
 
 #[derive(Debug)]
-pub struct Garage<'g> {
-    pub vehicle_ids: IdStore<'g, Vehicle>,
+pub struct Garage {
     pub vehicles: IntMap<Id<Vehicle>, Id<VehicleType>>,
     pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,
-    pub vehicle_type_ids: IdStore<'g, VehicleType>,
 }
 
 #[derive(Debug)]
@@ -20,27 +18,25 @@ pub struct GarageVehicle {
     pub veh_type: Id<VehicleType>,
 }
 
-impl<'g> Default for Garage<'g> {
+impl Default for Garage {
     fn default() -> Self {
         Garage::new()
     }
 }
 
-impl<'g> Garage<'g> {
+impl Garage {
     pub fn new() -> Self {
         Garage {
-            vehicle_ids: Default::default(),
             vehicles: Default::default(),
             vehicle_types: Default::default(),
-            vehicle_type_ids: IdStore::new(),
         }
     }
 
-    pub fn from_file(file_path: &str, mode_store: &mut IdStore<String>) -> Self {
+    pub fn from_file(file_path: &str) -> Self {
         let io_veh_definition = IOVehicleDefinitions::from_file(file_path);
         let mut result = Self::new();
         for io_veh_type in io_veh_definition.veh_types {
-            result.add_io_veh_type(io_veh_type, mode_store);
+            result.add_io_veh_type(io_veh_type);
         }
         let keys_ext: Vec<_> = result.vehicle_types.keys().map(|k| k.external()).collect();
         info!(
@@ -50,14 +46,9 @@ impl<'g> Garage<'g> {
         result
     }
 
-    pub fn add_io_veh_type(
-        &mut self,
-        io_veh_type: IOVehicleType,
-        mode_store: &mut IdStore<String>,
-    ) {
-        let id = self.vehicle_type_ids.create_id(&io_veh_type.id);
-        let net_mode =
-            mode_store.create_id(&io_veh_type.network_mode.unwrap_or_default().network_mode);
+    pub fn add_io_veh_type(&mut self, io_veh_type: IOVehicleType) {
+        let id = Id::create(&io_veh_type.id);
+        let net_mode = Id::create(&io_veh_type.network_mode.unwrap_or_default().network_mode);
         let lod = if let Some(attr) = io_veh_type
             .attributes
             .unwrap_or_default()
@@ -107,7 +98,7 @@ impl<'g> Garage<'g> {
 
     pub fn add_veh_id(&mut self, person_id: &Id<Agent>, type_id: &Id<VehicleType>) -> Id<Vehicle> {
         let veh_id_ext = format!("{}_{}", person_id.external(), type_id.external());
-        let veh_id = self.vehicle_ids.create_id(&veh_id_ext);
+        let veh_id = Id::create(&veh_id_ext);
 
         let veh_type = self.vehicle_types.get(type_id).unwrap();
         self.vehicles.insert(veh_id.clone(), veh_type.id.clone());
@@ -137,7 +128,7 @@ impl<'g> Garage<'g> {
 
     pub fn get_mode_veh_id(&self, person_id: &Id<Agent>, mode: &Id<String>) -> Id<Vehicle> {
         let external = format!("{}_{}", person_id.external(), mode.external());
-        self.vehicle_ids.get_from_ext(&external)
+        Id::get_from_ext(&external)
     }
 
     pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Agent {
@@ -178,7 +169,7 @@ impl<'g> Garage<'g> {
         // this method would fetch parked vehicles. But as we don't want to run with mass conservation
         // we just create vehicles on the fly.
 
-        let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
+        let veh_type = self.vehicle_types.get(veh_type_id).unwrap();
 
         Vehicle {
             id: id.internal(),
@@ -193,7 +184,7 @@ impl<'g> Garage<'g> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::id::{Id, IdStore};
+    use crate::simulation::id::Id;
     use crate::simulation::io::attributes::{Attr, Attrs};
     use crate::simulation::io::vehicles::{
         IODimension, IOFowEfficiencyFactor, IONetworkMode, IOPassengerCarEquivalents,
@@ -205,7 +196,7 @@ mod tests {
     #[test]
     fn add_veh_type() {
         let mut garage = Garage::new();
-        let type_id = garage.vehicle_type_ids.create_id("some-type");
+        let type_id = Id::create("some-type");
         let mode = Id::new_internal(0);
         let veh_type = VehicleType::new(type_id, mode);
 
@@ -218,7 +209,7 @@ mod tests {
     #[should_panic]
     fn add_veh_type_reject_duplicate() {
         let mut garage = Garage::new();
-        let type_id = garage.vehicle_type_ids.create_id("some-type");
+        let type_id = Id::create("some-type");
         let mode = Id::new_internal(0);
         let veh_type1 = VehicleType::new(type_id.clone(), mode.clone());
         let veh_type2 = VehicleType::new(type_id.clone(), mode.clone());
@@ -244,16 +235,12 @@ mod tests {
             attributes: None,
         };
         let mut garage = Garage::new();
-        let mut mode_store = IdStore::new();
 
-        garage.add_io_veh_type(io_veh_type, &mut mode_store);
+        garage.add_io_veh_type(io_veh_type);
 
         assert_eq!(1, garage.vehicle_types.len());
-        assert_eq!(0, mode_store.get_from_ext("car").internal());
-        assert_eq!(
-            0,
-            garage.vehicle_type_ids.get_from_ext("some-id").internal()
-        );
+        assert_eq!(0, Id::<String>::get_from_ext("car").internal());
+        assert_eq!(0, Id::<VehicleType>::get_from_ext("some-id").internal());
 
         let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
@@ -284,12 +271,10 @@ mod tests {
             }),
         };
         let mut garage = Garage::new();
-        let mut mode_store = IdStore::new();
+        garage.add_io_veh_type(io_veh_type);
 
-        garage.add_io_veh_type(io_veh_type, &mut mode_store);
-
-        let expected_id = garage.vehicle_type_ids.get_from_ext("some-id");
-        let expected_mode = mode_store.get_from_ext("some_mode");
+        let expected_id = Id::get_from_ext("some-id");
+        let expected_mode = Id::get_from_ext("some_mode");
 
         let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
@@ -306,8 +291,7 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let mut mode_store = IdStore::new();
-        let garage = Garage::from_file("./assets/3-links/vehicles.xml", &mut mode_store);
+        let garage = Garage::from_file("./assets/3-links/vehicles.xml");
         assert_eq!(3, garage.vehicle_types.len());
     }
 }

@@ -3,23 +3,18 @@ use std::{collections::HashSet, path::Path};
 
 use nohash_hasher::IntSet;
 
+use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
-use crate::simulation::{
-    id::{Id, IdStore},
-    io::network::{IOLink, IONetwork, IONode},
-};
+use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 
 use super::metis_partitioning;
 
 /// This is called global network but could also be renamed into network when things are sorted out a little
 #[derive(Debug)]
-pub struct Network<'a> {
-    pub node_ids: IdStore<'a, Node>,
-    pub link_ids: IdStore<'a, Link>,
+pub struct Network {
     pub nodes: Vec<Node>,
     pub links: Vec<Link>,
     pub effective_cell_size: f32,
-    pub modes: IdStore<'a, String>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,21 +40,18 @@ pub struct Link {
     pub partition: u32,
 }
 
-impl<'a> Default for Network<'a> {
+impl Default for Network {
     fn default() -> Self {
         Network::new()
     }
 }
 
-impl<'a> Network<'a> {
+impl Network {
     pub fn new() -> Self {
         Network {
-            node_ids: IdStore::new(),
-            link_ids: IdStore::new(),
             nodes: Vec::new(),
             links: Vec::new(),
             effective_cell_size: 7.5,
-            modes: IdStore::new(),
         }
     }
 
@@ -128,8 +120,6 @@ impl<'a> Network<'a> {
         result.to_file(file_path);
     }
 
-    pub fn to_proto(&self) -> () {}
-
     pub fn add_node(&mut self, node: Node) {
         assert_eq!(
             node.id.internal(),
@@ -143,7 +133,7 @@ impl<'a> Network<'a> {
     }
 
     pub fn add_io_node(&mut self, io_node: IONode) {
-        let id = self.node_ids.create_id(&io_node.id);
+        let id = Id::create(&io_node.id);
         let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
         let partition = u32::from_str(part_attr).unwrap();
 
@@ -177,7 +167,7 @@ impl<'a> Network<'a> {
     }
 
     pub fn add_io_link(&mut self, io_link: IOLink) {
-        let id = self.link_ids.create_id(&io_link.id);
+        let id = Id::create(&io_link.id);
         assert_eq!(
             id.internal(),
             self.links.len() as u64,
@@ -191,10 +181,10 @@ impl<'a> Network<'a> {
             .modes
             .split(',')
             .map(|s| s.trim())
-            .map(|mode| self.modes.create_id(mode))
+            .map(Id::create)
             .collect();
-        let from_id = self.node_ids.get_from_ext(&io_link.from);
-        let to_id = self.node_ids.get_from_ext(&io_link.to);
+        let from_id = Id::get_from_ext(&io_link.from);
+        let to_id = Id::get_from_ext(&io_link.to);
 
         let mut link = Link::new(
             id,
@@ -304,6 +294,7 @@ impl Link {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::id::Id;
     use crate::simulation::io::network::{IOLink, IONode};
 
     use super::{Link, Network, Node};
@@ -311,7 +302,7 @@ mod tests {
     #[test]
     fn add_node() {
         let mut network = Network::new();
-        let id = network.node_ids.create_id("node-id");
+        let id = Id::create("node-id");
         let node = Node::new(id.clone(), 1., 1.);
 
         assert_eq!(0, network.nodes.len());
@@ -324,7 +315,7 @@ mod tests {
     #[should_panic]
     fn add_node_reject_duplicate() {
         let mut network = Network::new();
-        let id = network.node_ids.create_id("node-id");
+        let id = Id::create("node-id");
         let node = Node::new(id.clone(), 1., 1.);
         let duplicate = Node::new(id.clone(), 2., 2.);
 
@@ -336,9 +327,9 @@ mod tests {
     #[test]
     fn add_link() {
         let mut network = Network::new();
-        let from = Node::new(network.node_ids.create_id("from"), 0., 0.);
-        let to = Node::new(network.node_ids.create_id("to"), 3., 4.);
-        let id = network.link_ids.create_id("link-id");
+        let from = Node::new(Id::create("from"), 0., 0.);
+        let to = Node::new(Id::create("to"), 3., 4.);
+        let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
 
         network.add_node(from);
@@ -366,9 +357,9 @@ mod tests {
     #[should_panic]
     fn add_link_reject_duplicate() {
         let mut network = Network::new();
-        let from = Node::new(network.node_ids.create_id("from"), 0., 0.);
-        let to = Node::new(network.node_ids.create_id("to"), 3., 4.);
-        let id = network.link_ids.create_id("link-id");
+        let from = Node::new(Id::create("from"), 0., 0.);
+        let to = Node::new(Id::create("to"), 3., 4.);
+        let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
         let duplicate = Link::new_with_default(id.clone(), &from, &to);
 
@@ -394,7 +385,7 @@ mod tests {
         network.add_io_node(io_node);
 
         // the node should be in nodes vec and there should be a node id
-        let id = network.node_ids.get_from_ext(&external_id);
+        let id = Id::get_from_ext(&external_id);
         assert_eq!(0, id.internal());
         assert_eq!(external_id, id.external());
 
@@ -439,9 +430,9 @@ mod tests {
         network.add_io_node(io_to);
         network.add_io_link(io_link.clone());
 
-        let from = network.get_node(&network.node_ids.get_from_ext(&ext_from_id));
-        let to = network.get_node(&network.node_ids.get_from_ext(&ext_to_id));
-        let link = network.get_link(&network.link_ids.get_from_ext(&ext_link_id));
+        let from = network.get_node(&Id::get_from_ext(&ext_from_id));
+        let to = network.get_node(&Id::get_from_ext(&ext_to_id));
+        let link = network.get_link(&Id::get_from_ext(&ext_link_id));
 
         assert_eq!(from.id, link.from);
         assert_eq!(to.id, link.to);
@@ -451,9 +442,9 @@ mod tests {
         assert_eq!(io_link.freespeed, link.freespeed);
         assert_eq!(io_link.permlanes, link.permlanes);
 
-        assert!(link.modes.contains(&network.modes.get_from_ext("car")));
-        assert!(link.modes.contains(&network.modes.get_from_ext("ride")));
-        assert!(link.modes.contains(&network.modes.get_from_ext("bike")));
+        assert!(link.modes.contains(&Id::get_from_ext("car")));
+        assert!(link.modes.contains(&Id::get_from_ext("ride")));
+        assert!(link.modes.contains(&Id::get_from_ext("bike")));
     }
 
     #[test]
@@ -495,10 +486,9 @@ mod tests {
 
     #[test]
     fn link_new_with_default() {
-        let mut network = Network::new();
-        let from = Node::new(network.node_ids.create_id("from"), 0., 0.);
-        let to = Node::new(network.node_ids.create_id("to"), 3., 4.);
-        let id = network.link_ids.create_id("link-id");
+        let from = Node::new(Id::create("from"), 0., 0.);
+        let to = Node::new(Id::create("to"), 3., 4.);
+        let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
 
         assert_eq!(id, link.id);

@@ -87,19 +87,19 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     let output_path = PathBuf::from(&config.output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
-    let mut network = Network::from_file(
+    let network = Network::from_file(
         config.network_file.as_ref(),
         config.num_parts,
         &config.partition_method,
     );
-    let mut garage = Garage::from_file(config.vehicles_file.as_ref(), &mut network.modes);
+    let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
     // write network with new ids to output but only once.
     if rank == 0 {
         network.to_file(&output_path.join("output_network.xml.gz"));
     }
 
-    let mut population =
+    let population: Population =
         Population::from_file(config.population_file.as_ref(), &network, &mut garage, rank);
     let network_partition = SimNetworkPartition::from_network(&network, rank, config.sample_size);
     info!(
@@ -109,7 +109,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         population.agents.len()
     );
 
-    let message_broker = NetMessageBroker::new(comm, &network_partition);
+    let message_broker = NetMessageBroker::new(comm, &network_partition, &network);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");

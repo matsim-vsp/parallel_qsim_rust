@@ -6,6 +6,7 @@ use mpi::traits::{Communicator, Destination, Source};
 use mpi::Rank;
 
 use crate::simulation::messaging::messages::proto::{StorageCap, SyncMessage, Vehicle};
+use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
 
 pub trait NetCommunicator {
@@ -203,10 +204,9 @@ impl<C> NetMessageBroker<C>
 where
     C: NetCommunicator,
 {
-    pub fn new(comm: C, net: &SimNetworkPartition) -> Self {
+    pub fn new(comm: C, net: &SimNetworkPartition, global_network: &Network) -> Self {
         let neighbors = net.neighbors().iter().copied().collect();
-        let link_mapping = net
-            .global_network
+        let link_mapping = global_network
             .links
             .iter()
             .map(|link| (link.id.internal(), link.partition))
@@ -530,7 +530,7 @@ mod tests {
             .into_iter()
             .map(|comm| {
                 let sim_network = SimNetworkPartition::from_network(&network, comm.rank, 1.0);
-                NetMessageBroker::new(comm, &sim_network)
+                NetMessageBroker::new(comm, &sim_network, &network)
             })
             .collect();
         let mut join_handles = Vec::new();
@@ -553,7 +553,7 @@ mod tests {
     /// |   /
     /// 1--/
     /// 0, 1, 2, are neighbors, 3 is only neighbor to 2
-    fn create_network<'n>() -> Network<'n> {
+    fn create_network() -> Network {
         let mut result = Network::new();
         result.add_node(create_node(0, 0));
         result.add_node(create_node(1, 1));
