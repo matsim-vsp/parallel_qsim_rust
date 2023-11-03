@@ -5,7 +5,7 @@ use std::io::Cursor;
 use prost::Message;
 use tracing::debug;
 
-use crate::simulation::id::Id;
+use crate::simulation::id2::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
@@ -14,10 +14,8 @@ use crate::simulation::messaging::messages::proto::{
     Activity, Agent, ExperimentalMessage, Leg, Plan, Route, StorageCap, SyncMessage,
     TravelTimesMessage, Vehicle,
 };
-use crate::simulation::network::global_network::Network;
-use crate::simulation::population::population::Population;
+use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
-use crate::simulation::vehicles::garage::Garage;
 
 // Include the `messages` module, which is generated from messages.proto.
 pub mod proto {
@@ -172,15 +170,10 @@ impl EndTime for Vehicle {
 }
 
 impl Agent {
-    pub fn from_io(
-        io_person: &IOPerson,
-        net: &Network,
-        pop: &Population,
-        garage: &Garage,
-    ) -> Agent {
-        let person_id = pop.agent_ids.get_from_ext(&io_person.id);
+    pub fn from_io(io_person: &IOPerson) -> Agent {
+        let person_id = Id::get_from_ext(&io_person.id);
 
-        let plan = Plan::from_io(io_person.selected_plan(), &person_id, net, pop, garage);
+        let plan = Plan::from_io(io_person.selected_plan(), &person_id);
 
         if plan.acts.is_empty() {
             debug!("There is an empty plan for person {:?}", io_person.id);
@@ -341,38 +334,26 @@ impl Plan {
         }
     }
 
-    fn from_io(
-        io_plan: &IOPlan,
-        person_id: &Id<Agent>,
-        net: &Network,
-        pop: &Population,
-        garage: &Garage,
-    ) -> Plan {
+    fn from_io(io_plan: &IOPlan, person_id: &Id<Agent>) -> Plan {
         assert!(!io_plan.elements.is_empty());
         if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
         };
 
-        Plan::get_full_plan_no_routing(io_plan, person_id, net, pop, garage)
+        Plan::get_full_plan_no_routing(io_plan, person_id)
     }
 
-    fn get_full_plan_no_routing(
-        io_plan: &IOPlan,
-        person_id: &Id<Agent>,
-        net: &Network,
-        pop: &Population,
-        garage: &Garage,
-    ) -> Plan {
+    fn get_full_plan_no_routing(io_plan: &IOPlan, person_id: &Id<Agent>) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
             match element {
                 IOPlanElement::Activity(io_act) => {
-                    let act = Activity::from_io(io_act, net, pop);
+                    let act = Activity::from_io(io_act);
                     result.acts.push(act);
                 }
                 IOPlanElement::Leg(io_leg) => {
-                    let leg = Leg::from_io(io_leg, person_id, net, garage);
+                    let leg = Leg::from_io(io_leg, person_id);
                     result.legs.push(leg);
                 }
             }
@@ -395,9 +376,9 @@ impl Plan {
 }
 
 impl Activity {
-    fn from_io(io_act: &IOActivity, net: &Network, pop: &Population) -> Self {
-        let link_id = net.link_ids.get_from_ext(&io_act.link);
-        let act_type = pop.act_types.get_from_ext(&io_act.r#type);
+    fn from_io(io_act: &IOActivity) -> Self {
+        let link_id: Id<Link> = Id::get_from_ext(&io_act.link);
+        let act_type: Id<String> = Id::get_from_ext(&io_act.r#type);
         Activity {
             x: io_act.x,
             y: io_act.y,
@@ -442,12 +423,12 @@ impl Activity {
 }
 
 impl Leg {
-    fn from_io(io_leg: &IOLeg, person_id: &Id<Agent>, net: &Network, garage: &Garage) -> Self {
+    fn from_io(io_leg: &IOLeg, person_id: &Id<Agent>) -> Self {
         let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
-        let routing_mode = garage.vehicle_type_ids.get_from_ext(routing_mode_ext);
-        let mode = net.modes.get_from_ext(io_leg.mode.as_str());
-        let route = Route::from_io(&io_leg.route, person_id, &mode, net, garage);
+        let routing_mode: Id<String> = Id::get_from_ext(routing_mode_ext);
+        let mode = Id::get_from_ext(io_leg.mode.as_str());
+        let route = Route::from_io(&io_leg.route, person_id, &mode);
 
         Self {
             route: Some(route),
@@ -488,32 +469,21 @@ impl Route {
         *self.route.last().unwrap()
     }
 
-    fn from_io(
-        io_route: &IORoute,
-        person_id: &Id<Agent>,
-        mode: &Id<String>,
-        net: &Network,
-        garage: &Garage,
-    ) -> Self {
+    fn from_io(io_route: &IORoute, person_id: &Id<Agent>, mode: &Id<String>) -> Self {
         let route = match io_route.r#type.as_str() {
-            "generic" => Self::from_io_generic(io_route, person_id, mode, net, garage),
-            "links" => Self::from_io_net_route(io_route, person_id, mode, net, garage),
+            "generic" => Self::from_io_generic(io_route, person_id, mode),
+            "links" => Self::from_io_net_route(io_route, person_id, mode),
             _t => panic!("Unsupported route type: '{_t}'"),
         };
 
         route
     }
 
-    fn from_io_generic(
-        io_route: &IORoute,
-        person_id: &Id<Agent>,
-        mode: &Id<String>,
-        net: &Network,
-        garage: &Garage,
-    ) -> Self {
-        let start_link = net.link_ids.get_from_ext(&io_route.start_link);
-        let end_link = net.link_ids.get_from_ext(&io_route.end_link);
-        let veh_id: Id<Vehicle> = garage.get_mode_veh_id(person_id, mode);
+    fn from_io_generic(io_route: &IORoute, person_id: &Id<Agent>, mode: &Id<String>) -> Self {
+        let start_link: Id<Link> = Id::get_from_ext(&io_route.start_link);
+        let end_link: Id<Link> = Id::get_from_ext(&io_route.end_link);
+        let external = format!("{}_{}", person_id.external(), mode.external());
+        let veh_id: Id<Vehicle> = Id::get_from_ext(&external);
 
         Route {
             distance: io_route.distance,
@@ -522,25 +492,19 @@ impl Route {
         }
     }
 
-    fn from_io_net_route(
-        io_route: &IORoute,
-        person_id: &Id<Agent>,
-        mode: &Id<String>,
-        net: &Network,
-        garage: &Garage,
-    ) -> Self {
+    fn from_io_net_route(io_route: &IORoute, person_id: &Id<Agent>, mode: &Id<String>) -> Self {
         if let Some(veh_id_ext) = &io_route.vehicle {
             // catch this special case because we have "null" as vehicle ids for modes which are
             // routed but not simulated on the network.
             if veh_id_ext.eq("null") {
-                Self::from_io_generic(io_route, person_id, mode, net, garage)
+                Self::from_io_generic(io_route, person_id, mode)
             } else {
-                let veh_id = garage.vehicle_ids.get_from_ext(veh_id_ext.as_str());
+                let veh_id: Id<Vehicle> = Id::get_from_ext(veh_id_ext.as_str());
                 let link_ids = match &io_route.route {
                     None => Vec::new(),
                     Some(encoded_links) => encoded_links
                         .split(' ')
-                        .map(|matsim_id| net.link_ids.get_from_ext(matsim_id).internal())
+                        .map(|matsim_id| Id::<Link>::get_from_ext(matsim_id).internal())
                         .collect(),
                 };
                 Route {

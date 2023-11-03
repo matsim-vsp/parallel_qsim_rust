@@ -1,4 +1,10 @@
+/*use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
+use crate::simulation::network::global_network::{Link, Node};
+use crate::simulation::vehicles::vehicle_type::VehicleType;
+use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::ops::Deref;
+use std::rc::Rc;
 use std::slice::Iter;
 use std::sync::Arc;
 use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData};
@@ -7,7 +13,7 @@ use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData};
 /// in combination with NoHashHasher, to achieve fast look ups with no randomness involved.
 ///
 /// As this type wraps Rc<IdImpl<T>>, using clone produces a new Rc pointer to the actual Id and is
-/// the intended way of passing around ids.  
+/// the intended way of passing around ids.
 ///
 /// This type is intended to be used in combination with an [IdStore], which will take care of assigning
 /// unique internal ids. To create a new id use [IdStore::create_id()]
@@ -15,11 +21,11 @@ use std::{collections::HashMap, hash::Hash, hash::Hasher, marker::PhantomData};
 /// This type uses the newtype pattern https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html
 /// to hide internal representation and to enable implementing IsEnabled for using the NoHashHasher create
 #[derive(Debug)]
-pub struct Id<T>(Arc<IdImpl<T>>);
+pub struct Id<T>(Rc<IdImpl<T>>);
 
 impl<T> Id<T> {
     fn new(internal: u64, external: String) -> Self {
-        Self(Arc::new(IdImpl {
+        Self(Rc::new(IdImpl {
             _type_marker: PhantomData,
             internal,
             external,
@@ -163,6 +169,16 @@ impl<'ext, T> IdStore<'ext, T> {
     }
 }
 
+pub struct GlobalIdStore<'a> {
+    links: IdStore<'a, Link>,
+    nodes: IdStore<'a, Node>,
+    persons: IdStore<'a, Agent>,
+    vehicles: IdStore<'a, Vehicle>,
+    vehicle_types: IdStore<'a, VehicleType>,
+    modes: IdStore<'a, String>,
+    act_types: IdStore<'a, String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Id, IdStore};
@@ -226,3 +242,5 @@ mod tests {
         assert_eq!(fetched_2.external(), external_2);
     }
 }
+
+ */

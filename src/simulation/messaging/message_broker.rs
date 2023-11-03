@@ -321,7 +321,7 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
 
-    use crate::simulation::id::Id;
+    use crate::simulation::id2::Id;
     use crate::simulation::messaging::message_broker::{ChannelNetCommunicator, NetMessageBroker};
     use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::global_network::{Link, Network, Node};
@@ -553,7 +553,7 @@ mod tests {
     /// |   /
     /// 1--/
     /// 0, 1, 2, are neighbors, 3 is only neighbor to 2
-    fn create_network<'n>() -> Network<'n> {
+    fn create_network() -> Network {
         let mut result = Network::new();
         result.add_node(create_node(0, 0));
         result.add_node(create_node(1, 1));

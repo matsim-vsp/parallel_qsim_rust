@@ -2,6 +2,7 @@ use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
 
+use crate::simulation::id2::Id;
 use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::messaging::{
     events::{proto::Event, EventsPublisher},
@@ -24,7 +25,7 @@ pub struct SimNetworkPartition<'n> {
     pub nodes: IntMap<u64, SimNode>,
     // use int map as hash map variant with stable order
     pub links: IntMap<u64, SimLink>,
-    pub global_network: &'n Network<'n>,
+    pub global_network: &'n Network,
     rnd: ThreadRng,
     active_nodes: IntSet<u64>,
     active_links: IntSet<u64>,
@@ -155,7 +156,7 @@ impl<'n> SimNetworkPartition<'n> {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
         let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
-            let full_id = self.global_network.link_ids.get(link_id);
+            let full_id = Id::get(link_id);
             panic!(
                 "#{} Couldn't find link for id {}.\n\n The link {:?}.\n\n The vehicle: {:?}",
                 self.partition,
@@ -442,7 +443,7 @@ impl<'n> SimNetworkPartition<'n> {
 mod tests {
     use assert_approx_eq::assert_approx_eq;
 
-    use crate::simulation::id::Id;
+    use crate::simulation::id2::Id;
     use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
         messaging::{
@@ -562,8 +563,8 @@ mod tests {
         let mut global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
         global_net.effective_cell_size = 10.;
 
-        let id_1 = global_net.link_ids.get_from_ext("link1");
-        let id_2 = global_net.link_ids.get_from_ext("link2");
+        let id_1: Id<Link> = Id::get_from_ext("link1");
+        let id_2: Id<Link> = Id::get_from_ext("link2");
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
 
         //place 10 vehicles on link2 so that it is jammed
@@ -698,7 +699,7 @@ mod tests {
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
         let net2 = sim_nets.get_mut(1).unwrap();
 
-        let split_link_id = net2.global_network.link_ids.get_from_ext("link-2");
+        let split_link_id: Id<Link> = Id::get_from_ext("link-2");
         let agent = create_agent(1, vec![split_link_id.internal(), 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
 
@@ -718,37 +719,31 @@ mod tests {
     #[test]
     fn neighbors() {
         let mut net = Network::new();
-        let mut node = Node::new(net.node_ids.create_id("node-1"), -0., 0.);
+        let mut node = Node::new(Id::create("node-1"), -0., 0.);
         node.partition = 0;
 
-        let mut node_1_1 = Node::new(net.node_ids.create_id("node-1-1"), -0., 0.);
+        let mut node_1_1 = Node::new(Id::create("node-1-1"), -0., 0.);
         node_1_1.partition = 1;
-        let mut node_1_2 = Node::new(net.node_ids.create_id("node-1-2"), -0., 0.);
+        let mut node_1_2 = Node::new(Id::create("node-1-2"), -0., 0.);
         node_1_2.partition = 1;
 
-        let mut node_2_1 = Node::new(net.node_ids.create_id("node-2-1"), -0., 0.);
+        let mut node_2_1 = Node::new(Id::create("node-2-1"), -0., 0.);
         node_2_1.partition = 2;
-        let mut node_3_1 = Node::new(net.node_ids.create_id("node-3-1"), -0., 0.);
+        let mut node_3_1 = Node::new(Id::create("node-3-1"), -0., 0.);
         node_3_1.partition = 3;
-        let mut node_4_1 = Node::new(net.node_ids.create_id("not-a-neighbor"), 0., 0.);
+        let mut node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0.);
         node_4_1.partition = 4;
 
         // create in links from partitions 1 and 2. 2 incoming links from partition 1, one incoming from
         // partition 2
-        let in_link_1_1 =
-            Link::new_with_default(net.link_ids.create_id("in-link-1-1"), &node_1_1, &node);
-        let in_link_1_2 =
-            Link::new_with_default(net.link_ids.create_id("in-link-1-2"), &node_1_2, &node);
-        let in_link_2_1 =
-            Link::new_with_default(net.link_ids.create_id("in-link-2-1"), &node_2_1, &node);
+        let in_link_1_1 = Link::new_with_default(Id::create("in-link-1-1"), &node_1_1, &node);
+        let in_link_1_2 = Link::new_with_default(Id::create("in-link-1-2"), &node_1_2, &node);
+        let in_link_2_1 = Link::new_with_default(Id::create("in-link-2-1"), &node_2_1, &node);
 
         // create out links to partitions 1 and 3
-        let out_link_1_1 =
-            Link::new_with_default(net.link_ids.create_id("out-link-1-1"), &node, &node_1_1);
-        let out_link_1_2 =
-            Link::new_with_default(net.link_ids.create_id("out-link-1-2"), &node, &node_1_2);
-        let out_link_3_1 =
-            Link::new_with_default(net.link_ids.create_id("out-link-3-1"), &node, &node_3_1);
+        let out_link_1_1 = Link::new_with_default(Id::create("out-link-1-1"), &node, &node_1_1);
+        let out_link_1_2 = Link::new_with_default(Id::create("out-link-1-2"), &node, &node_1_2);
+        let out_link_3_1 = Link::new_with_default(Id::create("out-link-3-1"), &node, &node_3_1);
 
         net.add_node(node);
         net.add_node(node_1_1);
@@ -774,15 +769,13 @@ mod tests {
     }
 
     fn init_three_node_network(network: &mut Network) {
-        let node1 = Node::new(network.node_ids.create_id("node-1"), -100., 0.);
-        let node2 = Node::new(network.node_ids.create_id("node-2"), 0., 0.);
-        let node3 = Node::new(network.node_ids.create_id("node-3"), 100., 0.);
-        let mut link1 =
-            Link::new_with_default(network.link_ids.create_id("link-1"), &node1, &node2);
+        let node1 = Node::new(Id::create("node-1"), -100., 0.);
+        let node2 = Node::new(Id::create("node-2"), 0., 0.);
+        let node3 = Node::new(Id::create("node-3"), 100., 0.);
+        let mut link1 = Link::new_with_default(Id::create("link-1"), &node1, &node2);
         link1.capacity = 3600.;
         link1.freespeed = 10.;
-        let mut link2 =
-            Link::new_with_default(network.link_ids.create_id("link-2"), &node2, &node3);
+        let mut link2 = Link::new_with_default(Id::create("link-2"), &node2, &node3);
         link2.capacity = 3600.;
         link2.freespeed = 10.;
 
@@ -793,9 +786,9 @@ mod tests {
         network.add_link(link2);
     }
 
-    fn create_three_node_sim_network_with_partition<'n>(
-        network: &'n mut Network,
-    ) -> Vec<SimNetworkPartition<'n>> {
+    fn create_three_node_sim_network_with_partition(
+        network: &mut Network,
+    ) -> Vec<SimNetworkPartition> {
         init_three_node_network(network);
         let node3 = network.nodes.get_mut(2).unwrap();
         node3.partition = 1;

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::simulation::config::Config;
+use crate::simulation::id2::Id;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
@@ -20,8 +21,7 @@ where
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: SimNetworkPartition<'sim>,
-    population: Population<'sim>,
-    garage: Garage<'sim>,
+    garage: Garage,
     message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
 }
@@ -33,8 +33,8 @@ where
     pub fn new(
         config: Arc<Config>,
         network: SimNetworkPartition<'sim>,
-        garage: Garage<'sim>,
-        mut population: Population<'sim>,
+        garage: Garage,
+        mut population: Population,
         message_broker: NetMessageBroker<C>,
         events: EventsPublisher,
     ) -> Self {
@@ -50,7 +50,6 @@ where
 
         Simulation {
             network,
-            population,
             garage,
             teleportation_q: TimeQueue::new(),
             activity_q,
@@ -92,7 +91,7 @@ where
         let agents = self.activity_q.pop(now);
 
         for agent in agents {
-            let act_type = self.population.act_types.get(agent.curr_act().act_type);
+            let act_type: Id<String> = Id::get(agent.curr_act().act_type);
             self.events.publish_event(
                 now,
                 &Event::new_act_end(
@@ -103,7 +102,7 @@ where
             );
 
             let mut vehicle = self.departure(agent, now);
-            let veh_type_id = self.garage.vehicle_type_ids.get(vehicle.r#type);
+            let veh_type_id = Id::get(vehicle.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
 
             match veh_type.lod {
@@ -136,7 +135,7 @@ where
 
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
-        let leg_mode = self.network.global_network.modes.get(leg.mode);
+        let leg_mode: Id<String> = Id::get(leg.mode);
         self.events.publish_event(
             now,
             &Event::new_departure(
@@ -146,7 +145,7 @@ where
             ),
         );
 
-        let veh_id = self.garage.vehicle_ids.get(route.veh_id);
+        let veh_id = Id::get(route.veh_id);
         self.garage.unpark_veh(agent, &veh_id)
     }
 
@@ -159,7 +158,7 @@ where
             // emmit travelled
             let leg = agent.curr_leg();
             let route = leg.route.as_ref().unwrap();
-            let mode = self.network.global_network.modes.get(leg.mode);
+            let mode: Id<String> = Id::get(leg.mode);
             self.events.publish_event(
                 now,
                 &Event::new_travelled(agent.id, route.distance, mode.external().to_string()),
@@ -176,7 +175,7 @@ where
 
             // emmit act start event
             let act = agent.curr_act();
-            let act_type = self.population.act_types.get(act.act_type);
+            let act_type: Id<String> = Id::get(act.act_type);
             self.events.publish_event(
                 now,
                 &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
@@ -191,7 +190,7 @@ where
         for veh in exited_vehicles {
             self.events
                 .publish_event(now, &Event::new_person_leaves_veh(veh.agent().id, veh.id));
-            let veh_type_id = self.garage.vehicle_type_ids.get(veh.r#type);
+            let veh_type_id = Id::get(veh.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
             let mode = veh_type.net_mode.external().to_string();
             let mut agent = self.garage.park_veh(veh);
@@ -201,7 +200,7 @@ where
             let act = agent.curr_act();
             self.events
                 .publish_event(now, &Event::new_arrival(agent.id, act.link_id, mode));
-            let act_type = self.population.act_types.get(act.act_type);
+            let act_type: Id<String> = Id::get(act.act_type);
             self.events.publish_event(
                 now,
                 &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
@@ -227,7 +226,7 @@ where
             self.network.update_storage_caps(msg.storage_capacities);
 
             for veh in msg.vehicles {
-                let veh_type_id = self.garage.vehicle_type_ids.get(veh.r#type);
+                let veh_type_id = Id::get(veh.r#type);
                 let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
                 match veh_type.lod {
                     LevelOfDetail::Network => self.network.send_veh_en_route(veh, now),
@@ -333,12 +332,12 @@ mod tests {
         test_subscriber: Box<dyn EventsSubscriber + Send>,
         config: Arc<Config>,
     ) {
-        let mut net = Network::from_file(
+        let net = Network::from_file(
             &config.network_file,
             config.num_parts,
             &config.partition_method,
         );
-        let mut garage = Garage::from_file(&config.vehicles_file, &mut net.modes);
+        let mut garage = Garage::from_file(&config.vehicles_file);
         let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());
         let sim_net = SimNetworkPartition::from_network(&net, comm.rank(), config.sample_size);
 
