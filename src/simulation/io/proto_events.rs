@@ -1,10 +1,12 @@
-use crate::simulation::messaging::events::proto::{Event, TimeStep};
-use crate::simulation::messaging::events::EventsSubscriber;
-use prost::Message;
 use std::any::Any;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
 use std::path::Path;
+
+use prost::Message;
+
+use crate::simulation::messaging::events::proto::{Event, TimeStep};
+use crate::simulation::messaging::events::EventsSubscriber;
 
 pub struct ProtoEventsWriter {
     encoded_events: Vec<u8>,
@@ -161,13 +163,14 @@ impl EventsReader<File> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::PathBuf;
+
     use crate::simulation::io::proto_events::{EventsReader, ProtoEventsWriter};
     use crate::simulation::messaging::events::proto::event::Type;
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::EventsSubscriber;
-    use std::collections::HashMap;
-    use std::fs;
-    use std::path::PathBuf;
 
     #[test]
     fn write_read_single() {
@@ -199,8 +202,8 @@ mod tests {
                 "some-event-type",
                 HashMap::from([(String::from("attr1"), String::from("value1"))]),
             ),
-            Event::new_act_start(1, 1, String::from("car interaction")),
-            Event::new_act_end(1, 1, String::from("car interaction")),
+            Event::new_act_start(1, 1, 1),
+            Event::new_act_end(1, 1, 1),
         ];
 
         for event in &issued_events {
@@ -231,8 +234,8 @@ mod tests {
                 "some-event-type",
                 HashMap::from([(String::from("attr1"), String::from("value1"))]),
             ),
-            Event::new_act_start(1, 1, String::from("car interaction")),
-            Event::new_act_end(1, 1, String::from("car interaction")),
+            Event::new_act_start(1, 1, 1),
+            Event::new_act_end(1, 1, 1),
         ];
 
         for time_step in 43..109 {

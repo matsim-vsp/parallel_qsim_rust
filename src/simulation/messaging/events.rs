@@ -121,7 +121,7 @@ impl Event {
     /// act_type as owned string. We only have a few act_types in our simulation
     /// but a lot of act events. This has to be done differently somehow.
     /// Quick-protobuf crate allows for Cow reference for example.
-    pub fn new_act_start(person: u64, link: u64, act_type: String) -> Event {
+    pub fn new_act_start(person: u64, link: u64, act_type: u64) -> Event {
         Event {
             r#type: Some(ActStart(ActivityStartEvent {
                 person,
@@ -131,7 +131,7 @@ impl Event {
         }
     }
 
-    pub fn new_act_end(person: u64, link: u64, act_type: String) -> Event {
+    pub fn new_act_end(person: u64, link: u64, act_type: u64) -> Event {
         Event {
             r#type: Some(ActEnd(ActivityEndEvent {
                 person,
@@ -171,7 +171,7 @@ impl Event {
         }
     }
 
-    pub fn new_departure(person: u64, link: u64, leg_mode: String) -> Event {
+    pub fn new_departure(person: u64, link: u64, leg_mode: u64) -> Event {
         Event {
             r#type: Some(Departure(DepartureEvent {
                 person,
@@ -181,7 +181,7 @@ impl Event {
         }
     }
 
-    pub fn new_arrival(person: u64, link: u64, leg_mode: String) -> Event {
+    pub fn new_arrival(person: u64, link: u64, leg_mode: u64) -> Event {
         Event {
             r#type: Some(Arrival(ArrivalEvent {
                 person,
@@ -191,7 +191,7 @@ impl Event {
         }
     }
 
-    pub fn new_travelled(person: u64, distance: f32, mode: String) -> Event {
+    pub fn new_travelled(person: u64, distance: f32, mode: u64) -> Event {
         Event {
             r#type: Some(Travelled(TravelledEvent {
                 person,

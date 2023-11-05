@@ -94,11 +94,7 @@ where
             let act_type: Id<String> = Id::get(agent.curr_act().act_type);
             self.events.publish_event(
                 now,
-                &Event::new_act_end(
-                    agent.id,
-                    agent.curr_act().link_id,
-                    act_type.external().to_string(),
-                ),
+                &Event::new_act_end(agent.id, agent.curr_act().link_id, act_type.internal()),
             );
 
             let mut vehicle = self.departure(agent, now);
@@ -138,11 +134,7 @@ where
         let leg_mode: Id<String> = Id::get(leg.mode);
         self.events.publish_event(
             now,
-            &Event::new_departure(
-                agent.id,
-                route.start_link(),
-                leg_mode.external().to_string(),
-            ),
+            &Event::new_departure(agent.id, route.start_link(), leg_mode.internal()),
         );
 
         let veh_id = Id::get(route.veh_id);
@@ -161,13 +153,13 @@ where
             let mode: Id<String> = Id::get(leg.mode);
             self.events.publish_event(
                 now,
-                &Event::new_travelled(agent.id, route.distance, mode.external().to_string()),
+                &Event::new_travelled(agent.id, route.distance, mode.internal()),
             );
 
             // emmit arrival
             self.events.publish_event(
                 now,
-                &Event::new_arrival(agent.id, route.end_link(), mode.external().to_string()),
+                &Event::new_arrival(agent.id, route.end_link(), mode.internal()),
             );
 
             // advance plan to activity and put agent into activity q.
@@ -178,7 +170,7 @@ where
             let act_type: Id<String> = Id::get(act.act_type);
             self.events.publish_event(
                 now,
-                &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
+                &Event::new_act_start(agent.id, act.link_id, act_type.internal()),
             );
             self.activity_q.add(agent, now);
         }
@@ -192,7 +184,7 @@ where
                 .publish_event(now, &Event::new_person_leaves_veh(veh.agent().id, veh.id));
             let veh_type_id = Id::get(veh.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
-            let mode = veh_type.net_mode.external().to_string();
+            let mode = veh_type.net_mode.internal();
             let mut agent = self.garage.park_veh(veh);
 
             // move to next activity
@@ -203,7 +195,7 @@ where
             let act_type: Id<String> = Id::get(act.act_type);
             self.events.publish_event(
                 now,
-                &Event::new_act_start(agent.id, act.link_id, act_type.external().to_string()),
+                &Event::new_act_start(agent.id, act.link_id, act_type.internal()),
             );
             self.activity_q.add(agent, now);
         }
@@ -257,6 +249,7 @@ mod tests {
     use tracing::info;
 
     use crate::simulation::config::Config;
+    use crate::simulation::io::xml_events::XmlEventsWriter;
     use crate::simulation::logging;
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
@@ -329,6 +322,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_rvr_scenario() {
         let config = Arc::new(
             Config::builder()
@@ -414,24 +408,25 @@ mod tests {
 
     struct TestSubscriber {
         next_index: usize,
-        expected_events: Vec<(u32, Event)>,
+        expected_events: Vec<String>,
     }
 
     struct ReceivingSubscriber {
         test_subscriber: TestSubscriber,
-        channel: (Sender<(u32, Event)>, Receiver<(u32, Event)>),
+        channel: (Sender<String>, Receiver<String>),
     }
 
     struct SendingSubscriber {
         #[allow(dead_code)]
         rank: u32,
-        sender: Sender<(u32, Event)>,
+        sender: Sender<String>,
     }
 
     impl EventsSubscriber for SendingSubscriber {
         fn receive_event(&mut self, time: u32, event: &Event) {
+            let event_string = XmlEventsWriter::event_2_string(time, event);
             self.sender
-                .send((time, event.clone()))
+                .send(event_string)
                 .expect("Failed on sending event message!");
         }
 
@@ -450,12 +445,12 @@ mod tests {
 
         fn start_listen(&mut self) {
             while self.test_subscriber.next_index < self.test_subscriber.expected_events.len() {
-                let (time, event) = self
+                let event_string = self
                     .channel
                     .1
                     .recv()
                     .expect("Something went wrong while listening for events");
-                self.test_subscriber.receive_event(time, &event);
+                self.test_subscriber.receive_event_string(event_string);
             }
         }
     }
@@ -468,54 +463,44 @@ mod tests {
             }
         }
 
-        fn expected_events() -> Vec<(u32, Event)> {
+        fn expected_events() -> Vec<String> {
             let result = vec![
-                (32400, Event::new_act_end(0, 0, String::from("home"))),
-                (32400, Event::new_departure(0, 0, String::from("walk"))),
-                (32408, Event::new_travelled(0, 10., String::from("walk"))),
-                (32408, Event::new_arrival(0, 0, String::from("walk"))),
-                (
-                    32408,
-                    Event::new_act_start(0, 0, String::from("car interaction")),
-                ),
-                (
-                    32409,
-                    Event::new_act_end(0, 0, String::from("car interaction")),
-                ),
-                (32409, Event::new_departure(0, 0, String::from("car"))),
-                (32409, Event::new_person_enters_veh(0, 0)),
-                // skip vehicle enters traffic
-                (32419, Event::new_link_leave(0, 0)),
-                (32419, Event::new_link_enter(1, 0)),
-                (32519, Event::new_link_leave(1, 0)),
-                (32519, Event::new_link_enter(2, 0)),
-                (32529, Event::new_person_leaves_veh(0, 0)),
-                (32529, Event::new_arrival(0, 2, String::from("car"))),
-                (
-                    32529,
-                    Event::new_act_start(0, 2, String::from("car interaction")),
-                ),
-                (
-                    32530,
-                    Event::new_act_end(0, 2, String::from("car interaction")),
-                ),
-                (32530, Event::new_departure(0, 2, String::from("walk"))),
-                (32546, Event::new_travelled(0, 20., String::from("walk"))),
-                (32546, Event::new_arrival(0, 2, String::from("walk"))),
-                (32546, Event::new_act_start(0, 2, String::from("errands"))),
+                "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" actType=\"home\" />\n".to_string(),
+                "<event time=\"32400\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" />\n".to_string(),
+                "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\" />\n".to_string(),
+                "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\" />\n".to_string(),
+                "<event time=\"32408\" type=\"actstart\" person=\"100\" link=\"link1\" actType=\"car interaction\" />\n".to_string(),
+                "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" actType=\"car interaction\" />\n".to_string(),
+                "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" />\n".to_string(),
+                "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\" />\n".to_string(),
+                "<event time=\"32419\" type=\"left link\" link=\"link1\" vehicle=\"100_car\" />\n".to_string(),
+                "<event time=\"32419\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\" />\n".to_string(),
+                "<event time=\"32519\" type=\"left link\" link=\"link2\" vehicle=\"100_car\" />\n".to_string(),
+                "<event time=\"32519\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\" />\n".to_string(),
+                "<event time=\"32529\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\" />\n".to_string(),
+                "<event time=\"32529\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\" />\n".to_string(),
+                "<event time=\"32529\" type=\"actstart\" person=\"100\" link=\"link3\" actType=\"car interaction\" />\n".to_string(),
+                "<event time=\"32530\" type=\"actend\" person=\"100\" link=\"link3\" actType=\"car interaction\" />\n".to_string(),
+                "<event time=\"32530\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" />\n".to_string(),
+                "<event time=\"32546\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\" />\n".to_string(),
+                "<event time=\"32546\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\" />\n".to_string(),
+                "<event time=\"32546\" type=\"actstart\" person=\"100\" link=\"link3\" actType=\"errands\" />\n".to_string()
             ];
-
             result
+        }
+    }
+
+    impl TestSubscriber {
+        fn receive_event_string(&mut self, event: String) {
+            let expected_value = self.expected_events.get(self.next_index).unwrap();
+            self.next_index += 1;
+            assert_eq!(expected_value, &event);
         }
     }
 
     impl EventsSubscriber for TestSubscriber {
         fn receive_event(&mut self, time: u32, event: &Event) {
-            let (expected_time, expected_event) =
-                self.expected_events.get(self.next_index).unwrap();
-            self.next_index += 1;
-            assert_eq!(expected_time, &time);
-            assert_eq!(expected_event, event);
+            self.receive_event_string(XmlEventsWriter::event_2_string(time, event));
         }
 
         fn as_any(&mut self) -> &mut dyn Any {

@@ -32,13 +32,13 @@ message GenericEvent {
 message ActivityStartEvent {
   uint64 person = 1;
   uint64 link = 2;
-  string actType = 3;
+  uint64 actType = 3;
 }
 
 message ActivityEndEvent {
   uint64 person = 1;
   uint64 link = 2;
-  string actType = 3;
+  uint64 actType = 3;
 }
 
 message LinkEnterEvent {
@@ -64,17 +64,17 @@ message PersonLeavesVehicleEvent {
 message DepartureEvent {
   uint64 person = 1;
   uint64 link = 2;
-  string legMode = 3;
+  uint64 legMode = 3;
 }
 
 message ArrivalEvent {
   uint64 person = 1;
   uint64 link = 2;
-  string legMode = 3;
+  uint64 legMode = 3;
 }
 
 message TravelledEvent {
   uint64 person = 1;
   float distance = 2;
-  string mode = 3;
+  uint64 mode = 3;
 }
