@@ -12,8 +12,9 @@ use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
+use crate::simulation::io::xml_events::XmlEventsWriter;
 use crate::simulation::logging;
-use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::events::{EventsLogger, EventsPublisher};
 use crate::simulation::messaging::message_broker::{
     ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
     NetMessageBroker,
@@ -115,9 +116,12 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     let events_file = format!("events.{rank}.pbf");
     let events_path = output_path.join(events_file);
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    events.add_subscriber(Box::new(XmlEventsWriter::new(
+        &output_path.join(format!("events.{rank}.xml")),
+    )));
     // let travel_time_collector = Box::new(TravelTimeCollector::new());
     //events.add_subscriber(travel_time_collector);
-    //events.add_subscriber(Box::new(EventsLogger {}));
+    events.add_subscriber(Box::new(EventsLogger {}));
 
     let mut simulation = Simulation::new(
         config.clone(),

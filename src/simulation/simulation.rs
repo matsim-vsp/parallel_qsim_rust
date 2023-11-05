@@ -100,6 +100,14 @@ where
             let mut vehicle = self.departure(agent, now);
             let veh_type_id = Id::get(vehicle.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
+            let leg = vehicle.agent.as_ref().unwrap().curr_leg();
+            let route = leg.route.as_ref().unwrap();
+
+            info!(
+                "#{} wakeup start link is on partition {}",
+                self.message_broker.rank(),
+                self.message_broker.rank_for_link(route.start_link())
+            );
 
             match veh_type.lod {
                 LevelOfDetail::Network => {
@@ -116,6 +124,7 @@ where
                         // we need to call advance here, so that the vehicle's current link index
                         // points to the end link of the route array.
                         vehicle.advance_route_index();
+                        info!("#{} add vehicle to msg broker.", self.message_broker.rank());
                         self.message_broker.add_veh(vehicle, now);
                     }
                 }
@@ -218,6 +227,7 @@ where
             self.network.update_storage_caps(msg.storage_capacities);
 
             for veh in msg.vehicles {
+                info!("#{} received vehicle.", self.message_broker.rank());
                 let veh_type_id = Id::get(veh.r#type);
                 let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
                 match veh_type.lod {
@@ -240,6 +250,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::any::Any;
+    use std::path::PathBuf;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::sync::Arc;
     use std::thread;
@@ -327,7 +338,7 @@ mod tests {
         let config = Arc::new(
             Config::builder()
                 .network_file(String::from(
-                    "/Users/janek/Documents/rust_q_sim/input/rvr.network.xml.gz",
+                    "/Users/janek/Documents/rust_q_sim/input/rvr.network.8.xml.gz",
                 ))
                 .population_file(String::from(
                     "/Users/janek/Documents/rust_q_sim/input/rvr.1pct.plans.xml.gz",
@@ -336,14 +347,20 @@ mod tests {
                     "/Users/janek/Documents/rust_q_sim/input/rvr.vehicles.xml",
                 ))
                 .output_dir(String::from("/Users/janek/Documents/rust_q_sim/output-wip"))
-                .num_parts(1)
+                .num_parts(8)
                 .partition_method(String::from("none"))
                 .build(),
         );
 
         let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
 
-        execute_sim(DummyNetCommunicator(), Box::new(EmtpySubscriber {}), config)
+        let events_path = PathBuf::from(&config.output_dir).join("output.events.xml");
+
+        execute_sim(
+            DummyNetCommunicator(),
+            Box::new(XmlEventsWriter::new(&events_path)),
+            config,
+        )
     }
 
     fn execute_sim<C: NetCommunicator>(

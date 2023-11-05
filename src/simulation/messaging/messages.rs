@@ -194,8 +194,8 @@ impl Agent {
         }
     }
 
-    pub fn id(&self) -> usize {
-        self.id as usize
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     pub fn curr_act(&self) -> &Activity {
