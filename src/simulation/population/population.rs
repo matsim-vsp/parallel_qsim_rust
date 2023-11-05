@@ -51,7 +51,7 @@ impl Population {
                 garage
                     .vehicle_types
                     .keys()
-                    .map(move |type_id| (p_id.clone(), type_id.clone())) //Self::create_veh_id_string(&p_id, type_id))
+                    .map(move |type_id| (p_id.clone(), type_id.clone()))
             })
             .collect();
 
