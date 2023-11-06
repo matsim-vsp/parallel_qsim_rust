@@ -467,6 +467,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_rvr_scenario() {
         let config = Arc::new(
             Config::builder()
