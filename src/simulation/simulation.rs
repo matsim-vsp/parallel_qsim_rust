@@ -69,8 +69,6 @@ where
 
         while now <= end_time {
             if self.message_broker.rank() == 0 && now % 1800 == 0 {
-                //if now % 600 == 0 {
-                //if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank());
@@ -100,14 +98,6 @@ where
             let mut vehicle = self.departure(agent, now);
             let veh_type_id = Id::get(vehicle.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
-            let leg = vehicle.agent.as_ref().unwrap().curr_leg();
-            let route = leg.route.as_ref().unwrap();
-
-            info!(
-                "#{} wakeup start link is on partition {}",
-                self.message_broker.rank(),
-                self.message_broker.rank_for_link(route.start_link())
-            );
 
             match veh_type.lod {
                 LevelOfDetail::Network => {
@@ -121,10 +111,12 @@ where
                     if Simulation::is_local_route(&vehicle, &self.message_broker) {
                         self.teleportation_q.add(vehicle, now);
                     } else {
-                        // we need to call advance here, so that the vehicle's current link index
-                        // points to the end link of the route array.
-                        vehicle.advance_route_index();
-                        info!("#{} add vehicle to msg broker.", self.message_broker.rank());
+                        // set the pointer of the route to the last element, so that the current link
+                        // is the destination of this leg. Setting this to the last element makes this
+                        // logic independent of whether the agent has a Generic-Route with only start
+                        // and end link or a full Network-Route, which is often the case for ride modes.
+                        vehicle.route_index_to_last();
+                        //info!("#{} add vehicle to msg broker.", self.message_broker.rank());
                         self.message_broker.add_veh(vehicle, now);
                     }
                 }
@@ -227,7 +219,6 @@ where
             self.network.update_storage_caps(msg.storage_capacities);
 
             for veh in msg.vehicles {
-                info!("#{} received vehicle.", self.message_broker.rank());
                 let veh_type_id = Id::get(veh.r#type);
                 let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
                 match veh_type.lod {
@@ -241,9 +232,8 @@ where
     fn is_local_route(veh: &Vehicle, message_broker: &NetMessageBroker<C>) -> bool {
         let leg = veh.agent.as_ref().unwrap().curr_leg();
         let route = leg.route.as_ref().unwrap();
-        let from = message_broker.rank_for_link(route.start_link());
         let to = message_broker.rank_for_link(route.end_link());
-        from == to
+        message_broker.rank() == to
     }
 }
 

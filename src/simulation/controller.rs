@@ -11,10 +11,9 @@ use nohash_hasher::IntMap;
 use tracing::info;
 
 use crate::simulation::config::Config;
-use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::io::xml_events::XmlEventsWriter;
 use crate::simulation::logging;
-use crate::simulation::messaging::events::{EventsLogger, EventsPublisher};
+use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::message_broker::{
     ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
     NetMessageBroker,
@@ -95,11 +94,6 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     );
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
-    // write network with new ids to output but only once.
-    if rank == 0 {
-        network.to_file(&output_path.join("output_network.xml.gz"));
-    }
-
     let population: Population =
         Population::from_file(config.population_file.as_ref(), &network, &mut garage, rank);
     let network_partition = SimNetworkPartition::from_network(&network, rank, config.sample_size);
@@ -113,15 +107,15 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     let message_broker = NetMessageBroker::new(comm, &network_partition, &network);
     let mut events = EventsPublisher::new();
 
-    let events_file = format!("events.{rank}.pbf");
-    let events_path = output_path.join(events_file);
-    events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    //let events_file = format!("events.{rank}.pbf");
+    //let events_path = output_path.join(events_file);
+    //events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     events.add_subscriber(Box::new(XmlEventsWriter::new(
         &output_path.join(format!("events.{rank}.xml")),
     )));
     // let travel_time_collector = Box::new(TravelTimeCollector::new());
     //events.add_subscriber(travel_time_collector);
-    events.add_subscriber(Box::new(EventsLogger {}));
+    //  events.add_subscriber(Box::new(EventsLogger {}));
 
     let mut simulation = Simulation::new(
         config.clone(),

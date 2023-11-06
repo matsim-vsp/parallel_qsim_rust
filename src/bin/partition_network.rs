@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 
 use clap::{arg, Parser};
@@ -8,6 +9,8 @@ use rust_q_sim::simulation::network::global_network::Network;
 fn main() {
     rust_q_sim::simulation::logging::init_std_out_logging();
     let args = InputArgs::parse();
+
+    fs::create_dir_all(&args.out_path).expect("Failed to create output path");
 
     info!(
         "Partition network: {} into {} parts",

@@ -89,7 +89,7 @@ impl Population {
             .persons
             .iter()
             .filter(|io_p| Self::is_partition(io_p, net, part))
-            .filter(|io_p| io_p.id.eq("1267938")) // take failing agent.
+            //.filter(|io_p| io_p.id.eq("1267938")) // take failing agent.
             .map(Agent::from_io)
             .collect();
 

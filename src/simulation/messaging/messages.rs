@@ -140,8 +140,15 @@ impl Vehicle {
         self.curr_route_elem += 1;
     }
 
-    // todo I have changed the way this works. Probably one needs to call
-    // advance route index for teleported legs now, once the person is woken up from the activity queue
+    /// This method advances the pointer to the last element of the route. We need this in case of
+    /// teleported legs. Advancing the route pointer to the last element directly ensures that teleporting
+    /// the vehicle is independent of whether the leg has a Generic-Teleportation route or a network
+    /// route.
+    pub fn route_index_to_last(&mut self) {
+        let route_len = self.agent().curr_leg().route.as_ref().unwrap().route.len() as u32;
+        self.curr_route_elem = route_len - 1;
+    }
+
     pub fn curr_link_id(&self) -> Option<u64> {
         let leg = self.agent().curr_leg();
         let route = leg.route.as_ref().unwrap();
