@@ -1,12 +1,13 @@
-use nohash_hasher::{IntMap, IntSet};
-use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
+use std::collections::HashSet;
 
 use crate::simulation::messaging::messages::proto::StorageCap;
 use crate::simulation::messaging::{
     events::{proto::Event, EventsPublisher},
     messages::proto::Vehicle,
 };
+use nohash_hasher::{IntMap, IntSet};
+use rand::rngs::ThreadRng;
+use rand::{thread_rng, Rng};
 
 use super::{
     global_network::{Link, Network, Node},
@@ -142,6 +143,18 @@ impl SimNetworkPartition {
             .map(|link| link.neighbor_part())
             .collect();
         distinct_partitions
+    }
+
+    pub fn get_link_ids(&self) -> HashSet<u64> {
+        self.links
+            .iter()
+            .filter(|(_, link)| match link {
+                SimLink::Local(_) => true,
+                SimLink::In(_) => true,
+                SimLink::Out(_) => false,
+            })
+            .map(|(id, _)| *id)
+            .collect::<HashSet<u64>>()
     }
 
     pub fn send_veh_en_route(&mut self, vehicle: Vehicle, now: u32) {
@@ -418,7 +431,7 @@ impl SimNetworkPartition {
     ) {
         events.publish_event(
             now,
-            &Event::new_link_leave(vehicle.curr_route_elem as u64, vehicle.id),
+            &Event::new_link_leave(vehicle.curr_link_id().unwrap(), vehicle.id),
         );
         vehicle.advance_route_index();
         let link_id = vehicle.curr_link_id().unwrap();
@@ -437,6 +450,7 @@ impl SimNetworkPartition {
 mod tests {
     use assert_approx_eq::assert_approx_eq;
 
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::messaging::messages::proto::Route;
     use crate::simulation::{
@@ -479,7 +493,11 @@ mod tests {
     #[test]
     fn vehicle_travels_local() {
         let mut publisher = EventsPublisher::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
@@ -499,7 +517,11 @@ mod tests {
     #[test]
     fn vehicle_reaches_boundary() {
         let mut publisher = EventsPublisher::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 2, "none");
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            2,
+            PartitionMethod::None,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
@@ -525,7 +547,11 @@ mod tests {
     #[test]
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = EventsPublisher::new();
-        let global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
 
         // place 100 vehicles on first link
@@ -554,7 +580,11 @@ mod tests {
     #[test]
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = EventsPublisher::new();
-        let mut global_net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let mut global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         global_net.effective_cell_size = 10.;
 
         let id_1: Id<Link> = Id::get_from_ext("link1");

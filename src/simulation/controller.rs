@@ -1,5 +1,6 @@
 use std::ops::Sub;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::{Duration, Instant};
@@ -10,17 +11,19 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::config::Config;
+use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::logging;
-use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::{
-    ChannelNetCommunicator, DummyNetCommunicator, MpiNetCommunicator, NetCommunicator,
-    NetMessageBroker,
+use crate::simulation::messaging::communication::communicators::{
+    ChannelSimCommunicator, DummySimCommunicator, MpiSimCommunicator, SimCommunicator,
 };
+use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
+use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplanner, Replanner};
+use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
 
@@ -29,7 +32,8 @@ pub fn run_single_partition() {
     let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
 
     info!("Starting single Partition Simulation");
-    let comm = DummyNetCommunicator();
+    let comm = DummySimCommunicator();
+
     execute_partition(comm, config);
 }
 
@@ -41,7 +45,7 @@ pub fn run_channel() {
         "Starting Multithreaded Simulation with {} partitions.",
         config.num_parts
     );
-    let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
+    let comms = ChannelSimCommunicator::create_n_2_n(config.num_parts);
 
     let handles: IntMap<u32, JoinHandle<()>> = comms
         .into_iter()
@@ -60,7 +64,7 @@ pub fn run_channel() {
 pub fn run_mpi() {
     let universe = mpi::initialize().unwrap();
     let world = universe.world();
-    let comm = MpiNetCommunicator {
+    let comm = MpiSimCommunicator {
         mpi_communicator: world,
     };
 
@@ -78,7 +82,7 @@ pub fn run_mpi() {
     info!("Process #{} finishing.", world.rank());
 }
 
-fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
+fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>) {
     let rank = comm.rank();
     let size = config.num_parts;
 
@@ -90,7 +94,7 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
     let network = Network::from_file(
         config.network_file.as_ref(),
         config.num_parts,
-        &config.partition_method,
+        config.partition_method,
     );
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
@@ -109,23 +113,37 @@ fn execute_partition<C: NetCommunicator>(comm: C, config: Arc<Config>) {
         population.agents.len()
     );
 
-    let message_broker = NetMessageBroker::new(comm, &network_partition, &network);
     let mut events = EventsPublisher::new();
 
     let events_file = format!("events.{rank}.pbf");
     let events_path = output_path.join(events_file);
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-    // let travel_time_collector = Box::new(TravelTimeCollector::new());
-    //events.add_subscriber(travel_time_collector);
+    let travel_time_collector = Box::new(TravelTimeCollector::new());
+    events.add_subscriber(travel_time_collector);
     //events.add_subscriber(Box::new(EventsLogger {}));
 
-    let mut simulation = Simulation::new(
+    let rc = Rc::new(comm);
+
+    let replanner: Box<dyn Replanner> = if config.routing_mode == RoutingMode::AdHoc {
+        Box::new(ReRouteTripReplanner::new(
+            &network,
+            &network_partition,
+            &garage,
+            Rc::clone(&rc),
+        ))
+    } else {
+        Box::new(DummyReplanner {})
+    };
+    let net_message_broker = NetMessageBroker::new(rc, &network, &network_partition);
+
+    let mut simulation: Simulation<C> = Simulation::new(
         config.clone(),
         network_partition,
         garage,
         population,
-        message_broker,
+        net_message_broker,
         events,
+        replanner,
     );
 
     let start = Instant::now();

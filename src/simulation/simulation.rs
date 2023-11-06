@@ -4,39 +4,43 @@ use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
+use crate::simulation::messaging::communication::communicators::SimCommunicator;
+use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::message_broker::{NetCommunicator, NetMessageBroker};
 use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
+use crate::simulation::replanning::replanner::Replanner;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
 
 pub struct Simulation<C>
 where
-    C: NetCommunicator,
+    C: SimCommunicator,
 {
     activity_q: TimeQueue<Agent>,
     teleportation_q: TimeQueue<Vehicle>,
     network: SimNetworkPartition,
     garage: Garage,
-    message_broker: NetMessageBroker<C>,
+    net_message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
+    replanner: Box<dyn Replanner>,
 }
 
 impl<C> Simulation<C>
 where
-    C: NetCommunicator,
+    C: SimCommunicator + 'static,
 {
     pub fn new(
         config: Arc<Config>,
         network: SimNetworkPartition,
         garage: Garage,
         mut population: Population,
-        message_broker: NetMessageBroker<C>,
+        net_message_broker: NetMessageBroker<C>,
         events: EventsPublisher,
+        replanner: Box<dyn Replanner>,
     ) -> Self {
         let mut activity_q = TimeQueue::new();
 
@@ -53,8 +57,9 @@ where
             garage,
             teleportation_q: TimeQueue::new(),
             activity_q,
-            message_broker,
+            net_message_broker,
             events,
+            replanner,
         }
     }
 
@@ -63,22 +68,27 @@ where
         let mut now = start_time;
         info!(
             "Starting #{}. Network neighbors: {:?}, Start time {start_time}, End time {end_time}",
-            self.message_broker.rank(),
+            self.net_message_broker.rank(),
             self.network.neighbors(),
         );
 
         while now <= end_time {
-            if self.message_broker.rank() == 0 && now % 1800 == 0 {
+            if self.net_message_broker.rank() == 0 && now % 1800 == 0 {
                 //if now % 600 == 0 {
                 //if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
-                info!("#{} of Qsim at {_hour}:{_min}", self.message_broker.rank());
+                info!(
+                    "#{} of Qsim at {_hour}:{_min}",
+                    self.net_message_broker.rank()
+                );
             }
             self.wakeup(now);
             self.terminate_teleportation(now);
             self.move_nodes(now);
             self.move_links(now);
+
+            self.replanner.update_time(now, &mut self.events);
 
             now += 1;
         }
@@ -90,7 +100,9 @@ where
     fn wakeup(&mut self, now: u32) {
         let agents = self.activity_q.pop(now);
 
-        for agent in agents {
+        for mut agent in agents {
+            self.update_agent(&mut agent, now);
+
             let act_type: Id<String> = Id::get(agent.curr_act().act_type);
             self.events.publish_event(
                 now,
@@ -114,13 +126,13 @@ where
                     self.network.send_veh_en_route(vehicle, now);
                 }
                 LevelOfDetail::Teleported => {
-                    if Simulation::is_local_route(&vehicle, &self.message_broker) {
+                    if Simulation::is_local_route(&vehicle, &self.net_message_broker) {
                         self.teleportation_q.add(vehicle, now);
                     } else {
                         // we need to call advance here, so that the vehicle's current link index
                         // points to the end link of the route array.
                         vehicle.advance_route_index();
-                        self.message_broker.add_veh(vehicle, now);
+                        self.net_message_broker.add_veh(vehicle, now);
                     }
                 }
             }
@@ -147,6 +159,10 @@ where
 
         let veh_id = Id::get(route.veh_id);
         self.garage.unpark_veh(agent, &veh_id)
+    }
+
+    fn update_agent(&mut self, agent: &mut Agent, now: u32) {
+        self.replanner.replan(now, agent, &self.garage)
     }
 
     fn terminate_teleportation(&mut self, now: u32) {
@@ -213,14 +229,14 @@ where
         let (vehicles, storage_cap) = self.network.move_links(now);
 
         for veh in vehicles {
-            self.message_broker.add_veh(veh, now);
+            self.net_message_broker.add_veh(veh, now);
         }
 
         for cap in storage_cap {
-            self.message_broker.add_cap(cap, now);
+            self.net_message_broker.add_cap(cap, now);
         }
 
-        let sync_messages = self.message_broker.send_recv(now);
+        let sync_messages = self.net_message_broker.send_recv(now);
 
         for msg in sync_messages {
             self.network.update_storage_caps(msg.storage_capacities);
@@ -248,6 +264,8 @@ where
 #[cfg(test)]
 mod tests {
     use std::any::Any;
+    use std::path::PathBuf;
+    use std::rc::Rc;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::sync::Arc;
     use std::thread;
@@ -256,16 +274,22 @@ mod tests {
     use nohash_hasher::IntMap;
     use tracing::info;
 
-    use crate::simulation::config::Config;
+    use crate::simulation::config::{Config, PartitionMethod, RoutingMode};
+    use crate::simulation::io::proto_events::EventsReader;
     use crate::simulation::logging;
+    use crate::simulation::messaging::communication::communicators::{
+        ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
+    };
+    use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
-    use crate::simulation::messaging::message_broker::{
-        ChannelNetCommunicator, DummyNetCommunicator, NetCommunicator, NetMessageBroker,
-    };
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::population::Population;
+    use crate::simulation::replanning::replanner::{
+        DummyReplanner, ReRouteTripReplanner, Replanner,
+    };
+    use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::simulation::Simulation;
     use crate::simulation::vehicles::garage::Garage;
 
@@ -283,7 +307,7 @@ mod tests {
         );
 
         execute_sim(
-            DummyNetCommunicator(),
+            DummySimCommunicator(),
             Box::new(TestSubscriber::new()),
             config,
         );
@@ -300,11 +324,125 @@ mod tests {
                     "./test_output/simulation/execute_3_links_2_parts",
                 ))
                 .num_parts(2)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
-        let comms = ChannelNetCommunicator::create_n_2_n(config.num_parts);
-        let mut receiver = ReceivingSubscriber::new();
+
+        execute_sim_with_channels(config, None);
+    }
+
+    #[test]
+    fn execute_adhoc_routing_one_part_no_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/no_updates/network.xml",
+                ))
+                .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_one_part",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(1)
+                .partition_method(PartitionMethod::None)
+                .build(),
+        );
+
+        execute_sim(
+            DummySimCommunicator(),
+            Box::new(TestSubscriber::new_with_events_from_file(
+                "./assets/adhoc_routing/no_updates/expected_events.pbf",
+            )),
+            config,
+        );
+    }
+
+    #[test]
+    fn execute_adhoc_routing_two_parts_no_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/no_updates/network.xml",
+                ))
+                .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_two_parts",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(2)
+                .partition_method(PartitionMethod::None)
+                .build(),
+        );
+
+        execute_sim_with_channels(
+            config,
+            Some("./assets/adhoc_routing/no_updates/expected_events.pbf"),
+        );
+    }
+
+    #[test]
+    fn execute_adhoc_routing_one_part_with_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/with_updates/network.xml",
+                ))
+                .population_file(String::from(
+                    "./assets/adhoc_routing/with_updates/agents.xml",
+                ))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_one_part",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(1)
+                .partition_method(PartitionMethod::None)
+                .build(),
+        );
+
+        execute_sim(
+            DummySimCommunicator(),
+            Box::new(TestSubscriber::new_with_events_from_file(
+                "./assets/adhoc_routing/with_updates/expected_events.pbf",
+            )),
+            config,
+        );
+    }
+
+    #[test]
+    fn execute_adhoc_routing_two_parts_with_updates() {
+        let config = Arc::new(
+            Config::builder()
+                .network_file(String::from(
+                    "./assets/adhoc_routing/with_updates/network.xml",
+                ))
+                .population_file(String::from(
+                    "./assets/adhoc_routing/with_updates/agents.xml",
+                ))
+                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                .output_dir(String::from(
+                    "./test_output/simulation/adhoc_routing_two_parts",
+                ))
+                .routing_mode(RoutingMode::AdHoc)
+                .num_parts(2)
+                .partition_method(PartitionMethod::None)
+                .build(),
+        );
+
+        execute_sim_with_channels(
+            config,
+            Some("./assets/adhoc_routing/with_updates/expected_events.pbf"),
+        );
+    }
+
+    fn execute_sim_with_channels(config: Arc<Config>, expected_events_file: Option<&str>) {
+        let comms = ChannelSimCommunicator::create_n_2_n(config.num_parts);
+        let mut receiver = match expected_events_file {
+            None => ReceivingSubscriber::new(),
+            Some(e) => ReceivingSubscriber::new_with_events_from_file(e),
+        };
 
         let mut handles: IntMap<u32, JoinHandle<()>> = comms
             .into_iter()
@@ -329,6 +467,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_rvr_scenario() {
         let config = Arc::new(
             Config::builder()
@@ -343,16 +482,16 @@ mod tests {
                 ))
                 .output_dir(String::from("/Users/janek/Documents/rust_q_sim/output-wip"))
                 .num_parts(1)
-                .partition_method(String::from("none"))
+                .partition_method(PartitionMethod::None)
                 .build(),
         );
 
         let _guards = logging::init_logging(config.output_dir.as_ref(), 0.to_string());
 
-        execute_sim(DummyNetCommunicator(), Box::new(EmtpySubscriber {}), config)
+        execute_sim(DummySimCommunicator(), Box::new(EmtpySubscriber {}), config)
     }
 
-    fn execute_sim<C: NetCommunicator>(
+    fn execute_sim<C: SimCommunicator + 'static>(
         comm: C,
         test_subscriber: Box<dyn EventsSubscriber + Send>,
         config: Arc<Config>,
@@ -360,7 +499,7 @@ mod tests {
         let net = Network::from_file(
             &config.network_file,
             config.num_parts,
-            &config.partition_method,
+            config.partition_method,
         );
         let mut garage = Garage::from_file(&config.vehicles_file);
         let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());
@@ -374,11 +513,33 @@ mod tests {
 
         info!("#{} {id_part:?}", comm.rank());
 
-        let msg_broker = NetMessageBroker::new(comm, &sim_net, &net);
         let mut events = EventsPublisher::new();
         events.add_subscriber(test_subscriber);
+        events.add_subscriber(Box::new(TravelTimeCollector::new()));
 
-        let mut sim = Simulation::new(config.clone(), sim_net, garage, pop, msg_broker, events);
+        let rc = Rc::new(comm);
+        let broker = NetMessageBroker::new(rc.clone(), &net, &sim_net);
+
+        let replanner: Box<dyn Replanner> = if config.routing_mode == RoutingMode::AdHoc {
+            Box::new(ReRouteTripReplanner::new(
+                &net,
+                &sim_net,
+                &garage,
+                rc.clone(),
+            ))
+        } else {
+            Box::new(DummyReplanner {})
+        };
+
+        let mut sim = Simulation::new(
+            config.clone(),
+            sim_net,
+            garage,
+            pop,
+            broker,
+            events,
+            replanner,
+        );
 
         sim.run(config.start_time, config.end_time);
     }
@@ -448,6 +609,13 @@ mod tests {
             }
         }
 
+        fn new_with_events_from_file(events_file: &str) -> Self {
+            Self {
+                test_subscriber: TestSubscriber::new_with_events_from_file(events_file),
+                channel: channel(),
+            }
+        }
+
         fn start_listen(&mut self) {
             while self.test_subscriber.next_index < self.test_subscriber.expected_events.len() {
                 let (time, event) = self
@@ -466,6 +634,24 @@ mod tests {
                 next_index: 0,
                 expected_events: Self::expected_events(),
             }
+        }
+
+        fn new_with_events_from_file(events_file: &str) -> Self {
+            Self {
+                next_index: 0,
+                expected_events: Self::expected_events_from_file(events_file),
+            }
+        }
+
+        fn expected_events_from_file(events_file: &str) -> Vec<(u32, Event)> {
+            let reader = EventsReader::from_file(&PathBuf::from(events_file));
+            let mut result = Vec::new();
+            for (time, events) in reader {
+                for event in events {
+                    result.push((time, event));
+                }
+            }
+            result
         }
 
         fn expected_events() -> Vec<(u32, Event)> {
@@ -515,7 +701,7 @@ mod tests {
                 self.expected_events.get(self.next_index).unwrap();
             self.next_index += 1;
             assert_eq!(expected_time, &time);
-            assert_eq!(expected_event, event);
+            assert_eq!(expected_event, event, "Unexpected Event at time {}", time);
         }
 
         fn as_any(&mut self) -> &mut dyn Any {

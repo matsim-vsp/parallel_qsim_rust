@@ -1,197 +1,44 @@
+use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::rc::Rc;
 
-use mpi::topology::SystemCommunicator;
-use mpi::traits::{Communicator, Destination, Source};
-use mpi::Rank;
-
-use crate::simulation::messaging::messages::proto::{StorageCap, SyncMessage, Vehicle};
+use crate::simulation::messaging::messages::proto::{
+    StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
+};
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
 
-pub trait NetCommunicator {
-    fn send_receive<F>(
-        &self,
-        vehicles: HashMap<u32, SyncMessage>,
-        expected_vehicle_messages: &mut HashSet<u32>,
-        now: u32,
-        on_msg: F,
-    ) where
-        F: FnMut(SyncMessage);
-
-    fn rank(&self) -> u32;
+pub struct TravelTimesMessageBroker<C>
+where
+    C: SimCommunicator,
+{
+    communicator: Rc<C>,
 }
 
-pub struct DummyNetCommunicator();
-
-impl NetCommunicator for DummyNetCommunicator {
-    fn send_receive<F>(
-        &self,
-        _vehicles: HashMap<u32, SyncMessage>,
-        _expected_vehicle_messages: &mut HashSet<u32>,
-        _now: u32,
-        _on_msg: F,
-    ) where
-        F: FnMut(SyncMessage),
-    {
-        //info!("Dummy Net Communicator doesn't do anything.")
+impl<C> TravelTimesMessageBroker<C>
+where
+    C: SimCommunicator,
+{
+    pub fn new(communicator: Rc<C>) -> Self {
+        TravelTimesMessageBroker { communicator }
     }
 
-    fn rank(&self) -> u32 {
-        0
-    }
-}
-
-pub struct ChannelNetCommunicator {
-    receiver: Receiver<SyncMessage>,
-    senders: Vec<Sender<SyncMessage>>,
-    rank: u32,
-}
-
-impl ChannelNetCommunicator {
-    pub fn create_n_2_n(num_parts: u32) -> Vec<ChannelNetCommunicator> {
-        let mut senders: Vec<_> = Vec::new();
-        let mut comms: Vec<_> = Vec::new();
-
-        for rank in 0..num_parts {
-            let (sender, receiver) = channel();
-            let comm = ChannelNetCommunicator {
-                receiver,
-                senders: vec![],
-                rank,
-            };
-            senders.push(sender);
-            comms.push(comm);
-        }
-
-        for comm in &mut comms {
-            for sender in &senders {
-                comm.senders.push(sender.clone());
-            }
-        }
-
-        comms
-    }
-}
-
-impl NetCommunicator for ChannelNetCommunicator {
-    fn send_receive<F>(
-        &self,
-        vehicles: HashMap<u32, SyncMessage>,
-        expected_vehicle_messages: &mut HashSet<u32>,
-        now: u32,
-        mut on_msg: F,
-    ) where
-        F: FnMut(SyncMessage),
-    {
-        // send messages to everyone
-        for (target, msg) in vehicles {
-            let sender = self.senders.get(target as usize).unwrap();
-            sender
-                .send(msg)
-                .expect("Failed to send message in message broker");
-        }
-
-        // receive messages from everyone
-        while !expected_vehicle_messages.is_empty() {
-            let received_msg = self
-                .receiver
-                .recv()
-                .expect("Error while receiving messages");
-            let from_rank = received_msg.from_process;
-
-            // If a message was received from a neighbor partition for this very time step, remove
-            // that partition from expected messages which indicates which partitions we are waiting
-            // for
-            if received_msg.time == now {
-                expected_vehicle_messages.remove(&from_rank);
-            }
-
-            // publish the received message to the message broker
-            on_msg(received_msg);
-        }
+    pub fn rank(&self) -> u32 {
+        self.communicator.rank()
     }
 
-    fn rank(&self) -> u32 {
-        self.rank
-    }
-}
-
-pub struct MpiNetCommunicator {
-    pub mpi_communicator: SystemCommunicator,
-}
-
-impl NetCommunicator for MpiNetCommunicator {
-    fn send_receive<F>(
-        &self,
-        out_messages: HashMap<u32, SyncMessage>,
-        expected_vehicle_messages: &mut HashSet<u32>,
-        now: u32,
-        mut on_msg: F,
-    ) where
-        F: FnMut(SyncMessage),
-    {
-        let buf_msg: Vec<_> = out_messages.values().map(|m| (m, m.serialize())).collect();
-
-        // we have to use at least immediate send here. Otherwise we risk blocking on send as explained
-        // in https://paperpile.com/app/p/e209e0b3-9bdb-08c7-8a62-b1180a9ac954 chapter 4.3, 4.4 and 4.12.
-        // The underlying mpi-implementation may wait for the receiver to call a recv variant, and provide
-        // a buffer, where the buffer used for the send operation can be written into. If process 1 and 2
-        // want to send with MPI_Send, which is a blocking operation, both processes will wait, that
-        // the other calls MPI_Recv, which never happens, because both processes are stuck at MPI_Send
-        //
-        // With immediate_send (MPI_Isend) we tell MPI that we are ready to send away the message buffer,
-        // then the same process immediately calls MPI_Recv (blocking) which makes room for a message
-        // buffer. In the case of the above example, both processes are calling MPI_Recv and provide
-        // a buffer to write the message into, which was issued in MPI_Isend.
-        //
-        // The rsmpi library wraps non-blocking mpi-communication into a scope, so that the compiler
-        // can ensure that a buffer is not moved while the request is in progress.
-        mpi::request::multiple_scope(buf_msg.len(), |scope, reqs| {
-            // ------- Send Part ---------
-            for (message, buf) in buf_msg.iter() {
-                let req = self
-                    .mpi_communicator
-                    .process_at_rank(message.to_process as Rank)
-                    .immediate_send(scope, buf);
-                reqs.add(req);
-            }
-
-            // Use blocking MPI_recv here, since we don't have anything to do if there are no other
-            // messages.
-            while !expected_vehicle_messages.is_empty() {
-                let (encoded_msg, _status) = self.mpi_communicator.any_process().receive_vec();
-                let msg = SyncMessage::deserialize(&encoded_msg);
-                let from_rank = msg.from_process;
-
-                // If a message was received from a neighbor partition for this very time step, remove
-                // that partition from expected messages which indicates which partitions we are waiting
-                // for
-                if msg.time == now {
-                    expected_vehicle_messages.remove(&from_rank);
-                }
-
-                on_msg(msg);
-            }
-
-            // wait here, so that all requests finish. This is necessary, because a process might send
-            // more messages than it receives. This happens, if a process sends messages to remote
-            // partitions (teleported legs) but only receives messages from neighbor partitions.
-            reqs.wait_all(&mut Vec::new());
-        });
-    }
-
-    fn rank(&self) -> u32 {
-        self.mpi_communicator.rank() as u32
+    pub fn send_recv(&self, now: u32, travel_times: HashMap<u64, u32>) -> Vec<TravelTimesMessage> {
+        self.communicator
+            .send_receive_travel_times(now, travel_times)
     }
 }
 
 pub struct NetMessageBroker<C>
 where
-    C: NetCommunicator,
+    C: SimCommunicator,
 {
     //communicator: SystemCommunicator,
-    communicator: C,
+    communicator: Rc<C>,
     out_messages: HashMap<u32, SyncMessage>,
     in_messages: BinaryHeap<SyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
@@ -202,9 +49,9 @@ where
 
 impl<C> NetMessageBroker<C>
 where
-    C: NetCommunicator,
+    C: SimCommunicator,
 {
-    pub fn new(comm: C, net: &SimNetworkPartition, global_network: &Network) -> Self {
+    pub fn new(comm: Rc<C>, global_network: &Network, net: &SimNetworkPartition) -> Self {
         let neighbors = net.neighbors().iter().copied().collect();
         let link_mapping = global_network
             .links
@@ -264,7 +111,7 @@ where
         let comm_ref = &self.communicator;
         let in_msgs_ref = &mut self.in_messages;
 
-        comm_ref.send_receive(vehicles, &mut expected_vehicle_messages, now, |msg| {
+        comm_ref.send_receive_vehicles(vehicles, &mut expected_vehicle_messages, now, |msg| {
             Self::handle_incoming_msg(msg, &mut result, in_msgs_ref, now)
         });
 
@@ -317,13 +164,18 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::rc::Rc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::thread;
 
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::message_broker::{ChannelNetCommunicator, NetMessageBroker};
-    use crate::simulation::messaging::messages::proto::Vehicle;
+    use crate::simulation::messaging::communication::communicators::ChannelSimCommunicator;
+    use crate::simulation::messaging::communication::message_broker::{
+        NetMessageBroker, TravelTimesMessageBroker,
+    };
+    use crate::simulation::messaging::messages::proto::{TravelTimesMessage, Vehicle};
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
     use crate::test_utils::create_agent;
@@ -332,7 +184,9 @@ mod tests {
     fn send_recv_empty_msgs() {
         let sends = Arc::new(AtomicUsize::new(0));
 
-        execute_test(move |mut broker| {
+        execute_test(move |communicator| {
+            let mut broker = create_net_message_broker(communicator);
+
             sends.fetch_add(1, Ordering::Relaxed);
             let result = broker.send_recv(0);
 
@@ -365,7 +219,9 @@ mod tests {
     /// Two send_recv steps.
     #[test]
     fn send_recv_local_vehicle_msg() {
-        execute_test(|mut broker| {
+        execute_test(|communicator| {
+            let mut broker = create_net_message_broker(communicator);
+
             // place vehicle into partition 0
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec![2, 6]);
@@ -416,7 +272,9 @@ mod tests {
 
     #[test]
     fn send_recv_remote_message() {
-        execute_test(|mut broker| {
+        execute_test(|communicator| {
+            let mut broker = create_net_message_broker(communicator);
+
             // place vehicle into partition 0 with a future timestamp
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec![6]);
@@ -447,7 +305,9 @@ mod tests {
 
     #[test]
     fn send_recv_local_and_remote_msg() {
-        execute_test(|mut broker| {
+        execute_test(|communicator| {
+            let mut broker = create_net_message_broker(communicator);
+
             if broker.rank() == 0 {
                 // place vehicle into partition 0 with a future timestamp with remote destination
                 let agent = create_agent(0, vec![6]);
@@ -489,9 +349,22 @@ mod tests {
         });
     }
 
+    fn create_net_message_broker(
+        communicator: ChannelSimCommunicator,
+    ) -> NetMessageBroker<ChannelSimCommunicator> {
+        let rank = communicator.rank();
+        let broker = NetMessageBroker::new(
+            Rc::new(communicator),
+            &create_network(),
+            &SimNetworkPartition::from_network(&create_network(), rank, 1.0),
+        );
+        broker
+    }
+
     #[test]
     fn send_recv_storage_cap() {
-        execute_test(|mut broker| {
+        execute_test(|communicator| {
+            let mut broker = create_net_message_broker(communicator);
             // add a storage cap message for link 4, which connects parts 1 -> 2
             if broker.rank() == 2 {
                 broker.add_cap(
@@ -519,27 +392,70 @@ mod tests {
         });
     }
 
+    #[test]
+    fn test_travel_times_message_broker() {
+        execute_test(|communicator| {
+            let broker = TravelTimesMessageBroker::new(Rc::new(communicator));
+
+            let res;
+            if broker.rank() == 0 {
+                let mut travel_times = HashMap::new();
+                travel_times.insert(0, 20);
+                travel_times.insert(1, 20);
+                res = broker.send_recv(42, travel_times)
+            } else if broker.rank() == 1 {
+                let mut travel_times = HashMap::new();
+                travel_times.insert(2, 5);
+                travel_times.insert(3, 5);
+                res = broker.send_recv(42, travel_times)
+            } else if broker.rank() == 2 {
+                let mut travel_times = HashMap::new();
+                travel_times.insert(4, 1);
+                travel_times.insert(5, 1);
+                res = broker.send_recv(42, travel_times)
+            } else {
+                res = broker.send_recv(42, HashMap::new())
+            };
+
+            assert_eq!(res.len(), 4);
+
+            //from rank 0
+            let mut map = HashMap::new();
+            map.insert(0, 20);
+            map.insert(1, 20);
+            assert!(res.contains(&TravelTimesMessage::from(map)));
+
+            //from rank 1
+            let mut map = HashMap::new();
+            map.insert(2, 5);
+            map.insert(3, 5);
+            assert!(res.contains(&TravelTimesMessage::from(map)));
+
+            //from rank 2
+            let mut map = HashMap::new();
+            map.insert(4, 1);
+            map.insert(5, 1);
+            assert!(res.contains(&TravelTimesMessage::from(map)));
+
+            //from rank 3
+            assert!(res.contains(&TravelTimesMessage::new()));
+        })
+    }
+
     fn execute_test<F>(test: F)
     where
-        F: Fn(NetMessageBroker<ChannelNetCommunicator>) + Send + Sync + 'static,
+        F: Fn(ChannelSimCommunicator) + Send + Sync + 'static,
     {
         let network = create_network();
-        let comms = ChannelNetCommunicator::create_n_2_n(network.nodes.len() as u32);
+        let communicators = ChannelSimCommunicator::create_n_2_n(network.nodes.len() as u32);
 
-        let brokers: Vec<_> = comms
-            .into_iter()
-            .map(|comm| {
-                let sim_network = SimNetworkPartition::from_network(&network, comm.rank, 1.0);
-                NetMessageBroker::new(comm, &sim_network, &network)
-            })
-            .collect();
         let mut join_handles = Vec::new();
 
         let test_ref = Arc::new(test);
 
-        for broker in brokers {
+        for c in communicators {
             let cloned_test_ref = test_ref.clone();
-            let handle = thread::spawn(move || cloned_test_ref(broker));
+            let handle = thread::spawn(move || cloned_test_ref(c));
             join_handles.push(handle)
         }
 
@@ -590,9 +506,9 @@ mod tests {
             id: Id::new_internal(id),
             from,
             to,
-            length: 0.0,
+            length: 10.0,
             capacity: 1.0,
-            freespeed: 0.0,
+            freespeed: 1.0,
             permlanes: 0.0,
             modes: Default::default(),
             partition,

@@ -6,6 +6,7 @@ pub mod logging;
 pub mod messaging;
 pub mod network;
 pub mod performance_profiling;
+mod replanning;
 pub mod population;
 mod simulation;
 pub mod time_queue;

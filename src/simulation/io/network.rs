@@ -16,8 +16,8 @@ use crate::simulation::io::xml_reader;
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IONode {
     pub id: String,
-    pub x: f32,
-    pub y: f32,
+    pub x: f64,
+    pub y: f64,
     pub attributes: Option<Attrs>,
 }
 
@@ -32,7 +32,7 @@ pub struct IOLink {
     pub id: String,
     pub from: String,
     pub to: String,
-    pub length: f32,
+    pub length: f64,
     pub capacity: f32,
     pub freespeed: f32,
     pub permlanes: f32,

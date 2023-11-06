@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{arg, Parser};
+use rust_q_sim::simulation::config::PartitionMethod;
 use tracing::info;
 
 use rust_q_sim::simulation::network::global_network::Network;
@@ -14,7 +15,7 @@ fn main() {
         args.in_path, args.num_parts
     );
 
-    let net1 = Network::from_file(&args.in_path, args.num_parts, "metis");
+    let net1 = Network::from_file(&args.in_path, args.num_parts, PartitionMethod::Metis);
     info!(
         "Network is loaded with {} links and {} nodes.",
         net1.links.len(),
