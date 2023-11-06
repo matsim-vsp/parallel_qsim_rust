@@ -32,6 +32,7 @@ nohash-hasher = "0.2.0"
 rand_distr = "0.4.3"
 serde_path_to_error = "0.1.14"
 ahash = "0.8.6"
+xml = "0.8.10"
 
 [build-dependencies]
 # generates types based on .proto files

@@ -13,3 +13,7 @@ mpirun --np "$NUM_PARTS" ./target/release/mpi_qsim\
   --output-dir /Users/janek/Documents/rust_q_sim/output-"$NUM_PARTS"\
   --partition-method none\
   --num-parts "$NUM_PARTS"
+
+./target/release/merge_xml_events\
+ --path /Users/janek/Documents/rust_q_sim/output-"$NUM_PARTS"\
+  --num-parts "$NUM_PARTS"
