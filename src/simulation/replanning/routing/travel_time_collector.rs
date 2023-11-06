@@ -9,61 +9,30 @@ use crate::simulation::messaging::events::EventsSubscriber;
 
 pub struct TravelTimeCollector {
     travel_times_by_link: HashMap<u64, Vec<u32>>,
-    cache_traffic_information_by_link: HashMap<u64, Vec<TrafficInformation>>,
-    current_link_by_vehicle: HashMap<u64, u64>,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-struct TrafficInformation {
-    time: u32,
-    vehicle: u64,
+    cache_enter_time_by_vehicle: HashMap<u64, u32>,
 }
 
 impl TravelTimeCollector {
     pub fn new() -> Self {
         TravelTimeCollector {
             travel_times_by_link: HashMap::new(),
-            cache_traffic_information_by_link: HashMap::new(),
-            current_link_by_vehicle: HashMap::new(),
+            cache_enter_time_by_vehicle: HashMap::new(),
         }
     }
 
     fn process_link_enter_event(&mut self, time: u32, event: &LinkEnterEvent) {
         // link enter events will always be stored
-        self.cache_traffic_information_by_link
-            .entry(event.link)
-            .or_insert(Vec::new())
-            .push(TrafficInformation {
-                time,
-                vehicle: event.vehicle,
-            });
-
-        self.current_link_by_vehicle
-            .insert(event.vehicle, event.link);
+        self.cache_enter_time_by_vehicle.insert(event.vehicle, time);
     }
 
     fn process_link_leave_event(&mut self, time: u32, event: &LinkLeaveEvent) {
-        // find link enter event
-        let index_of_link_enter = self
-            .cache_traffic_information_by_link
-            .entry(event.link)
-            .or_insert(Vec::new())
-            .iter()
-            .position(|e| e.vehicle == event.vehicle);
-
         // remove traffic information of link enter and compute travel time (assumes that a vehicle will leave a link before it enters the same again)
         // if it's None, the LinkLeaveEvent is the begin of a leg, thus no travel time can be computed
-        if let Some(index) = index_of_link_enter {
-            let traffic_information = self
-                .cache_traffic_information_by_link
-                .get_mut(&event.link)
-                .unwrap()
-                .remove(index);
-
+        if let Some(t) = self.cache_enter_time_by_vehicle.remove(&event.vehicle) {
             self.travel_times_by_link
                 .entry(event.link)
                 .or_insert(Vec::new())
-                .push(time - traffic_information.time)
+                .push(time - t)
         }
     }
 
@@ -72,30 +41,7 @@ impl TravelTimeCollector {
         _time: u32,
         event: &PersonLeavesVehicleEvent,
     ) {
-        // if there is no current link id of vehicle of link enter event, cache doesn't have to be cleaned up
-        let link_id = self.current_link_by_vehicle.get(&event.vehicle).copied();
-        if link_id.is_none() {
-            return;
-        }
-
-        let index_of_link_enter =
-            self.get_index_of_link_enter_event(link_id.unwrap(), event.vehicle);
-        if index_of_link_enter.is_none() {
-            return;
-        }
-
-        self.cache_traffic_information_by_link
-            .get_mut(&link_id.unwrap())
-            .unwrap()
-            .remove(index_of_link_enter.unwrap());
-    }
-
-    fn get_index_of_link_enter_event(&mut self, link: u64, vehicle: u64) -> Option<usize> {
-        self.cache_traffic_information_by_link
-            .entry(link)
-            .or_insert(Vec::new())
-            .iter()
-            .position(|t| t.vehicle == vehicle)
+        self.cache_enter_time_by_vehicle.remove(&event.vehicle);
     }
 
     pub fn get_travel_time_of_link(&self, link: u64) -> Option<u32> {
@@ -145,9 +91,7 @@ impl EventsSubscriber for TravelTimeCollector {
 mod test {
     use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::EventsSubscriber;
-    use crate::simulation::replanning::routing::travel_time_collector::{
-        TrafficInformation, TravelTimeCollector,
-    };
+    use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 
     #[test]
     fn test_one_vehicle() {
@@ -161,14 +105,7 @@ mod test {
         assert_eq!(collector.get_travel_times().keys().len(), 1);
         assert_eq!(collector.get_travel_times().get(&2), Some(&2u32));
 
-        assert_eq!(
-            collector
-                .cache_traffic_information_by_link
-                .get(&1)
-                .unwrap()
-                .first(),
-            None
-        )
+        assert_eq!(collector.cache_enter_time_by_vehicle.get(&1), None)
     }
 
     #[test]
@@ -196,28 +133,12 @@ mod test {
         assert_eq!(collector.get_travel_times().keys().len(), 1);
         assert_eq!(collector.get_travel_times().get(&2), Some(&3u32));
 
-        // link 1 has no cached traffic information
-        assert_eq!(
-            collector
-                .cache_traffic_information_by_link
-                .get(&1)
-                .unwrap()
-                .first(),
-            None
-        );
+        // vehicle 1 and 2 have no cached traffic information
+        assert_eq!(collector.cache_enter_time_by_vehicle.get(&1), None);
+        assert_eq!(collector.cache_enter_time_by_vehicle.get(&2), None);
 
-        // link 2 has cached traffic information from vehicle 3
-        assert_eq!(
-            collector
-                .cache_traffic_information_by_link
-                .get(&2)
-                .unwrap()
-                .first(),
-            Some(&TrafficInformation {
-                time: 5,
-                vehicle: 3,
-            })
-        );
+        // vehicle 3 has cached traffic information
+        assert_eq!(collector.cache_enter_time_by_vehicle.get(&3).unwrap(), &5)
     }
 
     #[test]
@@ -229,14 +150,7 @@ mod test {
         collector.receive_event(4, &Event::new_link_leave(1, 1));
 
         assert_eq!(collector.get_travel_time_of_link(1), None);
-        assert_eq!(
-            collector
-                .cache_traffic_information_by_link
-                .get(&1)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_eq!(collector.cache_enter_time_by_vehicle.get(&1), None);
     }
 
     #[test]
@@ -259,13 +173,6 @@ mod test {
 
         assert_eq!(collector.get_travel_time_of_link(1), Some(2));
         assert_eq!(collector.get_travel_time_of_link(2), Some(10));
-        assert_eq!(
-            collector
-                .cache_traffic_information_by_link
-                .get(&1)
-                .unwrap()
-                .len(),
-            0
-        );
+        assert_eq!(collector.cache_enter_time_by_vehicle.get(&1), None);
     }
 }
