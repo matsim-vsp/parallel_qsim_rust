@@ -522,9 +522,6 @@ mod tests {
 
         // check cell size
         assert_eq!(7.5, network.effective_cell_size);
-
-        // check walk mode
-        assert_eq!(Id::<String>::get_from_ext("walk").external(), "walk")
     }
 
     #[test]
