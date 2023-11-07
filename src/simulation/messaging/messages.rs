@@ -10,9 +10,11 @@ use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
+
+use crate::simulation::messaging::messages::proto::sim_message::Type;
 use crate::simulation::messaging::messages::proto::{
-    Activity, Agent, ExperimentalMessage, Leg, Plan, Route, StorageCap, SyncMessage,
-    TravelTimesMessage, Vehicle,
+    Activity, Agent, Leg, Plan, Route, SimMessage, StorageCap, SyncMessage, TravelTimesMessage,
+    Vehicle,
 };
 use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
@@ -22,23 +24,45 @@ pub mod proto {
     include!(concat!(env!("OUT_DIR"), "/mpi.messages.rs"));
 }
 
-impl ExperimentalMessage {
-    pub fn new() -> ExperimentalMessage {
-        ExperimentalMessage {
-            counter: 0,
-            timestamp: 0,
-            additional_message: String::new(),
+impl SimMessage {
+    pub fn sync_message(self) -> SyncMessage {
+        match self.r#type.unwrap() {
+            Type::Sync(m) => m,
+            Type::TravelTimes(_) => {
+                panic!("That message is no sync message.")
+            }
+        }
+    }
+
+    pub fn travel_times_message(self) -> TravelTimesMessage {
+        match self.r#type.unwrap() {
+            Type::Sync(_) => {
+                panic!("That message is no travel times message.")
+            }
+            Type::TravelTimes(t) => t,
+        }
+    }
+
+    pub fn from_sync_message(m: SyncMessage) -> SimMessage {
+        SimMessage {
+            r#type: Some(Type::Sync(m)),
+        }
+    }
+
+    pub fn from_travel_times_message(m: TravelTimesMessage) -> SimMessage {
+        SimMessage {
+            r#type: Some(Type::TravelTimes(m)),
         }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        let mut buf = Vec::with_capacity(self.encoded_len());
-        self.encode(&mut buf).unwrap();
-        buf
+        let mut buffer = Vec::with_capacity(self.encoded_len());
+        self.encode(&mut buffer).unwrap();
+        buffer
     }
 
-    pub fn deserialize(buf: &[u8]) -> ExperimentalMessage {
-        ExperimentalMessage::decode(&mut Cursor::new(buf)).unwrap()
+    pub fn deserialize(buffer: &[u8]) -> SimMessage {
+        SimMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
@@ -60,16 +84,6 @@ impl SyncMessage {
     pub fn add_storage_cap(&mut self, storage_cap: StorageCap) {
         self.storage_capacities.push(storage_cap);
     }
-
-    pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(self.encoded_len());
-        self.encode(&mut buffer).unwrap();
-        buffer
-    }
-
-    pub fn deserialize(buffer: &[u8]) -> SyncMessage {
-        SyncMessage::decode(&mut Cursor::new(buffer)).unwrap()
-    }
 }
 
 impl TravelTimesMessage {
@@ -87,16 +101,6 @@ impl TravelTimesMessage {
 
     pub fn add_travel_time(&mut self, link: u64, travel_time: u32) {
         self.travel_times_by_link_id.insert(link, travel_time);
-    }
-
-    pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(self.encoded_len());
-        self.encode(&mut buffer).unwrap();
-        buffer
-    }
-
-    pub fn deserialize(buffer: &[u8]) -> TravelTimesMessage {
-        TravelTimesMessage::decode(&mut Cursor::new(buffer)).unwrap()
     }
 }
 
@@ -205,6 +209,28 @@ impl Agent {
         self.id
     }
 
+    pub fn add_act_after_curr(&mut self, to_add: Vec<Activity>) {
+        let next_act_index = self.next_act_index() as usize;
+        self.plan
+            .as_mut()
+            .unwrap()
+            .acts
+            .splice(next_act_index..next_act_index, to_add);
+    }
+
+    pub fn replace_next_leg(&mut self, to_add: Vec<Leg>) {
+        let next_leg_index = self.next_leg_index() as usize;
+        //remove next leg
+        self.plan.as_mut().unwrap().legs.remove(next_leg_index);
+
+        //insert legs at next leg index
+        self.plan
+            .as_mut()
+            .unwrap()
+            .legs
+            .splice(next_leg_index..next_leg_index, to_add);
+    }
+
     pub fn curr_act(&self) -> &Activity {
         if self.curr_plan_elem % 2 != 0 {
             panic!("Current element is not an activity");
@@ -265,6 +291,11 @@ impl Agent {
         self.get_leg_at_index(next_leg_index)
     }
 
+    fn next_leg_mut(&mut self) -> &mut Leg {
+        let next_leg_index = self.next_leg_index();
+        self.get_leg_at_index_mut(next_leg_index)
+    }
+
     fn next_leg_index(&self) -> u32 {
         match self.curr_plan_elem % 2 {
             //current element is an activity => one element after is the next leg
@@ -307,6 +338,36 @@ impl Agent {
             .unwrap()
     }
 
+    fn get_leg_at_index_mut(&mut self, index: u32) -> &mut Leg {
+        self.plan
+            .as_mut()
+            .unwrap()
+            .legs
+            .get_mut(index as usize)
+            .unwrap()
+    }
+
+    pub fn update_next_leg(
+        &mut self,
+        dep_time: Option<u32>,
+        travel_time: u32,
+        route: Vec<u64>,
+        distance: f64,
+        vehicle_id: u64,
+    ) {
+        let next_leg = self.next_leg_mut();
+
+        let simulation_route = Route {
+            veh_id: vehicle_id,
+            distance,
+            route,
+        };
+
+        next_leg.dep_time = dep_time;
+        next_leg.trav_time = travel_time;
+        next_leg.route = Some(simulation_route);
+    }
+
     pub fn advance_plan(&mut self) {
         let next = self.curr_plan_elem + 1;
         if self.plan.as_ref().unwrap().acts.len() + self.plan.as_ref().unwrap().legs.len()
@@ -347,10 +408,6 @@ impl Plan {
             panic!("First plan element must be an activity! But was a leg.");
         };
 
-        Plan::get_full_plan_no_routing(io_plan, person_id)
-    }
-
-    fn get_full_plan_no_routing(io_plan: &IOPlan, person_id: &Id<Agent>) -> Plan {
         let mut result = Plan::new();
 
         for element in &io_plan.elements {
@@ -398,8 +455,8 @@ impl Activity {
     }
 
     pub fn new(
-        x: f32,
-        y: f32,
+        x: f64,
+        y: f64,
         act_type: u64,
         link_id: u64,
         start_time: Option<u32>,
@@ -417,6 +474,18 @@ impl Activity {
         }
     }
 
+    pub fn interaction(link_id: u64, act_type: u64) -> Activity {
+        Activity {
+            act_type,
+            link_id,
+            x: 0.0, //dummy value which is never evaluated again
+            y: 0.0, //dummy value which is never evaluated again
+            start_time: None,
+            end_time: None,
+            max_dur: Some(0),
+        }
+    }
+
     fn cmp_end_time(&self, now: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
@@ -426,6 +495,12 @@ impl Activity {
             // supposed to be an equivalent for OptionalTime.undefined() in the java code
             u32::MAX
         }
+    }
+
+    pub fn is_interaction(&self) -> bool {
+        Id::<String>::get(self.act_type)
+            .external()
+            .contains("interaction")
     }
 }
 
@@ -453,6 +528,16 @@ impl Leg {
             trav_time,
             dep_time,
             routing_mode: 0,
+        }
+    }
+
+    pub fn access_eggress(mode: u64) -> Self {
+        Leg {
+            mode,
+            routing_mode: mode,
+            dep_time: None,
+            trav_time: 0,
+            route: None,
         }
     }
 

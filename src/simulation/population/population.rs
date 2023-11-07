@@ -55,6 +55,11 @@ impl Population {
             })
             .collect();
 
+        // add interaction activity type for each vehicle type
+        for (_, id) in raw_veh.iter() {
+            Id::<String>::create(&format!("{} interaction", id.external()));
+        }
+
         // have this in a separate loop because we are iterating over garage's vehicle types and we
         // can't borrow vehicle types while using a &mut in add_veh.
         for (person_id, type_id) in raw_veh {
@@ -74,6 +79,7 @@ impl Population {
             .map(|act| &act.r#type)
             .collect();
 
+        //create id for modes
         for act_type in types {
             Id::<String>::create(act_type.as_str());
         }
@@ -117,6 +123,7 @@ impl Population {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::PartitionMethod;
     use std::collections::HashSet;
 
     use crate::simulation::id::Id;
@@ -127,7 +134,11 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 1, "metis");
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
         let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
 
@@ -171,7 +182,11 @@ mod tests {
 
     #[test]
     fn from_io_multi_mode() {
-        let net = Network::from_file("./assets/3-links/3-links-network.xml", 1, "metis");
+        let net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
         let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
 
@@ -191,6 +206,16 @@ mod tests {
         assert_eq!("home", Id::<String>::get_from_ext("home").external());
         assert_eq!("errands", Id::<String>::get_from_ext("errands").external());
 
+        // each of the network mode should also have an interaction activity type
+        assert_eq!(
+            "car interaction",
+            Id::<String>::get_from_ext("car interaction").external()
+        );
+        assert_eq!(
+            "bike interaction",
+            Id::<String>::get_from_ext("bike interaction").external()
+        );
+
         // agents should also have ids
         assert_eq!("100", Id::<Agent>::get_from_ext("100").external());
         assert_eq!("200", Id::<Agent>::get_from_ext("200").external());
@@ -204,7 +229,11 @@ mod tests {
 
     #[test]
     fn from_io() {
-        let net = Network::from_file("./assets/equil/equil-network.xml", 2, "metis");
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis,
+        );
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
         let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
         let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);

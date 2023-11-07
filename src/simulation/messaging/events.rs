@@ -191,7 +191,7 @@ impl Event {
         }
     }
 
-    pub fn new_travelled(person: u64, distance: f32, mode: u64) -> Event {
+    pub fn new_travelled(person: u64, distance: f64, mode: u64) -> Event {
         Event {
             r#type: Some(Travelled(TravelledEvent {
                 person,

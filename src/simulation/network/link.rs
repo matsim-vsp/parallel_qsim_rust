@@ -25,6 +25,26 @@ impl SimLink {
         }
     }
 
+    pub fn from(&self) -> &Id<Node> {
+        match self {
+            SimLink::Local(l) => l.from(),
+            SimLink::In(l) => l.local_link.from(),
+            SimLink::Out(_) => {
+                panic!("There is no from_id of a split out link.")
+            }
+        }
+    }
+
+    pub fn to(&self) -> &Id<Node> {
+        match self {
+            SimLink::Local(l) => l.to(),
+            SimLink::In(l) => l.local_link.to(),
+            SimLink::Out(_) => {
+                panic!("There is no from_id of a split out link.")
+            }
+        }
+    }
+
     pub fn neighbor_part(&self) -> u32 {
         match self {
             SimLink::Local(_) => {
@@ -116,7 +136,7 @@ impl SimLink {
 pub struct LocalLink {
     pub id: Id<Link>,
     q: VecDeque<VehicleQEntry>,
-    length: f32,
+    length: f64,
     free_speed: f32,
     storage_cap: StorageCap,
     flow_cap: Flowcap,
@@ -163,7 +183,7 @@ impl LocalLink {
         capacity_h: f32,
         free_speed: f32,
         perm_lanes: f32,
-        length: f32,
+        length: f64,
         sample_size: f32,
         effective_cell_size: f32,
         from: Id<Node>,
@@ -192,7 +212,7 @@ impl LocalLink {
 
     pub fn push_veh(&mut self, vehicle: Vehicle, now: u32) {
         let speed = self.free_speed.min(vehicle.max_v);
-        let duration = 1.max((self.length / speed) as u32); // at least 1 second per link
+        let duration = 1.max((self.length / speed as f64) as u32); // at least 1 second per link
         let earliest_exit_time = now + duration;
 
         // update state
@@ -246,6 +266,14 @@ impl LocalLink {
 
     pub fn used_storage(&self) -> f32 {
         self.storage_cap.used
+    }
+
+    pub fn from(&self) -> &Id<Node> {
+        &self.from
+    }
+
+    pub fn to(&self) -> &Id<Node> {
+        &self.to
     }
 }
 
@@ -484,6 +512,7 @@ mod sim_link_tests {
 mod local_link_tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::link::LocalLink;
+    use assert_approx_eq::assert_approx_eq;
 
     #[test]
     fn storage_cap_initialized_default() {
@@ -500,7 +529,7 @@ mod local_link_tests {
         );
 
         // we expect a storage size of 100 * 3 * 0.2 / 7.5 = 8
-        assert_eq!(8., link.storage_cap.max);
+        assert_approx_eq!(8., link.storage_cap.max);
     }
 
     #[test]

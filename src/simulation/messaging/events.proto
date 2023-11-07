@@ -75,6 +75,6 @@ message ArrivalEvent {
 
 message TravelledEvent {
   uint64 person = 1;
-  float distance = 2;
   uint64 mode = 3;
+  double distance = 2;
 }

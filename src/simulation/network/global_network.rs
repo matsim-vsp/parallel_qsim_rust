@@ -1,8 +1,10 @@
 use std::str::FromStr;
 use std::{collections::HashSet, path::Path};
 
+use itertools::Itertools;
 use nohash_hasher::IntSet;
 
+use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::io::network::{IOLink, IONetwork, IONode};
@@ -10,7 +12,7 @@ use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 use super::metis_partitioning;
 
 /// This is called global network but could also be renamed into network when things are sorted out a little
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Network {
     pub nodes: Vec<Node>,
     pub links: Vec<Link>,
@@ -19,8 +21,8 @@ pub struct Network {
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    pub x: f32,
-    pub y: f32,
+    pub x: f64,
+    pub y: f64,
     pub id: Id<Node>,
     pub in_links: Vec<Id<Link>>,
     pub out_links: Vec<Id<Link>>,
@@ -32,7 +34,7 @@ pub struct Link {
     pub id: Id<Link>,
     pub from: Id<Node>,
     pub to: Id<Node>,
-    pub length: f32,
+    pub length: f64,
     pub capacity: f32,
     pub freespeed: f32,
     pub permlanes: f32,
@@ -55,7 +57,7 @@ impl Network {
         }
     }
 
-    pub fn from_file(file_path: &str, num_parts: u32, partition_method: &str) -> Self {
+    pub fn from_file(file_path: &str, num_parts: u32, partition_method: PartitionMethod) -> Self {
         let io_network = IONetwork::from_file(file_path);
         let mut result = Network::new();
         Self::init_nodes_and_links(&mut result, io_network);
@@ -204,6 +206,10 @@ impl Network {
         self.links.get(id.internal() as usize).unwrap()
     }
 
+    pub fn get_link_form_internal(&self, id: u64) -> &Link {
+        self.links.get(id as usize).unwrap()
+    }
+
     fn init_nodes_and_links(network: &mut Network, io_network: IONetwork) {
         for node in io_network.nodes.nodes {
             network.add_io_node(node)
@@ -214,28 +220,53 @@ impl Network {
         }
     }
 
-    fn partition_network(network: &mut Network, partition_method: &str, num_parts: u32) {
-        if partition_method.eq("metis") {
-            let partitions = metis_partitioning::partition(network, num_parts);
-            for node in network.nodes.iter_mut() {
-                let partition = partitions[node.id.internal() as usize] as u32;
-                node.partition = partition;
+    fn partition_network(network: &mut Network, partition_method: PartitionMethod, num_parts: u32) {
+        match partition_method {
+            PartitionMethod::Metis => {
+                let partitions = metis_partitioning::partition(network, num_parts);
+                for node in network.nodes.iter_mut() {
+                    let partition = partitions[node.id.internal() as usize] as u32;
+                    node.partition = partition;
 
-                for link_id in &node.in_links {
-                    let link = network.links.get_mut(link_id.internal() as usize).unwrap();
-                    link.partition = partition;
+                    for link_id in &node.in_links {
+                        let link = network.links.get_mut(link_id.internal() as usize).unwrap();
+                        link.partition = partition;
+                    }
                 }
             }
-        } else if partition_method.eq("none") {
-            return;
-        } else {
-            panic!("Unknown partition method: {}", partition_method);
+            PartitionMethod::None => {
+                // We can have the situation, that someone specified more partitions in the network file than the actual simulation is started with.
+                // Since the partitioning should normally be precomputed with the same number, it's ok to not check this here.
+                // But for testing purposes (compare base case with 1 partition and with more) we reset the partition of the nodes in that case.
+                if num_parts == 1 {
+                    for n in network.nodes.iter_mut() {
+                        n.partition = 0;
+                    }
+                    for l in network.links.iter_mut() {
+                        l.partition = 0;
+                    }
+                }
+            }
         }
+    }
+
+    pub fn get_all_links_sorted(&self) -> Vec<&Link> {
+        self.links
+            .iter()
+            .sorted_by_key(|&l| &l.id)
+            .collect::<Vec<&Link>>()
+    }
+
+    pub fn get_all_nodes_sorted(&self) -> Vec<&Node> {
+        self.nodes
+            .iter()
+            .sorted_by_key(|&n| &n.id)
+            .collect::<Vec<&Node>>()
     }
 }
 
 impl Node {
-    pub fn new(id: Id<Node>, x: f32, y: f32) -> Self {
+    pub fn new(id: Id<Node>, x: f64, y: f64) -> Self {
         Node {
             id,
             x,
@@ -253,7 +284,7 @@ impl Link {
         id: Id<Link>,
         from: Id<Node>,
         to: Id<Node>,
-        length: f32,
+        length: f64,
         capacity: f32,
         freespeed: f32,
         permlanes: f32,
@@ -286,10 +317,15 @@ impl Link {
             HashSet::default(),
         )
     }
+
+    pub fn contains_mode(&self, mode: u64) -> bool {
+        self.modes.iter().map(|m| m.internal()).contains(&mode)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::io::network::{IOLink, IONode};
 
@@ -445,7 +481,11 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let network = Network::from_file("./assets/equil/equil-network.xml", 2, "metis");
+        let network = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis,
+        );
 
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
