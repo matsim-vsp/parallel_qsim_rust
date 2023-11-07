@@ -23,6 +23,8 @@ pub struct Id<T> {
     id: Rc<UntypedId>,
 }
 
+pub const STRING_TYPE_ID: u64 = 1;
+
 impl<T: 'static> Id<T> {
     fn new(untyped_id: Rc<UntypedId>) -> Self {
         Self {

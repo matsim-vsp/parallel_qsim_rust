@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
-use crate::simulation::messaging::messages::proto::StorageCap;
+use crate::simulation::id::Id;
+use crate::simulation::messaging::messages::proto::{Agent, StorageCap};
 use crate::simulation::messaging::{
     events::{proto::Event, EventsPublisher},
     messages::proto::Vehicle,
@@ -162,10 +163,12 @@ impl SimNetworkPartition {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
         let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
+            let agent_id = Id::<Agent>::get(vehicle.agent().id());
             panic!(
-                "#{} Couldn't find link for id {}.\n\n The vehicle: {:?}",
+                "#{} Couldn't find link for id {:?}.for Agent {}. \n\n The vehicle: {:?}",
                 self.partition,
-                link_id,
+                Id::<Link>::get(link_id),
+                agent_id.external(),
                 //self.global_network.get_link(&full_id),
                 vehicle
             );

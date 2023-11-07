@@ -98,11 +98,6 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>)
     );
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
-    // write network with new ids to output but only once.
-    if rank == 0 {
-        network.to_file(&output_path.join("output_network.xml.gz"));
-    }
-
     let population: Population =
         Population::from_file(config.population_file.as_ref(), &network, &mut garage, rank);
     let network_partition = SimNetworkPartition::from_network(&network, rank, config.sample_size);

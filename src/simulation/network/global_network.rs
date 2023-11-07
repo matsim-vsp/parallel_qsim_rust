@@ -78,7 +78,6 @@ impl Network {
             };
             let io_node = IONode {
                 id: node.id.external().to_string(),
-                //id: node.id.internal().to_string(), // todo replace this with external id, once all output is written using external ids
                 x: node.x,
                 y: node.y,
                 attributes: Some(attributes),
@@ -103,11 +102,8 @@ impl Network {
 
             let io_link = IOLink {
                 id: link.id.external().to_string(),
-                //id: link.id.internal().to_string(), // todo replace with external id again, once all output translates to external ids
                 from: link.from.external().to_string(),
-                //from: link.from.internal().to_string(),
                 to: link.to.external().to_string(),
-                //to: link.to.internal().to_string(),
                 length: link.length,
                 capacity: link.capacity,
                 freespeed: link.freespeed,

@@ -34,6 +34,7 @@ serde_path_to_error = "0.1.14"
 geo = "0.26.0"
 ahash = "0.8.6"
 keyed_priority_queue = "0.4.1"
+xml = "0.8.10"
 
 [build-dependencies]
 # generates types based on .proto files

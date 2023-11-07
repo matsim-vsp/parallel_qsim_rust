@@ -51,7 +51,7 @@ impl Population {
                 garage
                     .vehicle_types
                     .keys()
-                    .map(move |type_id| (p_id.clone(), type_id.clone())) //Self::create_veh_id_string(&p_id, type_id))
+                    .map(move |type_id| (p_id.clone(), type_id.clone()))
             })
             .collect();
 
@@ -95,6 +95,7 @@ impl Population {
             .persons
             .iter()
             .filter(|io_p| Self::is_partition(io_p, net, part))
+            //.filter(|io_p| io_p.id.eq("1267938")) // take failing agent.
             .map(Agent::from_io)
             .collect();
 

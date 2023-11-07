@@ -1,8 +1,0 @@
-export RUST_BACKTRACE=1
-cargo run --release --bin local_qsim --\
-  --network-file /Users/janek/Documents/rust_q_sim/input/rvr.network.8.xml.gz\
-  --population-file /Users/janek/Documents/rust_q_sim/input/rvr.1pct.plans.xml.gz\
-  --vehicles-file /Users/janek/Documents/rust_q_sim/input/rvr.vehicles.xml\
-  --output-dir /Users/janek/Documents/rust_q_sim/output-wip\
-  --partition-method none\
-  --num-parts 8

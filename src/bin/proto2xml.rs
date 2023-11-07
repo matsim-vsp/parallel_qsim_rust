@@ -33,7 +33,7 @@ fn main() {
     let mut readers = Vec::new();
     println!("Reading from Files: ");
     for i in 0..args.num_parts {
-        let file_string = format!("{}.{i}.pbf", args.path);
+        let file_string = format!("{}events.{i}.pbf", args.path);
         println!("\t {}", file_string);
         let file_path = PathBuf::from(file_string);
         let reader = EventsReader::from_file(&file_path);
