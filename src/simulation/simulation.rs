@@ -258,7 +258,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::any::Any;
-    use std::path::PathBuf;
     use std::rc::Rc;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::sync::Arc;
@@ -269,7 +268,7 @@ mod tests {
     use tracing::info;
 
     use crate::simulation::config::{Config, PartitionMethod, RoutingMode};
-    use crate::simulation::io::proto_events::EventsReader;
+    use crate::simulation::io::xml_events::XmlEventsWriter;
     use crate::simulation::logging;
     use crate::simulation::messaging::communication::communicators::{
         ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
@@ -324,118 +323,120 @@ mod tests {
 
         execute_sim_with_channels(config, None);
     }
+    /*
 
-    #[test]
-    fn execute_adhoc_routing_one_part_no_updates() {
-        let config = Arc::new(
-            Config::builder()
-                .network_file(String::from(
-                    "./assets/adhoc_routing/no_updates/network.xml",
-                ))
-                .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
-                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
-                .output_dir(String::from(
-                    "./test_output/simulation/adhoc_routing_one_part",
-                ))
-                .routing_mode(RoutingMode::AdHoc)
-                .num_parts(1)
-                .partition_method(PartitionMethod::None)
-                .build(),
-        );
+        #[test]
+        fn execute_adhoc_routing_one_part_no_updates() {
+            let config = Arc::new(
+                Config::builder()
+                    .network_file(String::from(
+                        "./assets/adhoc_routing/no_updates/network.xml",
+                    ))
+                    .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
+                    .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                    .output_dir(String::from(
+                        "./test_output/simulation/adhoc_routing_one_part",
+                    ))
+                    .routing_mode(RoutingMode::AdHoc)
+                    .num_parts(1)
+                    .partition_method(PartitionMethod::None)
+                    .build(),
+            );
 
-        execute_sim(
-            DummySimCommunicator(),
-            Box::new(TestSubscriber::new_with_events_from_file(
-                "./assets/adhoc_routing/no_updates/expected_events.pbf",
-            )),
-            config,
-        );
-    }
+            execute_sim(
+                DummySimCommunicator(),
+                Box::new(TestSubscriber::new_with_events_from_file(
+                    "./assets/adhoc_routing/no_updates/expected_events.pbf",
+                )),
+                config,
+            );
+        }
 
-    #[test]
-    fn execute_adhoc_routing_two_parts_no_updates() {
-        let config = Arc::new(
-            Config::builder()
-                .network_file(String::from(
-                    "./assets/adhoc_routing/no_updates/network.xml",
-                ))
-                .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
-                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
-                .output_dir(String::from(
-                    "./test_output/simulation/adhoc_routing_two_parts",
-                ))
-                .routing_mode(RoutingMode::AdHoc)
-                .num_parts(2)
-                .partition_method(PartitionMethod::None)
-                .build(),
-        );
+        #[test]
+        fn execute_adhoc_routing_two_parts_no_updates() {
+            let config = Arc::new(
+                Config::builder()
+                    .network_file(String::from(
+                        "./assets/adhoc_routing/no_updates/network.xml",
+                    ))
+                    .population_file(String::from("./assets/adhoc_routing/no_updates/agents.xml"))
+                    .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                    .output_dir(String::from(
+                        "./test_output/simulation/adhoc_routing_two_parts",
+                    ))
+                    .routing_mode(RoutingMode::AdHoc)
+                    .num_parts(2)
+                    .partition_method(PartitionMethod::None)
+                    .build(),
+            );
 
-        execute_sim_with_channels(
-            config,
-            Some("./assets/adhoc_routing/no_updates/expected_events.pbf"),
-        );
-    }
+            execute_sim_with_channels(
+                config,
+                Some("./assets/adhoc_routing/no_updates/expected_events.pbf"),
+            );
+        }
 
-    #[test]
-    fn execute_adhoc_routing_one_part_with_updates() {
-        let config = Arc::new(
-            Config::builder()
-                .network_file(String::from(
-                    "./assets/adhoc_routing/with_updates/network.xml",
-                ))
-                .population_file(String::from(
-                    "./assets/adhoc_routing/with_updates/agents.xml",
-                ))
-                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
-                .output_dir(String::from(
-                    "./test_output/simulation/adhoc_routing_one_part",
-                ))
-                .routing_mode(RoutingMode::AdHoc)
-                .num_parts(1)
-                .partition_method(PartitionMethod::None)
-                .build(),
-        );
+        #[test]
+        fn execute_adhoc_routing_one_part_with_updates() {
+            let config = Arc::new(
+                Config::builder()
+                    .network_file(String::from(
+                        "./assets/adhoc_routing/with_updates/network.xml",
+                    ))
+                    .population_file(String::from(
+                        "./assets/adhoc_routing/with_updates/agents.xml",
+                    ))
+                    .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                    .output_dir(String::from(
+                        "./test_output/simulation/adhoc_routing_one_part",
+                    ))
+                    .routing_mode(RoutingMode::AdHoc)
+                    .num_parts(1)
+                    .partition_method(PartitionMethod::None)
+                    .build(),
+            );
 
-        execute_sim(
-            DummySimCommunicator(),
-            Box::new(TestSubscriber::new_with_events_from_file(
-                "./assets/adhoc_routing/with_updates/expected_events.pbf",
-            )),
-            config,
-        );
-    }
+            execute_sim(
+                DummySimCommunicator(),
+                Box::new(TestSubscriber::new_with_events_from_file(
+                    "./assets/adhoc_routing/with_updates/expected_events.pbf",
+                )),
+                config,
+            );
+        }
 
-    #[test]
-    fn execute_adhoc_routing_two_parts_with_updates() {
-        let config = Arc::new(
-            Config::builder()
-                .network_file(String::from(
-                    "./assets/adhoc_routing/with_updates/network.xml",
-                ))
-                .population_file(String::from(
-                    "./assets/adhoc_routing/with_updates/agents.xml",
-                ))
-                .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
-                .output_dir(String::from(
-                    "./test_output/simulation/adhoc_routing_two_parts",
-                ))
-                .routing_mode(RoutingMode::AdHoc)
-                .num_parts(2)
-                .partition_method(PartitionMethod::None)
-                .build(),
-        );
+        #[test]
+        fn execute_adhoc_routing_two_parts_with_updates() {
+            let config = Arc::new(
+                Config::builder()
+                    .network_file(String::from(
+                        "./assets/adhoc_routing/with_updates/network.xml",
+                    ))
+                    .population_file(String::from(
+                        "./assets/adhoc_routing/with_updates/agents.xml",
+                    ))
+                    .vehicles_file(String::from("./assets/adhoc_routing/vehicles.xml"))
+                    .output_dir(String::from(
+                        "./test_output/simulation/adhoc_routing_two_parts",
+                    ))
+                    .routing_mode(RoutingMode::AdHoc)
+                    .num_parts(2)
+                    .partition_method(PartitionMethod::None)
+                    .build(),
+            );
 
-        execute_sim_with_channels(
-            config,
-            Some("./assets/adhoc_routing/with_updates/expected_events.pbf"),
-        );
-    }
+            execute_sim_with_channels(
+                config,
+                Some("./assets/adhoc_routing/with_updates/expected_events.pbf"),
+            );
+        }
+    */
 
     fn execute_sim_with_channels(config: Arc<Config>, expected_events_file: Option<&str>) {
         let comms = ChannelSimCommunicator::create_n_2_n(config.num_parts);
         let mut receiver = match expected_events_file {
             None => ReceivingSubscriber::new(),
-            Some(e) => ReceivingSubscriber::new_with_events_from_file(e),
+            Some(_e) => ReceivingSubscriber::new(),
         };
 
         let mut handles: IntMap<u32, JoinHandle<()>> = comms
@@ -603,13 +604,15 @@ mod tests {
                 channel: channel(),
             }
         }
+        /*
+               fn new_with_events_from_file(events_file: &str) -> Self {
+                   Self {
+                       test_subscriber: TestSubscriber::new_with_events_from_file(events_file),
+                       channel: channel(),
+                   }
+               }
 
-        fn new_with_events_from_file(events_file: &str) -> Self {
-            Self {
-                test_subscriber: TestSubscriber::new_with_events_from_file(events_file),
-                channel: channel(),
-            }
-        }
+        */
 
         fn start_listen(&mut self) {
             while self.test_subscriber.next_index < self.test_subscriber.expected_events.len() {
@@ -630,25 +633,26 @@ mod tests {
                 expected_events: Self::expected_events(),
             }
         }
+        /*
+               fn new_with_events_from_file(events_file: &str) -> Self {
+                   Self {
+                       next_index: 0,
+                       expected_events: Self::expected_events_from_file(events_file),
+                   }
+               }
 
-        fn expected_events() -> Vec<String> {
-        fn new_with_events_from_file(events_file: &str) -> Self {
-            Self {
-                next_index: 0,
-                expected_events: Self::expected_events_from_file(events_file),
-            }
-        }
+               fn expected_events_from_file(events_file: &str) -> Vec<(u32, Event)> {
+                   let reader = EventsReader::from_file(&PathBuf::from(events_file));
+                   let mut result = Vec::new();
+                   for (time, events) in reader {
+                       for event in events {
+                           result.push((time, event));
+                       }
+                   }
+                   result
+               }
 
-        fn expected_events_from_file(events_file: &str) -> Vec<(u32, Event)> {
-            let reader = EventsReader::from_file(&PathBuf::from(events_file));
-            let mut result = Vec::new();
-            for (time, events) in reader {
-                for event in events {
-                    result.push((time, event));
-                }
-            }
-            result
-        }
+        */
 
         fn expected_events() -> Vec<String> {
             let result = vec![

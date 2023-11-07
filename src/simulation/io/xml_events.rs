@@ -222,7 +222,7 @@ fn handle_arrival(attr: Vec<OwnedAttribute>) -> Event {
 
 fn travelled(attr: Vec<OwnedAttribute>) -> Event {
     let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
-    let dist: f32 = attr.get(3).unwrap().value.parse().unwrap();
+    let dist: f64 = attr.get(3).unwrap().value.parse().unwrap();
     let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
     Event::new_travelled(person.internal(), dist, mode.internal())
 }
