@@ -38,7 +38,7 @@ fn main() {
 
     let mut publisher = EventsPublisher::new();
     publisher.add_subscriber(Box::new(XmlEventsWriter::new(
-        &PathBuf::from(&args.path).join("/events.xml"),
+        &PathBuf::from(&args.path).join("events.xml"),
     )));
 
     info!("Starting to read events files.");

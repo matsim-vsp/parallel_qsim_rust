@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
 
-use itertools::Itertools;
 use tracing::info;
 use xml::attribute::OwnedAttribute;
 use xml::reader::XmlEvent;
