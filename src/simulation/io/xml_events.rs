@@ -152,28 +152,6 @@ impl XmlEventsReader {
             }
         }
     }
-
-    /*  pub fn read(&self, events_file: &Path, publisher: &mut EventsPublisher) {
-         for event in &self.parser {
-             match event {
-                 Ok(XmlEvent::StartElement {
-                     name, attributes, ..
-                 }) => {
-                     if name.local_name.eq("event") {
-                         let time: u32 = attributes.get(0).unwrap().value.parse().unwrap();
-                         let event = handle(attributes);
-                         publisher.publish_event(time, &event);
-                     }
-                 }
-                 Err(_) => {}
-                 _ => {}
-             }
-         }
-
-         println!("done")
-     }
-
-    */
 }
 
 fn handle(attr: Vec<OwnedAttribute>) -> Event {

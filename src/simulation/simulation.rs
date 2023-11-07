@@ -130,7 +130,6 @@ where
                         // logic independent of whether the agent has a Generic-Route with only start
                         // and end link or a full Network-Route, which is often the case for ride modes.
                         vehicle.route_index_to_last();
-                        //info!("#{} add vehicle to msg broker.", self.message_broker.rank());
                         self.net_message_broker.add_veh(vehicle, now);
                     }
                 }
