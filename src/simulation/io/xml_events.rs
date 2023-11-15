@@ -9,11 +9,12 @@ use xml::reader::XmlEvent;
 use xml::EventReader;
 
 use crate::simulation::id::Id;
-use crate::simulation::messaging::events::proto::event::Type;
-use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsSubscriber;
-use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::global_network::Link;
+use crate::simulation::wire_types::events::event::Type;
+use crate::simulation::wire_types::events::Event;
+use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::wire_types::population::Person;
 
 pub struct XmlEventsWriter {
     writer: BufWriter<File>,
@@ -41,13 +42,13 @@ impl XmlEventsWriter {
             }
             Type::ActStart(e) => {
                 format!("<event time=\"{time}\" type=\"actstart\" person=\"{}\" link=\"{}\" actType=\"{}\" />\n",
-                        Id::<Agent>::get(e.person).external(),
+                        Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.act_type).external())
             }
             Type::ActEnd(e) => {
                 format!("<event time=\"{time}\" type=\"actend\" person=\"{}\" link=\"{}\" actType=\"{}\" />\n",
-                        Id::<Agent>::get(e.person).external(),
+                        Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.act_type).external())
             }
@@ -67,27 +68,27 @@ impl XmlEventsWriter {
             }
             Type::PersonEntersVeh(e) => {
                 format!("<event time=\"{time}\" type=\"PersonEntersVehicle\" person=\"{}\" vehicle=\"{}\" />\n",
-                        Id::<Agent>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
+                        Id::<Person>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
             }
             Type::PersonLeavesVeh(e) => {
                 format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\" />\n",
-                        Id::<Agent>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
+                        Id::<Person>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
             }
             Type::Departure(e) => {
                 format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n",
-                        Id::<Agent>::get(e.person).external(),
+                        Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.leg_mode).external())
             }
             Type::Arrival(e) => {
                 format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n",
-                        Id::<Agent>::get(e.person).external(),
+                        Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.leg_mode).external())
             }
             Type::Travelled(e) => {
                 format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\" />\n",
-                        Id::<Agent>::get(e.person).external(),
+                        Id::<Person>::get(e.person).external(),
                         e.distance,
                         Id::<String>::get(e.mode).external())
             }
@@ -171,48 +172,48 @@ fn handle(attr: Vec<OwnedAttribute>) -> Event {
 }
 
 fn handle_act_end(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<Person> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
     let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
     Event::new_act_end(person.internal(), link.internal(), act_type.internal())
 }
 
 fn handle_act_start(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<Person> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
     let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
     Event::new_act_start(person.internal(), link.internal(), act_type.internal())
 }
 
 fn handle_departure(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<Person> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
     let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
     Event::new_departure(person.internal(), link.internal(), mode.internal())
 }
 
 fn handle_arrival(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<Person> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
     let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
     Event::new_arrival(person.internal(), link.internal(), mode.internal())
 }
 
 fn travelled(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<Person> = Id::create(&attr.get(2).unwrap().value);
     let dist: f64 = attr.get(3).unwrap().value.parse().unwrap();
     let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
     Event::new_travelled(person.internal(), dist, mode.internal())
 }
 
 fn handle_person_enters_veh(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<Person> = Id::create(&attr.get(2).unwrap().value);
     let vehicle: Id<Vehicle> = Id::create(&attr.get(3).unwrap().value);
     Event::new_person_enters_veh(person.internal(), vehicle.internal())
 }
 
 fn handle_person_leaves_veh(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<Agent> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<Person> = Id::create(&attr.get(2).unwrap().value);
     let vehicle: Id<Vehicle> = Id::create(&attr.get(3).unwrap().value);
     Event::new_person_leaves_veh(person.internal(), vehicle.internal())
 }

@@ -2,10 +2,10 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use crate::simulation::id::Id;
-use crate::simulation::messaging::messages::proto::Vehicle;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::global_network::Node;
 use crate::simulation::network::storage_cap::StorageCap;
+use crate::simulation::wire_types::messages::Vehicle;
 
 use super::global_network::Link;
 
@@ -345,8 +345,8 @@ mod sim_link_tests {
     use assert_approx_eq::assert_approx_eq;
 
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::link::{LocalLink, SimLink};
+    use crate::simulation::wire_types::messages::Vehicle;
     use crate::test_utils::create_agent;
 
     #[test]
@@ -510,9 +510,10 @@ mod sim_link_tests {
 
 #[cfg(test)]
 mod local_link_tests {
+    use assert_approx_eq::assert_approx_eq;
+
     use crate::simulation::id::Id;
     use crate::simulation::network::link::LocalLink;
-    use assert_approx_eq::assert_approx_eq;
 
     #[test]
     fn storage_cap_initialized_default() {
@@ -571,9 +572,9 @@ mod local_link_tests {
 #[cfg(test)]
 mod out_link_tests {
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::messages::proto::Vehicle;
     use crate::simulation::network::link::{SimLink, SplitOutLink};
     use crate::simulation::network::storage_cap::StorageCap;
+    use crate::simulation::wire_types::messages::Vehicle;
     use crate::test_utils::create_agent;
 
     #[test]

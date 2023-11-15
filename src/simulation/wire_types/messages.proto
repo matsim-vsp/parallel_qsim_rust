@@ -1,0 +1,39 @@
+syntax = "proto3";
+package messages;
+
+import "simulation/wire_types/population.proto";
+
+message SimMessage{
+  oneof type {
+    SyncMessage sync = 1;
+    TravelTimesMessage travel_times = 2;
+  }
+}
+
+message TravelTimesMessage {
+  map<uint64, uint32> travel_times_by_link_id = 1;
+}
+
+// messages for the qsim
+message SyncMessage {
+  uint32 time = 1;
+  uint32 from_process = 2;
+  uint32 to_process = 3;
+  repeated Vehicle vehicles = 4;
+  repeated StorageCap storage_capacities = 5;
+}
+
+message StorageCap {
+  uint64 link_id = 1;
+  float value = 2;
+}
+
+message Vehicle {
+  uint64 id = 1;
+  uint32 curr_route_elem = 2;
+  uint64 type = 3;
+  float max_v = 4;
+  float pce = 5;
+  population.Person agent = 6;
+  // this must be extended once more people use one vehicle
+}

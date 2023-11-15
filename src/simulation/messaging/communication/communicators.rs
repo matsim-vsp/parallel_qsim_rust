@@ -1,11 +1,13 @@
-use crate::simulation::messaging::messages::proto::{SimMessage, SyncMessage, TravelTimesMessage};
+use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::{channel, Receiver, Sender};
+
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, SystemCommunicator};
 use mpi::{Count, Rank};
-use std::collections::{HashMap, HashSet};
-use std::sync::mpsc::{channel, Receiver, Sender};
+
+use crate::simulation::wire_types::messages::{SimMessage, SyncMessage, TravelTimesMessage};
 
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(

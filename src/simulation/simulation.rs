@@ -6,21 +6,22 @@ use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-use crate::simulation::messaging::events::proto::Event;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
 use crate::simulation::replanning::replanner::Replanner;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
+use crate::simulation::wire_types::events::Event;
+use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::wire_types::population::Person;
 
 pub struct Simulation<C>
 where
     C: SimCommunicator,
 {
-    activity_q: TimeQueue<Agent>,
+    activity_q: TimeQueue<Person>,
     teleportation_q: TimeQueue<Vehicle>,
     network: SimNetworkPartition,
     garage: Garage,
@@ -44,7 +45,7 @@ where
     ) -> Self {
         let mut activity_q = TimeQueue::new();
 
-        // take agents and copy them into queues. This way we can keep population around to translate
+        // take Persons and copy them into queues. This way we can keep population around to translate
         // ids for events processing...
         let agents = std::mem::take(&mut population.agents);
 
@@ -137,7 +138,7 @@ where
         }
     }
 
-    fn departure(&mut self, mut agent: Agent, now: u32) -> Vehicle {
+    fn departure(&mut self, mut agent: Person, now: u32) -> Vehicle {
         //here, current element counter is going to be increased
         agent.advance_plan();
 
@@ -155,7 +156,7 @@ where
         self.garage.unpark_veh(agent, &veh_id)
     }
 
-    fn update_agent(&mut self, agent: &mut Agent, now: u32) {
+    fn update_agent(&mut self, agent: &mut Person, now: u32) {
         self.replanner.replan(now, agent, &self.garage)
     }
 
@@ -273,7 +274,6 @@ mod tests {
         ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
     };
     use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-    use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -284,6 +284,7 @@ mod tests {
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::simulation::Simulation;
     use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::wire_types::events::Event;
 
     #[test]
     fn execute_3_links_single_part() {

@@ -1,0 +1,10 @@
+syntax = "proto3";
+package ids;
+
+message IdsWithType {
+  uint64 type_id = 1;
+  oneof data {
+    bytes raw = 2;
+    bytes lz4_data = 3;
+  }
+}

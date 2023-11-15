@@ -1,0 +1,41 @@
+syntax = "proto3";
+package population;
+
+message Population {
+  repeated Person persons = 1;
+}
+
+message Person {
+  uint64 id = 1;
+  uint32 curr_plan_elem = 2;
+  Plan plan = 3;
+}
+
+message Plan {
+  repeated Leg legs = 1;
+  repeated Activity acts = 2;
+}
+
+message Activity {
+  uint64 act_type = 1;
+  uint64 link_id = 2;
+  double x = 3;
+  double y = 4;
+  optional uint32 start_time = 5;
+  optional uint32 end_time = 6;
+  optional uint32 max_dur = 7;
+}
+
+message Leg {
+  uint64 mode = 1;
+  uint64 routing_mode = 2;
+  optional uint32 dep_time = 3;
+  uint32 trav_time = 4;
+  Route route = 5;
+}
+
+message Route {
+  uint64 veh_id = 1;
+  double distance = 2;
+  repeated uint64 route = 3;
+}

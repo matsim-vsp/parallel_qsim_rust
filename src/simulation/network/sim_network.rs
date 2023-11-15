@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 
-use crate::simulation::id::Id;
-use crate::simulation::messaging::messages::proto::{Agent, StorageCap};
-use crate::simulation::messaging::{
-    events::{proto::Event, EventsPublisher},
-    messages::proto::Vehicle,
-};
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
+
+use crate::simulation::id::Id;
+use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::wire_types::events::Event;
+use crate::simulation::wire_types::messages::{StorageCap, Vehicle};
+use crate::simulation::wire_types::population::Person;
 
 use super::{
     global_network::{Link, Network, Node},
@@ -163,7 +163,7 @@ impl SimNetworkPartition {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
         let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
-            let agent_id = Id::<Agent>::get(vehicle.agent().id());
+            let agent_id = Id::<Person>::get(vehicle.agent().id());
             panic!(
                 "#{} Couldn't find link for id {:?}.for Agent {}. \n\n The vehicle: {:?}",
                 self.partition,
@@ -455,17 +455,13 @@ mod tests {
 
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::messages::proto::Route;
-    use crate::simulation::{
-        messaging::{
-            events::EventsPublisher,
-            messages::proto::{Activity, Agent, Leg, Plan, Vehicle},
-        },
-        network::{
-            global_network::{Link, Network, Node},
-            link::SimLink,
-        },
+    use crate::simulation::messaging::events::EventsPublisher;
+    use crate::simulation::network::{
+        global_network::{Link, Network, Node},
+        link::SimLink,
     };
+    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
 
     use super::SimNetworkPartition;
 
@@ -827,7 +823,7 @@ mod tests {
         ]
     }
 
-    fn create_agent(id: u64, route: Vec<u64>) -> Agent {
+    fn create_agent(id: u64, route: Vec<u64>) -> Person {
         let route = Route {
             veh_id: id,
             distance: 0.0,
@@ -838,7 +834,7 @@ mod tests {
         let mut plan = Plan::new();
         plan.add_act(act);
         plan.add_leg(leg);
-        let mut agent = Agent::new(id, plan);
+        let mut agent = Person::new(id, plan);
         agent.advance_plan();
 
         agent

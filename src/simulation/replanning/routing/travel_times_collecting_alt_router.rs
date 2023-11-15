@@ -8,7 +8,6 @@ use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::TravelTimesMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::messages::proto::TravelTimesMessage;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::replanning::routing::alt_router::AltRouter;
 use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
@@ -16,6 +15,7 @@ use crate::simulation::replanning::routing::network_converter::NetworkConverter;
 use crate::simulation::replanning::routing::router::{CustomQueryResult, Router};
 use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::vehicles::vehicle_type::VehicleType;
+use crate::simulation::wire_types::messages::TravelTimesMessage;
 
 pub struct TravelTimesCollectingAltRouter<C: SimCommunicator> {
     router_by_mode: BTreeMap<u64, AltRouter>,

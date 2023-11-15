@@ -5,8 +5,8 @@ use std::path::Path;
 
 use prost::Message;
 
-use crate::simulation::messaging::events::proto::{Event, TimeStep};
 use crate::simulation::messaging::events::EventsSubscriber;
+use crate::simulation::wire_types::events::{Event, TimeStep};
 
 pub struct ProtoEventsWriter {
     encoded_events: Vec<u8>,
@@ -168,9 +168,9 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::simulation::io::proto_events::{EventsReader, ProtoEventsWriter};
-    use crate::simulation::messaging::events::proto::event::Type;
-    use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::EventsSubscriber;
+    use crate::simulation::wire_types::events::event::Type;
+    use crate::simulation::wire_types::events::Event;
 
     #[test]
     fn write_read_single() {

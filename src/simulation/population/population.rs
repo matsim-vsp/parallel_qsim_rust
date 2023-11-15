@@ -2,13 +2,13 @@ use std::collections::HashMap;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
-use crate::simulation::messaging::messages::proto::Agent;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::wire_types::population::Person;
 
 #[derive(Debug, Default)]
 pub struct Population {
-    pub agents: HashMap<Id<Agent>, Agent>,
+    pub agents: HashMap<Id<Person>, Person>,
 }
 
 impl Population {
@@ -96,7 +96,7 @@ impl Population {
             .iter()
             .filter(|io_p| Self::is_partition(io_p, net, part))
             //.filter(|io_p| io_p.id.eq("1267938")) // take failing agent.
-            .map(Agent::from_io)
+            .map(Person::from_io)
             .collect();
 
         for person in persons {
@@ -123,14 +123,15 @@ impl Population {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::config::PartitionMethod;
     use std::collections::HashSet;
 
+    use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
     use crate::simulation::network::global_network::{Link, Network};
     use crate::simulation::population::population::Population;
     use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::wire_types::population::Person;
 
     #[test]
     fn from_io_1_plan() {
@@ -217,9 +218,9 @@ mod tests {
         );
 
         // agents should also have ids
-        assert_eq!("100", Id::<Agent>::get_from_ext("100").external());
-        assert_eq!("200", Id::<Agent>::get_from_ext("200").external());
-        assert_eq!("300", Id::<Agent>::get_from_ext("300").external());
+        assert_eq!("100", Id::<Person>::get_from_ext("100").external());
+        assert_eq!("200", Id::<Person>::get_from_ext("200").external());
+        assert_eq!("300", Id::<Person>::get_from_ext("300").external());
 
         // we expect three agents overall
         assert_eq!(3, pop.agents.len());

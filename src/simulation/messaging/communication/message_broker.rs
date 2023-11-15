@@ -1,12 +1,12 @@
-use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::simulation::messaging::messages::proto::{
-    StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
-};
+use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
+use crate::simulation::wire_types::messages::{
+    StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
+};
 
 pub struct TravelTimesMessageBroker<C>
 where
@@ -175,9 +175,9 @@ mod tests {
     use crate::simulation::messaging::communication::message_broker::{
         NetMessageBroker, TravelTimesMessageBroker,
     };
-    use crate::simulation::messaging::messages::proto::{TravelTimesMessage, Vehicle};
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::sim_network::{SimNetworkPartition, SplitStorage};
+    use crate::simulation::wire_types::messages::{TravelTimesMessage, Vehicle};
     use crate::test_utils::create_agent;
 
     #[test]

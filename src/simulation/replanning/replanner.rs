@@ -1,20 +1,21 @@
 use std::rc::Rc;
+
 use tracing::debug;
 
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::messages::proto::{Activity, Agent, Leg};
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::replanning::routing::router::Router;
 use crate::simulation::replanning::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
 use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, WalkFinder};
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::wire_types::population::{Activity, Leg, Person};
 
 pub trait Replanner {
     fn update_time(&mut self, now: u32, events: &mut EventsPublisher);
-    fn replan(&self, now: u32, agent: &mut Agent, garage: &Garage);
+    fn replan(&self, now: u32, agent: &mut Person, garage: &Garage);
 }
 
 #[derive(Eq, PartialEq)]
@@ -29,7 +30,7 @@ pub struct DummyReplanner {}
 impl Replanner for DummyReplanner {
     fn update_time(&mut self, _now: u32, _events: &mut EventsPublisher) {}
 
-    fn replan(&self, _now: u32, _agent: &mut Agent, _garage: &Garage) {}
+    fn replan(&self, _now: u32, _agent: &mut Person, _garage: &Garage) {}
 }
 
 pub struct ReRouteTripReplanner {
@@ -43,7 +44,7 @@ impl Replanner for ReRouteTripReplanner {
         self.router.next_time_step(now, events)
     }
 
-    fn replan(&self, _now: u32, agent: &mut Agent, garage: &Garage) {
+    fn replan(&self, _now: u32, agent: &mut Person, garage: &Garage) {
         let leg_type = Self::get_leg_type(agent);
         if leg_type == LegType::TripPlaceholder {
             self.insert_access_egress(agent);
@@ -86,7 +87,7 @@ impl ReRouteTripReplanner {
         }
     }
 
-    fn insert_access_egress(&self, agent: &mut Agent) {
+    fn insert_access_egress(&self, agent: &mut Person) {
         // So far, we have:
         // act (current) - leg (next) - act (next)
         //
@@ -120,7 +121,7 @@ impl ReRouteTripReplanner {
         agent.replace_next_leg(vec![access, agent.next_leg().clone(), egress]);
     }
 
-    fn replan_main(&self, agent: &mut Agent, garage: &Garage) {
+    fn replan_main(&self, agent: &mut Person, garage: &Garage) {
         let curr_act = agent.curr_act();
 
         let (route, travel_time) =
@@ -140,7 +141,7 @@ impl ReRouteTripReplanner {
         );
     }
 
-    fn replan_access_egress(&self, agent: &mut Agent, garage: &Garage) {
+    fn replan_access_egress(&self, agent: &mut Person, garage: &Garage) {
         let curr_act = agent.curr_act();
         let next_act = agent.next_act();
 
@@ -166,7 +167,7 @@ impl ReRouteTripReplanner {
         };
 
         let mode_id = Id::<String>::get(agent.next_leg().mode);
-        let vehicle_id = garage.get_mode_veh_id(&Id::<Agent>::get(agent.id), &mode_id);
+        let vehicle_id = garage.get_mode_veh_id(&Id::<Person>::get(agent.id), &mode_id);
 
         agent.update_next_leg(
             dep_time,
@@ -198,7 +199,7 @@ impl ReRouteTripReplanner {
     }
 
     #[allow(clippy::if_same_then_else)]
-    fn get_leg_type(agent: &Agent) -> LegType {
+    fn get_leg_type(agent: &Person) -> LegType {
         //act - leg - interaction act => walk
         if !agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
             LegType::AccessEgress
@@ -237,16 +238,17 @@ impl ReRouteTripReplanner {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::messaging::communication::communicators::DummySimCommunicator;
-    use crate::simulation::messaging::messages::proto::{Agent, Route};
     use crate::simulation::network::global_network::Network;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::population::Population;
     use crate::simulation::replanning::replanner::{ReRouteTripReplanner, Replanner};
     use crate::simulation::vehicles::garage::Garage;
-    use std::rc::Rc;
+    use crate::simulation::wire_types::population::{Person, Route};
 
     #[test]
     fn test_trip_placeholder_leg() {
@@ -385,7 +387,7 @@ mod tests {
         );
     }
 
-    fn get_act_type_id(agent: &Agent, act_index: usize) -> Id<String> {
+    fn get_act_type_id(agent: &Person, act_index: usize) -> Id<String> {
         Id::<String>::get(
             agent
                 .plan
@@ -398,7 +400,7 @@ mod tests {
         )
     }
 
-    fn get_mode_id(agent: &Agent, leg_index: usize) -> Id<String> {
+    fn get_mode_id(agent: &Person, leg_index: usize) -> Id<String> {
         Id::<String>::get(
             agent
                 .plan

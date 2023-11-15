@@ -1,31 +1,24 @@
-use std::any::TypeId;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use ahash::{AHashMap, RandomState};
+use crate::simulation::id::id_store::IdStore;
+use crate::simulation::id::id_store::UntypedId;
+use crate::simulation::id::serializable_type::StableTypeId;
 
-/// This type represents a reference counted pointer to a matsim id. It can be used in hash maps/sets
-/// in combination with NoHashHasher, to achieve fast look ups with no randomness involved.
-///
-/// As this type wraps Rc<IdImpl<T>>, using clone produces a new Rc pointer to the actual Id and is
-/// the intended way of passing around ids.
-///
-/// This type uses the newtype pattern https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html
-/// to hide internal representation and to enable implementing IsEnabled for using the NoHashHasher create
-/// Also, it uses the new type pattern because we wrap an untyped id, so that we can have a global id store of all
-/// ids.
+// keep this private, as we don't want to leak how we cache ids.
+mod id_store;
+pub mod serializable_type;
+
 #[derive(Debug)]
-pub struct Id<T> {
+pub struct Id<T: StableTypeId> {
     _type_marker: PhantomData<T>,
     id: Rc<UntypedId>,
 }
 
-pub const STRING_TYPE_ID: u64 = 1;
-
-impl<T: 'static> Id<T> {
+impl<T: StableTypeId + 'static> Id<T> {
     fn new(untyped_id: Rc<UntypedId>) -> Self {
         Self {
             _type_marker: PhantomData,
@@ -63,41 +56,41 @@ impl<T: 'static> Id<T> {
 }
 
 /// Mark Id as enabled for the nohash_hasher::NoHashHasher trait
-impl<T> nohash_hasher::IsEnabled for Id<T> {}
+impl<T: StableTypeId> nohash_hasher::IsEnabled for Id<T> {}
 
-impl<T> nohash_hasher::IsEnabled for &Id<T> {}
+impl<T: StableTypeId> nohash_hasher::IsEnabled for &Id<T> {}
 
 /// Implement PartialEq, Eq, PartialOrd, Ord, so that Ids can be used in HashMaps and Ordered collections
 /// all four methods rely on the internal id.
-impl<T: 'static> PartialEq for Id<T> {
+impl<T: StableTypeId + 'static> PartialEq for Id<T> {
     fn eq(&self, other: &Self) -> bool {
         self.internal().eq(&other.internal())
     }
 }
 
-impl<T: 'static> Eq for Id<T> {}
+impl<T: StableTypeId + 'static> Eq for Id<T> {}
 
-impl<T: 'static> Hash for Id<T> {
+impl<T: StableTypeId + 'static> Hash for Id<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         // use write u64 directly, so that we can use NoHashHasher with ids
         state.write_u64(self.internal());
     }
 }
 
-impl<T: 'static> Ord for Id<T> {
+impl<T: StableTypeId + 'static> Ord for Id<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.internal().cmp(&other.internal())
     }
 }
 
-impl<T: 'static> PartialOrd for Id<T> {
+impl<T: StableTypeId + 'static> PartialOrd for Id<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.internal().partial_cmp(&other.internal())
     }
 }
 
 /// This creates a new struct with a cloned Rc pointer
-impl<T> Clone for Id<T> {
+impl<T: StableTypeId> Clone for Id<T> {
     fn clone(&self) -> Self {
         Self {
             _type_marker: PhantomData,
@@ -107,91 +100,6 @@ impl<T> Clone for Id<T> {
 }
 
 thread_local! {static ID_STORE: RefCell<IdStore<'static>> = RefCell::new(IdStore::new())}
-
-#[derive(Debug)]
-struct UntypedId {
-    internal: u64,
-    external: String,
-}
-
-impl UntypedId {
-    fn new(internal: u64, external: String) -> Self {
-        Self { internal, external }
-    }
-}
-
-#[derive(Debug)]
-struct IdStore<'ext> {
-    ids: AHashMap<TypeId, Vec<Rc<UntypedId>>>,
-    // use ahasher algorithm with fixed random state, to get predictable
-    mapping: AHashMap<TypeId, AHashMap<&'ext str, u64>>,
-}
-
-impl<'ext> IdStore<'ext> {
-    fn new() -> Self {
-        Self {
-            ids: AHashMap::with_hasher(RandomState::with_seed(42)),
-            mapping: AHashMap::with_hasher(RandomState::with_seed(42)),
-        }
-    }
-
-    fn create_id<T: 'static>(&mut self, id: &str) -> Id<T> {
-        let type_id = TypeId::of::<T>();
-
-        let type_mapping = self
-            .mapping
-            .entry(type_id)
-            .or_insert_with(|| AHashMap::with_hasher(RandomState::with_seed(42)));
-
-        if type_mapping.contains_key(id) {
-            return self.get_from_ext::<T>(id);
-        }
-
-        let type_ids = self.ids.entry(type_id).or_insert_with(Vec::default);
-        let next_internal = type_ids.len() as u64;
-        let next_id = Rc::new(UntypedId::new(next_internal, String::from(id)));
-        type_ids.push(next_id.clone());
-
-        let ptr_external: *const String = &next_id.external;
-        /*
-        # Safety:
-
-        As the external Strings are allocated by the ids, which keep a pointer to that allocation
-        The allocated string will not move as long as the id exists. This means as long as the id
-        is in the map, the ref to the external String which is used as a key in the map will be valid
-         */
-        let external_ref = unsafe { ptr_external.as_ref() }.unwrap();
-        type_mapping.insert(external_ref, next_id.internal);
-
-        Id::new(next_id)
-    }
-
-    fn get<T: 'static>(&self, internal: u64) -> Id<T> {
-        let type_id = TypeId::of::<T>();
-        let type_ids = self.ids.get(&type_id).unwrap_or_else(|| {
-            panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids")
-        });
-
-        let untyped_id = type_ids
-            .get(internal as usize)
-            .unwrap_or_else(|| panic!("No id found for internal {internal}"))
-            .clone();
-        Id::new(untyped_id)
-    }
-
-    fn get_from_ext<T: 'static>(&self, external: &str) -> Id<T> {
-        let type_id = TypeId::of::<T>();
-        let type_mapping = self.mapping.get(&type_id).unwrap_or_else(|| {
-            panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids")
-        });
-
-        let index = type_mapping.get(external).unwrap_or_else(|| {
-            panic!("Could not find id for external id: {external}");
-        });
-
-        self.get(*index)
-    }
-}
 
 #[cfg(test)]
 mod tests {

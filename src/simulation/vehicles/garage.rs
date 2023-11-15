@@ -3,8 +3,9 @@ use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::vehicles::{IOVehicleDefinitions, IOVehicleType};
-use crate::simulation::messaging::messages::proto::{Agent, Vehicle};
 use crate::simulation::vehicles::vehicle_type::{LevelOfDetail, VehicleType};
+use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::wire_types::population::Person;
 
 #[derive(Debug)]
 pub struct Garage {
@@ -96,7 +97,7 @@ impl Garage {
         self.vehicle_types.insert(veh_type.id.clone(), veh_type);
     }
 
-    pub fn add_veh_id(&mut self, person_id: &Id<Agent>, type_id: &Id<VehicleType>) -> Id<Vehicle> {
+    pub fn add_veh_id(&mut self, person_id: &Id<Person>, type_id: &Id<VehicleType>) -> Id<Vehicle> {
         let veh_id_ext = format!("{}_{}", person_id.external(), type_id.external());
         let veh_id = Id::create(&veh_id_ext);
 
@@ -126,12 +127,12 @@ impl Garage {
          */
     }
 
-    pub fn get_mode_veh_id(&self, person_id: &Id<Agent>, mode: &Id<String>) -> Id<Vehicle> {
+    pub fn get_mode_veh_id(&self, person_id: &Id<Person>, mode: &Id<String>) -> Id<Vehicle> {
         let external = format!("{}_{}", person_id.external(), mode.external());
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Agent {
+    pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Person {
         /*let id = self.vehicle_ids.get(vehicle.id);
         let veh_type = self.vehicle_type_ids.get(vehicle.r#type);
         let garage_veh = GarageVehicle { id, veh_type };
@@ -146,7 +147,7 @@ impl Garage {
         vehicle.agent.unwrap()
     }
 
-    pub fn unpark_veh(&mut self, person: Agent, id: &Id<Vehicle>) -> Vehicle {
+    pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {
         let veh_type_id = self
             .vehicles
             .get(id)
