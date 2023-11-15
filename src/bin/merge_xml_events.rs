@@ -5,8 +5,8 @@ use tracing::info;
 
 use rust_q_sim::simulation::io::xml_events::{XmlEventsReader, XmlEventsWriter};
 use rust_q_sim::simulation::logging;
-use rust_q_sim::simulation::messaging::events::proto::Event;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;
+use rust_q_sim::simulation::wire_types::events::Event;
 
 struct StatefulReader {
     reader: XmlEventsReader,
