@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use std::path::Path;
 use std::rc::Rc;
 
 use crate::simulation::id::id_store::IdStore;
@@ -55,9 +56,24 @@ impl<T: StableTypeId + 'static> Id<T> {
     }
 }
 
-/// Mark Id as enabled for the nohash_hasher::NoHashHasher trait
-impl<T: StableTypeId> nohash_hasher::IsEnabled for Id<T> {}
+pub fn store_to_wire_format() -> Vec<u8> {
+    ID_STORE.with(|store| store.borrow().to_wire_format())
+}
 
+pub fn store_to_file(file_path: &Path) {
+    ID_STORE.with(|store| store.borrow().to_file(file_path))
+}
+
+pub fn load_from_wire_format(bytes: Vec<u8>) {
+    ID_STORE.with(|store| store.borrow_mut().load_from_wire_format(bytes))
+}
+
+pub fn load_from_file(file_path: &Path) {
+    ID_STORE.with(|store| store.borrow_mut().load_from_file(file_path))
+}
+
+/// Mark Id as enabled for the nohash_hasher::NoHashHasher t
+impl<T: StableTypeId> nohash_hasher::IsEnabled for Id<T> {}
 impl<T: StableTypeId> nohash_hasher::IsEnabled for &Id<T> {}
 
 /// Implement PartialEq, Eq, PartialOrd, Ord, so that Ids can be used in HashMaps and Ordered collections

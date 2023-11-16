@@ -71,7 +71,7 @@ impl ConfigBuilder {
             vehicle_definitions_file: None,
             output_dir: String::from("./"),
             events_mode: String::from("file"),
-            num_parts: 0,
+            num_parts: 1,
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,

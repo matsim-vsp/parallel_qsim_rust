@@ -167,3 +167,5 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
         }
     }
 }
+
+fn load_scenario(config: &Config) {}

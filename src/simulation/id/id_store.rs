@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
+use std::io::{BufReader, BufWriter, Cursor, Read, Seek, Write};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -8,9 +8,11 @@ use bytes::{Buf, BufMut};
 use nohash_hasher::IntMap;
 use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
+use tracing::info;
 
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
+use crate::simulation::io::proto::MessageIter;
 use crate::simulation::wire_types::ids::ids_with_type::Data;
 use crate::simulation::wire_types::ids::IdsWithType;
 
@@ -35,66 +37,50 @@ fn serialize<W: Write>(store: &IdStore, writer: &mut W, compression: IdCompressi
         };
         let encoded_typed_ids = ids.encode_length_delimited_to_vec();
         writer
-            .write(&encoded_typed_ids)
-            .expect("failed to write to file.");
+            .write_all(&encoded_typed_ids)
+            .expect("Failed to write encoded type ids to writer.");
     }
     writer
         .flush()
         .expect("Failed to flush writer after serializing id store");
 }
 
-pub fn deserialize_from_file(file_path: &Path) -> IdStore {
+fn deserialize_from_file(store: &mut IdStore, file_path: &Path) {
+    info!("Starting to load IdStore from file {file_path:?}");
     let file = File::open(file_path).unwrap();
     let mut file_reader = BufReader::new(file);
-    let result = deserialize(&mut file_reader);
-    result
+    deserialize(store, &mut file_reader);
 }
 
-pub fn deserialize<'a, R: Read + Seek>(reader: &mut BufReader<R>) -> IdStore<'a> {
-    let mut result = IdStore::new();
+/// This method takes a BufReader instance as we are relying on 'seek_relative' which is not part of
+/// the Read trait. I think it is ok, to let callees wrap their bytes into a BufReader.
+fn deserialize<R: Read + Seek>(store: &mut IdStore, reader: R) {
+    info!("Starting to de-serialize Id store.");
+    let delim_reader: MessageIter<IdsWithType, R> = MessageIter::new(reader);
+    for message in delim_reader {
+        let ids = deserialize_ids(&message);
+        store.replace_ids(&ids, message.type_id);
+    }
+    /*
 
     while let Some(delim) = read_delim(reader) {
         let mut buffer: Vec<u8> = vec![0; delim];
         reader
             .read_exact(&mut buffer)
-            .expect("Failed to read exact from bufer");
+            .expect("Failed to read exact from buffer");
         let wire_ids = IdsWithType::decode(buffer.as_slice()).expect("Failed to decode Ids");
+        info!(
+            "Decoded Ids for internal type: {}. Starting to deserialize id values",
+            wire_ids.type_id
+        );
         let ids = deserialize_ids(&wire_ids);
 
-        result.replace_ids(&ids, wire_ids.type_id);
+        store.replace_ids(&ids, wire_ids.type_id);
     }
 
-    result
-}
+     */
 
-fn read_delim<T: Read + Seek>(reader: &mut BufReader<T>) -> Option<usize> {
-    // read the delimiter of the message. Prost says delimiter is between 1 and 10 bytes
-    // so, read the first 10 bytes of the buffer
-    let mut delim_buffer: [u8; 10] = [0; 10];
-    // this could crash
-    match reader.read_exact(&mut delim_buffer) {
-        Ok(_) => {} // go on.
-        Err(e) => match e.kind() {
-            ErrorKind::UnexpectedEof => return None,
-            _ => {
-                panic!("Error while reading file: {}", e);
-            }
-        },
-    };
-
-    let delimiter =
-        prost::decode_length_delimiter(delim_buffer.as_slice()).expect("error reading delimiter");
-
-    // since the delimiter is a varint figure out how many bytes the delimiter was actually taking
-    // up in the buffer. Set the buffers position to the first byte after the delimiter, which
-    // should be the start of the TimeStep message
-    let delim_encoded_len = prost::encoding::encoded_len_varint(delimiter as u64) as i64;
-    let offset = delim_encoded_len - (delim_buffer.len() as i64);
-    reader
-        .seek_relative(offset)
-        .expect("Seeking relative failed");
-
-    Some(delimiter)
+    info!("Finished de-serializing id store.");
 }
 
 fn serialize_ids(ids: &Vec<Rc<UntypedId>>, mode: IdCompression) -> Data {
@@ -134,7 +120,7 @@ fn encode_ids<W: Write>(ids: &Vec<Rc<UntypedId>>, writer: &mut W) {
         prost::encoding::encode_varint(id.external.len() as u64, &mut id_buffer);
         id_buffer.put_slice(id.external.as_bytes());
         writer
-            .write(&id_buffer)
+            .write_all(&id_buffer)
             .expect("Failed to compress encoded String.");
         id_buffer.clear();
     }
@@ -159,7 +145,7 @@ fn deserialize_ids_compressed(bytes: &[u8]) -> Vec<String> {
     let mut uncompressed_bytes = Vec::new();
     decompressor
         .read_to_end(&mut uncompressed_bytes)
-        .expect("Failed to uncrompress bytes");
+        .expect("Failed to de-compress bytes");
 
     let mut uncompressed_reader = Cursor::new(uncompressed_bytes);
     decode_ids(&mut uncompressed_reader)
@@ -252,7 +238,7 @@ impl<'ext> IdStore<'ext> {
         next_id
     }
 
-    fn replace_ids(&mut self, ids: &Vec<String>, mut type_id: u64) {
+    fn replace_ids(&mut self, ids: &Vec<String>, type_id: u64) {
         if let Some(type_mapping) = self.mapping.get_mut(&type_id) {
             type_mapping.clear();
         }
@@ -296,6 +282,27 @@ impl<'ext> IdStore<'ext> {
 
         self.get(*index)
     }
+
+    pub(crate) fn to_wire_format(&self) -> Vec<u8> {
+        let mut byte_writer = BufWriter::new(Vec::new());
+        serialize(self, &mut byte_writer, IdCompression::None);
+        byte_writer
+            .into_inner()
+            .expect("Failed to transform writer into Vec<u8> (raw bytes)")
+    }
+
+    pub(crate) fn to_file(&self, file_path: &Path) {
+        serialize_to_file(self, file_path, IdCompression::LZ4);
+    }
+
+    pub(crate) fn load_from_wire_format(&mut self, bytes: Vec<u8>) {
+        let mut byte_reader = BufReader::new(Cursor::new(bytes));
+        deserialize(self, &mut byte_reader);
+    }
+
+    pub(crate) fn load_from_file(&mut self, file_path: &Path) {
+        deserialize_from_file(self, file_path);
+    }
 }
 
 #[cfg(test)]
@@ -330,7 +337,8 @@ mod tests {
         store.create_id::<String>("string-id");
 
         serialize_to_file(&store, &file, IdCompression::LZ4);
-        let result = deserialize_from_file(&file);
+        let mut result = IdStore::new();
+        deserialize_from_file(&mut result, &file);
 
         println!("{result:?}");
 
@@ -356,7 +364,8 @@ mod tests {
         store.create_id::<String>("string-id");
 
         serialize_to_file(&store, &file, IdCompression::None);
-        let result = deserialize_from_file(&file);
+        let mut result = IdStore::new();
+        deserialize_from_file(&mut result, &file);
 
         println!("{result:?}");
 
@@ -388,7 +397,8 @@ mod tests {
         println!("{serialized_bytes:?}");
 
         let mut vec_reader = BufReader::new(Cursor::new(serialized_bytes));
-        let result = deserialize(&mut vec_reader);
+        let mut result = IdStore::new();
+        deserialize(&mut result, &mut vec_reader);
 
         println!("{result:?}");
 
@@ -409,11 +419,10 @@ mod tests {
         let folder = create_folders(PathBuf::from(
             "./test_output/simulation/id/id_store/compare_compression/",
         ));
-        let file = folder.join("ids.pbf");
         let mut store = IdStore::new();
 
-        let net = Network::from_file(
-            "/Users/janek/Documents/rust_q_sim/input/rvr.network.xml.gz",
+        let net = Network::from_file_path(
+            &PathBuf::from("/Users/janek/Documents/rust_q_sim/input/rvr.network.xml.gz"),
             1,
             PartitionMethod::None,
         );
@@ -445,18 +454,6 @@ mod tests {
             store.create_id::<VehicleType>(t_id.external());
         }
 
-        /* let mut rng = rand::thread_rng();
-
-        for i in 0..10000 {
-            let num = rng.gen_range(0..10_u64.pow(10 as u32));
-            let id = num.to_string();
-            if i % 500 == 0 {
-                println!("creating id {i} with external {id}");
-            }
-            store.create_id::<String>(&id);
-        }
-
-        */
         println!("Starting to write id store raw");
         let start = Instant::now();
         serialize_to_file(&store, &folder.join("ids.raw.pbf"), IdCompression::None);
@@ -473,14 +470,16 @@ mod tests {
 
         println!("Starting to read id store uncompressed");
         let start = Instant::now();
-        let result_uncompressed = deserialize_from_file(&folder.join("ids.raw.pbf"));
+        let mut result_uncompressed = IdStore::new();
+        deserialize_from_file(&mut result_uncompressed, &folder.join("ids.raw.pbf"));
         let end = Instant::now();
         let duration = end.sub(start).as_millis();
         println!("reading uncompressed took: {duration}ms");
 
         println!("Starting to read id store compressed");
         let start = Instant::now();
-        let result_compressed = deserialize_from_file(&folder.join("ids.lz4.pbf"));
+        let mut result_compressed = IdStore::new();
+        deserialize_from_file(&mut result_compressed, &folder.join("ids.lz4.pbf"));
         let end = Instant::now();
         let duration = end.sub(start).as_millis();
         println!("reading compressed took: {duration}ms");

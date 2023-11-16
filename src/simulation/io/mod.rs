@@ -3,6 +3,7 @@ pub mod matsim_id;
 pub mod network;
 pub mod non_blocking_io;
 pub mod population;
+pub mod proto;
 pub mod proto_events;
 pub mod vehicles;
 mod worker;
