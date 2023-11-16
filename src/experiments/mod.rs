@@ -4,7 +4,6 @@ mod lifetimes_example;
 mod link_automat_with_adjacency_list;
 mod link_automat_with_references;
 mod link_automata_with_routes;
-mod metis_test;
 mod ownership;
 mod pointers;
 mod super_simple_link_automat;

@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::{collections::HashSet, path::Path};
 
 use itertools::Itertools;
@@ -7,8 +6,6 @@ use nohash_hasher::IntSet;
 
 use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::{Attr, Attrs};
-use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 
 use super::metis_partitioning;
 
@@ -73,56 +70,7 @@ impl Network {
     }
 
     pub fn to_file(&self, file_path: &Path) {
-        let mut result = IONetwork::new(None);
-
-        for node in &self.nodes {
-            let attributes = Attrs {
-                attributes: vec![Attr {
-                    name: String::from("partition"),
-                    value: node.partition.to_string(),
-                    class: String::from("java.lang.Integer"),
-                }],
-            };
-            let io_node = IONode {
-                id: node.id.external().to_string(),
-                x: node.x,
-                y: node.y,
-                attributes: Some(attributes),
-            };
-            result.nodes_mut().push(io_node);
-        }
-
-        for link in &self.links {
-            let modes = link
-                .modes
-                .iter()
-                .map(|m| m.external().to_string())
-                .reduce(|modes, mode| format!("{modes},{mode}"))
-                .unwrap();
-            let attributes = Attrs {
-                attributes: vec![Attr {
-                    name: String::from("partition"),
-                    value: link.partition.to_string(),
-                    class: String::from("java.lang.Integer"),
-                }],
-            };
-
-            let io_link = IOLink {
-                id: link.id.external().to_string(),
-                from: link.from.external().to_string(),
-                to: link.to.external().to_string(),
-                length: link.length,
-                capacity: link.capacity,
-                freespeed: link.freespeed,
-                permlanes: link.permlanes,
-                modes,
-                attributes: Some(attributes),
-            };
-            result.links.effective_cell_size = Some(self.effective_cell_size);
-            result.links_mut().push(io_link);
-        }
-
-        result.to_file(file_path);
+        super::io::to_file(self, file_path);
     }
 
     pub fn add_node(&mut self, node: Node) {

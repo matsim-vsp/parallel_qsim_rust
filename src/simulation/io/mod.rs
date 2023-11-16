@@ -1,6 +1,5 @@
 pub mod attributes;
 pub mod matsim_id;
-pub mod network;
 pub mod non_blocking_io;
 pub mod population;
 pub mod proto;
