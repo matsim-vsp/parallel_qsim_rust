@@ -1,9 +1,117 @@
+use std::path::Path;
+
 use serde::Deserialize;
 use tracing::info;
 
+use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::matsim_id::MatsimId;
+use crate::simulation::io::proto::load_from_file;
 use crate::simulation::io::xml_reader;
+use crate::simulation::population::population::Population;
+use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::wire_types::population::Person;
+
+pub fn from_file(path: &Path, garage: &mut Garage) -> Population {
+    if path.extension().unwrap().eq("binpb") {
+        load_from_proto(path)
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        load_from_xml(path, garage)
+    } else {
+        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+pub fn to_file(population: &Population, path: &Path) {
+    if path.ends_with(".binpb") {
+        write_to_proto(population, path);
+    } else if path.ends_with(".xml") || path.ends_with(".xml.gz") {
+        write_to_xml(population, path);
+    } else {
+        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+fn load_from_xml(path: &Path, garage: &mut Garage) -> Population {
+    let io_pop = IOPopulation::from_file(path.to_str().unwrap());
+    create_ids(&io_pop, garage);
+    create_population(&io_pop)
+}
+
+fn write_to_xml(_population: &Population, _path: &Path) {
+    panic!("Write to xml is not implemented for Population. Only writing to `.binpb` is supported")
+}
+
+fn load_from_proto(path: &Path) -> Population {
+    let wire_pop: crate::simulation::wire_types::population::Population = load_from_file(path);
+    let persons = wire_pop
+        .persons
+        .into_iter()
+        .map(|p| (Id::get(p.id), p))
+        .collect();
+
+    Population { persons }
+}
+
+fn write_to_proto(population: &Population, path: &Path) {
+    info!("Converting Population into wire format");
+    let persons: Vec<_> = population.persons.values().cloned().collect();
+    let wire_pop = crate::simulation::wire_types::population::Population { persons };
+    info!("Finished converting population. Writing to file.");
+    crate::simulation::io::proto::write_to_file(wire_pop, path);
+}
+
+fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
+    info!("Creating person ids.");
+    // create person ids and collect strings for vehicle ids
+    let raw_veh: Vec<_> = io_pop
+        .persons
+        .iter()
+        .map(|p| Id::<Person>::create(p.id.as_str()))
+        .flat_map(|p_id| {
+            garage
+                .vehicle_types
+                .keys()
+                .map(move |type_id| (p_id.clone(), type_id.clone()))
+        })
+        .collect();
+
+    info!("Creating interaction activity types");
+    // add interaction activity type for each vehicle type
+    for (_, id) in raw_veh.iter() {
+        Id::<String>::create(&format!("{} interaction", id.external()));
+    }
+
+    info!("Creating vehicle ids");
+    for (person_id, type_id) in raw_veh {
+        garage.add_veh_id(&person_id, &type_id);
+    }
+
+    info!("Creating activity types");
+    // now iterate over all plans to extract activity ids
+    io_pop
+        .persons
+        .iter()
+        .flat_map(|person| person.plans.iter())
+        .flat_map(|plan| plan.elements.iter())
+        .filter_map(|element| match element {
+            IOPlanElement::Activity(a) => Some(a),
+            IOPlanElement::Leg(_) => None,
+        })
+        .map(|act| &act.r#type)
+        .for_each(|act_type| {
+            Id::<String>::create(act_type.as_str());
+        });
+}
+
+fn create_population(io_pop: &IOPopulation) -> Population {
+    let mut result = Population::new();
+    for io_person in &io_pop.persons {
+        let person = Person::from_io(io_person);
+        result.persons.insert(Id::get(person.id()), person);
+    }
+
+    result
+}
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IORoute {
@@ -93,12 +201,6 @@ pub struct IOPerson {
     pub plans: Vec<IOPlan>,
 }
 
-impl MatsimId for IOPerson {
-    fn id(&self) -> &str {
-        self.id.as_str()
-    }
-}
-
 impl IOPerson {
     pub fn selected_plan(&self) -> &IOPlan {
         self.plans.iter().find(|p| p.selected).unwrap()
@@ -130,7 +232,7 @@ impl IOPopulation {
 mod tests {
     use quick_xml::de::from_str;
 
-    use crate::simulation::io::population::{IOPlanElement, IOPopulation};
+    use crate::simulation::population::io::{IOPlanElement, IOPopulation};
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all

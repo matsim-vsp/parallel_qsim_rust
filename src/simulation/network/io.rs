@@ -7,7 +7,6 @@ use std::str::FromStr;
 
 use flate2::Compression;
 use nohash_hasher::IntSet;
-use prost::Message;
 use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -19,18 +18,22 @@ use crate::simulation::io::xml_reader;
 use crate::simulation::network::global_network::{Link, Network, Node};
 
 pub fn from_file(path: &Path) -> Network {
-    if path.ends_with(".binpb") {
+    if path.extension().unwrap().eq("binpb") {
         load_from_proto(path)
-    } else {
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         load_from_xml(path)
+    } else {
+        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
     }
 }
 
 pub fn to_file(network: &Network, path: &Path) {
     if path.ends_with(".binpb") {
         write_to_proto(network, path);
-    } else {
+    } else if path.ends_with(".xml") || path.ends_with(".xml.gz") {
         write_to_xml(network, path);
+    } else {
+        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
     }
 }
 

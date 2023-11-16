@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn write_read_ids_store_uncompressed() {
         let folder = create_folders(PathBuf::from(
-            "./test_output/simulation/id/id_store/write_read_ids_store/",
+            "./test_output/simulation/id/id_store/write_read_ids_store_uncompressed/",
         ));
         let file = folder.join("ids.pbf");
         let mut store = IdStore::new();
@@ -436,13 +436,11 @@ mod tests {
         let mut garage =
             Garage::from_file("/Users/janek/Documents/rust_q_sim/input/rvr.vehicles.xml");
         let pop = Population::from_file(
-            "/Users/janek/Documents/rust_q_sim/input/rvr-10pct.plans.xml.gz",
-            &net,
+            &PathBuf::from("/Users/janek/Documents/rust_q_sim/input/rvr-10pct.plans.xml.gz"),
             &mut garage,
-            0,
         );
 
-        for p_id in pop.agents.keys() {
+        for p_id in pop.persons.keys() {
             store.create_id::<Person>(p_id.external());
         }
 

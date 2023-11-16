@@ -99,13 +99,13 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, config: Arc<Config>)
     let mut garage = Garage::from_file(config.vehicles_file.as_ref());
 
     let population: Population =
-        Population::from_file(config.population_file.as_ref(), &network, &mut garage, rank);
+        Population::from_file(config.population_file.as_ref(), &mut garage);
     let network_partition = SimNetworkPartition::from_network(&network, rank, config.sample_size);
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
         network_partition.nodes.len(),
         network_partition.links.len(),
-        population.agents.len()
+        population.persons.len()
     );
 
     let mut events = EventsPublisher::new();
@@ -167,5 +167,3 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
         }
     }
 }
-
-fn load_scenario(config: &Config) {}

@@ -2,10 +2,10 @@ use tracing::debug;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::population::{
+use crate::simulation::network::global_network::Link;
+use crate::simulation::population::io::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
-use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};

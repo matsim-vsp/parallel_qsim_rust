@@ -54,6 +54,8 @@ impl WalkFinder for EuclideanWalkFinder {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
@@ -73,10 +75,12 @@ mod tests {
         let walk_finder = EuclideanWalkFinder::new();
 
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let population =
-            Population::from_file("./assets/equil/equil-1-plan.xml", &network, &mut garage, 0);
+        let population = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-1-plan.xml"),
+            &mut garage,
+        );
         let agent = population
-            .agents
+            .persons
             .get(&Id::<Person>::get_from_ext("1"))
             .unwrap();
 

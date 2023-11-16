@@ -47,7 +47,7 @@ where
 
         // take Persons and copy them into queues. This way we can keep population around to translate
         // ids for events processing...
-        let agents = std::mem::take(&mut population.agents);
+        let agents = std::mem::take(&mut population.persons);
 
         for agent in agents.into_values() {
             activity_q.add(agent, config.start_time);
@@ -258,6 +258,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::any::Any;
+    use std::path::PathBuf;
     use std::rc::Rc;
     use std::sync::mpsc::{channel, Receiver, Sender};
     use std::sync::Arc;
@@ -497,7 +498,12 @@ mod tests {
             config.partition_method,
         );
         let mut garage = Garage::from_file(&config.vehicles_file);
-        let pop = Population::from_file(&config.population_file, &net, &mut garage, comm.rank());
+        let pop = Population::part_from_file(
+            &PathBuf::from(&config.population_file),
+            &net,
+            &mut garage,
+            comm.rank(),
+        );
         let sim_net = SimNetworkPartition::from_network(&net, comm.rank(), config.sample_size);
 
         let id_part: Vec<_> = net

@@ -238,6 +238,7 @@ impl ReRouteTripReplanner {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::rc::Rc;
 
     use crate::simulation::config::PartitionMethod;
@@ -259,15 +260,15 @@ mod tests {
             PartitionMethod::Metis,
         );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let mut population = Population::from_file(
-            "./assets/adhoc_routing/no_updates/agents.xml",
+        let mut population = Population::part_from_file(
+            &PathBuf::from("./assets/adhoc_routing/no_updates/agents.xml"),
             &network,
             &mut garage,
             0,
         );
         let sim_net = SimNetworkPartition::from_network(&network, 0, 1.0);
         let agent_id = Id::get_from_ext("100");
-        let mut agent = population.agents.get_mut(&agent_id).unwrap();
+        let mut agent = population.persons.get_mut(&agent_id).unwrap();
 
         let replanner =
             ReRouteTripReplanner::new(&network, &sim_net, &garage, Rc::new(DummySimCommunicator()));
@@ -296,15 +297,15 @@ mod tests {
             PartitionMethod::Metis,
         );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let mut population = Population::from_file(
-            "./assets/3-links/1-agent-trip-leg.xml",
+        let mut population = Population::part_from_file(
+            &PathBuf::from("./assets/3-links/1-agent-trip-leg.xml"),
             &network,
             &mut garage,
             0,
         );
         let sim_net = SimNetworkPartition::from_network(&network, 0, 1.0);
         let agent_id = Id::get_from_ext("100");
-        let mut agent = population.agents.get_mut(&agent_id).unwrap();
+        let mut agent = population.persons.get_mut(&agent_id).unwrap();
 
         let replanner =
             ReRouteTripReplanner::new(&network, &sim_net, &garage, Rc::new(DummySimCommunicator()));
@@ -350,15 +351,15 @@ mod tests {
             PartitionMethod::Metis,
         );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let mut population = Population::from_file(
-            "./assets/3-links/1-agent-trip-leg.xml",
+        let mut population = Population::part_from_file(
+            &PathBuf::from("./assets/3-links/1-agent-trip-leg.xml"),
             &network,
             &mut garage,
             0,
         );
         let sim_net = SimNetworkPartition::from_network(&network, 0, 1.0);
         let agent_id = Id::get_from_ext("100");
-        let mut agent = population.agents.get_mut(&agent_id).unwrap();
+        let mut agent = population.persons.get_mut(&agent_id).unwrap();
 
         let replanner =
             ReRouteTripReplanner::new(&network, &sim_net, &garage, Rc::new(DummySimCommunicator()));

@@ -1,129 +1,53 @@
 use std::collections::HashMap;
+use std::path::Path;
 
 use crate::simulation::id::Id;
-use crate::simulation::io::population::{IOPerson, IOPlanElement, IOPopulation};
-use crate::simulation::network::global_network::{Link, Network};
+use crate::simulation::network::global_network::Network;
+use crate::simulation::population::io::{from_file, to_file};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::population::Person;
 
 #[derive(Debug, Default)]
 pub struct Population {
-    pub agents: HashMap<Id<Person>, Person>,
+    pub persons: HashMap<Id<Person>, Person>,
 }
 
 impl Population {
     pub fn new() -> Self {
         Population {
-            agents: HashMap::default(),
+            persons: HashMap::default(),
         }
     }
 
-    pub fn from_file(file: &str, net: &Network, garage: &mut Garage, partition: u32) -> Self {
-        let io_population = IOPopulation::from_file(file);
-        Self::from_io(&io_population, net, garage, partition)
+    pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
+        super::io::from_file(file_path, garage)
     }
 
-    pub fn from_io(
-        io_population: &IOPopulation,
-        network: &Network,
-        garage: &mut Garage,
-        partition: u32,
-    ) -> Self {
-        let mut result = Population::new();
-
-        // create person ids, and vehicles for each person
-        Self::create_ids(io_population, garage);
-        // create the actual persons for this partition
-        Self::create_persons(&mut result, io_population, network, partition);
-        // create a vehicles for all modes for persons belonging to this partition
-        //Self::create_vehicles(garage, &result);
-
-        result
-    }
-
-    fn create_ids(io: &IOPopulation, garage: &mut Garage) {
-        // create person ids and collect strings for vehicle ids
-        let raw_veh: Vec<_> = io
+    pub fn part_from_file(file_path: &Path, net: &Network, garage: &mut Garage, part: u32) -> Self {
+        let pop = from_file(file_path, garage);
+        let filtered_persons = pop
             .persons
-            .iter()
-            .map(|p| Id::create(p.id.as_str()))
-            .flat_map(|p_id| {
-                garage
-                    .vehicle_types
-                    .keys()
-                    .map(move |type_id| (p_id.clone(), type_id.clone()))
+            .into_iter()
+            .filter(|(_id, p)| {
+                let act = p.curr_act();
+                let partition = net.links.get(act.link_id as usize).unwrap().partition;
+                partition == part
             })
             .collect();
-
-        // add interaction activity type for each vehicle type
-        for (_, id) in raw_veh.iter() {
-            Id::<String>::create(&format!("{} interaction", id.external()));
-        }
-
-        // have this in a separate loop because we are iterating over garage's vehicle types and we
-        // can't borrow vehicle types while using a &mut in add_veh.
-        for (person_id, type_id) in raw_veh {
-            garage.add_veh_id(&person_id, &type_id);
-        }
-
-        // now iterate over all plans to extract activity ids
-        let types: Vec<_> = io
-            .persons
-            .iter()
-            .flat_map(|person| person.plans.iter())
-            .flat_map(|plan| plan.elements.iter())
-            .filter_map(|element| match element {
-                IOPlanElement::Activity(a) => Some(a),
-                IOPlanElement::Leg(_) => None,
-            })
-            .map(|act| &act.r#type)
-            .collect();
-
-        //create id for modes
-        for act_type in types {
-            Id::<String>::create(act_type.as_str());
+        Population {
+            persons: filtered_persons,
         }
     }
 
-    fn create_persons(
-        result: &mut Population,
-        io_population: &IOPopulation,
-        net: &Network,
-        part: u32,
-    ) {
-        let persons: Vec<_> = io_population
-            .persons
-            .iter()
-            .filter(|io_p| Self::is_partition(io_p, net, part))
-            //.filter(|io_p| io_p.id.eq("1267938")) // take failing agent.
-            .map(Person::from_io)
-            .collect();
-
-        for person in persons {
-            let person_id = Id::get(person.id);
-            result.agents.insert(person_id, person);
-        }
-    }
-
-    fn is_partition(io_person: &IOPerson, net: &Network, partition: u32) -> bool {
-        let link = Self::link_first_act(io_person, net);
-        link.partition == partition
-    }
-
-    fn link_first_act<'n>(io: &IOPerson, net: &'n Network) -> &'n Link {
-        let first_element = io.selected_plan().elements.first().unwrap();
-        if let IOPlanElement::Activity(act) = first_element {
-            let link_id = Id::get_from_ext(&act.link);
-            return net.get_link(&link_id);
-        }
-
-        panic!("First element should be activity.");
+    pub fn to_file(&self, file_path: &Path) {
+        to_file(&self, file_path);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
+    use std::path::PathBuf;
 
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
@@ -141,11 +65,14 @@ mod tests {
             PartitionMethod::Metis,
         );
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let pop = Population::from_file("./assets/equil/equil-1-plan.xml", &net, &mut garage, 0);
+        let pop = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-1-plan.xml"),
+            &mut garage,
+        );
 
-        assert_eq!(1, pop.agents.len());
+        assert_eq!(1, pop.persons.len());
 
-        let agent = pop.agents.get(&Id::get_from_ext("1")).unwrap();
+        let agent = pop.persons.get(&Id::get_from_ext("1")).unwrap();
         assert!(agent.plan.is_some());
 
         let plan = agent.plan.as_ref().unwrap();
@@ -189,7 +116,8 @@ mod tests {
             PartitionMethod::Metis,
         );
         let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let pop = Population::from_file("./assets/3-links/3-agent.xml", &net, &mut garage, 0);
+        let pop =
+            Population::from_file(&PathBuf::from("./assets/3-links/3-agent.xml"), &mut garage);
 
         // check that we have all three vehicle types
         let expected_veh_types = HashSet::from(["car", "bike", "walk"]);
@@ -223,7 +151,7 @@ mod tests {
         assert_eq!("300", Id::<Person>::get_from_ext("300").external());
 
         // we expect three agents overall
-        assert_eq!(3, pop.agents.len());
+        assert_eq!(3, pop.persons.len());
 
         // todo test bookkeeping of garage person_2_vehicle
     }
@@ -236,12 +164,22 @@ mod tests {
             PartitionMethod::Metis,
         );
         let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
-        let pop1 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 0);
-        let pop2 = Population::from_file("./assets/equil/equil-plans.xml.gz", &net, &mut garage, 1);
+        let pop1 = Population::part_from_file(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &net,
+            &mut garage,
+            0,
+        );
+        let pop2 = Population::part_from_file(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &net,
+            &mut garage,
+            1,
+        );
 
         // metis produces unstable results on small networks so, make sure that one of the populations
         // has all the agents and the other doesn't
-        assert!(pop1.agents.len() == 100 || pop2.agents.len() == 100);
-        assert!(pop1.agents.is_empty() || pop2.agents.is_empty());
+        assert!(pop1.persons.len() == 100 || pop2.persons.len() == 100);
+        assert!(pop1.persons.is_empty() || pop2.persons.is_empty());
     }
 }
