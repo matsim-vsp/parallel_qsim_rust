@@ -22,9 +22,9 @@ pub fn from_file(path: &Path, garage: &mut Garage) -> Population {
 }
 
 pub fn to_file(population: &Population, path: &Path) {
-    if path.ends_with(".binpb") {
+    if path.extension().unwrap().eq("binpb") {
         write_to_proto(population, path);
-    } else if path.ends_with(".xml") || path.ends_with(".xml.gz") {
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("xml.gz") {
         write_to_xml(population, path);
     } else {
         panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");

@@ -11,5 +11,5 @@ mod replanning;
 mod scenario;
 mod simulation;
 pub mod time_queue;
-mod vehicles;
+pub mod vehicles;
 pub mod wire_types;

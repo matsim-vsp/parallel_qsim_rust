@@ -3,7 +3,7 @@ use std::path::Path;
 use nohash_hasher::IntMap;
 
 use crate::simulation::id::Id;
-use crate::simulation::vehicles::io::from_file;
+use crate::simulation::vehicles::io::{from_file, to_file};
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
@@ -36,6 +36,10 @@ impl Garage {
 
     pub fn from_file(file_path: &Path) -> Self {
         from_file(file_path)
+    }
+
+    pub fn to_file(&self, file_path: &Path) {
+        to_file(self, file_path);
     }
 
     pub fn add_veh_type(&mut self, veh_type: VehicleType) {

@@ -36,6 +36,7 @@ pub fn write_to_file<T: Message>(message: T, path: &Path) {
     info!("Writing bytes to file at: {path:?}");
     file.write_all(&bytes)
         .unwrap_or_else(|_| panic!("Failed to write bytes to file at: {path:?}"));
+    info!("Finished writing message to file: {path:?}");
 }
 
 pub struct MessageIter<T, R>
