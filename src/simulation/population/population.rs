@@ -64,7 +64,7 @@ mod tests {
             1,
             PartitionMethod::Metis,
         );
-        let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
         let pop = Population::from_file(
             &PathBuf::from("./assets/equil/equil-1-plan.xml"),
             &mut garage,
@@ -115,7 +115,7 @@ mod tests {
             1,
             PartitionMethod::Metis,
         );
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let pop =
             Population::from_file(&PathBuf::from("./assets/3-links/3-agent.xml"), &mut garage);
 
@@ -163,7 +163,7 @@ mod tests {
             2,
             PartitionMethod::Metis,
         );
-        let mut garage = Garage::from_file("./assets/equil/equil-vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
         let pop1 = Population::part_from_file(
             &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
             &net,

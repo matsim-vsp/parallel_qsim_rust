@@ -23,7 +23,7 @@ fn load_scenario(config: &Config) -> Scenario {
         config.num_parts,
         config.partition_method,
     );
-    let mut garage = Garage::from_file(&config.vehicles_file);
+    let mut garage = Garage::from_file(&PathBuf::from(&config.vehicles_file));
     let population = Population::from_file(&PathBuf::from(&config.population_file), &mut garage);
     Scenario {
         network,

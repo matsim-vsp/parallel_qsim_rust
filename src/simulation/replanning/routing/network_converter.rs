@@ -150,6 +150,8 @@ impl NetworkConverter {
 
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
@@ -228,7 +230,7 @@ mod test {
             1,
             PartitionMethod::Metis,
         );
-        let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml");
+        let garage = Garage::from_file(&PathBuf::from("./assets/adhoc_routing/vehicles.xml"));
 
         let vehicle_type2graph =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);

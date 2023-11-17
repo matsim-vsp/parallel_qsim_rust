@@ -259,7 +259,7 @@ mod tests {
             1,
             PartitionMethod::Metis,
         );
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let mut population = Population::part_from_file(
             &PathBuf::from("./assets/adhoc_routing/no_updates/agents.xml"),
             &network,
@@ -296,7 +296,7 @@ mod tests {
             1,
             PartitionMethod::Metis,
         );
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let mut population = Population::part_from_file(
             &PathBuf::from("./assets/3-links/1-agent-trip-leg.xml"),
             &network,
@@ -350,7 +350,7 @@ mod tests {
             1,
             PartitionMethod::Metis,
         );
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let mut population = Population::part_from_file(
             &PathBuf::from("./assets/3-links/1-agent-trip-leg.xml"),
             &network,

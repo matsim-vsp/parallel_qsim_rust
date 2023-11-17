@@ -3,11 +3,14 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::simulation;
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::xml_reader;
+use crate::simulation::io::attributes::{Attr, Attrs};
+use crate::simulation::io::xml;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
+use crate::simulation::wire_types::vehicles::{
+    LevelOfDetail, VehicleToType, VehicleType, VehiclesContainer,
+};
 
 pub fn from_file(path: &Path) -> Garage {
     if path.extension().unwrap().eq("binpb") {
@@ -16,6 +19,16 @@ pub fn from_file(path: &Path) -> Garage {
         load_from_xml(path)
     } else {
         panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+pub fn to_file(garage: &Garage, path: &Path) {
+    if path.extension().unwrap().eq("binpb") {
+        write_to_proto(garage, path);
+    } else if path.extension().unwrap().eq("xml") || path.ends_with("xml.gz") {
+        write_to_xml(garage, path);
+    } else {
+        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
     }
 }
 
@@ -33,8 +46,82 @@ fn load_from_xml(path: &Path) -> Garage {
     result
 }
 
+fn write_to_xml(garage: &Garage, path: &Path) {
+    info!("Converting Garage into xml type");
+
+    let veh_types = garage
+        .vehicle_types
+        .values()
+        .map(|t| {
+            let attrs = Attrs {
+                attributes: vec![Attr {
+                    name: "lod".to_string(),
+                    class: "java.lang.String".to_string(),
+                    value: t.lod().as_str_name().to_owned(),
+                }],
+            };
+            IOVehicleType {
+                id: Id::<VehicleType>::get(t.id).external().to_owned(),
+                description: None,
+                capacity: None,
+                length: Some(IODimension { meter: t.length }),
+                width: Some(IODimension { meter: t.width }),
+                maximum_velocity: Some(IOVelocity {
+                    meter_per_second: t.max_v,
+                }),
+                engine_information: None,
+                cost_information: None,
+                passenger_car_equivalents: Some(IOPassengerCarEquivalents { pce: t.pce }),
+                network_mode: Some(IONetworkMode {
+                    network_mode: Id::<String>::get(t.net_mode).external().to_owned(),
+                }),
+                flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: t.fef }),
+                attributes: Some(attrs),
+            }
+        })
+        .collect();
+
+    let io_vehicles = IOVehicleDefinitions { veh_types };
+
+    xml::write_to_file(&io_vehicles, path, "http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd")
+}
+
+fn write_to_proto(garage: &Garage, path: &Path) {
+    info!("Converting Garage into wire type");
+    let vehicle_types = garage.vehicle_types.values().map(|t| t.clone()).collect();
+    let vehicles = garage
+        .vehicles
+        .iter()
+        .map(|e| VehicleToType {
+            id: e.0.internal(),
+            vehicle_type_id: e.1.internal(),
+        })
+        .collect();
+
+    let wire_format = VehiclesContainer {
+        vehicle_types,
+        vehicles,
+    };
+    info!("Finished converting Garage into wire type");
+    simulation::io::proto::write_to_file(wire_format, path);
+}
+
 fn load_from_proto(path: &Path) -> Garage {
-    panic!("Not yet implemented")
+    let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
+    let vehicles = wire_garage
+        .vehicles
+        .iter()
+        .map(|v| (Id::get(v.id), Id::get(v.vehicle_type_id)))
+        .collect();
+    let vehicle_types = wire_garage
+        .vehicle_types
+        .into_iter()
+        .map(|v_type| (Id::get(v_type.id), v_type))
+        .collect();
+    Garage {
+        vehicles,
+        vehicle_types,
+    }
 }
 
 fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
@@ -188,19 +275,21 @@ pub struct IOCostInformation {
 
 impl IOVehicleDefinitions {
     pub fn from_file(file: &str) -> Self {
-        xml_reader::read(file)
+        xml::read_from_file(file)
     }
 }
 
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
     use quick_xml::de::from_str;
 
     use crate::simulation::id::Id;
     use crate::simulation::io::attributes::{Attr, Attrs};
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::io::{
-        add_io_veh_type, IODimension, IOFowEfficiencyFactor, IONetworkMode,
+        add_io_veh_type, from_file, to_file, IODimension, IOFowEfficiencyFactor, IONetworkMode,
         IOPassengerCarEquivalents, IOVehicleDefinitions, IOVehicleType, IOVelocity,
     };
     use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
@@ -273,11 +362,53 @@ mod test {
     }
 
     #[test]
-    fn test_from_file() {
-        let veh_def = IOVehicleDefinitions::from_file("./assets/3-links/vehicles.xml");
-        assert_eq!(3, veh_def.veh_types.len());
-        // no further assertions here, as the tests above test the individual properties.
-        // so, this test mainly tests whether the vehicles implementation calls the xml_reader
+    fn test_to_from_file_xml() {
+        let file = &PathBuf::from(
+            "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.xml",
+        );
+        let mut garage = Garage::new();
+
+        garage.add_veh_type(VehicleType {
+            id: Id::<VehicleType>::create("some-type").internal(),
+            length: 10.,
+            width: 20.0,
+            max_v: 1000.0,
+            pce: 20.0,
+            fef: 0.3,
+            net_mode: Id::<String>::create("some network type 🚕").internal(),
+            lod: LevelOfDetail::Teleported as i32,
+        });
+        garage.add_veh_id(&Id::create("some-person"), &Id::get_from_ext("some-type"));
+
+        to_file(&garage, file);
+        let loaded_garage = from_file(file);
+        assert_eq!(garage.vehicle_types, loaded_garage.vehicle_types);
+    }
+
+    #[test]
+    fn test_to_from_file_proto() {
+        let file = &PathBuf::from(
+            "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.binpb",
+        );
+        let mut garage = Garage::new();
+
+        garage.add_veh_type(VehicleType {
+            id: Id::<VehicleType>::create("some-type").internal(),
+            length: 10.,
+            width: 20.0,
+            max_v: 1000.0,
+            pce: 20.0,
+            fef: 0.3,
+            net_mode: Id::<String>::create("some network type 🚕").internal(),
+            lod: LevelOfDetail::Teleported as i32,
+        });
+        garage.add_veh_id(&Id::create("some-person"), &Id::get_from_ext("some-type"));
+
+        to_file(&garage, file);
+        let loaded_garage = from_file(file);
+
+        assert_eq!(garage.vehicle_types, loaded_garage.vehicle_types);
+        assert_eq!(garage.vehicles, loaded_garage.vehicles);
     }
 
     #[test]

@@ -5,8 +5,8 @@ use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::proto::load_from_file;
-use crate::simulation::io::xml_reader;
+use crate::simulation::io::proto::read_from_file;
+use crate::simulation::io::xml;
 use crate::simulation::population::population::Population;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::population::Person;
@@ -42,7 +42,7 @@ fn write_to_xml(_population: &Population, _path: &Path) {
 }
 
 fn load_from_proto(path: &Path) -> Population {
-    let wire_pop: crate::simulation::wire_types::population::Population = load_from_file(path);
+    let wire_pop: crate::simulation::wire_types::population::Population = read_from_file(path);
     let persons = wire_pop
         .persons
         .into_iter()
@@ -215,7 +215,7 @@ pub struct IOPopulation {
 
 impl IOPopulation {
     pub fn from_file(file_path: &str) -> IOPopulation {
-        let population: IOPopulation = xml_reader::read(file_path);
+        let population: IOPopulation = xml::read_from_file(file_path);
         info!(
             "IOPopulation: Finished reading population. Population contains {} persons",
             population.persons.len()

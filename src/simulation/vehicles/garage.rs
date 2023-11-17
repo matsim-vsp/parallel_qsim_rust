@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use nohash_hasher::IntMap;
 
@@ -34,8 +34,8 @@ impl Garage {
         }
     }
 
-    pub fn from_file(file_path: &str) -> Self {
-        from_file(&PathBuf::from(file_path))
+    pub fn from_file(file_path: &Path) -> Self {
+        from_file(file_path)
     }
 
     pub fn add_veh_type(&mut self, veh_type: VehicleType) {
@@ -136,6 +136,8 @@ impl Garage {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::simulation::id::Id;
     use crate::simulation::vehicles::garage::Garage;
     use crate::test_utils::create_vehicle_type;
@@ -167,7 +169,7 @@ mod tests {
 
     #[test]
     fn from_file() {
-        let garage = Garage::from_file("./assets/3-links/vehicles.xml");
+        let garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         assert_eq!(3, garage.vehicle_types.len());
     }
 }

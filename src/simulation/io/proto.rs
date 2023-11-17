@@ -7,7 +7,7 @@ use std::path::Path;
 use prost::Message;
 use tracing::info;
 
-pub fn load_from_file<T: Message + Default>(path: &Path) -> T {
+pub fn read_from_file<T: Message + Default>(path: &Path) -> T {
     info!("Loading message from file at: {path:?}");
     let mut reader = File::open(path).unwrap_or_else(|_| panic!("Could not open File at {path:?}"));
 

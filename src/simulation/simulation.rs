@@ -497,7 +497,7 @@ mod tests {
             config.num_parts,
             config.partition_method,
         );
-        let mut garage = Garage::from_file(&config.vehicles_file);
+        let mut garage = Garage::from_file(&PathBuf::from(&config.vehicles_file));
         let pop = Population::part_from_file(
             &PathBuf::from(&config.population_file),
             &net,

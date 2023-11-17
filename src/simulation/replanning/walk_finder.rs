@@ -74,7 +74,7 @@ mod tests {
 
         let walk_finder = EuclideanWalkFinder::new();
 
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let population = Population::from_file(
             &PathBuf::from("./assets/equil/equil-1-plan.xml"),
             &mut garage,

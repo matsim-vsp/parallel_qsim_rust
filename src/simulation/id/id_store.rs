@@ -433,8 +433,9 @@ mod tests {
             store.create_id::<Node>(node.id.external());
         }
 
-        let mut garage =
-            Garage::from_file("/Users/janek/Documents/rust_q_sim/input/rvr.vehicles.xml");
+        let mut garage = Garage::from_file(&PathBuf::from(
+            "/Users/janek/Documents/rust_q_sim/input/rvr.vehicles.xml",
+        ));
         let pop = Population::from_file(
             &PathBuf::from("/Users/janek/Documents/rust_q_sim/input/rvr-10pct.plans.xml.gz"),
             &mut garage,

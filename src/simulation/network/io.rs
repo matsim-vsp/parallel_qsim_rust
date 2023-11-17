@@ -1,20 +1,16 @@
 use std::fmt::Debug;
-use std::fs;
-use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 
-use flate2::Compression;
 use nohash_hasher::IntSet;
-use quick_xml::se::to_writer;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::io::matsim_id::MatsimId;
-use crate::simulation::io::xml_reader;
+use crate::simulation::io::xml;
 use crate::simulation::network::global_network::{Link, Network, Node};
 
 pub fn from_file(path: &Path) -> Network {
@@ -107,7 +103,7 @@ fn write_to_xml(network: &Network, path: &Path) {
 
 fn load_from_proto(path: &Path) -> Network {
     let wire_net: crate::simulation::wire_types::network::Network =
-        crate::simulation::io::proto::load_from_file(path);
+        crate::simulation::io::proto::read_from_file(path);
     info!("Converting protobuf wire type into Network");
     let mut result = Network::new();
     for wn in &wire_net.nodes {
@@ -269,7 +265,7 @@ impl IONetwork {
     }
 
     pub fn from_file(file_path: &str) -> IONetwork {
-        let network: IONetwork = xml_reader::read(file_path);
+        let network: IONetwork = xml::read_from_file(file_path);
         info!(
             "IONetwork:: Finished reading network. It contains {} nodes and {} links.",
             network.nodes().len(),
@@ -280,26 +276,11 @@ impl IONetwork {
     }
 
     pub fn to_file(&self, path: &Path) {
-        // Create the file and all necessary directories
-        // this doesn't cover some edge cases, but this will do for now
-        //let path = Path::new(file_path);
-        let prefix = path.parent().unwrap();
-        fs::create_dir_all(prefix).unwrap();
-        let file = File::create(path).unwrap();
-
-        // start writing gz stream to the file. This will eventually move into a separate file, once
-        // we want to write other stuff as well.
-        let encoder = flate2::write::GzEncoder::new(file, Compression::fast());
-        let mut writer = BufWriter::new(encoder);
-
-        // to make via swollow this, it neads an xml tag, as well as a dtd header.
-        let network_header = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v2.dtd\">";
-        writer.write_all(network_header.as_ref()).unwrap();
-
-        // write the actual network
-        to_writer(writer, self).unwrap();
-
-        info!("IONetwork: Finished writing network.");
+        xml::write_to_file(
+            self,
+            path,
+            "<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v2.dtd\">",
+        );
     }
 }
 

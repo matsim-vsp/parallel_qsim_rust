@@ -1,10 +1,12 @@
-use rust_q_sim::simulation::io::xml_reader;
-use serde::{de, Deserialize, Deserializer, Serialize};
 use std::process::Command;
 use std::str::FromStr;
 use std::time::Duration;
 use std::usize;
+
+use serde::{de, Deserialize, Deserializer, Serialize};
 use wait_timeout::ChildExt;
+
+use rust_q_sim::simulation::io::xml;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Events {
@@ -164,12 +166,12 @@ pub fn run_mpi_simulation_and_convert_events(
 }
 
 pub fn compare_events(output_dir: &str, path_to_expected_scenario_files: &str) {
-    let mut expected_output_events: Events = xml_reader::read(
+    let mut expected_output_events: Events = xml::read_from_file(
         (String::from(path_to_expected_scenario_files) + "/output_events.xml").as_ref(),
     );
 
     let actual_output_events: Events =
-        xml_reader::read((output_dir.to_owned() + "/events.xml").as_ref());
+        xml::read_from_file((output_dir.to_owned() + "/events.xml").as_ref());
 
     for actual_event in actual_output_events.events {
         expected_output_events.events.remove(
