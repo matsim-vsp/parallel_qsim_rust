@@ -14,6 +14,7 @@ fn main() {
             "src/simulation/wire_types/ids.proto",
             "src/simulation/wire_types/network.proto",
             "src/simulation/wire_types/population.proto",
+            "src/simulation/wire_types/vehicles.proto",
         ],
         &["src/"],
     )

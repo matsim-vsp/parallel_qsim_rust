@@ -3,7 +3,6 @@ pub mod matsim_id;
 pub mod non_blocking_io;
 pub mod proto;
 pub mod proto_events;
-pub mod vehicles;
 mod worker;
 pub mod xml_events;
 pub mod xml_reader;

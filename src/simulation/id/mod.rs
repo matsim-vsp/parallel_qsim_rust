@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::path::Path;
@@ -102,6 +103,12 @@ impl<T: StableTypeId + 'static> Ord for Id<T> {
 impl<T: StableTypeId + 'static> PartialOrd for Id<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.internal().partial_cmp(&other.internal())
+    }
+}
+
+impl<T: StableTypeId + 'static> Display for Id<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.external())
     }
 }
 

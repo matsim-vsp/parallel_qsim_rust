@@ -1,7 +1,7 @@
 use crate::simulation::network::global_network::{Link, Node};
-use crate::simulation::vehicles::vehicle_type::VehicleType;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::Person;
+use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub trait StableTypeId {
     fn stable_type_id() -> u64;

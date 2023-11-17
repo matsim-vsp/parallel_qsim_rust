@@ -1,11 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use clap::{arg, Parser};
-use rust_q_sim::simulation::config::PartitionMethod;
 use tracing::info;
 
-use rust_q_sim::simulation::io::attributes::{Attr, Attrs};
-use rust_q_sim::simulation::io::network::{IOLink, IONetwork, IONode};
+use rust_q_sim::simulation::config::PartitionMethod;
 use rust_q_sim::simulation::network::global_network::Network;
 
 fn main() {
@@ -48,7 +46,7 @@ fn main() {
 }
 
 fn to_file_internal_ids(network: &Network, file_path: &Path) {
-    let mut result = IONetwork::new(None);
+    /*let mut result = IONetwork::new(None);
 
     for node in &network.nodes {
         let attributes = Attrs {
@@ -98,6 +96,8 @@ fn to_file_internal_ids(network: &Network, file_path: &Path) {
     }
 
     result.to_file(file_path);
+
+     */
 }
 
 #[derive(Parser, Debug)]

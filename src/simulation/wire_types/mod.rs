@@ -15,3 +15,7 @@ pub mod network {
 pub mod population {
     include!(concat!(env!("OUT_DIR"), "/population.rs"));
 }
+
+pub mod vehicles {
+    include!(concat!(env!("OUT_DIR"), "/vehicles.rs"));
+}

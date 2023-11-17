@@ -12,10 +12,10 @@ use crate::simulation::population::population::Population;
 use crate::simulation::replanning::replanner::Replanner;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::vehicles::vehicle_type::LevelOfDetail;
 use crate::simulation::wire_types::events::Event;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::Person;
+use crate::simulation::wire_types::vehicles::LevelOfDetail;
 
 pub struct Simulation<C>
 where
@@ -114,7 +114,7 @@ where
             let veh_type_id = Id::get(vehicle.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
 
-            match veh_type.lod {
+            match veh_type.lod() {
                 LevelOfDetail::Network => {
                     self.events.publish_event(
                         now,
@@ -203,7 +203,7 @@ where
                 .publish_event(now, &Event::new_person_leaves_veh(veh.agent().id, veh.id));
             let veh_type_id = Id::get(veh.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
-            let mode = veh_type.net_mode.internal();
+            let mode = veh_type.net_mode;
             let mut agent = self.garage.park_veh(veh);
 
             // move to next activity
@@ -239,7 +239,7 @@ where
             for veh in msg.vehicles {
                 let veh_type_id = Id::get(veh.r#type);
                 let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
-                match veh_type.lod {
+                match veh_type.lod() {
                     LevelOfDetail::Network => self.network.send_veh_en_route(veh, now),
                     LevelOfDetail::Teleported => self.teleportation_q.add(veh, now),
                 }

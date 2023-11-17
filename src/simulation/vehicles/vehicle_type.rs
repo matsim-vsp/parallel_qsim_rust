@@ -1,4 +1,19 @@
-use crate::simulation::id::Id;
+/*
+impl VehicleType {
+    fn new_default(id: Id<VehicleType>, net_mode: Id<String>) -> Self {
+        Self {
+            id: id.internal(),
+            length: 0.0,
+            width: 0.0,
+            max_v: 0.0,
+            pce: 0.0,
+            fef: 0.0,
+            net_mode: net_mode.internal(),
+            lod: LevelOfDetail::Network as i32,
+        }
+    }
+}
+
 
 #[derive(Debug)]
 #[allow(dead_code)] // allow dead code here, as we have some props which are not used yet.
@@ -69,3 +84,5 @@ mod tests {
         let _ = LevelOfDetail::from(value);
     }
 }
+
+ */

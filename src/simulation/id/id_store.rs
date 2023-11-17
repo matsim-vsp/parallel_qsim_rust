@@ -320,9 +320,9 @@ mod tests {
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::population::population::Population;
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::vehicle_type::VehicleType;
     use crate::simulation::wire_types::messages::Vehicle;
     use crate::simulation::wire_types::population::Person;
+    use crate::simulation::wire_types::vehicles::VehicleType;
     use crate::test_utils::create_folders;
 
     #[test]
