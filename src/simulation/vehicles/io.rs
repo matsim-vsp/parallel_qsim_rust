@@ -88,7 +88,7 @@ fn write_to_xml(garage: &Garage, path: &Path) {
 
 fn write_to_proto(garage: &Garage, path: &Path) {
     info!("Converting Garage into wire type");
-    let vehicle_types = garage.vehicle_types.values().map(|t| t.clone()).collect();
+    let vehicle_types = garage.vehicle_types.values().cloned().collect();
     let vehicles = garage
         .vehicles
         .iter()

@@ -56,7 +56,6 @@ fn write_to_proto(population: &Population, path: &Path) {
     info!("Converting Population into wire format");
     let persons: Vec<_> = population.persons.values().cloned().collect();
     let wire_pop = crate::simulation::wire_types::population::Population { persons };
-    info!("Finished converting population. Writing to file.");
     crate::simulation::io::proto::write_to_file(wire_pop, path);
 }
 
@@ -221,10 +220,6 @@ impl IOPopulation {
             population.persons.len()
         );
         population
-    }
-
-    pub fn empty() -> IOPopulation {
-        IOPopulation { persons: vec![] }
     }
 }
 

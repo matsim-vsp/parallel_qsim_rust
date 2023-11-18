@@ -14,7 +14,7 @@ use crate::simulation::config::{CommandLineArgs, Config2, PartitionMethod, Routi
 use crate::simulation::id::Id;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::communication::communicators::{
-    ChannelSimCommunicator, DummySimCommunicator, MpiSimCommunicator, SimCommunicator,
+    ChannelSimCommunicator, MpiSimCommunicator, SimCommunicator,
 };
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
@@ -26,18 +26,6 @@ use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCol
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, logging};
-
-pub fn run_single_partition() {
-    let args = CommandLineArgs::parse();
-    let config_path = &PathBuf::from(args.config_path);
-    let config = Config2::from_file(config_path);
-    let _guards = logging::init_logging(config.output().output_dir.as_ref(), 0.to_string());
-
-    info!("Starting single Partition Simulation");
-    let comm = DummySimCommunicator();
-
-    execute_partition(comm, config_path);
-}
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
@@ -94,7 +82,7 @@ pub fn run_mpi() {
 }
 
 fn execute_partition<C: SimCommunicator + 'static>(comm: C, config_path: &Path) {
-    let mut config = Config2::from_file(&PathBuf::from(config_path));
+    let config = Config2::from_file(&PathBuf::from(config_path));
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
@@ -204,13 +192,13 @@ fn partition_input(config: &Config2) {
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
     let net = if config.partitioning().method == PartitionMethod::Metis {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
-        partition_network(&config)
+        partition_network(config)
     } else {
         info!("Config param Partition method was set to none. Loading network from input, assuming it has partitioning information");
-        copy_network_into_output(&config)
+        copy_network_into_output(config)
     };
 
-    partition_population(&config, &net);
+    partition_population(config, &net);
 }
 
 fn partition_network(config: &Config2) -> Network {
@@ -245,7 +233,7 @@ fn partition_population(config: &Config2, network: &Network) {
     let num_parts = config.partitioning().num_parts;
     let pop = Population::from_file(&pop_in_path, &mut Garage::new());
     let mut part_pops = vec![];
-    for i in 0..num_parts {
+    for _i in 0..num_parts {
         part_pops.push(Population::new())
     }
 
@@ -268,15 +256,6 @@ fn partition_population(config: &Config2, network: &Network) {
     }
 }
 
-fn guess_proto_filename(path: &Path) -> String {
-    let file_name = path.file_name().unwrap().to_str().unwrap();
-    let mut stripped = file_name.strip_suffix(".xml.gz");
-    if stripped.is_none() {
-        stripped = file_name.strip_suffix(".xml");
-    }
-    format!("{}.binpb", stripped.unwrap())
-}
-
 fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: u32) -> PathBuf {
     let out = create_output_filename(output_dir, input_file);
     insert_number_in_proto_filename(&out, part)
@@ -290,7 +269,7 @@ fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
 fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
     let filename = path.file_name().unwrap().to_str().unwrap();
     let mut stripped = filename.strip_suffix(".binpb").unwrap();
-    if let (Some(s)) = stripped.strip_suffix(format!(".{part}").as_str()) {
+    if let Some(s) = stripped.strip_suffix(format!(".{part}").as_str()) {
         stripped = s;
     }
     let new_filename = format!("{stripped}.{part}.binpb");

@@ -20,15 +20,15 @@ struct InputArgs {
 fn main() {
     rust_q_sim::simulation::logging::init_std_out_logging();
     let args = InputArgs::parse();
-    let mut net_path = PathBuf::from(&args.network);
-    let mut pop_path = PathBuf::from(&args.population);
-    let mut veh_path = PathBuf::from(&args.vehicles);
+    let net_path = PathBuf::from(&args.network);
+    let pop_path = PathBuf::from(&args.population);
+    let veh_path = PathBuf::from(&args.vehicles);
 
     let net = Network::from_file_path(&net_path, 1, PartitionMethod::None);
     let mut veh = Garage::from_file(&veh_path);
     let pop = Population::from_file(&pop_path, &mut veh);
 
-    rust_q_sim::simulation::id::store_to_file((&net_path.parent().unwrap().join("ids.binpb")));
+    rust_q_sim::simulation::id::store_to_file(&net_path.parent().unwrap().join("ids.binpb"));
     net.to_file(&replace_filename(net_path));
     veh.to_file(&replace_filename(veh_path));
     pop.to_file(&replace_filename(pop_path))

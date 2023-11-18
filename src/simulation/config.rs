@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::fmt::Display;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::Path;
@@ -102,11 +101,10 @@ impl Config2 {
     }
 
     fn module<T: Clone + 'static>(&self, key: &str) -> Option<T> {
-        if let Some(boxed) = self.modules.borrow().get(key) {
-            Some(boxed.as_ref().as_any().downcast_ref::<T>().unwrap().clone())
-        } else {
-            None
-        }
+        self.modules
+            .borrow()
+            .get(key)
+            .map(|boxed| boxed.as_ref().as_any().downcast_ref::<T>().unwrap().clone())
     }
 }
 
@@ -348,7 +346,7 @@ mod tests {
 
     #[test]
     fn read_from_yaml() {
-        let mut config = Config2 {
+        let config = Config2 {
             modules: Default::default(),
         };
         let partitioning = Partitioning {
@@ -364,7 +362,7 @@ mod tests {
 
         println!("{yaml}");
 
-        let parsed_config: Config2 = serde_yaml::from_str(&yaml).expect("failed to parse config");
+        let _parsed_config: Config2 = serde_yaml::from_str(&yaml).expect("failed to parse config");
         println!("done.")
     }
 }

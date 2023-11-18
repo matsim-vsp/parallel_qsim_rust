@@ -5,6 +5,7 @@ package network;
 message Network {
   repeated Node nodes = 1;
   repeated Link links = 2;
+  float effectiveCellSize = 3;
 }
 
 message Node {

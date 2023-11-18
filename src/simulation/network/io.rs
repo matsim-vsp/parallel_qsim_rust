@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::io::Write;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -45,11 +44,13 @@ fn load_from_xml(path: &Path) -> Network {
         add_io_link(&mut result, io_link);
     }
 
+    result.effective_cell_size = io_net.effective_cell_size();
+
     result
 }
 
 fn write_to_xml(network: &Network, path: &Path) {
-    let mut result = self::IONetwork::new(None);
+    let mut result = IONetwork::new(None);
 
     for node in &network.nodes {
         let attributes = Attrs {
@@ -105,6 +106,7 @@ fn load_from_proto(path: &Path) -> Network {
     let wire_net: crate::simulation::wire_types::network::Network =
         crate::simulation::io::proto::read_from_file(path);
     let mut result = Network::new();
+    result.effective_cell_size = wire_net.effective_cell_size;
     for wn in &wire_net.nodes {
         let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition);
         result.add_node(node);
@@ -112,7 +114,7 @@ fn load_from_proto(path: &Path) -> Network {
     for wl in &wire_net.links {
         let modes: IntSet<Id<String>> = wl.modes.iter().map(|id| Id::get(*id)).collect();
 
-        let mut link = Link::new(
+        let link = Link::new(
             Id::get(wl.id),
             Id::get(wl.from),
             Id::get(wl.to),
@@ -157,8 +159,11 @@ fn write_to_proto(network: &Network, path: &Path) {
         })
         .collect();
 
-    let wire_network = crate::simulation::wire_types::network::Network { nodes, links };
-    info!("Finished converting Network into wire format");
+    let wire_network = crate::simulation::wire_types::network::Network {
+        nodes,
+        links,
+        effective_cell_size: network.effective_cell_size,
+    };
     crate::simulation::io::proto::write_to_file(wire_network, path);
 }
 
@@ -193,20 +198,6 @@ pub struct IOLink {
 impl MatsimId for IOLink {
     fn id(&self) -> &str {
         self.id.as_str()
-    }
-}
-
-impl IOLink {
-    pub fn modes(&self) -> Vec<String> {
-        if self.modes.eq("") {
-            return Vec::new();
-        };
-
-        self.modes
-            .replace(' ', "")
-            .split(',')
-            .map(String::from)
-            .collect()
     }
 }
 
@@ -306,7 +297,7 @@ fn add_io_link(network: &mut Network, io_link: &IOLink) {
     let from_id = Id::get_from_ext(&io_link.from);
     let to_id = Id::get_from_ext(&io_link.to);
 
-    let mut link = Link::new(
+    let link = Link::new(
         id,
         from_id,
         to_id,

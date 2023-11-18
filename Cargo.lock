@@ -400,7 +400,7 @@ version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c138974f9d5e7fe373eb04df7cae98833802ae4b11c24ac7039a21d5af4b26c"
 dependencies = [
-    "serde",
+ "serde",
 ]
 
 [[package]]
@@ -1225,12 +1225,12 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_path_to_error",
-    "serde_yaml",
+ "serde_yaml",
  "serial_test",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
-    "typetag",
+ "typetag",
  "wait-timeout",
  "xml",
 ]
@@ -1334,11 +1334,11 @@ version = "0.9.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cc7a1570e38322cfe4154732e5110f887ea57e22b76f4bfd32b5bdd3368666c"
 dependencies = [
-    "indexmap 2.0.2",
-    "itoa",
-    "ryu",
-    "serde",
-    "unsafe-libyaml",
+ "indexmap 2.0.2",
+ "itoa",
+ "ryu",
+ "serde",
+ "unsafe-libyaml",
 ]
 
 [[package]]
@@ -1610,11 +1610,11 @@ version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80960fd143d4c96275c0e60b08f14b81fbb468e79bc0ef8fbda69fb0afafae43"
 dependencies = [
-    "erased-serde",
-    "inventory",
-    "once_cell",
-    "serde",
-    "typetag-impl",
+ "erased-serde",
+ "inventory",
+ "once_cell",
+ "serde",
+ "typetag-impl",
 ]
 
 [[package]]
@@ -1623,9 +1623,9 @@ version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bfc13d450dc4a695200da3074dacf43d449b968baee95e341920e47f61a3b40f"
 dependencies = [
-    "proc-macro2",
-    "quote",
-    "syn 2.0.37",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.37",
 ]
 
 [[package]]

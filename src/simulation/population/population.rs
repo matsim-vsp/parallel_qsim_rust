@@ -40,7 +40,7 @@ impl Population {
     }
 
     pub fn to_file(&self, file_path: &Path) {
-        to_file(&self, file_path);
+        to_file(self, file_path);
     }
 }
 
@@ -59,11 +59,6 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
-        let net = Network::from_file(
-            "./assets/equil/equil-network.xml",
-            1,
-            PartitionMethod::Metis,
-        );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
         let pop = Population::from_file(
             &PathBuf::from("./assets/equil/equil-1-plan.xml"),
@@ -110,11 +105,6 @@ mod tests {
 
     #[test]
     fn from_io_multi_mode() {
-        let net = Network::from_file(
-            "./assets/3-links/3-links-network.xml",
-            1,
-            PartitionMethod::Metis,
-        );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let pop =
             Population::from_file(&PathBuf::from("./assets/3-links/3-agent.xml"), &mut garage);
