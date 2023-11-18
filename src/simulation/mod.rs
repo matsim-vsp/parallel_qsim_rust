@@ -8,7 +8,6 @@ pub mod network;
 pub mod performance_profiling;
 pub mod population;
 mod replanning;
-mod scenario;
 mod simulation;
 pub mod time_queue;
 pub mod vehicles;

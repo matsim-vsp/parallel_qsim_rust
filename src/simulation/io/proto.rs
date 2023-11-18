@@ -23,7 +23,6 @@ pub fn read_from_file<T: Message + Default>(path: &Path) -> T {
 
 pub fn write_to_file<T: Message>(message: T, path: &Path) {
     info!("Starting to write message to file: {path:?}");
-    info!("Encoding message to bytes");
     let bytes = message.encode_to_vec();
 
     // Create the file and all necessary directories
@@ -33,7 +32,6 @@ pub fn write_to_file<T: Message>(message: T, path: &Path) {
     fs::create_dir_all(prefix).unwrap();
     let mut file =
         File::create(path).unwrap_or_else(|_| panic!("Failed to create file at: {path:?}"));
-    info!("Writing bytes to file at: {path:?}");
     file.write_all(&bytes)
         .unwrap_or_else(|_| panic!("Failed to write bytes to file at: {path:?}"));
     info!("Finished writing message to file: {path:?}");

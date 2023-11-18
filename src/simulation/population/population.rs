@@ -20,7 +20,7 @@ impl Population {
     }
 
     pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
-        super::io::from_file(file_path, garage)
+        from_file(file_path, garage)
     }
 
     pub fn part_from_file(file_path: &Path, net: &Network, garage: &mut Garage, part: u32) -> Self {

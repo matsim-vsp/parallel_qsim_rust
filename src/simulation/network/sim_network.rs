@@ -742,20 +742,13 @@ mod tests {
     #[test]
     fn neighbors() {
         let mut net = Network::new();
-        let mut node = Node::new(Id::create("node-1"), -0., 0.);
-        node.partition = 0;
+        let mut node = Node::new(Id::create("node-1"), -0., 0., 0);
+        let mut node_1_1 = Node::new(Id::create("node-1-1"), -0., 0., 1);
+        let mut node_1_2 = Node::new(Id::create("node-1-2"), -0., 0., 1);
 
-        let mut node_1_1 = Node::new(Id::create("node-1-1"), -0., 0.);
-        node_1_1.partition = 1;
-        let mut node_1_2 = Node::new(Id::create("node-1-2"), -0., 0.);
-        node_1_2.partition = 1;
-
-        let mut node_2_1 = Node::new(Id::create("node-2-1"), -0., 0.);
-        node_2_1.partition = 2;
-        let mut node_3_1 = Node::new(Id::create("node-3-1"), -0., 0.);
-        node_3_1.partition = 3;
-        let mut node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0.);
-        node_4_1.partition = 4;
+        let mut node_2_1 = Node::new(Id::create("node-2-1"), -0., 0., 2);
+        let mut node_3_1 = Node::new(Id::create("node-3-1"), -0., 0., 3);
+        let mut node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0., 4);
 
         // create in links from partitions 1 and 2. 2 incoming links from partition 1, one incoming from
         // partition 2
@@ -792,9 +785,9 @@ mod tests {
     }
 
     fn init_three_node_network(network: &mut Network) {
-        let node1 = Node::new(Id::create("node-1"), -100., 0.);
-        let node2 = Node::new(Id::create("node-2"), 0., 0.);
-        let node3 = Node::new(Id::create("node-3"), 100., 0.);
+        let node1 = Node::new(Id::create("node-1"), -100., 0., 0);
+        let node2 = Node::new(Id::create("node-2"), 0., 0., 0);
+        let node3 = Node::new(Id::create("node-3"), 100., 0., 0);
         let mut link1 = Link::new_with_default(Id::create("link-1"), &node1, &node2);
         link1.capacity = 3600.;
         link1.freespeed = 10.;

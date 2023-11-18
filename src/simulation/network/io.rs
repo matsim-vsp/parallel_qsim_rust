@@ -104,10 +104,9 @@ fn write_to_xml(network: &Network, path: &Path) {
 fn load_from_proto(path: &Path) -> Network {
     let wire_net: crate::simulation::wire_types::network::Network =
         crate::simulation::io::proto::read_from_file(path);
-    info!("Converting protobuf wire type into Network");
     let mut result = Network::new();
     for wn in &wire_net.nodes {
-        let node = Node::new(Id::get(wn.id), wn.x, wn.y);
+        let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition);
         result.add_node(node);
     }
     for wl in &wire_net.links {
@@ -122,8 +121,8 @@ fn load_from_proto(path: &Path) -> Network {
             wl.freespeed,
             wl.permlanes,
             modes,
+            wl.partition,
         );
-        link.partition = wl.partition;
         result.add_link(link);
     }
     info!("Finished converting protobuf wire type into Network");
@@ -289,7 +288,7 @@ fn add_io_node(network: &mut Network, io_node: &IONode) {
     let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
     let partition = u32::from_str(part_attr).unwrap();
 
-    let mut node = Node::new(id, io_node.x, io_node.y);
+    let mut node = Node::new(id, io_node.x, io_node.y, partition);
     node.partition = partition;
     network.add_node(node);
 }
@@ -316,8 +315,8 @@ fn add_io_link(network: &mut Network, io_link: &IOLink) {
         io_link.freespeed,
         io_link.permlanes,
         modes,
+        partition,
     );
-    link.partition = partition;
     network.add_link(link);
 }
 

@@ -496,8 +496,7 @@ mod tests {
     }
 
     fn create_node(id: u64, partition: u32) -> Node {
-        let mut node = Node::new(Id::new_internal(id), 0., 0.);
-        node.partition = partition;
+        let mut node = Node::new(Id::new_internal(id), 0., 0., partition);
         node
     }
 

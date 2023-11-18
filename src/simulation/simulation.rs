@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use tracing::info;
 
-use crate::simulation::config::Config;
+use crate::simulation::config::Config2;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
@@ -35,7 +33,7 @@ where
     C: SimCommunicator + 'static,
 {
     pub fn new(
-        config: Arc<Config>,
+        config: Config2,
         network: SimNetworkPartition,
         garage: Garage,
         mut population: Population,
@@ -50,7 +48,7 @@ where
         let agents = std::mem::take(&mut population.persons);
 
         for agent in agents.into_values() {
-            activity_q.add(agent, config.start_time);
+            activity_q.add(agent, config.simulation().start_time);
         }
 
         Simulation {
@@ -283,7 +281,6 @@ mod tests {
         DummyReplanner, ReRouteTripReplanner, Replanner,
     };
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
-    use crate::simulation::simulation::Simulation;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::wire_types::events::Event;
 
@@ -532,17 +529,20 @@ mod tests {
             Box::new(DummyReplanner {})
         };
 
-        let mut sim = Simulation::new(
-            config.clone(),
-            sim_net,
-            garage,
-            pop,
-            broker,
-            events,
-            replanner,
-        );
+        /*  let mut sim = Simulation::new(
+             config.clone(),
+             sim_net,
+             garage,
+             pop,
+             broker,
+             events,
+             replanner,
+         );
 
-        sim.run(config.start_time, config.end_time);
+         sim.run(config.start_time, config.end_time);
+
+        */
+        panic!("Re implement this test")
     }
 
     /// Have this more complicated join logic, so that threads in the back of the handle vec can also
