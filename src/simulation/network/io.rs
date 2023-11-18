@@ -400,6 +400,7 @@ mod tests {
 
         // test the link structure
         let link = result.links().first().unwrap();
+        let modes: Vec<_> = link.modes.split(',').map(|s| s.trim()).collect();
         assert_eq!("23", link.id);
         assert_eq!("15", link.from);
         assert_eq!("1", link.to);
@@ -407,7 +408,7 @@ mod tests {
         assert_eq!(36000.0, link.capacity);
         assert_eq!(27.78, link.freespeed);
         assert_eq!(1.0, link.permlanes);
-        assert_eq!(vec!["car", "bike"], link.modes());
+        assert_eq!(vec!["car", "bike"], modes);
 
         Ok(())
     }

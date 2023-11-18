@@ -59,6 +59,7 @@ mod tests {
 
     #[test]
     fn from_io_1_plan() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
         let pop = Population::from_file(
             &PathBuf::from("./assets/equil/equil-1-plan.xml"),
@@ -105,6 +106,7 @@ mod tests {
 
     #[test]
     fn from_io_multi_mode() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/3-links/3-links-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let pop =
             Population::from_file(&PathBuf::from("./assets/3-links/3-agent.xml"), &mut garage);

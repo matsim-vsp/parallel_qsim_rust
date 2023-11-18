@@ -742,13 +742,13 @@ mod tests {
     #[test]
     fn neighbors() {
         let mut net = Network::new();
-        let mut node = Node::new(Id::create("node-1"), -0., 0., 0);
-        let mut node_1_1 = Node::new(Id::create("node-1-1"), -0., 0., 1);
-        let mut node_1_2 = Node::new(Id::create("node-1-2"), -0., 0., 1);
+        let node = Node::new(Id::create("node-1"), -0., 0., 0);
+        let node_1_1 = Node::new(Id::create("node-1-1"), -0., 0., 1);
+        let node_1_2 = Node::new(Id::create("node-1-2"), -0., 0., 1);
 
-        let mut node_2_1 = Node::new(Id::create("node-2-1"), -0., 0., 2);
-        let mut node_3_1 = Node::new(Id::create("node-3-1"), -0., 0., 3);
-        let mut node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0., 4);
+        let node_2_1 = Node::new(Id::create("node-2-1"), -0., 0., 2);
+        let node_3_1 = Node::new(Id::create("node-3-1"), -0., 0., 3);
+        let node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0., 4);
 
         // create in links from partitions 1 and 2. 2 incoming links from partition 1, one incoming from
         // partition 2

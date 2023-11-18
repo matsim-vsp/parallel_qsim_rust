@@ -24,7 +24,7 @@ pub fn create_agent(id: u64, route: Vec<u64>) -> Person {
 
 pub fn create_folders(path: PathBuf) -> PathBuf {
     fs::create_dir_all(&path)
-        .unwrap_or_else(|e| panic!("Failed to create folders for path {path:?}"));
+        .unwrap_or_else(|_e| panic!("Failed to create folders for path {path:?}"));
     path
 }
 
