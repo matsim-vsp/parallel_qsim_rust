@@ -2,17 +2,19 @@ use std::any::Any;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::Path;
 
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct CommandLineArgs {
     #[arg(long, short)]
     pub config_path: String,
+
+    #[arg(long, short)]
+    pub num_parts: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -21,9 +23,20 @@ pub struct Config2 {
 }
 
 impl Config2 {
-    pub fn from_file(path: &Path) -> Self {
-        let reader = BufReader::new(File::open(path).expect("Failed to open file."));
-        let config: Config2 = serde_yaml::from_reader(reader).expect("Failed to parse config.");
+    pub fn from_file(args: &CommandLineArgs) -> Self {
+        let reader = BufReader::new(File::open(&args.config_path).expect("Failed to open file."));
+        let mut config: Config2 = serde_yaml::from_reader(reader).expect("Failed to parse config.");
+        // replace some configuration if we get a partition from the outside. This is interesting for testing
+        if let Some(part_args) = args.num_parts {
+            config.set_partitioning(Partitioning {
+                num_parts: part_args,
+                method: config.partitioning().method,
+            });
+            let out_dir = format!("{}-{part_args}", config.output().output_dir);
+            config.set_output(Output {
+                output_dir: out_dir,
+            });
+        }
         config
     }
 
@@ -56,6 +69,12 @@ impl Config2 {
         }
     }
 
+    pub fn set_partitioning(&mut self, partitioning: Partitioning) {
+        self.modules
+            .get_mut()
+            .insert("partitioning".to_string(), Box::new(partitioning));
+    }
+
     pub fn output(&self) -> Output {
         if let Some(output) = self.module::<Output>("output") {
             output
@@ -68,6 +87,12 @@ impl Config2 {
                 .insert("output".to_string(), Box::new(default.clone()));
             default
         }
+    }
+
+    pub fn set_output(&mut self, output: Output) {
+        self.modules
+            .get_mut()
+            .insert("output".to_string(), Box::new(output));
     }
 
     pub fn simulation(&self) -> Simulation {

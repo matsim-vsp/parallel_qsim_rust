@@ -29,8 +29,7 @@ use crate::simulation::{id, logging};
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
-    let config_path = PathBuf::from(args.config_path);
-    let config = Config2::from_file(&config_path);
+    let config = Config2::from_file(&args);
 
     let _guards = logging::init_logging(
         config.output().output_dir.as_ref(),
@@ -46,10 +45,10 @@ pub fn run_channel() {
     let handles: IntMap<u32, JoinHandle<()>> = comms
         .into_iter()
         .map(|comm| {
-            let bla = config_path.clone();
+            let config_path = args.clone();
             (
                 comm.rank(),
-                thread::spawn(move || execute_partition(comm, &bla)),
+                thread::spawn(move || execute_partition(comm, &config_path)),
             )
         })
         .collect();
@@ -65,8 +64,8 @@ pub fn run_mpi() {
     };
 
     let args = CommandLineArgs::parse();
-    let config_path = &PathBuf::from(args.config_path);
-    let config = Config2::from_file(config_path);
+    let config = Config2::from_file(&args);
+
     let _guards =
         logging::init_logging(config.output().output_dir.as_ref(), comm.rank().to_string());
 
@@ -74,15 +73,15 @@ pub fn run_mpi() {
         "Starting MPI Simulation with {} partitions",
         config.partitioning().num_parts
     );
-    execute_partition(comm, config_path);
+    execute_partition(comm, &args);
 
     info!("#{} at barrier.", world.rank());
     universe.world().barrier();
     info!("Process #{} finishing.", world.rank());
 }
 
-fn execute_partition<C: SimCommunicator + 'static>(comm: C, config_path: &Path) {
-    let config = Config2::from_file(&PathBuf::from(config_path));
+fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineArgs) {
+    let config = Config2::from_file(args);
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
