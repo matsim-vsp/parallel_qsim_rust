@@ -1,6 +1,6 @@
 use tracing::info;
 
-use crate::simulation::config::Config2;
+use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
@@ -33,7 +33,7 @@ where
     C: SimCommunicator + 'static,
 {
     pub fn new(
-        config: Config2,
+        config: Config,
         network: SimNetworkPartition,
         garage: Garage,
         mut population: Population,

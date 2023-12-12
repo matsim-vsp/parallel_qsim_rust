@@ -10,7 +10,7 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::config::{CommandLineArgs, Config2, PartitionMethod, RoutingMode};
+use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, RoutingMode};
 use crate::simulation::id::Id;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::communication::communicators::{
@@ -29,7 +29,7 @@ use crate::simulation::{id, logging};
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
-    let config = Config2::from_file(&args);
+    let config = Config::from_file(&args);
 
     let _guards = logging::init_logging(
         config.output().output_dir.as_ref(),
@@ -64,7 +64,7 @@ pub fn run_mpi() {
     };
 
     let args = CommandLineArgs::parse();
-    let config = Config2::from_file(&args);
+    let config = Config::from_file(&args);
 
     let _guards =
         logging::init_logging(config.output().output_dir.as_ref(), comm.rank().to_string());
@@ -81,7 +81,7 @@ pub fn run_mpi() {
 }
 
 fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineArgs) {
-    let config = Config2::from_file(args);
+    let config = Config::from_file(args);
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
@@ -187,7 +187,7 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
     }
 }
 
-fn partition_input(config: &Config2) {
+fn partition_input(config: &Config) {
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
     let net = if config.partitioning().method == PartitionMethod::Metis {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
@@ -200,7 +200,7 @@ fn partition_input(config: &Config2) {
     partition_population(config, &net);
 }
 
-fn partition_network(config: &Config2) -> Network {
+fn partition_network(config: &Config) -> Network {
     let net_in_path = PathBuf::from(config.proto_files().network);
     let num_parts = config.partitioning().num_parts;
     let network = Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
@@ -212,7 +212,7 @@ fn partition_network(config: &Config2) -> Network {
     network
 }
 
-fn copy_network_into_output(config: &Config2) -> Network {
+fn copy_network_into_output(config: &Config) -> Network {
     let net_in_path = PathBuf::from(config.proto_files().network);
     let num_parts = config.partitioning().num_parts;
     let network = Network::from_file_as_is(&net_in_path);
@@ -223,7 +223,7 @@ fn copy_network_into_output(config: &Config2) -> Network {
     network
 }
 
-fn partition_population(config: &Config2, network: &Network) {
+fn partition_population(config: &Config, network: &Network) {
     info!(
         "Partition population into {} parts",
         config.partitioning().num_parts
