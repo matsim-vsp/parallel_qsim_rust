@@ -106,7 +106,7 @@ impl Garage {
         let veh_type_id = self
             .vehicles
             .get(id)
-            .expect("Can't unpark vehicle with id {}. It was not parked in this garage.");
+            .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len()));
 
         /*
         let veh_type_id = if let Some(veh_type_id) = self.vehicles.get(id) {
