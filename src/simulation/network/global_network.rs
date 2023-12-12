@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::path::PathBuf;
 use std::{collections::HashSet, path::Path};
 
 use itertools::Itertools;
@@ -6,8 +6,6 @@ use nohash_hasher::IntSet;
 
 use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::{Attr, Attrs};
-use crate::simulation::io::network::{IOLink, IONetwork, IONode};
 
 use super::metis_partitioning;
 
@@ -57,65 +55,26 @@ impl Network {
         }
     }
 
-    pub fn from_file(file_path: &str, num_parts: u32, partition_method: PartitionMethod) -> Self {
-        let io_network = IONetwork::from_file(file_path);
-        let mut result = Network::new();
-        Self::init_nodes_and_links(&mut result, io_network);
+    pub fn from_file(file: &str, num_parts: u32, partition_method: PartitionMethod) -> Self {
+        Self::from_file_path(&PathBuf::from(file), num_parts, partition_method)
+    }
+
+    pub fn from_file_path(
+        file_path: &Path,
+        num_parts: u32,
+        partition_method: PartitionMethod,
+    ) -> Self {
+        let mut result = super::io::from_file(file_path);
         Self::partition_network(&mut result, partition_method, num_parts);
         result
     }
 
+    pub fn from_file_as_is(path: &Path) -> Self {
+        super::io::from_file(path)
+    }
+
     pub fn to_file(&self, file_path: &Path) {
-        let mut result = IONetwork::new(None);
-
-        for node in &self.nodes {
-            let attributes = Attrs {
-                attributes: vec![Attr {
-                    name: String::from("partition"),
-                    value: node.partition.to_string(),
-                    class: String::from("java.lang.Integer"),
-                }],
-            };
-            let io_node = IONode {
-                id: node.id.external().to_string(),
-                x: node.x,
-                y: node.y,
-                attributes: Some(attributes),
-            };
-            result.nodes_mut().push(io_node);
-        }
-
-        for link in &self.links {
-            let modes = link
-                .modes
-                .iter()
-                .map(|m| m.external().to_string())
-                .reduce(|modes, mode| format!("{modes},{mode}"))
-                .unwrap();
-            let attributes = Attrs {
-                attributes: vec![Attr {
-                    name: String::from("partition"),
-                    value: link.partition.to_string(),
-                    class: String::from("java.lang.Integer"),
-                }],
-            };
-
-            let io_link = IOLink {
-                id: link.id.external().to_string(),
-                from: link.from.external().to_string(),
-                to: link.to.external().to_string(),
-                length: link.length,
-                capacity: link.capacity,
-                freespeed: link.freespeed,
-                permlanes: link.permlanes,
-                modes,
-                attributes: Some(attributes),
-            };
-            result.links.effective_cell_size = Some(self.effective_cell_size);
-            result.links_mut().push(io_link);
-        }
-
-        result.to_file(file_path);
+        super::io::to_file(self, file_path);
     }
 
     pub fn add_node(&mut self, node: Node) {
@@ -128,16 +87,6 @@ impl Network {
             node.id.external()
         );
         self.nodes.push(node);
-    }
-
-    pub fn add_io_node(&mut self, io_node: IONode) {
-        let id = Id::create(&io_node.id);
-        let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
-        let partition = u32::from_str(part_attr).unwrap();
-
-        let mut node = Node::new(id, io_node.x, io_node.y);
-        node.partition = partition;
-        self.add_node(node);
     }
 
     pub fn add_link(&mut self, link: Link) {
@@ -164,40 +113,6 @@ impl Network {
         self.links.push(link);
     }
 
-    pub fn add_io_link(&mut self, io_link: IOLink) {
-        let id = Id::create(&io_link.id);
-        assert_eq!(
-            id.internal(),
-            self.links.len() as u64,
-            "internal id {} and slot in link vec {} were note the same. Probably, this link id already exists",
-            id.internal(),
-            self.links.len()
-        );
-        let part_attr = Attrs::find_or_else_opt(&io_link.attributes, "partition", || "0");
-        let partition = u32::from_str(part_attr).unwrap();
-        let modes: IntSet<Id<String>> = io_link
-            .modes
-            .split(',')
-            .map(|s| s.trim())
-            .map(Id::create)
-            .collect();
-        let from_id = Id::get_from_ext(&io_link.from);
-        let to_id = Id::get_from_ext(&io_link.to);
-
-        let mut link = Link::new(
-            id,
-            from_id,
-            to_id,
-            io_link.length,
-            io_link.capacity,
-            io_link.freespeed,
-            io_link.permlanes,
-            modes,
-        );
-        link.partition = partition;
-        self.add_link(link);
-    }
-
     pub fn get_node(&self, id: &Id<Node>) -> &Node {
         self.nodes.get(id.internal() as usize).unwrap()
     }
@@ -208,16 +123,6 @@ impl Network {
 
     pub fn get_link_form_internal(&self, id: u64) -> &Link {
         self.links.get(id as usize).unwrap()
-    }
-
-    fn init_nodes_and_links(network: &mut Network, io_network: IONetwork) {
-        for node in io_network.nodes.nodes {
-            network.add_io_node(node)
-        }
-
-        for link in io_network.links.links {
-            network.add_io_link(link)
-        }
     }
 
     fn partition_network(network: &mut Network, partition_method: PartitionMethod, num_parts: u32) {
@@ -266,21 +171,21 @@ impl Network {
 }
 
 impl Node {
-    pub fn new(id: Id<Node>, x: f64, y: f64) -> Self {
+    pub fn new(id: Id<Node>, x: f64, y: f64, part: u32) -> Self {
         Node {
             id,
             x,
             y,
             in_links: Vec::new(),
             out_links: Vec::new(),
-            partition: 0,
+            partition: part,
         }
     }
 }
 
 impl Link {
     #[allow(clippy::too_many_arguments)]
-    fn new(
+    pub(crate) fn new(
         id: Id<Link>,
         from: Id<Node>,
         to: Id<Node>,
@@ -289,6 +194,7 @@ impl Link {
         freespeed: f32,
         permlanes: f32,
         modes: IntSet<Id<String>>,
+        partition: u32,
     ) -> Self {
         Link {
             id,
@@ -299,7 +205,7 @@ impl Link {
             freespeed,
             permlanes,
             modes,
-            partition: 0,
+            partition,
         }
     }
 
@@ -315,6 +221,7 @@ impl Link {
             1.,
             1.,
             HashSet::default(),
+            0,
         )
     }
 
@@ -327,7 +234,6 @@ impl Link {
 mod tests {
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
-    use crate::simulation::io::network::{IOLink, IONode};
 
     use super::{Link, Network, Node};
 
@@ -335,7 +241,7 @@ mod tests {
     fn add_node() {
         let mut network = Network::new();
         let id = Id::create("node-id");
-        let node = Node::new(id.clone(), 1., 1.);
+        let node = Node::new(id.clone(), 1., 1., 0);
 
         assert_eq!(0, network.nodes.len());
         network.add_node(node);
@@ -348,8 +254,8 @@ mod tests {
     fn add_node_reject_duplicate() {
         let mut network = Network::new();
         let id = Id::create("node-id");
-        let node = Node::new(id.clone(), 1., 1.);
-        let duplicate = Node::new(id.clone(), 2., 2.);
+        let node = Node::new(id.clone(), 1., 1., 0);
+        let duplicate = Node::new(id.clone(), 2., 2., 0);
 
         assert_eq!(0, network.nodes.len());
         network.add_node(node);
@@ -359,8 +265,8 @@ mod tests {
     #[test]
     fn add_link() {
         let mut network = Network::new();
-        let from = Node::new(Id::create("from"), 0., 0.);
-        let to = Node::new(Id::create("to"), 3., 4.);
+        let from = Node::new(Id::create("from"), 0., 0., 0);
+        let to = Node::new(Id::create("to"), 3., 4., 0);
         let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
 
@@ -389,8 +295,8 @@ mod tests {
     #[should_panic]
     fn add_link_reject_duplicate() {
         let mut network = Network::new();
-        let from = Node::new(Id::create("from"), 0., 0.);
-        let to = Node::new(Id::create("to"), 3., 4.);
+        let from = Node::new(Id::create("from"), 0., 0., 0);
+        let to = Node::new(Id::create("to"), 3., 4., 0);
         let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
         let duplicate = Link::new_with_default(id.clone(), &from, &to);
@@ -399,84 +305,6 @@ mod tests {
         network.add_node(to);
         network.add_link(link);
         network.add_link(duplicate); // expecting panic here
-    }
-
-    #[test]
-    fn add_io_node() {
-        let external_id = String::from("some-id");
-        let x = 1.;
-        let y = 2.;
-        let io_node = IONode {
-            id: external_id.clone(),
-            x,
-            y,
-            attributes: None,
-        };
-        let mut network = Network::new();
-
-        network.add_io_node(io_node);
-
-        // the node should be in nodes vec and there should be a node id
-        let id = Id::get_from_ext(&external_id);
-        assert_eq!(0, id.internal());
-        assert_eq!(external_id, id.external());
-
-        let node = network.get_node(&id);
-        assert_eq!(x, node.x);
-        assert_eq!(y, node.y);
-        assert_eq!(id, node.id);
-    }
-
-    #[test]
-    fn add_io_link() {
-        let ext_from_id = String::from("from");
-        let ext_to_id = String::from("to");
-        let ext_link_id = String::from("link");
-
-        let io_from = IONode {
-            id: ext_from_id.clone(),
-            x: 0.,
-            y: 0.,
-            attributes: None,
-        };
-        let io_to = IONode {
-            id: ext_to_id.clone(),
-            x: 100.,
-            y: 100.,
-            attributes: None,
-        };
-        let io_link = IOLink {
-            id: ext_link_id.clone(),
-            from: ext_from_id.clone(),
-            to: ext_to_id.clone(),
-            length: 100.,
-            capacity: 100.,
-            freespeed: 10.,
-            permlanes: 2.,
-            modes: String::from("car,ride, bike"),
-            attributes: None,
-        };
-
-        let mut network = Network::new();
-        network.add_io_node(io_from);
-        network.add_io_node(io_to);
-        network.add_io_link(io_link.clone());
-
-        let from = network.get_node(&Id::get_from_ext(&ext_from_id));
-        let to = network.get_node(&Id::get_from_ext(&ext_to_id));
-        let link = network.get_link(&Id::get_from_ext(&ext_link_id));
-
-        assert_eq!(from.id, link.from);
-        assert_eq!(to.id, link.to);
-        assert_eq!(ext_link_id, link.id.external());
-        assert_eq!(io_link.length, link.length);
-        assert_eq!(io_link.capacity, link.capacity);
-        assert_eq!(io_link.freespeed, link.freespeed);
-        assert_eq!(io_link.permlanes, link.permlanes);
-
-        assert!(link.modes.contains(&Id::get_from_ext("car")));
-        assert!(link.modes.contains(&Id::get_from_ext("ride")));
-        assert!(link.modes.contains(&Id::get_from_ext("bike")));
     }
 
     #[test]
@@ -522,8 +350,8 @@ mod tests {
 
     #[test]
     fn link_new_with_default() {
-        let from = Node::new(Id::create("from"), 0., 0.);
-        let to = Node::new(Id::create("to"), 3., 4.);
+        let from = Node::new(Id::create("from"), 0., 0., 0);
+        let to = Node::new(Id::create("to"), 3., 4., 0);
         let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
 

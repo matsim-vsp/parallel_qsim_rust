@@ -1,6 +1,5 @@
 syntax = "proto3";
-
-package mpi.events;
+package events;
 
 message TimeStep {
   uint32 time = 1;

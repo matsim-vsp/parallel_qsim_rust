@@ -1,8 +1,9 @@
+use keyed_priority_queue::Entry;
+
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
 use crate::simulation::replanning::routing::dijsktra::{Dijkstra, Distance};
 use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
 use crate::simulation::replanning::routing::router::CustomQueryResult;
-use keyed_priority_queue::Entry;
 
 #[derive(PartialEq, Debug)]
 struct AltQueryResult {
@@ -268,6 +269,9 @@ impl AltRouter {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
@@ -275,7 +279,6 @@ mod tests {
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
-    use std::collections::HashMap;
 
     fn query_and_check(
         router: &AltRouter,
@@ -312,7 +315,7 @@ mod tests {
             1,
             PartitionMethod::Metis,
         );
-        let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml");
+        let garage = Garage::from_file(&PathBuf::from("./assets/adhoc_routing/vehicles.xml"));
 
         let graph_by_vehicle_type =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);

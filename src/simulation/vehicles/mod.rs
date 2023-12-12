@@ -1,2 +1,2 @@
 pub mod garage;
-pub mod vehicle_type;
+mod io;

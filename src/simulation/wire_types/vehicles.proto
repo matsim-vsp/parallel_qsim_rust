@@ -1,0 +1,28 @@
+syntax = "proto3";
+package vehicles;
+
+message VehiclesContainer {
+  repeated VehicleType vehicle_types = 1;
+  repeated VehicleToType vehicles = 2;
+}
+
+message VehicleType {
+  uint64 id = 1;
+  float length = 2;
+  float width = 3;
+  float max_v = 4;
+  float pce = 5;
+  float fef = 6;
+  uint64 net_mode = 7;
+  LevelOfDetail lod = 8;
+}
+
+message VehicleToType {
+  uint64 id = 1;
+  uint64 vehicle_type_id = 2;
+}
+
+enum LevelOfDetail {
+  Network = 0;
+  Teleported = 1;
+}

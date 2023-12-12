@@ -5,7 +5,7 @@ use nohash_hasher::IntMap;
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
-use crate::simulation::vehicles::vehicle_type::VehicleType;
+use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub struct NetworkConverter {}
 
@@ -18,8 +18,8 @@ impl NetworkConverter {
             .iter()
             .map(|(_, t)| {
                 (
-                    t.net_mode.internal(),
-                    Self::convert_network(network, Some(&t.net_mode), Some(t.max_v)),
+                    t.net_mode,
+                    Self::convert_network(network, Some(&Id::get(t.net_mode)), Some(t.max_v)),
                 )
             })
             .collect::<HashMap<_, _>>()
@@ -150,12 +150,15 @@ impl NetworkConverter {
 
 #[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::vehicle_type::VehicleType;
+    use crate::simulation::wire_types::vehicles::VehicleType;
+    use crate::test_utils::create_vehicle_type;
 
     #[test]
     fn test_simple_network() {
@@ -191,14 +194,14 @@ mod test {
         let car_type_id = Id::<VehicleType>::create("car");
         let car_id = Id::<String>::get_from_ext("car");
         let car_id_internal = car_id.internal();
-        let mut car_veh_type = VehicleType::new(car_type_id, car_id);
+        let mut car_veh_type = create_vehicle_type(car_type_id, car_id);
         car_veh_type.max_v = 5.;
         garage.add_veh_type(car_veh_type);
 
         let bike_type_id = Id::<VehicleType>::create("bike");
         let bike_id = Id::<String>::get_from_ext("bike");
         let bike_id_internal = bike_id.internal();
-        let mut bike_veh_type = VehicleType::new(bike_type_id, bike_id);
+        let mut bike_veh_type = create_vehicle_type(bike_type_id, bike_id);
         bike_veh_type.max_v = 2.;
         garage.add_veh_type(bike_veh_type);
 
@@ -227,7 +230,7 @@ mod test {
             1,
             PartitionMethod::Metis,
         );
-        let garage = Garage::from_file("./assets/adhoc_routing/vehicles.xml");
+        let garage = Garage::from_file(&PathBuf::from("./assets/adhoc_routing/vehicles.xml"));
 
         let vehicle_type2graph =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);

@@ -1,11 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use clap::{arg, Parser};
-use rust_q_sim::simulation::config::PartitionMethod;
 use tracing::info;
 
-use rust_q_sim::simulation::io::attributes::{Attr, Attrs};
-use rust_q_sim::simulation::io::network::{IOLink, IONetwork, IONode};
+use rust_q_sim::simulation::config::PartitionMethod;
 use rust_q_sim::simulation::network::global_network::Network;
 
 fn main() {
@@ -19,7 +17,7 @@ fn main() {
         .unwrap()
         .to_str()
         .unwrap()
-        .split(".")
+        .split('.')
         .collect();
     let num_parts_string = args.num_parts.to_string();
     name_parts.insert(name_parts.len() - 2, num_parts_string.as_str());
@@ -42,11 +40,11 @@ fn main() {
     );
 
     net1.to_file(&out_path);
-    to_file_internal_ids(&net1, &out_path_internal);
+    //to_file_internal_ids(&net1, &out_path_internal);
 
     info!("Finished partitioning Network.")
 }
-
+/*
 fn to_file_internal_ids(network: &Network, file_path: &Path) {
     let mut result = IONetwork::new(None);
 
@@ -98,8 +96,10 @@ fn to_file_internal_ids(network: &Network, file_path: &Path) {
     }
 
     result.to_file(file_path);
-}
 
+
+}
+*/
 #[derive(Parser, Debug)]
 struct InputArgs {
     #[arg(short, long)]

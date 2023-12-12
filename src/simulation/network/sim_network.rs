@@ -1,14 +1,14 @@
 use std::collections::HashSet;
 
-use crate::simulation::id::Id;
-use crate::simulation::messaging::messages::proto::{Agent, StorageCap};
-use crate::simulation::messaging::{
-    events::{proto::Event, EventsPublisher},
-    messages::proto::Vehicle,
-};
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
+
+use crate::simulation::id::Id;
+use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::wire_types::events::Event;
+use crate::simulation::wire_types::messages::{StorageCap, Vehicle};
+use crate::simulation::wire_types::population::Person;
 
 use super::{
     global_network::{Link, Network, Node},
@@ -163,7 +163,7 @@ impl SimNetworkPartition {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
         let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
-            let agent_id = Id::<Agent>::get(vehicle.agent().id());
+            let agent_id = Id::<Person>::get(vehicle.agent().id());
             panic!(
                 "#{} Couldn't find link for id {:?}.for Agent {}. \n\n The vehicle: {:?}",
                 self.partition,
@@ -455,17 +455,13 @@ mod tests {
 
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::messages::proto::Route;
-    use crate::simulation::{
-        messaging::{
-            events::EventsPublisher,
-            messages::proto::{Activity, Agent, Leg, Plan, Vehicle},
-        },
-        network::{
-            global_network::{Link, Network, Node},
-            link::SimLink,
-        },
+    use crate::simulation::messaging::events::EventsPublisher;
+    use crate::simulation::network::{
+        global_network::{Link, Network, Node},
+        link::SimLink,
     };
+    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
 
     use super::SimNetworkPartition;
 
@@ -746,20 +742,13 @@ mod tests {
     #[test]
     fn neighbors() {
         let mut net = Network::new();
-        let mut node = Node::new(Id::create("node-1"), -0., 0.);
-        node.partition = 0;
+        let node = Node::new(Id::create("node-1"), -0., 0., 0);
+        let node_1_1 = Node::new(Id::create("node-1-1"), -0., 0., 1);
+        let node_1_2 = Node::new(Id::create("node-1-2"), -0., 0., 1);
 
-        let mut node_1_1 = Node::new(Id::create("node-1-1"), -0., 0.);
-        node_1_1.partition = 1;
-        let mut node_1_2 = Node::new(Id::create("node-1-2"), -0., 0.);
-        node_1_2.partition = 1;
-
-        let mut node_2_1 = Node::new(Id::create("node-2-1"), -0., 0.);
-        node_2_1.partition = 2;
-        let mut node_3_1 = Node::new(Id::create("node-3-1"), -0., 0.);
-        node_3_1.partition = 3;
-        let mut node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0.);
-        node_4_1.partition = 4;
+        let node_2_1 = Node::new(Id::create("node-2-1"), -0., 0., 2);
+        let node_3_1 = Node::new(Id::create("node-3-1"), -0., 0., 3);
+        let node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0., 4);
 
         // create in links from partitions 1 and 2. 2 incoming links from partition 1, one incoming from
         // partition 2
@@ -796,9 +785,9 @@ mod tests {
     }
 
     fn init_three_node_network(network: &mut Network) {
-        let node1 = Node::new(Id::create("node-1"), -100., 0.);
-        let node2 = Node::new(Id::create("node-2"), 0., 0.);
-        let node3 = Node::new(Id::create("node-3"), 100., 0.);
+        let node1 = Node::new(Id::create("node-1"), -100., 0., 0);
+        let node2 = Node::new(Id::create("node-2"), 0., 0., 0);
+        let node3 = Node::new(Id::create("node-3"), 100., 0., 0);
         let mut link1 = Link::new_with_default(Id::create("link-1"), &node1, &node2);
         link1.capacity = 3600.;
         link1.freespeed = 10.;
@@ -827,7 +816,7 @@ mod tests {
         ]
     }
 
-    fn create_agent(id: u64, route: Vec<u64>) -> Agent {
+    fn create_agent(id: u64, route: Vec<u64>) -> Person {
         let route = Route {
             veh_id: id,
             distance: 0.0,
@@ -838,7 +827,7 @@ mod tests {
         let mut plan = Plan::new();
         plan.add_act(act);
         plan.add_leg(leg);
-        let mut agent = Agent::new(id, plan);
+        let mut agent = Person::new(id, plan);
         agent.advance_plan();
 
         agent

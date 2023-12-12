@@ -1,10 +1,8 @@
 pub mod attributes;
 pub mod matsim_id;
-pub mod network;
 pub mod non_blocking_io;
-pub mod population;
+pub mod proto;
 pub mod proto_events;
-pub mod vehicles;
 mod worker;
+pub mod xml;
 pub mod xml_events;
-pub mod xml_reader;

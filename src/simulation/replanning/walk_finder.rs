@@ -1,7 +1,7 @@
 use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
 
-use crate::simulation::messaging::messages::proto::Activity;
 use crate::simulation::network::global_network::Network;
+use crate::simulation::wire_types::population::Activity;
 
 pub trait WalkFinder {
     fn find_walk(&self, curr_act: &Activity, access_egress_speed: f32, network: &Network) -> Walk;
@@ -54,13 +54,15 @@ impl WalkFinder for EuclideanWalkFinder {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::messages::proto::Agent;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::population::Population;
     use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, Walk, WalkFinder};
     use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::wire_types::population::Person;
 
     #[test]
     fn test_walk_finder() {
@@ -72,12 +74,14 @@ mod tests {
 
         let walk_finder = EuclideanWalkFinder::new();
 
-        let mut garage = Garage::from_file("./assets/3-links/vehicles.xml");
-        let population =
-            Population::from_file("./assets/equil/equil-1-plan.xml", &network, &mut garage, 0);
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
+        let population = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-1-plan.xml"),
+            &mut garage,
+        );
         let agent = population
-            .agents
-            .get(&Id::<Agent>::get_from_ext("1"))
+            .persons
+            .get(&Id::<Person>::get_from_ext("1"))
             .unwrap();
 
         // Activity(-25,000;0), Link from(-20,000;0), to(-15,000;0) => distance to link 5,000
@@ -96,7 +100,7 @@ mod tests {
             walk,
             Walk {
                 distance: 4242.,
-                duration: (4242. / 1.2 as f32) as u32,
+                duration: (4242. / 1.2f32) as u32,
             }
         )
     }

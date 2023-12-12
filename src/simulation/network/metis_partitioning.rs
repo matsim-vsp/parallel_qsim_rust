@@ -68,8 +68,8 @@ mod tests {
         let mut net = Network::new();
         let from_id = Id::create("from");
         let to_id = Id::create("to");
-        net.add_node(Node::new(from_id.clone(), 0., 0.));
-        net.add_node(Node::new(to_id.clone(), 100., 0.));
+        net.add_node(Node::new(from_id.clone(), 0., 0., 0));
+        net.add_node(Node::new(to_id.clone(), 100., 0., 0));
         let link_id = Id::create("link");
         net.add_link(Link::new_with_default(
             link_id,

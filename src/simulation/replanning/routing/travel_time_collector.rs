@@ -1,11 +1,11 @@
 use std::any::Any;
 use std::collections::HashMap;
 
-use crate::simulation::messaging::events::proto::event::Type;
-use crate::simulation::messaging::events::proto::{
+use crate::simulation::messaging::events::EventsSubscriber;
+use crate::simulation::wire_types::events::event::Type;
+use crate::simulation::wire_types::events::{
     Event, LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent,
 };
-use crate::simulation::messaging::events::EventsSubscriber;
 
 pub struct TravelTimeCollector {
     travel_times_by_link: HashMap<u64, Vec<u32>>,
@@ -89,9 +89,9 @@ impl EventsSubscriber for TravelTimeCollector {
 
 #[cfg(test)]
 mod test {
-    use crate::simulation::messaging::events::proto::Event;
     use crate::simulation::messaging::events::EventsSubscriber;
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
+    use crate::simulation::wire_types::events::Event;
 
     #[test]
     fn test_one_vehicle() {

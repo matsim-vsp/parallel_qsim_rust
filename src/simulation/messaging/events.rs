@@ -3,20 +3,15 @@ use std::collections::HashMap;
 
 use tracing::info;
 
-use crate::simulation::messaging::events::proto::event::Type::{
+use crate::simulation::wire_types::events::event::Type::{
     ActEnd, ActStart, Arrival, Departure, Generic, LinkEnter, LinkLeave, PersonEntersVeh,
     PersonLeavesVeh, Travelled,
 };
-use crate::simulation::messaging::events::proto::{
+use crate::simulation::wire_types::events::{
     ActivityEndEvent, ActivityStartEvent, ArrivalEvent, DepartureEvent, Event, GenericEvent,
     LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
     TravelledEvent,
 };
-
-// Include the `events` module, which is generated from events.proto.
-pub mod proto {
-    include!(concat!(env!("OUT_DIR"), "/mpi.events.rs"));
-}
 
 pub trait EventsSubscriber {
     fn receive_event(&mut self, time: u32, event: &Event);

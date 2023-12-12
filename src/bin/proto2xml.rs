@@ -5,8 +5,8 @@ use clap::Parser;
 
 use rust_q_sim::simulation::io::proto_events::EventsReader;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
-use rust_q_sim::simulation::messaging::events::proto::Event;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;
+use rust_q_sim::simulation::wire_types::events::Event;
 
 struct StatefulReader<R: Read + Seek> {
     reader: EventsReader<R>,
