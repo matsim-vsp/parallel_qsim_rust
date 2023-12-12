@@ -14,6 +14,16 @@ use crate::simulation::id::serializable_type::StableTypeId;
 mod id_store;
 pub mod serializable_type;
 
+/// This type represents a reference counted pointer to a matsim id. It can be used in hash maps/sets
+/// in combination with NoHashHasher, to achieve fast look ups with no randomness involved.
+///
+/// As this type wraps Rc<IdImpl<T>>, using clone produces a new Rc pointer to the actual Id and is
+/// the intended way of passing around ids.
+///
+/// This type uses the newtype pattern https://rust-unofficial.github.io/patterns/patterns/behavioural/newtype.html
+/// to hide internal representation and to enable implementing IsEnabled for using the NoHashHasher create
+/// Also, it uses the new type pattern because we wrap an untyped id, so that we can have a global id store of all
+/// ids.
 #[derive(Debug)]
 pub struct Id<T: StableTypeId> {
     _type_marker: PhantomData<T>,
@@ -57,16 +67,8 @@ impl<T: StableTypeId + 'static> Id<T> {
     }
 }
 
-pub fn store_to_wire_format() -> Vec<u8> {
-    ID_STORE.with(|store| store.borrow().to_wire_format())
-}
-
 pub fn store_to_file(file_path: &Path) {
     ID_STORE.with(|store| store.borrow().to_file(file_path))
-}
-
-pub fn load_from_wire_format(bytes: Vec<u8>) {
-    ID_STORE.with(|store| store.borrow_mut().load_from_wire_format(bytes))
 }
 
 pub fn load_from_file(file_path: &Path) {

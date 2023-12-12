@@ -61,24 +61,6 @@ fn deserialize<R: Read + Seek>(store: &mut IdStore, reader: R) {
         let ids = deserialize_ids(&message);
         store.replace_ids(&ids, message.type_id);
     }
-    /*
-
-    while let Some(delim) = read_delim(reader) {
-        let mut buffer: Vec<u8> = vec![0; delim];
-        reader
-            .read_exact(&mut buffer)
-            .expect("Failed to read exact from buffer");
-        let wire_ids = IdsWithType::decode(buffer.as_slice()).expect("Failed to decode Ids");
-        info!(
-            "Decoded Ids for internal type: {}. Starting to deserialize id values",
-            wire_ids.type_id
-        );
-        let ids = deserialize_ids(&wire_ids);
-
-        store.replace_ids(&ids, wire_ids.type_id);
-    }
-
-     */
 
     info!("Finished de-serializing id store.");
 }
@@ -121,7 +103,7 @@ fn encode_ids<W: Write>(ids: &Vec<Rc<UntypedId>>, writer: &mut W) {
         id_buffer.put_slice(id.external.as_bytes());
         writer
             .write_all(&id_buffer)
-            .expect("Failed to compress encoded String.");
+            .expect("Failed to write encoded String.");
         id_buffer.clear();
     }
     writer.flush().expect("Failed to flush writer.");
@@ -270,7 +252,6 @@ impl<'ext> IdStore<'ext> {
     }
 
     pub(crate) fn get_from_ext<T: StableTypeId + 'static>(&self, external: &str) -> Id<T> {
-        //let type_id = TypeId::of::<T>();
         let type_id = T::stable_type_id();
         let type_mapping = self.mapping.get(&type_id).unwrap_or_else(|| {
             panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids")
@@ -283,21 +264,8 @@ impl<'ext> IdStore<'ext> {
         self.get(*index)
     }
 
-    pub(crate) fn to_wire_format(&self) -> Vec<u8> {
-        let mut byte_writer = BufWriter::new(Vec::new());
-        serialize(self, &mut byte_writer, IdCompression::None);
-        byte_writer
-            .into_inner()
-            .expect("Failed to transform writer into Vec<u8> (raw bytes)")
-    }
-
     pub(crate) fn to_file(&self, file_path: &Path) {
         serialize_to_file(self, file_path, IdCompression::LZ4);
-    }
-
-    pub(crate) fn load_from_wire_format(&mut self, bytes: Vec<u8>) {
-        let mut byte_reader = BufReader::new(Cursor::new(bytes));
-        deserialize(self, &mut byte_reader);
     }
 
     pub(crate) fn load_from_file(&mut self, file_path: &Path) {
