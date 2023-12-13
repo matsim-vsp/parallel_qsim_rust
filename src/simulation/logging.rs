@@ -6,6 +6,7 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::fmt;
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Layer;
@@ -32,6 +33,7 @@ pub fn init_logging(dir: &Path, file_discriminant: &str) -> (WorkerGuard, Worker
     let collector = tracing_subscriber::registry()
         .with(
             fmt::Layer::new()
+                .with_span_events(FmtSpan::CLOSE)
                 .with_writer(io::stdout)
                 .with_filter(LevelFilter::INFO),
         )
@@ -45,6 +47,7 @@ pub fn init_logging(dir: &Path, file_discriminant: &str) -> (WorkerGuard, Worker
         .with(
             fmt::Layer::new()
                 .with_writer(trace_file.with_min_level(Level::TRACE))
+                .with_span_events(FmtSpan::CLOSE)
                 .json(),
         );
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");

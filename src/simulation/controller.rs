@@ -24,7 +24,7 @@ use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplan
 use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{id, logging, profiling};
+use crate::simulation::{id, logging};
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
@@ -161,9 +161,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
         replanner,
     );
 
-    profiling::measure_duration(None, "Overall Execution Time", None, || {
-        simulation.run(start_time, end_time)
-    });
+    simulation.run(start_time, end_time);
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also

@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
 use tracing::info;
 
 use crate::simulation::config::Config;
@@ -62,6 +65,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip_all, level = "trace")]
     pub fn run(&mut self, start_time: u32, end_time: u32) {
         // use fixed start and end times
         let mut now = start_time;
@@ -73,8 +77,6 @@ where
 
         while now <= end_time {
             if self.net_message_broker.rank() == 0 && now % 1800 == 0 {
-                //if now % 600 == 0 {
-                //if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!(
@@ -250,6 +252,16 @@ where
         let route = leg.route.as_ref().unwrap();
         let to = message_broker.rank_for_link(route.end_link());
         message_broker.rank() == to
+    }
+}
+
+impl<C: SimCommunicator> Debug for Simulation<C> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Simulation with Rank #{}",
+            self.net_message_broker.rank()
+        )
     }
 }
 

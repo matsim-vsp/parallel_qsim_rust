@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::collections::HashMap;
 
-use tracing::info;
+use tracing::{info, instrument};
 
 use crate::simulation::wire_types::events::event::Type::{
     ActEnd, ActStart, Arrival, Departure, Generic, LinkEnter, LinkLeave, PersonEntersVeh,
@@ -85,6 +85,7 @@ impl EventsPublisher {
         }
     }
 
+    #[instrument(skip_all, level = "trace")]
     pub fn finish(&mut self) {
         for handler in self.handlers.iter_mut() {
             handler.finish();
