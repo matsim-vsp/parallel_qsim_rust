@@ -1,8 +1,7 @@
-use std::ops::Sub;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::thread::{sleep, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{fs, thread};
 
 use clap::Parser;
@@ -25,7 +24,7 @@ use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplan
 use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{id, logging};
+use crate::simulation::{id, logging, profiling};
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
@@ -33,7 +32,7 @@ pub fn run_channel() {
 
     let _guards = logging::init_logging(
         config.output().output_dir.as_ref(),
-        config.partitioning().num_parts.to_string(),
+        config.partitioning().num_parts.to_string().as_str(),
     );
 
     info!(
@@ -66,8 +65,10 @@ pub fn run_mpi() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards =
-        logging::init_logging(config.output().output_dir.as_ref(), comm.rank().to_string());
+    let _guards = logging::init_logging(
+        config.output().output_dir.as_ref(),
+        comm.rank().to_string().as_str(),
+    );
 
     info!(
         "Starting MPI Simulation with {} partitions",
@@ -160,13 +161,9 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
         replanner,
     );
 
-    let start = Instant::now();
-    simulation.run(start_time, end_time);
-    let end = Instant::now();
-    let duration = end.sub(start).as_millis() / 1000;
-    info!("#{rank} took: {duration}s");
-
-    //info!("output dir: {:?}", config.output_dir);
+    profiling::measure_duration(None, "Overall Execution Time", None, || {
+        simulation.run(start_time, end_time)
+    });
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also

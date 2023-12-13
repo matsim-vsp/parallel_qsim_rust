@@ -1,22 +1,17 @@
 modules:
-  xmlfiles:
-    type: XmlFiles
-    network: ./assets/equil/equil-network.xml
-    population: ./assets/equil/equil-plans.xml.gz
-    vehicles: ./assets/equil/equil-vehicles.xml
-  protfiles:
+  protofiles:
     type: ProtoFiles
     network: ./assets/equil/equil-network.binpb
-    population: ./assets/equil/equil-population.binpb
+    population: ./assets/equil/equil-plans.binpb
     vehicles: ./assets/equil/equil-vehicles.binpb
-    ids: ./assets/equil/equil-ids.binpb
+    ids: ./assets/equil/ids.binpb
   partitioning:
     type: Partitioning
     num_parts: 2
     method: Metis
   output:
     type: Output
-    output_dir: ./output
+    output_dir: /Users/janek/Documents/equil-output/output
   routing:
     type: Routing
     mode: UsePlans

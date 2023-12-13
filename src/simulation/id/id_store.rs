@@ -17,6 +17,7 @@ use crate::simulation::wire_types::ids::ids_with_type::Data;
 use crate::simulation::wire_types::ids::IdsWithType;
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)] // allow dead code, because we never construct None. I still want to have it as option here.
 enum IdCompression {
     LZ4,
     None,

@@ -4,7 +4,7 @@ use clap::Parser;
 use tracing::info;
 
 use rust_q_sim::simulation::io::xml_events::{XmlEventsReader, XmlEventsWriter};
-use rust_q_sim::simulation::logging;
+use rust_q_sim::simulation::logging::init_std_out_logging;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;
 use rust_q_sim::simulation::wire_types::events::Event;
 
@@ -22,8 +22,8 @@ struct InputArgs {
 }
 
 fn main() {
+    init_std_out_logging();
     let args = InputArgs::parse();
-    let _guards = logging::init_logging("./", "".to_string());
     let mut readers = Vec::new();
 
     for i in 0..args.num_parts {

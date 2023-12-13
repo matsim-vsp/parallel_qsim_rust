@@ -1,4 +1,5 @@
 use std::io;
+use std::path::Path;
 
 use tracing::level_filters::LevelFilter;
 use tracing::Level;
@@ -18,18 +19,15 @@ pub fn init_std_out_logging() {
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
 }
 
-pub fn init_logging(directory: &str, file_discriminant: String) -> (WorkerGuard, WorkerGuard) {
-    let mut file_name = String::from("mpi_qsim_");
-    file_name.push_str(file_discriminant.as_str());
-
-    let log_file_appender = rolling::never(directory, &file_name);
+pub fn init_logging(dir: &Path, file_discriminant: &str) -> (WorkerGuard, WorkerGuard) {
+    let log_file_name = format!("log_process_{file_discriminant}.txt");
+    let log_file_appender = rolling::never(dir, &log_file_name);
     let (log_file, _guard_log) = non_blocking(log_file_appender);
 
-    let mut performance_directory = String::from(directory);
-    performance_directory.push_str("/trace");
-
-    let performance_file_appender = rolling::never(performance_directory, &file_name);
-    let (performance_file, _guard_performance) = non_blocking(performance_file_appender);
+    let trace_dir = dir.join("trace");
+    let trace_file_name = format!("trace_process_{file_discriminant}.txt");
+    let trace_file_appender = rolling::never(&trace_dir, &trace_file_name);
+    let (trace_file, _guard_performance) = non_blocking(trace_file_appender);
 
     let collector = tracing_subscriber::registry()
         .with(
@@ -46,10 +44,9 @@ pub fn init_logging(directory: &str, file_discriminant: String) -> (WorkerGuard,
         )
         .with(
             fmt::Layer::new()
-                .with_writer(performance_file.with_min_level(Level::TRACE))
+                .with_writer(trace_file.with_min_level(Level::TRACE))
                 .json(),
         );
-    // do we need this? at least for test cases this is not usefull
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
     (_guard_log, _guard_performance)
 }
