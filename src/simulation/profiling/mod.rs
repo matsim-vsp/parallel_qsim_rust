@@ -1,6 +1,7 @@
-use serde_json::{json, Value};
 use std::env;
 use std::time::Instant;
+
+use serde_json::{json, Value};
 use tracing::trace;
 
 const DEFAULT_PERFORMANCE_INTERVAL: u32 = 900;
