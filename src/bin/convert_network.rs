@@ -25,7 +25,7 @@ fn main() {
     let out_path = replace_extension(&net_path);
     net.to_file(&out_path);
 
-    if is_binary_format(&net_path) {
+    if is_binary_format(&out_path) {
         info!("Converting from xml to binary format. Writing ids to store file.");
         id::store_to_file(&id_path);
     }
