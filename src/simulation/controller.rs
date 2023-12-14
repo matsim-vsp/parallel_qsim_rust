@@ -127,7 +127,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
 
     let mut events = EventsPublisher::new();
 
-    let events_file = format!("events.{rank}.pbf");
+    let events_file = format!("events.{rank}.binpb");
     let events_path = output_path.join(events_file);
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     let travel_time_collector = Box::new(TravelTimeCollector::new());

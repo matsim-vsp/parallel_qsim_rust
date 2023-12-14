@@ -24,9 +24,11 @@ enum IdCompression {
 }
 
 fn serialize_to_file(store: &IdStore, file_path: &Path, compression: IdCompression) {
+    info!("Starting writing IdStore to file {file_path:?}");
     let file = File::create(file_path).unwrap();
     let mut file_writer = BufWriter::new(file);
     serialize(store, &mut file_writer, compression);
+    info!("Finished writing IdStore to file {file_path:?}");
 }
 
 fn serialize<W: Write>(store: &IdStore, writer: &mut W, compression: IdCompression) {

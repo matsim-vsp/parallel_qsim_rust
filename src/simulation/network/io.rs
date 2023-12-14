@@ -25,7 +25,7 @@ pub fn from_file(path: &Path) -> Network {
 pub fn to_file(network: &Network, path: &Path) {
     if path.extension().unwrap().eq("binpb") {
         write_to_proto(network, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("xml.gz") {
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         write_to_xml(network, path);
     } else {
         panic!("Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
