@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<events version="1.0">
+<event time="32400" type="actend" person="100" link="link0" actType="home_28800.0" />
+<event time="32400" type="departure" person="100" link="link0" legMode="walk" />
+<event time="32408" type="travelled" person="100" distance="10" mode="walk" />
+<event time="32408" type="arrival" person="100" link="link0" legMode="walk" />
+<event time="32408" type="actstart" person="100" link="link0" actType="car interaction" />
+<event time="32409" type="actend" person="100" link="link0" actType="car interaction" />
+<event time="32409" type="departure" person="100" link="link0" legMode="car" />
+<event time="32409" type="PersonEntersVehicle" person="100" vehicle="100_car" />
+<event time="32419" type="left link" link="link0" vehicle="100_car" />
+<event time="32419" type="entered link" link="link5" vehicle="100_car" />
+<event time="32469" type="left link" link="link5" vehicle="100_car" />
+<event time="32469" type="entered link" link="link6" vehicle="100_car" />
+<event time="32519" type="left link" link="link6" vehicle="100_car" />
+<event time="32519" type="entered link" link="link4" vehicle="100_car" />
+<event time="32529" type="PersonLeavesVehicle" person="100" vehicle="100_car" />
+<event time="32529" type="arrival" person="100" link="link4" legMode="car" />
+<event time="32529" type="actstart" person="100" link="link4" actType="car interaction" />
+<event time="32530" type="actend" person="100" link="link4" actType="car interaction" />
+<event time="32530" type="departure" person="100" link="link4" legMode="walk" />
+<event time="32538" type="travelled" person="100" distance="10" mode="walk" />
+<event time="32538" type="arrival" person="100" link="link4" legMode="walk" />
+<event time="32538" type="actstart" person="100" link="link4" actType="errands_2400.0" />
+<event time="33600" type="actend" person="101" link="link0" actType="home_28800.0" />
+<event time="33600" type="departure" person="101" link="link0" legMode="walk" />
+<event time="33608" type="travelled" person="101" distance="10" mode="walk" />
+<event time="33608" type="arrival" person="101" link="link0" legMode="walk" />
+<event time="33608" type="actstart" person="101" link="link0" actType="car interaction" />
+<event time="33609" type="actend" person="101" link="link0" actType="car interaction" />
+<event time="33609" type="departure" person="101" link="link0" legMode="car" />
+<event time="33609" type="PersonEntersVehicle" person="101" vehicle="101_car" />
+<event time="33619" type="left link" link="link0" vehicle="101_car" />
+<event time="33619" type="entered link" link="link1" vehicle="101_car" />
+<event time="33629" type="left link" link="link1" vehicle="101_car" />
+<event time="33629" type="entered link" link="link2" vehicle="101_car" />
+<event time="33729" type="left link" link="link2" vehicle="101_car" />
+<event time="33729" type="entered link" link="link3" vehicle="101_car" />
+<event time="33739" type="PersonLeavesVehicle" person="101" vehicle="101_car" />
+<event time="33739" type="arrival" person="101" link="link3" legMode="car" />
+<event time="33739" type="actstart" person="101" link="link3" actType="car interaction" />
+<event time="33740" type="actend" person="101" link="link3" actType="car interaction" />
+<event time="33740" type="departure" person="101" link="link3" legMode="walk" />
+<event time="33748" type="travelled" person="101" distance="10" mode="walk" />
+<event time="33748" type="arrival" person="101" link="link3" legMode="walk" />
+<event time="33748" type="actstart" person="101" link="link3" actType="errands_2400.0" />
+<event time="34200" type="actend" person="102" link="link0" actType="home_28800.0" />
+<event time="34200" type="departure" person="102" link="link0" legMode="walk" />
+<event time="34208" type="travelled" person="102" distance="10" mode="walk" />
+<event time="34208" type="arrival" person="102" link="link0" legMode="walk" />
+<event time="34208" type="actstart" person="102" link="link0" actType="car interaction" />
+<event time="34209" type="actend" person="102" link="link0" actType="car interaction" />
+<event time="34209" type="departure" person="102" link="link0" legMode="car" />
+<event time="34209" type="PersonEntersVehicle" person="102" vehicle="102_car" />
+<event time="34219" type="left link" link="link0" vehicle="102_car" />
+<event time="34219" type="entered link" link="link5" vehicle="102_car" />
+<event time="34269" type="left link" link="link5" vehicle="102_car" />
+<event time="34269" type="entered link" link="link6" vehicle="102_car" />
+<event time="34319" type="left link" link="link6" vehicle="102_car" />
+<event time="34319" type="entered link" link="link4" vehicle="102_car" />
+<event time="34329" type="PersonLeavesVehicle" person="102" vehicle="102_car" />
+<event time="34329" type="arrival" person="102" link="link4" legMode="car" />
+<event time="34329" type="actstart" person="102" link="link4" actType="car interaction" />
+<event time="34330" type="actend" person="102" link="link4" actType="car interaction" />
+<event time="34330" type="departure" person="102" link="link4" legMode="walk" />
+<event time="34338" type="travelled" person="102" distance="10" mode="walk" />
+<event time="34338" type="arrival" person="102" link="link4" legMode="walk" />
+<event time="34338" type="actstart" person="102" link="link4" actType="errands_2400.0" />
+<event time="34800" type="actend" person="103" link="link5" actType="home_28800.0" />
+<event time="34800" type="departure" person="103" link="link5" legMode="walk" />
+<event time="34807" type="travelled" person="103" distance="8.94427190999916" mode="walk" />
+<event time="34807" type="arrival" person="103" link="link5" legMode="walk" />
+<event time="34807" type="actstart" person="103" link="link5" actType="car interaction" />
+<event time="34808" type="actend" person="103" link="link5" actType="car interaction" />
+<event time="34808" type="departure" person="103" link="link5" legMode="car" />
+<event time="34808" type="PersonEntersVehicle" person="103" vehicle="103_car" />
+<event time="34858" type="left link" link="link5" vehicle="103_car" />
+<event time="34858" type="entered link" link="link6" vehicle="103_car" />
+<event time="34908" type="left link" link="link6" vehicle="103_car" />
+<event time="34908" type="entered link" link="link4" vehicle="103_car" />
+<event time="34918" type="PersonLeavesVehicle" person="103" vehicle="103_car" />
+<event time="34918" type="arrival" person="103" link="link4" legMode="car" />
+<event time="34918" type="actstart" person="103" link="link4" actType="car interaction" />
+<event time="34919" type="actend" person="103" link="link4" actType="car interaction" />
+<event time="34919" type="departure" person="103" link="link4" legMode="walk" />
+<event time="34927" type="travelled" person="103" distance="10" mode="walk" />
+<event time="34927" type="arrival" person="103" link="link4" legMode="walk" />
+<event time="34927" type="actstart" person="103" link="link4" actType="errands_2400.0" />
+</events>

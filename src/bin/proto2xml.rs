@@ -2,6 +2,7 @@ use std::io::{Read, Seek};
 use std::path::PathBuf;
 
 use clap::Parser;
+use rust_q_sim::simulation::id;
 
 use rust_q_sim::simulation::io::proto_events::EventsReader;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
@@ -30,6 +31,9 @@ fn main() {
 
     println!("Proto2Xml with args: {args:?}");
 
+    println!("Loading ids.");
+    id::load_from_file(&PathBuf::from(args.ids_path));
+
     let mut readers = Vec::new();
     println!("Reading from Files: ");
     for i in 0..args.num_parts {
@@ -43,7 +47,7 @@ fn main() {
         };
         readers.push(wrapper);
     }
-    let output_file_string = format!("{}.xml", args.path);
+    let output_file_string = format!("{}events.xml", args.path);
     let output_file_path = PathBuf::from(output_file_string);
     let mut publisher = EventsPublisher::new();
     publisher.add_subscriber(Box::new(XmlEventsWriter::new(&output_file_path)));
@@ -84,4 +88,6 @@ struct InputArgs {
     pub path: String,
     #[arg(long, default_value_t = 1)]
     pub num_parts: u32,
+    #[arg(long)]
+    pub ids_path: String,
 }

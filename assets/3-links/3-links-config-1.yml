@@ -1,0 +1,23 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: ./assets/3-links/3-links-network.binpb
+    population: ./assets/3-links/1-agent-full-leg.binpb
+    vehicles: ./assets/3-links/vehicles.binpb
+    ids: ./assets/3-links/ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: Metis
+  output:
+    type: Output
+    output_dir: ./test_output/simulation/execute_3_links_single_part
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 86400
+    sample_size: 1.0
+
