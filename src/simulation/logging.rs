@@ -21,12 +21,12 @@ pub fn init_std_out_logging() {
 
 pub fn init_logging(dir: &Path, file_discriminant: &str) -> (WorkerGuard, WorkerGuard) {
     let log_file_name = format!("log_process_{file_discriminant}.txt");
-    let log_file_appender = rolling::never(dir, &log_file_name);
+    let log_file_appender = rolling::never(dir, log_file_name);
     let (log_file, _guard_log) = non_blocking(log_file_appender);
 
     let trace_dir = dir.join("trace");
     let trace_file_name = format!("trace_process_{file_discriminant}.txt");
-    let trace_file_appender = rolling::never(&trace_dir, &trace_file_name);
+    let trace_file_appender = rolling::never(trace_dir, trace_file_name);
     let (trace_file, _guard_performance) = non_blocking(trace_file_appender);
 
     let collector = tracing_subscriber::registry()

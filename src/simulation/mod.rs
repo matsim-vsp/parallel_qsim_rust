@@ -8,6 +8,7 @@ pub mod network;
 pub mod population;
 pub mod profiling;
 pub mod replanning;
+#[allow(clippy::module_inception)]
 pub mod simulation;
 pub mod time_queue;
 pub mod vehicles;
