@@ -12,9 +12,10 @@ use tracing::info;
 
 use rust_q_sim::simulation::config::{CommandLineArgs, Config, RoutingMode};
 use rust_q_sim::simulation::controller::{get_numbered_output_filename, partition_input};
+use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::communication::communicators::{
-    ChannelSimCommunicator, DummySimCommunicator, SimCommunicator,
+    ChannelSimCommunicator, SimCommunicator,
 };
 use rust_q_sim::simulation::messaging::communication::message_broker::NetMessageBroker;
 use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
@@ -28,91 +29,8 @@ use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTi
 use rust_q_sim::simulation::simulation::Simulation;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use rust_q_sim::simulation::wire_types::events::Event;
-use rust_q_sim::simulation::{id, logging};
 
-#[test]
-fn execute_3_links_single_part() {
-    let config_args = CommandLineArgs {
-        config_path: "./assets/3-links/3-links-config-1.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new()),
-        config_args,
-    );
-}
-
-#[test]
-fn execute_3_links_2_parts() {
-    let config_args = CommandLineArgs {
-        config_path: "./assets/3-links/3-links-config-2.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim_with_channels(config_args, "");
-}
-
-#[test]
-fn execute_adhoc_routing_one_part_no_updates() {
-    let config_args = CommandLineArgs {
-        config_path: "./assets/adhoc_routing/no_updates/config-1.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./assets/adhoc_routing/no_updates/expected_events.xml",
-        )),
-        config_args,
-    );
-}
-
-#[test]
-fn execute_adhoc_routing_two_parts_no_updates() {
-    let config_args = CommandLineArgs {
-        config_path: "./assets/adhoc_routing/no_updates/config-2.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim_with_channels(
-        config_args,
-        "./assets/adhoc_routing/no_updates/expected_events.xml",
-    );
-}
-
-#[test]
-fn execute_adhoc_routing_one_part_with_updates() {
-    let config_args = CommandLineArgs {
-        config_path: "./assets/adhoc_routing/with_updates/config-1.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./assets/adhoc_routing/with_updates/expected_events.xml",
-        )),
-        config_args,
-    );
-}
-
-#[test]
-fn execute_adhoc_routing_two_parts_with_updates() {
-    let config_args = CommandLineArgs {
-        config_path: "./assets/adhoc_routing/with_updates/config-2.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim_with_channels(
-        config_args,
-        "./assets/adhoc_routing/with_updates/expected_events.xml",
-    );
-}
-
-fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str) {
+pub fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str) {
     let config = Config::from_file(&config_args);
     let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
     let mut receiver = ReceivingSubscriber::new_with_events_from_file(&expected_events);
@@ -139,7 +57,7 @@ fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str
     try_join(handles);
 }
 
-fn execute_sim<C: SimCommunicator + 'static>(
+pub fn execute_sim<C: SimCommunicator + 'static>(
     comm: C,
     test_subscriber: Box<dyn EventsSubscriber + Send>,
     config_args: CommandLineArgs,
@@ -174,13 +92,6 @@ fn execute_sim<C: SimCommunicator + 'static>(
         while !all_temp_files_created(&temp_network_file, &temp_population_file) {
             thread::sleep(std::time::Duration::from_millis(50));
         }
-    }
-
-    if rank == 0 {
-        let _guards = logging::init_logging(
-            config.output().output_dir.as_ref(),
-            config.partitioning().num_parts.to_string().as_str(),
-        );
     }
 
     let network = Network::from_file_as_is(&temp_network_file);
@@ -251,7 +162,7 @@ impl EventsSubscriber for EmptySubscriber {
     }
 }
 
-struct TestSubscriber {
+pub struct TestSubscriber {
     next_index: usize,
     expected_events: Vec<String>,
 }
@@ -301,14 +212,7 @@ impl ReceivingSubscriber {
 }
 
 impl TestSubscriber {
-    fn new() -> Self {
-        Self {
-            next_index: 0,
-            expected_events: Self::expected_events(),
-        }
-    }
-
-    fn new_with_events_from_file(events_file: &str) -> Self {
+    pub fn new_with_events_from_file(events_file: &str) -> Self {
         Self {
             next_index: 0,
             expected_events: Self::expected_events_from_file(events_file),
@@ -330,33 +234,6 @@ impl TestSubscriber {
             .filter(|s| s.starts_with("<event "))
             .map(|s| s + "\n")
             .collect()
-    }
-
-    fn expected_events() -> Vec<String> {
-        let result = vec![
-            "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" actType=\"home\" />\n".to_string(),
-            "<event time=\"32400\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" />\n".to_string(),
-            "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\" />\n".to_string(),
-            "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\" />\n".to_string(),
-            "<event time=\"32408\" type=\"actstart\" person=\"100\" link=\"link1\" actType=\"car interaction\" />\n".to_string(),
-            "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" actType=\"car interaction\" />\n".to_string(),
-            "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" />\n".to_string(),
-            "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\" />\n".to_string(),
-            "<event time=\"32419\" type=\"left link\" link=\"link1\" vehicle=\"100_car\" />\n".to_string(),
-            "<event time=\"32419\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\" />\n".to_string(),
-            "<event time=\"32519\" type=\"left link\" link=\"link2\" vehicle=\"100_car\" />\n".to_string(),
-            "<event time=\"32519\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\" />\n".to_string(),
-            "<event time=\"32529\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\" />\n".to_string(),
-            "<event time=\"32529\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\" />\n".to_string(),
-            "<event time=\"32529\" type=\"actstart\" person=\"100\" link=\"link3\" actType=\"car interaction\" />\n".to_string(),
-            "<event time=\"32530\" type=\"actend\" person=\"100\" link=\"link3\" actType=\"car interaction\" />\n".to_string(),
-            "<event time=\"32530\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" />\n".to_string(),
-            "<event time=\"32546\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\" />\n".to_string(),
-            "<event time=\"32546\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\" />\n".to_string(),
-            "<event time=\"32546\" type=\"actstart\" person=\"100\" link=\"link3\" actType=\"errands\" />\n".to_string()
-        ];
-
-        result
     }
 }
 

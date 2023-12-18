@@ -1,10 +1,10 @@
 modules:
   protofiles:
     type: ProtoFiles
-    network: ./assets/adhoc_routing/no_updates/network.binpb
-    population: ./assets/adhoc_routing/no_updates/agents.binpb
-    vehicles: ./assets/adhoc_routing/no_updates/vehicles.binpb
-    ids: ./assets/adhoc_routing/no_updates/ids.binpb
+    network: ./tests/resources/adhoc_routing/no_updates/network.binpb
+    population: ./tests/resources/adhoc_routing/no_updates/agents.binpb
+    vehicles: ./tests/resources/adhoc_routing/no_updates/vehicles.binpb
+    ids: ./tests/resources/adhoc_routing/no_updates/ids.binpb
   partitioning:
     type: Partitioning
     num_parts: 1
