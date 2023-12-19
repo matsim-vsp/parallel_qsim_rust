@@ -221,7 +221,7 @@ pub struct MetisOptions {
     pub vertex_weight: Vec<VertexWeight>,
     #[serde(default = "true_value")]
     pub edge_weight: bool,
-    #[serde(default = "f32_value_1_03")]
+    #[serde(default = "f32_value_0_03")]
     pub imbalance_factor: f32,
 }
 
@@ -237,7 +237,7 @@ impl Default for MetisOptions {
         MetisOptions {
             vertex_weight: vec![],
             edge_weight: true,
-            imbalance_factor: 1.03,
+            imbalance_factor: 0.03,
         }
     }
 }
@@ -254,7 +254,7 @@ impl MetisOptions {
     }
 
     pub fn ufactor(&self) -> i32 {
-        let val = (self.imbalance_factor * 1000. - 1000.) as i32;
+        let val = (self.imbalance_factor * 1000.) as i32;
         if val <= 0 {
             return 1;
         };
@@ -271,8 +271,8 @@ fn true_value() -> bool {
     true
 }
 
-fn f32_value_1_03() -> f32 {
-    1.03
+fn f32_value_0_03() -> f32 {
+    0.03
 }
 
 #[cfg(test)]
@@ -353,6 +353,25 @@ mod tests {
                 edge_weight: false,
                 imbalance_factor: 1.1,
             })
+        );
+    }
+
+    #[test]
+    fn test_imbalance_factor() {
+        assert_eq!(MetisOptions::default().imbalance_factor(0.03).ufactor(), 30);
+        assert_eq!(MetisOptions::default().imbalance_factor(0.001).ufactor(), 1);
+        assert_eq!(
+            MetisOptions::default().imbalance_factor(0.00001).ufactor(),
+            1
+        );
+        assert_eq!(
+            MetisOptions::default().imbalance_factor(0.00000).ufactor(),
+            1
+        );
+        assert_eq!(MetisOptions::default().imbalance_factor(-1.).ufactor(), 1);
+        assert_eq!(
+            MetisOptions::default().imbalance_factor(1.1).ufactor(),
+            1100
         );
     }
 }

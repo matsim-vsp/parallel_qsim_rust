@@ -126,7 +126,7 @@ mod tests {
             PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCapacity)
-                    .imbalance_factor(1.),
+                    .imbalance_factor(0.),
             ),
         );
         println!("=== Capacity ===");
@@ -142,7 +142,7 @@ mod tests {
             PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCount)
-                    .imbalance_factor(1.),
+                    .imbalance_factor(0.),
             ),
         );
         println!("=== InLinkCount ===");
@@ -159,7 +159,7 @@ mod tests {
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCapacity)
                     .add_vertex_weight(VertexWeight::InLinkCount)
-                    .imbalance_factor(1.),
+                    .imbalance_factor(0.),
             ),
         );
         println!("=== Capacity & InLinkCount ===");
@@ -175,7 +175,7 @@ mod tests {
             PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::Constant)
-                    .imbalance_factor(1.),
+                    .imbalance_factor(0.),
             ),
         );
         println!("=== Constant Vertex ===");
@@ -192,7 +192,7 @@ mod tests {
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::Constant)
                     .add_vertex_weight(VertexWeight::InLinkCount)
-                    .imbalance_factor(1.),
+                    .imbalance_factor(0.),
             ),
         );
         println!("=== Constant Vertex & InLinkCount ===");
