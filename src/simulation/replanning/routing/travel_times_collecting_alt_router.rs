@@ -149,7 +149,7 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
             let mut extended_travel_times_by_link_id = HashMap::new();
             for id in &self.link_ids_of_process {
                 if let Some(travel_time) = collected_travel_times.get(id) {
-                    // for each collected travel time: add if currently known travel time is different
+                    // add collected travel time
                     let initial = router.get_initial_travel_time(*id);
 
                     if initial.is_none() {
@@ -157,21 +157,16 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
                     }
 
                     let new_travel_time = (*travel_time).max(initial.unwrap());
-                    let current_travel_time = router.get_current_travel_time(*id).expect("If there is an initial travel time, there also must be a current travel time");
-                    if new_travel_time != current_travel_time {
-                        extended_travel_times_by_link_id.insert(*id, new_travel_time);
-                    }
+                    extended_travel_times_by_link_id.insert(*id, new_travel_time);
                 } else {
-                    // for each link which has no new travel time: add initial travel time if currently known travel time is different
+                    // add initial travel time for each link which has no new travel time
                     let initial = router.get_initial_travel_time(*id);
 
                     if initial.is_none() {
                         continue;
                     }
 
-                    if router.get_current_travel_time(*id) != initial {
-                        extended_travel_times_by_link_id.insert(*id, initial.unwrap());
-                    }
+                    extended_travel_times_by_link_id.insert(*id, initial.unwrap());
                 }
             }
             result.insert(*mode, extended_travel_times_by_link_id);

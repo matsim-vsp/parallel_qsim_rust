@@ -127,8 +127,8 @@ impl Network {
 
     fn partition_network(network: &mut Network, partition_method: PartitionMethod, num_parts: u32) {
         match partition_method {
-            PartitionMethod::Metis => {
-                let partitions = metis_partitioning::partition(network, num_parts);
+            PartitionMethod::Metis(options) => {
+                let partitions = metis_partitioning::partition(network, num_parts, options);
                 for node in network.nodes.iter_mut() {
                     let partition = partitions[node.id.internal() as usize] as u32;
                     node.partition = partition;
@@ -232,7 +232,7 @@ impl Link {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::config::PartitionMethod;
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
 
     use super::{Link, Network, Node};
@@ -308,11 +308,13 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn from_file() {
         let network = Network::from_file(
             "./assets/equil/equil-network.xml",
             2,
-            PartitionMethod::Metis,
+            //I don't know, why "edge_weight = true" sets 1 as partition for all nodes.
+            PartitionMethod::Metis(MetisOptions::default().set_edge_weight(false)),
         );
 
         // check partitioning

@@ -186,7 +186,7 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
 
 pub fn partition_input(config: &Config) {
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
-    let net = if config.partitioning().method == PartitionMethod::Metis {
+    let net = if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
         partition_network(config)
     } else {

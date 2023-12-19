@@ -140,7 +140,7 @@ impl Graph {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::simulation::config::PartitionMethod;
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
     use std::collections::HashMap;
 
     use crate::simulation::network::global_network::Network;
@@ -151,7 +151,7 @@ pub(crate) mod tests {
         let network = Network::from_file(
             "./assets/routing_tests/triangle-network.xml",
             1,
-            PartitionMethod::Metis,
+            PartitionMethod::Metis(MetisOptions::default()),
         );
         NetworkConverter::convert_network(&network, None, None)
     }

@@ -62,7 +62,7 @@ impl WalkFinder for EuclideanWalkFinder {
 mod tests {
     use std::path::PathBuf;
 
-    use crate::simulation::config::PartitionMethod;
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::population::Population;
@@ -75,7 +75,7 @@ mod tests {
         let network = Network::from_file(
             "./assets/equil/equil-network.xml",
             1,
-            PartitionMethod::Metis,
+            PartitionMethod::Metis(MetisOptions::default()),
         );
 
         let walk_finder = EuclideanWalkFinder::new();
