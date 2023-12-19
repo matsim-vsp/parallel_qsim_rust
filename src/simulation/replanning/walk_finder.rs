@@ -15,6 +15,12 @@ pub struct Walk {
 
 pub struct EuclideanWalkFinder {}
 
+impl Default for EuclideanWalkFinder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EuclideanWalkFinder {
     pub fn new() -> Self {
         Self {}
