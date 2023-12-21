@@ -453,7 +453,7 @@ impl SimNetworkPartition {
 mod tests {
     use assert_approx_eq::assert_approx_eq;
 
-    use crate::simulation::config::PartitionMethod;
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::messaging::events::EventsPublisher;
     use crate::simulation::network::{
@@ -495,7 +495,7 @@ mod tests {
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
-            PartitionMethod::Metis,
+            PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
@@ -549,7 +549,7 @@ mod tests {
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
-            PartitionMethod::Metis,
+            PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
 
@@ -582,7 +582,7 @@ mod tests {
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
-            PartitionMethod::Metis,
+            PartitionMethod::Metis(MetisOptions::default()),
         );
         global_net.effective_cell_size = 10.;
 

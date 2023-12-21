@@ -8,7 +8,9 @@ modules:
   partitioning:
     type: Partitioning
     num_parts: 2
-    method: Metis
+    method: !Metis
+      vertex_weight:
+        - Constant
   output:
     type: Output
     output_dir: ./test_output/simulation/execute_3_links_2_parts
