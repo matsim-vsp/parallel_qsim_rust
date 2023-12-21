@@ -75,7 +75,7 @@ impl ForwardBackwardGraph {
 
     pub fn clone_with_new_travel_times_by_link(
         &self,
-        new_travel_times_by_link: HashMap<&u64, &u32>,
+        new_travel_times_by_link: HashMap<u64, u32>,
     ) -> ForwardBackwardGraph {
         ForwardBackwardGraph {
             forward_graph: self
@@ -114,13 +114,13 @@ impl Graph {
 
     pub fn clone_with_new_travel_times_by_link(
         &self,
-        new_travel_times_by_link: &HashMap<&u64, &u32>,
+        new_travel_times_by_link: &HashMap<u64, u32>,
     ) -> Graph {
         assert_eq!(self.link_ids.len(), self.travel_time.len());
 
         let mut new_travel_time_vector = Vec::new();
         for (index, &id) in self.link_ids.iter().enumerate() {
-            if let Some(&&new_travel_time) = new_travel_times_by_link.get(&(id)) {
+            if let Some(&new_travel_time) = new_travel_times_by_link.get(&(id)) {
                 new_travel_time_vector.push(new_travel_time);
                 debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
             } else {
@@ -197,7 +197,7 @@ pub(crate) mod tests {
     fn clone_with_change() {
         let mut graph = get_triangle_test_graph();
         let mut change = HashMap::new();
-        change.insert(&5, &42);
+        change.insert(5, 42);
         let new_graph = graph.clone_with_new_travel_times_by_link(change);
 
         //change manually

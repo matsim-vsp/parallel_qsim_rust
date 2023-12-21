@@ -1,8 +1,8 @@
-use crate::simulation::config::{MetisOptions, VertexWeight};
+use crate::simulation::config::{EdgeWeight, MetisOptions, VertexWeight};
 use metis::{Graph, Idx};
 use tracing::info;
 
-use super::global_network::Network;
+use super::global_network::{Link, Network, Node};
 
 pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Vec<Idx> {
     if num_parts <= 1 {
@@ -23,35 +23,18 @@ pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Ve
         xadj.push(next_adjacency_index);
 
         // Add vertex weights
-        for weight in options.vertex_weight.iter() {
-            match weight {
-                VertexWeight::InLinkCapacity => {
-                    vwgt.push(
-                        node.in_links
-                            .iter()
-                            .map(|id| network.links[id.internal() as usize].capacity as Idx)
-                            .sum(),
-                    );
-                }
-                VertexWeight::InLinkCount => {
-                    vwgt.push(node.in_links.len() as Idx);
-                }
-                VertexWeight::Constant => {
-                    vwgt.push(1);
-                }
-            }
-        }
+        add_vwgt(network, &options, &mut vwgt, node);
 
         for id in &node.out_links {
             let link = &network.links[id.internal() as usize];
             adjncy.push(link.to.internal() as Idx);
-            adjwgt.push(link.capacity as Idx);
+            adjwgt.push(get_adjwgt(&options, link) as Idx);
         }
 
         for id in &node.in_links {
             let link = &network.links[id.internal() as usize];
             adjncy.push(link.from.internal() as Idx);
-            adjwgt.push(link.capacity as Idx);
+            adjwgt.push(get_adjwgt(&options, link) as Idx);
         }
     }
 
@@ -64,19 +47,44 @@ pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Ve
     info!("Calling Metis Partitioning Library");
     let mut graph = Graph::new(ncon, num_parts as Idx, &mut xadj, &mut adjncy)
         .set_option(metis::option::UFactor(options.ufactor()))
-        .set_option(metis::option::Seed(4711));
+        .set_option(metis::option::Seed(4711))
+        .set_adjwgt(&mut adjwgt);
 
     if !vwgt.is_empty() {
         graph = graph.set_vwgt(&mut vwgt);
     }
 
-    if options.edge_weight {
-        graph = graph.set_adjwgt(&mut adjwgt);
-    }
-
     graph.part_kway(&mut result).unwrap();
 
     result
+}
+
+fn add_vwgt(network: &Network, options: &MetisOptions, vwgt: &mut Vec<Idx>, node: &Node) {
+    for weight in options.vertex_weight.iter() {
+        match weight {
+            VertexWeight::InLinkCapacity => {
+                vwgt.push(
+                    node.in_links
+                        .iter()
+                        .map(|id| network.links[id.internal() as usize].capacity as Idx)
+                        .sum(),
+                );
+            }
+            VertexWeight::InLinkCount => {
+                vwgt.push(node.in_links.len() as Idx);
+            }
+            VertexWeight::Constant => {
+                vwgt.push(1);
+            }
+        }
+    }
+}
+
+fn get_adjwgt(options: &MetisOptions, link: &Link) -> f32 {
+    match options.edge_weight {
+        EdgeWeight::Capacity => link.capacity,
+        EdgeWeight::Constant => 1.,
+    }
 }
 
 #[cfg(test)]
@@ -126,7 +134,7 @@ mod tests {
             PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCapacity)
-                    .imbalance_factor(0.),
+                    .set_imbalance_factor(0.),
             ),
         );
         println!("=== Capacity ===");
@@ -142,7 +150,7 @@ mod tests {
             PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCount)
-                    .imbalance_factor(0.),
+                    .set_imbalance_factor(0.),
             ),
         );
         println!("=== InLinkCount ===");
@@ -159,7 +167,7 @@ mod tests {
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCapacity)
                     .add_vertex_weight(VertexWeight::InLinkCount)
-                    .imbalance_factor(0.),
+                    .set_imbalance_factor(0.),
             ),
         );
         println!("=== Capacity & InLinkCount ===");
@@ -175,7 +183,7 @@ mod tests {
             PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::Constant)
-                    .imbalance_factor(0.),
+                    .set_imbalance_factor(0.),
             ),
         );
         println!("=== Constant Vertex ===");
@@ -192,7 +200,8 @@ mod tests {
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::Constant)
                     .add_vertex_weight(VertexWeight::InLinkCount)
-                    .imbalance_factor(0.),
+                    .set_imbalance_factor(0.)
+                    .set_iteration_number(100),
             ),
         );
         println!("=== Constant Vertex & InLinkCount ===");

@@ -219,10 +219,12 @@ pub enum PartitionMethod {
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MetisOptions {
     pub vertex_weight: Vec<VertexWeight>,
-    #[serde(default = "true_value")]
-    pub edge_weight: bool,
+    #[serde(default = "edge_weight_constant")]
+    pub edge_weight: EdgeWeight,
     #[serde(default = "f32_value_0_03")]
     pub imbalance_factor: f32,
+    #[serde(default = "u32_value_100")]
+    pub iteration_number: u32,
 }
 
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize)]
@@ -232,24 +234,41 @@ pub enum VertexWeight {
     Constant,
 }
 
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize)]
+pub enum EdgeWeight {
+    Capacity,
+    Constant,
+}
+
 impl Default for MetisOptions {
     fn default() -> Self {
         MetisOptions {
             vertex_weight: vec![],
-            edge_weight: true,
+            edge_weight: EdgeWeight::Constant,
             imbalance_factor: 0.03,
+            iteration_number: 10,
         }
     }
 }
 
 impl MetisOptions {
-    pub fn imbalance_factor(mut self, imbalance_factor: f32) -> Self {
+    pub fn set_imbalance_factor(mut self, imbalance_factor: f32) -> Self {
         self.imbalance_factor = imbalance_factor;
         self
     }
 
     pub fn add_vertex_weight(mut self, vertex_weight: VertexWeight) -> Self {
         self.vertex_weight.push(vertex_weight);
+        self
+    }
+
+    pub fn set_edge_weight(mut self, edge_weight: EdgeWeight) -> Self {
+        self.edge_weight = edge_weight;
+        self
+    }
+
+    pub fn set_iteration_number(mut self, iteration_number: u32) -> Self {
+        self.iteration_number = iteration_number;
         self
     }
 
@@ -260,25 +279,24 @@ impl MetisOptions {
         };
         val
     }
-
-    pub fn set_edge_weight(mut self, edge_weight: bool) -> Self {
-        self.edge_weight = edge_weight;
-        self
-    }
-}
-
-fn true_value() -> bool {
-    true
 }
 
 fn f32_value_0_03() -> f32 {
     0.03
 }
 
+fn edge_weight_constant() -> EdgeWeight {
+    EdgeWeight::Constant
+}
+
+fn u32_value_100() -> u32 {
+    100
+}
+
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{
-        Config, MetisOptions, PartitionMethod, Partitioning, VertexWeight,
+        Config, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, VertexWeight,
     };
 
     #[test]
@@ -290,8 +308,9 @@ mod tests {
             num_parts: 1,
             method: PartitionMethod::Metis(MetisOptions {
                 vertex_weight: vec![VertexWeight::InLinkCount, VertexWeight::InLinkCapacity],
-                edge_weight: true,
+                edge_weight: EdgeWeight::Constant,
                 imbalance_factor: 1.02,
+                iteration_number: 100,
             }),
         };
         config
@@ -311,8 +330,9 @@ mod tests {
             parsed_config.partitioning().method,
             PartitionMethod::Metis(MetisOptions {
                 vertex_weight: vec![VertexWeight::InLinkCount, VertexWeight::InLinkCapacity],
-                edge_weight: true,
+                edge_weight: EdgeWeight::Constant,
                 imbalance_factor: 1.02,
+                iteration_number: 100,
             })
         );
     }
@@ -342,35 +362,51 @@ mod tests {
               vertex_weight: 
               - InLinkCount
               imbalance_factor: 1.1
-              edge_weight: false
+              edge_weight: Capacity
         "#;
-        let parsed_config: Config = serde_yaml::from_str(&yaml).expect("failed to parse config");
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
         assert_eq!(parsed_config.partitioning().num_parts, 1);
         assert_eq!(
             parsed_config.partitioning().method,
             PartitionMethod::Metis(MetisOptions {
                 vertex_weight: vec![VertexWeight::InLinkCount],
-                edge_weight: false,
+                edge_weight: EdgeWeight::Capacity,
                 imbalance_factor: 1.1,
+                iteration_number: 100
             })
         );
     }
 
     #[test]
     fn test_imbalance_factor() {
-        assert_eq!(MetisOptions::default().imbalance_factor(0.03).ufactor(), 30);
-        assert_eq!(MetisOptions::default().imbalance_factor(0.001).ufactor(), 1);
         assert_eq!(
-            MetisOptions::default().imbalance_factor(0.00001).ufactor(),
+            MetisOptions::default().set_imbalance_factor(0.03).ufactor(),
+            30
+        );
+        assert_eq!(
+            MetisOptions::default()
+                .set_imbalance_factor(0.001)
+                .ufactor(),
             1
         );
         assert_eq!(
-            MetisOptions::default().imbalance_factor(0.00000).ufactor(),
+            MetisOptions::default()
+                .set_imbalance_factor(0.00001)
+                .ufactor(),
             1
         );
-        assert_eq!(MetisOptions::default().imbalance_factor(-1.).ufactor(), 1);
         assert_eq!(
-            MetisOptions::default().imbalance_factor(1.1).ufactor(),
+            MetisOptions::default()
+                .set_imbalance_factor(0.00000)
+                .ufactor(),
+            1
+        );
+        assert_eq!(
+            MetisOptions::default().set_imbalance_factor(-1.).ufactor(),
+            1
+        );
+        assert_eq!(
+            MetisOptions::default().set_imbalance_factor(1.1).ufactor(),
             1100
         );
     }

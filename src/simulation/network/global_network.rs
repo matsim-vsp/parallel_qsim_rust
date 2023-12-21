@@ -232,7 +232,7 @@ impl Link {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::config::{MetisOptions, PartitionMethod};
+    use crate::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
 
     use super::{Link, Network, Node};
@@ -314,7 +314,7 @@ mod tests {
             "./assets/equil/equil-network.xml",
             2,
             //I don't know, why "edge_weight = true" sets 1 as partition for all nodes.
-            PartitionMethod::Metis(MetisOptions::default().set_edge_weight(false)),
+            PartitionMethod::Metis(MetisOptions::default().set_edge_weight(EdgeWeight::Constant)),
         );
 
         // check partitioning

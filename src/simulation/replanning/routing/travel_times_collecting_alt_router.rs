@@ -106,17 +106,15 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
             return;
         }
 
-        let travel_times_by_link = traffic_info_messages
-            .iter()
-            .map(|info| &info.travel_times_by_link_id)
-            .fold(HashMap::new(), |result, value| {
-                result.into_iter().chain(value).collect()
-            });
-
         let number_of_links_with_traffic_info = traffic_info_messages
             .iter()
             .map(|info| info.travel_times_by_link_id.len())
             .sum::<usize>();
+
+        let travel_times_by_link: HashMap<u64, u32> = traffic_info_messages
+            .into_iter()
+            .flat_map(|info| info.travel_times_by_link_id.into_iter())
+            .collect();
 
         assert_eq!(
             number_of_links_with_traffic_info,
