@@ -11,7 +11,7 @@ modules:
     method: Metis
   output:
     type: Output
-    output_dir: /Users/janek/Documents/equil-output/output
+    output_dir: /Users/janek/Documents/rust_q_sim/equil/output/size
   routing:
     type: Routing
     mode: UsePlans

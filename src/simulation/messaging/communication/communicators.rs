@@ -6,6 +6,7 @@ use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, SystemCommunicator};
 use mpi::{Count, Rank};
+use tracing::instrument;
 
 use crate::simulation::wire_types::messages::{SimMessage, SyncMessage, TravelTimesMessage};
 
@@ -167,6 +168,7 @@ pub struct MpiSimCommunicator {
 }
 
 impl SimCommunicator for MpiSimCommunicator {
+    #[instrument(level = "trace", skip_all, fields(rank = self.rank()))]
     fn send_receive_vehicles<F>(
         &self,
         out_messages: HashMap<u32, SyncMessage>,

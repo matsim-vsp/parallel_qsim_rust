@@ -148,9 +148,6 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     };
     let net_message_broker = NetMessageBroker::new(rc, &network, &network_partition);
 
-    let start_time = config.simulation().start_time;
-    let end_time = config.simulation().end_time;
-
     let mut simulation: Simulation<C> = Simulation::new(
         config,
         network_partition,
@@ -161,7 +158,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
         replanner,
     );
 
-    simulation.run(start_time, end_time);
+    simulation.run();
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also
