@@ -69,7 +69,7 @@ where
         }
     }
 
-    #[tracing::instrument(level = "trace", skip(self), fields(rank = self.net_message_broker.rank()))]
+    #[tracing::instrument(level = "info", skip(self), fields(rank = self.net_message_broker.rank()))]
     pub fn run(&mut self) {
         // use fixed start and end times
         let mut now = self.start_time;
