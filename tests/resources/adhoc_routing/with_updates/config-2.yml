@@ -7,7 +7,7 @@ modules:
     ids: ./tests/resources/adhoc_routing/with_updates/ids.binpb
   partitioning:
     type: Partitioning
-    num_parts: 1
+    num_parts: 2
     method: !Metis
       vertex_weight:
         - Constant

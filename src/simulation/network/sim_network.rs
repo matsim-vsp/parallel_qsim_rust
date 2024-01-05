@@ -158,7 +158,12 @@ impl SimNetworkPartition {
             .collect::<HashSet<u64>>()
     }
 
-    pub fn send_veh_en_route(&mut self, vehicle: Vehicle, now: u32) {
+    pub fn send_veh_en_route(
+        &mut self,
+        vehicle: Vehicle,
+        events_publisher: Option<&mut EventsPublisher>,
+        now: u32,
+    ) {
         let link_id = vehicle.curr_link_id().unwrap_or_else(|| {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
@@ -173,6 +178,14 @@ impl SimNetworkPartition {
                 vehicle
             );
         });
+
+        if let Some(publisher) = events_publisher {
+            publisher.publish_event(
+                now,
+                &Event::new_link_enter(link.id().internal(), vehicle.id),
+            );
+        }
+
         link.push_veh(vehicle, now);
 
         Self::activate_link(&mut self.active_links, link.id().internal());
@@ -439,10 +452,21 @@ impl SimNetworkPartition {
         vehicle.advance_route_index();
         let link_id = vehicle.curr_link_id().unwrap();
         let link = links.get_mut(&link_id).unwrap();
-        events.publish_event(
-            now,
-            &Event::new_link_enter(link.id().internal(), vehicle.id),
-        );
+
+        match link {
+            SimLink::Local(_) => {
+                events.publish_event(
+                    now,
+                    &Event::new_link_enter(link.id().internal(), vehicle.id),
+                );
+            }
+            SimLink::In(_) => {
+                unreachable!("Vehicles can never enter a split in link at this point.")
+            }
+            SimLink::Out(_) => {
+                //do nothing, link enter event is published at receiving partition
+            }
+        }
 
         link.push_veh(vehicle, now);
         Self::activate_link(active_links, link_id);
@@ -500,7 +524,7 @@ mod tests {
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
-        network.send_veh_en_route(vehicle, 0);
+        network.send_veh_en_route(vehicle, None, 0);
 
         for i in 0..120 {
             let result = network.move_nodes(&mut publisher, i);
@@ -524,7 +548,7 @@ mod tests {
         let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
         let agent = create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
-        network.send_veh_en_route(vehicle, 0);
+        network.send_veh_en_route(vehicle, None, 0);
 
         for now in 0..20 {
             let node_result = network.move_nodes(&mut publisher, now);
@@ -557,7 +581,7 @@ mod tests {
         for i in 0..100 {
             let agent = create_agent(i, vec![0]);
             let vehicle = Vehicle::new(i, 0, 10., 1., Some(agent));
-            network.send_veh_en_route(vehicle, 0);
+            network.send_veh_en_route(vehicle, None, 0);
         }
 
         // all vehicle only have to traverse link1. Link1 can release one vehicle/s, first one at t=10
@@ -595,7 +619,7 @@ mod tests {
         for i in 0..10 {
             let agent = create_agent(i, vec![id_2.internal(), 2]);
             let vehicle = Vehicle::new(i, 0, 1., 10., Some(agent));
-            network.send_veh_en_route(vehicle, 0);
+            network.send_veh_en_route(vehicle, None, 0);
         }
 
         // place 1 vehicle onto link1 which has to wait until link2 has free storage cap
@@ -603,7 +627,7 @@ mod tests {
         // the next timestep at t=1001
         let agent = create_agent(11, vec![id_1.internal(), 1, 2]);
         let vehicle = Vehicle::new(11, 0, 10., 1., Some(agent));
-        network.send_veh_en_route(vehicle, 0);
+        network.send_veh_en_route(vehicle, None, 0);
 
         for now in 0..1010 {
             network.move_nodes(&mut publisher, now);
@@ -685,21 +709,21 @@ mod tests {
         for i in 2000..2010 {
             let agent = create_agent(i, vec![2]);
             let vehicle = Vehicle::new(i, 0, 100., 1., Some(agent));
-            sim_net.send_veh_en_route(vehicle, 0);
+            sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
         //place 1000 vehicles on 0
         for i in 0..1000 {
             let agent = create_agent(i, vec![0, 2]);
             let vehicle = Vehicle::new(i, 0, 100., 1., Some(agent));
-            sim_net.send_veh_en_route(vehicle, 0);
+            sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
         //place 1000 vehicles on 1
         for i in 1000..2000 {
             let agent = create_agent(i, vec![1, 2]);
             let vehicle = Vehicle::new(i, 0, 100., 1., Some(agent));
-            sim_net.send_veh_en_route(vehicle, 0);
+            sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
         let mut publisher = EventsPublisher::new();
@@ -731,7 +755,7 @@ mod tests {
         assert_eq!(0, storage_caps.len());
 
         // now place vehicle on network and collect storage caps again.
-        net2.send_veh_en_route(vehicle, 0);
+        net2.send_veh_en_route(vehicle, None, 0);
         let (_, storage_caps) = net2.move_links(0);
         assert_eq!(1, storage_caps.len());
         let storage_cap = storage_caps.first().unwrap();
