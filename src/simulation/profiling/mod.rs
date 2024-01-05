@@ -249,7 +249,7 @@ mod tests {
         info!("Inside some function.")
     }
 
-    #[instrument(level = "trace", fields(rank = 42u32))]
+    #[instrument(level = "trace", skip(a, b), fields(rank = 42u32))]
     fn some_other_function(a: u32, b: f32) {
         info!("Inside some other function");
         sleep(Duration::from_nanos(10));
