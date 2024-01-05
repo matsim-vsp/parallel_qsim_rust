@@ -80,7 +80,7 @@ impl Visit for RankVisitor {
     }
 
     fn record_debug(&mut self, _field: &Field, _value: &dyn Debug) {
-        panic!("record_debug not implemented for RankVisitor. This is on purpose, because we always expect a rank to be a number")
+        //nothing to do here
     }
 }
 

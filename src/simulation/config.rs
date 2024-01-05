@@ -304,13 +304,6 @@ fn u32_value_100() -> u32 {
     100
 }
 
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum Profiling {
-    #[default]
-    None,
-    CSV,
-}
-
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{
