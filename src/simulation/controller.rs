@@ -24,14 +24,14 @@ use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplan
 use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{id, logging, profiling};
+use crate::simulation::{id, logging};
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
     let _guards = logging::init_logging(
-        config.output().output_dir.as_ref(),
+        &config,
         config.partitioning().num_parts.to_string().as_str(),
     );
 
@@ -65,10 +65,7 @@ pub fn run_mpi() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(
-        config.output().output_dir.as_ref(),
-        comm.rank().to_string().as_str(),
-    );
+    let _guards = logging::init_logging(&config, comm.rank().to_string().as_str());
 
     info!(
         "Starting MPI Simulation with {} partitions",
@@ -127,7 +124,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
 
     let mut events = EventsPublisher::new();
 
-    let events_file = format!("events.{rank}.pbf");
+    let events_file = format!("events.{rank}.binpb");
     let events_path = output_path.join(events_file);
     events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     let travel_time_collector = Box::new(TravelTimeCollector::new());
@@ -148,9 +145,6 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     };
     let net_message_broker = NetMessageBroker::new(rc, &network, &network_partition);
 
-    let start_time = config.simulation().start_time;
-    let end_time = config.simulation().end_time;
-
     let mut simulation: Simulation<C> = Simulation::new(
         config,
         network_partition,
@@ -161,9 +155,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
         replanner,
     );
 
-    profiling::measure_duration(None, "Overall Execution Time", None, || {
-        simulation.run(start_time, end_time)
-    });
+    simulation.run();
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also

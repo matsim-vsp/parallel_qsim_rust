@@ -1,4 +1,7 @@
-use tracing::info;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+
+use tracing::{info, instrument};
 
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
@@ -26,6 +29,8 @@ where
     net_message_broker: NetMessageBroker<C>,
     events: EventsPublisher,
     replanner: Box<dyn Replanner>,
+    start_time: u32,
+    end_time: u32,
 }
 
 impl<C> Simulation<C>
@@ -59,22 +64,25 @@ where
             net_message_broker,
             events,
             replanner,
+            start_time: config.simulation().start_time,
+            end_time: config.simulation().end_time,
         }
     }
 
-    pub fn run(&mut self, start_time: u32, end_time: u32) {
+    #[tracing::instrument(level = "info", skip(self), fields(rank = self.net_message_broker.rank()))]
+    pub fn run(&mut self) {
         // use fixed start and end times
-        let mut now = start_time;
+        let mut now = self.start_time;
         info!(
-            "Starting #{}. Network neighbors: {:?}, Start time {start_time}, End time {end_time}",
+            "Starting #{}. Network neighbors: {:?}, Start time {}, End time {}",
             self.net_message_broker.rank(),
             self.network.neighbors(),
+            self.start_time,
+            self.end_time,
         );
 
-        while now <= end_time {
+        while now <= self.end_time {
             if self.net_message_broker.rank() == 0 && now % 1800 == 0 {
-                //if now % 600 == 0 {
-                //if now % 800 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!(
@@ -96,6 +104,7 @@ where
         self.events.finish();
     }
 
+    #[tracing::instrument(level = "trace", skip(self), fields(rank = self.net_message_broker.rank()))]
     fn wakeup(&mut self, now: u32) {
         let agents = self.activity_q.pop(now);
 
@@ -136,6 +145,7 @@ where
         }
     }
 
+    #[instrument(level = "trace", skip(self, agent), fields(rank = self.net_message_broker.rank()))]
     fn departure(&mut self, mut agent: Person, now: u32) -> Vehicle {
         //here, current element counter is going to be increased
         agent.advance_plan();
@@ -158,6 +168,7 @@ where
         self.replanner.replan(now, agent, &self.garage)
     }
 
+    #[instrument(level = "trace", skip(self), fields(rank = self.net_message_broker.rank()))]
     fn terminate_teleportation(&mut self, now: u32) {
         let teleportation_vehicles = self.teleportation_q.pop(now);
         for vehicle in teleportation_vehicles {
@@ -193,6 +204,7 @@ where
         }
     }
 
+    #[instrument(level = "trace", skip(self), fields(rank = self.net_message_broker.rank()))]
     fn move_nodes(&mut self, now: u32) {
         let exited_vehicles = self.network.move_nodes(&mut self.events, now);
 
@@ -218,6 +230,7 @@ where
         }
     }
 
+    #[instrument(level = "trace", skip(self), fields(rank = self.net_message_broker.rank()))]
     fn move_links(&mut self, now: u32) {
         let (vehicles, storage_cap) = self.network.move_links(now);
 
@@ -250,6 +263,16 @@ where
         let route = leg.route.as_ref().unwrap();
         let to = message_broker.rank_for_link(route.end_link());
         message_broker.rank() == to
+    }
+}
+
+impl<C: SimCommunicator> Debug for Simulation<C> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Simulation with Rank #{}",
+            self.net_message_broker.rank()
+        )
     }
 }
 

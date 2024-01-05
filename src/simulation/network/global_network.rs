@@ -139,19 +139,7 @@ impl Network {
                     }
                 }
             }
-            PartitionMethod::None => {
-                // We can have the situation, that someone specified more partitions in the network file than the actual simulation is started with.
-                // Since the partitioning should normally be precomputed with the same number, it's ok to not check this here.
-                // But for testing purposes (compare base case with 1 partition and with more) we reset the partition of the nodes in that case.
-                if num_parts == 1 {
-                    for n in network.nodes.iter_mut() {
-                        n.partition = 0;
-                    }
-                    for l in network.links.iter_mut() {
-                        l.partition = 0;
-                    }
-                }
-            }
+            PartitionMethod::None => {}
         }
     }
 
