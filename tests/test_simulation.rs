@@ -119,14 +119,11 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
         Box::new(DummyReplanner {})
     };
 
-    let start_time = config.simulation().start_time;
-    let end_time = config.simulation().end_time;
-
     let mut sim = Simulation::new(
         config, sim_net, garage, population, broker, events, replanner,
     );
 
-    sim.run(start_time, end_time);
+    sim.run();
 }
 
 fn all_temp_files_created(temp_network_file: &PathBuf, temp_population_file: &PathBuf) -> bool {
