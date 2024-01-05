@@ -179,9 +179,9 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
     }
 }
 
-fn partition_input(config: &Config) {
+pub fn partition_input(config: &Config) {
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
-    let net = if config.partitioning().method == PartitionMethod::Metis {
+    let net = if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
         partition_network(config)
     } else {
@@ -247,7 +247,7 @@ fn partition_population(config: &Config, network: &Network) {
     }
 }
 
-fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: u32) -> PathBuf {
+pub fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: u32) -> PathBuf {
     let out = create_output_filename(output_dir, input_file);
     insert_number_in_proto_filename(&out, part)
 }

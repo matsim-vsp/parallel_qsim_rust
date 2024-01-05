@@ -12,6 +12,12 @@ pub struct TravelTimeCollector {
     cache_enter_time_by_vehicle: HashMap<u64, u32>,
 }
 
+impl Default for TravelTimeCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TravelTimeCollector {
     pub fn new() -> Self {
         TravelTimeCollector {
