@@ -62,20 +62,32 @@ struct SpanDuration {
 
 struct Rank(u64);
 
-struct RankVisitor {
+struct SimTime(u64);
+
+struct MetadataVisitor {
     rank: Option<u64>,
+    sim_time: Option<u64>,
 }
 
-impl RankVisitor {
+impl MetadataVisitor {
     fn new() -> Self {
-        RankVisitor { rank: None }
+        MetadataVisitor {
+            rank: None,
+            sim_time: None,
+        }
     }
 }
 
-impl Visit for RankVisitor {
+impl Visit for MetadataVisitor {
     fn record_u64(&mut self, field: &Field, value: u64) {
+        //fetch rank
         if field.name().eq("rank") {
             self.rank = Some(value);
+        }
+
+        //fetch now (in some cases, the field name is "now" and in others "_now")
+        if field.name().contains("now") {
+            self.sim_time = Some(value);
         }
     }
 
@@ -96,7 +108,7 @@ impl SpanDurationToCSVLayer {
         // write header for csv file
         std::io::Write::write(
             &mut writer,
-            "timestamp,target,func_name,duration,rank\n".as_bytes(),
+            "timestamp,target,func_name,duration,sim_time,rank\n".as_bytes(),
         )
         .unwrap_or_else(|_e| panic!("Failed to write header."));
 
@@ -140,10 +152,14 @@ where
         let mut extensions = span.extensions_mut();
         extensions.insert(SpanDuration::new());
 
-        let mut visitor = RankVisitor::new();
+        let mut visitor = MetadataVisitor::new();
         _attrs.record(&mut visitor as &mut dyn Visit);
         if let Some(rank) = visitor.rank {
             extensions.insert(Rank(rank));
+        }
+
+        if let Some(sim_time) = visitor.sim_time {
+            extensions.insert(SimTime(sim_time));
         }
     }
 
@@ -179,13 +195,14 @@ where
         let span_duration = extensions.get::<SpanDuration>().unwrap();
         write!(writer, "{},", span_duration.elapsed).unwrap();
 
-        // if a method has supplied a rank, write it into the csv file
-        let rank = if let Some(rank) = extensions.get::<Rank>() {
-            rank.0 as i64
-        } else {
-            -1
-        };
+        let sim_time = extensions
+            .get::<SimTime>()
+            .map_or(-1, |sim_time| sim_time.0 as i64);
+        write!(writer, "{sim_time},").unwrap();
+
+        let rank = extensions.get::<Rank>().map_or(-1, |rank| rank.0 as i64);
         write!(writer, "{rank}").unwrap();
+
         writeln!(writer).unwrap();
 
         // extensions and span must be dropped explicitly, says the tracing documentation
@@ -241,7 +258,7 @@ mod tests {
         some_function();
         info!("After func");
 
-        some_other_function(42, std::f32::consts::PI);
+        some_other_function(7, std::f32::consts::PI);
     }
 
     #[instrument]
@@ -249,8 +266,8 @@ mod tests {
         info!("Inside some function.")
     }
 
-    #[instrument(level = "trace", skip(a, b), fields(rank = 42u32))]
-    fn some_other_function(a: u32, b: f32) {
+    #[instrument(level = "trace", fields(rank = 42u32))]
+    fn some_other_function(_now: u32, b: f32) {
         info!("Inside some other function");
         sleep(Duration::from_nanos(10));
     }
