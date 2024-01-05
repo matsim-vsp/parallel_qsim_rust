@@ -35,6 +35,7 @@ impl Config {
             let out_dir = format!("{}-{part_args}", config.output().output_dir);
             config.set_output(Output {
                 output_dir: out_dir,
+                profiling: config.output().profiling,
             });
         }
         config
@@ -81,6 +82,7 @@ impl Config {
         } else {
             let default = Output {
                 output_dir: "./".to_string(),
+                profiling: Profiling::None,
             };
             self.modules
                 .borrow_mut()
@@ -150,6 +152,8 @@ pub struct Partitioning {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Output {
     pub output_dir: String,
+    #[serde(default)]
+    pub profiling: Profiling,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -214,6 +218,13 @@ pub enum RoutingMode {
 pub enum PartitionMethod {
     Metis,
     None,
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum Profiling {
+    #[default]
+    None,
+    CSV,
 }
 
 #[cfg(test)]

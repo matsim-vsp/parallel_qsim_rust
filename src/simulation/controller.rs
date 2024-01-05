@@ -31,7 +31,7 @@ pub fn run_channel() {
     let config = Config::from_file(&args);
 
     let _guards = logging::init_logging(
-        config.output().output_dir.as_ref(),
+        &config,
         config.partitioning().num_parts.to_string().as_str(),
     );
 
@@ -65,10 +65,7 @@ pub fn run_mpi() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(
-        config.output().output_dir.as_ref(),
-        comm.rank().to_string().as_str(),
-    );
+    let _guards = logging::init_logging(&config, comm.rank().to_string().as_str());
 
     info!(
         "Starting MPI Simulation with {} partitions",
