@@ -21,7 +21,7 @@ mpi = { git = "https://github.com/rsmpi/rsmpi", rev = "1622101c9fc3a78620e9649f7
 prost = "0.11.5"
 # bytes replaces the signature of std::io::Cursor to implemnt Buf somehow...
 bytes = "1.3.0"
-serial_test = "1.0.0"
+serial_test = "2.0.0"
 wait-timeout = "0.2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.0", features = ["json", "fmt", "std", "registry"] }

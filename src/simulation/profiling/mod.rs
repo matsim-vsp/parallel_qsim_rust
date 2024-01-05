@@ -80,7 +80,7 @@ impl Visit for RankVisitor {
     }
 
     fn record_debug(&mut self, _field: &Field, _value: &dyn Debug) {
-        panic!("record_debug not implemented for RankVisitor. This is on purpose, becuase we always expect a rank to be a number")
+        panic!("record_debug not implemented for RankVisitor. This is on purpose, because we always expect a rank to be a number")
     }
 }
 
@@ -249,7 +249,7 @@ mod tests {
         info!("Inside some function.")
     }
 
-    #[instrument(level = "trace", fields(rank = 42u32))]
+    #[instrument(level = "trace", skip(a, b), fields(rank = 42u32))]
     fn some_other_function(a: u32, b: f32) {
         info!("Inside some other function");
         sleep(Duration::from_nanos(10));

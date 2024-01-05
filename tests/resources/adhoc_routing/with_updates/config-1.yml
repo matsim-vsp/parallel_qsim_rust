@@ -1,0 +1,25 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: ./tests/resources/adhoc_routing/with_updates/network.binpb
+    population: ./tests/resources/adhoc_routing/with_updates/agents.binpb
+    vehicles: ./tests/resources/adhoc_routing/with_updates/vehicles.binpb
+    ids: ./tests/resources/adhoc_routing/with_updates/ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: !Metis
+      vertex_weight:
+        - Constant
+  output:
+    type: Output
+    output_dir: ./test_output/simulation/adhoc_routing/with_updates/one_part
+  routing:
+    type: Routing
+    mode: AdHoc
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 86400
+    sample_size: 1.0
+

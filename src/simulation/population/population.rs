@@ -49,7 +49,7 @@ mod tests {
     use std::collections::HashSet;
     use std::path::PathBuf;
 
-    use crate::simulation::config::PartitionMethod;
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::{Link, Network};
     use crate::simulation::population::population::Population;
@@ -153,7 +153,7 @@ mod tests {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
             2,
-            PartitionMethod::Metis,
+            PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
         let pop1 = Population::part_from_file(
