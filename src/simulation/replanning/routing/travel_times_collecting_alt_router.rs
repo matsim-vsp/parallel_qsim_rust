@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Debug;
 use std::rc::Rc;
 
 use nohash_hasher::IntMap;
@@ -21,6 +22,12 @@ pub struct TravelTimesCollectingAltRouter<C: SimCommunicator> {
     router_by_mode: BTreeMap<u64, AltRouter>,
     traffic_message_broker: TravelTimesMessageBroker<C>,
     link_ids_of_process: HashSet<u64>,
+}
+
+impl<C: SimCommunicator> Debug for TravelTimesCollectingAltRouter<C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "TravelTimesCollectingAltRouter")
+    }
 }
 
 impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
@@ -49,18 +56,15 @@ impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
         );
 
         //get travel times
-        let collected_travel_times = events
-            .get_subscriber::<TravelTimeCollector>()
-            .map(|travel_time_collector| travel_time_collector.get_travel_times())
-            .unwrap();
+        let collected_travel_times = Self::collect_travel_times(events, now);
 
         //compute all updates of partition
-        let send_package = self.get_travel_times_by_mode_to_send(&collected_travel_times);
+        let send_package = self.get_travel_times_by_mode_to_send(&collected_travel_times, now);
 
         let received_messages_by_mode = send_package
             .into_iter()
             .map(|(mode, updates)| {
-                let received_messages = self.traffic_message_broker.send_recv(now, updates);
+                let received_messages = self.communicate_travel_times(now, updates);
                 (mode, received_messages)
             })
             .collect::<BTreeMap<u64, Vec<TravelTimesMessage>>>();
@@ -75,6 +79,25 @@ impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
             .get_subscriber::<TravelTimeCollector>()
             .expect("There is no TravelTimeCollector as EventSubscriber.")
             .flush();
+    }
+}
+
+impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
+    #[tracing::instrument(level = "trace", skip(events))]
+    fn collect_travel_times(events: &mut EventsPublisher, _now: u32) -> HashMap<u64, u32> {
+        events
+            .get_subscriber::<TravelTimeCollector>()
+            .map(|travel_time_collector| travel_time_collector.get_travel_times())
+            .unwrap()
+    }
+
+    #[tracing::instrument(level = "trace", skip(updates))]
+    fn communicate_travel_times(
+        &mut self,
+        now: u32,
+        updates: HashMap<u64, u32>,
+    ) -> Vec<TravelTimesMessage> {
+        self.traffic_message_broker.send_recv(now, updates)
     }
 }
 
@@ -96,6 +119,7 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(mode, traffic_info_messages))]
     fn handle_traffic_info_messages(
         &mut self,
         _now: u32,
@@ -138,9 +162,11 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
         self.router_by_mode.get(&mode)
     }
 
+    #[tracing::instrument(level = "trace", skip(self, collected_travel_times))]
     fn get_travel_times_by_mode_to_send(
         &mut self,
         collected_travel_times: &HashMap<u64, u32>,
+        _now: u32,
     ) -> BTreeMap<u64, HashMap<u64, u32>> {
         let mut result = BTreeMap::new();
         for (mode, router) in self.router_by_mode.iter_mut() {

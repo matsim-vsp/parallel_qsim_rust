@@ -1,10 +1,17 @@
 use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
+use std::fmt::Debug;
 
 use crate::simulation::network::global_network::Network;
 use crate::simulation::wire_types::population::Activity;
 
 pub trait WalkFinder {
     fn find_walk(&self, curr_act: &Activity, access_egress_speed: f32, network: &Network) -> Walk;
+}
+
+impl Debug for dyn WalkFinder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "WalkFinder")
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]

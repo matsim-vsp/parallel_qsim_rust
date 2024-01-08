@@ -33,6 +33,7 @@ impl Replanner for DummyReplanner {
     fn replan(&self, _now: u32, _agent: &mut Person, _garage: &Garage) {}
 }
 
+#[derive(Debug)]
 pub struct ReRouteTripReplanner {
     router: Box<dyn Router>,
     walk_finder: Box<dyn WalkFinder>,
@@ -40,10 +41,12 @@ pub struct ReRouteTripReplanner {
 }
 
 impl Replanner for ReRouteTripReplanner {
+    #[tracing::instrument(level = "trace", skip(self, events))]
     fn update_time(&mut self, now: u32, events: &mut EventsPublisher) {
         self.router.next_time_step(now, events)
     }
 
+    // #[tracing::instrument(level = "trace", skip(self, agent, garage))]
     fn replan(&self, _now: u32, agent: &mut Person, garage: &Garage) {
         let leg_type = Self::get_leg_type(agent);
         if leg_type == LegType::TripPlaceholder {
