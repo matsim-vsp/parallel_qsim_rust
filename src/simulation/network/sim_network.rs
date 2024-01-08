@@ -158,6 +158,11 @@ impl SimNetworkPartition {
             .collect::<HashSet<u64>>()
     }
 
+    /// The event publisher is only used to publish link enter events. There are two different cases:
+    /// 1. The vehicle is received from another partition. The event publisher should be Some(_) in order to publish the
+    /// link enter event.
+    /// 2. The vehicle starts at this partition. Because its link enter is right after an activity,
+    /// the MATSim default is to not publish this link enter event. Therefore, the event publisher should be None.
     pub fn send_veh_en_route(
         &mut self,
         vehicle: Vehicle,
@@ -453,19 +458,12 @@ impl SimNetworkPartition {
         let link_id = vehicle.curr_link_id().unwrap();
         let link = links.get_mut(&link_id).unwrap();
 
-        match link {
-            SimLink::Local(_) => {
-                events.publish_event(
-                    now,
-                    &Event::new_link_enter(link.id().internal(), vehicle.id),
-                );
-            }
-            SimLink::In(_) => {
-                unreachable!("Vehicles can never enter a split in link at this point.")
-            }
-            SimLink::Out(_) => {
-                //do nothing, link enter event is published at receiving partition
-            }
+        // for out links, link enter event is published at receiving partition
+        if let SimLink::Local(_) = link {
+            events.publish_event(
+                now,
+                &Event::new_link_enter(link.id().internal(), vehicle.id),
+            );
         }
 
         link.push_veh(vehicle, now);
