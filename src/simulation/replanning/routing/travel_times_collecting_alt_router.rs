@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use nohash_hasher::IntMap;
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
@@ -111,6 +111,14 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
             .iter()
             .map(|(&m, g)| (m, AltRouter::new(g.clone())))
             .collect::<BTreeMap<_, _>>();
+
+        info!(
+            "Created TravelTimesCollectingAltRouter with modes: {:?}",
+            router_by_mode
+                .keys()
+                .map(|k| (k, String::from(Id::<String>::get(*k).external())))
+                .collect::<HashMap<&u64, String>>()
+        );
 
         TravelTimesCollectingAltRouter {
             router_by_mode,

@@ -1,6 +1,9 @@
+use itertools::Itertools;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use nohash_hasher::IntMap;
+use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::{Link, Network};
@@ -14,15 +17,20 @@ impl NetworkConverter {
         network: &Network,
         vehicle_types: &IntMap<Id<VehicleType>, VehicleType>,
     ) -> HashMap<u64, ForwardBackwardGraph> {
-        vehicle_types
+        let mode_max_v_vec = vehicle_types
             .iter()
-            .map(|(_, t)| {
+            .map(|(_, t)| (t.net_mode, t.max_v))
+            .collect();
+
+        Self::mode_max_v_to_map(mode_max_v_vec)
+            .iter()
+            .map(|(mode, max_v)| {
                 (
-                    t.net_mode,
-                    Self::convert_network(network, Some(&Id::get(t.net_mode)), Some(t.max_v)),
+                    *mode,
+                    Self::convert_network(network, Some(&Id::get(*mode)), Some(*max_v)),
                 )
             })
-            .collect::<HashMap<_, _>>()
+            .collect()
     }
 
     pub(crate) fn convert_network(
@@ -30,10 +38,15 @@ impl NetworkConverter {
         mode: Option<&Id<String>>,
         max_mode_speed: Option<f32>,
     ) -> ForwardBackwardGraph {
+        info!(
+            "Converting network to forward backward graph for mode {:?}.",
+            mode
+        );
+
         assert!(
             (mode.is_some() && max_mode_speed.is_some())
                 || (mode.is_none() && max_mode_speed.is_none()),
-            "There must either be both mode and max velocity set or both not."
+            "Either both mode and maximum speed must be set, or neither must be set."
         );
 
         let mut forward_first_out = Vec::new();
@@ -49,8 +62,12 @@ impl NetworkConverter {
         let mut x = Vec::new();
         let mut y = Vec::new();
 
-        let links = network.get_all_links_sorted();
         let nodes = network.get_all_nodes_sorted();
+        let node_indices = nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| (&node.id, i))
+            .collect::<HashMap<_, _>>();
 
         let mut forward_links_before = 0;
         let mut backward_links_before = 0;
@@ -64,35 +81,15 @@ impl NetworkConverter {
             backward_first_out.push(backward_links_before);
 
             //calculate adjacent links
-            let outgoing_links = links
-                .iter()
-                .filter(|&l| l.from == node.id)
-                .filter(|&l| {
-                    if let Some(mode) = mode {
-                        l.contains_mode(mode.internal())
-                    } else {
-                        true
-                    }
-                })
-                .collect::<Vec<&&Link>>();
+            let outgoing_links = Self::get_links(&node.out_links, &network, &mode);
             forward_links_before += outgoing_links.len();
 
-            let ingoing_links = links
-                .iter()
-                .filter(|&l| l.to == node.id)
-                .filter(|&l| {
-                    if let Some(mode) = mode {
-                        l.contains_mode(mode.internal())
-                    } else {
-                        true
-                    }
-                })
-                .collect::<Vec<&&Link>>();
+            let ingoing_links = Self::get_links(&node.in_links, &network, &mode);
             backward_links_before += ingoing_links.len();
 
             //process outgoing links
             for link in outgoing_links {
-                let to_node_index = nodes.iter().position(|&node| node.id == link.to).unwrap();
+                let to_node_index = *node_indices.get(&link.to).unwrap();
 
                 forward_head.push(to_node_index);
 
@@ -109,7 +106,7 @@ impl NetworkConverter {
             //process ingoing links
             for link in ingoing_links {
                 //Watch out: This is in the backward graph
-                let to_node_index = nodes.iter().position(|&node| node.id == link.from).unwrap();
+                let to_node_index = *node_indices.get(&link.from).unwrap();
 
                 backward_head.push(to_node_index);
 
@@ -144,7 +141,44 @@ impl NetworkConverter {
             y,
         };
 
+        info!(
+            "Finished converting network to forward backward graph for mode {:?}.",
+            mode
+        );
+
         ForwardBackwardGraph::new(forward_graph, backward_graph)
+    }
+
+    fn mode_max_v_to_map(input: Vec<(u64, f32)>) -> HashMap<u64, f32> {
+        let mut result = HashMap::new();
+        for (key, value) in &input {
+            match result.entry(*key) {
+                Entry::Occupied(_) => {
+                    panic!("Duplicated key found in the input vector: {:?}", input);
+                }
+                Entry::Vacant(e) => e.insert(*value),
+            };
+        }
+        result
+    }
+
+    fn get_links<'net>(
+        link_ids: &Vec<Id<Link>>,
+        network: &'net Network,
+        mode: &Option<&Id<String>>,
+    ) -> Vec<&'net Link> {
+        link_ids
+            .iter()
+            .sorted_by_key(|&l| l.internal())
+            .map(|l| network.get_link(l))
+            .filter(|&l| {
+                if let Some(mode) = mode {
+                    l.contains_mode(mode.internal())
+                } else {
+                    true
+                }
+            })
+            .collect::<Vec<&Link>>()
     }
 }
 
