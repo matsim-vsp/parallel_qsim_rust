@@ -19,7 +19,7 @@ use crate::simulation::wire_types::messages::TravelTimesMessage;
 use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub struct TravelTimesCollectingAltRouter<C: SimCommunicator> {
-    router_by_mode: BTreeMap<u64, AltRouter>,
+    router_by_mode: BTreeMap<Id<VehicleType>, AltRouter>,
     traffic_message_broker: TravelTimesMessageBroker<C>,
     link_ids_of_process: HashSet<u64>,
 }
@@ -31,12 +31,17 @@ impl<C: SimCommunicator> Debug for TravelTimesCollectingAltRouter<C> {
 }
 
 impl<C: SimCommunicator> Router for TravelTimesCollectingAltRouter<C> {
-    fn query_links(&self, from_link: u64, to_link: u64, mode: u64) -> CustomQueryResult {
-        self.get_router_by_mode(mode)
+    fn query_links(
+        &self,
+        from_link: u64,
+        to_link: u64,
+        veh_type_id: &Id<VehicleType>,
+    ) -> CustomQueryResult {
+        self.get_router_by_mode(veh_type_id)
             .unwrap_or_else(|| {
                 panic!(
                     "There is no router for mode {:?}. Check the vehicle definitions.",
-                    mode
+                    veh_type_id
                 )
             })
             .query_links(from_link, to_link)
@@ -103,35 +108,35 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
 
 impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
     pub fn new(
-        forward_backward_graph_by_mode: HashMap<u64, ForwardBackwardGraph>,
+        forward_backward_graph_by_mode: IntMap<Id<VehicleType>, ForwardBackwardGraph>,
         communicator: Rc<C>,
         link_ids_of_process: HashSet<u64>,
     ) -> Self {
-        let router_by_mode = forward_backward_graph_by_mode
+        let router_by_vehicle_type = forward_backward_graph_by_mode
             .iter()
-            .map(|(&m, g)| (m, AltRouter::new(g.clone())))
+            .map(|(m, g)| (m.clone(), AltRouter::new(g.clone())))
             .collect::<BTreeMap<_, _>>();
 
         info!(
-            "Created TravelTimesCollectingAltRouter with modes: {:?}",
-            router_by_mode
+            "Created TravelTimesCollectingAltRouter with vehicle types: {:?}",
+            router_by_vehicle_type
                 .keys()
-                .map(|k| (k, String::from(Id::<String>::get(*k).external())))
-                .collect::<HashMap<&u64, String>>()
+                .map(|id| (id.internal(), id.external()))
+                .collect::<HashMap<u64, &str>>()
         );
 
         TravelTimesCollectingAltRouter {
-            router_by_mode,
+            router_by_mode: router_by_vehicle_type,
             traffic_message_broker: TravelTimesMessageBroker::new(communicator),
             link_ids_of_process,
         }
     }
 
-    #[tracing::instrument(level = "trace", skip(mode, traffic_info_messages))]
+    #[tracing::instrument(level = "trace", skip(veh_type_id_internal, traffic_info_messages))]
     fn handle_traffic_info_messages(
         &mut self,
         _now: u32,
-        mode: u64,
+        veh_type_id_internal: u64,
         traffic_info_messages: Vec<TravelTimesMessage>,
     ) {
         if traffic_info_messages.is_empty() {
@@ -153,21 +158,23 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
             travel_times_by_link.len()
         );
 
+        let veh_type_id = Id::<VehicleType>::get(veh_type_id_internal);
+
         let new_graph = self
             .router_by_mode
-            .get(&mode)
+            .get(&veh_type_id)
             .unwrap()
             .current_graph()
             .clone_with_new_travel_times_by_link(travel_times_by_link);
 
         self.router_by_mode
-            .get_mut(&mode)
+            .get_mut(&veh_type_id)
             .unwrap()
             .update(new_graph);
     }
 
-    fn get_router_by_mode(&self, mode: u64) -> Option<&AltRouter> {
-        self.router_by_mode.get(&mode)
+    fn get_router_by_mode(&self, veh_type_id: &Id<VehicleType>) -> Option<&AltRouter> {
+        self.router_by_mode.get(veh_type_id)
     }
 
     #[tracing::instrument(level = "trace", skip(self, collected_travel_times))]
@@ -201,15 +208,15 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
                     extended_travel_times_by_link_id.insert(*id, initial.unwrap());
                 }
             }
-            result.insert(*mode, extended_travel_times_by_link_id);
+            result.insert(mode.internal(), extended_travel_times_by_link_id);
         }
         result
     }
 
-    pub fn get_forward_backward_graph_by_mode(
+    pub fn get_forward_backward_graph_by_veh_type(
         network: &Network,
         vehicle_types: &IntMap<Id<VehicleType>, VehicleType>,
-    ) -> HashMap<u64, ForwardBackwardGraph> {
+    ) -> IntMap<Id<VehicleType>, ForwardBackwardGraph> {
         NetworkConverter::convert_network_with_vehicle_types(network, vehicle_types)
     }
 }

@@ -82,8 +82,8 @@ impl Garage {
          */
     }
 
-    pub fn get_mode_veh_id(&self, person_id: &Id<Person>, mode: &Id<String>) -> Id<Vehicle> {
-        let external = format!("{}_{}", person_id.external(), mode.external());
+    pub fn veh_id(&self, person_id: &Id<Person>, veh_type_id: &Id<VehicleType>) -> Id<Vehicle> {
+        let external = format!("{}_{}", person_id.external(), veh_type_id.external());
         Id::get_from_ext(&external)
     }
 
@@ -151,7 +151,7 @@ mod tests {
         let mut garage = Garage::new();
         let type_id = Id::create("some-type");
         let mode = Id::new_internal(0);
-        let veh_type = create_vehicle_type(type_id, mode);
+        let veh_type = create_vehicle_type(&type_id, mode);
 
         garage.add_veh_type(veh_type);
 
@@ -164,8 +164,8 @@ mod tests {
         let mut garage = Garage::new();
         let type_id = Id::create("some-type");
         let mode = Id::new_internal(0);
-        let veh_type1 = create_vehicle_type(type_id.clone(), mode.clone());
-        let veh_type2 = create_vehicle_type(type_id.clone(), mode.clone());
+        let veh_type1 = create_vehicle_type(&type_id, mode.clone());
+        let veh_type2 = create_vehicle_type(&type_id, mode.clone());
 
         garage.add_veh_type(veh_type1);
         garage.add_veh_type(veh_type2);

@@ -153,7 +153,7 @@ pub(crate) mod tests {
             1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
-        NetworkConverter::convert_network(&network, None, None)
+        NetworkConverter::convert_network(&network, None)
     }
 
     #[test]

@@ -11,7 +11,9 @@ use crate::simulation::replanning::routing::router::Router;
 use crate::simulation::replanning::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
 use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, WalkFinder};
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person};
+use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub trait Replanner {
     fn update_time(&mut self, now: u32, events: &mut EventsPublisher);
@@ -50,7 +52,7 @@ impl Replanner for ReRouteTripReplanner {
     fn replan(&self, _now: u32, agent: &mut Person, garage: &Garage) {
         let leg_type = Self::get_leg_type(agent);
         if leg_type == LegType::TripPlaceholder {
-            self.insert_access_egress(agent);
+            self.insert_access_egress(agent, garage);
         }
 
         match leg_type {
@@ -69,14 +71,14 @@ impl ReRouteTripReplanner {
         garage: &Garage,
         communicator: Rc<C>,
     ) -> ReRouteTripReplanner {
-        let forward_backward_graph_by_mode =
-            TravelTimesCollectingAltRouter::<C>::get_forward_backward_graph_by_mode(
+        let forward_backward_graph_by_veh_type =
+            TravelTimesCollectingAltRouter::<C>::get_forward_backward_graph_by_veh_type(
                 global_network,
                 &garage.vehicle_types,
             );
 
         let router: Box<dyn Router> = Box::new(TravelTimesCollectingAltRouter::new(
-            forward_backward_graph_by_mode,
+            forward_backward_graph_by_veh_type,
             communicator,
             sim_network.get_link_ids(),
         ));
@@ -90,7 +92,7 @@ impl ReRouteTripReplanner {
         }
     }
 
-    fn insert_access_egress(&self, agent: &mut Person) {
+    fn insert_access_egress(&self, agent: &mut Person, garage: &Garage) {
         // So far, we have:
         // act (current) - leg (next) - act (next)
         //
@@ -100,24 +102,27 @@ impl ReRouteTripReplanner {
         // Thus, we need to
         // 1. insert 2 interaction activities between current and next activity
         // 2. insert access and egress walking legs before and after main leg
-
-        // mode on next_leg() is an internal id of network.modes, NOT of garage.vehicle_types
-        // we assume that there is exactly one network mode for each vehicle type
-        let main_leg_mode = String::from(Id::<String>::get(agent.next_leg().mode).external());
-        let id = Id::<String>::get_from_ext(&format!("{} interaction", main_leg_mode));
+        let main_leg_veh_type_id = agent.next_leg().vehicle_type_id(garage);
+        let interaction_id =
+            Id::<String>::get_from_ext(&format!("{} interaction", main_leg_veh_type_id.external()));
 
         let new_acts = vec![
-            Activity::interaction(agent.curr_act().link_id, id.internal()),
-            Activity::interaction(agent.next_act().link_id, id.internal()),
+            Activity::interaction(agent.curr_act().link_id, interaction_id.internal()),
+            Activity::interaction(agent.next_act().link_id, interaction_id.internal()),
         ];
         agent.add_act_after_curr(new_acts);
 
-        //"walk" as default access egress mode is hard coded here. Could also be optional
-        let access_egress_mode_id = Id::<String>::get_from_ext("walk").internal();
+        //"walk" as default access egress vehicle type is hard coded here. Could also be optional
+        let walk_vehicle_type = garage
+            .vehicle_types
+            .get(&Id::<VehicleType>::get_from_ext("walk"))
+            .expect("No walk vehicle type");
+
+        let walk_mode_id = walk_vehicle_type.net_mode;
 
         //replace current leg()
-        let access = Leg::access_eggress(access_egress_mode_id);
-        let egress = Leg::access_eggress(access_egress_mode_id);
+        let access = Leg::access_eggress(walk_mode_id, walk_vehicle_type.id);
+        let egress = Leg::access_eggress(walk_mode_id, walk_vehicle_type.id);
 
         //we have: last leg (current) - main leg (next)
         //we want: last leg (current) - walk access leg (next) - main leg - walk egress leg
@@ -127,12 +132,20 @@ impl ReRouteTripReplanner {
     fn replan_main(&self, agent: &mut Person, garage: &Garage) {
         let curr_act = agent.curr_act();
 
-        let (route, travel_time) =
-            self.find_route(agent.curr_act(), agent.next_act(), agent.next_leg().mode);
+        let veh_type_id = garage
+            .vehicles
+            .get(&Id::<Vehicle>::get(
+                agent.next_leg().route.as_ref().unwrap().veh_id,
+            ))
+            .unwrap();
+
+        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), veh_type_id);
         let dep_time = curr_act.end_time;
 
-        let mode_id = Id::get(agent.next_leg().mode);
-        let vehicle_id = garage.get_mode_veh_id(&Id::get(agent.id), &mode_id);
+        let vehicle_type_id = agent.next_leg().vehicle_type_id(garage);
+
+        let veh_id = garage.veh_id(&Id::<Person>::get(agent.id), vehicle_type_id);
+
         let distance = self.calculate_distance(&route);
 
         agent.update_next_leg(
@@ -140,7 +153,7 @@ impl ReRouteTripReplanner {
             travel_time.unwrap(),
             route,
             distance,
-            vehicle_id.internal(),
+            veh_id.internal(),
         );
     }
 
@@ -150,15 +163,11 @@ impl ReRouteTripReplanner {
 
         assert_eq!(curr_act.link_id, next_act.link_id);
 
-        let main_leg_mode = String::from(Id::<String>::get(agent.next_leg().mode).external());
-        let access_egress_speed = garage
-            .vehicle_types
-            .get(&Id::get_from_ext(&main_leg_mode))
-            .unwrap()
-            .max_v;
+        let veh_type_id = agent.next_leg().vehicle_type_id(garage);
+
+        let access_egress_speed = garage.vehicle_types.get(veh_type_id).unwrap().max_v;
 
         let dep_time;
-
         let walk = if curr_act.is_interaction() {
             dep_time = curr_act.end_time;
             self.walk_finder
@@ -169,8 +178,7 @@ impl ReRouteTripReplanner {
                 .find_walk(curr_act, access_egress_speed, &self.global_network)
         };
 
-        let mode_id = Id::<String>::get(agent.next_leg().mode);
-        let vehicle_id = garage.get_mode_veh_id(&Id::<Person>::get(agent.id), &mode_id);
+        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), veh_type_id);
 
         agent.update_next_leg(
             dep_time,
@@ -185,11 +193,11 @@ impl ReRouteTripReplanner {
         &self,
         from_act: &Activity,
         to_act: &Activity,
-        mode: u64,
+        veh_type_id: &Id<VehicleType>,
     ) -> (Vec<u64>, Option<u32>) {
         let query_result = self
             .router
-            .query_links(from_act.link_id, to_act.link_id, mode);
+            .query_links(from_act.link_id, to_act.link_id, veh_type_id);
 
         let route = query_result.path.expect("There is no route!");
         let travel_time = query_result.travel_time;
@@ -253,6 +261,7 @@ mod tests {
     use crate::simulation::replanning::replanner::{ReRouteTripReplanner, Replanner};
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::wire_types::population::{Person, Route};
+    use crate::simulation::wire_types::vehicles::VehicleType;
 
     #[test]
     fn test_trip_placeholder_leg() {
@@ -286,9 +295,9 @@ mod tests {
 
         //check legs
         assert_eq!(agent.plan.as_ref().unwrap().legs.len(), 3);
-        assert_eq!(get_mode_id(&agent, 0).external(), "walk");
-        assert_eq!(get_mode_id(&agent, 1).external(), "car");
-        assert_eq!(get_mode_id(&agent, 2).external(), "walk");
+        assert_eq!(get_veh_type_id(&agent, 0, &garage).external(), "walk");
+        assert_eq!(get_veh_type_id(&agent, 1, &garage).external(), "car");
+        assert_eq!(get_veh_type_id(&agent, 2, &garage).external(), "walk");
     }
 
     #[test]
@@ -323,9 +332,9 @@ mod tests {
 
         //check legs
         assert_eq!(agent.plan.as_ref().unwrap().legs.len(), 3);
-        assert_eq!(get_mode_id(&agent, 0).external(), "walk");
-        assert_eq!(get_mode_id(&agent, 1).external(), "car");
-        assert_eq!(get_mode_id(&agent, 2).external(), "walk");
+        assert_eq!(get_veh_type_id(&agent, 0, &garage).external(), "walk");
+        assert_eq!(get_veh_type_id(&agent, 1, &garage).external(), "car");
+        assert_eq!(get_veh_type_id(&agent, 2, &garage).external(), "walk");
 
         let access_leg = agent.plan.as_ref().unwrap().legs.get(0);
 
@@ -404,16 +413,15 @@ mod tests {
         )
     }
 
-    fn get_mode_id(agent: &Person, leg_index: usize) -> Id<String> {
-        Id::<String>::get(
-            agent
-                .plan
-                .as_ref()
-                .unwrap()
-                .legs
-                .get(leg_index)
-                .unwrap()
-                .mode,
-        )
+    fn get_veh_type_id(agent: &Person, leg_index: usize, garage: &Garage) -> Id<VehicleType> {
+        agent
+            .plan
+            .as_ref()
+            .unwrap()
+            .legs
+            .get(leg_index)
+            .unwrap()
+            .vehicle_type_id(garage)
+            .clone()
     }
 }

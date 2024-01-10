@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use nohash_hasher::IntMap;
@@ -16,37 +15,20 @@ impl NetworkConverter {
     pub fn convert_network_with_vehicle_types(
         network: &Network,
         vehicle_types: &IntMap<Id<VehicleType>, VehicleType>,
-    ) -> HashMap<u64, ForwardBackwardGraph> {
-        let mode_max_v_vec = vehicle_types
+    ) -> IntMap<Id<VehicleType>, ForwardBackwardGraph> {
+        vehicle_types
             .iter()
-            .map(|(_, t)| (t.net_mode, t.max_v))
-            .collect();
-
-        Self::mode_max_v_to_map(mode_max_v_vec)
-            .iter()
-            .map(|(mode, max_v)| {
-                (
-                    *mode,
-                    Self::convert_network(network, Some(&Id::get(*mode)), Some(*max_v)),
-                )
-            })
+            .map(|(id, vt)| (id.clone(), Self::convert_network(&network, Some(vt))))
             .collect()
     }
 
     pub(crate) fn convert_network(
         network: &Network,
-        mode: Option<&Id<String>>,
-        max_mode_speed: Option<f32>,
+        vehicle_type: Option<&VehicleType>,
     ) -> ForwardBackwardGraph {
         info!(
             "Converting network to forward backward graph for mode {:?}.",
-            mode
-        );
-
-        assert!(
-            (mode.is_some() && max_mode_speed.is_some())
-                || (mode.is_none() && max_mode_speed.is_none()),
-            "Either both mode and maximum speed must be set, or neither must be set."
+            vehicle_type
         );
 
         let mut forward_first_out = Vec::new();
@@ -81,10 +63,10 @@ impl NetworkConverter {
             backward_first_out.push(backward_links_before);
 
             //calculate adjacent links
-            let outgoing_links = Self::get_links(&node.out_links, &network, &mode);
+            let outgoing_links = Self::get_links(&node.out_links, &network, vehicle_type);
             forward_links_before += outgoing_links.len();
 
-            let ingoing_links = Self::get_links(&node.in_links, &network, &mode);
+            let ingoing_links = Self::get_links(&node.in_links, &network, vehicle_type);
             backward_links_before += ingoing_links.len();
 
             //process outgoing links
@@ -93,8 +75,8 @@ impl NetworkConverter {
 
                 forward_head.push(to_node_index);
 
-                let max_speed = if let Some(max_mode_speed) = max_mode_speed {
-                    max_mode_speed.min(link.freespeed)
+                let max_speed = if let Some(vt) = vehicle_type {
+                    vt.max_v.min(link.freespeed)
                 } else {
                     link.freespeed
                 };
@@ -110,8 +92,8 @@ impl NetworkConverter {
 
                 backward_head.push(to_node_index);
 
-                let max_speed = if let Some(max_mode_speed) = max_mode_speed {
-                    max_mode_speed.min(link.freespeed)
+                let max_speed = if let Some(vt) = vehicle_type {
+                    vt.max_v.min(link.freespeed)
                 } else {
                     link.freespeed
                 };
@@ -143,37 +125,24 @@ impl NetworkConverter {
 
         info!(
             "Finished converting network to forward backward graph for mode {:?}.",
-            mode
+            vehicle_type
         );
 
         ForwardBackwardGraph::new(forward_graph, backward_graph)
     }
 
-    fn mode_max_v_to_map(input: Vec<(u64, f32)>) -> HashMap<u64, f32> {
-        let mut result = HashMap::new();
-        for (key, value) in &input {
-            match result.entry(*key) {
-                Entry::Occupied(_) => {
-                    panic!("Duplicated key found in the input vector: {:?}", input);
-                }
-                Entry::Vacant(e) => e.insert(*value),
-            };
-        }
-        result
-    }
-
     fn get_links<'net>(
         link_ids: &Vec<Id<Link>>,
         network: &'net Network,
-        mode: &Option<&Id<String>>,
+        vehicle_type: Option<&VehicleType>,
     ) -> Vec<&'net Link> {
         link_ids
             .iter()
             .sorted_by_key(|&l| l.internal())
             .map(|l| network.get_link(l))
             .filter(|&l| {
-                if let Some(mode) = mode {
-                    l.contains_mode(mode.internal())
+                if let Some(vt) = vehicle_type {
+                    l.contains_mode(vt.net_mode)
                 } else {
                     true
                 }
@@ -201,7 +170,7 @@ mod test {
             1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
-        let graph = NetworkConverter::convert_network(&network, None, None);
+        let graph = NetworkConverter::convert_network(&network, None);
 
         assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
         assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
@@ -227,15 +196,13 @@ mod test {
 
         let car_type_id = Id::<VehicleType>::create("car");
         let car_id = Id::<String>::get_from_ext("car");
-        let car_id_internal = car_id.internal();
-        let mut car_veh_type = create_vehicle_type(car_type_id, car_id);
+        let mut car_veh_type = create_vehicle_type(&car_type_id, car_id);
         car_veh_type.max_v = 5.;
         garage.add_veh_type(car_veh_type);
 
         let bike_type_id = Id::<VehicleType>::create("bike");
         let bike_id = Id::<String>::get_from_ext("bike");
-        let bike_id_internal = bike_id.internal();
-        let mut bike_veh_type = create_vehicle_type(bike_type_id, bike_id);
+        let mut bike_veh_type = create_vehicle_type(&bike_type_id, bike_id);
         bike_veh_type.max_v = 2.;
         garage.add_veh_type(bike_veh_type);
 
@@ -244,13 +211,13 @@ mod test {
 
         assert_eq!(graph_by_mode.keys().len(), 2);
 
-        let car_network = graph_by_mode.remove(&car_id_internal).unwrap();
+        let car_network = graph_by_mode.remove(&car_type_id).unwrap();
         assert_eq!(car_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(car_network.forward_head(), &vec![3, 2, 1, 2]);
         assert_eq!(car_network.forward_travel_time(), &vec![2, 2, 5, 5]);
         assert_eq!(car_network.forward_link_ids().len(), 4);
 
-        let bike_network = graph_by_mode.remove(&bike_id_internal).unwrap();
+        let bike_network = graph_by_mode.remove(&bike_type_id).unwrap();
         assert_eq!(bike_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(bike_network.forward_head(), &vec![2, 2, 3, 1]);
         assert_eq!(bike_network.forward_travel_time(), &vec![5, 5, 5, 5]);
@@ -270,7 +237,7 @@ mod test {
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
 
         // No link as mode "walk". So we expect the resulting walk network as empty.
-        let walk_id = &Id::<String>::get_from_ext("walk").internal();
+        let walk_id = &Id::<VehicleType>::get_from_ext("walk");
         let node_count = vehicle_type2graph.get(walk_id).unwrap().number_of_nodes();
         let link_count = vehicle_type2graph.get(walk_id).unwrap().number_of_links();
 
@@ -278,13 +245,13 @@ mod test {
         assert_eq!(link_count, 0);
 
         // Test for mode "car"
-        let car_id = &Id::<String>::get_from_ext("car").internal();
+        let car_id = &Id::<VehicleType>::get_from_ext("car");
         let car_graph = vehicle_type2graph.get(car_id).unwrap();
         let link2_index = car_graph.forward_graph.first_out[2];
         assert_eq!(car_graph.forward_graph.travel_time[link2_index], 100);
 
         // Test for mode "bike"
-        let bike_id = &Id::<String>::get_from_ext("bike").internal();
+        let bike_id = &Id::<VehicleType>::get_from_ext("bike");
         let bike_graph = vehicle_type2graph.get(bike_id).unwrap();
         let link2_index = bike_graph.forward_graph.first_out[2];
         assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
