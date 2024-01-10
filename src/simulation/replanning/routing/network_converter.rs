@@ -256,4 +256,39 @@ mod test {
         let link2_index = bike_graph.forward_graph.first_out[2];
         assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
     }
+
+    #[test]
+    fn test_different_veh_types_same_net_mode() {
+        let network = Network::from_file(
+            "./assets/adhoc_routing/no_updates/network.xml",
+            1,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let garage = Garage::from_file(&PathBuf::from(
+            "./assets/mode_dependent_routing/vehicle_definitions.xml",
+        ));
+
+        let vehicle_type2graph =
+            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+
+        assert_eq!(vehicle_type2graph.keys().len(), 2);
+
+        assert_eq!(
+            vehicle_type2graph
+                .get(&Id::<VehicleType>::get_from_ext("car"))
+                .unwrap()
+                .forward_graph
+                .travel_time,
+            vec![10, 10, 50, 100, 10, 10, 50]
+        );
+
+        assert_eq!(
+            vehicle_type2graph
+                .get(&Id::<VehicleType>::get_from_ext("bike"))
+                .unwrap()
+                .forward_graph
+                .travel_time,
+            vec![20, 20, 200, 200, 20, 20, 200]
+        );
+    }
 }

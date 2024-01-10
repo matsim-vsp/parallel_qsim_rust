@@ -357,12 +357,53 @@ mod tests {
     #[test]
     fn test_update_main_leg() {
         //prepare
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
+
+        let population = advance_plan_and_update_main_leg(&mut garage);
+        let agent_id = Id::get_from_ext("100");
+        let agent = population.persons.get(&agent_id).unwrap();
+
+        //check main leg
+        let main_leg = agent.plan.as_ref().unwrap().legs.get(1);
+        assert_eq!(
+            main_leg.unwrap().route.as_ref().unwrap(),
+            &Route {
+                veh_id: 0,
+                distance: 1200.,
+                route: vec![0, 1, 2],
+            }
+        );
+    }
+
+    #[test]
+    fn test_update_main_leg_with_same_net_modes_in_veh_type() {
+        //prepare
+        let mut garage = Garage::from_file(&PathBuf::from(
+            "./assets/3-links/vehicles_same_net_mode.xml",
+        ));
+
+        let population = advance_plan_and_update_main_leg(&mut garage);
+        let agent_id = Id::get_from_ext("100");
+        let agent = population.persons.get(&agent_id).unwrap();
+
+        //check main leg
+        let main_leg = agent.plan.as_ref().unwrap().legs.get(1);
+        assert_eq!(
+            main_leg.unwrap().route.as_ref().unwrap(),
+            &Route {
+                veh_id: 0,
+                distance: 1200.,
+                route: vec![0, 1, 2],
+            }
+        );
+    }
+
+    fn advance_plan_and_update_main_leg(mut garage: &mut Garage) -> Population {
         let network = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
-        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let mut population = Population::part_from_file(
             &PathBuf::from("./assets/3-links/1-agent-trip-leg.xml"),
             &network,
@@ -387,17 +428,7 @@ mod tests {
 
         //do change
         replanner.replan(0, &mut agent, &garage);
-
-        //check main leg
-        let main_leg = agent.plan.as_ref().unwrap().legs.get(1);
-        assert_eq!(
-            main_leg.unwrap().route.as_ref().unwrap(),
-            &Route {
-                veh_id: 0,
-                distance: 1200.,
-                route: vec![0, 1, 2],
-            }
-        );
+        population
     }
 
     fn get_act_type_id(agent: &Person, act_index: usize) -> Id<String> {
