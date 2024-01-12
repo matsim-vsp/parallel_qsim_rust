@@ -36,10 +36,10 @@ impl ForwardBackwardGraph {
     }
 
     pub fn get_forward_travel_time_by_link_id(&self, link_id: u64) -> Option<u32> {
-        let index = self.forward_link_ids().iter().position(|&l| l == link_id);
+        let index = self.forward_link_id_pos().get(&link_id);
 
         //if index is None, then there is no link with link id in graph
-        index.map(|i| {
+        index.map(|&i| {
             *self
                 .forward_travel_time()
                 .get(i)
@@ -60,6 +60,10 @@ impl ForwardBackwardGraph {
 
     pub fn forward_link_ids(&self) -> &Vec<u64> {
         &self.forward_graph.link_ids
+    }
+
+    pub fn forward_link_id_pos(&self) -> &HashMap<u64, usize> {
+        &self.forward_graph.link_id_pos
     }
 
     pub fn number_of_nodes(&self) -> usize {
@@ -95,6 +99,7 @@ pub struct Graph {
     pub(crate) link_ids: Vec<u64>,
     pub(crate) x: Vec<f64>,
     pub(crate) y: Vec<f64>,
+    pub(crate) link_id_pos: HashMap<u64, usize>,
 }
 
 impl Graph {
@@ -107,6 +112,7 @@ impl Graph {
             link_ids: vec![],
             x: vec![],
             y: vec![],
+            link_id_pos: HashMap::new(),
         }
     }
 
@@ -118,11 +124,11 @@ impl Graph {
 
         let mut new_travel_time_vector = Vec::new();
         for (index, &id) in self.link_ids.iter().enumerate() {
-            if let Some(&new_travel_time) = new_travel_times_by_link.get(&(id)) {
-                new_travel_time_vector.push(new_travel_time);
-            } else {
-                new_travel_time_vector.push(*self.travel_time.get(index).unwrap())
-            }
+            new_travel_time_vector.push(
+                *new_travel_times_by_link
+                    .get(&(id))
+                    .unwrap_or_else(|| self.travel_time.get(index).unwrap()),
+            );
         }
 
         self.clone_with_new_travel_times(new_travel_time_vector)

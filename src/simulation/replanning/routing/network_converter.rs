@@ -110,6 +110,17 @@ impl NetworkConverter {
         forward_first_out.push(forward_head.len());
         backward_first_out.push(backward_head.len());
 
+        let forward_link_id_pos = forward_link_ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (*id, i))
+            .collect::<HashMap<_, _>>();
+        let backward_link_id_pos = backward_link_ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (*id, i))
+            .collect::<HashMap<_, _>>();
+
         let forward_graph = Graph {
             first_out: forward_first_out,
             head: forward_head,
@@ -117,6 +128,7 @@ impl NetworkConverter {
             link_ids: forward_link_ids,
             x: x.clone(),
             y: y.clone(),
+            link_id_pos: forward_link_id_pos,
         };
 
         let backward_graph = Graph {
@@ -126,6 +138,7 @@ impl NetworkConverter {
             link_ids: backward_link_ids,
             x,
             y,
+            link_id_pos: backward_link_id_pos,
         };
 
         info!(

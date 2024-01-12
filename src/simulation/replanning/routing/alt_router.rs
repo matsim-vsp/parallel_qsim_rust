@@ -167,11 +167,10 @@ impl AltRouter {
     }
 
     fn get_end_node(&self, link_id: u64) -> usize {
-        let link_id_index = self
+        let link_id_index = *self
             .current_graph
-            .forward_link_ids()
-            .iter()
-            .position(|&id| id == link_id)
+            .forward_link_id_pos()
+            .get(&link_id)
             .unwrap_or_else(|| {
                 panic!(
                     "There is no link with id {} in the current mode graph.",
@@ -186,11 +185,10 @@ impl AltRouter {
     }
 
     fn get_start_node(&self, link_id: u64) -> usize {
-        let link_id_index = self
+        let link_id_index = *self
             .current_graph
-            .forward_link_ids()
-            .iter()
-            .position(|&id| id == link_id)
+            .forward_link_id_pos()
+            .get(&link_id)
             .unwrap_or_else(|| {
                 panic!(
                     "There is no link with id {} in the current mode graph.",
