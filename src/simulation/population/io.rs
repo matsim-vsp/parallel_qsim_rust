@@ -24,7 +24,7 @@ pub fn from_file(path: &Path, garage: &mut Garage) -> Population {
 pub fn to_file(population: &Population, path: &Path) {
     if path.extension().unwrap().eq("binpb") {
         write_to_proto(population, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("xml.gz") {
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         write_to_xml(population, path);
     } else {
         panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
@@ -225,9 +225,14 @@ impl IOPopulation {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
+    use crate::simulation::id::Id;
+    use crate::simulation::network::global_network::Network;
     use quick_xml::de::from_str;
+    use std::path::PathBuf;
 
-    use crate::simulation::population::io::{IOPlanElement, IOPopulation};
+    use crate::simulation::population::io::{load_from_xml, IOPlanElement, IOPopulation};
+    use crate::simulation::vehicles::garage::Garage;
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all
@@ -343,5 +348,28 @@ mod tests {
     fn read_example_file_gzipped() {
         let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml.gz");
         assert_eq!(34, population.persons.len())
+    }
+
+    #[test]
+    fn test_conversion() {
+        let _net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+
+        let pop = load_from_xml(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &mut garage,
+        );
+        assert_eq!(pop.persons.len(), 100);
+
+        for i in 1u32..101 {
+            assert!(pop
+                .persons
+                .get(&Id::get_from_ext(&format!("{}", i)))
+                .is_some());
+        }
     }
 }

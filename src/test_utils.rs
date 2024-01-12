@@ -28,7 +28,7 @@ pub fn create_folders(path: PathBuf) -> PathBuf {
     path
 }
 
-pub fn create_vehicle_type(id: Id<VehicleType>, net_mode: Id<String>) -> VehicleType {
+pub fn create_vehicle_type(id: &Id<VehicleType>, net_mode: Id<String>) -> VehicleType {
     VehicleType {
         id: id.internal(),
         length: 0.0,

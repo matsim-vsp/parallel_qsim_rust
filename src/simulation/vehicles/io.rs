@@ -25,7 +25,7 @@ pub fn from_file(path: &Path) -> Garage {
 pub fn to_file(garage: &Garage, path: &Path) {
     if path.extension().unwrap().eq("binpb") {
         write_to_proto(garage, path);
-    } else if path.extension().unwrap().eq("xml") || path.ends_with("xml.gz") {
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         write_to_xml(garage, path);
     } else {
         panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");

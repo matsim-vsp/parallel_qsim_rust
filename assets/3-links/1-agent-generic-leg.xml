@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE population SYSTEM "http://www.matsim.org/files/dtd/population_v6.dtd">
+
+<population desc="single agent on three links network">
+    <person id="100">
+        <plan score="92.61490939414003" selected="yes">
+            <activity type="home" link="link1" x="0" y="0" end_time="9:00:00"/>
+            <leg mode="walk" dep_time="01:14:47">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">walk</attribute>
+                </attributes>
+                <route type="generic" start_link="link1" end_link="link3" trav_time="02:28:35" distance="9410.82609917142"></route>
+            </leg>
+            <activity type="errands" link="link3" x="12" y="5" start_time="15:51:00" />
+        </plan>
+    </person>
+</population>

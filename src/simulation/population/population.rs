@@ -7,7 +7,7 @@ use crate::simulation::population::io::{from_file, to_file};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::population::Person;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Population {
     pub persons: HashMap<Id<Person>, Person>,
 }
@@ -173,5 +173,26 @@ mod tests {
         // has all the agents and the other doesn't
         assert!(pop1.persons.len() == 100 || pop2.persons.len() == 100);
         assert!(pop1.persons.is_empty() || pop2.persons.is_empty());
+    }
+
+    #[test]
+    fn test_from_xml_to_binpb_same() {
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let population = Population::part_from_file(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &net,
+            &mut garage,
+            0,
+        );
+
+        let temp_file = PathBuf::from("./assets/equil/equil-plans.binpb");
+        population.to_file(&temp_file);
+        let population2 = Population::part_from_file(&temp_file, &net, &mut garage, 0);
+        assert_eq!(population, population2);
     }
 }
