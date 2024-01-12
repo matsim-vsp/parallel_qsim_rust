@@ -7,13 +7,13 @@ use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::replanning::routing::router::Router;
+use crate::simulation::replanning::routing::router::NetworkRouter;
 use crate::simulation::replanning::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
-use crate::simulation::replanning::walk_finder::{EuclideanWalkFinder, WalkFinder};
+use crate::simulation::replanning::teleported_router::{BeeLineDistanceRouter, TeleportedRouter};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person};
-use crate::simulation::wire_types::vehicles::VehicleType;
+use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
 
 pub trait Replanner {
     fn update_time(&mut self, now: u32, events: &mut EventsPublisher);
@@ -22,9 +22,10 @@ pub trait Replanner {
 
 #[derive(Eq, PartialEq)]
 enum LegType {
-    AccessEgress,
-    Main,
     TripPlaceholder,
+    AccessEgress,
+    MainTeleported,
+    MainNetwork,
 }
 
 pub struct DummyReplanner {}
@@ -37,29 +38,32 @@ impl Replanner for DummyReplanner {
 
 #[derive(Debug)]
 pub struct ReRouteTripReplanner {
-    router: Box<dyn Router>,
-    walk_finder: Box<dyn WalkFinder>,
+    network_router: Box<dyn NetworkRouter>,
+    teleported_router: Box<dyn TeleportedRouter>,
     global_network: Network,
 }
 
 impl Replanner for ReRouteTripReplanner {
     #[tracing::instrument(level = "trace", skip(self, events))]
     fn update_time(&mut self, now: u32, events: &mut EventsPublisher) {
-        self.router.next_time_step(now, events)
+        self.network_router.next_time_step(now, events)
     }
 
     // #[tracing::instrument(level = "trace", skip(self, agent, garage))]
     fn replan(&self, _now: u32, agent: &mut Person, garage: &Garage) {
-        let leg_type = Self::get_leg_type(agent);
+        let leg_type = Self::get_leg_type(agent, garage);
         if leg_type == LegType::TripPlaceholder {
             self.insert_access_egress(agent, garage);
         }
 
         match leg_type {
+            // in case of trip placeholder: we have inserted access and egress legs before
+            // => we must now replan the respective access leg
             LegType::AccessEgress | LegType::TripPlaceholder => {
                 self.replan_access_egress(agent, garage)
             }
-            LegType::Main => self.replan_main(agent, garage),
+            LegType::MainNetwork => self.replan_main(agent, garage),
+            LegType::MainTeleported => self.replan_teleported_main(agent, garage),
         };
     }
 }
@@ -77,17 +81,17 @@ impl ReRouteTripReplanner {
                 &garage.vehicle_types,
             );
 
-        let router: Box<dyn Router> = Box::new(TravelTimesCollectingAltRouter::new(
+        let router: Box<dyn NetworkRouter> = Box::new(TravelTimesCollectingAltRouter::new(
             forward_backward_graph_by_veh_type,
             communicator,
             sim_network.get_link_ids(),
         ));
 
-        let walk_finder: Box<dyn WalkFinder> = Box::new(EuclideanWalkFinder::new());
+        let teleported_router: Box<dyn TeleportedRouter> = Box::new(BeeLineDistanceRouter::new());
 
         ReRouteTripReplanner {
-            router,
-            walk_finder,
+            network_router: router,
+            teleported_router,
             global_network: global_network.clone(),
         }
     }
@@ -164,18 +168,25 @@ impl ReRouteTripReplanner {
         assert_eq!(curr_act.link_id, next_act.link_id);
 
         let veh_type_id = agent.next_leg().vehicle_type_id(garage);
-
         let access_egress_speed = garage.vehicle_types.get(veh_type_id).unwrap().max_v;
 
         let dep_time;
         let walk = if curr_act.is_interaction() {
             dep_time = curr_act.end_time;
-            self.walk_finder
-                .find_walk(next_act, access_egress_speed, &self.global_network)
+            // curr activity is interaction => it's an egress leg => next activity has location
+            self.teleported_router.query_access_egress(
+                next_act,
+                access_egress_speed,
+                &self.global_network,
+            )
         } else {
             dep_time = curr_act.end_time;
-            self.walk_finder
-                .find_walk(curr_act, access_egress_speed, &self.global_network)
+            // curr activity is an actual activity => it's an access leg => curr activity has location
+            self.teleported_router.query_access_egress(
+                curr_act,
+                access_egress_speed,
+                &self.global_network,
+            )
         };
 
         let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), veh_type_id);
@@ -189,15 +200,37 @@ impl ReRouteTripReplanner {
         );
     }
 
+    fn replan_teleported_main(&self, agent: &mut Person, garage: &Garage) {
+        let curr_act = agent.curr_act();
+        let next_act = agent.next_act();
+
+        let veh_type_id = agent.next_leg().vehicle_type_id(garage);
+        let speed = garage.vehicle_types.get(veh_type_id).unwrap().max_v;
+
+        let dep_time = curr_act.end_time;
+        let teleportation = self
+            .teleported_router
+            .query_between_acts(curr_act, next_act, speed);
+
+        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), veh_type_id);
+        agent.update_next_leg(
+            dep_time,
+            teleportation.duration,
+            vec![agent.curr_act().link_id, agent.next_act().link_id],
+            teleportation.distance,
+            vehicle_id.internal(),
+        );
+    }
+
     fn find_route(
         &self,
         from_act: &Activity,
         to_act: &Activity,
         veh_type_id: &Id<VehicleType>,
     ) -> (Vec<u64>, Option<u32>) {
-        let query_result = self
-            .router
-            .query_links(from_act.link_id, to_act.link_id, veh_type_id);
+        let query_result =
+            self.network_router
+                .query_links(from_act.link_id, to_act.link_id, veh_type_id);
 
         let route = query_result.path.expect("There is no route!");
         let travel_time = query_result.travel_time;
@@ -210,7 +243,7 @@ impl ReRouteTripReplanner {
     }
 
     #[allow(clippy::if_same_then_else)]
-    fn get_leg_type(agent: &Person) -> LegType {
+    fn get_leg_type(agent: &Person, garage: &Garage) -> LegType {
         //act - leg - interaction act => walk
         if !agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
             LegType::AccessEgress
@@ -219,13 +252,35 @@ impl ReRouteTripReplanner {
         else if agent.curr_act().is_interaction() && !agent.next_act().is_interaction() {
             LegType::AccessEgress
         }
-        //interaction act - leg - interaction act => main leg
+        //interaction act - leg - interaction act => main leg if network, generic if teleported
         else if agent.curr_act().is_interaction() && agent.next_act().is_interaction() {
-            LegType::Main
+            let level_of_detail = LevelOfDetail::try_from(
+                garage
+                    .vehicle_types
+                    .get(agent.next_leg().vehicle_type_id(garage))
+                    .unwrap()
+                    .lod,
+            )
+            .expect("Unknown level of detail");
+            match level_of_detail {
+                LevelOfDetail::Network => LegType::MainNetwork,
+                LevelOfDetail::Teleported => LegType::MainTeleported,
+            }
         }
-        //act - leg - act => dummy leg
+        //act - leg - act => trip placeholder if network, generic if teleported
         else if !agent.curr_act().is_interaction() && !agent.next_act().is_interaction() {
-            LegType::TripPlaceholder
+            let level_of_detail = LevelOfDetail::try_from(
+                garage
+                    .vehicle_types
+                    .get(agent.next_leg().vehicle_type_id(garage))
+                    .unwrap()
+                    .lod,
+            )
+            .expect("Unknown level of detail");
+            match level_of_detail {
+                LevelOfDetail::Network => LegType::TripPlaceholder,
+                LevelOfDetail::Teleported => LegType::MainTeleported,
+            }
         } else {
             panic!("Computing a leg between two main activities should never happen.")
         }
@@ -352,6 +407,57 @@ mod tests {
                 .distance,
             10.
         );
+    }
+
+    #[test]
+    fn test_update_teleported_main() {
+        //prepare
+        let network = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
+        let mut population = Population::part_from_file(
+            &PathBuf::from("./assets/3-links/1-agent-generic-leg.xml"),
+            &network,
+            &mut garage,
+            0,
+        );
+
+        let sim_net = SimNetworkPartition::from_network(&network, 0, 1.0);
+        let agent_id = Id::get_from_ext("100");
+        let mut agent = population.persons.get_mut(&agent_id).unwrap();
+
+        let replanner =
+            ReRouteTripReplanner::new(&network, &sim_net, &garage, Rc::new(DummySimCommunicator()));
+
+        //do change
+        replanner.replan(0, &mut agent, &garage);
+
+        //check activities
+        assert_eq!(agent.plan.as_ref().unwrap().acts.len(), 2);
+
+        //check legs
+        assert_eq!(agent.plan.as_ref().unwrap().legs.len(), 1);
+        assert_eq!(get_veh_type_id(&agent, 0, &garage).external(), "walk");
+        let route = agent
+            .plan
+            .as_ref()
+            .unwrap()
+            .legs
+            .get(0)
+            .unwrap()
+            .route
+            .as_ref()
+            .unwrap();
+
+        //distance from (0,0) to (12,5) is 13
+        assert_eq!(13., route.distance);
+        assert_eq!(
+            (13. / 0.85) as u32,
+            agent.plan.as_ref().unwrap().legs.get(0).unwrap().trav_time
+        )
     }
 
     #[test]

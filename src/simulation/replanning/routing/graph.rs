@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use tracing::debug;
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForwardBackwardGraph {
     pub forward_graph: Graph,
@@ -122,7 +120,6 @@ impl Graph {
         for (index, &id) in self.link_ids.iter().enumerate() {
             if let Some(&new_travel_time) = new_travel_times_by_link.get(&(id)) {
                 new_travel_time_vector.push(new_travel_time);
-                debug!("Link {:?} | new travel time {:?}", id, new_travel_time);
             } else {
                 new_travel_time_vector.push(*self.travel_time.get(index).unwrap())
             }

@@ -3,7 +3,7 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::wire_types::vehicles::VehicleType;
 use std::fmt::Debug;
 
-pub trait Router {
+pub trait NetworkRouter {
     fn query_links(
         &self,
         from_link: u64,
@@ -14,9 +14,9 @@ pub trait Router {
     fn next_time_step(&mut self, now: u32, events: &mut EventsPublisher);
 }
 
-impl Debug for dyn Router {
+impl Debug for dyn NetworkRouter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Router")
+        write!(f, "NetworkRouter")
     }
 }
 
