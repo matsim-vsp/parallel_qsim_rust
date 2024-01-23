@@ -8,6 +8,8 @@ use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use tracing::Level;
 
+use crate::simulation::config::VertexWeight::InLinkCapacity;
+
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct CommandLineArgs {
@@ -228,24 +230,25 @@ pub enum Profiling {
     CSV(ProfilingLevel),
 }
 
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum ProfilingLevel {
-    #[default]
-    INFO,
-    TRACE,
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProfilingLevel {
+    #[serde(default = "default_profiling_level")]
+    pub level: String,
 }
 
 impl ProfilingLevel {
     pub fn create_tracing_level(&self) -> Level {
-        match self {
-            ProfilingLevel::INFO => Level::INFO,
-            ProfilingLevel::TRACE => Level::TRACE,
+        match self.level.as_str() {
+            "INFO" => Level::INFO,
+            "TRACE" => Level::TRACE,
+            _ => panic!("{} not yet implemented as profiling level!", self.level),
         }
     }
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MetisOptions {
+    #[serde(default = "default_vertex_weight")]
     pub vertex_weight: Vec<VertexWeight>,
     #[serde(default = "edge_weight_constant")]
     pub edge_weight: EdgeWeight,
@@ -319,6 +322,14 @@ fn edge_weight_constant() -> EdgeWeight {
 
 fn u32_value_100() -> u32 {
     100
+}
+
+fn default_vertex_weight() -> Vec<VertexWeight> {
+    vec![InLinkCapacity]
+}
+
+fn default_profiling_level() -> String {
+    String::from("INFO")
 }
 
 #[cfg(test)]
