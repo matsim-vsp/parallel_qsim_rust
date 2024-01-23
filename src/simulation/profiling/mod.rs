@@ -9,7 +9,7 @@ use std::{env, fs};
 use serde_json::{json, Value};
 use tracing::field::Field;
 use tracing::span::Attributes;
-use tracing::{trace, Id, Subscriber};
+use tracing::{trace, Id, Level, Subscriber};
 use tracing_subscriber::field::Visit;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
@@ -49,6 +49,7 @@ pub fn measure_duration<Out, F: FnOnce() -> Out>(
 
 pub struct SpanDurationToCSVLayer {
     writer: Arc<Mutex<BufWriter<File>>>,
+    level: Level,
 }
 
 pub struct WriterGuard {
@@ -85,7 +86,7 @@ impl Visit for RankVisitor {
 }
 
 impl SpanDurationToCSVLayer {
-    pub fn new(path: &Path) -> (Self, WriterGuard) {
+    pub fn new(path: &Path, level: Level) -> (Self, WriterGuard) {
         // create necessary file path and corresponding file wrapped in buffered writer
         let prefix = path.parent().unwrap();
         fs::create_dir_all(prefix).unwrap();
@@ -106,6 +107,7 @@ impl SpanDurationToCSVLayer {
         let writer_ref = Arc::new(Mutex::new(writer));
         let new_self = Self {
             writer: writer_ref.clone(),
+            level,
         };
         let guard = WriterGuard { writer_ref };
         (new_self, guard)
@@ -135,19 +137,27 @@ impl<S> Layer<S> for SpanDurationToCSVLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
-    fn on_new_span(&self, _attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+    fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
+        if attrs.metadata().level() > &self.level {
+            return;
+        }
+
         let span = ctx.span(id).expect("should exist");
         let mut extensions = span.extensions_mut();
         extensions.insert(SpanDuration::new());
 
         let mut visitor = RankVisitor::new();
-        _attrs.record(&mut visitor as &mut dyn Visit);
+        attrs.record(&mut visitor as &mut dyn Visit);
         if let Some(rank) = visitor.rank {
             extensions.insert(Rank(rank));
         }
     }
 
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
+        if ctx.metadata(id).unwrap().level() > &self.level {
+            return;
+        }
+
         let span = ctx.span(id).expect("Should exist");
         let mut extensions = span.extensions_mut();
 
@@ -157,6 +167,10 @@ where
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
+        if ctx.metadata(id).unwrap().level() > &self.level {
+            return;
+        }
+
         let span = ctx.span(id).expect("Span should be there");
         let mut extensions = span.extensions_mut();
 
@@ -168,6 +182,10 @@ where
 
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
         use std::io::Write;
+
+        if ctx.metadata(&id).unwrap().level() > &self.level {
+            return;
+        }
 
         let span = ctx.span(&id).expect("Span should be there!");
         let extensions = span.extensions();
@@ -217,7 +235,7 @@ mod tests {
     use std::time::Duration;
 
     use tracing::level_filters::LevelFilter;
-    use tracing::{info, instrument};
+    use tracing::{info, instrument, Level};
     use tracing_subscriber::fmt::format::FmtSpan;
     use tracing_subscriber::fmt::Layer;
     use tracing_subscriber::layer::SubscriberExt;
@@ -229,7 +247,7 @@ mod tests {
     fn test_events() {
         let path = PathBuf::from("./test_output/simulation/profiling/test_events.csv");
 
-        let (csv_layer, _guard) = SpanDurationToCSVLayer::new(&path);
+        let (csv_layer, _guard) = SpanDurationToCSVLayer::new(&path, Level::INFO);
         let layers = tracing_subscriber::registry().with(csv_layer).with(
             Layer::new()
                 .with_span_events(FmtSpan::CLOSE)
@@ -250,7 +268,7 @@ mod tests {
     }
 
     #[instrument(level = "trace", skip(a, b), fields(rank = 42u32))]
-    fn some_other_function(a: u32, b: f32) {
+    fn some_other_function(_a: u32, _b: f32) {
         info!("Inside some other function");
         sleep(Duration::from_nanos(10));
     }

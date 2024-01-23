@@ -6,6 +6,7 @@ use std::io::BufReader;
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
+use tracing::Level;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -220,11 +221,27 @@ pub enum PartitionMethod {
     None,
 }
 
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
 pub enum Profiling {
     #[default]
     None,
-    CSV,
+    CSV(ProfilingLevel),
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum ProfilingLevel {
+    #[default]
+    INFO,
+    TRACE,
+}
+
+impl ProfilingLevel {
+    pub fn create_tracing_level(&self) -> Level {
+        match self {
+            ProfilingLevel::INFO => Level::INFO,
+            ProfilingLevel::TRACE => Level::TRACE,
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
@@ -357,7 +374,7 @@ mod tests {
             num_parts: 1
             method: None
         "#;
-        let parsed_config: Config = serde_yaml::from_str(&yaml).expect("failed to parse config");
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
         assert_eq!(parsed_config.partitioning().num_parts, 1);
         assert_eq!(parsed_config.partitioning().method, PartitionMethod::None);
     }
