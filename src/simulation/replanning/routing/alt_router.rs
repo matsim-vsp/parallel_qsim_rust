@@ -279,6 +279,7 @@ mod tests {
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::wire_types::vehicles::VehicleType;
 
     fn query_and_check(
         router: &AltRouter,
@@ -320,8 +321,8 @@ mod tests {
         let graph_by_vehicle_type =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
 
-        let bike_id = &Id::<String>::get_from_ext("bike").internal();
-        let car_id = &Id::<String>::get_from_ext("car").internal();
+        let bike_id = &Id::<VehicleType>::get_from_ext("bike");
+        let car_id = &Id::<VehicleType>::get_from_ext("car");
 
         let router_by_vehicle_type = graph_by_vehicle_type
             .into_iter()

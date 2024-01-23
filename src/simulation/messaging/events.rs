@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use tracing::{info, instrument};
 
@@ -21,6 +22,12 @@ pub trait EventsSubscriber {
     fn as_any(&mut self) -> &mut dyn Any;
 }
 
+impl Debug for dyn EventsSubscriber + Send {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EventsSubscriber")
+    }
+}
+
 pub struct EventsLogger {}
 
 impl EventsSubscriber for EventsLogger {
@@ -33,7 +40,7 @@ impl EventsSubscriber for EventsLogger {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct EventsPublisher {
     handlers: Vec<Box<dyn EventsSubscriber + Send>>,
 }

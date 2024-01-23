@@ -7,8 +7,10 @@ use crate::simulation::population::io::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::time_queue::EndTime;
+use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
+use crate::simulation::wire_types::vehicles::VehicleType;
 
 impl Person {
     pub fn from_io(io_person: &IOPerson) -> Person {
@@ -361,13 +363,17 @@ impl Leg {
         }
     }
 
-    pub fn access_eggress(mode: u64) -> Self {
+    pub fn access_eggress(net_mode: u64, veh_type_id: u64) -> Self {
         Leg {
-            mode,
-            routing_mode: mode,
+            mode: net_mode,
+            routing_mode: net_mode,
             dep_time: None,
             trav_time: 0,
-            route: None,
+            route: Some(Route {
+                veh_id: veh_type_id,
+                distance: 0.0,
+                route: Vec::new(),
+            }),
         }
     }
 
@@ -379,6 +385,13 @@ impl Leg {
         } else {
             0
         }
+    }
+
+    pub fn vehicle_type_id<'gar>(&self, garage: &'gar Garage) -> &'gar Id<VehicleType> {
+        self.route
+            .as_ref()
+            .map(|r| garage.vehicles.get(&Id::<Vehicle>::get(r.veh_id)).unwrap())
+            .unwrap()
     }
 }
 

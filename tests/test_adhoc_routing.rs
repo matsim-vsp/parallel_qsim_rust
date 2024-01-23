@@ -21,6 +21,7 @@ fn execute_adhoc_routing_one_part_no_updates() {
 }
 
 #[test]
+#[serial_test::serial]
 fn execute_adhoc_routing_two_parts_no_updates() {
     let config_args = CommandLineArgs {
         config_path: "./tests/resources/adhoc_routing/no_updates/config-2.yml".to_string(),
@@ -50,6 +51,7 @@ fn execute_adhoc_routing_one_part_with_updates() {
 }
 
 #[test]
+#[serial_test::serial]
 fn execute_adhoc_routing_two_parts_with_updates() {
     let config_args = CommandLineArgs {
         config_path: "./tests/resources/adhoc_routing/with_updates/config-2.yml".to_string(),
