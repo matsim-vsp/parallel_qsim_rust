@@ -303,8 +303,8 @@ impl MetisOptions {
         self
     }
 
-    pub fn ufactor(&self) -> i32 {
-        let val = (self.imbalance_factor * 1000.) as i32;
+    pub fn ufactor(&self) -> usize {
+        let val = (self.imbalance_factor * 1000.) as usize;
         if val <= 0 {
             return 1;
         };
