@@ -124,10 +124,6 @@ impl Graph {
         debug_assert_eq!(self.link_ids.len(), self.travel_time.len());
 
         let mut new_travel_time_vector = Vec::new();
-        for (id, tt) in new_travel_times_by_link {
-            self.link_id_pos.get(id).unwrap();
-        }
-
         for (index, &id) in self.link_ids.iter().enumerate() {
             new_travel_time_vector.push(
                 *new_travel_times_by_link
