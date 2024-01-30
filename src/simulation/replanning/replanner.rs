@@ -222,6 +222,7 @@ impl ReRouteTripReplanner {
         );
     }
 
+    #[tracing::instrument(level = "trace", skip(self, from_act, to_act, veh_type_id))]
     fn find_route(
         &self,
         from_act: &Activity,
