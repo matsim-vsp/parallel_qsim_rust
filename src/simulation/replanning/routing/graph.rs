@@ -116,13 +116,18 @@ impl Graph {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(new_travel_times_by_link))]
     pub fn clone_with_new_travel_times_by_link(
         &self,
         new_travel_times_by_link: &HashMap<u64, u32>,
     ) -> Graph {
-        assert_eq!(self.link_ids.len(), self.travel_time.len());
+        debug_assert_eq!(self.link_ids.len(), self.travel_time.len());
 
         let mut new_travel_time_vector = Vec::new();
+        for (id, tt) in new_travel_times_by_link {
+            self.link_id_pos.get(id).unwrap();
+        }
+
         for (index, &id) in self.link_ids.iter().enumerate() {
             new_travel_time_vector.push(
                 *new_travel_times_by_link
@@ -134,6 +139,7 @@ impl Graph {
         self.clone_with_new_travel_times(new_travel_time_vector)
     }
 
+    #[tracing::instrument(level = "trace", skip(travel_times))]
     fn clone_with_new_travel_times(&self, travel_times: Vec<u32>) -> Graph {
         let mut result = self.clone();
         result.travel_time = travel_times;

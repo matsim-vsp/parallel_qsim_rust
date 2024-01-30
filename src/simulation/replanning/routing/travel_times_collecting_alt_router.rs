@@ -143,15 +143,6 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
             return;
         }
 
-        debug!(
-            "Received {:?} traffic info messages for mode {:?}",
-            traffic_info_messages
-                .iter()
-                .map(|m| m.travel_times_by_link_id.len())
-                .collect::<Vec<usize>>(),
-            veh_type_id_internal
-        );
-
         let number_of_links_with_traffic_info = traffic_info_messages
             .iter()
             .map(|info| info.travel_times_by_link_id.len())
@@ -162,7 +153,7 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
             .flat_map(|info| info.travel_times_by_link_id.into_iter())
             .collect();
 
-        assert_eq!(
+        debug_assert_eq!(
             number_of_links_with_traffic_info,
             travel_times_by_link.len()
         );

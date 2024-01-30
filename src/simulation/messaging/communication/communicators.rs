@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Barrier};
 
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
@@ -60,28 +61,42 @@ impl SimCommunicator for DummySimCommunicator {
 pub struct ChannelSimCommunicator {
     receiver: Receiver<SimMessage>,
     senders: Vec<Sender<SimMessage>>,
+    tt_receiver: Receiver<SimMessage>,
+    tt_senders: Vec<Sender<SimMessage>>,
     rank: u32,
+    barrier: Arc<Barrier>,
 }
 
 impl ChannelSimCommunicator {
     pub fn create_n_2_n(num_parts: u32) -> Vec<ChannelSimCommunicator> {
         let mut senders: Vec<_> = Vec::new();
+        let mut tt_senders: Vec<_> = Vec::new();
         let mut comms: Vec<_> = Vec::new();
+        let barrier = Arc::new(Barrier::new(num_parts as usize));
 
         for rank in 0..num_parts {
             let (sender, receiver) = channel();
+            let (tt_sender, tt_receiver) = channel();
             let comm = ChannelSimCommunicator {
                 receiver,
+                tt_receiver,
                 senders: vec![],
+                tt_senders: vec![],
                 rank,
+                barrier: barrier.clone(),
             };
             senders.push(sender);
+            tt_senders.push(tt_sender);
             comms.push(comm);
         }
 
         for comm in &mut comms {
             for sender in &senders {
                 comm.senders.push(sender.clone());
+            }
+
+            for sender in &tt_senders {
+                comm.tt_senders.push(sender.clone());
             }
         }
 
@@ -137,24 +152,28 @@ impl SimCommunicator for ChannelSimCommunicator {
         _now: u32,
         travel_times: HashMap<u64, u32>,
     ) -> Vec<TravelTimesMessage> {
+        //Waiting for all processes to enter this stage. This is to make sure, that all processes only receive
+        //the travel time messages for one mode. Otherwise messages could be mixed up due to buffering of the receiver.
+        self.barrier.wait();
+
         let message = TravelTimesMessage::from(travel_times);
         //send to each
-        for sender in &self.senders {
+        for sender in &self.tt_senders {
             sender
                 .send(SimMessage::from_travel_times_message(message.clone()))
                 .expect("Failed to send travel times message in message broker");
         }
 
         let mut result = Vec::new();
-        while result.len() < self.senders.len() {
-            let received_msg = self
-                .receiver
+        while result.len() < self.tt_senders.len() {
+            let sim_message = self
+                .tt_receiver
                 .recv()
-                .expect("Error while receiving messages")
-                .travel_times_message();
+                .expect("Error while receiving messages");
+
+            let received_msg = sim_message.travel_times_message();
             result.push(received_msg);
         }
-
         result
     }
 
