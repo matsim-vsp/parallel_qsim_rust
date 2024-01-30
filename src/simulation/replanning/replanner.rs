@@ -49,7 +49,7 @@ impl Replanner for ReRouteTripReplanner {
         self.network_router.next_time_step(now, events)
     }
 
-    // #[tracing::instrument(level = "trace", skip(self, agent, garage))]
+    #[tracing::instrument(level = "trace", skip(self, agent, garage))]
     fn replan(&self, _now: u32, agent: &mut Person, garage: &Garage) {
         let leg_type = Self::get_leg_type(agent, garage);
         if leg_type == LegType::TripPlaceholder {
