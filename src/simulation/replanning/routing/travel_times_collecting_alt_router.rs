@@ -196,7 +196,10 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
                     }
 
                     let new_travel_time = (*travel_time).max(initial.unwrap());
-                    extended_travel_times_by_link_id.insert(*id, new_travel_time);
+                    let current_travel_time = router.get_current_travel_time(*id).expect("If there is an initial travel time, there also must be a current travel time");
+                    if new_travel_time != current_travel_time {
+                        extended_travel_times_by_link_id.insert(*id, new_travel_time);
+                    }
                 } else {
                     // add initial travel time for each link which has no new travel time
                     let initial = router.get_initial_travel_time(*id);
@@ -205,7 +208,9 @@ impl<C: SimCommunicator> TravelTimesCollectingAltRouter<C> {
                         continue;
                     }
 
-                    extended_travel_times_by_link_id.insert(*id, initial.unwrap());
+                    if router.get_current_travel_time(*id) != initial {
+                        extended_travel_times_by_link_id.insert(*id, initial.unwrap());
+                    }
                 }
             }
             result.insert(mode.internal(), extended_travel_times_by_link_id);
