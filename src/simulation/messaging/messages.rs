@@ -7,7 +7,7 @@ use prost::Message;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::wire_types::messages::sim_message::Type;
 use crate::simulation::wire_types::messages::{
-    SimMessage, StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
+    Empty, SimMessage, StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
 };
 use crate::simulation::wire_types::population::Person;
 
@@ -15,18 +15,14 @@ impl SimMessage {
     pub fn sync_message(self) -> SyncMessage {
         match self.r#type.unwrap() {
             Type::Sync(m) => m,
-            Type::TravelTimes(_) => {
-                panic!("That message is no sync message.")
-            }
+            _ => panic!("That message is no sync message."),
         }
     }
 
     pub fn travel_times_message(self) -> TravelTimesMessage {
         match self.r#type.unwrap() {
-            Type::Sync(_) => {
-                panic!("That message is no travel times message.")
-            }
             Type::TravelTimes(t) => t,
+            _ => panic!("That message is no travel times message."),
         }
     }
 
@@ -39,6 +35,12 @@ impl SimMessage {
     pub fn from_travel_times_message(m: TravelTimesMessage) -> SimMessage {
         SimMessage {
             r#type: Some(Type::TravelTimes(m)),
+        }
+    }
+
+    pub fn from_empty(m: Empty) -> SimMessage {
+        SimMessage {
+            r#type: Some(Type::Barrier(m)),
         }
     }
 

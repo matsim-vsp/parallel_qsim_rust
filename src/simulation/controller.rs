@@ -94,7 +94,8 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
     // send emtpy travel times to everybody as a barrier.
-    comm.send_receive_travel_times(0, std::collections::HashMap::new());
+    //comm.send_receive_travel_times(0, std::collections::HashMap::new());
+    comm.barrier();
 
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
     let network = Network::from_file_as_is(&get_numbered_output_filename(
