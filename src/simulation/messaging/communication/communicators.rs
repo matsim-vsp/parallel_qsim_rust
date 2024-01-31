@@ -1,12 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Barrier};
 
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, SystemCommunicator};
 use mpi::{Count, Rank};
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
 use crate::simulation::wire_types::messages::{SimMessage, SyncMessage, TravelTimesMessage};
 
@@ -66,28 +67,42 @@ impl SimCommunicator for DummySimCommunicator {
 pub struct ChannelSimCommunicator {
     receiver: Receiver<SimMessage>,
     senders: Vec<Sender<SimMessage>>,
+    tt_receiver: Receiver<SimMessage>,
+    tt_senders: Vec<Sender<SimMessage>>,
     rank: u32,
+    barrier: Arc<Barrier>,
 }
 
 impl ChannelSimCommunicator {
     pub fn create_n_2_n(num_parts: u32) -> Vec<ChannelSimCommunicator> {
         let mut senders: Vec<_> = Vec::new();
+        let mut tt_senders: Vec<_> = Vec::new();
         let mut comms: Vec<_> = Vec::new();
+        let barrier = Arc::new(Barrier::new(num_parts as usize));
 
         for rank in 0..num_parts {
             let (sender, receiver) = channel();
+            let (tt_sender, tt_receiver) = channel();
             let comm = ChannelSimCommunicator {
                 receiver,
+                tt_receiver,
                 senders: vec![],
+                tt_senders: vec![],
                 rank,
+                barrier: barrier.clone(),
             };
             senders.push(sender);
+            tt_senders.push(tt_sender);
             comms.push(comm);
         }
 
         for comm in &mut comms {
             for sender in &senders {
                 comm.senders.push(sender.clone());
+            }
+
+            for sender in &tt_senders {
+                comm.tt_senders.push(sender.clone());
             }
         }
 
@@ -143,44 +158,33 @@ impl SimCommunicator for ChannelSimCommunicator {
         _now: u32,
         travel_times: HashMap<u64, u32>,
     ) -> Vec<TravelTimesMessage> {
+        //Waiting for all processes to enter this stage. This is to make sure, that all processes only receive
+        //the travel time messages for one mode. Otherwise messages could be mixed up due to buffering of the receiver.
+        self.barrier.wait();
+
         let message = TravelTimesMessage::from(travel_times);
         //send to each
-        for sender in &self.senders {
+        for sender in &self.tt_senders {
             sender
                 .send(SimMessage::from_travel_times_message(message.clone()))
                 .expect("Failed to send travel times message in message broker");
         }
 
         let mut result = Vec::new();
-        while result.len() < self.senders.len() {
-            let received_msg = self
-                .receiver
+        while result.len() < self.tt_senders.len() {
+            let sim_message = self
+                .tt_receiver
                 .recv()
-                .expect("Error while receiving messages")
-                .travel_times_message();
+                .expect("Error while receiving messages");
+
+            let received_msg = sim_message.travel_times_message();
             result.push(received_msg);
         }
-
         result
     }
 
     fn barrier(&self) {
-        let message = crate::simulation::wire_types::messages::Empty {};
-        // send to each
-        for sender in &self.senders {
-            sender
-                .send(SimMessage::from_empty(message.clone()))
-                .expect("Error sending barrier message");
-        }
-        let mut counter = 0;
-        while counter < self.senders.len() {
-            let _ = self
-                .receiver
-                .recv()
-                .expect("Error while receiving barrier messages.")
-                .sync_message();
-            counter += 1;
-        }
+        self.barrier.wait();
     }
 
     fn rank(&self) -> u32 {
@@ -265,6 +269,11 @@ impl SimCommunicator for MpiSimCommunicator {
             SimMessage::from_travel_times_message(TravelTimesMessage::from(travel_times));
         let serial_travel_times_message = travel_times_message.serialize();
 
+        debug!(
+            "Sending travel times message with {} bytes.",
+            serial_travel_times_message.len()
+        );
+
         let messages: Vec<TravelTimesMessage> =
             self.gather_travel_times(&serial_travel_times_message);
 
@@ -283,11 +292,8 @@ impl SimCommunicator for MpiSimCommunicator {
 impl MpiSimCommunicator {
     fn gather_travel_times(&self, sim_travel_times_message: &Vec<u8>) -> Vec<TravelTimesMessage> {
         // ------- Gather traffic info lengths -------
-        let mut travel_times_length_buffer = vec![0i32; self.mpi_communicator.size() as usize];
-        self.mpi_communicator.all_gather_into(
-            &(sim_travel_times_message.len() as i32),
-            &mut travel_times_length_buffer[..],
-        );
+        let mut travel_times_length_buffer =
+            self.gather_travel_time_lengths(&sim_travel_times_message);
 
         // ------- Gather traffic info -------
         if travel_times_length_buffer.iter().sum::<i32>() <= 0 {
@@ -296,6 +302,20 @@ impl MpiSimCommunicator {
             return Vec::new();
         }
 
+        let travel_times_buffer = self.gather_travel_times_var_count(
+            &sim_travel_times_message,
+            &mut travel_times_length_buffer,
+        );
+
+        Self::deserialize_travel_times(travel_times_buffer, travel_times_length_buffer)
+    }
+
+    #[instrument(level = "trace", skip_all, fields(rank = self.rank()))]
+    fn gather_travel_times_var_count(
+        &self,
+        sim_travel_times_message: &&Vec<u8>,
+        mut travel_times_length_buffer: &mut Vec<i32>,
+    ) -> Vec<u8> {
         let mut travel_times_buffer =
             vec![0u8; travel_times_length_buffer.iter().sum::<i32>() as usize];
         let info_displs = Self::get_travel_times_displs(&mut travel_times_length_buffer);
@@ -306,8 +326,17 @@ impl MpiSimCommunicator {
         );
         self.mpi_communicator
             .all_gather_varcount_into(&sim_travel_times_message[..], &mut partition);
+        travel_times_buffer
+    }
 
-        Self::deserialize_travel_times(travel_times_buffer, travel_times_length_buffer)
+    #[instrument(level = "trace", skip_all, fields(rank = self.rank()))]
+    fn gather_travel_time_lengths(&self, sim_travel_times_message: &&Vec<u8>) -> Vec<i32> {
+        let mut travel_times_length_buffer = vec![0i32; self.mpi_communicator.size() as usize];
+        self.mpi_communicator.all_gather_into(
+            &(sim_travel_times_message.len() as i32),
+            &mut travel_times_length_buffer[..],
+        );
+        travel_times_length_buffer
     }
 
     fn get_travel_times_displs(all_travel_times_message_lengths: &mut [i32]) -> Vec<Count> {
