@@ -30,11 +30,12 @@ pub fn init_logging(
     let log_file_appender = rolling::never(&dir, log_file_name);
     let (log_file, _guard_log) = non_blocking(log_file_appender);
 
-    let (csv_layer, guard) = if config.output().profiling.eq(&Profiling::CSV) {
+    let (csv_layer, guard) = if let Profiling::CSV(level) = config.output().profiling {
         let duration_dir = dir.join("instrument");
         let duration_file_name = format!("instrument_process_{file_discriminant}.csv");
         let duration_path = duration_dir.join(duration_file_name);
-        let (layer, writer_guard) = SpanDurationToCSVLayer::new(&duration_path);
+        let (layer, writer_guard) =
+            SpanDurationToCSVLayer::new(&duration_path, level.create_tracing_level());
         (Some(layer), Some(writer_guard))
     } else {
         (None, None)

@@ -7,7 +7,7 @@ use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, SystemCommunicator};
 use mpi::{Count, Rank};
-use tracing::{debug, instrument};
+use tracing::{debug, info, instrument};
 
 use crate::simulation::wire_types::messages::{SimMessage, SyncMessage, TravelTimesMessage};
 
@@ -26,6 +26,8 @@ pub trait SimCommunicator {
         now: u32,
         travel_times: HashMap<u64, u32>,
     ) -> Vec<TravelTimesMessage>;
+
+    fn barrier(&self);
 
     fn rank(&self) -> u32;
 }
@@ -51,6 +53,10 @@ impl SimCommunicator for DummySimCommunicator {
     ) -> Vec<TravelTimesMessage> {
         //process own travel times messages
         vec![TravelTimesMessage::from(travel_times)]
+    }
+
+    fn barrier(&self) {
+        info!("Barrier was called on DummySimCommunicator, which doesn't do anything.")
     }
 
     fn rank(&self) -> u32 {
@@ -177,6 +183,10 @@ impl SimCommunicator for ChannelSimCommunicator {
         result
     }
 
+    fn barrier(&self) {
+        self.barrier.wait();
+    }
+
     fn rank(&self) -> u32 {
         self.rank
     }
@@ -268,6 +278,10 @@ impl SimCommunicator for MpiSimCommunicator {
             self.gather_travel_times(&serial_travel_times_message);
 
         messages
+    }
+
+    fn barrier(&self) {
+        self.mpi_communicator.barrier();
     }
 
     fn rank(&self) -> u32 {

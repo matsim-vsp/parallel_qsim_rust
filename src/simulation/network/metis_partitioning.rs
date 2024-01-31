@@ -1,6 +1,7 @@
-use crate::simulation::config::{EdgeWeight, MetisOptions, VertexWeight};
 use metis::{Graph, Idx};
 use tracing::info;
+
+use crate::simulation::config::{EdgeWeight, MetisOptions, VertexWeight};
 
 use super::global_network::{Link, Network, Node};
 
@@ -46,7 +47,7 @@ pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Ve
 
     info!("Calling Metis Partitioning Library");
     let mut graph = Graph::new(ncon, num_parts as Idx, &mut xadj, &mut adjncy)
-        .set_option(metis::option::UFactor(options.ufactor()))
+        .set_option(metis::option::UFactor(options.ufactor() as Idx))
         .set_option(metis::option::Seed(4711))
         .set_adjwgt(&mut adjwgt);
 
@@ -89,11 +90,12 @@ fn get_adjwgt(options: &MetisOptions, link: &Link) -> f32 {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use crate::simulation::config::{MetisOptions, PartitionMethod, VertexWeight};
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::metis_partitioning::partition;
-    use std::collections::BTreeMap;
 
     #[test]
     fn simple_graph() {

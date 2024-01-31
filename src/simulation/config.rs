@@ -6,6 +6,9 @@ use std::io::BufReader;
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
+use tracing::Level;
+
+use crate::simulation::config::VertexWeight::InLinkCapacity;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -220,15 +223,32 @@ pub enum PartitionMethod {
     None,
 }
 
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
 pub enum Profiling {
     #[default]
     None,
-    CSV,
+    CSV(ProfilingLevel),
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProfilingLevel {
+    #[serde(default = "default_profiling_level")]
+    pub level: String,
+}
+
+impl ProfilingLevel {
+    pub fn create_tracing_level(&self) -> Level {
+        match self.level.as_str() {
+            "INFO" => Level::INFO,
+            "TRACE" => Level::TRACE,
+            _ => panic!("{} not yet implemented as profiling level!", self.level),
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct MetisOptions {
+    #[serde(default = "default_vertex_weight")]
     pub vertex_weight: Vec<VertexWeight>,
     #[serde(default = "edge_weight_constant")]
     pub edge_weight: EdgeWeight,
@@ -283,8 +303,8 @@ impl MetisOptions {
         self
     }
 
-    pub fn ufactor(&self) -> i32 {
-        let val = (self.imbalance_factor * 1000.) as i32;
+    pub fn ufactor(&self) -> usize {
+        let val = (self.imbalance_factor * 1000.) as usize;
         if val <= 0 {
             return 1;
         };
@@ -302,6 +322,14 @@ fn edge_weight_constant() -> EdgeWeight {
 
 fn u32_value_100() -> u32 {
     100
+}
+
+fn default_vertex_weight() -> Vec<VertexWeight> {
+    vec![InLinkCapacity]
+}
+
+fn default_profiling_level() -> String {
+    String::from("INFO")
 }
 
 #[cfg(test)]
@@ -357,7 +385,7 @@ mod tests {
             num_parts: 1
             method: None
         "#;
-        let parsed_config: Config = serde_yaml::from_str(&yaml).expect("failed to parse config");
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
         assert_eq!(parsed_config.partitioning().num_parts, 1);
         assert_eq!(parsed_config.partitioning().method, PartitionMethod::None);
     }

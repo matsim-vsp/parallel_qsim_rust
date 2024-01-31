@@ -7,8 +7,11 @@ message SimMessage{
   oneof type {
     SyncMessage sync = 1;
     TravelTimesMessage travel_times = 2;
+    Empty barrier = 3;
   }
 }
+
+message Empty {}
 
 message TravelTimesMessage {
   map<uint64, uint32> travel_times_by_link_id = 1;
