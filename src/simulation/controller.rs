@@ -47,7 +47,10 @@ pub fn run_channel() {
             let config_path = args.clone();
             (
                 comm.rank(),
-                thread::spawn(move || execute_partition(comm, &config_path)),
+                thread::Builder::new()
+                    .name(comm.rank().to_string())
+                    .spawn(move || execute_partition(comm, &config_path))
+                    .unwrap(),
             )
         })
         .collect();
