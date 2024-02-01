@@ -776,6 +776,9 @@ mod tests {
         let (_, storage_caps) = net2.move_links(200);
 
         assert_eq!(1, storage_caps.len());
+        let storage_cap = storage_caps.first().unwrap();
+        assert_eq!(split_link_id.internal(), storage_cap.link_id);
+        assert_approx_eq!(0., storage_cap.used, 0.00001);
     }
 
     #[test]
