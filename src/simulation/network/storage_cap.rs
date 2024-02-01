@@ -56,6 +56,7 @@ impl StorageCap {
         self.consumed
     }
 
+    #[cfg(test)]
     pub fn max(&self) -> f32 {
         self.max
     }
