@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::global_network::Node;
+use crate::simulation::network::sim_network::SplitStorage;
 use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::wire_types::messages::Vehicle;
 
@@ -87,9 +88,9 @@ impl SimLink {
 
     pub fn used_storage(&self) -> f32 {
         match self {
-            SimLink::Local(ll) => ll.storage_cap.used,
-            SimLink::In(il) => il.local_link.storage_cap.used,
-            SimLink::Out(ol) => ol.storage_cap.used,
+            SimLink::Local(ll) => ll.storage_cap.currently_used(),
+            SimLink::In(il) => il.local_link.storage_cap.currently_used(),
+            SimLink::Out(ol) => ol.storage_cap.currently_used(),
         }
     }
 
@@ -123,8 +124,8 @@ impl SimLink {
 
     pub fn update_released_storage_cap(&mut self) {
         match self {
-            SimLink::Local(l) => l.update_released_storage_cap(),
-            SimLink::In(l) => l.local_link.update_released_storage_cap(),
+            SimLink::Local(l) => l.apply_storage_cap_updates(),
+            SimLink::In(l) => l.local_link.apply_storage_cap_updates(),
             SimLink::Out(_) => {
                 panic!("Can't update storage capapcity on out link.")
             }
@@ -260,12 +261,12 @@ impl LocalLink {
         self.storage_cap.is_available()
     }
 
-    pub fn update_released_storage_cap(&mut self) {
-        self.storage_cap.apply_released();
+    pub fn apply_storage_cap_updates(&mut self) {
+        self.storage_cap.apply_updates();
     }
 
     pub fn used_storage(&self) -> f32 {
-        self.storage_cap.used
+        self.storage_cap.currently_used()
     }
 
     pub fn from(&self) -> &Id<Node> {
@@ -312,6 +313,7 @@ impl SplitOutLink {
     pub fn set_used_storage_cap(&mut self, value: f32) {
         self.storage_cap.clear();
         self.storage_cap.consume(value);
+        self.storage_cap.apply_updates();
     }
 
     pub fn take_veh(&mut self) -> VecDeque<Vehicle> {
@@ -337,6 +339,24 @@ impl SplitInLink {
             from_part,
             local_link,
         }
+    }
+
+    pub fn storage_cap_updates(&self) -> Option<SplitStorage> {
+        if self.has_updates() {
+            let used = self.local_link.storage_cap.currently_used()
+                - self.local_link.storage_cap.released();
+            Some(SplitStorage {
+                link_id: self.local_link.id.internal(),
+                used,
+                from_part: self.from_part,
+            })
+        } else {
+            None
+        }
+    }
+
+    pub fn has_updates(&self) -> bool {
+        self.local_link.storage_cap.consumed() > 0. || self.local_link.storage_cap.released() > 0.
     }
 }
 
@@ -398,7 +418,7 @@ mod sim_link_tests {
         link.update_released_storage_cap();
         assert_eq!(0., link.used_storage());
         if let SimLink::Local(ll) = link {
-            assert_eq!(0., ll.storage_cap.released); // test internal prop here, because I am too lazy for a more complex test
+            assert_eq!(0., ll.storage_cap.released()); // test internal prop here, because I am too lazy for a more complex test
         }
     }
 
@@ -530,7 +550,7 @@ mod local_link_tests {
         );
 
         // we expect a storage size of 100 * 3 * 0.2 / 7.5 = 8
-        assert_approx_eq!(8., link.storage_cap.max);
+        assert_approx_eq!(8., link.storage_cap.max());
     }
 
     #[test]
@@ -548,7 +568,7 @@ mod local_link_tests {
         );
 
         // we expect a storage size of 20. because it the flow cap/s is 20 (36000 * 0.2 / 3600)
-        assert_eq!(20., link.storage_cap.max);
+        assert_eq!(20., link.storage_cap.max());
     }
 
     #[test]
@@ -583,11 +603,7 @@ mod out_link_tests {
             id: Id::new_internal(0),
             to_part: 1,
             q: Default::default(),
-            storage_cap: StorageCap {
-                max: 100.,
-                released: 0.0,
-                used: 0.0,
-            },
+            storage_cap: StorageCap::new(100., 1., 1., 1., 1.),
         });
         let id1 = 42;
         let id2 = 43;
