@@ -29,13 +29,14 @@ pub struct SimNetworkPartition {
     rnd: ThreadRng,
     active_nodes: IntSet<u64>,
     active_links: IntSet<u64>,
+    veh_counter: usize,
     partition: u32,
 }
 
 #[derive(Debug)]
 pub struct SimNode {
+    id: u64,
     in_links: Vec<u64>,
-    in_capacity: f32,
 }
 
 impl SimNetworkPartition {
@@ -70,29 +71,18 @@ impl SimNetworkPartition {
 
         let sim_nodes: IntMap<u64, SimNode> = nodes
             .iter()
-            .map(|n| {
-                (
-                    n.id.internal(),
-                    Self::create_sim_node(n, global_network, sample_size),
-                )
-            })
+            .map(|n| (n.id.internal(), Self::create_sim_node(n)))
             .collect();
 
         Self::new(sim_nodes, sim_links, partition)
     }
 
-    fn create_sim_node(node: &Node, network: &Network, sample_size: f32) -> SimNode {
+    fn create_sim_node(node: &Node) -> SimNode {
         let in_links: Vec<u64> = node.in_links.iter().map(|l_id| l_id.internal()).collect();
-        let in_capacity = node
-            .in_links
-            .iter()
-            .map(|l_id| network.links.get(l_id.internal() as usize).unwrap())
-            .map(|link| link.capacity * sample_size / 3600.)
-            .sum();
 
         SimNode {
+            id: node.id.internal(),
             in_links,
-            in_capacity,
         }
     }
 
@@ -128,6 +118,7 @@ impl SimNetworkPartition {
             rnd: thread_rng(),
             active_links: Default::default(),
             active_nodes: Default::default(),
+            veh_counter: 0,
             partition,
         }
     }
@@ -144,6 +135,18 @@ impl SimNetworkPartition {
             .map(|link| link.neighbor_part())
             .collect();
         distinct_partitions
+    }
+
+    pub fn active_nodes(&self) -> usize {
+        self.active_nodes.len()
+    }
+
+    pub fn active_links(&self) -> usize {
+        self.active_links.len()
+    }
+
+    pub fn veh_on_net(&self) -> usize {
+        self.veh_counter
     }
 
     pub fn get_link_ids(&self) -> HashSet<u64> {
@@ -192,6 +195,7 @@ impl SimNetworkPartition {
         }
 
         link.push_veh(vehicle, now);
+        self.veh_counter += 1;
 
         Self::activate_link(&mut self.active_links, link.id().internal());
     }
@@ -209,7 +213,7 @@ impl SimNetworkPartition {
     pub fn move_links(&mut self, now: u32) -> (Vec<Vehicle>, Vec<SplitStorage>) {
         let mut storage_cap: Vec<_> = Vec::new();
         let mut vehicles: Vec<_> = Vec::new();
-        let mut active_links: IntSet<u64> = IntSet::default();
+        let mut deactivate: IntSet<u64> = IntSet::default();
 
         for id in &self.active_links {
             let link = self.links.get_mut(id).unwrap();
@@ -221,10 +225,17 @@ impl SimNetworkPartition {
                 SimLink::Out(ol) => Self::move_out_link(ol, &mut vehicles),
             };
 
-            if is_active {
-                active_links.insert(link.id().internal());
+            if !is_active {
+                deactivate.insert(link.id().internal());
             }
         }
+
+        // bookkeeping. Empty links are no longer active.
+        for id in deactivate {
+            self.active_links.remove(&id);
+        }
+        // vehicles leaving this partition are no longer part of the veh count
+        self.veh_counter -= vehicles.len();
 
         (vehicles, storage_cap)
     }
@@ -273,31 +284,31 @@ impl SimNetworkPartition {
 
     pub fn move_nodes(&mut self, events: &mut EventsPublisher, now: u32) -> Vec<Vehicle> {
         let mut exited_vehicles = Vec::new();
-
-        let currently_active_nodes: Vec<_> = self
+        let new_active_nodes: IntSet<_> = self
             .active_nodes
             .iter()
-            .map(|id| (id, self.nodes.get(id).unwrap()))
-            .filter(|(_id, node)| Self::has_active_links(node, &self.links, now))
+            .map(|id| self.nodes.get(id).unwrap())
+            // this map has side effects. Not sure whether this is appropriate here,
+            // but it is convenient to use map, so that the 'active' result can be used and
+            // filtered.
+            .map(|node| {
+                let active = Self::move_node_capacity_priority(
+                    node,
+                    &mut self.links,
+                    &mut self.active_links,
+                    &mut exited_vehicles,
+                    events,
+                    &mut self.rnd,
+                    now,
+                );
+                (node, active)
+            })
+            .filter(|(_node, active)| *active)
+            .map(|(node, _)| node.id)
             .collect();
 
-        for (_id, node) in &currently_active_nodes {
-            Self::move_node_capacity_priority(
-                node,
-                &mut self.links,
-                &mut self.active_links,
-                &mut exited_vehicles,
-                events,
-                &mut self.rnd,
-                now,
-            );
-        }
-
-        self.active_nodes = currently_active_nodes
-            .into_iter()
-            .map(|(id, _node)| *id)
-            .collect();
-
+        self.active_nodes = new_active_nodes;
+        self.veh_counter -= exited_vehicles.len();
         exited_vehicles
     }
 
@@ -309,10 +320,11 @@ impl SimNetworkPartition {
         events: &mut EventsPublisher,
         rnd: &mut ThreadRng,
         now: u32,
-    ) {
-        let mut avail_capacity: f32 = node.in_capacity;
+    ) -> bool {
+        let (active, mut avail_capacity) =
+            Self::get_active_in_links(&node.in_links, active_links, links);
+        let mut exhausted_links: Vec<Option<()>> = vec![None; active.len()];
         let mut sel_cap: f32 = 0.;
-        let mut exhausted_links: Vec<Option<()>> = vec![None; node.in_links.len()];
 
         while avail_capacity > 1e-10 {
             // draw random number between 0 and available capacity
@@ -320,7 +332,7 @@ impl SimNetworkPartition {
 
             #[allow(clippy::needless_range_loop)]
             // go through all in links and fetch one, which is not exhausted yet.
-            for i in 0..node.in_links.len() {
+            for i in 0..active.len() {
                 // if the link is exhausted, try next link
                 if exhausted_links[i].is_some() {
                     // reduce the available capacity a little bit. Sometimes we have rounding errors
@@ -332,7 +344,7 @@ impl SimNetworkPartition {
 
                 // take the not exhausted link and check whether it could release a vehicle and if
                 // that vehicle can move to the next link
-                let link_id = node.in_links.get(i).unwrap();
+                let link_id = active.get(i).unwrap();
                 if Self::should_veh_move_out(link_id, links, now) {
                     // the vehicle can move. Increase the selected capacity by the link's capacity
                     // this way it becomes more and more likely that a link can release vehicles,
@@ -358,63 +370,34 @@ impl SimNetworkPartition {
                 }
             }
         }
+        // check whether any link is offering next timestep. Otherwise the node can be de-activated
+        Self::any_link_offers(&active, links, now + 1)
     }
 
-    /// Keep this method here, in case we want to run round robin fashion
-    #[allow(dead_code)]
-    fn move_node_round_robin(
-        node: &SimNode,
-        links: &mut IntMap<u64, SimLink>,
-        active_links: &mut IntSet<u64>,
-        exited_vehicles: &mut Vec<Vehicle>,
-        events: &mut EventsPublisher,
-        _rnd: &mut ThreadRng,
-        now: u32,
-    ) {
-        let mut avail_capacity = node.in_capacity;
-        let mut exhausted_links: Vec<Option<()>> = vec![None; node.in_links.len()];
+    fn get_active_in_links(
+        in_links: &Vec<u64>,
+        active_links: &IntSet<u64>,
+        links: &IntMap<u64, SimLink>,
+    ) -> (Vec<u64>, f32) {
+        let mut active: Vec<u64> = Vec::new();
+        let mut acc_cap = 0.;
 
-        while avail_capacity > 1e-6 {
-            #[allow(clippy::needless_range_loop)]
-            // go through all in links and fetch one, which is not exhausted yet.
-            for i in 0..exhausted_links.len() {
-                // if the link is exhausted, try next link
-                if exhausted_links[i].is_some() {
-                    continue;
-                }
-
-                // take the not exhausted link and check whether it could release a vehicle and if
-                // that vehicle can move to the next link
-                let link_id = node.in_links.get(i).unwrap();
-                if Self::should_veh_move_out(link_id, links, now) {
-                    // the vehicle can move. Increase the selected capacity by the link's capacity
-                    // this way it becomes more and more likely that a link can release vehicles,
-                    // links with more capacity are more likely to release vehicles first though.
-                    let in_link = links.get_mut(link_id).unwrap();
-
-                    let veh = in_link.pop_veh();
-                    if veh.peek_next_route_element().is_some() {
-                        Self::move_vehicle(veh, links, active_links, events, now);
-                    } else {
-                        exited_vehicles.push(veh);
-                    }
-                } else {
-                    // in case the vehicle on the link can't move, we add the link to the exhausted
-                    // bookkeeping and reduce the available capacity, which makes it more likely for
-                    // other links to be able to release vehicles.
-                    exhausted_links[i] = Some(());
-                    let link = links.get(link_id).unwrap();
-                    avail_capacity -= link.flow_cap();
-                }
+        for id in in_links {
+            if active_links.contains(id) {
+                active.push(*id);
+                let link = links.get(id).unwrap();
+                acc_cap += link.flow_cap();
             }
         }
+
+        (active, acc_cap)
     }
 
-    fn has_active_links(node: &SimNode, links: &IntMap<u64, SimLink>, now: u32) -> bool {
-        node.in_links
+    fn any_link_offers(link_ids: &[u64], links: &IntMap<u64, SimLink>, time: u32) -> bool {
+        link_ids
             .iter()
             .map(|id| links.get(id).unwrap())
-            .any(|link| link.offers_veh(now).is_some())
+            .any(|link| link.offers_veh(time).is_some())
     }
 
     fn activate_node(active_nodes: &mut IntSet<u64>, node_id: u64) {
@@ -524,15 +507,35 @@ mod tests {
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
 
-        for i in 0..120 {
+        for i in 0..121 {
             let result = network.move_nodes(&mut publisher, i);
+            let _ = network.move_links(i);
+
+            // only in the timestep before the vehicle switches links, we should see one active node. Otherwise not.
+            if i == 9 || i == 109 || i == 119 {
+                assert_eq!(1, network.active_nodes());
+            } else {
+                assert_eq!(0, network.active_nodes(), "There was an active node at {i}");
+            }
 
             if i == 120 {
                 assert!(!result.is_empty());
                 let veh = result.first().unwrap();
-                assert!(veh.curr_link_id().is_none());
+                assert_eq!(2, veh.curr_link_id().unwrap());
+            } else {
+                // the vehicle should not leave the network until the 120th timestep
+                assert_eq!(0, result.len());
+                // we should always have one active link which has the vehicle
+                assert_eq!(1, network.active_links());
+                // we expect one vehicle
+                assert_eq!(1, network.veh_on_net());
             }
         }
+
+        // the network should be empty in the end
+        assert_eq!(0, network.active_links());
+        assert_eq!(0, network.active_nodes());
+        assert_eq!(0, network.veh_on_net());
     }
 
     #[test]
