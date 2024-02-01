@@ -82,12 +82,15 @@ where
         );
 
         while now <= self.end_time {
-            if self.net_message_broker.rank() == 0 && now % 1800 == 0 {
+            if self.net_message_broker.rank() == 0 && now % 3600 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!(
-                    "#{} of Qsim at {_hour}:{_min}",
-                    self.net_message_broker.rank()
+                    "#{} of Qsim at {_hour:02}:{_min:02}; Active Nodes: {}, Active Links: {}, Vehicles on Network Partition: {}",
+                    self.net_message_broker.rank(),
+                    self.network.active_nodes(),
+                    self.network.active_links(),
+                    self.network.veh_on_net()
                 );
             }
             self.wakeup(now);
