@@ -242,7 +242,7 @@ impl SimNetworkPartition {
 
     fn move_local_link(link: &mut LocalLink, active_nodes: &mut IntSet<u64>, now: u32) -> bool {
         link.update_flow_cap(now);
-        link.update_released_storage_cap();
+        link.apply_storage_cap_updates();
         // the node will only look at the vehicle at the at the top of the queue in the next timestep
         // therefore, peek whether vehicles are available for the next timestep.
         if link.q_front(now + 1).is_some() {
@@ -259,19 +259,14 @@ impl SimNetworkPartition {
         storage_caps: &mut Vec<SplitStorage>,
         now: u32,
     ) -> bool {
-        let is_active = Self::move_local_link(&mut link.local_link, active_nodes, now);
-        // put storage cap information into the result if there is anything to report.
-        if link.local_link.used_storage() > 0. {
-            let used_storage = link.local_link.used_storage();
-            let id = link.local_link.id.internal();
-
-            storage_caps.push(SplitStorage {
-                link_id: id,
-                used: used_storage,
-                from_part: link.from_part,
-            });
+        // if anything has changed on the link, we want to report the updated storage capacity to the
+        // upstream partition. This must be done before we call 'move_local' link which erases the book
+        // keeping of what was released and consumed during the current simulation time step.
+        if let Some(split) = link.storage_cap_updates() {
+            storage_caps.push(split);
         }
-        is_active
+
+        Self::move_local_link(&mut link.local_link, active_nodes, now)
     }
 
     fn move_out_link(link: &mut SplitOutLink, vehicles: &mut Vec<Vehicle>) -> bool {
@@ -746,9 +741,10 @@ mod tests {
         let mut network = Network::new();
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
         let net2 = sim_nets.get_mut(1).unwrap();
+        let mut publisher = EventsPublisher::new();
 
         let split_link_id: Id<Link> = Id::get_from_ext("link-2");
-        let agent = create_agent(1, vec![split_link_id.internal(), 2]);
+        let agent = create_agent(1, vec![split_link_id.internal()]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
 
         // collect empty storage caps
@@ -756,12 +752,30 @@ mod tests {
         assert_eq!(0, storage_caps.len());
 
         // now place vehicle on network and collect storage caps again.
+        // as things have changed, the used storage capacity should be
+        // reported by the split link.
         net2.send_veh_en_route(vehicle, None, 0);
         let (_, storage_caps) = net2.move_links(0);
         assert_eq!(1, storage_caps.len());
         let storage_cap = storage_caps.first().unwrap();
         assert_eq!(split_link_id.internal(), storage_cap.link_id);
         assert_approx_eq!(100., storage_cap.used, 0.0001);
+
+        // now, in the next time step, nothing has changed on the link. It should therefore not
+        // report any storage capacities
+        let _ = net2.move_nodes(&mut publisher, 1);
+        let (_, storage_caps) = net2.move_links(1);
+        assert_eq!(0, storage_caps.len());
+
+        // Now, test whether storage caps are emitted to upstream partitions as well
+        // first activate node
+        let _ = net2.move_links(199);
+        // now, move vehicle out of link
+        let _ = net2.move_nodes(&mut publisher, 200);
+        // this should have the updated storage_caps for the link
+        let (_, storage_caps) = net2.move_links(200);
+
+        assert_eq!(1, storage_caps.len());
     }
 
     #[test]

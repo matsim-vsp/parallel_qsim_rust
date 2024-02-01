@@ -1,15 +1,24 @@
+/// StorageCap tracks changes in storage capacity for a link.
+/// First of all it stores the maximum available storage capacity for a link.
+/// Also, consumed and released capacity during a simulation time step is tracked
+/// and can be queried separately. Once the time step is finished, the temporary
+/// Bookkeeping can be applied to the overall consumed capacity by using the 'apply_updates'
+/// method.
+///
+/// Consumed capacity can be queried immediately via 'currently_used', while released capacity
+/// is treated separately. This is because we want vehicles which enter a link consume capacity
+/// immediately, but capacity freed by vehicles leaving a link should only take effect in the next
+/// simulation time step.
+///
+/// The consumed and released capacities are also tracked, so that we can figure out which
+/// SplitInLinks must send storage capacity updates to upstream partitions. This logic
+/// can be found in SimNetwork::move_links.
 #[derive(Debug, Clone)]
 pub struct StorageCap {
-    pub(crate) max: f64,
-    // keeps track of storage capacity released by vehicles leaving the link during one time step
-    // on release_storage_cap, the used_storage_cap is reduced to account for vehicles leaving the
-    // link. This is necessary, because we want additional storage capacity to be available only in
-    // the following time step, to keep the resulting traffic pattern independent from the order in
-    // which nodes are processed in the qsim.
-    pub released: f32,
-    // keeps track of the storage capacity consumed by the vehicles in the q. This property gets
-    // updated immediately once a vehicle is pushed onto the link.
-    pub used: f32,
+    max: f32,
+    released: f32,
+    consumed: f32,
+    used: f32,
 }
 
 impl StorageCap {
@@ -22,7 +31,7 @@ impl StorageCap {
     ) -> Self {
         let cap = length * perm_lanes as f64 * sample_size as f64 / effective_cell_size as f64;
         // storage capacity needs to be at least enough to handle the cap_per_time_step:
-        let max_storage_cap = cap.max(flow_cap_s as f64);
+        let max_storage_cap = flow_cap_s.max(cap as f32);
 
         // the original code contains more logic to increase storage capacity for links with a low
         // free speed. Omit this for now, as we don't want to create a feature complete qsim
@@ -30,29 +39,62 @@ impl StorageCap {
         Self {
             max: max_storage_cap,
             released: 0.0,
+            consumed: 0.0,
             used: 0.0,
         }
     }
 
+    pub fn currently_used(&self) -> f32 {
+        self.used + self.consumed
+    }
+
+    pub fn released(&self) -> f32 {
+        self.released
+    }
+
+    pub fn consumed(&self) -> f32 {
+        self.consumed
+    }
+
+    pub fn max(&self) -> f32 {
+        self.max
+    }
+
+    /// Consumes storage capacity on a link
+    ///
+    /// This method should be called when a vehicle enters a link.
+    ///
+    /// # Parameters
+    /// * 'value' storage capacity to be consumed
     pub fn consume(&mut self, value: f32) {
-        self.used += value; //self.max.min(self.used + value);
+        self.consumed += value;
     }
 
-    pub fn clear(&mut self) {
-        self.used = 0.;
-    }
-
+    /// Releases storage capacity on a link
+    ///
+    /// This method should be called when a vehicle leaves a link
     pub fn release(&mut self, value: f32) {
         self.released += value;
     }
 
-    pub fn apply_released(&mut self) {
-        self.used = 0f32.max(self.used - self.released);
+    /// Applies consumed and released capacity during a simulated time step to the state of the storage capacity.
+    /// Resets the released and consumed variables.
+    pub fn apply_updates(&mut self) {
+        self.used = 0f32.max(self.currently_used() - self.released);
         self.released = 0.0;
+        self.consumed = 0.0;
     }
 
+    /// Clears used, consumed and released storage capacity of a link. This is used when updating SplitOutLinks
+    pub fn clear(&mut self) {
+        self.used = 0.;
+        self.consumed = 0.;
+        self.released = 0.;
+    }
+
+    /// Tests whether there is storage capacity available on the link.
     pub fn is_available(&self) -> bool {
-        let available_cap = self.max - self.used as f64;
+        let available_cap = self.max - self.currently_used();
         available_cap > 0.0
     }
 }
