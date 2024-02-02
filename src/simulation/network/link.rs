@@ -1,12 +1,13 @@
-use std::cell::Cell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
+use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::global_network::Node;
 use crate::simulation::network::sim_network::SplitStorage;
 use crate::simulation::network::storage_cap::StorageCap;
+use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::wire_types::messages::Vehicle;
 
 use super::global_network::Link;
@@ -79,8 +80,8 @@ impl SimLink {
 
     pub fn is_veh_stuck(&self, now: u32) -> bool {
         match self {
-            SimLink::Local(ll) => ll.is_first_veh_stuck(30, now),
-            SimLink::In(il) => il.local_link.is_first_veh_stuck(30, now),
+            SimLink::Local(ll) => ll.stuck_timer.is_stuck(now),
+            SimLink::In(il) => il.local_link.stuck_timer.is_stuck(now),
             SimLink::Out(_) => {
                 panic!("Out links don't offer vehicles. ")
             }
@@ -152,7 +153,7 @@ pub struct LocalLink {
     free_speed: f32,
     storage_cap: StorageCap,
     flow_cap: Flowcap,
-    stuck_timer: Cell<Option<u32>>,
+    stuck_timer: StuckTimer,
     pub from: Id<Node>,
     pub to: Id<Node>,
 }
@@ -164,15 +165,15 @@ struct VehicleQEntry {
 }
 
 impl LocalLink {
-    pub fn from_link(link: &Link, sample_size: f32, effective_cell_size: f32) -> Self {
+    pub fn from_link(link: &Link, effective_cell_size: f32, config: config::Simulation) -> Self {
         LocalLink::new(
             link.id.clone(),
             link.capacity,
             link.freespeed,
             link.permlanes,
             link.length,
-            sample_size,
             effective_cell_size,
+            config,
             link.from.clone(),
             link.to.clone(),
         )
@@ -186,7 +187,7 @@ impl LocalLink {
             free_speed: 1.0,
             storage_cap: StorageCap::new(0., 1., 1., 1.0, 7.5),
             flow_cap: Flowcap::new(1.0),
-            stuck_timer: Cell::new(None),
+            stuck_timer: StuckTimer::new(u32::MAX),
             from,
             to,
         }
@@ -198,17 +199,17 @@ impl LocalLink {
         free_speed: f32,
         perm_lanes: f32,
         length: f64,
-        sample_size: f32,
         effective_cell_size: f32,
+        config: config::Simulation,
         from: Id<Node>,
         to: Id<Node>,
     ) -> Self {
-        let flow_cap_s = capacity_h * sample_size / 3600.;
+        let flow_cap_s = capacity_h * config.sample_size / 3600.;
         let storage_cap = StorageCap::new(
             length,
             perm_lanes,
             flow_cap_s,
-            sample_size,
+            config.sample_size,
             effective_cell_size,
         );
 
@@ -219,7 +220,7 @@ impl LocalLink {
             free_speed,
             storage_cap,
             flow_cap: Flowcap::new(flow_cap_s),
-            stuck_timer: Cell::new(None),
+            stuck_timer: StuckTimer::new(config.stuck_threshold),
             from,
             to,
         }
@@ -242,7 +243,7 @@ impl LocalLink {
         let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
         self.flow_cap.consume_capacity(veh.vehicle.pce);
         self.storage_cap.release(veh.vehicle.pce);
-        self.reset_stuck_timer();
+        self.stuck_timer.reset();
         veh.vehicle
     }
 
@@ -260,30 +261,12 @@ impl LocalLink {
         // peek if fist vehicle in queue can leave
         if let Some(entry) = self.q.front() {
             if entry.earliest_exit_time <= now {
-                self.set_stuck_timer(now);
+                self.stuck_timer.start(now);
                 return Some(&entry.vehicle);
             }
         }
 
         None
-    }
-
-    fn set_stuck_timer(&self, now: u32) {
-        if self.stuck_timer.get().is_none() {
-            self.stuck_timer.replace(Some(now));
-        }
-    }
-
-    fn reset_stuck_timer(&self) {
-        self.stuck_timer.replace(None);
-    }
-
-    pub fn is_first_veh_stuck(&self, threshold: u32, now: u32) -> bool {
-        if let Some(time) = self.stuck_timer.get() {
-            now - time >= threshold
-        } else {
-            false
-        }
     }
 
     pub fn veh_count(&self) -> usize {
@@ -400,6 +383,7 @@ mod sim_link_tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::link::{LocalLink, SimLink};
     use crate::simulation::wire_types::messages::Vehicle;
+    use crate::test_utils;
     use crate::test_utils::create_agent;
 
     #[test]
@@ -410,8 +394,8 @@ mod sim_link_tests {
             10.,
             3.,
             100.,
-            1.0,
             7.5,
+            test_utils::config(),
             Id::new_internal(1),
             Id::new_internal(2),
         ));
@@ -432,8 +416,8 @@ mod sim_link_tests {
             10.,
             3.,
             100.,
-            1.0,
             7.5,
+            test_utils::config(),
             Id::new_internal(1),
             Id::new_internal(2),
         ));
@@ -463,8 +447,8 @@ mod sim_link_tests {
             10.,
             3.,
             100.,
-            1.0,
             7.5,
+            test_utils::config(),
             Id::new_internal(1),
             Id::new_internal(2),
         ));
@@ -503,8 +487,8 @@ mod sim_link_tests {
             10.,
             3.,
             100.,
-            1.0,
             7.5,
+            test_utils::config(),
             Id::new_internal(1),
             Id::new_internal(2),
         ));
@@ -533,8 +517,8 @@ mod sim_link_tests {
             1.,
             1.,
             15.0,
-            1.,
             10.0,
+            test_utils::config(),
             Id::new_internal(0),
             Id::new_internal(0),
         ));
@@ -565,19 +549,26 @@ mod sim_link_tests {
 mod local_link_tests {
     use assert_approx_eq::assert_approx_eq;
 
+    use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::network::link::LocalLink;
 
     #[test]
     fn storage_cap_initialized_default() {
+        let config = config::Simulation {
+            start_time: 0,
+            end_time: 0,
+            sample_size: 0.2,
+            stuck_threshold: 0,
+        };
         let link = LocalLink::new(
             Id::new_internal(1),
             1.,
             1.,
             3.,
             100.,
-            0.2,
             7.5,
+            config,
             Id::new_internal(1),
             Id::new_internal(2),
         );
@@ -588,14 +579,20 @@ mod local_link_tests {
 
     #[test]
     fn storage_cap_initialized_large_flow() {
+        let config = config::Simulation {
+            start_time: 0,
+            end_time: 0,
+            sample_size: 0.2,
+            stuck_threshold: 0,
+        };
         let link = LocalLink::new(
             Id::new_internal(1),
             360000.,
             1.,
             3.,
             100.,
-            0.2,
             7.5,
+            config,
             Id::new_internal(1),
             Id::new_internal(2),
         );
@@ -606,14 +603,20 @@ mod local_link_tests {
 
     #[test]
     fn flow_cap_initialized() {
+        let config = config::Simulation {
+            start_time: 0,
+            end_time: 0,
+            sample_size: 0.2,
+            stuck_threshold: 0,
+        };
         let link = LocalLink::new(
             Id::new_internal(1),
             3600.,
             1.,
             3.,
             100.,
-            0.2,
             7.5,
+            config,
             Id::new_internal(1),
             Id::new_internal(2),
         );

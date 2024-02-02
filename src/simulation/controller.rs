@@ -117,8 +117,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
         &mut garage,
     );
 
-    let network_partition =
-        SimNetworkPartition::from_network(&network, rank, config.simulation().sample_size);
+    let network_partition = SimNetworkPartition::from_network(&network, rank, config.simulation());
     info!(
         "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
         network_partition.nodes.len(),

@@ -4,6 +4,7 @@ use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
 
+use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::wire_types::events::Event;
@@ -40,7 +41,11 @@ pub struct SimNode {
 }
 
 impl SimNetworkPartition {
-    pub fn from_network(global_network: &Network, partition: u32, sample_size: f32) -> Self {
+    pub fn from_network(
+        global_network: &Network,
+        partition: u32,
+        config: config::Simulation,
+    ) -> Self {
         let nodes: Vec<&Node> = global_network
             .nodes
             .iter()
@@ -62,7 +67,7 @@ impl SimNetworkPartition {
                         link,
                         partition,
                         global_network.effective_cell_size,
-                        sample_size,
+                        config,
                         global_network,
                     ),
                 )
@@ -90,22 +95,22 @@ impl SimNetworkPartition {
         link: &Link,
         partition: u32,
         effective_cell_size: f32,
-        sample_size: f32,
+        config: config::Simulation,
         global_network: &Network,
     ) -> SimLink {
         let from_part = global_network.get_node(&link.from).partition; //all_nodes.get(link.from.internal()).unwrap().partition;
         let to_part = global_network.get_node(&link.to).partition; //all_nodes.get(link.to.internal()).unwrap().partition;
 
         if from_part == to_part {
-            SimLink::Local(LocalLink::from_link(link, sample_size, effective_cell_size))
+            SimLink::Local(LocalLink::from_link(link, effective_cell_size, config))
         } else if to_part == partition {
-            let local_link = LocalLink::from_link(link, sample_size, effective_cell_size);
+            let local_link = LocalLink::from_link(link, effective_cell_size, config);
             SimLink::In(SplitInLink::new(from_part, local_link))
         } else {
             SimLink::Out(SplitOutLink::new(
                 link,
                 effective_cell_size,
-                sample_size,
+                config.sample_size,
                 to_part,
             ))
         }
@@ -462,7 +467,7 @@ mod tests {
         link::SimLink,
     };
     use crate::simulation::wire_types::messages::Vehicle;
-    use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
+    use crate::test_utils;
 
     use super::SimNetworkPartition;
 
@@ -498,8 +503,8 @@ mod tests {
             1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
-        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
-        let agent = create_agent(1, vec![0, 1, 2]);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, test_utils::config());
+        let agent = test_utils::create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
 
@@ -542,8 +547,8 @@ mod tests {
             2,
             PartitionMethod::None,
         );
-        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
-        let agent = create_agent(1, vec![0, 1, 2]);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, test_utils::config());
+        let agent = test_utils::create_agent(1, vec![0, 1, 2]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
 
@@ -572,11 +577,11 @@ mod tests {
             1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
-        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, test_utils::config());
 
         // place 100 vehicles on first link
         for i in 0..100 {
-            let agent = create_agent(i, vec![0]);
+            let agent = test_utils::create_agent(i, vec![0]);
             let vehicle = Vehicle::new(i, 0, 10., 1., Some(agent));
             network.send_veh_en_route(vehicle, None, 0);
         }
@@ -609,12 +614,12 @@ mod tests {
 
         let id_1: Id<Link> = Id::get_from_ext("link1");
         let id_2: Id<Link> = Id::get_from_ext("link2");
-        let mut network = SimNetworkPartition::from_network(&global_net, 0, 1.0);
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, test_utils::config());
 
         //place 10 vehicles on link2 so that it is jammed
         // vehicles are very slow, so that the first vehicle should leave link2 at t=1000
         for i in 0..10 {
-            let agent = create_agent(i, vec![id_2.internal(), 2]);
+            let agent = test_utils::create_agent(i, vec![id_2.internal(), 2]);
             let vehicle = Vehicle::new(i, 0, 1., 10., Some(agent));
             network.send_veh_en_route(vehicle, None, 0);
         }
@@ -622,7 +627,7 @@ mod tests {
         // place 1 vehicle onto link1 which has to wait until link2 has free storage cap
         // as the first vehicle leaves link2 at t=1000 this vehicle can leave link1 and enter link2 at
         // the next timestep at t=1001
-        let agent = create_agent(11, vec![id_1.internal(), 1, 2]);
+        let agent = test_utils::create_agent(11, vec![id_1.internal(), 1, 2]);
         let vehicle = Vehicle::new(11, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
 
@@ -700,25 +705,25 @@ mod tests {
             modes: Default::default(),
             partition: 0,
         });
-        let mut sim_net = SimNetworkPartition::from_network(&net, 0, 1.0);
+        let mut sim_net = SimNetworkPartition::from_network(&net, 0, test_utils::config());
 
         //place 10 vehicles on 2, so that it is jammed. The link should release 1 veh per time step.
         for i in 2000..2010 {
-            let agent = create_agent(i, vec![2]);
+            let agent = test_utils::create_agent(i, vec![2]);
             let vehicle = Vehicle::new(i, 0, 100., 1., Some(agent));
             sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
         //place 1000 vehicles on 0
         for i in 0..1000 {
-            let agent = create_agent(i, vec![0, 2]);
+            let agent = test_utils::create_agent(i, vec![0, 2]);
             let vehicle = Vehicle::new(i, 0, 100., 1., Some(agent));
             sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
         //place 1000 vehicles on 1
         for i in 1000..2000 {
-            let agent = create_agent(i, vec![1, 2]);
+            let agent = test_utils::create_agent(i, vec![1, 2]);
             let vehicle = Vehicle::new(i, 0, 100., 1., Some(agent));
             sim_net.send_veh_en_route(vehicle, None, 0);
         }
@@ -745,7 +750,7 @@ mod tests {
         let mut publisher = EventsPublisher::new();
 
         let split_link_id: Id<Link> = Id::get_from_ext("link-2");
-        let agent = create_agent(1, vec![split_link_id.internal()]);
+        let agent = test_utils::create_agent(1, vec![split_link_id.internal()]);
         let vehicle = Vehicle::new(1, 0, 10., 100., Some(agent));
 
         // collect empty storage caps
@@ -817,7 +822,7 @@ mod tests {
         net.add_link(out_link_1_2);
         net.add_link(out_link_3_1);
 
-        let sim_net = SimNetworkPartition::from_network(&net, 0, 1.0);
+        let sim_net = SimNetworkPartition::from_network(&net, 0, test_utils::config());
 
         let neighbors = sim_net.neighbors();
         assert_eq!(3, neighbors.len());
@@ -854,25 +859,8 @@ mod tests {
         let link2 = network.links.get_mut(1).unwrap();
         link2.partition = 1;
         vec![
-            SimNetworkPartition::from_network(network, 0, 1.0),
-            SimNetworkPartition::from_network(network, 1, 1.0),
+            SimNetworkPartition::from_network(network, 0, test_utils::config()),
+            SimNetworkPartition::from_network(network, 1, test_utils::config()),
         ]
-    }
-
-    fn create_agent(id: u64, route: Vec<u64>) -> Person {
-        let route = Route {
-            veh_id: id,
-            distance: 0.0,
-            route,
-        };
-        let leg = Leg::new(route, 0, 0, None);
-        let act = Activity::new(0., 0., 0, 1, None, None, None);
-        let mut plan = Plan::new();
-        plan.add_act(act);
-        plan.add_leg(leg);
-        let mut agent = Person::new(id, plan);
-        agent.advance_plan();
-
-        agent
     }
 }

@@ -108,6 +108,7 @@ impl Config {
                 start_time: 0,
                 end_time: 86400,
                 sample_size: 1.,
+                stuck_threshold: 30,
             };
             self.modules
                 .borrow_mut()
@@ -164,11 +165,12 @@ pub struct Routing {
     pub mode: RoutingMode,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
     pub sample_size: f32,
+    pub stuck_threshold: u32,
 }
 
 #[typetag::serde(tag = "type")]
