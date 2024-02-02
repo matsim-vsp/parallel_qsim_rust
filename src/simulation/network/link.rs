@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -76,6 +77,16 @@ impl SimLink {
         }
     }
 
+    pub fn is_veh_stuck(&self, now: u32) -> bool {
+        match self {
+            SimLink::Local(ll) => ll.is_first_veh_stuck(30, now),
+            SimLink::In(il) => il.local_link.is_first_veh_stuck(30, now),
+            SimLink::Out(_) => {
+                panic!("Out links don't offer vehicles. ")
+            }
+        }
+    }
+
     pub fn is_available(&self) -> bool {
         match self {
             SimLink::Local(ll) => ll.is_available(),
@@ -141,6 +152,7 @@ pub struct LocalLink {
     free_speed: f32,
     storage_cap: StorageCap,
     flow_cap: Flowcap,
+    stuck_timer: Cell<Option<u32>>,
     pub from: Id<Node>,
     pub to: Id<Node>,
 }
@@ -174,6 +186,7 @@ impl LocalLink {
             free_speed: 1.0,
             storage_cap: StorageCap::new(0., 1., 1., 1.0, 7.5),
             flow_cap: Flowcap::new(1.0),
+            stuck_timer: Cell::new(None),
             from,
             to,
         }
@@ -206,6 +219,7 @@ impl LocalLink {
             free_speed,
             storage_cap,
             flow_cap: Flowcap::new(flow_cap_s),
+            stuck_timer: Cell::new(None),
             from,
             to,
         }
@@ -228,7 +242,7 @@ impl LocalLink {
         let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
         self.flow_cap.consume_capacity(veh.vehicle.pce);
         self.storage_cap.release(veh.vehicle.pce);
-
+        self.reset_stuck_timer();
         veh.vehicle
     }
 
@@ -246,11 +260,30 @@ impl LocalLink {
         // peek if fist vehicle in queue can leave
         if let Some(entry) = self.q.front() {
             if entry.earliest_exit_time <= now {
+                self.set_stuck_timer(now);
                 return Some(&entry.vehicle);
             }
         }
 
         None
+    }
+
+    fn set_stuck_timer(&self, now: u32) {
+        if self.stuck_timer.get().is_none() {
+            self.stuck_timer.replace(Some(now));
+        }
+    }
+
+    fn reset_stuck_timer(&self) {
+        self.stuck_timer.replace(None);
+    }
+
+    pub fn is_first_veh_stuck(&self, threshold: u32, now: u32) -> bool {
+        if let Some(time) = self.stuck_timer.get() {
+            now - time >= threshold
+        } else {
+            false
+        }
     }
 
     pub fn veh_count(&self) -> usize {
