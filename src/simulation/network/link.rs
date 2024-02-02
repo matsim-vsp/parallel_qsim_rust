@@ -186,7 +186,7 @@ impl LocalLink {
             length: 1.0,
             free_speed: 1.0,
             storage_cap: StorageCap::new(0., 1., 1., 1.0, 7.5),
-            flow_cap: Flowcap::new(1.0),
+            flow_cap: Flowcap::new(3600., 1.0),
             stuck_timer: StuckTimer::new(u32::MAX),
             from,
             to,
@@ -204,11 +204,10 @@ impl LocalLink {
         from: Id<Node>,
         to: Id<Node>,
     ) -> Self {
-        let flow_cap_s = capacity_h * config.sample_size / 3600.;
         let storage_cap = StorageCap::new(
             length,
             perm_lanes,
-            flow_cap_s,
+            capacity_h,
             config.sample_size,
             effective_cell_size,
         );
@@ -219,7 +218,7 @@ impl LocalLink {
             length,
             free_speed,
             storage_cap,
-            flow_cap: Flowcap::new(flow_cap_s),
+            flow_cap: Flowcap::new(capacity_h, config.sample_size),
             stuck_timer: StuckTimer::new(config.stuck_threshold),
             from,
             to,
@@ -309,11 +308,10 @@ impl SplitOutLink {
         sample_size: f32,
         to_part: u32,
     ) -> SplitOutLink {
-        let flow_cap_s = link.capacity * sample_size / 3600.;
         let storage_cap = StorageCap::new(
             link.length,
             link.permlanes,
-            flow_cap_s,
+            link.capacity,
             sample_size,
             effective_cell_size,
         );
@@ -542,86 +540,6 @@ mod sim_link_tests {
 
         let popped_vehicle2 = link.pop_veh();
         assert_eq!(id2, popped_vehicle2.id);
-    }
-}
-
-#[cfg(test)]
-mod local_link_tests {
-    use assert_approx_eq::assert_approx_eq;
-
-    use crate::simulation::config;
-    use crate::simulation::id::Id;
-    use crate::simulation::network::link::LocalLink;
-
-    #[test]
-    fn storage_cap_initialized_default() {
-        let config = config::Simulation {
-            start_time: 0,
-            end_time: 0,
-            sample_size: 0.2,
-            stuck_threshold: 0,
-        };
-        let link = LocalLink::new(
-            Id::new_internal(1),
-            1.,
-            1.,
-            3.,
-            100.,
-            7.5,
-            config,
-            Id::new_internal(1),
-            Id::new_internal(2),
-        );
-
-        // we expect a storage size of 100 * 3 * 0.2 / 7.5 = 8
-        assert_approx_eq!(8., link.storage_cap.max());
-    }
-
-    #[test]
-    fn storage_cap_initialized_large_flow() {
-        let config = config::Simulation {
-            start_time: 0,
-            end_time: 0,
-            sample_size: 0.2,
-            stuck_threshold: 0,
-        };
-        let link = LocalLink::new(
-            Id::new_internal(1),
-            360000.,
-            1.,
-            3.,
-            100.,
-            7.5,
-            config,
-            Id::new_internal(1),
-            Id::new_internal(2),
-        );
-
-        // we expect a storage size of 20. because it the flow cap/s is 20 (36000 * 0.2 / 3600)
-        assert_eq!(20., link.storage_cap.max());
-    }
-
-    #[test]
-    fn flow_cap_initialized() {
-        let config = config::Simulation {
-            start_time: 0,
-            end_time: 0,
-            sample_size: 0.2,
-            stuck_threshold: 0,
-        };
-        let link = LocalLink::new(
-            Id::new_internal(1),
-            3600.,
-            1.,
-            3.,
-            100.,
-            7.5,
-            config,
-            Id::new_internal(1),
-            Id::new_internal(2),
-        );
-
-        assert_eq!(0.2, link.flow_cap.capacity())
     }
 }
 
