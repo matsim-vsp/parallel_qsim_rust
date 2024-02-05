@@ -378,6 +378,7 @@ impl SplitInLink {
 mod sim_link_tests {
     use assert_approx_eq::assert_approx_eq;
 
+    use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::network::link::{LocalLink, SimLink};
     use crate::simulation::wire_types::messages::Vehicle;
@@ -540,6 +541,86 @@ mod sim_link_tests {
 
         let popped_vehicle2 = link.pop_veh();
         assert_eq!(id2, popped_vehicle2.id);
+    }
+
+    #[test]
+    pub fn stuck_time() {
+        let stuck_threshold = 10;
+        let config = config::Simulation {
+            start_time: 0,
+            end_time: 0,
+            sample_size: 1.0,
+            stuck_threshold,
+        };
+        let mut link = SimLink::Local(LocalLink::new(
+            Id::create("stuck-link"),
+            1.,
+            1.,
+            1.0,
+            10.0,
+            7.5,
+            config,
+            Id::create("from-node"),
+            Id::create("to-node"),
+        ));
+
+        let vehicle = Vehicle::new(1, 0, 10., 1., None);
+        link.push_veh(vehicle, 0);
+
+        // earliest exit is at 10. Therefore this call should not trigger the stuck timer
+        let offers = link.offers_veh(9);
+        assert!(offers.is_none());
+        assert!(!link.is_veh_stuck(9));
+
+        // this should trigger the stuck timer
+        let expected_timer_start = 10;
+        let offers = link.offers_veh(expected_timer_start);
+        assert!(offers.is_some());
+        assert!(!link.is_veh_stuck(expected_timer_start + stuck_threshold - 1));
+        assert!(link.is_veh_stuck(expected_timer_start + stuck_threshold));
+    }
+
+    #[test]
+    pub fn stuck_time_reset() {
+        let stuck_threshold = 10;
+        let earliest_exit: u32 = 10;
+        let config = config::Simulation {
+            start_time: 0,
+            end_time: 0,
+            sample_size: 1.0,
+            stuck_threshold,
+        };
+        let mut link = SimLink::Local(LocalLink::new(
+            Id::create("stuck-link"),
+            36000.,
+            1.,
+            1.0,
+            earliest_exit as f64,
+            7.5,
+            config,
+            Id::create("from-node"),
+            Id::create("to-node"),
+        ));
+
+        let vehicle1 = Vehicle::new(1, 0, earliest_exit as f32, 1., None);
+        let vehicle2 = Vehicle::new(2, 0, earliest_exit as f32, 1., None);
+        link.push_veh(vehicle1, 0);
+        link.push_veh(vehicle2, 0);
+
+        // trigger stuck timer
+        assert!(link.offers_veh(earliest_exit).is_some());
+        // check that stuck timer works as expected
+        let now = earliest_exit + stuck_threshold;
+        assert!(link.is_veh_stuck(now));
+        // fetch the stuck vehicle, which should reset the timer, so that the next veh is not stuck
+        let _ = link.pop_veh();
+        assert!(!link.is_veh_stuck(now));
+        // the next vehicle should be ready to leave the link as well.
+        // This call should trigger the stuck timer again.
+        assert!(link.offers_veh(now).is_some());
+        let now = now + stuck_threshold;
+        assert!(!link.is_veh_stuck(now - 1));
+        assert!(link.is_veh_stuck(now));
     }
 }
 
