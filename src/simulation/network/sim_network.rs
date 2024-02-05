@@ -637,6 +637,55 @@ mod tests {
 
             let link1 = network.links.get(&id_1.internal()).unwrap();
             if (10..1001).contains(&now) {
+                // while the vehicle waits, link1 is ready to move the vehicle
+                assert!(link1.offers_veh(now).is_some());
+            } else {
+                // once the vehicle has move, link1 has nothing to offer.
+                assert!(link1.offers_veh(now).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn move_nodes_stuck_threshold() {
+        let mut publisher = EventsPublisher::new();
+        let mut global_net = Network::from_file(
+            "./assets/3-links/3-links-network.xml",
+            1,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        global_net.effective_cell_size = 10.;
+
+        let id_1: Id<Link> = Id::get_from_ext("link1");
+        let id_2: Id<Link> = Id::get_from_ext("link2");
+        let mut config = test_utils::config();
+        config.stuck_threshold = 10;
+        let mut network = SimNetworkPartition::from_network(&global_net, 0, config);
+
+        //place 10 vehicles on link2 so that it is jammed
+        // vehicles are very slow, so that the first vehicle should leave link2 at t=1000
+        for i in 0..10 {
+            let agent = test_utils::create_agent(i, vec![id_2.internal(), 2]);
+            let vehicle = Vehicle::new(i, 0, 1., 10., Some(agent));
+            network.send_veh_en_route(vehicle, None, 0);
+        }
+
+        // place 1 vehicle onto link1 which has to wait until link2 has free storage cap, or the stuck time is reached
+        // first vehicle on link2 leaves at t=1000, but stuck time is 10. Therefore we expect the vehicle on link1 to be
+        // pushed onto link2 at t=10+10.
+        let agent = test_utils::create_agent(11, vec![id_1.internal(), 1, 2]);
+        let vehicle = Vehicle::new(11, 0, 10., 1., Some(agent));
+        network.send_veh_en_route(vehicle, None, 0);
+
+        for now in 0..20 {
+            network.move_nodes(&mut publisher, now);
+            network.move_links(now);
+
+            let link1 = network.links.get(&id_1.internal()).unwrap();
+            // the veh is ready to leave at t=10, but the downstream link is jammed
+            // after 10 seconds at t=20, the stuck threshold is reached and the vehicle
+            // is moved
+            if (10..20).contains(&now) {
                 assert!(link1.offers_veh(now).is_some());
             } else {
                 assert!(link1.offers_veh(now).is_none());
