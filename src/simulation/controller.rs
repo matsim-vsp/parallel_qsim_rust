@@ -65,7 +65,9 @@ pub fn run_mpi() {
         mpi_communicator: world,
     };
 
-    let args = CommandLineArgs::parse();
+    let mut args = CommandLineArgs::parse();
+    // override the num part argument, with the number of processes mpi has started.
+    args.num_parts = Some(world.size() as u32);
     let config = Config::from_file(&args);
 
     let _guards = logging::init_logging(&config, comm.rank().to_string().as_str());

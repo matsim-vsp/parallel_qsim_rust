@@ -15,7 +15,6 @@ use crate::simulation::config::VertexWeight::InLinkCapacity;
 pub struct CommandLineArgs {
     #[arg(long, short)]
     pub config_path: String,
-
     #[arg(long, short)]
     pub num_parts: Option<u32>,
 }

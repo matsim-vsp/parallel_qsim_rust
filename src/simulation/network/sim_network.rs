@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, Rng};
+use tracing::instrument;
 
 use crate::simulation::config;
 use crate::simulation::id::Id;
@@ -215,6 +216,7 @@ impl SimNetworkPartition {
         }
     }
 
+    #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
     pub fn move_links(&mut self, now: u32) -> (Vec<Vehicle>, Vec<SplitStorage>) {
         let mut storage_cap: Vec<_> = Vec::new();
         let mut vehicles: Vec<_> = Vec::new();
@@ -282,6 +284,7 @@ impl SimNetworkPartition {
         false
     }
 
+    #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
     pub fn move_nodes(&mut self, events: &mut EventsPublisher, now: u32) -> Vec<Vehicle> {
         let mut exited_vehicles = Vec::new();
         let new_active_nodes: IntSet<_> = self
