@@ -54,11 +54,18 @@ fn write_to_xml(network: &Network, path: &Path) {
 
     for node in &network.nodes {
         let attributes = Attrs {
-            attributes: vec![Attr {
-                name: String::from("partition"),
-                value: node.partition.to_string(),
-                class: String::from("java.lang.Integer"),
-            }],
+            attributes: vec![
+                Attr {
+                    name: "partition".to_string(),
+                    value: node.partition.to_string(),
+                    class: "java.lang.Integer".to_string(),
+                },
+                Attr {
+                    name: "cmp_weight".to_string(),
+                    class: "java.lang.Integer".to_string(),
+                    value: node.cmp_weight.to_string(),
+                },
+            ],
         };
         let io_node = IONode {
             id: node.id.external().to_string(),
