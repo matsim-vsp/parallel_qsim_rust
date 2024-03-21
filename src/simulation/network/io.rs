@@ -108,7 +108,7 @@ fn load_from_proto(path: &Path) -> Network {
     let mut result = Network::new();
     result.effective_cell_size = wire_net.effective_cell_size;
     for wn in &wire_net.nodes {
-        let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition);
+        let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition, wn.cmp_weight);
         result.add_node(node);
     }
     for wl in &wire_net.links {
@@ -141,6 +141,7 @@ fn write_to_proto(network: &Network, path: &Path) {
             x: n.x,
             y: n.y,
             partition: n.partition,
+            cmp_weight: n.cmp_weight,
         })
         .collect();
     let links: Vec<_> = network
@@ -277,9 +278,11 @@ impl IONetwork {
 fn add_io_node(network: &mut Network, io_node: &IONode) {
     let id = Id::create(&io_node.id);
     let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
+    let cmp_weight_attr = Attrs::find_or_else_opt(&io_node.attributes, "cmp_weight", || "1");
     let partition = u32::from_str(part_attr).unwrap();
+    let cmp_weight = u32::from_str(cmp_weight_attr).unwrap();
 
-    let mut node = Node::new(id, io_node.x, io_node.y, partition);
+    let mut node = Node::new(id, io_node.x, io_node.y, partition, cmp_weight);
     node.partition = partition;
     network.add_node(node);
 }
