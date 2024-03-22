@@ -49,6 +49,7 @@ pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Ve
     let mut graph = Graph::new(ncon, num_parts as Idx, &mut xadj, &mut adjncy)
         .set_option(metis::option::UFactor(options.ufactor() as Idx))
         .set_option(metis::option::Seed(4711))
+        .set_option(metis::option::Contig(true))
         .set_adjwgt(&mut adjwgt);
 
     if !vwgt.is_empty() {
