@@ -87,13 +87,13 @@ $ cargo build --release
 
 Then a simulation can be started like the following:
 ```
-$ mpirun -np 2 ./target/release/mpi_qsim --config-path /path/to/config.yml --num-parts 2 
+$ mpirun -np 2 ./target/release/mpi_qsim --config-path /path/to/config.yml
 ```
 
 It is also possible to execute a build before running by executing the following. This is way, one doesn't
 forget to re-compile before running.
 ```
-$  cargo mpirun --np 2 --release --bin mpi_qsim -- --config-path /path/to/config.yaml --num-parts 2
+$  cargo mpirun --np 2 --release --bin mpi_qsim -- --config-path /path/to/config.yaml
 ```
 
 We also have a
