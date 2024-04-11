@@ -268,7 +268,7 @@ pub struct MetisOptions {
     pub imbalance_factor: f32,
     #[serde(default = "u32_value_100")]
     pub iteration_number: u32,
-    #[serde(default = "bool_value_true")]
+    #[serde(default = "bool_value_false")]
     pub contiguous: bool,
 }
 
@@ -345,8 +345,8 @@ fn u32_value_100() -> u32 {
     100
 }
 
-fn bool_value_true() -> bool {
-    true
+fn bool_value_false() -> bool {
+    false
 }
 
 fn default_vertex_weight() -> Vec<VertexWeight> {
@@ -439,7 +439,7 @@ mod tests {
                 edge_weight: EdgeWeight::Capacity,
                 imbalance_factor: 1.1,
                 iteration_number: 100,
-                contiguous: true,
+                contiguous: false,
             })
         );
     }
