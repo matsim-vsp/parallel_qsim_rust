@@ -3,6 +3,10 @@
 This is a port of Matsim's Q-Sim to Rust. My current notes on the project
 are [here](https://docs.google.com/document/d/1DkrSJ7KnKXfy2qg8wWyE7c9OPqOUB63px6wmkwuIS9M/edit?usp=sharing)
 
+The most recent release can be cited with the following reference
+
+[![DOI](https://zenodo.org/badge/498376436.svg)](https://zenodo.org/doi/10.5281/zenodo.10960722)
+
 ## Set Up Rust
 
 Install Rust for your operating system as described [here](https://www.rust-lang.org/tools/install). For WSL this would
