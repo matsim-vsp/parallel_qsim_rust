@@ -439,7 +439,7 @@ mod tests {
                 edge_weight: EdgeWeight::Capacity,
                 imbalance_factor: 1.1,
                 iteration_number: 100,
-                contiguous: true,
+                contiguous: false,
             })
         );
     }
