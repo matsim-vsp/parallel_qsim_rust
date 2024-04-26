@@ -7,6 +7,10 @@ The most recent release can be cited with the following reference
 
 [![DOI](https://zenodo.org/badge/498376436.svg)](https://zenodo.org/doi/10.5281/zenodo.10960722)
 
+The project is described in two pre-prints:
+- [High-Performance Simulations for Urban Planning: Implementing Parallel Distributed Multi-Agent Systems in MATSim - (Submitted to ISPDC)](https://svn.vsp.tu-berlin.de/repos/public-svn/publications/vspwp/2024/24-10/LaudanEtAl2024DistributeQSim_submitted.pdf)
+- [Real-Time Routing in Traffic Simulations: A Distributed Event Processing Approach - (Submitted to ISPDC)](https://svn.vsp.tu-berlin.de/repos/public-svn/publications/vspwp/2024/24-12/HeinrichEtAl2024RealTimeRoutingInTrafficSimulationsADistributedEventProcessingApproach_submitted.pdf)
+
 ## Set Up Rust
 
 Install Rust for your operating system as described [here](https://www.rust-lang.org/tools/install). For WSL this would
