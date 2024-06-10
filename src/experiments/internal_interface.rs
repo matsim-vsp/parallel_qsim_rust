@@ -18,8 +18,8 @@ impl Agent {
 }
 
 struct InternalInterface {
-    activity_engine: Rc<RefCell<ActivityEngine>>,
-    teleportation_engine: Rc<RefCell<TeleportationEngine>>,
+    activity_engine: Rc<RefCell<Box<dyn Engine>>>,
+    teleportation_engine: Rc<RefCell<Box<dyn Engine>>>,
 }
 
 impl InternalInterface {
@@ -32,29 +32,27 @@ impl InternalInterface {
 }
 
 struct Simulation {
-    activity_engine: Rc<RefCell<ActivityEngine>>,
-    teleportation_engine: Rc<RefCell<TeleportationEngine>>,
+    engines: Vec<Rc<RefCell<Box<dyn Engine>>>>,
     internal_interface: Rc<RefCell<InternalInterface>>,
 }
 
 impl Simulation {
     fn new(
-        activity_engine: Rc<RefCell<ActivityEngine>>,
-        teleportation_engine: Rc<RefCell<TeleportationEngine>>,
+        engines: Vec<Rc<RefCell<Box<dyn Engine>>>>,
         internal_interface: Rc<RefCell<InternalInterface>>,
     ) -> Self {
         Simulation {
-            activity_engine,
-            teleportation_engine,
             internal_interface,
+            engines,
         }
     }
 
     fn run(&mut self) {
         let mut now = 0;
         while now < 20 {
-            self.activity_engine.borrow_mut().do_step(now);
-            self.teleportation_engine.borrow_mut().do_step(now);
+            for engine in &self.engines {
+                engine.borrow_mut().do_step(now);
+            }
             now += 1;
         }
     }
@@ -62,19 +60,14 @@ impl Simulation {
 
 trait Engine {
     fn do_step(&mut self, now: u32);
+    fn set_internal_interface(&mut self, internal_interface: Weak<RefCell<InternalInterface>>);
+    fn receive_agent(&mut self, agent: Agent);
 }
 
 struct ActivityEngine {
     agents: Vec<Agent>,
     //to prevent memory leaks, we use Weak instead of Rc (https://doc.rust-lang.org/book/ch15-06-reference-cycles.html)
     internal_interface: Weak<RefCell<InternalInterface>>,
-}
-
-impl ActivityEngine {
-    fn receive_agent(&mut self, agent: Agent) {
-        println!("Activity engine: Received agent");
-        self.agents.push(agent);
-    }
 }
 
 impl Engine for ActivityEngine {
@@ -91,19 +84,21 @@ impl Engine for ActivityEngine {
             // println!("Activity engine: Time step {}, doing nothing", now)
         }
     }
+
+    fn set_internal_interface(&mut self, internal_interface: Weak<RefCell<InternalInterface>>) {
+        self.internal_interface = internal_interface;
+    }
+
+    fn receive_agent(&mut self, agent: Agent) {
+        println!("Activity engine: Received agent");
+        self.agents.push(agent);
+    }
 }
 
 struct TeleportationEngine {
     agents: Vec<Agent>,
     //to prevent memory leaks, we use Weak instead of Rc (https://doc.rust-lang.org/book/ch15-06-reference-cycles.html)
     internal_interface: Weak<RefCell<InternalInterface>>,
-}
-
-impl TeleportationEngine {
-    fn receive_agent(&mut self, agent: Agent) {
-        println!("Teleportation engine: Received agent");
-        self.agents.push(agent);
-    }
 }
 
 impl Engine for TeleportationEngine {
@@ -123,37 +118,53 @@ impl Engine for TeleportationEngine {
             // println!("Teleportation engine: Time step {}, doing nothing", now)
         }
     }
-}
 
-fn run() {}
+    fn set_internal_interface(&mut self, internal_interface: Weak<RefCell<InternalInterface>>) {
+        self.internal_interface = internal_interface;
+    }
+
+    fn receive_agent(&mut self, agent: Agent) {
+        println!("Teleportation engine: Received agent");
+        self.agents.push(agent);
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use crate::experiments::internal_interface::{
-        ActivityEngine, Agent, InternalInterface, Simulation, State, TeleportationEngine,
+        ActivityEngine, Agent, Engine, InternalInterface, Simulation, State, TeleportationEngine,
     };
     use std::cell::RefCell;
     use std::rc::{Rc, Weak};
 
     #[test]
     fn test_run() {
-        let activity_engine = Rc::new(RefCell::new(ActivityEngine {
-            agents: vec![Agent::new(String::from("agent"), State::ACTIVITY)],
-            internal_interface: Weak::new(),
-        }));
-        let teleportation_engine = Rc::new(RefCell::new(TeleportationEngine {
-            agents: Vec::new(),
-            internal_interface: Weak::new(),
-        }));
+        let activity_engine: Rc<RefCell<Box<dyn Engine>>> =
+            Rc::new(RefCell::new(Box::new(ActivityEngine {
+                agents: vec![Agent::new(String::from("agent"), State::ACTIVITY)],
+                internal_interface: Weak::new(),
+            })));
+        let teleportation_engine: Rc<RefCell<Box<dyn Engine>>> =
+            Rc::new(RefCell::new(Box::new(TeleportationEngine {
+                agents: Vec::new(),
+                internal_interface: Weak::new(),
+            })));
         let internal_interface = Rc::new(RefCell::new(InternalInterface {
             activity_engine: Rc::clone(&activity_engine),
             teleportation_engine: Rc::clone(&teleportation_engine),
         }));
 
-        activity_engine.borrow_mut().internal_interface = Rc::downgrade(&internal_interface);
-        teleportation_engine.borrow_mut().internal_interface = Rc::downgrade(&internal_interface);
+        activity_engine
+            .borrow_mut()
+            .set_internal_interface(Rc::downgrade(&internal_interface));
+        teleportation_engine
+            .borrow_mut()
+            .set_internal_interface(Rc::downgrade(&internal_interface));
 
-        let mut sim = Simulation::new(activity_engine, teleportation_engine, internal_interface);
+        let mut sim = Simulation::new(
+            vec![activity_engine, teleportation_engine],
+            internal_interface,
+        );
 
         sim.run();
     }
