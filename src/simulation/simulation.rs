@@ -128,7 +128,7 @@ where
                 LevelOfDetail::Network => {
                     self.events.publish_event(
                         now,
-                        &Event::new_person_enters_veh(vehicle.agent().id, vehicle.id),
+                        &Event::new_person_enters_veh(vehicle.driver().id, vehicle.id),
                     );
                     //we don't pass the event publisher because a link enter event should not be published
                     self.network.send_veh_en_route(vehicle, None, now);
@@ -213,7 +213,7 @@ where
 
         for veh in exited_vehicles {
             self.events
-                .publish_event(now, &Event::new_person_leaves_veh(veh.agent().id, veh.id));
+                .publish_event(now, &Event::new_person_leaves_veh(veh.driver().id, veh.id));
             let veh_type_id = Id::get(veh.r#type);
             let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
             let mode = veh_type.net_mode;
@@ -266,7 +266,7 @@ where
     }
 
     fn is_local_route(veh: &Vehicle, message_broker: &NetMessageBroker<C>) -> bool {
-        let leg = veh.agent.as_ref().unwrap().curr_leg();
+        let leg = veh.driver.as_ref().unwrap().curr_leg();
         let route = leg.route.as_ref().unwrap();
         let to = message_broker.rank_for_link(route.end_link());
         message_broker.rank() == to

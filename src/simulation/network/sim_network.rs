@@ -182,7 +182,7 @@ impl SimNetworkPartition {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
         let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
-            let agent_id = Id::<Person>::get(vehicle.agent().id());
+            let agent_id = Id::<Person>::get(vehicle.driver().id());
             panic!(
                 "#{} Couldn't find link for id {:?}.for Agent {}. \n\n The vehicle: {:?}",
                 self.partition,
