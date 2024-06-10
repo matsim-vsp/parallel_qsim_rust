@@ -99,7 +99,7 @@ impl Garage {
         // the above logic would park a vehicle within a garage. This only works if we have mass
         // conservation enabled. The scenario we're testing with doesn't. Therfore, we just take
         // the agent out of the vehicle and pretend we have parked the car.
-        vehicle.agent.unwrap()
+        vehicle.driver.unwrap()
     }
 
     pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {
@@ -133,7 +133,8 @@ impl Garage {
             r#type: veh_type.id,
             max_v: veh_type.max_v,
             pce: veh_type.pce,
-            agent: Some(person),
+            driver: Some(person),
+            passengers: vec![],
         }
     }
 }
