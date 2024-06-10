@@ -1,5 +1,6 @@
 use nohash_hasher::IntMap;
 use std::any::Any;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -117,9 +118,11 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
             .collect::<HashSet<u64>>()
     );
 
-    let mut events = EventsPublisher::new();
-    events.add_subscriber(test_subscriber);
-    events.add_subscriber(Box::new(TravelTimeCollector::new()));
+    let events = Rc::new(RefCell::new(EventsPublisher::new()));
+    events.borrow_mut().add_subscriber(test_subscriber);
+    events
+        .borrow_mut()
+        .add_subscriber(Box::new(TravelTimeCollector::new()));
 
     let rc = Rc::new(comm);
     let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net, false);
