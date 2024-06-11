@@ -18,8 +18,8 @@ impl Agent {
 }
 
 struct InternalInterface {
-    activity_engine: Rc<RefCell<Box<dyn Engine>>>,
-    teleportation_engine: Rc<RefCell<Box<dyn Engine>>>,
+    activity_engine: Rc<RefCell<dyn Engine>>,
+    teleportation_engine: Rc<RefCell<dyn Engine>>,
 }
 
 impl InternalInterface {
@@ -32,13 +32,13 @@ impl InternalInterface {
 }
 
 struct Simulation {
-    engines: Vec<Rc<RefCell<Box<dyn Engine>>>>,
+    engines: Vec<Rc<RefCell<dyn Engine>>>,
     internal_interface: Rc<RefCell<InternalInterface>>,
 }
 
 impl Simulation {
     fn new(
-        engines: Vec<Rc<RefCell<Box<dyn Engine>>>>,
+        engines: Vec<Rc<RefCell<dyn Engine>>>,
         internal_interface: Rc<RefCell<InternalInterface>>,
     ) -> Self {
         Simulation {
@@ -139,16 +139,15 @@ mod tests {
 
     #[test]
     fn test_run() {
-        let activity_engine: Rc<RefCell<Box<dyn Engine>>> =
-            Rc::new(RefCell::new(Box::new(ActivityEngine {
-                agents: vec![Agent::new(String::from("agent"), State::ACTIVITY)],
-                internal_interface: Weak::new(),
-            })));
-        let teleportation_engine: Rc<RefCell<Box<dyn Engine>>> =
-            Rc::new(RefCell::new(Box::new(TeleportationEngine {
+        let activity_engine: Rc<RefCell<dyn Engine>> = Rc::new(RefCell::new(ActivityEngine {
+            agents: vec![Agent::new(String::from("agent"), State::ACTIVITY)],
+            internal_interface: Weak::new(),
+        }));
+        let teleportation_engine: Rc<RefCell<dyn Engine>> =
+            Rc::new(RefCell::new(TeleportationEngine {
                 agents: Vec::new(),
                 internal_interface: Weak::new(),
-            })));
+            }));
         let internal_interface = Rc::new(RefCell::new(InternalInterface {
             activity_engine: Rc::clone(&activity_engine),
             teleportation_engine: Rc::clone(&teleportation_engine),
