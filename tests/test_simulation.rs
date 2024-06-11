@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -100,9 +101,11 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     let population: Population = Population::from_file(&temp_population_file, &mut garage);
     let sim_net = SimNetworkPartition::from_network(&network, rank, config.simulation());
 
-    let mut events = EventsPublisher::new();
-    events.add_subscriber(test_subscriber);
-    events.add_subscriber(Box::new(TravelTimeCollector::new()));
+    let mut events = Rc::new(RefCell::new(EventsPublisher::new()));
+    events.borrow_mut().add_subscriber(test_subscriber);
+    events
+        .borrow_mut()
+        .add_subscriber(Box::new(TravelTimeCollector::new()));
 
     let rc = Rc::new(comm);
     let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net);

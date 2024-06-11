@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
@@ -175,7 +177,7 @@ impl SimNetworkPartition {
     pub fn send_veh_en_route(
         &mut self,
         vehicle: Vehicle,
-        events_publisher: Option<&mut EventsPublisher>,
+        events_publisher: Option<Rc<RefCell<EventsPublisher>>>,
         now: u32,
     ) {
         let link_id = vehicle.curr_link_id().unwrap_or_else(|| {
@@ -194,7 +196,7 @@ impl SimNetworkPartition {
         });
 
         if let Some(publisher) = events_publisher {
-            publisher.publish_event(
+            publisher.borrow_mut().publish_event(
                 now,
                 &Event::new_link_enter(link.id().internal(), vehicle.id),
             );

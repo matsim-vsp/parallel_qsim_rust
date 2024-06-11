@@ -12,6 +12,11 @@ use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
 use crate::simulation::wire_types::vehicles::VehicleType;
 
+pub enum State {
+    ACTIVITY,
+    LEG,
+}
+
 impl Person {
     pub fn from_io(io_person: &IOPerson) -> Person {
         let person_id = Id::get_from_ext(&io_person.id);
@@ -39,6 +44,14 @@ impl Person {
 
     pub fn id(&self) -> u64 {
         self.id
+    }
+
+    pub fn state(&self) -> State {
+        if self.curr_plan_elem % 2 == 0 {
+            State::ACTIVITY
+        } else {
+            State::LEG
+        }
     }
 
     pub fn add_act_after_curr(&mut self, to_add: Vec<Activity>) {
@@ -116,6 +129,11 @@ impl Person {
             .legs
             .get(leg_index as usize)
             .unwrap()
+    }
+
+    pub fn previous_leg(&self) -> &Leg {
+        let leg_index = self.next_leg_index() - 1;
+        self.get_leg_at_index(leg_index)
     }
 
     pub fn next_leg(&self) -> &Leg {
