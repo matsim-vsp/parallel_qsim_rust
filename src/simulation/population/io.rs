@@ -56,7 +56,7 @@ fn write_to_xml(_population: &Population, _path: &Path) {
     panic!("Write to xml is not implemented for Population. Only writing to `.binpb` is supported")
 }
 
-pub fn load_from_proto<F>(path: &Path, filter: F) -> Population
+fn load_from_proto<F>(path: &Path, filter: F) -> Population
 where
     F: Fn(&Person) -> bool,
 {
