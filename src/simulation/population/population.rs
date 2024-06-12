@@ -20,23 +20,22 @@ impl Population {
     }
 
     pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
-        from_file(file_path, garage)
+        from_file(file_path, garage, |_p| true)
+    }
+
+    pub fn from_file_filtered<F>(file_path: &Path, garage: &mut Garage, filter: F) -> Self
+    where
+        F: Fn(&Person) -> bool,
+    {
+        from_file(file_path, garage, filter)
     }
 
     pub fn part_from_file(file_path: &Path, net: &Network, garage: &mut Garage, part: u32) -> Self {
-        let pop = from_file(file_path, garage);
-        let filtered_persons = pop
-            .persons
-            .into_iter()
-            .filter(|(_id, p)| {
-                let act = p.curr_act();
-                let partition = net.links.get(act.link_id as usize).unwrap().partition;
-                partition == part
-            })
-            .collect();
-        Population {
-            persons: filtered_persons,
-        }
+        from_file(file_path, garage, |p| {
+            let act = p.curr_act();
+            let partition = net.links.get(act.link_id as usize).unwrap().partition;
+            partition == part
+        })
     }
 
     pub fn to_file(&self, file_path: &Path) {
@@ -179,18 +178,18 @@ mod tests {
     fn test_from_xml_to_binpb_same() {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
-            2,
+            1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
-        let population = Population::part_from_file(
+        let population = Population::from_file(
             &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
-            &net,
             &mut garage,
-            0,
         );
 
-        let temp_file = PathBuf::from("./assets/equil/equil-plans.binpb");
+        let temp_file = PathBuf::from(
+            "test_output/simulation/population/population/test_from_xml_to_binpb_same/plans.binpb",
+        );
         population.to_file(&temp_file);
         let population2 = Population::part_from_file(&temp_file, &net, &mut garage, 0);
         assert_eq!(population, population2);
