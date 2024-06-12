@@ -27,8 +27,15 @@ impl NetworkEngine {
                 &Event::new_person_enters_veh(vehicle.driver().id, vehicle.id),
             )
         }
-        //we don't pass the event publisher because a link enter event should not be published
-        self.network.send_veh_en_route(vehicle, None, now)
+
+        let events = match route_begin {
+            //if route has just begun, no link enter event should be published
+            true => None,
+            //if route is already in progress, this method gets vehicles from another partition and should publish link enter event
+            //this is because the receiving partition is the owner of this link and should publish the event
+            false => Some(self.events.clone()),
+        };
+        self.network.send_veh_en_route(vehicle, events, now)
     }
 
     pub(crate) fn move_nodes(&mut self, now: u32, garage: &mut Garage) -> Vec<Person> {

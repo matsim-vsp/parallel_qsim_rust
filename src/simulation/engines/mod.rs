@@ -11,15 +11,18 @@ pub mod teleportation_engine;
 pub trait Engine {
     fn do_step(&mut self, now: u32);
     fn receive_agent(&mut self, now: u32, agent: Person);
-    fn set_internal_interface(&mut self, internal_interface: Weak<RefCell<InternalInterface>>);
+    fn set_agent_state_transition_logic(
+        &mut self,
+        internal_interface: Weak<RefCell<AgentStateTransitionLogic>>,
+    );
 }
 
-pub struct InternalInterface {
+pub struct AgentStateTransitionLogic {
     activity_engine: Rc<RefCell<dyn Engine>>,
     teleportation_engine: Rc<RefCell<dyn Engine>>,
 }
 
-impl InternalInterface {
+impl AgentStateTransitionLogic {
     fn arrange_next_agent_state(&self, now: u32, agent: Person) {
         match agent.state() {
             State::ACTIVITY => self.activity_engine.borrow_mut().receive_agent(now, agent),
@@ -34,7 +37,7 @@ impl InternalInterface {
         activity_engine: Rc<RefCell<dyn Engine>>,
         teleportation_engine: Rc<RefCell<dyn Engine>>,
     ) -> Self {
-        InternalInterface {
+        AgentStateTransitionLogic {
             activity_engine,
             teleportation_engine,
         }
