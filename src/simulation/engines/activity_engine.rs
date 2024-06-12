@@ -1,4 +1,4 @@
-use crate::simulation::engines::{Engine, InternalInterface};
+use crate::simulation::engines::{AgentStateTransitionLogic, Engine};
 use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::time_queue::TimeQueue;
@@ -10,7 +10,7 @@ use std::rc::{Rc, Weak};
 pub struct ActivityEngine {
     activity_q: TimeQueue<Person>,
     events: Rc<RefCell<EventsPublisher>>,
-    internal_interface: Weak<RefCell<InternalInterface>>,
+    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
 }
 
 impl Engine for ActivityEngine {
@@ -19,7 +19,7 @@ impl Engine for ActivityEngine {
         for mut agent in agents {
             agent.advance_plan();
 
-            self.internal_interface
+            self.agent_state_transition_logic
                 .upgrade()
                 .unwrap()
                 .borrow_mut()
@@ -47,8 +47,11 @@ impl Engine for ActivityEngine {
         self.activity_q.add(agent, now);
     }
 
-    fn set_internal_interface(&mut self, internal_interface: Weak<RefCell<InternalInterface>>) {
-        self.internal_interface = internal_interface
+    fn set_agent_state_transition_logic(
+        &mut self,
+        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
+    ) {
+        self.agent_state_transition_logic = agent_state_transition_logic
     }
 }
 
@@ -57,7 +60,7 @@ impl ActivityEngine {
         ActivityEngine {
             activity_q,
             events,
-            internal_interface: Weak::new(),
+            agent_state_transition_logic: Weak::new(),
         }
     }
 

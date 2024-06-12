@@ -1,6 +1,6 @@
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
-use crate::simulation::engines::{Engine, InternalInterface};
+use crate::simulation::engines::{AgentStateTransitionLogic, Engine};
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
@@ -20,7 +20,7 @@ pub struct LegEngine<C: SimCommunicator> {
     garage: Garage,
     net_message_broker: NetMessageBroker<C>,
     events: Rc<RefCell<EventsPublisher>>,
-    internal_interface: Weak<RefCell<InternalInterface>>,
+    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
 }
 
 impl<C: SimCommunicator + 'static> Engine for LegEngine<C> {
@@ -31,7 +31,7 @@ impl<C: SimCommunicator + 'static> Engine for LegEngine<C> {
         for mut agent in teleported_agents.into_iter().chain(network_agents) {
             agent.advance_plan();
 
-            self.internal_interface
+            self.agent_state_transition_logic
                 .upgrade()
                 .unwrap()
                 .borrow_mut()
@@ -58,8 +58,11 @@ impl<C: SimCommunicator + 'static> Engine for LegEngine<C> {
         self.pass_vehicle_to_engine(now, vehicle, true);
     }
 
-    fn set_internal_interface(&mut self, internal_interface: Weak<RefCell<InternalInterface>>) {
-        self.internal_interface = internal_interface
+    fn set_agent_state_transition_logic(
+        &mut self,
+        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
+    ) {
+        self.agent_state_transition_logic = agent_state_transition_logic
     }
 }
 
@@ -95,7 +98,7 @@ impl<C: SimCommunicator + 'static> LegEngine<C> {
         LegEngine {
             teleportation_engine: TeleportationEngine::new(events.clone()),
             network_engine: NetworkEngine::new(network, events.clone()),
-            internal_interface: Weak::new(),
+            agent_state_transition_logic: Weak::new(),
             garage,
             net_message_broker,
             events,

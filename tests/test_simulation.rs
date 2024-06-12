@@ -101,7 +101,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     );
     let sim_net = SimNetworkPartition::from_network(&network, rank, config.simulation());
 
-    let mut events = Rc::new(RefCell::new(EventsPublisher::new()));
+    let events = Rc::new(RefCell::new(EventsPublisher::new()));
     events.borrow_mut().add_subscriber(test_subscriber);
     events
         .borrow_mut()
