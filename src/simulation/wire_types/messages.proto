@@ -37,6 +37,6 @@ message Vehicle {
   uint64 type = 3;
   float max_v = 4;
   float pce = 5;
-  population.Person agent = 6;
-  // this must be extended once more people use one vehicle
+  population.Person driver = 6;
+  repeated population.Person passengers = 7;
 }

@@ -110,19 +110,20 @@ impl Ord for SyncMessage {
 
 impl Vehicle {
     // todo, fix type and mode
-    pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32, agent: Option<Person>) -> Vehicle {
+    pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32, driver: Option<Person>) -> Vehicle {
         Vehicle {
             id,
-            agent,
+            driver,
             curr_route_elem: 0,
             r#type: veh_type,
             max_v,
             pce,
+            passengers: vec![],
         }
     }
 
-    pub fn agent(&self) -> &Person {
-        self.agent.as_ref().unwrap()
+    pub fn driver(&self) -> &Person {
+        self.driver.as_ref().unwrap()
     }
 
     pub fn id(&self) -> usize {
@@ -138,12 +139,12 @@ impl Vehicle {
     /// the vehicle is independent of whether the leg has a Generic-Teleportation route or a network
     /// route.
     pub fn route_index_to_last(&mut self) {
-        let route_len = self.agent().curr_leg().route.as_ref().unwrap().route.len() as u32;
+        let route_len = self.driver().curr_leg().route.as_ref().unwrap().route.len() as u32;
         self.curr_route_elem = route_len - 1;
     }
 
     pub fn curr_link_id(&self) -> Option<u64> {
-        let leg = self.agent().curr_leg();
+        let leg = self.driver().curr_leg();
         let route = leg.route.as_ref().unwrap();
         let index = self.curr_route_elem as usize;
         route.route.get(index).copied()
@@ -151,13 +152,13 @@ impl Vehicle {
 
     // todo same as above
     pub fn is_current_link_last(&self) -> bool {
-        let leg = self.agent().curr_leg();
+        let leg = self.driver().curr_leg();
         let route = leg.route.as_ref().unwrap();
         self.curr_route_elem + 1 >= route.route.len() as u32
     }
 
     pub fn peek_next_route_element(&self) -> Option<u64> {
-        let route = self.agent().curr_leg().route.as_ref().unwrap();
+        let route = self.driver().curr_leg().route.as_ref().unwrap();
         let next_i = self.curr_route_elem as usize + 1;
         route.route.get(next_i).copied()
     }
@@ -165,6 +166,6 @@ impl Vehicle {
 
 impl EndTime for Vehicle {
     fn end_time(&self, now: u32) -> u32 {
-        self.agent().end_time(now)
+        self.driver().end_time(now)
     }
 }
