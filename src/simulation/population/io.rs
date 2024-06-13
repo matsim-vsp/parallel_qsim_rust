@@ -6,7 +6,7 @@ use std::path::Path;
 
 use prost::Message;
 use serde::Deserialize;
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
@@ -25,7 +25,6 @@ pub fn from_file<F: Fn(&Person) -> bool>(
     if path.extension().unwrap().eq("binpb") {
         load_from_proto(path, filter)
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        warn!("Filter is not supported for xml files.");
         let persons = load_from_xml(path, garage)
             .into_iter()
             .filter(|(_id, p)| filter(p))

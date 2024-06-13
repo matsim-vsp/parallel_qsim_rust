@@ -28,8 +28,8 @@ fn main() {
     rust_q_sim::simulation::logging::init_std_out_logging();
     let args = InputArgs::parse();
 
-    let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
     let mut veh = Garage::from_file(&args.vehicles);
+    let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
     let pop = Population::from_file(&args.population, &mut veh);
 
     let cmp_weights = compute_computational_weights(&pop);

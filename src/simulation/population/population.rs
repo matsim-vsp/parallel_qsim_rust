@@ -30,7 +30,12 @@ impl Population {
         from_file(file_path, garage, filter)
     }
 
-    pub fn part_from_file(file_path: &Path, net: &Network, garage: &mut Garage, part: u32) -> Self {
+    pub fn from_file_filtered_part(
+        file_path: &Path,
+        net: &Network,
+        garage: &mut Garage,
+        part: u32,
+    ) -> Self {
         from_file(file_path, garage, |p| {
             let act = p.curr_act();
             let partition = net.links.get(act.link_id as usize).unwrap().partition;
@@ -155,13 +160,13 @@ mod tests {
             PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
-        let pop1 = Population::part_from_file(
+        let pop1 = Population::from_file_filtered_part(
             &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
             &net,
             &mut garage,
             0,
         );
-        let pop2 = Population::part_from_file(
+        let pop2 = Population::from_file_filtered_part(
             &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
             &net,
             &mut garage,
@@ -191,7 +196,7 @@ mod tests {
             "test_output/simulation/population/population/test_from_xml_to_binpb_same/plans.binpb",
         );
         population.to_file(&temp_file);
-        let population2 = Population::part_from_file(&temp_file, &net, &mut garage, 0);
+        let population2 = Population::from_file_filtered_part(&temp_file, &net, &mut garage, 0);
         assert_eq!(population, population2);
     }
 }
