@@ -39,6 +39,7 @@ fn main() {
     net.to_file(&create_file_path(&args, "network"));
     veh.to_file(&create_file_path(&args, "vehicles"));
     pop.to_file(&create_file_path(&args, "plans"));
+    info!("Finished conversion. Exiting.")
 }
 
 fn create_file_path(args: &InputArgs, extension: &str) -> PathBuf {
