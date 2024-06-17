@@ -1,21 +1,35 @@
+use std::collections::HashMap;
+use std::fs;
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
+use prost::Message;
 use serde::Deserialize;
 use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::proto::read_from_file;
-use crate::simulation::io::xml;
+use crate::simulation::io::proto::MessageIter;
+use crate::simulation::io::{proto, xml};
 use crate::simulation::population::population::Population;
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::wire_types::population::Header;
 use crate::simulation::wire_types::population::Person;
 
-pub fn from_file(path: &Path, garage: &mut Garage) -> Population {
+pub fn from_file<F: Fn(&Person) -> bool>(
+    path: &Path,
+    garage: &mut Garage,
+    filter: F,
+) -> Population {
     if path.extension().unwrap().eq("binpb") {
-        load_from_proto(path)
+        load_from_proto(path, filter)
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        load_from_xml(path, garage)
+        let persons = load_from_xml(path, garage)
+            .into_iter()
+            .filter(|(_id, p)| filter(p))
+            .collect();
+        Population { persons }
     } else {
         panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
     }
@@ -31,7 +45,7 @@ pub fn to_file(population: &Population, path: &Path) {
     }
 }
 
-fn load_from_xml(path: &Path, garage: &mut Garage) -> Population {
+fn load_from_xml(path: &Path, garage: &mut Garage) -> HashMap<Id<Person>, Person> {
     let io_pop = IOPopulation::from_file(path.to_str().unwrap());
     create_ids(&io_pop, garage);
     create_population(&io_pop)
@@ -41,22 +55,62 @@ fn write_to_xml(_population: &Population, _path: &Path) {
     panic!("Write to xml is not implemented for Population. Only writing to `.binpb` is supported")
 }
 
-fn load_from_proto(path: &Path) -> Population {
-    let wire_pop: crate::simulation::wire_types::population::Population = read_from_file(path);
-    let persons = wire_pop
-        .persons
-        .into_iter()
-        .map(|p| (Id::get(p.id), p))
-        .collect();
+fn load_from_proto<F>(path: &Path, filter: F) -> Population
+where
+    F: Fn(&Person) -> bool,
+{
+    info!("Loading population from file at: {path:?}");
+    let file = File::open(path).unwrap_or_else(|_| panic!("Could not open File at {path:?}"));
+    let mut reader = BufReader::new(file);
+
+    if let Some(header_delim) = proto::read_delimiter(&mut reader) {
+        let mut buffer = vec![0; header_delim];
+        reader
+            .read_exact(&mut buffer)
+            .expect("Failed to read delimited buffer.");
+        let header = Header::decode(buffer.as_slice()).expect("oh nono");
+        info!("Header Info: {header:?}");
+    }
+
+    let mut persons = HashMap::new();
+
+    for person in MessageIter::<Person, BufReader<File>>::new(reader) {
+        let id = Id::get(person.id);
+        if filter(&person) {
+            persons.insert(id, person);
+        }
+    }
 
     Population { persons }
 }
 
 fn write_to_proto(population: &Population, path: &Path) {
     info!("Converting Population into wire format");
-    let persons: Vec<_> = population.persons.values().cloned().collect();
-    let wire_pop = crate::simulation::wire_types::population::Population { persons };
-    crate::simulation::io::proto::write_to_file(wire_pop, path);
+
+    let prefix = path.parent().unwrap();
+    fs::create_dir_all(prefix).unwrap();
+    let file = File::create(path).unwrap_or_else(|_| panic!("Failed to create file at: {path:?}"));
+    let mut writer = BufWriter::new(file);
+    //write header
+    let header = Header {
+        version: 1,
+        size: population.persons.len() as u32,
+    };
+    let mut bytes = Vec::new();
+    header
+        .encode_length_delimited(&mut bytes)
+        .expect("TODO: panic message");
+    writer.write_all(&bytes).expect("Failed to write");
+
+    for person in population.persons.values() {
+        bytes.clear();
+        person
+            .encode_length_delimited(&mut bytes)
+            .expect("Failed to encode person");
+        writer.write_all(&bytes).expect("failed to write buffer");
+    }
+
+    writer.flush().expect("Failed to flush buffer");
 }
 
 fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
@@ -102,13 +156,12 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
         });
 }
 
-fn create_population(io_pop: &IOPopulation) -> Population {
-    let mut result = Population::new();
+fn create_population(io_pop: &IOPopulation) -> HashMap<Id<Person>, Person> {
+    let mut result = HashMap::new();
     for io_person in &io_pop.persons {
         let person = Person::from_io(io_person);
-        result.persons.insert(Id::get(person.id()), person);
+        result.insert(Id::get(person.id()), person);
     }
-
     result
 }
 
@@ -233,7 +286,9 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::io::{load_from_xml, IOPlanElement, IOPopulation};
+    use crate::simulation::population::population::Population;
     use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::wire_types::population::Person;
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all
@@ -360,17 +415,56 @@ mod tests {
         );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
 
-        let pop = load_from_xml(
+        let persons = load_from_xml(
             &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
             &mut garage,
         );
-        assert_eq!(pop.persons.len(), 100);
+        assert_eq!(persons.len(), 100);
 
         for i in 1u32..101 {
-            assert!(pop
-                .persons
-                .get(&Id::get_from_ext(&format!("{}", i)))
-                .is_some());
+            assert!(persons.get(&Id::get_from_ext(&format!("{}", i))).is_some());
         }
+    }
+
+    #[test]
+    fn test_proto() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let pop = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &mut garage,
+        );
+
+        let file_path =
+            PathBuf::from("./test_output/simulation/population/io/test_proto/plans.binpb");
+        pop.to_file(&file_path);
+
+        let proto_pop = Population::from_file(&file_path, &mut garage);
+
+        for (id, person) in pop.persons {
+            assert!(proto_pop.persons.contains_key(&id));
+            let proto_person = proto_pop.persons.get(&id).unwrap();
+            assert_eq!(person.id, proto_person.id);
+        }
+    }
+
+    #[test]
+    fn test_filtered_proto() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let pop = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &mut garage,
+        );
+
+        let file_path =
+            PathBuf::from("./test_output/simulation/population/io/test_proto/plans.binpb");
+        pop.to_file(&file_path);
+
+        let proto_pop = Population::from_file_filtered(&file_path, &mut garage, |p| p.id == 1);
+
+        let expected_id: Id<Person> = Id::get(1);
+        assert_eq!(1, proto_pop.persons.len());
+        assert!(proto_pop.persons.contains_key(&expected_id));
     }
 }

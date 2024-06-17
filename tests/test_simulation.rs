@@ -75,12 +75,6 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
         config.partitioning().num_parts,
     );
 
-    let temp_population_file = get_numbered_output_filename(
-        &output_path,
-        &PathBuf::from(config.proto_files().population),
-        rank,
-    );
-
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
 
     if rank == 0 {
@@ -89,7 +83,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
         partition_input(&config);
     } else {
         //apply busy waiting until first process has created all files
-        while !all_temp_files_created(&temp_network_file, &temp_population_file) {
+        while !all_temp_files_created(&temp_network_file) {
             thread::sleep(std::time::Duration::from_millis(50));
         }
     }
@@ -97,7 +91,13 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     let network = Network::from_file_as_is(&temp_network_file);
     let mut garage = Garage::from_file(&PathBuf::from(config.proto_files().vehicles));
 
-    let population: Population = Population::from_file(&temp_population_file, &mut garage);
+    //let population: Population = Population::from_file(&temp_population_file, &mut garage);
+    let population: Population = Population::from_file_filtered_part(
+        &PathBuf::from(config.proto_files().population),
+        &network,
+        &mut garage,
+        comm.rank(),
+    );
     let sim_net = SimNetworkPartition::from_network(&network, rank, config.simulation());
 
     let mut events = EventsPublisher::new();
@@ -125,8 +125,8 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     sim.run();
 }
 
-fn all_temp_files_created(temp_network_file: &PathBuf, temp_population_file: &PathBuf) -> bool {
-    temp_network_file.exists() && temp_population_file.exists()
+fn all_temp_files_created(temp_network_file: &PathBuf) -> bool {
+    temp_network_file.exists()
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also
