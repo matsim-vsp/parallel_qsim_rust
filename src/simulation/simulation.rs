@@ -8,7 +8,7 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::engines::activity_engine::ActivityEngine;
 use crate::simulation::engines::leg_engine::LegEngine;
-use crate::simulation::engines::{AgentStateTransitionLogic, Engine};
+use crate::simulation::engines::AgentStateTransitionLogic;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
@@ -20,9 +20,9 @@ use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 
 pub struct Simulation<C: SimCommunicator> {
-    activity_engine: Rc<RefCell<ActivityEngine>>,
+    activity_engine: Rc<RefCell<ActivityEngine<C>>>,
     leg_engine: Rc<RefCell<LegEngine<C>>>,
-    internal_interface: Rc<RefCell<AgentStateTransitionLogic>>,
+    internal_interface: Rc<RefCell<AgentStateTransitionLogic<C>>>,
     events: Rc<RefCell<EventsPublisher>>,
     replanner: Box<dyn Replanner>,
     start_time: u32,
@@ -52,10 +52,9 @@ where
             activity_q.add(agent, config.simulation().start_time);
         }
 
-        let activity_engine = Rc::new(RefCell::new(ActivityEngine::new(
-            activity_q,
-            events.clone(),
-        )));
+        let activity_engine: Rc<RefCell<ActivityEngine<C>>> = Rc::new(RefCell::new(
+            ActivityEngine::new(activity_q, events.clone()),
+        ));
 
         let leg_engine = Rc::new(RefCell::new(LegEngine::new(
             network,
@@ -64,15 +63,12 @@ where
             events.clone(),
         )));
 
-        let activity_engine_trait: Rc<RefCell<dyn Engine>> = activity_engine.clone();
-        let leg_engine_trait: Rc<RefCell<dyn Engine>> = leg_engine.clone();
-
         //TODO
         //let d = Rc::downcast::<RefCell<ActivityEngine>>(activity_engine_trait).unwrap();
 
         let internal_interface = Rc::new(RefCell::new(AgentStateTransitionLogic::new(
-            activity_engine_trait,
-            leg_engine_trait,
+            activity_engine.clone(),
+            leg_engine.clone(),
         )));
 
         activity_engine

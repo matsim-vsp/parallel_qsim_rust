@@ -1,6 +1,6 @@
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
-use crate::simulation::engines::{AgentStateTransitionLogic, Engine};
+use crate::simulation::engines::AgentStateTransitionLogic;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
@@ -20,11 +20,11 @@ pub struct LegEngine<C: SimCommunicator> {
     garage: Garage,
     net_message_broker: NetMessageBroker<C>,
     events: Rc<RefCell<EventsPublisher>>,
-    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
+    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
 }
 
-impl<C: SimCommunicator + 'static> Engine for LegEngine<C> {
-    fn do_step(&mut self, now: u32) {
+impl<C: SimCommunicator + 'static> LegEngine<C> {
+    pub(crate) fn do_step(&mut self, now: u32) {
         let teleported_agents = self.teleportation_engine.do_step(now);
         let network_agents = self.network_engine.move_nodes(now, &mut self.garage);
 
@@ -53,20 +53,18 @@ impl<C: SimCommunicator + 'static> Engine for LegEngine<C> {
         }
     }
 
-    fn receive_agent(&mut self, now: u32, agent: Person) {
+    pub(crate) fn receive_agent(&mut self, now: u32, agent: Person) {
         let vehicle = self.place_agent_in_vehicle(now, agent);
         self.pass_vehicle_to_engine(now, vehicle, true);
     }
 
-    fn set_agent_state_transition_logic(
+    pub(crate) fn set_agent_state_transition_logic(
         &mut self,
-        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
+        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
     ) {
         self.agent_state_transition_logic = agent_state_transition_logic
     }
-}
 
-impl<C: SimCommunicator + 'static> LegEngine<C> {
     //TODO route begin is a bit hacky
     fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: Vehicle, route_begin: bool) {
         let veh_type_id = Id::get(vehicle.r#type);

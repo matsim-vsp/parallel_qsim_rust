@@ -1,5 +1,6 @@
-use crate::simulation::engines::{AgentStateTransitionLogic, Engine};
+use crate::simulation::engines::AgentStateTransitionLogic;
 use crate::simulation::id::Id;
+use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::wire_types::events::Event;
@@ -7,14 +8,14 @@ use crate::simulation::wire_types::population::Person;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-pub struct ActivityEngine {
+pub struct ActivityEngine<C: SimCommunicator> {
     activity_q: TimeQueue<Person>,
     events: Rc<RefCell<EventsPublisher>>,
-    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
+    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
 }
 
-impl Engine for ActivityEngine {
-    fn do_step(&mut self, now: u32) {
+impl<C: SimCommunicator + 'static> ActivityEngine<C> {
+    pub(crate) fn do_step(&mut self, now: u32) {
         let agents = self.wake_up(now);
         for mut agent in agents {
             agent.advance_plan();
@@ -27,7 +28,7 @@ impl Engine for ActivityEngine {
         }
     }
 
-    fn receive_agent(&mut self, now: u32, agent: Person) {
+    pub(crate) fn receive_agent(&mut self, now: u32, agent: Person) {
         self.events.borrow_mut().publish_event(
             now,
             &Event::new_arrival(
@@ -47,15 +48,13 @@ impl Engine for ActivityEngine {
         self.activity_q.add(agent, now);
     }
 
-    fn set_agent_state_transition_logic(
+    pub(crate) fn set_agent_state_transition_logic(
         &mut self,
-        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic>>,
+        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
     ) {
         self.agent_state_transition_logic = agent_state_transition_logic
     }
-}
 
-impl ActivityEngine {
     pub fn new(activity_q: TimeQueue<Person>, events: Rc<RefCell<EventsPublisher>>) -> Self {
         ActivityEngine {
             activity_q,
@@ -64,7 +63,7 @@ impl ActivityEngine {
         }
     }
 
-    pub fn wake_up(&mut self, now: u32) -> Vec<Person> {
+    fn wake_up(&mut self, now: u32) -> Vec<Person> {
         let mut agents = self.activity_q.pop(now);
 
         for agent in agents.iter_mut() {
