@@ -1,6 +1,6 @@
-use itertools::Itertools;
 use std::collections::HashMap;
 
+use itertools::Itertools;
 use nohash_hasher::IntMap;
 use tracing::info;
 
@@ -249,7 +249,9 @@ mod test {
             1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
-        let garage = Garage::from_file(&PathBuf::from("./assets/adhoc_routing/vehicles.xml"));
+        let garage = Garage::from_file(&PathBuf::from(
+            "./assets/adhoc_routing/no_updates/vehicles.xml",
+        ));
 
         let vehicle_type2graph =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);

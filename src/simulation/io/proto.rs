@@ -37,6 +37,39 @@ pub fn write_to_file<T: Message>(message: T, path: &Path) {
     info!("Finished writing message to file: {path:?}");
 }
 
+pub fn read_delimiter<R>(reader: &mut BufReader<R>) -> Option<usize>
+where
+    R: Read + Seek,
+{
+    // read the delimiter of the message. Prost says delimiter is between 1 and 10 bytes
+    // so, read the first 10 bytes of the buffer
+    let mut delim_buffer: [u8; 10] = [0; 10];
+    // this could crash
+    match reader.read_exact(&mut delim_buffer) {
+        Ok(_) => {} // go on.
+        Err(e) => match e.kind() {
+            ErrorKind::UnexpectedEof => return None,
+            _ => {
+                panic!("Error while reading file: {}", e);
+            }
+        },
+    };
+
+    let delimiter =
+        prost::decode_length_delimiter(delim_buffer.as_slice()).expect("error reading delimiter");
+
+    // since the delimiter is a varint figure out how many bytes the delimiter was actually taking
+    // up in the buffer. Set the buffers position to the first byte after the delimiter, which
+    // should be the start of the TimeStep message
+    let delim_encoded_len = prost::encoding::encoded_len_varint(delimiter as u64) as i64;
+    let offset = delim_encoded_len - (delim_buffer.len() as i64);
+    reader
+        .seek_relative(offset)
+        .expect("Seeking relative failed");
+
+    Some(delimiter)
+}
+
 pub struct MessageIter<T, R>
 where
     T: Message + Default,
@@ -54,7 +87,7 @@ where
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(delimiter) = self.read_delimiter() {
+        if let Some(delimiter) = read_delimiter(&mut self.internal_reader) {
             let mut bytes: Vec<u8> = vec![0; delimiter];
             self.internal_reader
                 .read_exact(&mut bytes)
@@ -77,34 +110,5 @@ where
             type_marker: Default::default(),
             internal_reader: BufReader::new(reader),
         }
-    }
-    fn read_delimiter(&mut self) -> Option<usize> {
-        // read the delimiter of the message. Prost says delimiter is between 1 and 10 bytes
-        // so, read the first 10 bytes of the buffer
-        let mut delim_buffer: [u8; 10] = [0; 10];
-        // this could crash
-        match self.internal_reader.read_exact(&mut delim_buffer) {
-            Ok(_) => {} // go on.
-            Err(e) => match e.kind() {
-                ErrorKind::UnexpectedEof => return None,
-                _ => {
-                    panic!("Error while reading file: {}", e);
-                }
-            },
-        };
-
-        let delimiter = prost::decode_length_delimiter(delim_buffer.as_slice())
-            .expect("error reading delimiter");
-
-        // since the delimiter is a varint figure out how many bytes the delimiter was actually taking
-        // up in the buffer. Set the buffers position to the first byte after the delimiter, which
-        // should be the start of the TimeStep message
-        let delim_encoded_len = prost::encoding::encoded_len_varint(delimiter as u64) as i64;
-        let offset = delim_encoded_len - (delim_buffer.len() as i64);
-        self.internal_reader
-            .seek_relative(offset)
-            .expect("Seeking relative failed");
-
-        Some(delimiter)
     }
 }

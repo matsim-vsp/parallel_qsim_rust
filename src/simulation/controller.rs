@@ -10,14 +10,13 @@ use nohash_hasher::IntMap;
 use tracing::info;
 
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, RoutingMode};
-use crate::simulation::id::Id;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::communication::communicators::{
     ChannelSimCommunicator, MpiSimCommunicator, SimCommunicator,
 };
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::network::global_network::{Link, Network};
+use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
 use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplanner, Replanner};
@@ -110,13 +109,11 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     ));
     let mut garage = Garage::from_file(&PathBuf::from(config.proto_files().vehicles));
 
-    let population: Population = Population::from_file(
-        &get_numbered_output_filename(
-            &output_path,
-            &PathBuf::from(config.proto_files().population),
-            rank,
-        ),
+    let population = Population::from_file_filtered_part(
+        &PathBuf::from(config.proto_files().population),
+        &network,
         &mut garage,
+        comm.rank(),
     );
 
     let network_partition = SimNetworkPartition::from_network(&network, rank, config.simulation());
@@ -183,15 +180,13 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
 
 pub fn partition_input(config: &Config) {
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
-    let net = if let PartitionMethod::Metis(_) = config.partitioning().method {
+    let _net = if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
         partition_network(config)
     } else {
         info!("Config param Partition method was set to none. Loading network from input, assuming it has partitioning information");
         copy_network_into_output(config)
     };
-
-    partition_population(config, &net);
 }
 
 fn partition_network(config: &Config) -> Network {
@@ -215,38 +210,6 @@ fn copy_network_into_output(config: &Config) -> Network {
     net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
     network.to_file(&net_out_path);
     network
-}
-
-fn partition_population(config: &Config, network: &Network) {
-    info!(
-        "Partition population into {} parts",
-        config.partitioning().num_parts
-    );
-    let pop_in_path = PathBuf::from(config.proto_files().population);
-    let num_parts = config.partitioning().num_parts;
-    let pop = Population::from_file(&pop_in_path, &mut Garage::new());
-    let mut part_pops = vec![];
-    for _i in 0..num_parts {
-        part_pops.push(Population::new())
-    }
-
-    let pop_out_path =
-        create_output_filename(&PathBuf::from(config.output().output_dir), &pop_in_path);
-
-    for (id, person) in pop.persons.into_iter() {
-        let link_id: Id<Link> = Id::get(person.curr_act().link_id);
-        let partition = network.get_link(&link_id).partition;
-        part_pops
-            .get_mut(partition as usize)
-            .unwrap()
-            .persons
-            .insert(id, person);
-    }
-
-    for (i, population) in part_pops.iter().enumerate() {
-        let part_out_path = insert_number_in_proto_filename(&pop_out_path, i as u32);
-        population.to_file(&part_out_path);
-    }
 }
 
 pub fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: u32) -> PathBuf {
