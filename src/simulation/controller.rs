@@ -9,7 +9,9 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, RoutingMode};
+use crate::simulation::config::{
+    CommandLineArgs, Config, PartitionMethod, RoutingMode, WriteEvents,
+};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::communication::communicators::{
     ChannelSimCommunicator, MpiSimCommunicator, SimCommunicator,
@@ -126,12 +128,13 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
 
     let mut events = EventsPublisher::new();
 
-    let events_file = format!("events.{rank}.binpb");
-    let events_path = output_path.join(events_file);
-    events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    if config.output().write_events == WriteEvents::Proto {
+        let events_file = format!("events.{rank}.binpb");
+        let events_path = output_path.join(events_file);
+        events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    }
     let travel_time_collector = Box::new(TravelTimeCollector::new());
     events.add_subscriber(travel_time_collector);
-    //events.add_subscriber(Box::new(EventsLogger {}));
 
     let rc = Rc::new(comm);
 
