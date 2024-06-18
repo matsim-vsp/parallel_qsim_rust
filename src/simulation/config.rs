@@ -43,6 +43,7 @@ impl Config {
             config.set_output(Output {
                 output_dir: out_dir,
                 profiling: config.output().profiling,
+                write_events: Default::default(),
             });
         }
         config
@@ -90,6 +91,7 @@ impl Config {
             let default = Output {
                 output_dir: "./".to_string(),
                 profiling: Profiling::None,
+                write_events: Default::default(),
             };
             self.modules
                 .borrow_mut()
@@ -157,6 +159,8 @@ pub struct Output {
     pub output_dir: String,
     #[serde(default)]
     pub profiling: Profiling,
+    #[serde(default)]
+    pub write_events: WriteEvents,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -242,6 +246,13 @@ pub enum Profiling {
     #[default]
     None,
     CSV(ProfilingLevel),
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
+pub enum WriteEvents {
+    #[default]
+    None,
+    Proto,
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]

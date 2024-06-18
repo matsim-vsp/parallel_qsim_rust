@@ -44,9 +44,10 @@ fn run() {
     );
     println!("Heap result: {:?}, Time: {:?}", heap_result, heap_duration);
 
+    // divide by at least one
     println!(
         "Ratio Heap/Stack: {:?}",
-        heap_duration.as_nanos() / stack_duration.as_nanos()
+        heap_duration.as_nanos() / stack_duration.as_nanos().max(1)
     )
 }
 

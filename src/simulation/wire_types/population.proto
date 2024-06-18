@@ -1,8 +1,9 @@
 syntax = "proto3";
 package population;
 
-message Population {
-  repeated Person persons = 1;
+message Header {
+  uint32 version = 1;
+  uint32 size = 2;
 }
 
 message Person {

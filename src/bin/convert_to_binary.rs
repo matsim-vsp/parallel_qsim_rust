@@ -28,8 +28,8 @@ fn main() {
     rust_q_sim::simulation::logging::init_std_out_logging();
     let args = InputArgs::parse();
 
-    let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
     let mut veh = Garage::from_file(&args.vehicles);
+    let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
     let pop = Population::from_file(&args.population, &mut veh);
 
     let cmp_weights = compute_computational_weights(&pop);
@@ -39,6 +39,7 @@ fn main() {
     net.to_file(&create_file_path(&args, "network"));
     veh.to_file(&create_file_path(&args, "vehicles"));
     pop.to_file(&create_file_path(&args, "plans"));
+    info!("Finished conversion. Exiting.")
 }
 
 fn create_file_path(args: &InputArgs, extension: &str) -> PathBuf {

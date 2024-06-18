@@ -314,7 +314,9 @@ mod tests {
             1,
             PartitionMethod::Metis(MetisOptions::default()),
         );
-        let garage = Garage::from_file(&PathBuf::from("./assets/adhoc_routing/vehicles.xml"));
+        let garage = Garage::from_file(&PathBuf::from(
+            "./assets/adhoc_routing/no_updates/vehicles.xml",
+        ));
 
         let graph_by_vehicle_type =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
