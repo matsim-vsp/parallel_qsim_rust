@@ -70,7 +70,7 @@ impl SimNetworkPartition {
                         link,
                         partition,
                         global_network.effective_cell_size,
-                        config,
+                        &config,
                         global_network,
                     ),
                 )
@@ -98,7 +98,7 @@ impl SimNetworkPartition {
         link: &Link,
         partition: u32,
         effective_cell_size: f32,
-        config: config::Simulation,
+        config: &config::Simulation,
         global_network: &Network,
     ) -> SimLink {
         let from_part = global_network.get_node(&link.from).partition; //all_nodes.get(link.from.internal()).unwrap().partition;

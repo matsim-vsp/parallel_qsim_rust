@@ -18,12 +18,13 @@ impl NetworkEngine {
     }
 
     pub fn receive_vehicle(&mut self, now: u32, vehicle: Vehicle, route_begin: bool) {
-        let events = match route_begin {
+        let events = if route_begin {
             //if route has just begun, no link enter event should be published
-            true => None,
+            None
+        } else {
             //if route is already in progress, this method gets vehicles from another partition and should publish link enter event
             //this is because the receiving partition is the owner of this link and should publish the event
-            false => Some(self.events.clone()),
+            Some(self.events.clone())
         };
         self.network.send_veh_en_route(vehicle, events, now)
     }

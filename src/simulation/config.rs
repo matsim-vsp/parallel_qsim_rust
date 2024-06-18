@@ -111,7 +111,7 @@ impl Config {
             let default = Simulation::default();
             self.modules
                 .borrow_mut()
-                .insert("simulation".to_string(), Box::new(default));
+                .insert("simulation".to_string(), Box::new(default.clone()));
             default
         }
     }
@@ -164,12 +164,13 @@ pub struct Routing {
     pub mode: RoutingMode,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
     pub sample_size: f32,
     pub stuck_threshold: u32,
+    pub passenger_modes: Vec<String>,
 }
 
 #[typetag::serde(tag = "type")]
@@ -219,6 +220,7 @@ impl Default for Simulation {
             end_time: 86400,
             sample_size: 1.0,
             stuck_threshold: u32::MAX,
+            passenger_modes: vec![],
         }
     }
 }

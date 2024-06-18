@@ -9,6 +9,7 @@ use crate::simulation::config::Config;
 use crate::simulation::engines::activity_engine::ActivityEngine;
 use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::engines::{AgentStateTransitionLogic, ReplanEngine};
+use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
@@ -56,15 +57,20 @@ where
             ActivityEngine::new(activity_q, events.clone()),
         ));
 
+        let passenger_modes = config
+            .simulation()
+            .passenger_modes
+            .iter()
+            .map(|mode| Id::<String>::get_from_ext(mode).internal())
+            .collect();
+
         let leg_engine = Rc::new(RefCell::new(LegEngine::new(
             network,
             garage,
             net_message_broker,
             events.clone(),
+            passenger_modes,
         )));
-
-        //TODO
-        //let d = Rc::downcast::<RefCell<ActivityEngine>>(activity_engine_trait).unwrap();
 
         let internal_interface = Rc::new(RefCell::new(AgentStateTransitionLogic::new(
             activity_engine.clone(),
