@@ -66,4 +66,8 @@ impl TeleportationEngine {
         }
         agents
     }
+
+    pub fn agents(&self) -> Vec<&mut Person> {
+        todo!()
+    }
 }

@@ -8,7 +8,7 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::engines::activity_engine::ActivityEngine;
 use crate::simulation::engines::leg_engine::LegEngine;
-use crate::simulation::engines::AgentStateTransitionLogic;
+use crate::simulation::engines::{AgentStateTransitionLogic, ReplanEngine};
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
@@ -24,7 +24,7 @@ pub struct Simulation<C: SimCommunicator> {
     leg_engine: Rc<RefCell<LegEngine<C>>>,
     internal_interface: Rc<RefCell<AgentStateTransitionLogic<C>>>,
     events: Rc<RefCell<EventsPublisher>>,
-    replanner: Box<dyn Replanner>,
+    replan_engines: Vec<Box<dyn ReplanEngine>>,
     start_time: u32,
     end_time: u32,
 }
@@ -83,7 +83,7 @@ where
             leg_engine,
             internal_interface,
             events,
-            replanner,
+            replan_engines: vec![],
             start_time: config.simulation().start_time,
             end_time: config.simulation().end_time,
         }
@@ -113,6 +113,17 @@ where
                     self.leg_engine.borrow().network().veh_on_net()
                 );
             }
+
+            // let mut act_ref = self.activity_engine.borrow_mut();
+            // let mut leg_ref = self.leg_engine.borrow_mut();
+
+            // let mut agents = act_ref.agents();
+            // agents.extend(leg_ref.agents());
+            //
+            // for engine in &mut self.replan_engines {
+            //     engine.do_sim_step(now, &agents);
+            // }
+
             self.activity_engine.borrow_mut().do_step(now);
             self.leg_engine.borrow_mut().do_step(now);
 

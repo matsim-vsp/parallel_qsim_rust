@@ -102,7 +102,12 @@ impl Garage {
         vehicle.driver.unwrap()
     }
 
-    pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {
+    pub fn unpark_veh_with_passengers(
+        &mut self,
+        person: Person,
+        passengers: Vec<Person>,
+        id: &Id<Vehicle>,
+    ) -> Vehicle {
         let veh_type_id = self
             .vehicles
             .get(id)
@@ -134,8 +139,12 @@ impl Garage {
             max_v: veh_type.max_v,
             pce: veh_type.pce,
             driver: Some(person),
-            passengers: vec![],
+            passengers,
         }
+    }
+
+    pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {
+        self.unpark_veh_with_passengers(person, vec![], id)
     }
 }
 
