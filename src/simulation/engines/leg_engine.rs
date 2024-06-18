@@ -9,9 +9,9 @@ use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::events::Event;
 use crate::simulation::wire_types::messages::Vehicle;
-use crate::simulation::wire_types::population::Person;
+use crate::simulation::wire_types::population::attribute_value::Type;
+use crate::simulation::wire_types::population::{Leg, Person};
 use crate::simulation::wire_types::vehicles::LevelOfDetail;
-use ahash::HashSet;
 use nohash_hasher::IntMap;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
@@ -24,7 +24,7 @@ pub struct LegEngine<C: SimCommunicator> {
     events: Rc<RefCell<EventsPublisher>>,
     agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
     departure_handler: IntMap<u64, Box<dyn DepartureHandler>>,
-    waiting_passengers: HashSet<u64>,
+    waiting_passengers: IntMap<u64, Person>,
 }
 
 impl<C: SimCommunicator + 'static> LegEngine<C> {
@@ -42,15 +42,40 @@ impl<C: SimCommunicator + 'static> LegEngine<C> {
             net_message_broker,
             events,
             departure_handler: IntMap::default(), //TODO
-            waiting_passengers: HashSet::default(),
+            waiting_passengers: IntMap::default(),
         }
     }
 
     pub(crate) fn do_step(&mut self, now: u32) {
-        let teleported_agents = self.teleportation_engine.do_step(now);
-        let network_agents = self.network_engine.move_nodes(now, &mut self.garage);
+        let teleported_vehicles = self.teleportation_engine.do_step(now);
+        let network_vehicles = self.network_engine.move_nodes(now);
 
-        for mut agent in teleported_agents.into_iter().chain(network_agents) {
+        let mut agents = vec![];
+
+        for veh in network_vehicles.into_iter().chain(teleported_vehicles) {
+            self.events
+                .borrow_mut()
+                .publish_event(now, &Event::new_person_leaves_veh(veh.driver().id, veh.id));
+
+            for passenger in veh.passengers() {
+                self.events.borrow_mut().publish_event(
+                    now,
+                    &Event::new_passenger_dropped_off(
+                        passenger.id,
+                        passenger.curr_leg().mode,
+                        0, //TODO
+                        veh.id,
+                    ),
+                );
+                self.events
+                    .borrow_mut()
+                    .publish_event(now, &Event::new_person_leaves_veh(passenger.id, veh.id));
+            }
+
+            agents.extend(self.garage.park_veh(veh));
+        }
+
+        for mut agent in agents {
             agent.advance_plan();
 
             self.agent_state_transition_logic
@@ -85,7 +110,10 @@ impl<C: SimCommunicator + 'static> LegEngine<C> {
             ));
         let vehicle =
             d.handle_departure(now, agent, &mut self.garage, &mut self.waiting_passengers);
-        self.pass_vehicle_to_engine(now, vehicle, true);
+
+        if let Some(vehicle) = vehicle {
+            self.pass_vehicle_to_engine(now, vehicle, true);
+        }
     }
 
     pub(crate) fn set_agent_state_transition_logic(
@@ -101,7 +129,6 @@ impl<C: SimCommunicator + 'static> LegEngine<C> {
         agents
     }
 
-    //TODO route begin is a bit hacky
     fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: Vehicle, route_begin: bool) {
         let veh_type_id = Id::get(vehicle.r#type);
         let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
@@ -136,44 +163,45 @@ trait DepartureHandler {
         now: u32,
         agent: Person,
         garage: &mut Garage,
-        waiting_passengers: &mut HashSet<u64>,
-    ) -> Vehicle;
+        waiting_passengers: &mut IntMap<u64, Person>,
+    ) -> Option<Vehicle>;
 }
 
-struct VehicularDepartureHandler<C: SimCommunicator> {
+struct VehicularDepartureHandler {
     events: Rc<RefCell<EventsPublisher>>,
-    leg_engine: Weak<RefCell<LegEngine<C>>>,
 }
 
-impl<C: SimCommunicator + 'static> VehicularDepartureHandler<C> {
+impl VehicularDepartureHandler {
     pub fn new(events: Rc<RefCell<EventsPublisher>>) -> Self {
-        VehicularDepartureHandler {
-            events,
-            leg_engine: Weak::new(), //TODO
-        }
+        VehicularDepartureHandler { events }
     }
 }
 
-impl<C: SimCommunicator + 'static> DepartureHandler for VehicularDepartureHandler<C> {
+impl DepartureHandler for VehicularDepartureHandler {
     fn handle_departure(
         &mut self,
         now: u32,
         agent: Person,
         garage: &mut Garage,
-        waiting_passengers: &mut HashSet<u64>,
-    ) -> Vehicle {
+        _: &mut IntMap<u64, Person>,
+    ) -> Option<Vehicle> {
         assert_ne!(agent.curr_plan_elem % 2, 0);
 
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let leg_mode: Id<String> = Id::get(leg.mode);
+        let veh_id = Id::get(route.veh_id);
+
         self.events.borrow_mut().publish_event(
             now,
             &Event::new_departure(agent.id, route.start_link(), leg_mode.internal()),
         );
+        self.events.borrow_mut().publish_event(
+            now,
+            &Event::new_person_enters_veh(agent.id, veh_id.internal()),
+        );
 
-        let veh_id = Id::get(route.veh_id);
-        garage.unpark_veh(agent, &veh_id)
+        Some(garage.unpark_veh(agent, &veh_id))
     }
 }
 
@@ -186,37 +214,84 @@ impl DepartureHandler for PassengerDepartureHandler {
         &mut self,
         now: u32,
         agent: Person,
-        garage: &mut Garage,
-        waiting_passengers: &mut HashSet<u64>,
-    ) -> Vehicle {
-        todo!()
-        //place agent in dummy vehicle and hand it over to stop engine
+        _: &mut Garage,
+        waiting_passengers: &mut IntMap<u64, Person>,
+    ) -> Option<Vehicle> {
+        let act_before = agent.previous_act();
+        let leg = agent.curr_leg();
+        let leg_mode: Id<String> = Id::get(leg.mode);
+        self.events.borrow_mut().publish_event(
+            now,
+            &Event::new_departure(agent.id, act_before.link_id, leg_mode.internal()),
+        );
+
+        waiting_passengers.insert(agent.id, agent);
+        None
     }
 }
 
-struct DrtDriverDepartureHandler<C: SimCommunicator> {
+struct DrtDriverDepartureHandler {
     events: Rc<RefCell<EventsPublisher>>,
-    leg_engine: Weak<RefCell<LegEngine<C>>>,
 }
 
-impl<C: SimCommunicator + 'static> DepartureHandler for DrtDriverDepartureHandler<C> {
+impl DepartureHandler for DrtDriverDepartureHandler {
     fn handle_departure(
         &mut self,
         now: u32,
         agent: Person,
         garage: &mut Garage,
-        waiting_passengers: &mut HashSet<u64>,
-    ) -> Vehicle {
-        // remove passenger from stop engine, place driver and passenger in vehicle and hand it over to leg engine
-        // requirements:
-        // 1. DrtDepartureHandler needs to know the passenger to be picked up
-        let passenger: Vec<Person> = todo!();
+        waiting_passengers: &mut IntMap<u64, Person>,
+    ) -> Option<Vehicle> {
+        // remove passenger from waiting queue, place driver and passenger in vehicle and hand it over to leg engine
+        let passenger_id = match agent
+            .curr_leg()
+            .attributes
+            .get(Leg::PASSENGER_ID_ATTRIBUTE)
+            .expect("No passenger id found")
+            .r#type
+            .as_ref()
+            .unwrap()
+        {
+            Type::IntValue(id) => id,
+            Type::StringValue(_) => {
+                unreachable!()
+            }
+            Type::DoubleValue(_) => {
+                unreachable!()
+            }
+        };
 
-        // 2. DrtDepartureHandler needs to be able to access the stop engine
-        let stop_engine = todo!(); //not possible without handing it over (even with that I'm not sure)
+        let passengers: Vec<Person> = vec![waiting_passengers
+            .remove(&passenger_id)
+            .expect("No such passenger is waiting.")];
 
-        // 3. DrtDepartureHandler needs hand over the vehicle to the leg engine (right now done by the code calling the departure handler)
+        let leg = agent.curr_leg();
+        let route = leg.route.as_ref().unwrap();
+        let leg_mode: Id<String> = Id::get(leg.mode);
         let veh_id = agent.curr_leg().route.as_ref().unwrap().veh_id;
-        garage.unpark_veh_with_passengers(agent, passenger, &Id::get(veh_id))
+
+        // emit events for passengers
+        for passenger in &passengers {
+            let mode = passenger.curr_leg().mode;
+            self.events
+                .borrow_mut()
+                .publish_event(now, &Event::new_person_enters_veh(passenger.id, veh_id));
+            self.events.borrow_mut().publish_event(
+                now,
+                &Event::new_passenger_picked_up(passenger.id, mode, 0, veh_id),
+            );
+        }
+
+        // emit event for driver
+        self.events.borrow_mut().publish_event(
+            now,
+            &Event::new_departure(agent.id, route.start_link(), leg_mode.internal()),
+        );
+
+        Some(garage.unpark_veh_with_passengers(agent, passengers, &Id::get(veh_id)))
     }
+}
+
+trait ArrivalHandler {
+    fn handle_arrival(&mut self, now: u32, agent: Person, garage: &mut Garage);
 }

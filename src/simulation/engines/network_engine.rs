@@ -2,10 +2,7 @@ use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::events::Event;
 use crate::simulation::wire_types::messages::Vehicle;
-use crate::simulation::wire_types::population::Person;
 use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
@@ -21,13 +18,6 @@ impl NetworkEngine {
     }
 
     pub fn receive_vehicle(&mut self, now: u32, vehicle: Vehicle, route_begin: bool) {
-        if route_begin {
-            self.events.borrow_mut().publish_event(
-                now,
-                &Event::new_person_enters_veh(vehicle.driver().id, vehicle.id),
-            )
-        }
-
         let events = match route_begin {
             //if route has just begun, no link enter event should be published
             true => None,
@@ -38,21 +28,11 @@ impl NetworkEngine {
         self.network.send_veh_en_route(vehicle, events, now)
     }
 
-    pub(crate) fn move_nodes(&mut self, now: u32, garage: &mut Garage) -> Vec<Person> {
+    pub(crate) fn move_nodes(&mut self, now: u32) -> Vec<Vehicle> {
         let exited_vehicles = self
             .network
             .move_nodes(self.events.borrow_mut().deref_mut(), now);
-        let mut agents = vec![];
-
-        for veh in exited_vehicles {
-            self.events
-                .borrow_mut()
-                .publish_event(now, &Event::new_person_leaves_veh(veh.driver().id, veh.id));
-
-            let agent = garage.park_veh(veh);
-            agents.push(agent);
-        }
-        agents
+        exited_vehicles
     }
 
     pub(crate) fn move_links<C: SimCommunicator + 'static>(
