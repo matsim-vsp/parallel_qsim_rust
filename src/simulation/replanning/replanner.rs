@@ -36,14 +36,13 @@ impl Replanner for DummyReplanner {
     fn replan(&self, _now: u32, _agent: &mut Person, _garage: &Garage) {}
 }
 
-#[derive(Debug)]
-pub struct ReRouteTripReplanner {
-    network_router: Box<dyn NetworkRouter>,
+pub struct ReRouteTripReplanner<'comm> {
+    network_router: Box<dyn NetworkRouter + 'comm>,
     teleported_router: Box<dyn TeleportedRouter>,
     global_network: Network,
 }
 
-impl Replanner for ReRouteTripReplanner {
+impl<'comm> Replanner for ReRouteTripReplanner<'comm> {
     #[tracing::instrument(level = "trace", skip(self, events))]
     fn update_time(&mut self, now: u32, events: &mut EventsPublisher) {
         self.network_router.next_time_step(now, events)
@@ -68,20 +67,20 @@ impl Replanner for ReRouteTripReplanner {
     }
 }
 
-impl ReRouteTripReplanner {
-    pub fn new<C: SimCommunicator + 'static>(
+impl<'comm> ReRouteTripReplanner<'comm> {
+    pub fn new<C: SimCommunicator + 'comm>(
         global_network: &Network,
         sim_network: &SimNetworkPartition,
         garage: &Garage,
         communicator: Rc<C>,
-    ) -> ReRouteTripReplanner {
+    ) -> ReRouteTripReplanner<'comm> {
         let forward_backward_graph_by_veh_type =
             TravelTimesCollectingAltRouter::<C>::get_forward_backward_graph_by_veh_type(
                 global_network,
                 &garage.vehicle_types,
             );
 
-        let router: Box<dyn NetworkRouter> = Box::new(TravelTimesCollectingAltRouter::new(
+        let router: Box<dyn NetworkRouter + 'comm> = Box::new(TravelTimesCollectingAltRouter::new(
             forward_backward_graph_by_veh_type,
             communicator,
             sim_network.get_link_ids(),

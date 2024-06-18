@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::thread::{sleep, JoinHandle};
@@ -10,9 +10,7 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::config::{
-    CommandLineArgs, Config, PartitionMethod, RoutingMode, WriteEvents,
-};
+use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::communication::communicators::{
     ChannelSimCommunicator, MpiSimCommunicator, SimCommunicator,
@@ -22,7 +20,6 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
-use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplanner, Replanner};
 use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
@@ -64,29 +61,31 @@ pub fn run_mpi() {
     let size = world.size();
     let rank = world.rank();
 
-    let comm = MpiSimCommunicator {
-        mpi_communicator: world,
-    };
+    let send_buffer: Vec<OnceCell<Vec<u8>>> = vec![OnceCell::new(); 42]; //TODO set buffer length
 
-    let mut args = CommandLineArgs::parse();
-    // override the num part argument, with the number of processes mpi has started.
-    args.num_parts = Some(size as u32);
-    let config = Config::from_file(&args);
+    mpi::request::multiple_scope(1, |scope, requests| {
+        let comm = MpiSimCommunicator::new(world, scope, requests, &send_buffer);
 
-    let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
+        let mut args = CommandLineArgs::parse();
+        // override the num part argument, with the number of processes mpi has started.
+        args.num_parts = Some(size as u32);
+        let config = Config::from_file(&args);
 
-    info!(
-        "Starting MPI Simulation with {} partitions",
-        config.partitioning().num_parts
-    );
-    execute_partition(comm, &args);
+        let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
 
-    info!("#{} at barrier.", rank);
-    universe.world().barrier();
-    info!("Process #{} finishing.", rank);
+        info!(
+            "Starting MPI Simulation with {} partitions",
+            config.partitioning().num_parts
+        );
+        execute_partition(comm, &args);
+
+        info!("#{} at barrier.", rank);
+        universe.world().barrier();
+        info!("Process #{} finishing.", rank);
+    });
 }
 
-fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineArgs) {
+fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     let config_path = &args.config_path;
     let config = Config::from_file(args);
 
@@ -152,24 +151,16 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
             &output_path.join(events_file).to_str().unwrap().to_string(),
         );
         info!("adding events writer with path: {events_path:?}");
-        events.borrow_mut().add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+        events
+            .borrow_mut()
+            .add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     }
     let travel_time_collector = Box::new(TravelTimeCollector::new());
     events.borrow_mut().add_subscriber(travel_time_collector);
 
     let rc_comm = Rc::new(comm);
 
-    let replanner: Box<dyn Replanner> = if config.routing().mode == RoutingMode::AdHoc {
-        Box::new(ReRouteTripReplanner::new(
-            &network,
-            &network_partition,
-            &garage,
-            Rc::clone(&rc_comm),
-        ))
-    } else {
-        Box::new(DummyReplanner {})
-    };
-    let net_message_broker = NetMessageBroker::new(Rc::clone(&rc_comm), &network, &network_partition, config.compuational_setup().global_sync);
+    let net_message_broker = NetMessageBroker::new(Rc::clone(&rc_comm), &network, &network_partition);
 
     let mut simulation: Simulation<C> = Simulation::new(
         config,
@@ -178,7 +169,6 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
         population,
         net_message_broker,
         events,
-        replanner,
     );
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
