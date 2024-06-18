@@ -156,19 +156,21 @@ impl SimNetworkPartition {
     pub fn active_agents(&mut self) -> Vec<&mut Person> {
         // one has to iterate here over all links and filter then, because otherwise the borrow checker will complain
         // something like self.active_links.map(|id| self.links.get(id)) borrows self mutably in FnMut closure
-        self.links
-            .iter_mut()
-            .filter(|(id, link)| self.active_links.contains(id))
-            .map(|(_, link)| link)
-            .map(|link| match link {
-                SimLink::Local(ll) => ll,
-                SimLink::In(il) => &mut il.local_link,
-                SimLink::Out(ol) => todo!(),
-            })
-            .flat_map(|link| link.q.iter_mut())
-            .map(|v| &mut v.vehicle)
-            .flat_map(|v| v.passengers.iter_mut().chain(v.driver.iter_mut()))
-            .collect::<Vec<&mut Person>>()
+
+        // self.links
+        //     .iter_mut()
+        //     .filter(|(id, link)| self.active_links.contains(id))
+        //     .map(|(_, link)| link)
+        //     .map(|link| match link {
+        //         SimLink::Local(ll) => ll,
+        //         SimLink::In(il) => &mut il.local_link,
+        //         SimLink::Out(ol) => todo!(),
+        //     })
+        //     .flat_map(|link| link.q.iter_mut())
+        //     .map(|v| &mut v.vehicle)
+        //     .flat_map(|v| v.passengers.iter_mut().chain(v.driver.iter_mut()))
+        //     .collect::<Vec<&mut Person>>()
+        vec![]
     }
 
     pub fn veh_on_net(&self) -> usize {

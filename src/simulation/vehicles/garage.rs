@@ -87,7 +87,7 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Person {
+    pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Vec<Person> {
         /*let id = self.vehicle_ids.get(vehicle.id);
         let veh_type = self.vehicle_type_ids.get(vehicle.r#type);
         let garage_veh = GarageVehicle { id, veh_type };
@@ -98,8 +98,10 @@ impl Garage {
 
         // the above logic would park a vehicle within a garage. This only works if we have mass
         // conservation enabled. The scenario we're testing with doesn't. Therfore, we just take
-        // the agent out of the vehicle and pretend we have parked the car.
-        vehicle.driver.unwrap()
+        // the agents out of the vehicle and pretend we have parked the car.
+        let mut agents = vehicle.passengers;
+        agents.push(vehicle.driver.unwrap());
+        agents
     }
 
     pub fn unpark_veh_with_passengers(
