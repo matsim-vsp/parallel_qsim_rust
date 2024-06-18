@@ -3,7 +3,9 @@ use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::time_queue::TimeQueue;
+use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::events::Event;
+use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::Person;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
@@ -15,6 +17,14 @@ pub struct ActivityEngine<C: SimCommunicator> {
 }
 
 impl<C: SimCommunicator + 'static> ActivityEngine<C> {
+    pub fn new(activity_q: TimeQueue<Person>, events: Rc<RefCell<EventsPublisher>>) -> Self {
+        ActivityEngine {
+            activity_q,
+            events,
+            agent_state_transition_logic: Weak::new(),
+        }
+    }
+
     pub(crate) fn do_step(&mut self, now: u32) {
         let agents = self.wake_up(now);
         for mut agent in agents {
@@ -55,12 +65,9 @@ impl<C: SimCommunicator + 'static> ActivityEngine<C> {
         self.agent_state_transition_logic = agent_state_transition_logic
     }
 
-    pub fn new(activity_q: TimeQueue<Person>, events: Rc<RefCell<EventsPublisher>>) -> Self {
-        ActivityEngine {
-            activity_q,
-            events,
-            agent_state_transition_logic: Weak::new(),
-        }
+    pub fn agents(&mut self) -> Vec<&mut Person> {
+        //TODO
+        vec![]
     }
 
     fn wake_up(&mut self, now: u32) -> Vec<Person> {

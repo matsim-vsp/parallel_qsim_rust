@@ -11,19 +11,20 @@ pub mod leg_engine;
 pub mod network_engine;
 pub mod teleportation_engine;
 
+pub trait ReplanEngine {
+    fn do_sim_step(&mut self, now: u32, agents: &Vec<&mut Person>);
+}
+
 pub struct AgentStateTransitionLogic<C: SimCommunicator> {
     activity_engine: Rc<RefCell<ActivityEngine<C>>>,
-    teleportation_engine: Rc<RefCell<LegEngine<C>>>,
+    pub leg_engine: Rc<RefCell<LegEngine<C>>>,
 }
 
 impl<C: SimCommunicator + 'static> AgentStateTransitionLogic<C> {
     fn arrange_next_agent_state(&self, now: u32, agent: Person) {
         match agent.state() {
             State::ACTIVITY => self.activity_engine.borrow_mut().receive_agent(now, agent),
-            State::LEG => self
-                .teleportation_engine
-                .borrow_mut()
-                .receive_agent(now, agent),
+            State::LEG => self.leg_engine.borrow_mut().receive_agent(now, agent),
         }
     }
 
@@ -33,7 +34,7 @@ impl<C: SimCommunicator + 'static> AgentStateTransitionLogic<C> {
     ) -> Self {
         AgentStateTransitionLogic {
             activity_engine,
-            teleportation_engine,
+            leg_engine: teleportation_engine,
         }
     }
 }
