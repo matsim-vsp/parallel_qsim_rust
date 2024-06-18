@@ -23,7 +23,7 @@ impl TeleportationEngine {
         }
     }
 
-    pub fn receive_vehicle<C: SimCommunicator + 'static>(
+    pub fn receive_vehicle<C: SimCommunicator>(
         &mut self,
         now: u32,
         mut vehicle: Vehicle,
@@ -41,11 +41,10 @@ impl TeleportationEngine {
         }
     }
 
-    pub fn do_step(&mut self, now: u32) -> Vec<Person> {
+    pub fn do_step(&mut self, now: u32) -> Vec<Vehicle> {
         let teleportation_vehicles = self.queue.pop(now);
-        let mut agents = vec![];
-        for vehicle in teleportation_vehicles {
-            let agent = vehicle.driver.unwrap();
+        for vehicle in &teleportation_vehicles {
+            let agent = vehicle.driver.as_ref().unwrap();
 
             // emmit travelled
             let leg = agent.curr_leg();
@@ -55,15 +54,11 @@ impl TeleportationEngine {
                 now,
                 &Event::new_travelled(agent.id, route.distance, mode.internal()),
             );
-
-            //TODO better do in activity engine
-            // emmit arrival
-            // self.events.borrow_mut().publish_event(
-            //     now,
-            //     &Event::new_arrival(agent.id, route.end_link(), mode.internal()),
-            // );
-            agents.push(agent);
         }
-        agents
+        teleportation_vehicles
+    }
+
+    pub fn agents(&self) -> Vec<&mut Person> {
+        todo!()
     }
 }

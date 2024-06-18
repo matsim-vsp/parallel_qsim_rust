@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use tracing::debug;
 
 use crate::simulation::id::Id;
@@ -6,7 +7,7 @@ use crate::simulation::network::global_network::Link;
 use crate::simulation::population::io::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
-use crate::simulation::time_queue::EndTime;
+use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
@@ -81,6 +82,11 @@ impl Person {
             panic!("Current element is not an activity");
         }
         let act_index = self.curr_plan_elem / 2;
+        self.get_act_at_index(act_index)
+    }
+
+    pub fn previous_act(&self) -> &Activity {
+        let act_index = self.next_act_index() - 1;
         self.get_act_at_index(act_index)
     }
 
@@ -242,9 +248,13 @@ impl EndTime for Person {
     }
 }
 
-impl Plan {
-    pub const DEFAULT_ROUTING_MODE: &'static str = "car";
+impl Identifiable for Person {
+    fn id(&self) -> u64 {
+        self.id
+    }
+}
 
+impl Plan {
     pub fn new() -> Plan {
         Plan {
             acts: Vec::new(),
@@ -355,6 +365,8 @@ impl Activity {
 }
 
 impl Leg {
+    pub const PASSENGER_ID_ATTRIBUTE: &'static str = "passenger_id";
+
     fn from_io(io_leg: &IOLeg, person_id: &Id<Person>) -> Self {
         let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
@@ -368,6 +380,7 @@ impl Leg {
             trav_time: Self::parse_trav_time(&io_leg.trav_time, &io_leg.route.trav_time),
             dep_time: parse_time_opt(&io_leg.dep_time),
             routing_mode: routing_mode.internal(),
+            attributes: HashMap::new(),
         }
     }
 
@@ -378,6 +391,7 @@ impl Leg {
             trav_time,
             dep_time,
             routing_mode: 0,
+            attributes: HashMap::new(),
         }
     }
 
@@ -392,6 +406,7 @@ impl Leg {
                 distance: 0.0,
                 route: Vec::new(),
             }),
+            attributes: HashMap::new(),
         }
     }
 

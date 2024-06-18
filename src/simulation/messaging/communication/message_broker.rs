@@ -8,6 +8,34 @@ use crate::simulation::wire_types::messages::{
     StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
 };
 
+pub struct DrtClientMessageBroker<C>
+where
+    C: SimCommunicator,
+{
+    communicator: Rc<C>,
+    server_rank: u32,
+}
+
+impl<C> DrtClientMessageBroker<C>
+where
+    C: SimCommunicator,
+{
+    pub fn new(communicator: Rc<C>, server_rank: u32) -> Self {
+        DrtClientMessageBroker {
+            communicator,
+            server_rank,
+        }
+    }
+
+    pub fn rank(&self) -> u32 {
+        self.communicator.rank()
+    }
+
+    pub fn send_recv(&self, now: u32) -> Vec<SyncMessage> {
+        todo!()
+    }
+}
+
 pub struct TravelTimesMessageBroker<C>
 where
     C: SimCommunicator,
@@ -369,6 +397,7 @@ mod tests {
             end_time: 0,
             sample_size: 0.0,
             stuck_threshold: 0,
+            passenger_modes: vec![],
         };
         let broker = NetMessageBroker::new(
             Rc::new(communicator),
