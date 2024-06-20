@@ -26,7 +26,12 @@ pub struct Config {
 
 impl Config {
     pub fn from_file(args: &CommandLineArgs) -> Self {
-        let reader = BufReader::new(File::open(&args.config_path).expect("Failed to open file."));
+        let reader = BufReader::new(File::open(&args.config_path).unwrap_or_else(|e| {
+            panic!(
+                "Failed to open config file at {}. Original error was {}",
+                args.config_path, e
+            );
+        }));
         let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
             panic!(
                 "Failed to parse config at {}. Original error was: {}",
