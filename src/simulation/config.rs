@@ -48,6 +48,7 @@ impl Config {
             config.set_output(Output {
                 output_dir: out_dir,
                 profiling: config.output().profiling,
+                logging: config.output().logging,
                 write_events: Default::default(),
             });
         }
@@ -96,6 +97,7 @@ impl Config {
             let default = Output {
                 output_dir: "./".to_string(),
                 profiling: Profiling::None,
+                logging: Logging::Info,
                 write_events: Default::default(),
             };
             self.modules
@@ -164,6 +166,8 @@ pub struct Output {
     pub output_dir: String,
     #[serde(default)]
     pub profiling: Profiling,
+    #[serde(default)]
+    pub logging: Logging,
     #[serde(default)]
     pub write_events: WriteEvents,
 }
@@ -249,6 +253,15 @@ pub enum Profiling {
     #[default]
     None,
     CSV(ProfilingLevel),
+}
+
+/// Have this extra layer of log level enum, as tracing subscriber has no
+/// off/none option by default. At least it can't be parsed
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
+pub enum Logging {
+    #[default]
+    None,
+    Info,
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]

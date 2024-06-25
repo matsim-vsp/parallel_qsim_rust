@@ -82,7 +82,7 @@ where
         );
 
         while now <= self.end_time {
-            if self.net_message_broker.rank() == 0 && now % 3600 == 0 {
+            if now % 3600 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!(

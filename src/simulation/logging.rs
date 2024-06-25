@@ -9,7 +9,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Layer;
 
-use crate::simulation::config::{Config, Profiling};
+use crate::simulation::config::{Config, Logging, Profiling};
 use crate::simulation::profiling::{SpanDurationToCSVLayer, WriterGuard};
 
 pub fn init_std_out_logging() {
@@ -21,10 +21,8 @@ pub fn init_std_out_logging() {
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
 }
 
-pub fn init_logging(
-    config: &Config,
-    file_discriminant: &str,
-) -> (WorkerGuard, Option<WriterGuard>) {
+pub fn init_logging(config: &Config, part: u32) -> (WorkerGuard, Option<WriterGuard>) {
+    let file_discriminant = part.to_string();
     let dir = PathBuf::from(&config.output().output_dir);
     let log_file_name = format!("log_process_{file_discriminant}.txt");
     let log_file_appender = rolling::never(&dir, log_file_name);
@@ -43,19 +41,21 @@ pub fn init_logging(
 
     let collector = tracing_subscriber::registry()
         .with(csv_layer)
-        .with(
-            fmt::Layer::new()
-                .with_writer(io::stdout)
-                .with_span_events(FmtSpan::CLOSE)
-                .with_filter(LevelFilter::INFO),
-        )
-        .with(
+        .with((config.output().logging == Logging::Info).then(|| {
             fmt::Layer::new()
                 .with_writer(log_file)
                 .json()
                 .with_ansi(false)
-                .with_filter(LevelFilter::DEBUG),
-        );
+                .with_filter(LevelFilter::INFO)
+        }))
+        // process 0 should log to console as well
+        .with((part == 0).then(|| {
+            fmt::layer()
+                .with_writer(io::stdout)
+                .with_span_events(FmtSpan::CLOSE)
+                .with_filter(LevelFilter::INFO)
+        }));
+
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
     (_guard_log, guard)
 }
