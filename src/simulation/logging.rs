@@ -21,12 +21,9 @@ pub fn init_std_out_logging() {
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
 }
 
-pub fn init_logging(config: &Config, part: u32) -> (WorkerGuard, Option<WriterGuard>) {
+pub fn init_logging(config: &Config, part: u32) -> (Option<WorkerGuard>, Option<WriterGuard>) {
     let file_discriminant = part.to_string();
     let dir = PathBuf::from(&config.output().output_dir);
-    let log_file_name = format!("log_process_{file_discriminant}.txt");
-    let log_file_appender = rolling::never(&dir, log_file_name);
-    let (log_file, _guard_log) = non_blocking(log_file_appender);
 
     let (csv_layer, guard) = if let Profiling::CSV(level) = config.output().profiling {
         let duration_dir = dir.join("instrument");
@@ -38,16 +35,23 @@ pub fn init_logging(config: &Config, part: u32) -> (WorkerGuard, Option<WriterGu
     } else {
         (None, None)
     };
+    let (log_layer, log_guard) = if Logging::Info == config.output().logging {
+        let log_file_name = format!("log_process_{file_discriminant}.txt");
+        let log_file_appender = rolling::never(&dir, log_file_name);
+        let (log_file, log_guard) = non_blocking(log_file_appender);
+        let layer = fmt::Layer::new()
+            .with_writer(log_file)
+            .json()
+            .with_ansi(false)
+            .with_filter(LevelFilter::INFO);
+        (Some(layer), Some(log_guard))
+    } else {
+        (None, None)
+    };
 
     let collector = tracing_subscriber::registry()
         .with(csv_layer)
-        .with((config.output().logging == Logging::Info).then(|| {
-            fmt::Layer::new()
-                .with_writer(log_file)
-                .json()
-                .with_ansi(false)
-                .with_filter(LevelFilter::INFO)
-        }))
+        .with(log_layer)
         // process 0 should log to console as well
         .with((part == 0).then(|| {
             fmt::layer()
@@ -57,5 +61,5 @@ pub fn init_logging(config: &Config, part: u32) -> (WorkerGuard, Option<WriterGu
         }));
 
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
-    (_guard_log, guard)
+    (log_guard, guard)
 }
