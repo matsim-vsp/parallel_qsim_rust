@@ -32,10 +32,7 @@ pub fn run_channel() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(
-        &config,
-        config.partitioning().num_parts.to_string().as_str(),
-    );
+    let _guards = logging::init_logging(&config, config.partitioning().num_parts);
 
     info!(
         "Starting Multithreaded Simulation with {} partitions.",
@@ -72,7 +69,7 @@ pub fn run_mpi() {
     args.num_parts = Some(world.size() as u32);
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(&config, comm.rank().to_string().as_str());
+    let _guards = logging::init_logging(&config, comm.rank());
 
     info!(
         "Starting MPI Simulation with {} partitions",
