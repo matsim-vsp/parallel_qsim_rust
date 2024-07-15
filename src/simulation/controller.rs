@@ -82,17 +82,18 @@ pub fn run_mpi() {
 }
 
 fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineArgs) {
+    let config_path = &args.config_path;
     let config = Config::from_file(args);
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
 
-    let output_path = PathBuf::from(&config.output().output_dir);
+    let output_path = resolve_path(config_path, &config.output().output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
     if rank == 0 {
         info!("#{rank} preparing to create input for partitions.");
-        partition_input(&config);
+        partition_input(&config, config_path);
     }
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
@@ -100,16 +101,16 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     //comm.send_receive_travel_times(0, std::collections::HashMap::new());
     comm.barrier();
 
-    id::load_from_file(&PathBuf::from(config.proto_files().ids));
+    id::load_from_file(&resolve_path(config_path, &config.proto_files().ids));
     let network = Network::from_file_as_is(&get_numbered_output_filename(
         &output_path,
-        &PathBuf::from(config.proto_files().network),
+        &resolve_path(config_path, &config.proto_files().network),
         config.partitioning().num_parts,
     ));
-    let mut garage = Garage::from_file(&PathBuf::from(config.proto_files().vehicles));
+    let mut garage = Garage::from_file(&resolve_path(config_path, &config.proto_files().vehicles));
 
     let population = Population::from_file_filtered_part(
-        &PathBuf::from(config.proto_files().population),
+        &resolve_path(config_path, &config.proto_files().population),
         &network,
         &mut garage,
         comm.rank(),
@@ -178,35 +179,39 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
     }
 }
 
-pub fn partition_input(config: &Config) {
+pub fn partition_input(config: &Config, config_path: &String) {
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
     let _net = if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
-        partition_network(config)
+        partition_network(config, config_path)
     } else {
         info!("Config param Partition method was set to none. Loading network from input, assuming it has partitioning information");
-        copy_network_into_output(config)
+        copy_network_into_output(config, config_path)
     };
 }
 
-fn partition_network(config: &Config) -> Network {
-    let net_in_path = PathBuf::from(config.proto_files().network);
+fn partition_network(config: &Config, config_path: &String) -> Network {
+    let net_in_path = resolve_path(config_path, &config.proto_files().network);
     let num_parts = config.partitioning().num_parts;
     let network = Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
 
-    let mut net_out_path =
-        create_output_filename(&PathBuf::from(config.output().output_dir), &net_in_path);
+    let mut net_out_path = create_output_filename(
+        &resolve_path(config_path, &config.output().output_dir),
+        &net_in_path,
+    );
     net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
     network.to_file(&net_out_path);
     network
 }
 
-fn copy_network_into_output(config: &Config) -> Network {
-    let net_in_path = PathBuf::from(config.proto_files().network);
+fn copy_network_into_output(config: &Config, config_path: &String) -> Network {
+    let net_in_path = resolve_path(config_path, &config.proto_files().network);
     let num_parts = config.partitioning().num_parts;
     let network = Network::from_file_as_is(&net_in_path);
-    let mut net_out_path =
-        create_output_filename(&PathBuf::from(config.output().output_dir), &net_in_path);
+    let mut net_out_path = create_output_filename(
+        &resolve_path(config_path, &config.output().output_dir),
+        &net_in_path,
+    );
     net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
     network.to_file(&net_out_path);
     network
@@ -230,4 +235,18 @@ fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
     }
     let new_filename = format!("{stripped}.{part}.binpb");
     path.parent().unwrap().join(new_filename)
+}
+
+fn resolve_path(config: &String, file: &String) -> PathBuf {
+    let file_path = PathBuf::from(file);
+    if file_path.is_absolute() || file_path.starts_with("./") {
+        return file_path;
+    }
+
+    let config_path = PathBuf::from(config);
+    if let Some(path) = config_path.parent() {
+        return path.join(file_path);
+    } else {
+        return file_path;
+    }
 }

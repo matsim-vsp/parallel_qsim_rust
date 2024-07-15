@@ -80,7 +80,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     if rank == 0 {
         info!("#{rank} preparing to create input for partitions.");
         //this call also loads the ids from the file.
-        partition_input(&config);
+        partition_input(&config, &config_args.config_path);
     } else {
         //apply busy waiting until first process has created all files
         while !all_temp_files_created(&temp_network_file) {
