@@ -418,7 +418,13 @@ impl SimNetworkPartition {
                 // if the vehicle has a next link id, it should move out of the current link.
                 // if the vehicle has reached its stuck threshold, we push it to the next link regardless of the available
                 // storage capacity. Under normal conditions, we check whether the downstream link has storage capacity available
-                let out_link = links.get(&next_id_int).unwrap();
+                let out_link = links.get(&next_id_int).unwrap_or_else(|| {
+                    panic!(
+                        "Link id {:?} was not in local network. Vehicle's leg is: {:?}",
+                        Id::<Link>::get(next_id_int),
+                        veh_ref.driver().curr_leg()
+                    )
+                });
                 in_link.is_veh_stuck(now) || out_link.is_available()
             } else {
                 // if there is no next link, the vehicle is done with its route and we can take it out

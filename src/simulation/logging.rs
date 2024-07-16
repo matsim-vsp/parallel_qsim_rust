@@ -11,6 +11,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Layer;
 
 use crate::simulation::config::{Config, Logging, Profiling};
+use crate::simulation::io::resolve_path;
 use crate::simulation::profiling::{SpanDurationToCSVLayer, WriterGuard};
 
 pub fn init_std_out_logging() {
@@ -22,9 +23,13 @@ pub fn init_std_out_logging() {
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
 }
 
-pub fn init_logging(config: &Config, part: u32) -> (Option<WorkerGuard>, Option<WriterGuard>) {
+pub fn init_logging(
+    config: &Config,
+    config_path: &String,
+    part: u32,
+) -> (Option<WorkerGuard>, Option<WriterGuard>) {
     let file_discriminant = part.to_string();
-    let dir = PathBuf::from(&config.output().output_dir);
+    let dir = resolve_path(config_path, &config.output().output_dir);
 
     let (csv_layer, guard) = init_tracing(config, part, &file_discriminant, &dir);
     let (log_layer, log_guard) = if Logging::Info == config.output().logging {
@@ -71,6 +76,7 @@ fn init_tracing(
             let duration_dir = dir.join("instrument");
             let duration_file_name = format!("instrument_process_{file_discriminant}.csv");
             let duration_path = duration_dir.join(duration_file_name);
+            println!("Creating new instrument file at: {:?}", duration_path);
             let (layer, writer_guard) = SpanDurationToCSVLayer::new(&duration_path, level);
             (Some(layer), Some(writer_guard))
         } else {
