@@ -9,7 +9,7 @@ mod worker;
 pub mod xml;
 pub mod xml_events;
 
-pub fn resolve_path(config: &String, file: &String) -> PathBuf {
+pub fn resolve_path(config: &String, file: &str) -> PathBuf {
     let file_path = PathBuf::from(file);
     if file_path.is_absolute() || file_path.starts_with("./") {
         return file_path;

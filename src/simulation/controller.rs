@@ -132,7 +132,11 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
-        let events_path = output_path.join(events_file);
+        let events_path = io::resolve_path(
+            &args.config_path,
+            &output_path.join(events_file).to_str().unwrap().to_string(),
+        );
+        info!("adding events writer with path: {events_path:?}");
         events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     }
     let travel_time_collector = Box::new(TravelTimeCollector::new());
