@@ -49,7 +49,7 @@ impl Config {
                 output_dir: out_dir,
                 profiling: config.output().profiling,
                 logging: config.output().logging,
-                write_events: Default::default(),
+                write_events: config.output().write_events,
             });
         }
         config
@@ -98,7 +98,7 @@ impl Config {
                 output_dir: "./".to_string(),
                 profiling: Profiling::None,
                 logging: Logging::Info,
-                write_events: Default::default(),
+                write_events: WriteEvents::None,
             };
             self.modules
                 .borrow_mut()
