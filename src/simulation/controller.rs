@@ -112,7 +112,10 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
             config.partitioning().num_parts,
         )
     } else {
-        io::resolve_path(config_path, &config.proto_files().network)
+        insert_number_in_proto_filename(
+            &io::resolve_path(config_path, &config.proto_files().network),
+            config.partitioning().num_parts,
+        )
     };
     let network = Network::from_file_as_is(&network_path);
     let mut garage = Garage::from_file(&io::resolve_path(
