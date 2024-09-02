@@ -76,7 +76,6 @@ fn init_tracing(
             let duration_dir = dir.join("instrument");
             let duration_file_name = format!("instrument_process_{file_discriminant}.csv");
             let duration_path = duration_dir.join(duration_file_name);
-            println!("Creating new instrument file at: {:?}", duration_path);
             let (layer, writer_guard) = SpanDurationToCSVLayer::new(&duration_path, level);
             (Some(layer), Some(writer_guard))
         } else {
