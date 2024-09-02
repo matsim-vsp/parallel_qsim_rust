@@ -241,7 +241,6 @@ pub enum RoutingMode {
     AdHoc,
     UsePlans,
 }
-
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum PartitionMethod {
     Metis(MetisOptions),

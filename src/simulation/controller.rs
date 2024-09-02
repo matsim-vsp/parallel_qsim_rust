@@ -103,11 +103,18 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     comm.barrier();
 
     id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
-    let network = Network::from_file_as_is(&get_numbered_output_filename(
-        &output_path,
-        &io::resolve_path(config_path, &config.proto_files().network),
-        config.partitioning().num_parts,
-    ));
+    // if we partition the network is copied to the output folder.
+    // otherwise nothing is done and we can load the network from the input folder directly.
+    let network_path = if let PartitionMethod::Metis(_) = config.partitioning().method {
+        get_numbered_output_filename(
+            &output_path,
+            &io::resolve_path(config_path, &config.proto_files().network),
+            config.partitioning().num_parts,
+        )
+    } else {
+        io::resolve_path(config_path, &config.proto_files().network)
+    };
+    let network = Network::from_file_as_is(&network_path);
     let mut garage = Garage::from_file(&io::resolve_path(
         config_path,
         &config.proto_files().vehicles,
@@ -189,13 +196,16 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
 
 pub fn partition_input(config: &Config, config_path: &String) {
     id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
-    let _net = if let PartitionMethod::Metis(_) = config.partitioning().method {
+    if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
-        partition_network(config, config_path)
-    } else {
+        partition_network(config, config_path);
+    }
+    // don't do anything. If the network is already partitioned, we'll load it from the input folder.
+    /*else {
         info!("Config param Partition method was set to none. Loading network from input, assuming it has partitioning information");
         copy_network_into_output(config, config_path)
     };
+    */
 }
 
 fn partition_network(config: &Config, config_path: &String) -> Network {
@@ -203,19 +213,6 @@ fn partition_network(config: &Config, config_path: &String) -> Network {
     let num_parts = config.partitioning().num_parts;
     let network = Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
 
-    let mut net_out_path = create_output_filename(
-        &io::resolve_path(config_path, &config.output().output_dir),
-        &net_in_path,
-    );
-    net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
-    network.to_file(&net_out_path);
-    network
-}
-
-fn copy_network_into_output(config: &Config, config_path: &String) -> Network {
-    let net_in_path = io::resolve_path(config_path, &config.proto_files().network);
-    let num_parts = config.partitioning().num_parts;
-    let network = Network::from_file_as_is(&net_in_path);
     let mut net_out_path = create_output_filename(
         &io::resolve_path(config_path, &config.output().output_dir),
         &net_in_path,
