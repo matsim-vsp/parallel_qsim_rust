@@ -26,13 +26,14 @@ use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplan
 use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{id, logging};
+use crate::simulation::{id, io, logging};
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(&config, config.partitioning().num_parts);
+    let _guards =
+        logging::init_logging(&config, &args.config_path, config.partitioning().num_parts);
 
     info!(
         "Starting Multithreaded Simulation with {} partitions.",
@@ -69,7 +70,7 @@ pub fn run_mpi() {
     args.num_parts = Some(world.size() as u32);
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(&config, comm.rank());
+    let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
 
     info!(
         "Starting MPI Simulation with {} partitions",
@@ -83,17 +84,18 @@ pub fn run_mpi() {
 }
 
 fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineArgs) {
+    let config_path = &args.config_path;
     let config = Config::from_file(args);
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
 
-    let output_path = PathBuf::from(&config.output().output_dir);
+    let output_path = io::resolve_path(config_path, &config.output().output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
     if rank == 0 {
         info!("#{rank} preparing to create input for partitions.");
-        partition_input(&config);
+        partition_input(&config, config_path);
     }
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
@@ -101,16 +103,29 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     //comm.send_receive_travel_times(0, std::collections::HashMap::new());
     comm.barrier();
 
-    id::load_from_file(&PathBuf::from(config.proto_files().ids));
-    let network = Network::from_file_as_is(&get_numbered_output_filename(
-        &output_path,
-        &PathBuf::from(config.proto_files().network),
-        config.partitioning().num_parts,
+    id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
+    // if we partition the network is copied to the output folder.
+    // otherwise nothing is done and we can load the network from the input folder directly.
+    let network_path = if let PartitionMethod::Metis(_) = config.partitioning().method {
+        get_numbered_output_filename(
+            &output_path,
+            &io::resolve_path(config_path, &config.proto_files().network),
+            config.partitioning().num_parts,
+        )
+    } else {
+        insert_number_in_proto_filename(
+            &io::resolve_path(config_path, &config.proto_files().network),
+            config.partitioning().num_parts,
+        )
+    };
+    let network = Network::from_file_as_is(&network_path);
+    let mut garage = Garage::from_file(&io::resolve_path(
+        config_path,
+        &config.proto_files().vehicles,
     ));
-    let mut garage = Garage::from_file(&PathBuf::from(config.proto_files().vehicles));
 
     let population = Population::from_file_filtered_part(
-        &PathBuf::from(config.proto_files().population),
+        &io::resolve_path(config_path, &config.proto_files().population),
         &network,
         &mut garage,
         comm.rank(),
@@ -128,7 +143,11 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
-        let events_path = output_path.join(events_file);
+        let events_path = io::resolve_path(
+            &args.config_path,
+            &output_path.join(events_file).to_str().unwrap().to_string(),
+        );
+        info!("adding events writer with path: {events_path:?}");
         events.borrow_mut().add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     }
     let travel_time_collector = Box::new(TravelTimeCollector::new());
@@ -179,35 +198,29 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
     }
 }
 
-pub fn partition_input(config: &Config) {
-    id::load_from_file(&PathBuf::from(config.proto_files().ids));
-    let _net = if let PartitionMethod::Metis(_) = config.partitioning().method {
+pub fn partition_input(config: &Config, config_path: &String) {
+    id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
+    if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
-        partition_network(config)
-    } else {
+        partition_network(config, config_path);
+    }
+    // don't do anything. If the network is already partitioned, we'll load it from the input folder.
+    /*else {
         info!("Config param Partition method was set to none. Loading network from input, assuming it has partitioning information");
-        copy_network_into_output(config)
+        copy_network_into_output(config, config_path)
     };
+    */
 }
 
-fn partition_network(config: &Config) -> Network {
-    let net_in_path = PathBuf::from(config.proto_files().network);
+fn partition_network(config: &Config, config_path: &String) -> Network {
+    let net_in_path = io::resolve_path(config_path, &config.proto_files().network);
     let num_parts = config.partitioning().num_parts;
     let network = Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
 
-    let mut net_out_path =
-        create_output_filename(&PathBuf::from(config.output().output_dir), &net_in_path);
-    net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
-    network.to_file(&net_out_path);
-    network
-}
-
-fn copy_network_into_output(config: &Config) -> Network {
-    let net_in_path = PathBuf::from(config.proto_files().network);
-    let num_parts = config.partitioning().num_parts;
-    let network = Network::from_file_as_is(&net_in_path);
-    let mut net_out_path =
-        create_output_filename(&PathBuf::from(config.output().output_dir), &net_in_path);
+    let mut net_out_path = create_output_filename(
+        &io::resolve_path(config_path, &config.output().output_dir),
+        &net_in_path,
+    );
     net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
     network.to_file(&net_out_path);
     network
