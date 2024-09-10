@@ -27,7 +27,7 @@ pub struct LegEngine<C: SimCommunicator> {
     waiting_passengers: IntMap<u64, Person>,
 }
 
-impl<C: SimCommunicator + 'static> LegEngine<C> {
+impl<C: SimCommunicator> LegEngine<C> {
     pub fn new(
         network: SimNetworkPartition,
         garage: Garage,

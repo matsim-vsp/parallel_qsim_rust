@@ -7,7 +7,7 @@ use crate::simulation::network::global_network::Link;
 use crate::simulation::population::io::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
-use crate::simulation::time_queue::EndTime;
+use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
@@ -248,9 +248,13 @@ impl EndTime for Person {
     }
 }
 
-impl Plan {
-    pub const DEFAULT_ROUTING_MODE: &'static str = "car";
+impl Identifiable for Person {
+    fn id(&self) -> u64 {
+        self.id
+    }
+}
 
+impl Plan {
     pub fn new() -> Plan {
         Plan {
             acts: Vec::new(),

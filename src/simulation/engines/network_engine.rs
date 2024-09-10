@@ -36,7 +36,7 @@ impl NetworkEngine {
         exited_vehicles
     }
 
-    pub(crate) fn move_links<C: SimCommunicator + 'static>(
+    pub(crate) fn move_links<C: SimCommunicator>(
         &mut self,
         now: u32,
         net_message_broker: &mut NetMessageBroker<C>,

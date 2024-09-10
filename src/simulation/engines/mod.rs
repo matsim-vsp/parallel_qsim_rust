@@ -11,16 +11,12 @@ pub mod leg_engine;
 pub mod network_engine;
 pub mod teleportation_engine;
 
-pub trait ReplanEngine {
-    fn do_sim_step(&mut self, now: u32, agents: &Vec<&mut Person>);
-}
-
 pub struct AgentStateTransitionLogic<C: SimCommunicator> {
     activity_engine: Rc<RefCell<ActivityEngine<C>>>,
     pub leg_engine: Rc<RefCell<LegEngine<C>>>,
 }
 
-impl<C: SimCommunicator + 'static> AgentStateTransitionLogic<C> {
+impl<C: SimCommunicator> AgentStateTransitionLogic<C> {
     fn arrange_next_agent_state(&self, now: u32, agent: Person) {
         match agent.state() {
             State::ACTIVITY => self.activity_engine.borrow_mut().receive_agent(now, agent),
