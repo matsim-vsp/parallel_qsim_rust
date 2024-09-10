@@ -8,31 +8,30 @@ use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::engines::activity_engine::ActivityEngine;
 use crate::simulation::engines::leg_engine::LegEngine;
-use crate::simulation::engines::{AgentStateTransitionLogic, ReplanEngine};
+use crate::simulation::engines::AgentStateTransitionLogic;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population::Population;
-use crate::simulation::replanning::replanner::Replanner;
-use crate::simulation::time_queue::TimeQueue;
+use crate::simulation::time_queue::MutTimeQueue;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 
 pub struct Simulation<C: SimCommunicator> {
     activity_engine: Rc<RefCell<ActivityEngine<C>>>,
     leg_engine: Rc<RefCell<LegEngine<C>>>,
+    #[allow(dead_code)]
     internal_interface: Rc<RefCell<AgentStateTransitionLogic<C>>>,
     events: Rc<RefCell<EventsPublisher>>,
-    replan_engines: Vec<Box<dyn ReplanEngine>>,
     start_time: u32,
     end_time: u32,
 }
 
 impl<C> Simulation<C>
 where
-    C: SimCommunicator + 'static,
+    C: SimCommunicator,
 {
     pub fn new(
         config: Config,
@@ -41,9 +40,8 @@ where
         mut population: Population,
         net_message_broker: NetMessageBroker<C>,
         events: Rc<RefCell<EventsPublisher>>,
-        replanner: Box<dyn Replanner>,
     ) -> Self {
-        let mut activity_q = TimeQueue::new();
+        let mut activity_q = MutTimeQueue::new();
 
         // take Persons and copy them into queues. This way we can keep population around to translate
         // ids for events processing...
@@ -89,7 +87,6 @@ where
             leg_engine,
             internal_interface,
             events,
-            replan_engines: vec![],
             start_time: config.simulation().start_time,
             end_time: config.simulation().end_time,
         }

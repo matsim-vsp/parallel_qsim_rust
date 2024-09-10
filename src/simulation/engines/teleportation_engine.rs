@@ -23,7 +23,7 @@ impl TeleportationEngine {
         }
     }
 
-    pub fn receive_vehicle<C: SimCommunicator + 'static>(
+    pub fn receive_vehicle<C: SimCommunicator>(
         &mut self,
         now: u32,
         mut vehicle: Vehicle,

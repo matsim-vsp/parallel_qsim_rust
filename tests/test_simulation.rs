@@ -11,7 +11,7 @@ use std::{fs, thread};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use rust_q_sim::simulation::config::{CommandLineArgs, Config, RoutingMode};
+use rust_q_sim::simulation::config::{CommandLineArgs, Config};
 use rust_q_sim::simulation::controller::{get_numbered_output_filename, partition_input};
 use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
@@ -23,9 +23,6 @@ use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscribe
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
 use rust_q_sim::simulation::population::population::Population;
-use rust_q_sim::simulation::replanning::replanner::{
-    DummyReplanner, ReRouteTripReplanner, Replanner,
-};
 use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use rust_q_sim::simulation::simulation::Simulation;
 use rust_q_sim::simulation::vehicles::garage::Garage;
@@ -110,20 +107,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     let rc = Rc::new(comm);
     let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net);
 
-    let replanner: Box<dyn Replanner> = if config.routing().mode == RoutingMode::AdHoc {
-        Box::new(ReRouteTripReplanner::new(
-            &network,
-            &sim_net,
-            &garage,
-            Rc::clone(&rc),
-        ))
-    } else {
-        Box::new(DummyReplanner {})
-    };
-
-    let mut sim = Simulation::new(
-        config, sim_net, garage, population, broker, events, replanner,
-    );
+    let mut sim = Simulation::new(config, sim_net, garage, population, broker, events);
 
     sim.run();
 }
