@@ -420,10 +420,10 @@ impl Leg {
         }
     }
 
-    pub fn vehicle_type_id<'gar>(&self, garage: &'gar Garage) -> &'gar Id<VehicleType> {
+    pub fn vehicle_type_id(&self, garage: &Garage) -> Id<VehicleType> {
         self.route
             .as_ref()
-            .map(|r| garage.vehicles.get(&Id::<Vehicle>::get(r.veh_id)).unwrap())
+            .map(|r| garage.vehicle_type_id(&Id::get(r.veh_id)))
             .unwrap()
     }
 }

@@ -7,6 +7,7 @@ fn main() {
     std::env::set_var("PROTOC", protobuf_src::protoc());
 
     let proto_files = [
+        "src/simulation/wire_types/general.proto",
         "src/simulation/wire_types/messages.proto",
         "src/simulation/wire_types/events.proto",
         "src/simulation/wire_types/ids.proto",

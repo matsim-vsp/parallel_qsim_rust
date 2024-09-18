@@ -549,7 +549,6 @@ mod sim_link_tests {
             end_time: 0,
             sample_size: 1.0,
             stuck_threshold,
-            passenger_modes: vec![],
         };
         let mut link = SimLink::Local(LocalLink::new(
             Id::create("stuck-link"),
@@ -588,7 +587,6 @@ mod sim_link_tests {
             end_time: 0,
             sample_size: 1.0,
             stuck_threshold,
-            passenger_modes: vec![],
         };
         let mut link = SimLink::Local(LocalLink::new(
             Id::create("stuck-link"),
