@@ -136,7 +136,7 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
 
     info!("Creating vehicle ids");
     for (person_id, type_id) in raw_veh {
-        garage.add_veh_id(&person_id, &type_id);
+        garage.add_veh_by_type(&person_id, &type_id);
     }
 
     info!("Creating activity types");

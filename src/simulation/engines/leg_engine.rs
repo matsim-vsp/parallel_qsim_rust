@@ -8,8 +8,8 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::events::Event;
+use crate::simulation::wire_types::general::attribute_value::Type;
 use crate::simulation::wire_types::messages::Vehicle;
-use crate::simulation::wire_types::population::attribute_value::Type;
 use crate::simulation::wire_types::population::{Leg, Person};
 use crate::simulation::wire_types::vehicles::LevelOfDetail;
 use nohash_hasher::{IntMap, IntSet};
@@ -230,8 +230,10 @@ impl DepartureHandler for VehicularDepartureHandler {
             &Event::new_departure(agent.id, route.start_link(), leg_mode.internal()),
         );
 
-        let veh_type_id = garage.vehicles.get(&veh_id).unwrap();
-        match LevelOfDetail::try_from(garage.vehicle_types.get(veh_type_id).unwrap().lod).unwrap() {
+        let veh_type_id = garage.vehicles.get(&veh_id).unwrap().r#type;
+        match LevelOfDetail::try_from(garage.vehicle_types.get(&Id::get(veh_type_id)).unwrap().lod)
+            .unwrap()
+        {
             LevelOfDetail::Network => {
                 self.events.borrow_mut().publish_event(
                     now,
@@ -302,7 +304,7 @@ impl DepartureHandler for DrtDriverDepartureHandler {
             .as_ref()
             .unwrap()
         {
-            Type::IntValue(id) => id,
+            Type::IntValue(id) => *id as u64,
             _ => {
                 unreachable!()
             }

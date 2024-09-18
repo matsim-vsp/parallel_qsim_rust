@@ -18,11 +18,8 @@ use crate::simulation::messaging::communication::communicators::{
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::Network;
-use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::population::population::Population;
-use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
+use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::Simulation;
-use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, io, logging};
 
 pub fn run_channel() {
@@ -105,49 +102,40 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     //comm.send_receive_travel_times(0, std::collections::HashMap::new());
     comm.barrier();
 
-    id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
-    // If we partition the network it is copied to the output folder.
-    // Otherwise, nothing is done, and we can load the network from the input folder directly.
-    // In this case, we assume that the #partitions is part of the filename as `network.4.binpb` instead of `network.binpb`.
-    let network_path = if let PartitionMethod::Metis(_) = config.partitioning().method {
-        get_numbered_output_filename(
-            &output_path,
-            &io::resolve_path(config_path, &config.proto_files().network),
-            config.partitioning().num_parts,
-        )
-    } else {
-        insert_number_in_proto_filename(
-            &io::resolve_path(config_path, &config.proto_files().network),
-            config.partitioning().num_parts,
-        )
-    };
-    let network = Network::from_file_as_is(&network_path);
-    let mut garage = Garage::from_file(&io::resolve_path(
-        config_path,
-        &config.proto_files().vehicles,
-    ));
+    let scenario = Scenario::build(&config, config_path, rank, &output_path);
 
-    let population = Population::from_file_filtered_part(
-        &io::resolve_path(config_path, &config.proto_files().population),
-        &network,
-        &mut garage,
-        comm.rank(),
+    let events = create_events(config_path, &config, rank, &output_path);
+
+    let rc_comm = Rc::new(comm);
+
+    let net_message_broker = NetMessageBroker::new(
+        Rc::clone(&rc_comm),
+        &scenario.network,
+        &scenario.network_partition,
     );
 
-    let network_partition = SimNetworkPartition::from_network(&network, rank, config.simulation());
-    info!(
-        "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
-        network_partition.nodes.len(),
-        network_partition.links.len(),
-        population.persons.len()
-    );
+    let mut simulation: Simulation<C> =
+        Simulation::new(config, scenario, net_message_broker, events);
 
+    // Wait for all processes to arrive at this barrier. This is important to ensure that the
+    // instrumentation of the simulation.run() method does not include any time it takes to
+    // load the network and population.
+    rc_comm.barrier();
+    simulation.run();
+}
+
+fn create_events(
+    config_path: &String,
+    config: &Config,
+    rank: u32,
+    output_path: &PathBuf,
+) -> Rc<RefCell<EventsPublisher>> {
     let events = Rc::new(RefCell::new(EventsPublisher::new()));
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
         let events_path = io::resolve_path(
-            &args.config_path,
+            config_path,
             &output_path.join(events_file).to_str().unwrap().to_string(),
         );
         info!("adding events writer with path: {events_path:?}");
@@ -155,27 +143,7 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
             .borrow_mut()
             .add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     }
-    let travel_time_collector = Box::new(TravelTimeCollector::new());
-    events.borrow_mut().add_subscriber(travel_time_collector);
-
-    let rc_comm = Rc::new(comm);
-
-    let net_message_broker = NetMessageBroker::new(Rc::clone(&rc_comm), &network, &network_partition);
-
-    let mut simulation: Simulation<C> = Simulation::new(
-        config,
-        network_partition,
-        garage,
-        population,
-        net_message_broker,
-        events,
-    );
-
-    // Wait for all processes to arrive at this barrier. This is important to ensure that the
-    // instrumentation of the simulation.run() method does not include any time it takes to
-    // load the network and population.
-    rc_comm.barrier();
-    simulation.run();
+    events
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also
@@ -197,6 +165,9 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
 }
 
 pub fn partition_input(config: &Config, config_path: &String) {
+    // If we partition the network it is copied to the output folder.
+    // Otherwise, nothing is done, and we can load the network from the input folder directly.
+    // In this case, we assume that the #partitions is part of the filename as `network.4.binpb` instead of `network.binpb`.
     id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
     if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
@@ -234,7 +205,7 @@ pub fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
     output_dir.join(filename)
 }
 
-fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
+pub(crate) fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
     let filename = path.file_name().unwrap().to_str().unwrap();
     let mut stripped = filename.strip_suffix(".binpb").unwrap();
     if let Some(s) = stripped.strip_suffix(format!(".{part}").as_str()) {

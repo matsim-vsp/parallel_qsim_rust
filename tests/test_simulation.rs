@@ -24,6 +24,7 @@ use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
 use rust_q_sim::simulation::population::population::Population;
 use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
+use rust_q_sim::simulation::scenario::Scenario;
 use rust_q_sim::simulation::simulation::Simulation;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use rust_q_sim::simulation::wire_types::events::Event;
@@ -122,8 +123,14 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     let rc = Rc::new(comm);
     let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net, false);
 
-    let mut sim = Simulation::new(config, sim_net, garage, population, broker, events);
+    let scenario = Scenario {
+        network,
+        garage,
+        population,
+        network_partition: sim_net,
+    };
 
+    let mut sim = Simulation::new(config, scenario, broker, events);
     sim.run();
 }
 

@@ -8,9 +8,8 @@ use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::io::xml;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::vehicles::{
-    LevelOfDetail, VehicleToType, VehicleType, VehiclesContainer,
-};
+use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType, VehiclesContainer};
 
 pub fn from_file(path: &Path) -> Garage {
     if path.extension().unwrap().eq("binpb") {
@@ -37,6 +36,9 @@ fn load_from_xml(path: &Path) -> Garage {
     let mut result = Garage::new();
     for io_veh_type in io_vehicles.veh_types {
         add_io_veh_type(&mut result, io_veh_type);
+    }
+    for io_veh in io_vehicles.vehicles {
+        add_io_veh(&mut result, io_veh)
     }
     let keys_ext: Vec<_> = result.vehicle_types.keys().map(|k| k.external()).collect();
     info!(
@@ -81,7 +83,10 @@ fn write_to_xml(garage: &Garage, path: &Path) {
         })
         .collect();
 
-    let io_vehicles = IOVehicleDefinitions { veh_types };
+    let io_vehicles = IOVehicleDefinitions {
+        veh_types,
+        vehicles: vec![],
+    };
 
     xml::write_to_file(&io_vehicles, path, "http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd")
 }
@@ -89,14 +94,7 @@ fn write_to_xml(garage: &Garage, path: &Path) {
 fn write_to_proto(garage: &Garage, path: &Path) {
     info!("Converting Garage into wire type");
     let vehicle_types = garage.vehicle_types.values().cloned().collect();
-    let vehicles = garage
-        .vehicles
-        .iter()
-        .map(|e| VehicleToType {
-            id: e.0.internal(),
-            vehicle_type_id: e.1.internal(),
-        })
-        .collect();
+    let vehicles = garage.vehicles.values().cloned().collect();
 
     let wire_format = VehiclesContainer {
         vehicle_types,
@@ -110,8 +108,8 @@ fn load_from_proto(path: &Path) -> Garage {
     let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
     let vehicles = wire_garage
         .vehicles
-        .iter()
-        .map(|v| (Id::get(v.id), Id::get(v.vehicle_type_id)))
+        .into_iter()
+        .map(|v| (Id::<Vehicle>::get(v.id), v))
         .collect();
     let vehicle_types = wire_garage
         .vehicle_types
@@ -166,18 +164,28 @@ fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
     garage.add_veh_type(veh_type);
 }
 
+fn add_io_veh(garage: &mut Garage, io_veh: IOVehicle) {
+    let veh_type = garage.vehicle_types.get(&Id::get_from_ext(io_veh.vehicle_type.as_str()))
+        .expect("Vehicle type of vehicle not found. There has to be a vehicle type defined before a vehicle can be added.");
+    let vehicle = Vehicle::from_io(io_veh, veh_type);
+    garage.add_veh(vehicle);
+}
+
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename = "vehicleDefinitions")]
 pub struct IOVehicleDefinitions {
     #[serde(rename = "vehicleType")]
     pub veh_types: Vec<IOVehicleType>,
+    #[serde(rename = "vehicle", default)]
+    pub vehicles: Vec<IOVehicle>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-#[serde(rename = "vehicleDefinitions")]
-pub struct IOVehicles {
-    #[serde(rename = "vehicleType", default)]
-    vehicle_types: Vec<IOVehicleType>,
+pub struct IOVehicle {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub vehicle_type: String,
+    pub attributes: Option<Attrs>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -323,6 +331,14 @@ mod test {
                                     <networkMode networkMode=\"some-network-mode\"/>\
                                     <flowEfficiencyFactor factor=\"9.5\"/>\
                                 </vehicleType>\
+                                <vehicle id=\"drt\" type=\"some-vehicle-id\">
+                                    <attributes>
+                                        <attribute name=\"dvrpMode\" class=\"java.lang.String\">drt</attribute>
+                                        <attribute name=\"startLink\" class=\"java.lang.String\">42</attribute>
+                                        <attribute name=\"serviceBeginTime\" class=\"java.lang.Double\">0</attribute>
+                                        <attribute name=\"serviceEndTime\" class=\"java.lang.Double\">84000</attribute>
+                                    </attributes>
+                                </vehicle>
                             </vehicleDefinitions>\
                         ";
 
@@ -359,6 +375,16 @@ mod test {
             9.5,
             veh_type.flow_efficiency_factor.as_ref().unwrap().factor
         );
+
+        let vehicle = veh_def.vehicles.first().unwrap();
+        assert_eq!("drt", vehicle.id.as_str());
+        assert_eq!("some-vehicle-id", vehicle.vehicle_type.as_str());
+        let attrs = vehicle.attributes.as_ref().unwrap();
+        assert_eq!(4, attrs.attributes.len());
+        assert_eq!("drt", attrs.find_or_else("dvrpMode", || ""));
+        assert_eq!("42", attrs.find_or_else("startLink", || ""));
+        assert_eq!("0", attrs.find_or_else("serviceBeginTime", || ""));
+        assert_eq!("84000", attrs.find_or_else("serviceEndTime", || ""));
     }
 
     #[test]
@@ -378,7 +404,7 @@ mod test {
             net_mode: Id::<String>::create("some network type 🚕").internal(),
             lod: LevelOfDetail::Teleported as i32,
         });
-        garage.add_veh_id(&Id::create("some-person"), &Id::get_from_ext("some-type"));
+        garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
         to_file(&garage, file);
         let loaded_garage = from_file(file);
@@ -402,7 +428,7 @@ mod test {
             net_mode: Id::<String>::create("some network type 🚕").internal(),
             lod: LevelOfDetail::Teleported as i32,
         });
-        garage.add_veh_id(&Id::create("some-person"), &Id::get_from_ext("some-type"));
+        garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
         to_file(&garage, file);
         let loaded_garage = from_file(file);

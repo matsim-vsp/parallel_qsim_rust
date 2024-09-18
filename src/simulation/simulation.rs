@@ -1,3 +1,4 @@
+use nohash_hasher::IntSet;
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -9,14 +10,11 @@ use crate::simulation::config::Config;
 use crate::simulation::engines::activity_engine::ActivityEngine;
 use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::engines::AgentStateTransitionLogic;
-use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::population::population::Population;
+use crate::simulation::scenario::Scenario;
 use crate::simulation::time_queue::MutTimeQueue;
-use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 
 pub struct Simulation<C: SimCommunicator> {
@@ -35,9 +33,7 @@ where
 {
     pub fn new(
         config: Config,
-        network: SimNetworkPartition,
-        garage: Garage,
-        mut population: Population,
+        mut scenario: Scenario,
         net_message_broker: NetMessageBroker<C>,
         events: Rc<RefCell<EventsPublisher>>,
     ) -> Self {
@@ -45,7 +41,7 @@ where
 
         // take Persons and copy them into queues. This way we can keep population around to translate
         // ids for events processing...
-        let agents = std::mem::take(&mut population.persons);
+        let agents = std::mem::take(&mut scenario.population.persons);
 
         for agent in agents.into_values() {
             activity_q.add(agent, config.simulation().start_time);
@@ -55,16 +51,11 @@ where
             ActivityEngine::new(activity_q, events.clone()),
         ));
 
-        let passenger_modes = config
-            .simulation()
-            .passenger_modes
-            .iter()
-            .map(|mode| Id::<String>::get_from_ext(mode).internal())
-            .collect();
+        let passenger_modes = IntSet::default(); //TODO
 
         let leg_engine = Rc::new(RefCell::new(LegEngine::new(
-            network,
-            garage,
+            scenario.network_partition,
+            scenario.garage,
             net_message_broker,
             events.clone(),
             passenger_modes,
