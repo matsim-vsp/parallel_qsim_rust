@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package general;
+
+message AttributeValue {
+  oneof type {
+    int64 int_value = 1;
+    string string_value = 2;
+    double double_value = 3;
+    bool bool_value = 4;
+    // to be expanded
+  }
+}
