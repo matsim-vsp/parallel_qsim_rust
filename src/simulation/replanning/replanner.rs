@@ -11,7 +11,6 @@ use crate::simulation::replanning::routing::router::NetworkRouter;
 use crate::simulation::replanning::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
 use crate::simulation::replanning::teleported_router::{BeeLineDistanceRouter, TeleportedRouter};
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person};
 use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
 
@@ -135,19 +134,16 @@ impl<'comm> ReRouteTripReplanner<'comm> {
     fn replan_main(&self, agent: &mut Person, garage: &Garage) {
         let curr_act = agent.curr_act();
 
-        let veh_type_id = garage
-            .vehicles
-            .get(&Id::<Vehicle>::get(
-                agent.next_leg().route.as_ref().unwrap().veh_id,
-            ))
-            .unwrap();
+        let veh_type_id =
+            garage.vehicle_type_id(&Id::get(agent.next_leg().route.as_ref().unwrap().veh_id));
 
-        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), veh_type_id);
+        let (route, travel_time) =
+            self.find_route(agent.curr_act(), agent.next_act(), &veh_type_id);
         let dep_time = curr_act.end_time;
 
         let vehicle_type_id = agent.next_leg().vehicle_type_id(garage);
 
-        let veh_id = garage.veh_id(&Id::<Person>::get(agent.id), vehicle_type_id);
+        let veh_id = garage.veh_id(&Id::<Person>::get(agent.id), &vehicle_type_id);
 
         let distance = self.calculate_distance(&route);
 
@@ -167,7 +163,7 @@ impl<'comm> ReRouteTripReplanner<'comm> {
         assert_eq!(curr_act.link_id, next_act.link_id);
 
         let veh_type_id = agent.next_leg().vehicle_type_id(garage);
-        let access_egress_speed = garage.vehicle_types.get(veh_type_id).unwrap().max_v;
+        let access_egress_speed = garage.vehicle_types.get(&veh_type_id).unwrap().max_v;
 
         let dep_time;
         let walk = if curr_act.is_interaction() {
@@ -188,7 +184,7 @@ impl<'comm> ReRouteTripReplanner<'comm> {
             )
         };
 
-        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), veh_type_id);
+        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), &veh_type_id);
 
         agent.update_next_leg(
             dep_time,
@@ -204,14 +200,14 @@ impl<'comm> ReRouteTripReplanner<'comm> {
         let next_act = agent.next_act();
 
         let veh_type_id = agent.next_leg().vehicle_type_id(garage);
-        let speed = garage.vehicle_types.get(veh_type_id).unwrap().max_v;
+        let speed = garage.vehicle_types.get(&veh_type_id).unwrap().max_v;
 
         let dep_time = curr_act.end_time;
         let teleportation = self
             .teleported_router
             .query_between_acts(curr_act, next_act, speed);
 
-        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), veh_type_id);
+        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), &veh_type_id);
         agent.update_next_leg(
             dep_time,
             teleportation.duration,
@@ -257,7 +253,7 @@ impl<'comm> ReRouteTripReplanner<'comm> {
             let level_of_detail = LevelOfDetail::try_from(
                 garage
                     .vehicle_types
-                    .get(agent.next_leg().vehicle_type_id(garage))
+                    .get(&agent.next_leg().vehicle_type_id(garage))
                     .unwrap()
                     .lod,
             )
@@ -272,7 +268,7 @@ impl<'comm> ReRouteTripReplanner<'comm> {
             let level_of_detail = LevelOfDetail::try_from(
                 garage
                     .vehicle_types
-                    .get(agent.next_leg().vehicle_type_id(garage))
+                    .get(&agent.next_leg().vehicle_type_id(garage))
                     .unwrap()
                     .lod,
             )

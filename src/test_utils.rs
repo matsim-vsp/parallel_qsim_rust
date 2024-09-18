@@ -48,6 +48,5 @@ pub fn config() -> config::Simulation {
         end_time: 0,
         sample_size: 1.0,
         stuck_threshold: u32::MAX,
-        passenger_modes: vec![],
     }
 }
