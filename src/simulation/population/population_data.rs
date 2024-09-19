@@ -372,12 +372,19 @@ impl Leg {
 
         let routing_mode: Id<String> = Id::create(routing_mode_ext);
         let mode = Id::get_from_ext(io_leg.mode.as_str());
-        let route = Route::from_io(&io_leg.route, person_id, &mode);
+
+        let route = io_leg
+            .route
+            .as_ref()
+            .and_then(|r| Some(Route::from_io(r, person_id, &mode)));
 
         Self {
-            route: Some(route),
+            route,
             mode: mode.internal(),
-            trav_time: Self::parse_trav_time(&io_leg.trav_time, &io_leg.route.trav_time),
+            trav_time: Self::parse_trav_time(
+                &io_leg.trav_time,
+                &io_leg.route.as_ref().and_then(|r| r.trav_time.clone()),
+            ),
             dep_time: parse_time_opt(&io_leg.dep_time),
             routing_mode: routing_mode.internal(),
             attributes: HashMap::new(),
@@ -482,7 +489,7 @@ impl Route {
                 }
             }
         } else {
-            panic!("vehicle id is expected to be set. ")
+            panic!("vehicle id is expected to be set.")
         }
     }
 }
