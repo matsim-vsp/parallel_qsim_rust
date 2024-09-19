@@ -8,7 +8,6 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::events::Event;
-use crate::simulation::wire_types::general::attribute_value::Type;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Leg, Person};
 use crate::simulation::wire_types::vehicles::LevelOfDetail;
@@ -295,20 +294,12 @@ impl DepartureHandler for DrtDriverDepartureHandler {
         waiting_passengers: &mut IntMap<u64, Person>,
     ) -> Option<Vehicle> {
         // remove passenger from waiting queue, place driver and passenger in vehicle and hand it over to leg engine
-        let passenger_id = match agent
+        let passenger_id = agent
             .curr_leg()
             .attributes
             .get(Leg::PASSENGER_ID_ATTRIBUTE)
             .expect("No passenger id found")
-            .r#type
-            .as_ref()
-            .unwrap()
-        {
-            Type::IntValue(id) => *id as u64,
-            _ => {
-                unreachable!()
-            }
-        };
+            .as_int() as u64;
 
         let passengers: Vec<Person> = vec![waiting_passengers
             .remove(&passenger_id)

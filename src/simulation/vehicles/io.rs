@@ -168,6 +168,12 @@ fn add_io_veh(garage: &mut Garage, io_veh: IOVehicle) {
     let veh_type = garage.vehicle_types.get(&Id::get_from_ext(io_veh.vehicle_type.as_str()))
         .expect("Vehicle type of vehicle not found. There has to be a vehicle type defined before a vehicle can be added.");
     let vehicle = Vehicle::from_io(io_veh, veh_type);
+
+    //add id for drt mode
+    if let Some(o) = vehicle.attributes.get("dvrpMode") {
+        Id::<String>::create(o.as_string().as_str());
+    }
+
     garage.add_veh(vehicle);
 }
 

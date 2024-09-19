@@ -1,0 +1,29 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: ./assets/drt/bin-data/drt.network.binpb
+    population: ./assets/drt/bin-data/drt.plans.binpb
+    vehicles: ./assets/drt/bin-data/drt.vehicles.binpb
+    ids: ./assets/drt/bin-data/drt.ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: None
+  output:
+    type: Output
+    output_dir: ./test_output/drt
+    profiling: !CSV
+      level: INFO
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 84600
+    sample_size: 1
+    stuck_threshold: 30
+  drt:
+    type: Drt
+    services:
+      - mode: drt
