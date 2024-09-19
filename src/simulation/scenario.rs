@@ -138,10 +138,14 @@ impl Scenario {
 
             //for each drt vehicle, create a driver agent
             for (link, vehicle) in drt_vehicles {
-                let start = vehicle.attributes.get("serviceBeginTime").unwrap().as_int() as u32;
+                let start = vehicle
+                    .attributes
+                    .get("serviceBeginTime")
+                    .unwrap()
+                    .as_double() as u32;
 
                 let veh_id = Id::<Vehicle>::get(vehicle.id);
-                let person_id = Id::<Person>::create(veh_id.external()).internal();
+                let person_id = Id::<Person>::create(veh_id.external());
                 let from = network_partition.links.get(&link).unwrap().from();
                 let x = network.get_node(from).x;
                 let y = network.get_node(from).y;
@@ -149,7 +153,10 @@ impl Scenario {
                 let mut plan = Plan::new();
                 //TODO is Some(start) as end time correct?
                 plan.add_act(Activity::new(x, y, 0, link, Some(0), Some(start), None));
-                Person::new(person_id, plan);
+                let person_id_internal = person_id.internal();
+                population
+                    .persons
+                    .insert(person_id, Person::new(person_id_internal, plan));
             }
         }
     }
@@ -157,6 +164,53 @@ impl Scenario {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::{CommandLineArgs, Config};
+    use crate::simulation::id::Id;
+    use crate::simulation::scenario::Scenario;
+    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::wire_types::population::Person;
+    use std::path::PathBuf;
+
     #[test]
-    fn test() {}
+    fn test() {
+        let config_path = "./assets/drt/config.yml";
+        let config = Config::from_file(&CommandLineArgs {
+            config_path: String::from(config_path),
+            num_parts: None,
+        });
+
+        let output_path = PathBuf::from(config.output().output_dir);
+
+        let scenario = Scenario::build(&config, &String::from(config_path), 0, &output_path);
+
+        assert_eq!(scenario.network.nodes.len(), 62);
+        assert_eq!(scenario.network.links.len(), 170);
+
+        assert_eq!(scenario.garage.vehicle_types.len(), 1);
+        assert_eq!(scenario.garage.vehicles.len(), 10 + 1);
+
+        assert_eq!(scenario.population.persons.len(), 10 + 1);
+
+        let person_ids = scenario
+            .population
+            .persons
+            .keys()
+            .collect::<Vec<&Id<Person>>>();
+
+        let vehicle_ids = scenario
+            .garage
+            .vehicles
+            .keys()
+            .collect::<Vec<&Id<Vehicle>>>();
+
+        for n in 0..10u64 {
+            assert!(person_ids.contains(&&Id::get_from_ext(format!("passenger{}", n).as_str())));
+            assert!(
+                vehicle_ids.contains(&&Id::get_from_ext(format!("passenger{}_car", n).as_str()))
+            );
+        }
+
+        assert!(person_ids.contains(&&Id::get_from_ext("drt")));
+        assert!(vehicle_ids.contains(&&Id::get_from_ext("drt")));
+    }
 }
