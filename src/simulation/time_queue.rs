@@ -106,6 +106,7 @@ impl EndTime for ValueWrap {
 
 /// This is a mutable version of TimeQueue. It allows to mutate the values in the queue.
 /// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
+/// TODO taxi driver needs to be able to change his end_time such that order is changed
 #[derive(Default)]
 pub struct MutTimeQueue<T>
 where

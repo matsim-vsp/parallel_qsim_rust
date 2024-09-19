@@ -195,12 +195,14 @@ pub struct Routing {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Drt {
+    #[serde(default)]
     pub process_type: DrtProcessType,
     pub services: Vec<DrtService>,
 }
 
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum DrtProcessType {
+    #[default]
     OneProcess,
     OneProcessPerService,
 }
@@ -208,9 +210,13 @@ pub enum DrtProcessType {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DrtService {
     pub mode: String,
+    #[serde(default)]
     pub stop_duration: u32,
+    #[serde(default)]
     pub max_wait_time: u32,
+    #[serde(default)]
     pub max_travel_time_alpha: f32,
+    #[serde(default)]
     pub max_travel_time_beta: f32,
 }
 
