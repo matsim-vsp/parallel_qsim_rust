@@ -5,7 +5,7 @@ are [here](https://docs.google.com/document/d/1DkrSJ7KnKXfy2qg8wWyE7c9OPqOUB63px
 
 The most recent release can be cited with the following reference
 
-[![DOI](https://zenodo.org/badge/498376436.svg)](https://zenodo.org/doi/10.5281/zenodo.10960722)
+[![DOI](https://zenodo.org/badge/498376436.svg)](https://zenodo.org/doi/10.5281/zenodo.13928119)
 
 The project is described in two pre-prints:
 - [High-Performance Simulations for Urban Planning: Implementing Parallel Distributed Multi-Agent Systems in MATSim - (Submitted to ISPDC)](https://svn.vsp.tu-berlin.de/repos/public-svn/publications/vspwp/2024/24-10/LaudanEtAl2024DistributeQSim_submitted.pdf)
