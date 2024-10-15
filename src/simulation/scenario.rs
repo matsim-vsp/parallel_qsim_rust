@@ -22,14 +22,16 @@ impl Scenario {
     pub fn build(config: &Config, config_path: &String, rank: u32, output_path: &PathBuf) -> Self {
         id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
 
+        // mandatory content to create a scenario
         let network = Self::create_network(config, config_path, output_path);
         let mut garage = Self::create_garage(config, config_path);
         let mut population =
             Self::create_population(config, config_path, &network, &mut garage, rank);
         let network_partition = Self::create_network_partition(config, rank, &network, &population);
-        Self::create_drt_driver(
+
+        // optional stuff
+        Self::add_drt(
             config,
-            rank,
             &mut garage,
             &mut population,
             &network,
@@ -100,9 +102,37 @@ impl Scenario {
         partition
     }
 
-    fn create_drt_driver(
+    fn add_drt(
         config: &Config,
-        rank: u32,
+        garage: &mut Garage,
+        population: &mut Population,
+        network: &Network,
+        network_partition: &SimNetworkPartition,
+    ) {
+        if config.drt().is_none() {
+            return;
+        }
+
+        Self::add_drt_ids();
+        Self::add_drt_driver(config, garage, population, network, network_partition);
+    }
+
+    fn add_drt_ids() {
+        info!("Creating DRT ids.");
+
+        //activity types
+        Id::<String>::create("BeforeVrpSchedule");
+        Id::<String>::create("DrtStay");
+        Id::<String>::create("DrtBusStop");
+
+        //task types
+        Id::<String>::create("DRIVE");
+        Id::<String>::create("STOP");
+        Id::<String>::create("STAY");
+    }
+
+    fn add_drt_driver(
+        config: &Config,
         garage: &mut Garage,
         population: &mut Population,
         network: &Network,
@@ -118,7 +148,7 @@ impl Scenario {
                 .collect::<Vec<String>>();
 
             //fetch all drt vehicles starting on this partition
-            let drt_vehicles = garage
+            let local_drt_vehicles = garage
                 .vehicles
                 .values()
                 .filter(|&v| {
@@ -129,7 +159,11 @@ impl Scenario {
                     }
                 })
                 .map(|v| {
-                    let link = v.attributes.get("startLink").unwrap().as_string();
+                    let link = v
+                        .attributes
+                        .get("startLink")
+                        .expect("No start link for drt vehicle provided.")
+                        .as_string();
                     let link_id = Id::<Link>::get_from_ext(link.as_str()).internal();
                     (link_id, v)
                 })
@@ -137,11 +171,11 @@ impl Scenario {
                 .collect::<Vec<(u64, &Vehicle)>>();
 
             //for each drt vehicle, create a driver agent
-            for (link, vehicle) in drt_vehicles {
+            for (link, vehicle) in local_drt_vehicles {
                 let start = vehicle
                     .attributes
                     .get("serviceBeginTime")
-                    .unwrap()
+                    .expect("No service begin time for drt vehicle provided.")
                     .as_double() as u32;
 
                 let veh_id = Id::<Vehicle>::get(vehicle.id);
@@ -186,10 +220,14 @@ mod tests {
         assert_eq!(scenario.network.nodes.len(), 62);
         assert_eq!(scenario.network.links.len(), 170);
 
-        assert_eq!(scenario.garage.vehicle_types.len(), 1);
+        // 10 agents, 1 drt agent
+        assert_eq!(scenario.population.persons.len(), 10 + 1);
+
+        // 10 agent vehicles, 1 drt vehicle
         assert_eq!(scenario.garage.vehicles.len(), 10 + 1);
 
-        assert_eq!(scenario.population.persons.len(), 10 + 1);
+        //there is only one predefined vehicle type (car)
+        assert_eq!(scenario.garage.vehicle_types.len(), 1);
 
         let person_ids = scenario
             .population

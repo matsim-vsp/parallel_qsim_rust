@@ -106,6 +106,22 @@ impl XmlEventsWriter {
                         Id::<String>::get(e.request).external(),
                         Id::<Vehicle>::get(e.vehicle).external())
             }
+            Type::DvrpTaskStarted(e) => {
+                format!("<event time=\"{time}\" type=\"dvrp task started\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
+                        Id::<Person>::get(e.person).external(),
+                        Id::<Vehicle>::get(e.dvrp_vehicle).external(),
+                        Id::<String>::get(e.task_type).external(),
+                        e.task_index,
+                        Id::<String>::get(e.dvrp_mode).external())
+            }
+            Type::DvrpTaskEnded(e) => {
+                format!("<event time=\"{time}\" type=\"dvrp task ended\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
+                        Id::<Person>::get(e.person).external(),
+                        Id::<Vehicle>::get(e.dvrp_vehicle).external(),
+                        Id::<String>::get(e.task_type).external(),
+                        e.task_index,
+                        Id::<String>::get(e.dvrp_mode).external())
+            }
         }
     }
 
