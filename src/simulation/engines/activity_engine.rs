@@ -11,6 +11,7 @@ use std::rc::{Rc, Weak};
 pub struct ActivityEngine<C: SimCommunicator> {
     activity_q: MutTimeQueue<Person>,
     events: Rc<RefCell<EventsPublisher>>,
+    // this is a weak reference in order to prevent a reference cycle (see https://doc.rust-lang.org/book/ch15-06-reference-cycles.html)
     agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
 }
 

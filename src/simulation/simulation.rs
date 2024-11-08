@@ -110,7 +110,7 @@ where
 
             // let mut act_ref = self.activity_engine.borrow_mut();
             // let mut leg_ref = self.leg_engine.borrow_mut();
-
+            //
             // let mut agents = act_ref.agents();
             // agents.extend(leg_ref.agents());
             //

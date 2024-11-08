@@ -21,6 +21,7 @@ pub struct LegEngine<C: SimCommunicator> {
     garage: Garage,
     net_message_broker: NetMessageBroker<C>,
     events: Rc<RefCell<EventsPublisher>>,
+    // this is a weak reference in order to prevent a reference cycle (see https://doc.rust-lang.org/book/ch15-06-reference-cycles.html)
     agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
     departure_handler: Vec<Box<dyn DepartureHandler>>,
     waiting_passengers: IntMap<u64, Person>,
@@ -102,6 +103,7 @@ impl<C: SimCommunicator> LegEngine<C> {
     ) -> Vec<Person> {
         let mut agents = vec![];
         for veh in vehicles {
+            //in case of teleportation, do not publish leave vehicle events
             if publish_leave_vehicle {
                 self.events
                     .borrow_mut()
