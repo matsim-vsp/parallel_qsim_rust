@@ -1,4 +1,4 @@
-use geo::{Closest, ClosestPoint, EuclideanDistance, Line, Point};
+use geo::{Closest, ClosestPoint, Distance, Euclidean, Line, Point};
 use std::fmt::Debug;
 
 use crate::simulation::network::global_network::Network;
@@ -46,7 +46,7 @@ impl BeeLineDistanceRouter {
     }
 
     fn query_points(speed: f32, p1: Point, p2: Point) -> Teleportation {
-        let distance = p1.euclidean_distance(&p2);
+        let distance = Euclidean::distance(p1, p2);
         let duration = (distance / speed as f64) as u32;
         Teleportation { distance, duration }
     }

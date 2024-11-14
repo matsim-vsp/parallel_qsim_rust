@@ -1,0 +1,27 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: /Users/paulheinrich/Nextcloud/Shared/RustQSim/scenarios/rvr/input/rvr-1pct/rvr-1pct.network.binpb
+    population: /Users/paulheinrich/Nextcloud/Shared/RustQSim/scenarios/rvr/input/rvr-1pct/rvr-1pct.plans.binpb
+    vehicles: /Users/paulheinrich/Nextcloud/Shared/RustQSim/scenarios/rvr/input/rvr-1pct/rvr-1pct.vehicles.binpb
+    ids: /Users/paulheinrich/Nextcloud/Shared/RustQSim/scenarios/rvr/input/rvr-1pct/rvr-1pct.ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 0
+    method: !Metis
+      vertex_weight:
+        - PreComputed
+  output:
+    type: Output
+    output_dir: ./assets/rvr-1pct/size
+    profiling: !CSV
+      level: INFO
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 129600
+    sample_size: 0.01
+    stuck_threshold: 30

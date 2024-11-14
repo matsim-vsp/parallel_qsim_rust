@@ -5,7 +5,7 @@ use std::sync::{Arc, Barrier};
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
-use mpi::topology::{Communicator, SystemCommunicator};
+use mpi::topology::{Communicator, SimpleCommunicator};
 use mpi::{Count, Rank};
 use tracing::{debug, info, instrument, span, Level};
 
@@ -193,7 +193,7 @@ impl SimCommunicator for ChannelSimCommunicator {
 }
 
 pub struct MpiSimCommunicator {
-    pub mpi_communicator: SystemCommunicator,
+    pub mpi_communicator: SimpleCommunicator,
 }
 
 impl SimCommunicator for MpiSimCommunicator {
