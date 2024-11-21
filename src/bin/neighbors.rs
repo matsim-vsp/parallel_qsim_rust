@@ -6,7 +6,7 @@ use ahash::HashSet;
 use clap::Parser;
 use tracing::info;
 
-use rust_q_sim::simulation::config::PartitionMethod;
+use rust_q_sim::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod, VertexWeight};
 use rust_q_sim::simulation::logging::init_std_out_logging;
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
@@ -17,26 +17,37 @@ fn main() {
     let args = InputArgs::parse();
 
     id::load_from_file(&args.id_store);
-    info!("Loading network from {:?}", args.network);
-    let net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
-    let distinct_partitions: HashSet<u32> = net.nodes.iter().map(|n| n.partition).collect();
-
     let mut writer =
         BufWriter::new(File::create(&args.output).expect("Could not open output file."));
     writer
-        .write("rank,neighbors\n".as_bytes())
+        .write_all("size,rank,neighbors\n".as_bytes())
         .expect("failed to write header");
 
-    for partition in distinct_partitions {
-        let net_partition =
-            SimNetworkPartition::from_network(&net, partition, config::Simulation::default());
-        let neighbors = net_partition.neighbors().len();
-        let serialized = format!("{},{}\n", partition, neighbors);
-        writer
-            .write(serialized.as_bytes())
-            .expect("Failed to write entry.");
+    for i in 1..12 {
+        info!("Loading network from {:?}", args.network);
+        let num_parts: u32 = 2_i32.pow(i) as u32;
+        let net = Network::from_file_path(
+            &args.network,
+            num_parts,
+            PartitionMethod::Metis(MetisOptions {
+                vertex_weight: vec![VertexWeight::PreComputed],
+                edge_weight: EdgeWeight::Capacity,
+                imbalance_factor: 0.03,
+                iteration_number: 10,
+                contiguous: true,
+            }),
+        );
+        let distinct_partitions: HashSet<u32> = net.nodes.iter().map(|n| n.partition).collect();
+        for partition in distinct_partitions {
+            let net_partition =
+                SimNetworkPartition::from_network(&net, partition, config::Simulation::default());
+            let neighbors = net_partition.neighbors().len();
+            let serialized = format!("{},{},{}\n", num_parts, partition, neighbors);
+            writer
+                .write_all(serialized.as_bytes())
+                .expect("Failed to write entry.");
+        }
     }
-
     writer.flush().unwrap();
     info!("Finished writing output file to: {:?}", args.output)
 }
