@@ -5,13 +5,14 @@ use std::fmt::Debug;
 use tracing::{info, instrument};
 
 use crate::simulation::wire_types::events::event::Type::{
-    ActEnd, ActStart, Arrival, Departure, Generic, LinkEnter, LinkLeave, PersonEntersVeh,
-    PersonLeavesVeh, Travelled,
+    ActEnd, ActStart, Arrival, Departure, DvrpTaskEnded, DvrpTaskStarted, Generic, LinkEnter,
+    LinkLeave, PassengerDroppedOff, PassengerPickedUp, PersonEntersVeh, PersonLeavesVeh, Travelled,
 };
 use crate::simulation::wire_types::events::{
-    ActivityEndEvent, ActivityStartEvent, ArrivalEvent, DepartureEvent, Event, GenericEvent,
-    LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
-    TravelledEvent,
+    ActivityEndEvent, ActivityStartEvent, ArrivalEvent, DepartureEvent, DvrpTaskEndedEvent,
+    DvrpTaskStartedEvent, Event, GenericEvent, LinkEnterEvent, LinkLeaveEvent,
+    PassengerDroppedOffEvent, PassengerPickedUpEvent, PersonEntersVehicleEvent,
+    PersonLeavesVehicleEvent, TravelledEvent,
 };
 
 pub trait EventsSubscriber {
@@ -200,6 +201,64 @@ impl Event {
                 person,
                 distance,
                 mode,
+            })),
+        }
+    }
+
+    pub fn new_passenger_picked_up(person: u64, mode: u64, request: u64, vehicle: u64) -> Event {
+        Event {
+            r#type: Some(PassengerPickedUp(PassengerPickedUpEvent {
+                person,
+                mode,
+                request,
+                vehicle,
+            })),
+        }
+    }
+
+    pub fn new_passenger_dropped_off(person: u64, mode: u64, request: u64, vehicle: u64) -> Event {
+        Event {
+            r#type: Some(PassengerDroppedOff(PassengerDroppedOffEvent {
+                person,
+                mode,
+                request,
+                vehicle,
+            })),
+        }
+    }
+
+    pub fn new_dvrp_task_started(
+        person: u64,
+        dvrp_vehicle: u64,
+        task_type: u64,
+        task_index: u64,
+        dvrp_mode: u64,
+    ) -> Event {
+        Event {
+            r#type: Some(DvrpTaskStarted(DvrpTaskStartedEvent {
+                person,
+                dvrp_vehicle,
+                task_type,
+                task_index,
+                dvrp_mode,
+            })),
+        }
+    }
+
+    pub fn new_dvrp_task_ended(
+        person: u64,
+        dvrp_vehicle: u64,
+        task_type: u64,
+        task_index: u64,
+        dvrp_mode: u64,
+    ) -> Event {
+        Event {
+            r#type: Some(DvrpTaskEnded(DvrpTaskEndedEvent {
+                person,
+                dvrp_vehicle,
+                task_type,
+                task_index,
+                dvrp_mode,
             })),
         }
     }
