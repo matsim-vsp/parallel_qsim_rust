@@ -14,6 +14,7 @@ modules:
   output:
     type: Output
     output_dir: ./test_output/simulation/adhoc_routing/with_updates/one_part
+    logging: Info
   routing:
     type: Routing
     mode: AdHoc
