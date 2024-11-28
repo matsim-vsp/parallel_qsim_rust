@@ -1,5 +1,6 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
+use tracing::info;
 
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::network::global_network::Network;
@@ -101,6 +102,13 @@ where
 
     pub fn send_recv(&mut self, now: u32) -> Vec<SyncMessage> {
         let vehicles = self.prepare_send_recv_vehicles(now);
+
+        for (_, m) in &vehicles {
+            if !m.vehicles.is_empty() {
+                info!("Rank {}, message {:?}", self.rank(), m);
+            }
+        }
+
         let mut result: Vec<SyncMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
 

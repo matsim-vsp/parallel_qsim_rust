@@ -1,4 +1,6 @@
+use nohash_hasher::IntMap;
 use std::any::Any;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -6,12 +8,12 @@ use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::JoinHandle;
 use std::{fs, thread};
-
-use nohash_hasher::IntMap;
 use tracing::info;
 
-use rust_q_sim::simulation::config::{CommandLineArgs, Config, RoutingMode};
-use rust_q_sim::simulation::controller::{get_numbered_output_filename, partition_input};
+use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod, RoutingMode};
+use rust_q_sim::simulation::controller::{
+    create_output_filename, get_numbered_output_filename, partition_input,
+};
 use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::communication::communicators::{
@@ -69,11 +71,16 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     let output_path = PathBuf::from(&config.output().output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
-    let temp_network_file = get_numbered_output_filename(
-        &output_path,
-        &PathBuf::from(config.proto_files().network),
-        config.partitioning().num_parts,
-    );
+    let temp_network_file = match config.partitioning().method {
+        PartitionMethod::Metis(_) => get_numbered_output_filename(
+            &output_path,
+            &PathBuf::from(config.proto_files().network),
+            config.partitioning().num_parts,
+        ),
+        PartitionMethod::None => {
+            create_output_filename(&output_path, &PathBuf::from(config.proto_files().network))
+        }
+    };
 
     id::load_from_file(&PathBuf::from(config.proto_files().ids));
 
@@ -99,6 +106,16 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
         comm.rank(),
     );
     let sim_net = SimNetworkPartition::from_network(&network, rank, config.simulation());
+
+    info!(
+        "Partitioning: Rank {rank}; Links {:?}; Nodes {:?}",
+        &sim_net.get_link_ids(),
+        &sim_net
+            .nodes
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<HashSet<u64>>()
+    );
 
     let mut events = EventsPublisher::new();
     events.add_subscriber(test_subscriber);

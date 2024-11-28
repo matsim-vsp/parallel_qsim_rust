@@ -60,13 +60,16 @@ pub fn run_channel() {
 pub fn run_mpi() {
     let universe = mpi::initialize().unwrap();
     let world = universe.world();
+    let size = world.size();
+    let rank = world.rank();
+
     let comm = MpiSimCommunicator {
         mpi_communicator: world,
     };
 
     let mut args = CommandLineArgs::parse();
     // override the num part argument, with the number of processes mpi has started.
-    args.num_parts = Some(world.size() as u32);
+    args.num_parts = Some(size as u32);
     let config = Config::from_file(&args);
 
     let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
@@ -77,9 +80,9 @@ pub fn run_mpi() {
     );
     execute_partition(comm, &args);
 
-    info!("#{} at barrier.", world.rank());
+    info!("#{} at barrier.", rank);
     universe.world().barrier();
-    info!("Process #{} finishing.", world.rank());
+    info!("Process #{} finishing.", rank);
 }
 
 fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineArgs) {
@@ -230,7 +233,7 @@ pub fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: 
     insert_number_in_proto_filename(&out, part)
 }
 
-fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
+pub fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
     let filename = input_file.file_name().unwrap();
     output_dir.join(filename)
 }
