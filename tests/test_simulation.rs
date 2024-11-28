@@ -100,6 +100,11 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     );
     let sim_net = SimNetworkPartition::from_network(&network, rank, config.simulation());
 
+    info!(
+        "Partitioning: Rank {rank}; Links {:?}",
+        &sim_net.get_link_ids()
+    );
+
     let mut events = EventsPublisher::new();
     events.add_subscriber(test_subscriber);
     events.add_subscriber(Box::new(TravelTimeCollector::new()));
