@@ -233,7 +233,7 @@ pub fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: 
     insert_number_in_proto_filename(&out, part)
 }
 
-fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
+pub fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
     let filename = input_file.file_name().unwrap();
     output_dir.join(filename)
 }

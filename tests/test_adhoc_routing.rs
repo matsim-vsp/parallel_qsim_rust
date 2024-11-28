@@ -26,6 +26,8 @@ fn create_resources(in_dir: &PathBuf, out_dir: &PathBuf) {
 
 #[test]
 fn execute_adhoc_routing_one_part_no_updates() {
+    // init_std_out_logging();
+
     create_resources(
         &PathBuf::from("./assets/adhoc_routing/no_updates/"),
         &PathBuf::from("./test_output/simulation/adhoc_routing/no_updates/one_part/"),
@@ -65,7 +67,7 @@ fn execute_adhoc_routing_two_parts_no_updates() {
 
 #[test]
 fn execute_adhoc_routing_one_part_with_updates() {
-    init_std_out_logging();
+    // init_std_out_logging();
 
     create_resources(
         &PathBuf::from("./assets/adhoc_routing/with_updates/"),
