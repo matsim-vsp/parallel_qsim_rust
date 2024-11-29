@@ -103,12 +103,6 @@ where
     pub fn send_recv(&mut self, now: u32) -> Vec<SyncMessage> {
         let vehicles = self.prepare_send_recv_vehicles(now);
 
-        for (_, m) in &vehicles {
-            if !m.vehicles.is_empty() {
-                info!("Rank {}, message {:?}", self.rank(), m);
-            }
-        }
-
         let mut result: Vec<SyncMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
 
