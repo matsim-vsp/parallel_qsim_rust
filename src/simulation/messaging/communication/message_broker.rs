@@ -1,6 +1,5 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
-use tracing::info;
 
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::network::global_network::Network;
