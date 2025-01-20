@@ -94,12 +94,12 @@ module load anaconda3/2023.09
 conda init bash
 ```
 
-Then create your own environment and install `libclang`:
+Then create your own environment and install `libclang` and `llvmdev`:
 
 ```shell
 conda create -n your_env_name
 conda activate your_env_name
-conda install libclang 
+conda install libclang llvmdev
 ```
 
 ##### Load dependencies
