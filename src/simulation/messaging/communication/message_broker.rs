@@ -13,7 +13,7 @@ where
     C: SimCommunicator,
 {
     communicator: Rc<C>,
-    server_rank: u32,
+    _server_rank: u32,
 }
 
 impl<C> DrtClientMessageBroker<C>
@@ -23,7 +23,7 @@ where
     pub fn new(communicator: Rc<C>, server_rank: u32) -> Self {
         DrtClientMessageBroker {
             communicator,
-            server_rank,
+            _server_rank: server_rank,
         }
     }
 
@@ -31,7 +31,7 @@ where
         self.communicator.rank()
     }
 
-    pub fn send_recv(&self, now: u32) -> Vec<SyncMessage> {
+    pub fn send_recv(&self, _now: u32) -> Vec<SyncMessage> {
         todo!()
     }
 }
