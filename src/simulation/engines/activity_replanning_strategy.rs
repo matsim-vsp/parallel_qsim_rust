@@ -10,11 +10,11 @@ struct DrtPassengerReplanning {
 }
 
 impl ActivityReplanningStrategy for DrtPassengerReplanning {
-    fn is_responsible(&self, agent: &Person) -> bool {
+    fn is_responsible(&self, _agent: &Person) -> bool {
         todo!()
     }
 
-    fn replan(&mut self, agent: &Person) {
+    fn replan(&mut self, _agent: &Person) {
         todo!()
     }
 }
@@ -24,11 +24,11 @@ struct DrtDriverReplanning {
 }
 
 impl ActivityReplanningStrategy for DrtDriverReplanning {
-    fn is_responsible(&self, agent: &Person) -> bool {
+    fn is_responsible(&self, _agent: &Person) -> bool {
         todo!()
     }
 
-    fn replan(&mut self, agent: &Person) {
+    fn replan(&mut self, _agent: &Person) {
         todo!()
     }
 }

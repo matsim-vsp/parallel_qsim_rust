@@ -387,7 +387,7 @@ where
 
 impl<'a, 'b, 'send_buffer> MpiSimCommunicator<'a, 'b, 'send_buffer> {
     pub(crate) fn new(
-        mpi_communicator: SystemCommunicator,
+        mpi_communicator: SimpleCommunicator,
         scope: &'a LocalScope<'b>,
         requests: &'a mut RequestCollection<'b, Vec<u8>>,
         send_buffer: &'send_buffer Vec<OnceCell<Vec<u8>>>,

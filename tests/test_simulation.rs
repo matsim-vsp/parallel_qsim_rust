@@ -12,7 +12,7 @@ use std::{fs, thread};
 use tracing::info;
 
 use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
-use rust_q_sim::simulation::controller::{get_numbered_output_filename, partition_input};
+use rust_q_sim::simulation::controller::{create_output_filename, get_numbered_output_filename, partition_input};
 use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::communication::communicators::{
