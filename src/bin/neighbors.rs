@@ -12,6 +12,8 @@ use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
 use rust_q_sim::simulation::{config, id};
 
+// I would have expected, that we read already partitioned networks and write the neighbors of each partition to a file.
+// But we are partitioning the network in each iteration and write the neighbors of each partition to a file. paul, jan'25
 fn main() {
     init_std_out_logging();
     let args = InputArgs::parse();

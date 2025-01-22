@@ -106,8 +106,9 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     comm.barrier();
 
     id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
-    // if we partition the network is copied to the output folder.
-    // otherwise nothing is done and we can load the network from the input folder directly.
+    // If we partition the network it is copied to the output folder.
+    // Otherwise, nothing is done, and we can load the network from the input folder directly.
+    // In this case, we assume that the #partitions is part of the filename as `network.4.binpb` instead of `network.binpb`.
     let network_path = if let PartitionMethod::Metis(_) = config.partitioning().method {
         get_numbered_output_filename(
             &output_path,
