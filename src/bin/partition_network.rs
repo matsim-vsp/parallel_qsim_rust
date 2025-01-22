@@ -7,6 +7,11 @@ use rust_q_sim::simulation::config::{MetisOptions, PartitionMethod};
 use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::network::global_network::Network;
 
+/// This binary partitions a network into a given number of parts.
+/// A new network file is written to the same folder as the input network file.
+///
+/// The new file has the same name as the input file, but with the number of parts appended to the name.
+/// e.g. `network.binpb` -> `network.4.binpb`
 fn main() {
     rust_q_sim::simulation::logging::init_std_out_logging();
     let args = InputArgs::parse();
@@ -34,7 +39,7 @@ fn main() {
     //info!("Writing to {:?}", out_path_internal);
 
     info!(
-        "Partition network: {} into {} parts",
+        "Partition network: {} into {} parts.",
         args.net_path.to_str().unwrap(),
         args.num_parts
     );
@@ -52,7 +57,7 @@ fn main() {
 
     net1.to_file(&out_path);
 
-    info!("Finished partitioning Network.")
+    info!("Finished partitioning Network. Written file to {:?}", out_path);
 }
 
 #[derive(Parser, Debug)]
