@@ -26,8 +26,7 @@ pub fn run_channel() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards =
-        logging::init_logging(&config, &args.config_path, 0);
+    let _guards = logging::init_logging(&config, &args.config_path, 0);
 
     info!(
         "Starting Multithreaded Simulation with {} partitions.",
@@ -112,6 +111,7 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
         Rc::clone(&rc_comm),
         &scenario.network,
         &scenario.network_partition,
+        config.compuational_setup().global_sync,
     );
 
     let mut simulation: Simulation<C> =
