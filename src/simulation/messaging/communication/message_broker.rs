@@ -45,13 +45,14 @@ where
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
     link_mapping: HashMap<u64, u32>,
     neighbors: HashSet<u32>,
+    global_sync: bool,
 }
 
 impl<C> NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
-    pub fn new(comm: Rc<C>, global_network: &Network, net: &SimNetworkPartition) -> Self {
+    pub fn new(comm: Rc<C>, global_network: &Network, net: &SimNetworkPartition, global_sync: bool) -> Self {
         let neighbors = net.neighbors().iter().copied().collect();
         let link_mapping = global_network
             .links
@@ -65,6 +66,7 @@ where
             in_messages: Default::default(),
             link_mapping,
             neighbors,
+            global_sync,
         }
     }
 
@@ -111,6 +113,13 @@ where
         // of passing self around, which would lock them because we would hold multiple mut refs to self
         let comm_ref = &self.communicator;
         let in_msgs_ref = &mut self.in_messages;
+
+        // If enabled, wait for all processes to send their messages at the same time step.
+        // With external functionality like a DRT service, this makes it much easier to produce deterministic results.
+        // However, it also means that the simulation will be slower.
+        if self.global_sync {
+            comm_ref.barrier();
+        }
 
         comm_ref.send_receive_vehicles(vehicles, &mut expected_vehicle_messages, now, |msg| {
             Self::handle_incoming_msg(msg, &mut result, in_msgs_ref, now)
@@ -365,6 +374,7 @@ mod tests {
             Rc::new(communicator),
             &create_network(),
             &SimNetworkPartition::from_network(&create_network(), rank, config),
+            false
         );
         broker
     }

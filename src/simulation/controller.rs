@@ -168,7 +168,7 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     } else {
         Box::new(DummyReplanner {})
     };
-    let net_message_broker = NetMessageBroker::new(Rc::clone(&rc_comm), &network, &network_partition);
+    let net_message_broker = NetMessageBroker::new(Rc::clone(&rc_comm), &network, &network_partition, config.compuational_setup().global_sync);
 
     let mut simulation: Simulation<C> = Simulation::new(
         config,

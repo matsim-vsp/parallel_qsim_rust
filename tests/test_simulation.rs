@@ -122,7 +122,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     events.add_subscriber(Box::new(TravelTimeCollector::new()));
 
     let rc = Rc::new(comm);
-    let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net);
+    let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net, false);
 
     let replanner: Box<dyn Replanner> = if config.routing().mode == RoutingMode::AdHoc {
         Box::new(ReRouteTripReplanner::new(
