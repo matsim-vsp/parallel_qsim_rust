@@ -120,7 +120,7 @@ impl Config {
             let default = Simulation::default();
             self.modules
                 .borrow_mut()
-                .insert("simulation".to_string(), Box::new(default));
+                .insert("simulation".to_string(), Box::new(default.clone()));
             default
         }
     }
@@ -137,6 +137,10 @@ impl Config {
                 .insert("routing".to_string(), Box::new(default.clone()));
             default
         }
+    }
+
+    pub fn drt(&self) -> Option<Drt> {
+        self.module::<Drt>("drt")
     }
 
     pub fn compuational_setup(&self) -> ComputationalSetup {
@@ -189,7 +193,34 @@ pub struct Routing {
     pub mode: RoutingMode,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Drt {
+    #[serde(default)]
+    pub process_type: DrtProcessType,
+    pub services: Vec<DrtService>,
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum DrtProcessType {
+    #[default]
+    OneProcess,
+    OneProcessPerService,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct DrtService {
+    pub mode: String,
+    #[serde(default)]
+    pub stop_duration: u32,
+    #[serde(default)]
+    pub max_wait_time: u32,
+    #[serde(default)]
+    pub max_travel_time_alpha: f32,
+    #[serde(default)]
+    pub max_travel_time_beta: f32,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
@@ -250,6 +281,13 @@ impl ConfigModule for Simulation {
 
 #[typetag::serde]
 impl ConfigModule for ComputationalSetup {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Drt {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -418,8 +456,8 @@ fn default_profiling_level() -> String {
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{
-        ComputationalSetup, Config, EdgeWeight, MetisOptions, PartitionMethod, Partitioning,
-        VertexWeight,
+        Config, ComputationalSetup, Drt, DrtProcessType, DrtService, EdgeWeight, MetisOptions, PartitionMethod,
+        Partitioning, VertexWeight,
     };
 
     #[test]
@@ -541,6 +579,60 @@ mod tests {
         assert_eq!(
             MetisOptions::default().set_imbalance_factor(1.1).ufactor(),
             1100
+        );
+    }
+
+    #[test]
+    fn test_drt() {
+        let serde = r#"
+        modules:
+          drt:
+            type: Drt
+            process_type: OneProcess
+            services:
+              - mode: drt_a
+                stop_duration: 60
+                max_wait_time: 900
+                max_travel_time_alpha: 1.3
+                max_travel_time_beta: 600.
+        "#;
+
+        let config = Config {
+            modules: Default::default(),
+        };
+        let drt = Drt {
+            process_type: DrtProcessType::OneProcess,
+            services: vec![DrtService {
+                mode: "drt_a".to_string(),
+                stop_duration: 60,
+                max_wait_time: 900,
+                max_travel_time_alpha: 1.3,
+                max_travel_time_beta: 600.,
+            }],
+        };
+        config
+            .modules
+            .borrow_mut()
+            .insert("drt".to_string(), Box::new(drt));
+
+        let parsed_config: Config = serde_yaml::from_str(serde).expect("failed to parse config");
+        assert_eq!(
+            parsed_config.drt().unwrap().process_type,
+            DrtProcessType::OneProcess
+        );
+        assert_eq!(
+            parsed_config.drt().unwrap().services[0].mode,
+            "drt_a".to_string()
+        );
+        assert_eq!(parsed_config.drt().unwrap().services[0].stop_duration, 60);
+        assert_eq!(parsed_config.drt().unwrap().services[0].max_wait_time, 900);
+        assert_eq!(
+            parsed_config.drt().unwrap().services[0].max_travel_time_alpha,
+            1.3
+        );
+        assert_eq!(
+            parsed_config.drt().unwrap().services[0].max_travel_time_beta,
+            600.
         );
     }
 }

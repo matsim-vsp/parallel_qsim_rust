@@ -1,3 +1,4 @@
+use std::cell::{OnceCell, RefCell};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::thread::{sleep, JoinHandle};
@@ -9,9 +10,7 @@ use mpi::traits::{Communicator, CommunicatorCollectives};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use crate::simulation::config::{
-    CommandLineArgs, Config, PartitionMethod, RoutingMode, WriteEvents,
-};
+use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::communication::communicators::{
     ChannelSimCommunicator, MpiSimCommunicator, SimCommunicator,
@@ -19,20 +18,15 @@ use crate::simulation::messaging::communication::communicators::{
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::Network;
-use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::population::population::Population;
-use crate::simulation::replanning::replanner::{DummyReplanner, ReRouteTripReplanner, Replanner};
-use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
+use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::Simulation;
-use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, io, logging};
 
 pub fn run_channel() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards =
-        logging::init_logging(&config, &args.config_path, 0);
+    let _guards = logging::init_logging(&config, &args.config_path, 0);
 
     info!(
         "Starting Multithreaded Simulation with {} partitions.",
@@ -63,29 +57,31 @@ pub fn run_mpi() {
     let size = world.size();
     let rank = world.rank();
 
-    let comm = MpiSimCommunicator {
-        mpi_communicator: world,
-    };
+    let send_buffer: Vec<OnceCell<Vec<u8>>> = vec![OnceCell::new(); 42]; //TODO set buffer length
 
-    let mut args = CommandLineArgs::parse();
-    // override the num part argument, with the number of processes mpi has started.
-    args.num_parts = Some(size as u32);
-    let config = Config::from_file(&args);
+    mpi::request::multiple_scope(1, |scope, requests| {
+        let comm = MpiSimCommunicator::new(world, scope, requests, &send_buffer);
 
-    let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
+        let mut args = CommandLineArgs::parse();
+        // override the num part argument, with the number of processes mpi has started.
+        args.num_parts = Some(size as u32);
+        let config = Config::from_file(&args);
 
-    info!(
-        "Starting MPI Simulation with {} partitions",
-        config.partitioning().num_parts
-    );
-    execute_partition(comm, &args);
+        let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
 
-    info!("#{} at barrier.", rank);
-    universe.world().barrier();
-    info!("Process #{} finishing.", rank);
+        info!(
+            "Starting MPI Simulation with {} partitions",
+            config.partitioning().num_parts
+        );
+        execute_partition(comm, &args);
+
+        info!("#{} at barrier.", rank);
+        universe.world().barrier();
+        info!("Process #{} finishing.", rank);
+    });
 }
 
-fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineArgs) {
+fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     let config_path = &args.config_path;
     let config = Config::from_file(args);
 
@@ -105,86 +101,49 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     //comm.send_receive_travel_times(0, std::collections::HashMap::new());
     comm.barrier();
 
-    id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
-    // If we partition the network it is copied to the output folder.
-    // Otherwise, nothing is done, and we can load the network from the input folder directly.
-    // In this case, we assume that the #partitions is part of the filename as `network.4.binpb` instead of `network.binpb`.
-    let network_path = if let PartitionMethod::Metis(_) = config.partitioning().method {
-        get_numbered_output_filename(
-            &output_path,
-            &io::resolve_path(config_path, &config.proto_files().network),
-            config.partitioning().num_parts,
-        )
-    } else {
-        insert_number_in_proto_filename(
-            &io::resolve_path(config_path, &config.proto_files().network),
-            config.partitioning().num_parts,
-        )
-    };
-    let network = Network::from_file_as_is(&network_path);
-    let mut garage = Garage::from_file(&io::resolve_path(
-        config_path,
-        &config.proto_files().vehicles,
-    ));
+    let scenario = Scenario::build(&config, config_path, rank, &output_path);
 
-    let population = Population::from_file_filtered_part(
-        &io::resolve_path(config_path, &config.proto_files().population),
-        &network,
-        &mut garage,
-        comm.rank(),
-    );
-
-    let network_partition = SimNetworkPartition::from_network(&network, rank, config.simulation());
-    info!(
-        "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
-        network_partition.nodes.len(),
-        network_partition.links.len(),
-        population.persons.len()
-    );
-
-    let mut events = EventsPublisher::new();
-
-    if config.output().write_events == WriteEvents::Proto {
-        let events_file = format!("events.{rank}.binpb");
-        let events_path = io::resolve_path(
-            &args.config_path,
-            &output_path.join(events_file).to_str().unwrap().to_string(),
-        );
-        info!("adding events writer with path: {events_path:?}");
-        events.add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
-    }
-    let travel_time_collector = Box::new(TravelTimeCollector::new());
-    events.add_subscriber(travel_time_collector);
+    let events = create_events(config_path, &config, rank, &output_path);
 
     let rc_comm = Rc::new(comm);
 
-    let replanner: Box<dyn Replanner> = if config.routing().mode == RoutingMode::AdHoc {
-        Box::new(ReRouteTripReplanner::new(
-            &network,
-            &network_partition,
-            &garage,
-            Rc::clone(&rc_comm),
-        ))
-    } else {
-        Box::new(DummyReplanner {})
-    };
-    let net_message_broker = NetMessageBroker::new(Rc::clone(&rc_comm), &network, &network_partition, config.compuational_setup().global_sync);
-
-    let mut simulation: Simulation<C> = Simulation::new(
-        config,
-        network_partition,
-        garage,
-        population,
-        net_message_broker,
-        events,
-        replanner,
+    let net_message_broker = NetMessageBroker::new(
+        Rc::clone(&rc_comm),
+        &scenario.network,
+        &scenario.network_partition,
+        config.compuational_setup().global_sync,
     );
+
+    let mut simulation: Simulation<C> =
+        Simulation::new(config, scenario, net_message_broker, events);
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
     rc_comm.barrier();
     simulation.run();
+}
+
+fn create_events(
+    config_path: &String,
+    config: &Config,
+    rank: u32,
+    output_path: &PathBuf,
+) -> Rc<RefCell<EventsPublisher>> {
+    let events = Rc::new(RefCell::new(EventsPublisher::new()));
+
+    if config.output().write_events == WriteEvents::Proto {
+        let events_file = format!("events.{rank}.binpb");
+        let events_path = io::resolve_path(
+            config_path,
+            &output_path.join(events_file).to_str().unwrap().to_string(),
+        );
+        info!("adding events writer with path: {events_path:?}");
+        events
+            .borrow_mut()
+            .add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+    }
+    events
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also
@@ -206,6 +165,9 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
 }
 
 pub fn partition_input(config: &Config, config_path: &String) {
+    // If we partition the network it is copied to the output folder.
+    // Otherwise, nothing is done, and we can load the network from the input folder directly.
+    // In this case, we assume that the #partitions is part of the filename as `network.4.binpb` instead of `network.binpb`.
     id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
     if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
@@ -243,7 +205,7 @@ pub fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
     output_dir.join(filename)
 }
 
-fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
+pub(crate) fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
     let filename = path.file_name().unwrap().to_str().unwrap();
     let mut stripped = filename.strip_suffix(".binpb").unwrap();
     if let Some(s) = stripped.strip_suffix(format!(".{part}").as_str()) {

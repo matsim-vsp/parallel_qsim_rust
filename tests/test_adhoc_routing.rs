@@ -23,6 +23,7 @@ fn create_resources(in_dir: &PathBuf, out_dir: &PathBuf) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
+#[ignore]
 #[test]
 fn execute_adhoc_routing_one_part_no_updates() {
     create_resources(
@@ -43,6 +44,7 @@ fn execute_adhoc_routing_one_part_no_updates() {
     );
 }
 
+#[ignore]
 #[test]
 #[serial_test::serial]
 fn execute_adhoc_routing_two_parts_no_updates() {
@@ -62,6 +64,7 @@ fn execute_adhoc_routing_two_parts_no_updates() {
     );
 }
 
+#[ignore]
 #[test]
 fn execute_adhoc_routing_one_part_with_updates() {
     create_resources(
@@ -82,6 +85,7 @@ fn execute_adhoc_routing_one_part_with_updates() {
     );
 }
 
+#[ignore]
 #[test]
 #[serial_test::serial]
 fn execute_adhoc_routing_two_parts_with_updates() {

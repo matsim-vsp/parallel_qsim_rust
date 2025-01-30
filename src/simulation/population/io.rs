@@ -136,7 +136,7 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
 
     info!("Creating vehicle ids");
     for (person_id, type_id) in raw_veh {
-        garage.add_veh_id(&person_id, &type_id);
+        garage.add_veh_by_type(&person_id, &type_id);
     }
 
     info!("Creating activity types");
@@ -202,7 +202,7 @@ pub struct IOLeg {
     pub mode: String,
     pub dep_time: Option<String>,
     pub trav_time: Option<String>,
-    pub route: IORoute,
+    pub route: Option<IORoute>,
     pub attributes: Option<Attrs>,
 }
 
@@ -366,13 +366,14 @@ mod tests {
                 assert_eq!("car", leg.mode);
                 assert_eq!(None, leg.trav_time);
                 assert_eq!(None, leg.dep_time);
-                assert_eq!("links", leg.route.r#type);
-                assert_eq!("1", leg.route.start_link);
-                assert_eq!("20", leg.route.end_link);
-                assert_eq!("undefined", leg.route.trav_time.as_ref().unwrap());
-                assert_eq!(25000.0, leg.route.distance);
-                assert_eq!("null", leg.route.vehicle.as_ref().unwrap());
-                assert_eq!("1 6 15 20", leg.route.route.as_ref().unwrap())
+                let route = leg.route.as_ref().unwrap();
+                assert_eq!("links", route.r#type);
+                assert_eq!("1", route.start_link);
+                assert_eq!("20", route.end_link);
+                assert_eq!("undefined", route.trav_time.as_ref().unwrap());
+                assert_eq!(25000.0, route.distance);
+                assert_eq!("null", route.vehicle.as_ref().unwrap());
+                assert_eq!("1 6 15 20", route.route.as_ref().unwrap())
             }
         }
 

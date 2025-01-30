@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use tracing::debug;
 
 use crate::simulation::id::Id;
@@ -6,11 +7,16 @@ use crate::simulation::network::global_network::Link;
 use crate::simulation::population::io::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
-use crate::simulation::time_queue::EndTime;
+use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
 use crate::simulation::wire_types::vehicles::VehicleType;
+
+pub enum State {
+    ACTIVITY,
+    LEG,
+}
 
 impl Person {
     pub fn from_io(io_person: &IOPerson) -> Person {
@@ -41,6 +47,14 @@ impl Person {
         self.id
     }
 
+    pub fn state(&self) -> State {
+        if self.curr_plan_elem % 2 == 0 {
+            State::ACTIVITY
+        } else {
+            State::LEG
+        }
+    }
+
     pub fn add_act_after_curr(&mut self, to_add: Vec<Activity>) {
         let next_act_index = self.next_act_index() as usize;
         self.plan
@@ -68,6 +82,11 @@ impl Person {
             panic!("Current element is not an activity");
         }
         let act_index = self.curr_plan_elem / 2;
+        self.get_act_at_index(act_index)
+    }
+
+    pub fn previous_act(&self) -> &Activity {
+        let act_index = self.next_act_index() - 1;
         self.get_act_at_index(act_index)
     }
 
@@ -116,6 +135,11 @@ impl Person {
             .legs
             .get(leg_index as usize)
             .unwrap()
+    }
+
+    pub fn previous_leg(&self) -> &Leg {
+        let leg_index = self.next_leg_index() - 1;
+        self.get_leg_at_index(leg_index)
     }
 
     pub fn next_leg(&self) -> &Leg {
@@ -224,9 +248,13 @@ impl EndTime for Person {
     }
 }
 
-impl Plan {
-    pub const DEFAULT_ROUTING_MODE: &'static str = "car";
+impl Identifiable for Person {
+    fn id(&self) -> u64 {
+        self.id
+    }
+}
 
+impl Plan {
     pub fn new() -> Plan {
         Plan {
             acts: Vec::new(),
@@ -337,19 +365,29 @@ impl Activity {
 }
 
 impl Leg {
+    pub const PASSENGER_ID_ATTRIBUTE: &'static str = "passenger_id";
+
     fn from_io(io_leg: &IOLeg, person_id: &Id<Person>) -> Self {
         let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
         let routing_mode: Id<String> = Id::create(routing_mode_ext);
         let mode = Id::get_from_ext(io_leg.mode.as_str());
-        let route = Route::from_io(&io_leg.route, person_id, &mode);
+
+        let route = io_leg
+            .route
+            .as_ref()
+            .and_then(|r| Some(Route::from_io(r, person_id, &mode)));
 
         Self {
-            route: Some(route),
+            route,
             mode: mode.internal(),
-            trav_time: Self::parse_trav_time(&io_leg.trav_time, &io_leg.route.trav_time),
+            trav_time: Self::parse_trav_time(
+                &io_leg.trav_time,
+                &io_leg.route.as_ref().and_then(|r| r.trav_time.clone()),
+            ),
             dep_time: parse_time_opt(&io_leg.dep_time),
             routing_mode: routing_mode.internal(),
+            attributes: HashMap::new(),
         }
     }
 
@@ -360,6 +398,7 @@ impl Leg {
             trav_time,
             dep_time,
             routing_mode: 0,
+            attributes: HashMap::new(),
         }
     }
 
@@ -374,6 +413,7 @@ impl Leg {
                 distance: 0.0,
                 route: Vec::new(),
             }),
+            attributes: HashMap::new(),
         }
     }
 
@@ -387,10 +427,10 @@ impl Leg {
         }
     }
 
-    pub fn vehicle_type_id<'gar>(&self, garage: &'gar Garage) -> &'gar Id<VehicleType> {
+    pub fn vehicle_type_id(&self, garage: &Garage) -> Id<VehicleType> {
         self.route
             .as_ref()
-            .map(|r| garage.vehicles.get(&Id::<Vehicle>::get(r.veh_id)).unwrap())
+            .map(|r| garage.vehicle_type_id(&Id::get(r.veh_id)))
             .unwrap()
     }
 }
@@ -449,7 +489,7 @@ impl Route {
                 }
             }
         } else {
-            panic!("vehicle id is expected to be set. ")
+            panic!("vehicle id is expected to be set.")
         }
     }
 }
