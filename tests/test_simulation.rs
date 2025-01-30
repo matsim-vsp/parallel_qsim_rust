@@ -163,18 +163,6 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
     }
 }
 
-struct EmptySubscriber {}
-
-impl EventsSubscriber for EmptySubscriber {
-    fn receive_event(&mut self, _time: u32, _event: &Event) {
-        // nothing.
-    }
-
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
 pub struct TestSubscriber {
     next_index: usize,
     expected_events: Vec<String>,

@@ -32,7 +32,7 @@ pub fn run_channel() {
     let config = Config::from_file(&args);
 
     let _guards =
-        logging::init_logging(&config, &args.config_path, config.partitioning().num_parts);
+        logging::init_logging(&config, &args.config_path, 0);
 
     info!(
         "Starting Multithreaded Simulation with {} partitions.",
@@ -156,19 +156,19 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
     let travel_time_collector = Box::new(TravelTimeCollector::new());
     events.add_subscriber(travel_time_collector);
 
-    let rc = Rc::new(comm);
+    let rc_comm = Rc::new(comm);
 
     let replanner: Box<dyn Replanner> = if config.routing().mode == RoutingMode::AdHoc {
         Box::new(ReRouteTripReplanner::new(
             &network,
             &network_partition,
             &garage,
-            Rc::clone(&rc),
+            Rc::clone(&rc_comm),
         ))
     } else {
         Box::new(DummyReplanner {})
     };
-    let net_message_broker = NetMessageBroker::new(rc, &network, &network_partition);
+    let net_message_broker = NetMessageBroker::new(Rc::clone(&rc_comm), &network, &network_partition);
 
     let mut simulation: Simulation<C> = Simulation::new(
         config,
@@ -180,6 +180,10 @@ fn execute_partition<C: SimCommunicator + 'static>(comm: C, args: &CommandLineAr
         replanner,
     );
 
+    // Wait for all processes to arrive at this barrier. This is important to ensure that the
+    // instrumentation of the simulation.run() method does not include any time it takes to
+    // load the network and population.
+    rc_comm.barrier();
     simulation.run();
 }
 
