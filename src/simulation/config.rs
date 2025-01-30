@@ -418,7 +418,8 @@ fn default_profiling_level() -> String {
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{
-        Config, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, VertexWeight,
+        ComputationalSetup, Config, EdgeWeight, MetisOptions, PartitionMethod, Partitioning,
+        VertexWeight,
     };
 
     #[test]
@@ -436,10 +437,15 @@ mod tests {
                 contiguous: true,
             }),
         };
+        let computational_setup = ComputationalSetup { global_sync: true };
         config
             .modules
             .borrow_mut()
             .insert("partitioning".to_string(), Box::new(partitioning));
+        config.modules.borrow_mut().insert(
+            "computational_setup".to_string(),
+            Box::new(computational_setup),
+        );
 
         let yaml = serde_yaml::to_string(&config).expect("Failed to serialize yaml");
 
@@ -459,6 +465,8 @@ mod tests {
                 contiguous: true,
             })
         );
+
+        assert_eq!(parsed_config.compuational_setup().global_sync, true);
     }
 
     #[test]
