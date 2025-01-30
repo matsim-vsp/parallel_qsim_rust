@@ -122,7 +122,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     events.add_subscriber(Box::new(TravelTimeCollector::new()));
 
     let rc = Rc::new(comm);
-    let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net);
+    let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net, false);
 
     let replanner: Box<dyn Replanner> = if config.routing().mode == RoutingMode::AdHoc {
         Box::new(ReRouteTripReplanner::new(
@@ -160,18 +160,6 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
             let handle = handles.remove(&i).unwrap();
             handle.join().expect("Error in a thread");
         }
-    }
-}
-
-struct EmptySubscriber {}
-
-impl EventsSubscriber for EmptySubscriber {
-    fn receive_event(&mut self, _time: u32, _event: &Event) {
-        // nothing.
-    }
-
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
     }
 }
 

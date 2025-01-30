@@ -139,6 +139,18 @@ impl Config {
         }
     }
 
+    pub fn compuational_setup(&self) -> ComputationalSetup {
+        if let Some(setup) = self.module::<ComputationalSetup>("computational_setup") {
+            setup
+        } else {
+            let default = ComputationalSetup::default();
+            self.modules
+                .borrow_mut()
+                .insert("computational_setup".to_string(), Box::new(default.clone()));
+            default
+        }
+    }
+
     fn module<T: Clone + 'static>(&self, key: &str) -> Option<T> {
         self.modules
             .borrow()
@@ -185,6 +197,17 @@ pub struct Simulation {
     pub stuck_threshold: u32,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct ComputationalSetup {
+    pub global_sync: bool,
+}
+
+impl Default for ComputationalSetup {
+    fn default() -> Self {
+        Self { global_sync: false }
+    }
+}
+
 #[typetag::serde(tag = "type")]
 pub trait ConfigModule {
     fn as_any(&self) -> &dyn Any;
@@ -220,6 +243,13 @@ impl ConfigModule for Routing {
 
 #[typetag::serde]
 impl ConfigModule for Simulation {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for ComputationalSetup {
     fn as_any(&self) -> &dyn Any {
         self
     }
