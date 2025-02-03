@@ -82,7 +82,8 @@ The math cluster has all dependencies installed. They need to be enabled via the
 module load metis-5.1 ompi/gcc/4.1.2
 ```
 
-#### HLRN
+#### HLRN (CPU-CLX Partition)
+https://nhr-zib.atlassian.net/wiki/spaces/PUB/pages/430586/CPU+CLX+partition
 
 ##### Setup conda
 
@@ -119,6 +120,30 @@ conda activate your_env_name
 The activation automatically updates the environment variables such that `libclang` files can be found by the compiler.
 
 Source: https://nhr-zib.atlassian.net/wiki/spaces/PUB/pages/430343/Anaconda+conda+and+Mamba
+
+#### HLRN (CPU-GENOA Partition)
+https://nhr-zib.atlassian.net/wiki/spaces/PUB/pages/119832634/CPU+Genoa+partition
+
+##### Compilation
+
+In contrast to the CLX partition, you don't need anaconda here. But, you need to compile with AMD compiler. 
+
+```shell
+module load openmpi/aocc/5.0.3
+export CC=clang
+export CXX=clang++
+export RUSTFLAGS="-C linker=clang"
+```
+
+Hint: You need to set these environment variables, otherwise there are compilation errors (paul, jan'25). 
+
+##### Execution
+
+For some reason, the runtime linker doesn't find the correct libraries. You need to add them manually before execution (in the job script): 
+
+```shell
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/comm/openmpi/5.0.3/genoa.el9/aocc/lib
+```
 
 ## Run the project
 
