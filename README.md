@@ -7,8 +7,10 @@ The most recent release can be cited with the following reference
 
 [![DOI](https://zenodo.org/badge/498376436.svg)](https://zenodo.org/doi/10.5281/zenodo.13928119)
 
-The project is described in two conference papers, which were presented at ISPDC 24 in Chur, Switzerland, July 2024:
+The project is described in a journal publication:
+- [High-Performance Mobility Simulation: Implementation of a Parallel Distributed Message-Passing Algorithm for MATSim](https://doi.org/10.3390/info16020116)
 
+And two conference papers, which were presented at ISPDC 24 in Chur, Switzerland, July 2024:
 - [High-Performance Simulations for Urban Planning: Implementing Parallel Distributed Multi-Agent Systems in MATSim](https://doi.org/10.1109/ISPDC62236.2024.10705395)
 - [Real-Time Routing in Traffic Simulations: A Distributed Event Processing Approach](https://doi.org/10.1109/ISPDC62236.2024.10705399)
 
