@@ -41,53 +41,53 @@ impl XmlEventsWriter {
                 )
             }
             Type::ActStart(e) => {
-                format!("<event time=\"{time}\" type=\"actstart\" person=\"{}\" link=\"{}\" actType=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"actstart\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.act_type).external())
             }
             Type::ActEnd(e) => {
-                format!("<event time=\"{time}\" type=\"actend\" person=\"{}\" link=\"{}\" actType=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"actend\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.act_type).external())
             }
             Type::LinkEnter(e) => {
                 format!(
-                    "<event time=\"{time}\" type=\"entered link\" link=\"{}\" vehicle=\"{}\" />\n",
+                    "<event time=\"{time}\" type=\"entered link\" link=\"{}\" vehicle=\"{}\"/>\n",
                     Id::<Link>::get(e.link).external(),
                     Id::<Vehicle>::get(e.vehicle).external()
                 )
             }
             Type::LinkLeave(e) => {
                 format!(
-                    "<event time=\"{time}\" type=\"left link\" link=\"{}\" vehicle=\"{}\" />\n",
+                    "<event time=\"{time}\" type=\"left link\" link=\"{}\" vehicle=\"{}\"/>\n",
                     Id::<Link>::get(e.link).external(),
                     Id::<Vehicle>::get(e.vehicle).external()
                 )
             }
             Type::PersonEntersVeh(e) => {
-                format!("<event time=\"{time}\" type=\"PersonEntersVehicle\" person=\"{}\" vehicle=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"PersonEntersVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
             }
             Type::PersonLeavesVeh(e) => {
-                format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
             }
             Type::Departure(e) => {
-                format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.leg_mode).external())
             }
             Type::Arrival(e) => {
-                format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.leg_mode).external())
             }
             Type::Travelled(e) => {
-                format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         e.distance,
                         Id::<String>::get(e.mode).external())

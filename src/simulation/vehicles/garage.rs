@@ -9,6 +9,7 @@ use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
 
 #[derive(Debug)]
+//TODO rename to Vehicles
 pub struct Garage {
     pub vehicles: IntMap<Id<Vehicle>, Vehicle>,
     pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,

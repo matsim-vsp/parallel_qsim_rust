@@ -16,6 +16,7 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::scenario::Scenario;
 use crate::simulation::time_queue::MutTimeQueue;
 use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::wire_types::population::Person;
 
 pub struct Simulation<C: SimCommunicator> {
     activity_engine: Rc<RefCell<ActivityEngine<C>>>,
@@ -95,6 +96,8 @@ where
             self.end_time,
         );
 
+        let mut agents = vec![];
+
         while now <= self.end_time {
             if now % 3600 == 0 {
                 let _hour = now / 3600;
@@ -118,8 +121,10 @@ where
             //     engine.do_sim_step(now, &agents);
             // }
 
-            self.activity_engine.borrow_mut().do_step(now);
-            self.leg_engine.borrow_mut().do_step(now);
+            // self.activity_engine.borrow_mut().do_step(now);
+            // self.leg_engine.borrow_mut().do_step(now);
+
+            agents = self.do_sim_step(now, agents);
 
             //TODO
             // self.replanner.update_time(now, &mut self.events);
@@ -129,6 +134,18 @@ where
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
         self.events.borrow_mut().finish();
+    }
+
+    fn do_sim_step(&self, now: u32, agents: Vec<Person>) -> Vec<Person> {
+        let mut agents = self.activity_engine.borrow_mut().do_step(now, agents);
+        for mut agent in &mut agents {
+            agent.advance_plan();
+        }
+        let mut agents = self.leg_engine.borrow_mut().do_step(now, agents);
+        for mut agent in &mut agents {
+            agent.advance_plan();
+        }
+        agents
     }
 
     pub(crate) fn is_local_route(veh: &Vehicle, message_broker: &NetMessageBroker<C>) -> bool {

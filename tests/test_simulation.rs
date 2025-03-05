@@ -12,7 +12,9 @@ use std::{fs, thread};
 use tracing::info;
 
 use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
-use rust_q_sim::simulation::controller::{create_output_filename, get_numbered_output_filename, partition_input};
+use rust_q_sim::simulation::controller::{
+    create_output_filename, get_numbered_output_filename, partition_input,
+};
 use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::communication::communicators::{
@@ -223,7 +225,7 @@ impl TestSubscriber {
         // event lines. Also, we need to append \n to each line since the reader strips it.
         reader
             .lines()
-            .map(|l| l.unwrap())
+            .map(|l| l.unwrap().trim_start().to_string())
             .filter(|s| s.starts_with("<event "))
             .map(|s| s + "\n")
             .collect()

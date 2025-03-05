@@ -62,7 +62,11 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
-    pub(crate) fn do_step(&mut self, now: u32) {
+    pub(crate) fn do_step(&mut self, now: u32, agents: Vec<Person>) -> Vec<Person> {
+        for agent in agents {
+            self.receive_agent(now, agent);
+        }
+
         let teleported_vehicles = self.teleportation_engine.do_step(now);
         let network_vehicles = self.network_engine.move_nodes(now);
 
@@ -70,15 +74,15 @@ impl<C: SimCommunicator> LegEngine<C> {
         agents.extend(self.publish_end_events(now, network_vehicles, true));
         agents.extend(self.publish_end_events(now, teleported_vehicles, false));
 
-        for mut agent in agents {
-            agent.advance_plan();
-
-            self.agent_state_transition_logic
-                .upgrade()
-                .unwrap()
-                .borrow_mut()
-                .arrange_next_agent_state(now, agent);
-        }
+        // for mut agent in agents {
+        //     agent.advance_plan();
+        //
+        //     self.agent_state_transition_logic
+        //         .upgrade()
+        //         .unwrap()
+        //         .borrow_mut()
+        //         .arrange_next_agent_state(now, agent);
+        // }
 
         self.network_engine
             .move_links(now, &mut self.net_message_broker);
@@ -93,6 +97,8 @@ impl<C: SimCommunicator> LegEngine<C> {
                 self.pass_vehicle_to_engine(now, veh, false);
             }
         }
+
+        agents
     }
 
     fn publish_end_events(

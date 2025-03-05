@@ -24,17 +24,21 @@ impl<C: SimCommunicator> ActivityEngine<C> {
         }
     }
 
-    pub(crate) fn do_step(&mut self, now: u32) {
-        let agents = self.wake_up(now);
-        for mut agent in agents {
-            agent.advance_plan();
-
-            self.agent_state_transition_logic
-                .upgrade()
-                .unwrap()
-                .borrow_mut()
-                .arrange_next_agent_state(now, agent);
+    pub(crate) fn do_step(&mut self, now: u32, agents: Vec<Person>) -> Vec<Person> {
+        for agent in agents {
+            self.receive_agent(now, agent);
         }
+
+        self.wake_up(now)
+        // for mut agent in agents {
+        //     agent.advance_plan();
+        //
+        //     self.agent_state_transition_logic
+        //         .upgrade()
+        //         .unwrap()
+        //         .borrow_mut()
+        //         .arrange_next_agent_state(now, agent);
+        // }
     }
 
     pub(crate) fn receive_agent(&mut self, now: u32, agent: Person) {
