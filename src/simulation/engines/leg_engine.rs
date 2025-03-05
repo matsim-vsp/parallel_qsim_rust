@@ -1,6 +1,5 @@
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
-use crate::simulation::engines::AgentStateTransitionLogic;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
@@ -13,7 +12,7 @@ use crate::simulation::wire_types::population::{Leg, Person};
 use crate::simulation::wire_types::vehicles::LevelOfDetail;
 use nohash_hasher::{IntMap, IntSet};
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
@@ -21,8 +20,6 @@ pub struct LegEngine<C: SimCommunicator> {
     garage: Garage,
     net_message_broker: NetMessageBroker<C>,
     events: Rc<RefCell<EventsPublisher>>,
-    // this is a weak reference in order to prevent a reference cycle (see https://doc.rust-lang.org/book/ch15-06-reference-cycles.html)
-    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
     departure_handler: Vec<Box<dyn DepartureHandler>>,
     waiting_passengers: IntMap<u64, Person>,
 }
@@ -53,7 +50,6 @@ impl<C: SimCommunicator> LegEngine<C> {
         LegEngine {
             teleportation_engine: TeleportationEngine::new(events.clone()),
             network_engine: NetworkEngine::new(network, events.clone()),
-            agent_state_transition_logic: Weak::new(),
             garage,
             net_message_broker,
             events,
@@ -153,13 +149,6 @@ impl<C: SimCommunicator> LegEngine<C> {
         if let Some(vehicle) = vehicle {
             self.pass_vehicle_to_engine(now, vehicle, true);
         }
-    }
-
-    pub(crate) fn set_agent_state_transition_logic(
-        &mut self,
-        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
-    ) {
-        self.agent_state_transition_logic = agent_state_transition_logic
     }
 
     pub fn agents(&mut self) -> Vec<&mut Person> {

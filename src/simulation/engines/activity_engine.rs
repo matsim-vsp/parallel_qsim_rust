@@ -1,27 +1,19 @@
-use crate::simulation::engines::AgentStateTransitionLogic;
 use crate::simulation::id::Id;
-use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::time_queue::MutTimeQueue;
 use crate::simulation::wire_types::events::Event;
 use crate::simulation::wire_types::population::Person;
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
-pub struct ActivityEngine<C: SimCommunicator> {
+pub struct ActivityEngine {
     activity_q: MutTimeQueue<Person>,
     events: Rc<RefCell<EventsPublisher>>,
-    // this is a weak reference in order to prevent a reference cycle (see https://doc.rust-lang.org/book/ch15-06-reference-cycles.html)
-    agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
 }
 
-impl<C: SimCommunicator> ActivityEngine<C> {
+impl ActivityEngine {
     pub fn new(activity_q: MutTimeQueue<Person>, events: Rc<RefCell<EventsPublisher>>) -> Self {
-        ActivityEngine {
-            activity_q,
-            events,
-            agent_state_transition_logic: Weak::new(),
-        }
+        ActivityEngine { activity_q, events }
     }
 
     pub(crate) fn do_step(&mut self, now: u32, agents: Vec<Person>) -> Vec<Person> {
@@ -30,15 +22,6 @@ impl<C: SimCommunicator> ActivityEngine<C> {
         }
 
         self.wake_up(now)
-        // for mut agent in agents {
-        //     agent.advance_plan();
-        //
-        //     self.agent_state_transition_logic
-        //         .upgrade()
-        //         .unwrap()
-        //         .borrow_mut()
-        //         .arrange_next_agent_state(now, agent);
-        // }
     }
 
     pub(crate) fn receive_agent(&mut self, now: u32, agent: Person) {
@@ -59,13 +42,6 @@ impl<C: SimCommunicator> ActivityEngine<C> {
             &Event::new_act_start(agent.id, act.link_id, act_type.internal()),
         );
         self.activity_q.add(agent, now);
-    }
-
-    pub(crate) fn set_agent_state_transition_logic(
-        &mut self,
-        agent_state_transition_logic: Weak<RefCell<AgentStateTransitionLogic<C>>>,
-    ) {
-        self.agent_state_transition_logic = agent_state_transition_logic
     }
 
     pub fn agents(&mut self) -> impl Iterator<Item = &mut Person> {
