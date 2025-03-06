@@ -103,11 +103,11 @@ where
 
     fn do_sim_step(&mut self, now: u32, agents: Vec<Person>) -> Vec<Person> {
         let mut agents_act_to_leg = self.activity_engine.do_step(now, agents);
-        for mut agent in &mut agents_act_to_leg {
+        for agent in &mut agents_act_to_leg {
             agent.advance_plan();
         }
         let mut agents_leg_to_act = self.leg_engine.do_step(now, agents_act_to_leg);
-        for mut agent in &mut agents_leg_to_act {
+        for agent in &mut agents_leg_to_act {
             agent.advance_plan();
         }
         agents_leg_to_act

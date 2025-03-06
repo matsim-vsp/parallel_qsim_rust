@@ -70,16 +70,6 @@ impl<C: SimCommunicator> LegEngine<C> {
         agents.extend(self.publish_end_events(now, network_vehicles, true));
         agents.extend(self.publish_end_events(now, teleported_vehicles, false));
 
-        // for mut agent in agents {
-        //     agent.advance_plan();
-        //
-        //     self.agent_state_transition_logic
-        //         .upgrade()
-        //         .unwrap()
-        //         .borrow_mut()
-        //         .arrange_next_agent_state(now, agent);
-        // }
-
         self.network_engine
             .move_links(now, &mut self.net_message_broker);
         let sync_messages = self.net_message_broker.send_recv(now);
