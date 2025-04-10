@@ -1,8 +1,10 @@
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use std::any::Any;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
-
+use std::sync::Mutex;
 use tracing::info;
 use xml::attribute::OwnedAttribute;
 use xml::reader::XmlEvent;
@@ -17,19 +19,25 @@ use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::Person;
 
 pub struct XmlEventsWriter {
-    writer: BufWriter<File>,
+    writer: Mutex<Box<dyn Write + Send>>,
 }
 
 impl XmlEventsWriter {
     pub fn new(path: &Path) -> Self {
         info!("Creating file: {path:?}");
         let file = File::create(path).expect("Failed to create File.");
-        let mut writer = BufWriter::new(file);
+        let mut writer: Box<dyn Write + Send> = if path.extension().unwrap() == "gz" {
+            Box::new(GzEncoder::new(file, Compression::fast()))
+        } else {
+            Box::new(BufWriter::new(file))
+        };
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
         writer
             .write_all(header.as_bytes())
             .expect("Failed to write events file header");
-        XmlEventsWriter { writer }
+        XmlEventsWriter {
+            writer: Mutex::new(writer),
+        }
     }
 
     pub fn event_2_string(time: u32, event: &Event) -> String {
@@ -41,62 +49,93 @@ impl XmlEventsWriter {
                 )
             }
             Type::ActStart(e) => {
-                format!("<event time=\"{time}\" type=\"actstart\" person=\"{}\" link=\"{}\" actType=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"actstart\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.act_type).external())
             }
             Type::ActEnd(e) => {
-                format!("<event time=\"{time}\" type=\"actend\" person=\"{}\" link=\"{}\" actType=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"actend\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.act_type).external())
             }
             Type::LinkEnter(e) => {
                 format!(
-                    "<event time=\"{time}\" type=\"entered link\" link=\"{}\" vehicle=\"{}\" />\n",
+                    "<event time=\"{time}\" type=\"entered link\" link=\"{}\" vehicle=\"{}\"/>\n",
                     Id::<Link>::get(e.link).external(),
                     Id::<Vehicle>::get(e.vehicle).external()
                 )
             }
             Type::LinkLeave(e) => {
                 format!(
-                    "<event time=\"{time}\" type=\"left link\" link=\"{}\" vehicle=\"{}\" />\n",
+                    "<event time=\"{time}\" type=\"left link\" link=\"{}\" vehicle=\"{}\"/>\n",
                     Id::<Link>::get(e.link).external(),
                     Id::<Vehicle>::get(e.vehicle).external()
                 )
             }
             Type::PersonEntersVeh(e) => {
-                format!("<event time=\"{time}\" type=\"PersonEntersVehicle\" person=\"{}\" vehicle=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"PersonEntersVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
             }
             Type::PersonLeavesVeh(e) => {
-                format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(), Id::<Vehicle>::get(e.vehicle).external())
             }
             Type::Departure(e) => {
-                format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.leg_mode).external())
             }
             Type::Arrival(e) => {
-                format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         Id::<Link>::get(e.link).external(),
                         Id::<String>::get(e.leg_mode).external())
             }
             Type::Travelled(e) => {
-                format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\" />\n",
+                format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
                         e.distance,
                         Id::<String>::get(e.mode).external())
+            }
+            Type::PassengerPickedUp(e) => {
+                format!("<event time=\"{time}\" type=\"passenger picked up\" person=\"{}\" mode=\"{}\" request=\"{}\" vehicle=\"{}\"/>\n",
+                        Id::<Person>::get(e.person).external(),
+                        Id::<String>::get(e.mode).external(),
+                        Id::<String>::get(e.request).external(),
+                        Id::<Vehicle>::get(e.vehicle).external())
+            }
+            Type::PassengerDroppedOff(e) => {
+                format!("<event time=\"{time}\" type=\"passenger dropped off\" person=\"{}\" mode=\"{}\" request=\"{}\" vehicle=\"{}\"/>\n",
+                        Id::<Person>::get(e.person).external(),
+                        Id::<String>::get(e.mode).external(),
+                        Id::<String>::get(e.request).external(),
+                        Id::<Vehicle>::get(e.vehicle).external())
+            }
+            Type::DvrpTaskStarted(e) => {
+                format!("<event time=\"{time}\" type=\"dvrp task started\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
+                        Id::<Person>::get(e.person).external(),
+                        Id::<Vehicle>::get(e.dvrp_vehicle).external(),
+                        Id::<String>::get(e.task_type).external(),
+                        e.task_index,
+                        Id::<String>::get(e.dvrp_mode).external())
+            }
+            Type::DvrpTaskEnded(e) => {
+                format!("<event time=\"{time}\" type=\"dvrp task ended\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
+                        Id::<Person>::get(e.person).external(),
+                        Id::<Vehicle>::get(e.dvrp_vehicle).external(),
+                        Id::<String>::get(e.task_type).external(),
+                        e.task_index,
+                        Id::<String>::get(e.dvrp_mode).external())
             }
         }
     }
 
     fn write(&mut self, text: &str) {
-        self.writer
+        let mut writer = self.writer.lock().expect("Failed to lock writer");
+        writer
             .write_all(text.as_bytes())
             .expect("Error while writing event");
     }
@@ -112,7 +151,8 @@ impl EventsSubscriber for XmlEventsWriter {
         let closing_tag = "</events>";
         self.write(closing_tag);
         info!("Finishing Events File. Calling flush on Buffered Writer.");
-        self.writer.flush().expect("Failed to flush events.");
+        let mut writer = self.writer.lock().expect("Failed to lock writer");
+        writer.flush().expect("Failed to flush events.");
     }
 
     fn as_any(&mut self) -> &mut dyn Any {

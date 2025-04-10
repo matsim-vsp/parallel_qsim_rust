@@ -1,8 +1,13 @@
+use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 pub trait EndTime {
     fn end_time(&self, now: u32) -> u32;
+}
+
+pub trait Identifiable {
+    fn id(&self) -> u64;
 }
 
 struct Entry<T>
@@ -78,5 +83,69 @@ where
         }
 
         result
+    }
+}
+
+#[derive(Default)]
+struct ValueWrap {
+    id: u64,
+    end_time: u32,
+}
+
+impl ValueWrap {
+    fn new(id: u64, end_time: u32) -> Self {
+        ValueWrap { id, end_time }
+    }
+}
+
+impl EndTime for ValueWrap {
+    fn end_time(&self, _: u32) -> u32 {
+        self.end_time
+    }
+}
+
+/// This is a mutable version of TimeQueue. It allows to mutate the values in the queue.
+/// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
+/// TODO taxi driver needs to be able to change his end_time such that order is changed
+#[derive(Default)]
+pub struct MutTimeQueue<T>
+where
+    T: EndTime + Identifiable,
+{
+    q: TimeQueue<ValueWrap>,
+    cache: IntMap<u64, T>,
+}
+
+impl<T> MutTimeQueue<T>
+where
+    T: EndTime + Identifiable,
+{
+    pub fn new() -> Self {
+        MutTimeQueue {
+            q: TimeQueue::new(),
+            cache: IntMap::default(),
+        }
+    }
+
+    pub fn add(&mut self, value: T, now: u32) {
+        let id = value.id();
+        self.q.add(ValueWrap::new(id, value.end_time(now)), now);
+        self.cache.insert(id, value);
+    }
+
+    pub fn pop(&mut self, now: u32) -> Vec<T> {
+        let ids = self.q.pop(now);
+        let mut result: Vec<T> = Vec::new();
+
+        for id in ids {
+            let value = self.cache.remove(&id.id).unwrap();
+            result.push(value);
+        }
+
+        result
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.cache.values_mut()
     }
 }

@@ -1,3 +1,4 @@
+use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Barrier};
@@ -5,11 +6,19 @@ use std::sync::{Arc, Barrier};
 use mpi::collective::CommunicatorCollectives;
 use mpi::datatype::PartitionMut;
 use mpi::point_to_point::{Destination, Source};
+use mpi::request::{LocalScope, RequestCollection};
 use mpi::topology::{Communicator, SimpleCommunicator};
 use mpi::{Count, Rank};
 use tracing::{debug, info, instrument, span, Level};
 
 use crate::simulation::wire_types::messages::{SimMessage, SyncMessage, TravelTimesMessage};
+
+// pub trait Message {
+//     fn serialize(&self) -> Vec<u8>;
+//     fn deserialize(data: &[u8]) -> Self;
+//     fn to(&self) -> u32;
+//     fn from(&self) -> u32;
+// }
 
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(
@@ -26,6 +35,14 @@ pub trait SimCommunicator {
         now: u32,
         travel_times: HashMap<u64, u32>,
     ) -> Vec<TravelTimesMessage>;
+
+    // fn isend_request<M>(&mut self, message: M)
+    // where
+    //     M: Message;
+    //
+    // fn irecv_request<M>(&mut self) -> Vec<M>
+    // where
+    //     M: Message;
 
     fn barrier(&self);
 
@@ -54,6 +71,20 @@ impl SimCommunicator for DummySimCommunicator {
         //process own travel times messages
         vec![TravelTimesMessage::from(travel_times)]
     }
+
+    // fn isend_request<M>(&mut self, message: M)
+    // where
+    //     M: Message,
+    // {
+    //     todo!()
+    // }
+    //
+    // fn irecv_request<M>(&mut self) -> Vec<M>
+    // where
+    //     M: Message,
+    // {
+    //     todo!()
+    // }
 
     fn barrier(&self) {
         info!("Barrier was called on DummySimCommunicator, which doesn't do anything.")
@@ -183,6 +214,20 @@ impl SimCommunicator for ChannelSimCommunicator {
         result
     }
 
+    // fn isend_request<M>(&mut self, message: M)
+    // where
+    //     M: Message,
+    // {
+    //     todo!()
+    // }
+    //
+    // fn irecv_request<M>(&mut self) -> Vec<M>
+    // where
+    //     M: Message,
+    // {
+    //     todo!()
+    // }
+
     fn barrier(&self) {
         self.barrier.wait();
     }
@@ -192,11 +237,27 @@ impl SimCommunicator for ChannelSimCommunicator {
     }
 }
 
-pub struct MpiSimCommunicator {
+/// We need the send buffer to allow asynchronous communication. More on that can be found here:
+/// https://github.com/rsmpi/rsmpi/discussions/190
+///
+/// To put it in a nutshell: Since we don't know when the message is actually sent, we need to store the requests in this struct.
+/// Since the requests depend on the buffer, the buffer lifetime (`'send_buffer`) must outlive the request lifetime (`'request`).
+/// Thus, the buffer is created before starting the simulation in the controller.
+pub struct MpiSimCommunicator<'data, 'request, 'send_buffer>
+where
+    'send_buffer: 'request,
+{
     pub mpi_communicator: SimpleCommunicator,
+    pub scope: &'data LocalScope<'request>,
+    pub requests: &'data mut RequestCollection<'request, Vec<u8>>,
+    pub send_buffer: &'send_buffer Vec<OnceCell<Vec<u8>>>,
+    pub send_count: u64,
 }
 
-impl SimCommunicator for MpiSimCommunicator {
+impl<'a, 'b, 'send_buffer> SimCommunicator for MpiSimCommunicator<'a, 'b, 'send_buffer>
+where
+    'send_buffer: 'b,
+{
     #[instrument(level = "trace", skip(self, on_msg), fields(rank = self.rank()))]
     fn send_receive_vehicles<F>(
         &self,
@@ -230,10 +291,10 @@ impl SimCommunicator for MpiSimCommunicator {
         // can ensure that a buffer is not moved while the request is in progress.
         mpi::request::multiple_scope(buf_msg.len(), |scope, reqs| {
             // ------- Send Part ---------
-            for (message, buf) in buf_msg.iter() {
+            for (to, buf) in buf_msg.iter() {
                 let req = self
                     .mpi_communicator
-                    .process_at_rank(*message as Rank)
+                    .process_at_rank(*to as Rank)
                     .immediate_send(scope, buf);
                 reqs.add(req);
             }
@@ -294,6 +355,27 @@ impl SimCommunicator for MpiSimCommunicator {
         messages
     }
 
+    // fn isend_request<M>(&mut self, message: M)
+    // where
+    //     M: Message,
+    // {
+    //     let vec = self.send_buffer[self.send_count as usize].get_or_init(|| message.serialize());
+    //     let req = self
+    //         .mpi_communicator
+    //         .process_at_rank(message.to() as Rank)
+    //         .immediate_send(self.scope, vec);
+    //     self.requests.add(req);
+    //     self.send_count += 1;
+    // }
+    //
+    // fn irecv_request<M>(&mut self) -> Vec<M>
+    // where
+    //     M: Message,
+    // {
+    //     let (encoded_msg, _status) = self.mpi_communicator.any_process().receive_vec();
+    //     vec![M::deserialize(&encoded_msg)]
+    // }
+
     fn barrier(&self) {
         self.mpi_communicator.barrier();
     }
@@ -303,7 +385,22 @@ impl SimCommunicator for MpiSimCommunicator {
     }
 }
 
-impl MpiSimCommunicator {
+impl<'a, 'b, 'send_buffer> MpiSimCommunicator<'a, 'b, 'send_buffer> {
+    pub(crate) fn new(
+        mpi_communicator: SimpleCommunicator,
+        scope: &'a LocalScope<'b>,
+        requests: &'a mut RequestCollection<'b, Vec<u8>>,
+        send_buffer: &'send_buffer Vec<OnceCell<Vec<u8>>>,
+    ) -> Self {
+        MpiSimCommunicator {
+            mpi_communicator,
+            scope,
+            requests,
+            send_buffer,
+            send_count: 0,
+        }
+    }
+
     fn gather_travel_times(&self, sim_travel_times_message: &Vec<u8>) -> Vec<TravelTimesMessage> {
         // ------- Gather traffic info lengths -------
         let mut travel_times_length_buffer =

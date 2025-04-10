@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE population SYSTEM "http://www.matsim.org/files/dtd/population_v6.dtd">
+
+<population>
+
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger0">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="114" x="-300.0" y="-800.0" end_time="00:00:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="349" x="300.0" y="-200.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger1">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="144" x="-700.0" y="-200.0" end_time="00:05:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="437" x="-200.0" y="-300.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger2">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="223" x="-800.0" y="-500.0" end_time="00:10:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="347" x="-100.0" y="-200.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger3">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="234" x="-800.0" y="-300.0" end_time="00:15:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="119" x="700.0" y="-800.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger4">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="314" x="-300.0" y="-800.0" end_time="00:20:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="260" x="200.0" y="-100.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger5">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="333" x="-900.0" y="-400.0" end_time="00:25:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="438" x="0.0" y="-300.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger6">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="325" x="-300.0" y="-600.0" end_time="00:30:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="111" x="-900.0" y="-800.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger7">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="412" x="-800.0" y="-700.0" end_time="00:35:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="318" x="500.0" y="-800.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger8">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="455" x="-800.0" y="-100.0" end_time="00:40:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="236" x="-400.0" y="-300.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+    <person id="passenger9">
+        <attributes>
+            <attribute name="employed" class="java.lang.Boolean">false</attribute>
+        </attributes>
+        <plan selected="yes">
+            <activity type="dummy" link="139" x="300.0" y="-400.0" end_time="00:45:00">
+            </activity>
+            <leg mode="drt">
+            </leg>
+            <activity type="dummy" link="330" x="700.0" y="-600.0">
+            </activity>
+        </plan>
+
+    </person>
+
+    <!-- ====================================================================== -->
+
+</population>

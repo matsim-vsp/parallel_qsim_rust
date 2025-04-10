@@ -1,5 +1,6 @@
 use nohash_hasher::IntMap;
 use std::any::Any;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -10,7 +11,7 @@ use std::thread::JoinHandle;
 use std::{fs, thread};
 use tracing::info;
 
-use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod, RoutingMode};
+use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
 use rust_q_sim::simulation::controller::{
     create_output_filename, get_numbered_output_filename, partition_input,
 };
@@ -24,10 +25,8 @@ use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscribe
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
 use rust_q_sim::simulation::population::population::Population;
-use rust_q_sim::simulation::replanning::replanner::{
-    DummyReplanner, ReRouteTripReplanner, Replanner,
-};
 use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
+use rust_q_sim::simulation::scenario::Scenario;
 use rust_q_sim::simulation::simulation::Simulation;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use rust_q_sim::simulation::wire_types::events::Event;
@@ -117,28 +116,23 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
             .collect::<HashSet<u64>>()
     );
 
-    let mut events = EventsPublisher::new();
-    events.add_subscriber(test_subscriber);
-    events.add_subscriber(Box::new(TravelTimeCollector::new()));
+    let events = Rc::new(RefCell::new(EventsPublisher::new()));
+    events.borrow_mut().add_subscriber(test_subscriber);
+    events
+        .borrow_mut()
+        .add_subscriber(Box::new(TravelTimeCollector::new()));
 
     let rc = Rc::new(comm);
     let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net, false);
 
-    let replanner: Box<dyn Replanner> = if config.routing().mode == RoutingMode::AdHoc {
-        Box::new(ReRouteTripReplanner::new(
-            &network,
-            &sim_net,
-            &garage,
-            Rc::clone(&rc),
-        ))
-    } else {
-        Box::new(DummyReplanner {})
+    let scenario = Scenario {
+        network,
+        garage,
+        population,
+        network_partition: sim_net,
     };
 
-    let mut sim = Simulation::new(
-        config, sim_net, garage, population, broker, events, replanner,
-    );
-
+    let mut sim = Simulation::new(config, scenario, broker, events);
     sim.run();
 }
 
@@ -231,7 +225,7 @@ impl TestSubscriber {
         // event lines. Also, we need to append \n to each line since the reader strips it.
         reader
             .lines()
-            .map(|l| l.unwrap())
+            .map(|l| l.unwrap().trim_start().to_string())
             .filter(|s| s.starts_with("<event "))
             .map(|s| s + "\n")
             .collect()

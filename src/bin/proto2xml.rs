@@ -49,7 +49,7 @@ fn main() {
         };
         readers.push(wrapper);
     }
-    let output_file_string = format!("{}events.xml", args.path);
+    let output_file_string = format!("{}events.xml.gz", args.path);
     let output_file_path = PathBuf::from(output_file_string);
     let mut publisher = EventsPublisher::new();
     publisher.add_subscriber(Box::new(XmlEventsWriter::new(&output_file_path)));

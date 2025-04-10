@@ -9,15 +9,10 @@ use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
 
 #[derive(Debug)]
+//TODO rename to Vehicles
 pub struct Garage {
-    pub vehicles: IntMap<Id<Vehicle>, Id<VehicleType>>,
+    pub vehicles: IntMap<Id<Vehicle>, Vehicle>,
     pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,
-}
-
-#[derive(Debug)]
-pub struct GarageVehicle {
-    pub id: Id<Vehicle>,
-    pub veh_type: Id<VehicleType>,
 }
 
 impl Default for Garage {
@@ -52,34 +47,35 @@ impl Garage {
         self.vehicle_types.insert(Id::get(veh_type.id), veh_type);
     }
 
-    pub fn add_veh_id(&mut self, person_id: &Id<Person>, type_id: &Id<VehicleType>) -> Id<Vehicle> {
+    pub fn add_veh_by_type(
+        &mut self,
+        person_id: &Id<Person>,
+        type_id: &Id<VehicleType>,
+    ) -> Id<Vehicle> {
         let veh_id_ext = format!("{}_{}", person_id.external(), type_id.external());
         let veh_id = Id::create(&veh_id_ext);
 
         let veh_type = self.vehicle_types.get(type_id).unwrap();
-        self.vehicles.insert(veh_id.clone(), Id::get(veh_type.id));
+
+        let vehicle = Vehicle {
+            id: veh_id.internal(),
+            curr_route_elem: 0,
+            r#type: veh_type.id,
+            max_v: veh_type.max_v,
+            pce: veh_type.pce,
+            driver: None,
+            passengers: vec![],
+            attributes: Default::default(),
+        };
+
+        self.add_veh(vehicle);
 
         veh_id
     }
 
-    pub fn add_veh(&mut self, _veh_id: Id<Vehicle>, _veh_type_id: Id<VehicleType>) {
-        panic!(
-            "This method can only be used with chained modes. Which is currently not implemented"
-        );
-        /*
-        let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
-        match veh_type.lod {
-            LevelOfDetail::Network => {
-                let vehicle = GarageVehicle {
-                    id: _veh_id.clone(),
-                    veh_type: veh_type_id.clone(),
-                };
-                self.network_vehicles.insert(vehicle.id.clone(), vehicle);
-            }
-            LevelOfDetail::Teleported => {}
-        }
-
-         */
+    pub fn add_veh(&mut self, veh: Vehicle) {
+        let id = Id::<Vehicle>::get(veh.id);
+        self.vehicles.insert(id, veh);
     }
 
     pub fn veh_id(&self, person_id: &Id<Person>, veh_type_id: &Id<VehicleType>) -> Id<Vehicle> {
@@ -87,45 +83,30 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, vehicle: Vehicle) -> Person {
-        /*let id = self.vehicle_ids.get(vehicle.id);
-        let veh_type = self.vehicle_type_ids.get(vehicle.r#type);
-        let garage_veh = GarageVehicle { id, veh_type };
-        self.network_vehicles
-            .insert(garage_veh.id.clone(), garage_veh);
+    pub(crate) fn park_veh(&mut self, mut vehicle: Vehicle) -> Vec<Person> {
+        let mut agents = std::mem::replace(&mut vehicle.passengers, Vec::new());
+        let person = std::mem::replace(&mut vehicle.driver, None).expect("Vehicle has no driver.");
+        agents.push(person);
+        agents
 
-         */
+        // This would be need for mass conservation, but is not implemented yet.
+        // Thus, we just take driver and passengers and forget about the vehicle itself.
 
-        // the above logic would park a vehicle within a garage. This only works if we have mass
-        // conservation enabled. The scenario we're testing with doesn't. Therfore, we just take
-        // the agent out of the vehicle and pretend we have parked the car.
-        vehicle.driver.unwrap()
+        // self.vehicles.insert(Id::get(vehicle.id), vehicle);
     }
 
-    pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {
-        let veh_type_id = self
+    pub fn unpark_veh_with_passengers(
+        &mut self,
+        person: Person,
+        passengers: Vec<Person>,
+        id: &Id<Vehicle>,
+    ) -> Vehicle {
+        let veh_type_id = Id::get(self
             .vehicles
             .get(id)
-            .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len()));
+            .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len())).r#type);
 
-        /*
-        let veh_type_id = if let Some(veh_type_id) = self.vehicles.get(id) {
-            veh_type_id.clone()
-        } else if let Some(garage_veh) = self.network_vehicles.remove(id) {
-            garage_veh.veh_type
-        } else {
-            panic!(
-                "Can't unpark vehicle with id {}. It was not parked in this garage.",
-                id.external()
-            );
-        };
-
-         */
-
-        // this method would fetch parked vehicles. But as we don't want to run with mass conservation
-        // we just create vehicles on the fly.
-
-        let veh_type = self.vehicle_types.get(veh_type_id).unwrap();
+        let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
 
         Vehicle {
             id: id.internal(),
@@ -134,8 +115,29 @@ impl Garage {
             max_v: veh_type.max_v,
             pce: veh_type.pce,
             driver: Some(person),
-            passengers: vec![],
+            passengers,
+            attributes: Default::default(),
         }
+
+        // The following code would be used if mass conservation is enabled. But, there are some pitfalls.
+        // One would need to configure for which vehicle types this is allowed.
+        // Currently (apr '25), each and every mode needs to be a vehicle type, in particular walking.
+        // But, this makes mass conservation complicated. Imagine a person walking from partition 1 -> 2, driving car from 2 -> 3 and then walk from 3 -> 1.
+        // The "walk" vehicle would be parked at partition 2, but partition 3 would need it. Consequently, the simulation crashes right now.
+
+        // let vehicle = self.vehicles.remove(&id).unwrap();
+        // let mut vehicle = vehicle;
+        // vehicle.driver = Some(person);
+        // vehicle.passengers = passengers;
+        // vehicle
+    }
+
+    pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {
+        self.unpark_veh_with_passengers(person, vec![], id)
+    }
+
+    pub fn vehicle_type_id(&self, veh: &Id<Vehicle>) -> Id<VehicleType> {
+        self.vehicles.get(veh).map(|v| Id::get(v.r#type)).unwrap()
     }
 }
 
@@ -145,6 +147,7 @@ mod tests {
 
     use crate::simulation::id::Id;
     use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::wire_types::messages::Vehicle;
     use crate::test_utils::create_vehicle_type;
 
     #[test]
@@ -173,8 +176,49 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
+    fn add_vehicle_without_type() {
+        let mut garage = Garage::new();
+        garage.add_veh(Vehicle {
+            id: 0,
+            curr_route_elem: 0,
+            r#type: 0,
+            max_v: 0.0,
+            pce: 0.0,
+            driver: None,
+            passengers: vec![],
+            attributes: Default::default(),
+        });
+    }
+
+    #[test]
+    fn add_vehicle() {
+        // prepare garage with type
+        let mut garage = Garage::new();
+        let type_id = Id::create("vehicle_type");
+        let mode = Id::create("car");
+        let veh_type = create_vehicle_type(&type_id, mode);
+        garage.add_veh_type(veh_type);
+
+        let id = Id::<Vehicle>::create("veh");
+        garage.add_veh(Vehicle {
+            id: id.internal(),
+            curr_route_elem: 0,
+            r#type: type_id.internal(),
+            max_v: 0.0,
+            pce: 0.0,
+            driver: None,
+            passengers: vec![],
+            attributes: Default::default(),
+        });
+
+        assert_eq!(1, garage.vehicles.len());
+    }
+
+    #[test]
     fn from_file() {
         let garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         assert_eq!(3, garage.vehicle_types.len());
+        assert_eq!(0, garage.vehicles.len());
     }
 }

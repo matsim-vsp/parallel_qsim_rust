@@ -11,7 +11,6 @@ use crate::simulation::replanning::routing::router::NetworkRouter;
 use crate::simulation::replanning::routing::travel_times_collecting_alt_router::TravelTimesCollectingAltRouter;
 use crate::simulation::replanning::teleported_router::{BeeLineDistanceRouter, TeleportedRouter};
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person};
 use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
 
@@ -36,14 +35,13 @@ impl Replanner for DummyReplanner {
     fn replan(&self, _now: u32, _agent: &mut Person, _garage: &Garage) {}
 }
 
-#[derive(Debug)]
-pub struct ReRouteTripReplanner {
-    network_router: Box<dyn NetworkRouter>,
+pub struct ReRouteTripReplanner<'comm> {
+    network_router: Box<dyn NetworkRouter + 'comm>,
     teleported_router: Box<dyn TeleportedRouter>,
     global_network: Network,
 }
 
-impl Replanner for ReRouteTripReplanner {
+impl<'comm> Replanner for ReRouteTripReplanner<'comm> {
     #[tracing::instrument(level = "trace", skip(self, events))]
     fn update_time(&mut self, now: u32, events: &mut EventsPublisher) {
         self.network_router.next_time_step(now, events)
@@ -68,20 +66,20 @@ impl Replanner for ReRouteTripReplanner {
     }
 }
 
-impl ReRouteTripReplanner {
-    pub fn new<C: SimCommunicator + 'static>(
+impl<'comm> ReRouteTripReplanner<'comm> {
+    pub fn new<C: SimCommunicator + 'comm>(
         global_network: &Network,
         sim_network: &SimNetworkPartition,
         garage: &Garage,
         communicator: Rc<C>,
-    ) -> ReRouteTripReplanner {
+    ) -> ReRouteTripReplanner<'comm> {
         let forward_backward_graph_by_veh_type =
             TravelTimesCollectingAltRouter::<C>::get_forward_backward_graph_by_veh_type(
                 global_network,
                 &garage.vehicle_types,
             );
 
-        let router: Box<dyn NetworkRouter> = Box::new(TravelTimesCollectingAltRouter::new(
+        let router: Box<dyn NetworkRouter + 'comm> = Box::new(TravelTimesCollectingAltRouter::new(
             forward_backward_graph_by_veh_type,
             communicator,
             sim_network.get_link_ids(),
@@ -136,19 +134,16 @@ impl ReRouteTripReplanner {
     fn replan_main(&self, agent: &mut Person, garage: &Garage) {
         let curr_act = agent.curr_act();
 
-        let veh_type_id = garage
-            .vehicles
-            .get(&Id::<Vehicle>::get(
-                agent.next_leg().route.as_ref().unwrap().veh_id,
-            ))
-            .unwrap();
+        let veh_type_id =
+            garage.vehicle_type_id(&Id::get(agent.next_leg().route.as_ref().unwrap().veh_id));
 
-        let (route, travel_time) = self.find_route(agent.curr_act(), agent.next_act(), veh_type_id);
+        let (route, travel_time) =
+            self.find_route(agent.curr_act(), agent.next_act(), &veh_type_id);
         let dep_time = curr_act.end_time;
 
         let vehicle_type_id = agent.next_leg().vehicle_type_id(garage);
 
-        let veh_id = garage.veh_id(&Id::<Person>::get(agent.id), vehicle_type_id);
+        let veh_id = garage.veh_id(&Id::<Person>::get(agent.id), &vehicle_type_id);
 
         let distance = self.calculate_distance(&route);
 
@@ -168,7 +163,7 @@ impl ReRouteTripReplanner {
         assert_eq!(curr_act.link_id, next_act.link_id);
 
         let veh_type_id = agent.next_leg().vehicle_type_id(garage);
-        let access_egress_speed = garage.vehicle_types.get(veh_type_id).unwrap().max_v;
+        let access_egress_speed = garage.vehicle_types.get(&veh_type_id).unwrap().max_v;
 
         let dep_time;
         let walk = if curr_act.is_interaction() {
@@ -189,7 +184,7 @@ impl ReRouteTripReplanner {
             )
         };
 
-        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), veh_type_id);
+        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), &veh_type_id);
 
         agent.update_next_leg(
             dep_time,
@@ -205,14 +200,14 @@ impl ReRouteTripReplanner {
         let next_act = agent.next_act();
 
         let veh_type_id = agent.next_leg().vehicle_type_id(garage);
-        let speed = garage.vehicle_types.get(veh_type_id).unwrap().max_v;
+        let speed = garage.vehicle_types.get(&veh_type_id).unwrap().max_v;
 
         let dep_time = curr_act.end_time;
         let teleportation = self
             .teleported_router
             .query_between_acts(curr_act, next_act, speed);
 
-        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), veh_type_id);
+        let vehicle_id = garage.veh_id(&Id::<Person>::get(agent.id), &veh_type_id);
         agent.update_next_leg(
             dep_time,
             teleportation.duration,
@@ -258,7 +253,7 @@ impl ReRouteTripReplanner {
             let level_of_detail = LevelOfDetail::try_from(
                 garage
                     .vehicle_types
-                    .get(agent.next_leg().vehicle_type_id(garage))
+                    .get(&agent.next_leg().vehicle_type_id(garage))
                     .unwrap()
                     .lod,
             )
@@ -273,7 +268,7 @@ impl ReRouteTripReplanner {
             let level_of_detail = LevelOfDetail::try_from(
                 garage
                     .vehicle_types
-                    .get(agent.next_leg().vehicle_type_id(garage))
+                    .get(&agent.next_leg().vehicle_type_id(garage))
                     .unwrap()
                     .lod,
             )
