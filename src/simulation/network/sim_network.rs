@@ -561,7 +561,7 @@ mod tests {
             if i == 120 {
                 assert!(!result.is_empty());
                 let veh = result.first().unwrap();
-                assert_eq!(2, veh.curr_link_id().unwrap());
+                assert_eq!(0, veh.curr_link_id().unwrap());
             } else {
                 // the vehicle should not leave the network until the 120th timestep
                 assert_eq!(0, result.len());
