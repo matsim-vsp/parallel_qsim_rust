@@ -87,8 +87,12 @@ impl Garage {
         let mut agents = std::mem::replace(&mut vehicle.passengers, Vec::new());
         let person = std::mem::replace(&mut vehicle.driver, None).expect("Vehicle has no driver.");
         agents.push(person);
-        self.vehicles.insert(Id::get(vehicle.id), vehicle);
         agents
+
+        // This would be need for mass conservation, but is not implemented yet.
+        // Thus, we just take driver and passengers and forget about the vehicle itself.
+
+        // self.vehicles.insert(Id::get(vehicle.id), vehicle);
     }
 
     pub fn unpark_veh_with_passengers(
@@ -97,11 +101,35 @@ impl Garage {
         passengers: Vec<Person>,
         id: &Id<Vehicle>,
     ) -> Vehicle {
-        let vehicle = self.vehicles.remove(&id).unwrap();
-        let mut vehicle = vehicle;
-        vehicle.driver = Some(person);
-        vehicle.passengers = passengers;
-        vehicle
+        let veh_type_id = Id::get(self
+            .vehicles
+            .get(id)
+            .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len())).r#type);
+
+        let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
+
+        Vehicle {
+            id: id.internal(),
+            curr_route_elem: 0,
+            r#type: veh_type.id,
+            max_v: veh_type.max_v,
+            pce: veh_type.pce,
+            driver: Some(person),
+            passengers,
+            attributes: Default::default(),
+        }
+
+        // The following code would be used if mass conservation is enabled. But, there are some pitfalls.
+        // One would need to configure for which vehicle types this is allowed.
+        // Currently (apr '25), each and every mode needs to be a vehicle type, in particular walking.
+        // But, this makes mass conservation complicated. Imagine a person walking from partition 1 -> 2, driving car from 2 -> 3 and then walk from 3 -> 1.
+        // The "walk" vehicle would be parked at partition 2, but partition 3 would need it. Consequently, the simulation crashes right now.
+
+        // let vehicle = self.vehicles.remove(&id).unwrap();
+        // let mut vehicle = vehicle;
+        // vehicle.driver = Some(person);
+        // vehicle.passengers = passengers;
+        // vehicle
     }
 
     pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {

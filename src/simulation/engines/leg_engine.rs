@@ -216,7 +216,11 @@ impl DepartureHandler for VehicularDepartureHandler {
             &Event::new_departure(agent.id, route.start_link(), leg_mode.internal()),
         );
 
-        let veh_type_id = garage.vehicles.get(&veh_id).unwrap().r#type;
+        let veh_type_id = garage
+            .vehicles
+            .get(&veh_id)
+            .expect(&format!("Couldn't find vehicle with id {:?}", veh_id))
+            .r#type;
         match LevelOfDetail::try_from(garage.vehicle_types.get(&Id::get(veh_type_id)).unwrap().lod)
             .unwrap()
         {

@@ -168,6 +168,10 @@ impl Vehicle {
         self.curr_route_elem += 1;
     }
 
+    pub fn reset_route_index(&mut self) {
+        self.curr_route_elem = 0;
+    }
+
     /// This method advances the pointer to the last element of the route. We need this in case of
     /// teleported legs. Advancing the route pointer to the last element directly ensures that teleporting
     /// the vehicle is independent of whether the leg has a Generic-Teleportation route or a network

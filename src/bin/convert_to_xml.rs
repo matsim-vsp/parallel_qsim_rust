@@ -11,11 +11,11 @@ use rust_q_sim::simulation::vehicles::garage::Garage;
 #[derive(Parser, Debug)]
 struct InputArgs {
     #[arg(short, long)]
-    pub network: String,
+    pub network: Option<String>,
     #[arg(short, long)]
-    pub population: String,
+    pub population: Option<String>,
     #[arg(short, long)]
-    pub vehicles: String,
+    pub vehicles: Option<String>,
     #[arg(short, long)]
     pub ids: String,
 }
@@ -23,19 +23,44 @@ struct InputArgs {
 fn main() {
     rust_q_sim::simulation::logging::init_std_out_logging();
     let args = InputArgs::parse();
-    let net_path = PathBuf::from(&args.network);
-    let pop_path = PathBuf::from(&args.population);
-    let veh_path = PathBuf::from(&args.vehicles);
     let ids_path = PathBuf::from(&args.ids);
 
-    rust_q_sim::simulation::id::load_from_file(&ids_path);
-    let net = Network::from_file_path(&net_path, 1, PartitionMethod::None);
-    let mut veh = Garage::from_file(&veh_path);
-    let pop = Population::from_file(&pop_path, &mut veh);
+    let net_path = args.network.map(|s| PathBuf::from(&s));
+    let pop_path = args.population.map(|s| PathBuf::from(&s));
+    let veh_path = args.vehicles.map(|s| PathBuf::from(&s));
 
-    net.to_file(&replace_filename(net_path));
-    veh.to_file(&replace_filename(veh_path));
-    pop.to_file(&replace_filename(pop_path))
+    rust_q_sim::simulation::id::load_from_file(&ids_path);
+
+    if let Some(net_path) = net_path {
+        info!("Loading network from {:?}", net_path);
+        let net = Network::from_file_path(&net_path, 1, PartitionMethod::None);
+
+        info!("Converting network to XML format");
+        net.to_file(&replace_filename(net_path));
+    }
+
+    let mut veh = if let Some(veh_path) = veh_path {
+        info!("Loading vehicles from {:?}", veh_path);
+        let veh = Garage::from_file(&veh_path);
+
+        info!("Converting vehicles to XML format");
+        veh.to_file(&replace_filename(veh_path));
+        Some(veh)
+    } else {
+        None
+    };
+
+    if let Some(pop_path) = pop_path {
+        info!("Loading population from {:?}", pop_path);
+        let pop = Population::from_file(
+            &pop_path,
+            &mut veh
+                .as_mut()
+                .expect("Vehicles must be provided if population is provided."),
+        );
+        info!("Converting population to XML format");
+        pop.to_file(&replace_filename(pop_path))
+    }
 }
 
 fn replace_filename(path: PathBuf) -> PathBuf {

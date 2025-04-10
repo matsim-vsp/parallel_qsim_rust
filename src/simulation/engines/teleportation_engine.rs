@@ -42,8 +42,8 @@ impl TeleportationEngine {
     }
 
     pub fn do_step(&mut self, now: u32) -> Vec<Vehicle> {
-        let teleportation_vehicles = self.queue.pop(now);
-        for vehicle in &teleportation_vehicles {
+        let mut teleportation_vehicles = self.queue.pop(now);
+        for vehicle in &mut teleportation_vehicles {
             let agent = vehicle.driver.as_ref().unwrap();
 
             // emmit travelled
@@ -54,6 +54,7 @@ impl TeleportationEngine {
                 now,
                 &Event::new_travelled(agent.id, route.distance, mode.internal()),
             );
+            vehicle.reset_route_index();
         }
         teleportation_vehicles
     }

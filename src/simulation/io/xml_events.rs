@@ -1,8 +1,10 @@
+use flate2::write::GzEncoder;
+use flate2::Compression;
 use std::any::Any;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
-
+use std::sync::Mutex;
 use tracing::info;
 use xml::attribute::OwnedAttribute;
 use xml::reader::XmlEvent;
@@ -17,19 +19,25 @@ use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::Person;
 
 pub struct XmlEventsWriter {
-    writer: BufWriter<File>,
+    writer: Mutex<Box<dyn Write + Send>>,
 }
 
 impl XmlEventsWriter {
     pub fn new(path: &Path) -> Self {
         info!("Creating file: {path:?}");
         let file = File::create(path).expect("Failed to create File.");
-        let mut writer = BufWriter::new(file);
+        let mut writer: Box<dyn Write + Send> = if path.extension().unwrap() == "gz" {
+            Box::new(GzEncoder::new(file, Compression::fast()))
+        } else {
+            Box::new(BufWriter::new(file))
+        };
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
         writer
             .write_all(header.as_bytes())
             .expect("Failed to write events file header");
-        XmlEventsWriter { writer }
+        XmlEventsWriter {
+            writer: Mutex::new(writer),
+        }
     }
 
     pub fn event_2_string(time: u32, event: &Event) -> String {
@@ -126,7 +134,8 @@ impl XmlEventsWriter {
     }
 
     fn write(&mut self, text: &str) {
-        self.writer
+        let mut writer = self.writer.lock().expect("Failed to lock writer");
+        writer
             .write_all(text.as_bytes())
             .expect("Error while writing event");
     }
@@ -142,7 +151,8 @@ impl EventsSubscriber for XmlEventsWriter {
         let closing_tag = "</events>";
         self.write(closing_tag);
         info!("Finishing Events File. Calling flush on Buffered Writer.");
-        self.writer.flush().expect("Failed to flush events.");
+        let mut writer = self.writer.lock().expect("Failed to lock writer");
+        writer.flush().expect("Failed to flush events.");
     }
 
     fn as_any(&mut self) -> &mut dyn Any {

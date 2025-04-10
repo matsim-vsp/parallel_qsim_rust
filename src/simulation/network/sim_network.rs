@@ -205,11 +205,18 @@ impl SimNetworkPartition {
         });
         let link = self.links.get_mut(&link_id).unwrap_or_else(|| {
             let agent_id = Id::<Person>::get(vehicle.driver().id());
+            let coming_from_other_partition = events_publisher.is_some();
+            let where_is_it_from = if coming_from_other_partition {
+                "Vehicle is already en route and comes from another partition."
+            } else {
+                "Vehicle was just sent en route. This is the first link."
+            };
             panic!(
-                "#{} Couldn't find link for id {:?}.for Agent {}. \n\n The vehicle: {:?}",
+                "#{} Couldn't find link for id {:?}.for Agent {}. {} \n\n The vehicle: {:?}",
                 self.partition,
                 Id::<Link>::get(link_id),
                 agent_id.external(),
+                where_is_it_from,
                 //self.global_network.get_link(&full_id),
                 vehicle
             );
@@ -378,10 +385,11 @@ impl SimNetworkPartition {
                     sel_cap += in_link.flow_cap();
 
                     if sel_cap >= rnd_num {
-                        let veh = in_link.pop_veh();
+                        let mut veh = in_link.pop_veh();
                         if veh.peek_next_route_element().is_some() {
                             Self::move_vehicle(veh, links, active_links, events, now);
                         } else {
+                            veh.reset_route_index();
                             exited_vehicles.push(veh);
                         }
                     }
