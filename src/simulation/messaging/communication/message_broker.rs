@@ -80,7 +80,12 @@ impl<C> NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
-    pub fn new(comm: Rc<C>, global_network: &Network, net: &SimNetworkPartition, global_sync: bool) -> Self {
+    pub fn new(
+        comm: Rc<C>,
+        global_network: &Network,
+        net: &SimNetworkPartition,
+        global_sync: bool,
+    ) -> Self {
         let neighbors = net.neighbors().iter().copied().collect();
         let link_mapping = global_network
             .links
@@ -280,7 +285,7 @@ mod tests {
                 assert_eq!(0, msg.time);
                 assert_eq!(1, msg.vehicles.len());
                 let mut vehicle = msg.vehicles.remove(0);
-                vehicle.advance_route_index();
+                vehicle.register_moved_to_next_link();
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {
@@ -402,7 +407,7 @@ mod tests {
             Rc::new(communicator),
             &create_network(),
             &SimNetworkPartition::from_network(&create_network(), rank, config),
-            false
+            false,
         );
         broker
     }

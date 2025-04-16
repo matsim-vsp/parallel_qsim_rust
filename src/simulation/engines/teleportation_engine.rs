@@ -54,7 +54,7 @@ impl TeleportationEngine {
                 now,
                 &Event::new_travelled(agent.id, route.distance, mode.internal()),
             );
-            vehicle.reset_route_index();
+            vehicle.register_vehicle_exited();
         }
         teleportation_vehicles
     }

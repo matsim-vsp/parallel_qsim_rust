@@ -164,11 +164,11 @@ impl Vehicle {
         self.id as usize
     }
 
-    pub fn advance_route_index(&mut self) {
+    pub fn register_moved_to_next_link(&mut self) {
         self.curr_route_elem += 1;
     }
 
-    pub fn reset_route_index(&mut self) {
+    pub fn register_vehicle_exited(&mut self) {
         self.curr_route_elem = 0;
     }
 

@@ -389,7 +389,7 @@ impl SimNetworkPartition {
                         if veh.peek_next_route_element().is_some() {
                             Self::move_vehicle(veh, links, active_links, events, now);
                         } else {
-                            veh.reset_route_index();
+                            veh.register_vehicle_exited();
                             exited_vehicles.push(veh);
                         }
                     }
@@ -466,6 +466,7 @@ impl SimNetworkPartition {
         false
     }
 
+    /// Moves the vehicle from the current link to the next link.
     fn move_vehicle(
         mut vehicle: Vehicle,
         links: &mut IntMap<u64, SimLink>,
@@ -477,7 +478,7 @@ impl SimNetworkPartition {
             now,
             &Event::new_link_leave(vehicle.curr_link_id().unwrap(), vehicle.id),
         );
-        vehicle.advance_route_index();
+        vehicle.register_moved_to_next_link();
         let link_id = vehicle.curr_link_id().unwrap();
         let link = links.get_mut(&link_id).unwrap();
 
