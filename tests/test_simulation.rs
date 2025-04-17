@@ -34,7 +34,7 @@ use rust_q_sim::simulation::wire_types::events::Event;
 pub fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str) {
     let config = Config::from_file(&config_args);
     let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
-    let mut receiver = ReceivingSubscriber::new_with_events_from_file(&expected_events);
+    let mut receiver = ReceivingSubscriber::new_with_events_from_file(expected_events);
 
     let mut handles: IntMap<u32, JoinHandle<()>> = comms
         .into_iter()
@@ -110,9 +110,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
         "Partitioning: Rank {rank}; Links {:?}; Nodes {:?}",
         &sim_net.get_link_ids(),
         &sim_net
-            .nodes
-            .iter()
-            .map(|(id, _)| *id)
+            .nodes.keys().copied()
             .collect::<HashSet<u64>>()
     );
 
