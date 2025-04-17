@@ -84,8 +84,8 @@ impl Garage {
     }
 
     pub(crate) fn park_veh(&mut self, mut vehicle: Vehicle) -> Vec<SimulationAgent> {
-        let mut agents = std::mem::replace(&mut vehicle.passengers, Vec::new());
-        let person = std::mem::replace(&mut vehicle.driver, None).expect("Vehicle has no driver.");
+        let mut agents = std::mem::take(&mut vehicle.passengers);
+        let person = vehicle.driver.take().expect("Vehicle has no driver.");
         agents.push(person);
         agents
 

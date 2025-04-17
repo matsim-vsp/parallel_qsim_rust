@@ -46,15 +46,15 @@ pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Ve
     };
 
     info!("Calling Metis Partitioning Library");
-    let mut graph = Graph::new(ncon, num_parts as Idx, &mut xadj, &mut adjncy)
+    let mut graph = Graph::new(ncon, num_parts as Idx, &xadj, &adjncy)
         .expect("Failed to create graph")
         .set_option(metis::option::UFactor(options.ufactor() as Idx))
         .set_option(metis::option::Seed(4711))
         .set_option(metis::option::Contig(options.contiguous))
-        .set_adjwgt(&mut adjwgt);
+        .set_adjwgt(&adjwgt);
 
     if !vwgt.is_empty() {
-        graph = graph.set_vwgt(&mut vwgt);
+        graph = graph.set_vwgt(&vwgt);
     }
 
     graph.part_kway(&mut result).unwrap();

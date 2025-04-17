@@ -104,7 +104,7 @@ impl<T: StableTypeId + 'static> Ord for Id<T> {
 
 impl<T: StableTypeId + 'static> PartialOrd for Id<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.internal().partial_cmp(&other.internal())
+        Some(self.cmp(other))
     }
 }
 

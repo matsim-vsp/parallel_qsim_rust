@@ -23,7 +23,7 @@ impl NetworkConverter {
                     .unwrap()
                     .eq(&LevelOfDetail::Network)
             })
-            .map(|(id, vt)| (id.clone(), Self::convert_network(&network, Some(vt))))
+            .map(|(id, vt)| (id.clone(), Self::convert_network(network, Some(vt))))
             .collect()
     }
 
@@ -68,10 +68,10 @@ impl NetworkConverter {
             backward_first_out.push(backward_links_before);
 
             //calculate adjacent links
-            let outgoing_links = Self::get_links(&node.out_links, &network, vehicle_type);
+            let outgoing_links = Self::get_links(&node.out_links, network, vehicle_type);
             forward_links_before += outgoing_links.len();
 
-            let ingoing_links = Self::get_links(&node.in_links, &network, vehicle_type);
+            let ingoing_links = Self::get_links(&node.in_links, network, vehicle_type);
             backward_links_before += ingoing_links.len();
 
             //process outgoing links
@@ -150,7 +150,7 @@ impl NetworkConverter {
     }
 
     fn get_links<'net>(
-        link_ids: &Vec<Id<Link>>,
+        link_ids: &[Id<Link>],
         network: &'net Network,
         vehicle_type: Option<&VehicleType>,
     ) -> Vec<&'net Link> {

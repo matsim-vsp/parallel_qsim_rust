@@ -5,7 +5,7 @@ use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population_data::Population;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, io};
-use std::path::PathBuf;
+use std::path::Path;
 use tracing::info;
 
 pub struct Scenario {
@@ -16,7 +16,7 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    pub fn build(config: &Config, config_path: &String, rank: u32, output_path: &PathBuf) -> Self {
+    pub fn build(config: &Config, config_path: &String, rank: u32, output_path: &Path) -> Self {
         id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
 
         // mandatory content to create a scenario
@@ -33,12 +33,12 @@ impl Scenario {
         }
     }
 
-    fn create_network(config: &Config, config_path: &String, output_path: &PathBuf) -> Network {
+    fn create_network(config: &Config, config_path: &String, output_path: &Path) -> Network {
         // if we partition the network is copied to the output folder.
         // otherwise nothing is done and we can load the network from the input folder directly.
         let network_path = if let PartitionMethod::Metis(_) = config.partitioning().method {
             get_numbered_output_filename(
-                &output_path,
+                output_path,
                 &io::resolve_path(config_path, &config.proto_files().network),
                 config.partitioning().num_parts,
             )
@@ -67,7 +67,7 @@ impl Scenario {
     ) -> Population {
         Population::from_file_filtered_part(
             &io::resolve_path(config_path, &config.proto_files().population),
-            &network,
+            network,
             garage,
             rank,
         )
@@ -79,7 +79,7 @@ impl Scenario {
         network: &Network,
         population: &Population,
     ) -> SimNetworkPartition {
-        let partition = SimNetworkPartition::from_network(&network, rank, config.simulation());
+        let partition = SimNetworkPartition::from_network(network, rank, config.simulation());
         info!(
             "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
             partition.nodes.len(),
