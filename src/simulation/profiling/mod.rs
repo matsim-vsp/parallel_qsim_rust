@@ -34,7 +34,7 @@ pub fn measure_duration<Out, F: FnOnce() -> Out>(
         Err(_) => DEFAULT_PERFORMANCE_INTERVAL,
     };
 
-    if now.map_or(true, |time| time % interval == 0) {
+    if now.is_none_or(|time| time % interval == 0) {
         let event = json!({
             "now": now,
             "key": key,

@@ -113,7 +113,7 @@ impl Plan {
 
     fn from_io(io_plan: &IOPlan, person_id: &Id<Person>) -> Plan {
         assert!(!io_plan.elements.is_empty());
-        if let IOPlanElement::Leg(_leg) = io_plan.elements.get(0).unwrap() {
+        if let IOPlanElement::Leg(_leg) = io_plan.elements.first().unwrap() {
             panic!("First plan element must be an activity! But was a leg.");
         };
 
@@ -211,7 +211,7 @@ impl Leg {
         let route = io_leg
             .route
             .as_ref()
-            .and_then(|r| Some(Route::from_io(r, person_id, &mode)));
+            .map(|r| Route::from_io(r, person_id, &mode));
 
         Self {
             route,
@@ -240,10 +240,8 @@ impl Leg {
     fn parse_trav_time(leg_trav_time: &Option<String>, route_trav_time: &Option<String>) -> u32 {
         if let Some(trav_time) = parse_time_opt(leg_trav_time) {
             trav_time
-        } else if let Some(trav_time) = parse_time_opt(route_trav_time) {
-            trav_time
         } else {
-            0
+            parse_time_opt(route_trav_time).unwrap_or(0)
         }
     }
 

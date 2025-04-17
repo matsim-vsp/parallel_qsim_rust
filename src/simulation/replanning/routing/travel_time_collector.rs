@@ -37,7 +37,7 @@ impl TravelTimeCollector {
         if let Some(t) = self.cache_enter_time_by_vehicle.remove(&event.vehicle) {
             self.travel_times_by_link
                 .entry(event.link)
-                .or_insert(Vec::new())
+                .or_default()
                 .push(time - t)
         }
     }

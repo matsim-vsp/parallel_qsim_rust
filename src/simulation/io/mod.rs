@@ -17,8 +17,8 @@ pub fn resolve_path(config: &String, file: &str) -> PathBuf {
 
     let config_path = PathBuf::from(config);
     if let Some(path) = config_path.parent() {
-        return path.join(file_path);
+        path.join(file_path)
     } else {
-        return file_path;
+        file_path
     }
 }

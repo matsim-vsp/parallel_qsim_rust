@@ -23,6 +23,7 @@ pub mod general {
     include!(concat!(env!("OUT_DIR"), "/general.rs"));
 }
 
+#[allow(clippy::module_inception)]
 pub mod wire_types {
     use crate::simulation::io::attributes::Attr;
     use crate::simulation::wire_types::general::attribute_value::Type;

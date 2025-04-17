@@ -180,7 +180,7 @@ impl XmlEventsReader {
                     name, attributes, ..
                 }) => {
                     if name.local_name.eq("event") {
-                        let time: u32 = attributes.get(0).unwrap().value.parse().unwrap();
+                        let time: u32 = attributes.first().unwrap().value.parse().unwrap();
                         let event = handle(attributes);
                         return Some((time, event));
                     }

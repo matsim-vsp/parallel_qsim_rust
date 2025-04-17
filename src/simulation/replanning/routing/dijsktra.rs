@@ -13,7 +13,7 @@ impl Ord for Distance {
 
 impl PartialOrd for Distance {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.0.partial_cmp(&other.0).map(|o| o.reverse())
+        Some(self.cmp(other))
     }
 }
 

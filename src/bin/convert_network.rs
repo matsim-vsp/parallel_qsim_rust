@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use tracing::info;
@@ -31,7 +31,7 @@ fn main() {
     }
 }
 
-fn is_binary_format(path: &PathBuf) -> bool {
+fn is_binary_format(path: &Path) -> bool {
     path.extension()
         .expect("Network files must either end with xml, xml.gz, or binpb")
         .eq("binpb")

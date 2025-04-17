@@ -130,10 +130,8 @@ fn create_events(
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
-        let events_path = io::resolve_path(
-            config_path,
-            &output_path.join(events_file).to_str().unwrap().to_string(),
-        );
+        let events_path =
+            io::resolve_path(config_path, output_path.join(events_file).to_str().unwrap());
         info!("adding events writer with path: {events_path:?}");
         events
             .borrow_mut()

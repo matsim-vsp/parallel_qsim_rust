@@ -1,5 +1,5 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::Path;
 
 use tracing::level_filters::LevelFilter;
 use tracing::Level;
@@ -65,7 +65,7 @@ fn init_tracing(
     config: &Config,
     part: u32,
     file_discriminant: &String,
-    dir: &PathBuf,
+    dir: &Path,
 ) -> (Option<SpanDurationToCSVLayer>, Option<WriterGuard>) {
     // if we set profiling at all and if profiling is set to level trace, then each process creates an instrumenting file
     // if profiling level is set to INFO, only process 0 creates an instrument files. This is important if we run on a lot of

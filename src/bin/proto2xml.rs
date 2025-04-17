@@ -65,11 +65,8 @@ fn main() {
             &reader.curr_time_step.1,
             &mut publisher,
         );
-        match reader.load_next() {
-            None => {
-                readers.remove(0);
-            }
-            Some(_) => {}
+        if reader.load_next().is_none() {
+            readers.remove(0);
         };
     }
 

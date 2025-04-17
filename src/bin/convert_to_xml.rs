@@ -54,7 +54,7 @@ fn main() {
         info!("Loading population from {:?}", pop_path);
         let pop = Population::from_file(
             &pop_path,
-            &mut veh
+            veh
                 .as_mut()
                 .expect("Vehicles must be provided if population is provided."),
         );

@@ -142,10 +142,7 @@ impl<R: Read + Seek> Iterator for EventsReader<R> {
     type Item = (u32, Vec<Event>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let delimiter = match self.read_delim() {
-            None => return None,
-            Some(delim) => delim,
-        };
+        let delimiter = self.read_delim()?;
         let time_step = self.read_time_step(delimiter);
         let time = time_step.time;
         let events = self.read_events(time_step);
