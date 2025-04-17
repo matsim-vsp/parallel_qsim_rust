@@ -1,4 +1,3 @@
-use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Barrier};
@@ -9,7 +8,7 @@ use mpi::topology::{Communicator, SimpleCommunicator};
 use mpi::Rank;
 use tracing::{info, instrument, span, Level};
 
-use crate::simulation::wire_types::messages::{SimMessage, SyncMessage, TravelTimesMessage};
+use crate::simulation::wire_types::messages::{SimMessage, SyncMessage};
 
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(
@@ -52,8 +51,6 @@ impl SimCommunicator for DummySimCommunicator {
 pub struct ChannelSimCommunicator {
     receiver: Receiver<SimMessage>,
     senders: Vec<Sender<SimMessage>>,
-    tt_receiver: Receiver<SimMessage>,
-    tt_senders: Vec<Sender<SimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
 }
@@ -61,33 +58,24 @@ pub struct ChannelSimCommunicator {
 impl ChannelSimCommunicator {
     pub fn create_n_2_n(num_parts: u32) -> Vec<ChannelSimCommunicator> {
         let mut senders: Vec<_> = Vec::new();
-        let mut tt_senders: Vec<_> = Vec::new();
         let mut comms: Vec<_> = Vec::new();
         let barrier = Arc::new(Barrier::new(num_parts as usize));
 
         for rank in 0..num_parts {
             let (sender, receiver) = channel();
-            let (tt_sender, tt_receiver) = channel();
             let comm = ChannelSimCommunicator {
                 receiver,
-                tt_receiver,
                 senders: vec![],
-                tt_senders: vec![],
                 rank,
                 barrier: barrier.clone(),
             };
             senders.push(sender);
-            tt_senders.push(tt_sender);
             comms.push(comm);
         }
 
         for comm in &mut comms {
             for sender in &senders {
                 comm.senders.push(sender.clone());
-            }
-
-            for sender in &tt_senders {
-                comm.tt_senders.push(sender.clone());
             }
         }
 
