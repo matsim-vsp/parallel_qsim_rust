@@ -191,9 +191,9 @@ impl SimNetworkPartition {
 
     /// The event publisher is only used to publish link enter events. There are two different cases:
     /// 1. The vehicle is received from another partition. The event publisher should be Some(_) in order to publish the
-    /// link enter event.
+    ///    link enter event.
     /// 2. The vehicle starts at this partition. Because its link enter is right after an activity,
-    /// the MATSim default is to not publish this link enter event. Therefore, the event publisher should be None.
+    ///    the MATSim default is to not publish this link enter event. Therefore, the event publisher should be None.
     pub fn send_veh_en_route(
         &mut self,
         vehicle: Vehicle,
@@ -385,11 +385,10 @@ impl SimNetworkPartition {
                     sel_cap += in_link.flow_cap();
 
                     if sel_cap >= rnd_num {
-                        let mut veh = in_link.pop_veh();
+                        let veh = in_link.pop_veh();
                         if veh.peek_next_route_element().is_some() {
                             Self::move_vehicle(veh, links, active_links, events, now);
                         } else {
-                            veh.register_vehicle_exited();
                             exited_vehicles.push(veh);
                         }
                     }
@@ -562,7 +561,7 @@ mod tests {
             if i == 120 {
                 assert!(!result.is_empty());
                 let veh = result.first().unwrap();
-                assert_eq!(0, veh.curr_link_id().unwrap());
+                assert_eq!(2, veh.curr_link_id().unwrap());
             } else {
                 // the vehicle should not leave the network until the 120th timestep
                 assert_eq!(0, result.len());

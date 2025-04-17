@@ -1,6 +1,6 @@
 use clap::Parser;
 use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::population::population::Population;
+use rust_q_sim::simulation::population::population_data::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
 

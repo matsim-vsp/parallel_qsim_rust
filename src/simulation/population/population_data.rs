@@ -1,22 +1,17 @@
-use std::collections::HashMap;
-use tracing::debug;
-
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
-use crate::simulation::network::global_network::Link;
+use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::population::io::{
-    IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
+    from_file, to_file, IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
 use crate::simulation::wire_types::vehicles::VehicleType;
-
-pub enum State {
-    ACTIVITY,
-    LEG,
-}
+use std::collections::HashMap;
+use std::path::Path;
+use tracing::debug;
 
 impl Person {
     pub fn from_io(io_person: &IOPerson) -> Person {
@@ -47,80 +42,12 @@ impl Person {
         self.id
     }
 
-    pub fn state(&self) -> State {
-        if self.curr_plan_elem % 2 == 0 {
-            State::ACTIVITY
-        } else {
-            State::LEG
-        }
-    }
-
-    pub fn add_act_after_curr(&mut self, to_add: Vec<Activity>) {
-        let next_act_index = self.next_act_index() as usize;
-        self.plan
-            .as_mut()
-            .unwrap()
-            .acts
-            .splice(next_act_index..next_act_index, to_add);
-    }
-
-    pub fn replace_next_leg(&mut self, to_add: Vec<Leg>) {
-        let next_leg_index = self.next_leg_index() as usize;
-        //remove next leg
-        self.plan.as_mut().unwrap().legs.remove(next_leg_index);
-
-        //insert legs at next leg index
-        self.plan
-            .as_mut()
-            .unwrap()
-            .legs
-            .splice(next_leg_index..next_leg_index, to_add);
-    }
-
     pub fn curr_act(&self) -> &Activity {
         if self.curr_plan_elem % 2 != 0 {
             panic!("Current element is not an activity");
         }
         let act_index = self.curr_plan_elem / 2;
         self.get_act_at_index(act_index)
-    }
-
-    pub fn previous_act(&self) -> &Activity {
-        let act_index = self.next_act_index() - 1;
-        self.get_act_at_index(act_index)
-    }
-
-    pub fn curr_act_mut(&mut self) -> &mut Activity {
-        if self.curr_plan_elem % 2 != 0 {
-            panic!("Current element is not an activity");
-        }
-        let act_index = self.curr_plan_elem / 2;
-        self.get_act_at_index_mut(act_index)
-    }
-
-    pub fn next_act(&self) -> &Activity {
-        let act_index = self.next_act_index();
-        self.get_act_at_index(act_index)
-    }
-
-    pub fn next_act_mut(&mut self) -> &mut Activity {
-        let act_index = self.next_act_index();
-        self.get_act_at_index_mut(act_index)
-    }
-
-    fn next_act_index(&self) -> u32 {
-        match self.curr_plan_elem % 2 {
-            //current element is an activity => two elements after is the next activity
-            0 => (self.curr_plan_elem + 2) / 2,
-            //current element is a leg => one element after is the next activity
-            1 => (self.curr_plan_elem + 1) / 2,
-            _ => {
-                panic!(
-                    "There was an error while getting the next activity of Person {:?}",
-                    self.id
-                )
-            }
-        }
     }
 
     pub fn curr_leg(&self) -> &Leg {
@@ -137,36 +64,6 @@ impl Person {
             .unwrap()
     }
 
-    pub fn previous_leg(&self) -> &Leg {
-        let leg_index = self.next_leg_index() - 1;
-        self.get_leg_at_index(leg_index)
-    }
-
-    pub fn next_leg(&self) -> &Leg {
-        let next_leg_index = self.next_leg_index();
-        self.get_leg_at_index(next_leg_index)
-    }
-
-    fn next_leg_mut(&mut self) -> &mut Leg {
-        let next_leg_index = self.next_leg_index();
-        self.get_leg_at_index_mut(next_leg_index)
-    }
-
-    fn next_leg_index(&self) -> u32 {
-        match self.curr_plan_elem % 2 {
-            //current element is an activity => one element after is the next leg
-            0 => (self.curr_plan_elem + 1) / 2,
-            //current element is a leg => two elements after is the next leg
-            1 => (self.curr_plan_elem + 2) / 2,
-            _ => {
-                panic!(
-                    "There was an error while getting the next leg of Person {:?}",
-                    self.id
-                )
-            }
-        }
-    }
-
     fn get_act_at_index(&self, index: u32) -> &Activity {
         self.plan
             .as_ref()
@@ -174,54 +71,6 @@ impl Person {
             .acts
             .get(index as usize)
             .unwrap()
-    }
-
-    fn get_act_at_index_mut(&mut self, index: u32) -> &mut Activity {
-        self.plan
-            .as_mut()
-            .unwrap()
-            .acts
-            .get_mut(index as usize)
-            .unwrap()
-    }
-
-    fn get_leg_at_index(&self, index: u32) -> &Leg {
-        self.plan
-            .as_ref()
-            .unwrap()
-            .legs
-            .get(index as usize)
-            .unwrap()
-    }
-
-    fn get_leg_at_index_mut(&mut self, index: u32) -> &mut Leg {
-        self.plan
-            .as_mut()
-            .unwrap()
-            .legs
-            .get_mut(index as usize)
-            .unwrap()
-    }
-
-    pub fn update_next_leg(
-        &mut self,
-        dep_time: Option<u32>,
-        travel_time: u32,
-        route: Vec<u64>,
-        distance: f64,
-        vehicle_id: u64,
-    ) {
-        let next_leg = self.next_leg_mut();
-
-        let simulation_route = Route {
-            veh_id: vehicle_id,
-            distance,
-            route,
-        };
-
-        next_leg.dep_time = dep_time;
-        next_leg.trav_time = travel_time;
-        next_leg.route = Some(simulation_route);
     }
 
     pub fn advance_plan(&mut self) {
@@ -240,11 +89,11 @@ impl Person {
 
 impl EndTime for Person {
     fn end_time(&self, now: u32) -> u32 {
-        return if self.curr_plan_elem % 2 == 0 {
+        if self.curr_plan_elem % 2 == 0 {
             self.curr_act().cmp_end_time(now)
         } else {
             self.curr_leg().trav_time + now
-        };
+        }
     }
 }
 
@@ -334,19 +183,7 @@ impl Activity {
         }
     }
 
-    pub fn interaction(link_id: u64, act_type: u64) -> Activity {
-        Activity {
-            act_type,
-            link_id,
-            x: 0.0, //dummy value which is never evaluated again
-            y: 0.0, //dummy value which is never evaluated again
-            start_time: None,
-            end_time: None,
-            max_dur: Some(0),
-        }
-    }
-
-    fn cmp_end_time(&self, now: u32) -> u32 {
+    pub(crate) fn cmp_end_time(&self, now: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {
@@ -365,8 +202,6 @@ impl Activity {
 }
 
 impl Leg {
-    pub const PASSENGER_ID_ATTRIBUTE: &'static str = "passenger_id";
-
     fn from_io(io_leg: &IOLeg, person_id: &Id<Person>) -> Self {
         let routing_mode_ext = Attrs::find_or_else_opt(&io_leg.attributes, "routingMode", || "car");
 
@@ -398,21 +233,6 @@ impl Leg {
             trav_time,
             dep_time,
             routing_mode: 0,
-            attributes: HashMap::new(),
-        }
-    }
-
-    pub fn access_eggress(net_mode: u64, veh_type_id: u64) -> Self {
-        Leg {
-            mode: net_mode,
-            routing_mode: net_mode,
-            dep_time: None,
-            trav_time: 0,
-            route: Some(Route {
-                veh_id: veh_type_id,
-                distance: 0.0,
-                route: Vec::new(),
-            }),
             attributes: HashMap::new(),
         }
     }
@@ -512,5 +332,199 @@ fn parse_time(value: &str) -> Option<u32> {
         Some(hour * 3600 + minutes * 60 + seconds)
     } else {
         None
+    }
+}
+
+#[derive(Debug, Default, PartialEq)]
+pub struct Population {
+    pub persons: HashMap<Id<Person>, Person>,
+}
+
+impl Population {
+    pub fn new() -> Self {
+        Population {
+            persons: HashMap::default(),
+        }
+    }
+
+    pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
+        from_file(file_path, garage, |_p| true)
+    }
+
+    pub fn from_file_filtered<F>(file_path: &Path, garage: &mut Garage, filter: F) -> Self
+    where
+        F: Fn(&Person) -> bool,
+    {
+        from_file(file_path, garage, filter)
+    }
+
+    pub fn from_file_filtered_part(
+        file_path: &Path,
+        net: &Network,
+        garage: &mut Garage,
+        part: u32,
+    ) -> Self {
+        from_file(file_path, garage, |p| {
+            let act = p.curr_act();
+            let partition = net.links.get(act.link_id as usize).unwrap().partition;
+            partition == part
+        })
+    }
+
+    pub fn to_file(&self, file_path: &Path) {
+        to_file(self, file_path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+    use std::path::PathBuf;
+
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
+    use crate::simulation::id::Id;
+    use crate::simulation::network::global_network::{Link, Network};
+    use crate::simulation::population::population_data::Population;
+    use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::wire_types::population::Person;
+
+    #[test]
+    fn from_io_1_plan() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let pop = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-1-plan.xml"),
+            &mut garage,
+        );
+
+        assert_eq!(1, pop.persons.len());
+
+        let agent = pop.persons.get(&Id::get_from_ext("1")).unwrap();
+        assert!(agent.plan.is_some());
+
+        let plan = agent.plan.as_ref().unwrap();
+        assert_eq!(4, plan.acts.len());
+        assert_eq!(3, plan.legs.len());
+
+        let home_act = plan.acts.first().unwrap();
+        let act_type: Id<String> = Id::get(home_act.act_type);
+        assert_eq!("h", act_type.external());
+        assert_eq!(Id::<Link>::get_from_ext("1").internal(), home_act.link_id);
+        assert_eq!(-25000., home_act.x);
+        assert_eq!(0., home_act.y);
+        assert_eq!(Some(6 * 3600), home_act.end_time);
+        assert_eq!(None, home_act.start_time);
+        assert_eq!(None, home_act.max_dur);
+
+        let leg = plan.legs.first().unwrap();
+        assert_eq!(None, leg.dep_time);
+        assert!(leg.route.is_some());
+        let net_route = leg.route.as_ref().unwrap();
+        assert_eq!(
+            Id::<Vehicle>::get_from_ext("1_car").internal(),
+            net_route.veh_id
+        );
+        assert_eq!(
+            vec![
+                Id::<Link>::get_from_ext("1").internal(),
+                Id::<Link>::get_from_ext("6").internal(),
+                Id::<Link>::get_from_ext("15").internal(),
+                Id::<Link>::get_from_ext("20").internal(),
+            ],
+            net_route.route
+        );
+    }
+
+    #[test]
+    fn from_io_multi_mode() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/3-links/3-links-network.xml"));
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
+        let pop =
+            Population::from_file(&PathBuf::from("./assets/3-links/3-agent.xml"), &mut garage);
+
+        // check that we have all three vehicle types
+        let expected_veh_types = HashSet::from(["car", "bike", "walk"]);
+        assert_eq!(3, garage.vehicle_types.len());
+        assert!(garage
+            .vehicle_types
+            .keys()
+            .all(|type_id| expected_veh_types.contains(type_id.external())));
+
+        // check that we have a vehicle for each mode and for each person
+        assert_eq!(9, garage.vehicles.len());
+
+        // check population
+        // activity types should be done as id. If id is not present this will crash
+        assert_eq!("home", Id::<String>::get_from_ext("home").external());
+        assert_eq!("errands", Id::<String>::get_from_ext("errands").external());
+
+        // each of the network mode should also have an interaction activity type
+        assert_eq!(
+            "car interaction",
+            Id::<String>::get_from_ext("car interaction").external()
+        );
+        assert_eq!(
+            "bike interaction",
+            Id::<String>::get_from_ext("bike interaction").external()
+        );
+
+        // agents should also have ids
+        assert_eq!("100", Id::<Person>::get_from_ext("100").external());
+        assert_eq!("200", Id::<Person>::get_from_ext("200").external());
+        assert_eq!("300", Id::<Person>::get_from_ext("300").external());
+
+        // we expect three agents overall
+        assert_eq!(3, pop.persons.len());
+
+        // todo test bookkeeping of garage person_2_vehicle
+    }
+
+    #[test]
+    fn from_io() {
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let pop1 = Population::from_file_filtered_part(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &net,
+            &mut garage,
+            0,
+        );
+        let pop2 = Population::from_file_filtered_part(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &net,
+            &mut garage,
+            1,
+        );
+
+        // metis produces unstable results on small networks so, make sure that one of the populations
+        // has all the agents and the other doesn't
+        assert!(pop1.persons.len() == 100 || pop2.persons.len() == 100);
+        assert!(pop1.persons.is_empty() || pop2.persons.is_empty());
+    }
+
+    #[test]
+    fn test_from_xml_to_binpb_same() {
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            1,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let population = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &mut garage,
+        );
+
+        let temp_file = PathBuf::from(
+            "test_output/simulation/population/population/test_from_xml_to_binpb_same/plans.binpb",
+        );
+        population.to_file(&temp_file);
+        let population2 = Population::from_file_filtered_part(&temp_file, &net, &mut garage, 0);
+        assert_eq!(population, population2);
     }
 }

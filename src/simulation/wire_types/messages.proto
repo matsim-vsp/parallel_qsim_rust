@@ -66,7 +66,26 @@ message Vehicle {
   uint64 type = 3;
   float max_v = 4;
   float pce = 5;
-  population.Person driver = 6;
-  repeated population.Person passengers = 7;
+  SimulationAgent driver = 6;
+  repeated SimulationAgent passengers = 7;
   map<string, general.AttributeValue> attributes = 8;
+}
+
+message SimulationAgent {
+  SimulationAgentLogic agent_logic = 1;
+}
+
+message SimulationAgentLogic {
+  oneof type {
+    PlanLogic plan_logic = 1;
+    RollingHorizonLogic rolling_horizon_logic = 2;
+  }
+}
+
+message PlanLogic {
+  population.Person person = 1;
+}
+
+message RollingHorizonLogic {
+  population.Person person = 1;
 }

@@ -4,7 +4,7 @@ use nohash_hasher::IntMap;
 
 use crate::simulation::id::Id;
 use crate::simulation::vehicles::io::{from_file, to_file};
-use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
 
@@ -83,7 +83,7 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, mut vehicle: Vehicle) -> Vec<Person> {
+    pub(crate) fn park_veh(&mut self, mut vehicle: Vehicle) -> Vec<SimulationAgent> {
         let mut agents = std::mem::replace(&mut vehicle.passengers, Vec::new());
         let person = std::mem::replace(&mut vehicle.driver, None).expect("Vehicle has no driver.");
         agents.push(person);
@@ -97,8 +97,8 @@ impl Garage {
 
     pub fn unpark_veh_with_passengers(
         &mut self,
-        person: Person,
-        passengers: Vec<Person>,
+        agent: SimulationAgent,
+        passengers: Vec<SimulationAgent>,
         id: &Id<Vehicle>,
     ) -> Vehicle {
         let veh_type_id = Id::get(self
@@ -114,7 +114,7 @@ impl Garage {
             r#type: veh_type.id,
             max_v: veh_type.max_v,
             pce: veh_type.pce,
-            driver: Some(person),
+            driver: Some(agent),
             passengers,
             attributes: Default::default(),
         }
@@ -132,8 +132,8 @@ impl Garage {
         // vehicle
     }
 
-    pub fn unpark_veh(&mut self, person: Person, id: &Id<Vehicle>) -> Vehicle {
-        self.unpark_veh_with_passengers(person, vec![], id)
+    pub fn unpark_veh(&mut self, agent: SimulationAgent, id: &Id<Vehicle>) -> Vehicle {
+        self.unpark_veh_with_passengers(agent, vec![], id)
     }
 
     pub fn vehicle_type_id(&self, veh: &Id<Vehicle>) -> Id<VehicleType> {

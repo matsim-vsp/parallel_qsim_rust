@@ -3,17 +3,17 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 use crate::simulation::id::Id;
-use prost::Message;
-
-use crate::simulation::time_queue::EndTime;
+use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::io::IOVehicle;
 use crate::simulation::wire_types::general::AttributeValue;
 use crate::simulation::wire_types::messages::sim_message::Type;
 use crate::simulation::wire_types::messages::{
-    Empty, SimMessage, StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
+    Empty, PlanLogic, RollingHorizonLogic, SimMessage, SimulationAgent, SimulationAgentLogic,
+    StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
 };
-use crate::simulation::wire_types::population::Person;
+use crate::simulation::wire_types::population::{Activity, Leg, Person};
 use crate::simulation::wire_types::vehicles::VehicleType;
+use prost::Message;
 
 impl SimMessage {
     pub fn sync_message(self) -> SyncMessage {
@@ -114,7 +114,13 @@ impl Ord for SyncMessage {
 
 impl Vehicle {
     // todo, fix type and mode
-    pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32, driver: Option<Person>) -> Vehicle {
+    pub fn new(
+        id: u64,
+        veh_type: u64,
+        max_v: f32,
+        pce: f32,
+        driver: Option<SimulationAgent>,
+    ) -> Vehicle {
         Vehicle {
             id,
             driver,
@@ -152,11 +158,11 @@ impl Vehicle {
         }
     }
 
-    pub fn driver(&self) -> &Person {
+    pub fn driver(&self) -> &SimulationAgent {
         self.driver.as_ref().unwrap()
     }
 
-    pub fn passengers(&self) -> &Vec<Person> {
+    pub fn passengers(&self) -> &Vec<SimulationAgent> {
         &self.passengers
     }
 
@@ -205,5 +211,212 @@ impl Vehicle {
 impl EndTime for Vehicle {
     fn end_time(&self, now: u32) -> u32 {
         self.driver().end_time(now)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SimulationAgentState {
+    LEG,
+    ACTIVITY,
+    STUCK,
+}
+
+impl SimulationAgent {
+    pub fn new_plan_logic(person: Person) -> Self {
+        let agent_logic = Some(SimulationAgentLogic::new_plan_logic(person));
+        SimulationAgent { agent_logic }
+    }
+
+    pub fn id(&self) -> u64 {
+        self.agent_logic.as_ref().expect("No AgentLogic").id()
+    }
+
+    pub fn curr_act(&self) -> &Activity {
+        self.agent_logic.as_ref().expect("No AgentLogic").curr_act()
+    }
+
+    pub fn curr_leg(&self) -> &Leg {
+        self.agent_logic.as_ref().expect("No AgentLogic").curr_leg()
+    }
+
+    pub fn advance_plan(&mut self) {
+        self.agent_logic
+            .as_mut()
+            .expect("No AgentLogic")
+            .advance_plan()
+    }
+
+    pub fn state(&self) -> SimulationAgentState {
+        self.agent_logic.as_ref().unwrap().state()
+    }
+
+    // we want this in principle, but therefore the curr_route_elem has to be moved from vehicle to agent logic
+    // fn choose_next_link_id(&mut self) -> u64;
+}
+
+impl EndTime for SimulationAgent {
+    fn end_time(&self, now: u32) -> u32 {
+        self.agent_logic.as_ref().unwrap().end_time(now)
+    }
+}
+
+impl Identifiable for SimulationAgent {
+    fn id(&self) -> u64 {
+        self.agent_logic.as_ref().unwrap().id()
+    }
+}
+
+impl SimulationAgentLogic {
+    pub fn new_plan_logic(person: Person) -> Self {
+        SimulationAgentLogic {
+            r#type: Some(
+                crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(
+                    PlanLogic {
+                        person: Some(person),
+                    },
+                ),
+            ),
+        }
+    }
+
+    pub fn new_rolling_logic(_person: Person) -> Self {
+        // SimulationAgentLogic {
+        //     r#type: Some(
+        //         crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingLogic(
+        //             RollingLogic {
+        //                 person: Some(person),
+        //             },
+        //         ),
+        //     ),
+        // }
+        unimplemented!("Rolling logic not implemented yet")
+    }
+
+    pub fn id(&self) -> u64 {
+        match self.r#type.as_ref().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                l.id()
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                l,
+            ) => l.id(),
+        }
+    }
+
+    pub fn curr_act(&self) -> &Activity {
+        match self.r#type.as_ref().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                l.curr_act()
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                l,
+            ) => l.curr_act(),
+        }
+    }
+
+    pub fn curr_leg(&self) -> &Leg {
+        match self.r#type.as_ref().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                l.curr_leg()
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                l,
+            ) => l.curr_leg(),
+        }
+    }
+
+    pub fn advance_plan(&mut self) {
+        match self.r#type.as_mut().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                l.advance_plan();
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                l,
+            ) => l.advance_plan(),
+        }
+    }
+
+    pub fn end_time(&self, now: u32) -> u32 {
+        match self.r#type.as_ref().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                l.person.as_ref().unwrap().end_time(now)
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                l,
+            ) => l.person.as_ref().unwrap().end_time(now),
+        }
+    }
+
+    pub fn state(&self) -> SimulationAgentState {
+        match self.r#type.as_ref().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                if l.person.as_ref().unwrap().curr_plan_elem % 2 == 0 {
+                    SimulationAgentState::ACTIVITY
+                } else {
+                    SimulationAgentState::LEG
+                }
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                _l,
+            ) => unimplemented!(),
+        }
+    }
+}
+
+impl PlanLogic {
+    pub fn id(&self) -> u64 {
+        self.person.as_ref().unwrap().id
+    }
+
+    pub fn curr_act(&self) -> &Activity {
+        self.person.as_ref().unwrap().curr_act()
+    }
+
+    pub fn curr_leg(&self) -> &Leg {
+        self.person.as_ref().unwrap().curr_leg()
+    }
+
+    pub fn advance_plan(&mut self) {
+        self.person.as_mut().unwrap().advance_plan();
+    }
+
+    pub fn end_time(&self, now: u32) -> u32 {
+        let person = self.person.as_ref().unwrap();
+
+        if person.curr_plan_elem % 2 == 0 {
+            person.curr_act().cmp_end_time(now)
+        } else {
+            self.curr_leg().trav_time + now
+        }
+    }
+
+    pub fn state(&self) -> SimulationAgentState {
+        if self.person.as_ref().unwrap().curr_plan_elem % 2 == 0 {
+            SimulationAgentState::ACTIVITY
+        } else {
+            SimulationAgentState::LEG
+        }
+    }
+}
+
+impl RollingHorizonLogic {
+    pub fn id(&self) -> u64 {
+        unimplemented!()
+    }
+
+    pub fn curr_act(&self) -> &Activity {
+        unimplemented!()
+    }
+
+    pub fn curr_leg(&self) -> &Leg {
+        unimplemented!()
+    }
+
+    pub fn advance_plan(&mut self) {
+        unimplemented!()
+    }
+
+    pub fn state(&self) -> SimulationAgentState {
+        unimplemented!()
     }
 }

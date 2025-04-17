@@ -128,7 +128,7 @@ fn create_events(
     config_path: &String,
     config: &Config,
     rank: u32,
-    output_path: &PathBuf,
+    output_path: &Path,
 ) -> Rc<RefCell<EventsPublisher>> {
     let events = Rc::new(RefCell::new(EventsPublisher::new()));
 
