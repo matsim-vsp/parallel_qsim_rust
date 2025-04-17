@@ -3,10 +3,11 @@ use std::path::PathBuf;
 
 use crate::simulation::config;
 use crate::simulation::id::Id;
+use crate::simulation::wire_types::messages::{PlanLogic, SimulationAgent, SimulationAgentLogic};
 use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
 use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
 
-pub fn create_agent(id: u64, route: Vec<u64>) -> Person {
+pub fn create_agent(id: u64, route: Vec<u64>) -> SimulationAgent {
     let route = Route {
         veh_id: id,
         distance: 0.0,
@@ -17,7 +18,19 @@ pub fn create_agent(id: u64, route: Vec<u64>) -> Person {
     let mut plan = Plan::new();
     plan.add_act(act);
     plan.add_leg(leg);
-    let mut agent = Person::new(id, plan);
+    let person = Person::new(id, plan);
+
+    let mut agent = SimulationAgent {
+        agent_logic: Some(SimulationAgentLogic {
+            r#type: Some(
+                crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(
+                    PlanLogic {
+                        person: Some(person),
+                    },
+                ),
+            ),
+        }),
+    };
     agent.advance_plan();
 
     agent

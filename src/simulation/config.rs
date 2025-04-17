@@ -150,7 +150,7 @@ impl Config {
             let default = ComputationalSetup::default();
             self.modules
                 .borrow_mut()
-                .insert("computational_setup".to_string(), Box::new(default.clone()));
+                .insert("computational_setup".to_string(), Box::new(default));
             default
         }
     }
@@ -228,15 +228,9 @@ pub struct Simulation {
     pub stuck_threshold: u32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
-}
-
-impl Default for ComputationalSetup {
-    fn default() -> Self {
-        Self { global_sync: false }
-    }
 }
 
 #[typetag::serde(tag = "type")]
@@ -456,8 +450,8 @@ fn default_profiling_level() -> String {
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{
-        Config, ComputationalSetup, Drt, DrtProcessType, DrtService, EdgeWeight, MetisOptions, PartitionMethod,
-        Partitioning, VertexWeight,
+        ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight, MetisOptions,
+        PartitionMethod, Partitioning, VertexWeight,
     };
 
     #[test]

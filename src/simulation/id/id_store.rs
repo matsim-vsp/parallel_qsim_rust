@@ -184,7 +184,7 @@ pub struct IdStore<'ext> {
 
 /// Cache for ids. All methods are public, so that they can be used from mod.rs. The module doesn't
 /// export this module, so that everything is kept package private
-impl<'ext> IdStore<'ext> {
+impl IdStore<'_> {
     pub fn new() -> Self {
         Self {
             ids: IntMap::default(),
@@ -209,7 +209,7 @@ impl<'ext> IdStore<'ext> {
                 .clone();
         }
 
-        let type_ids = self.ids.entry(type_id).or_insert_with(Vec::default);
+        let type_ids = self.ids.entry(type_id).or_default();
         let next_internal = type_ids.len() as u64;
         let next_id = Rc::new(UntypedId::new(next_internal, String::from(id)));
         type_ids.push(next_id.clone());
@@ -294,7 +294,7 @@ mod tests {
     };
     use crate::simulation::logging::init_std_out_logging;
     use crate::simulation::network::global_network::{Link, Network, Node};
-    use crate::simulation::population::population::Population;
+    use crate::simulation::population::population_data::Population;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::wire_types::messages::Vehicle;
     use crate::simulation::wire_types::population::Person;

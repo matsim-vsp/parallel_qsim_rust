@@ -1,4 +1,4 @@
-use std::cell::{OnceCell, RefCell};
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::thread::{sleep, JoinHandle};
@@ -57,28 +57,24 @@ pub fn run_mpi() {
     let size = world.size();
     let rank = world.rank();
 
-    let send_buffer: Vec<OnceCell<Vec<u8>>> = vec![OnceCell::new(); 42]; //TODO set buffer length
+    let comm = MpiSimCommunicator::new(world);
 
-    mpi::request::multiple_scope(1, |scope, requests| {
-        let comm = MpiSimCommunicator::new(world, scope, requests, &send_buffer);
+    let mut args = CommandLineArgs::parse();
+    // override the num part argument, with the number of processes mpi has started.
+    args.num_parts = Some(size as u32);
+    let config = Config::from_file(&args);
 
-        let mut args = CommandLineArgs::parse();
-        // override the num part argument, with the number of processes mpi has started.
-        args.num_parts = Some(size as u32);
-        let config = Config::from_file(&args);
+    let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
 
-        let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
+    info!(
+        "Starting MPI Simulation with {} partitions",
+        config.partitioning().num_parts
+    );
+    execute_partition(comm, &args);
 
-        info!(
-            "Starting MPI Simulation with {} partitions",
-            config.partitioning().num_parts
-        );
-        execute_partition(comm, &args);
-
-        info!("#{} at barrier.", rank);
-        universe.world().barrier();
-        info!("Process #{} finishing.", rank);
-    });
+    info!("#{} at barrier.", rank);
+    universe.world().barrier();
+    info!("Process #{} finishing.", rank);
 }
 
 fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
@@ -128,7 +124,7 @@ fn create_events(
     config_path: &String,
     config: &Config,
     rank: u32,
-    output_path: &PathBuf,
+    output_path: &Path,
 ) -> Rc<RefCell<EventsPublisher>> {
     let events = Rc::new(RefCell::new(EventsPublisher::new()));
 

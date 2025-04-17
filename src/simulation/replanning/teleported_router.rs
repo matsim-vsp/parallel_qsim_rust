@@ -105,7 +105,7 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::population::population::Population;
+    use crate::simulation::population::population_data::Population;
     use crate::simulation::replanning::teleported_router::{
         BeeLineDistanceRouter, Teleportation, TeleportedRouter,
     };
@@ -123,13 +123,13 @@ mod tests {
         let teleported_router = BeeLineDistanceRouter::new();
 
         let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
-        let population = Population::from_file(
+        let mut population = Population::from_file(
             &PathBuf::from("./assets/equil/equil-1-plan.xml"),
             &mut garage,
         );
         let agent = population
             .persons
-            .get(&Id::<Person>::get_from_ext("1"))
+            .get_mut(&Id::<Person>::get_from_ext("1"))
             .unwrap();
 
         // Activity(-25,000;0), Link from(-20,000;0), to(-15,000;0) => distance to link 5,000
@@ -142,8 +142,11 @@ mod tests {
             }
         );
 
+        agent.advance_plan();
+        agent.advance_plan();
+
         // Activity(3,456;4,242), Link from(0;0), to(5,000;0) => distance to link 4,242
-        let walk = teleported_router.query_access_egress(agent.next_act(), 1.2, &network);
+        let walk = teleported_router.query_access_egress(agent.curr_act(), 1.2, &network);
         assert_eq!(
             walk,
             Teleportation {

@@ -1,5 +1,5 @@
 use crate::simulation::network::global_network::{Link, Node};
-use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
 
@@ -73,6 +73,12 @@ impl StableTypeId for f32 {
     }
 }
 
+impl StableTypeId for SimulationAgent {
+    fn stable_type_id() -> u64 {
+        SIMULATION_AGENT_TYPE_ID
+    }
+}
+
 pub const STRING_TYPE_ID: u64 = 1;
 pub const PERSON_TYPE_ID: u64 = 2;
 pub const LINK_TYPE_ID: u64 = 3;
@@ -83,3 +89,4 @@ pub const I32_TYPE_ID: u64 = 7;
 pub const I64_TYPE_ID: u64 = 8;
 pub const U32_TYPE_ID: u64 = 9;
 pub const F32_TYPE_ID: u64 = 10;
+pub const SIMULATION_AGENT_TYPE_ID: u64 = 11;

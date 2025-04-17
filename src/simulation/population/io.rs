@@ -12,7 +12,7 @@ use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::proto::MessageIter;
 use crate::simulation::io::{proto, xml};
-use crate::simulation::population::population::Population;
+use crate::simulation::population::population_data::Population;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::population::Header;
 use crate::simulation::wire_types::population::Person;
@@ -286,7 +286,7 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
     use crate::simulation::population::io::{load_from_xml, IOPlanElement, IOPopulation};
-    use crate::simulation::population::population::Population;
+    use crate::simulation::population::population_data::Population;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::wire_types::population::Person;
 

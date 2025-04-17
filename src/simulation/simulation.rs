@@ -1,10 +1,7 @@
-use nohash_hasher::IntSet;
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::rc::Rc;
-
-use tracing::info;
 
 use crate::simulation::config::Config;
 use crate::simulation::engines::activity_engine::ActivityEngine;
@@ -12,10 +9,11 @@ use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::population::agent_source::{AgentSource, DefaultAgentSource};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::time_queue::MutTimeQueue;
-use crate::simulation::wire_types::messages::Vehicle;
-use crate::simulation::wire_types::population::Person;
+use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
+use tracing::info;
 
 pub struct Simulation<C: SimCommunicator> {
     activity_engine: ActivityEngine,
@@ -37,9 +35,9 @@ where
     ) -> Self {
         let mut activity_q = MutTimeQueue::new();
 
-        // take Persons and copy them into queues. This way we can keep population around to translate
-        // ids for events processing...
-        let agents = std::mem::take(&mut scenario.population.persons);
+        // this needs to be adapted if new agent sources are introduced
+        let agent_source = DefaultAgentSource {};
+        let agents = agent_source.create_agents(&mut scenario, &config);
 
         for agent in agents.into_values() {
             activity_q.add(agent, config.simulation().start_time);
@@ -47,14 +45,11 @@ where
 
         let activity_engine = ActivityEngine::new(activity_q, events.clone());
 
-        let passenger_modes = IntSet::default(); //TODO
-
         let leg_engine = LegEngine::new(
             scenario.network_partition,
             scenario.garage,
             net_message_broker,
             events.clone(),
-            passenger_modes,
         );
 
         Simulation {
@@ -101,7 +96,7 @@ where
         self.events.borrow_mut().finish();
     }
 
-    fn do_sim_step(&mut self, now: u32, agents: Vec<Person>) -> Vec<Person> {
+    fn do_sim_step(&mut self, now: u32, agents: Vec<SimulationAgent>) -> Vec<SimulationAgent> {
         let mut agents_act_to_leg = self.activity_engine.do_step(now, agents);
         for agent in &mut agents_act_to_leg {
             agent.advance_plan();
