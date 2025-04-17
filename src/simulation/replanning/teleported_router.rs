@@ -127,7 +127,7 @@ mod tests {
             &PathBuf::from("./assets/equil/equil-1-plan.xml"),
             &mut garage,
         );
-        let mut agent = population
+        let agent = population
             .persons
             .get_mut(&Id::<Person>::get_from_ext("1"))
             .unwrap();
