@@ -41,16 +41,12 @@ xml = "0.8.20"
 lz4_flex = "0.11.1"
 typetag = "0.2.18"
 serde_yaml = "0.9.34"
-tonic = "0.12.3"
 
 [build-dependencies]
 # generates types based on .proto files
 prost-build = "0.13.5"
-# provides the protoc compiler - this makes the build slow but one doesn't need to
-# install the protoc compiler as prerequisite.
-# updating to 2.1.0 causes huge compile times (https://github.com/MaterializeInc/rust-protobuf-native/issues/24). Maybe we should switch to another crate.
+# provides the protoc compiler - this makes the build slow but one doesn't need to install the protoc compiler as prerequisite.
 protobuf-src = "2.1.1"
-tonic-build = "0.12.3"
 
 [profile.bench]
 debug = true
