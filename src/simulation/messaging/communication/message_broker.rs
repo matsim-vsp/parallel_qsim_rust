@@ -1,7 +1,7 @@
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
 
-use crate::simulation::messaging::communication::communicators::SimCommunicator;
+use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
 use crate::simulation::wire_types::messages::{
@@ -190,7 +190,7 @@ mod tests {
 
     use crate::simulation::config;
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::communication::communicators::ChannelSimCommunicator;
+    use crate::simulation::messaging::communication::local_communicator::ChannelSimCommunicator;
     use crate::simulation::messaging::communication::message_broker::{
         NetMessageBroker, TravelTimesMessageBroker,
     };

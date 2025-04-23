@@ -3,7 +3,13 @@ name = "rust_q_sim"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+mpi = ["dep:mpi"]
+
+[[bin]]
+name = "mpi_qsim"
+path = "src/bin/mpi_qsim.rs"
+required-features = ["mpi"]
 
 [dependencies]
 serde = { version = "1.0.137", features = ["derive"] }
@@ -12,40 +18,39 @@ serde_json = "1.0.93"
 # since the new API would need an adapter from std::fmt::Write to std::io::Write, we stick with the old API
 quick-xml = { version = "0.23.0", features = ["serialize"] }
 flate2 = { version = "1.0.24" }
-rand = "0.8.5"
+rand = "0.9.0"
 metis = "0.2.2"
-flexi_logger = { version = "0.29.6", features = ["async"] }
 clap = { version = "4.0.29", features = ["derive"] }
-mpi = "0.8.0"
+mpi = { version = "0.8.0", optional = true }
 # dependencies for serialization with protobuf
 prost = "0.13.3"
 # bytes replaces the signature of std::io::Cursor to implemnt Buf somehow...
 bytes = "1.3.0"
 serial_test = "3.2.0"
-wait-timeout = "0.2.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.0", features = ["json", "fmt", "std", "registry"] }
 tracing-appender = "0.2"
-itertools = "0.13.0"
+itertools = "0.14.0"
 assert_approx_eq = "1.1.0"
 nohash-hasher = "0.2.0"
-rand_distr = "0.4.3"
 serde_path_to_error = "0.1.14"
 geo = "0.29.1"
-ahash = "0.8.6"
-keyed_priority_queue = "0.4.1"
-xml = "0.8.10"
+ahash = "0.8.11"
+keyed_priority_queue = "0.4.2"
+xml = "0.8.20"
 lz4_flex = "0.11.1"
 typetag = "0.2.18"
-serde_yaml = "0.9.27"
+serde_yaml = "0.9.34"
+tonic = "0.12.3"
 
 [build-dependencies]
 # generates types based on .proto files
-prost-build = "0.11"
+prost-build = "0.13.5"
 # provides the protoc compiler - this makes the build slow but one doesn't need to
 # install the protoc compiler as prerequisite.
 # updating to 2.1.0 causes huge compile times (https://github.com/MaterializeInc/rust-protobuf-native/issues/24). Maybe we should switch to another crate.
-protobuf-src = "1.1.0"
+protobuf-src = "2.1.1"
+tonic-build = "0.12.3"
 
 [profile.bench]
 debug = true

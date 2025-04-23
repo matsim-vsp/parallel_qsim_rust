@@ -1,5 +1,5 @@
-use rust_q_sim::simulation::controller;
+use rust_q_sim::simulation::controller::local_controller;
 
 fn main() {
-    controller::run_channel();
+    local_controller::run_channel();
 }

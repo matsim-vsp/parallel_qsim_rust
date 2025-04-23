@@ -1,5 +1,7 @@
-use rust_q_sim::simulation::controller;
+#[cfg(feature = "mpi")]
+use rust_q_sim::simulation::controller::mpi_controller;
 
+#[cfg(feature = "mpi")]
 fn main() {
-    controller::run_mpi();
+    mpi_controller::run_mpi();
 }

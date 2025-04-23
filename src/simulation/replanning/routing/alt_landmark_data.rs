@@ -68,10 +68,10 @@ mod tests {
 
         //selection so far by random seed
         assert_eq!(alt_data.landmarks.len(), 1);
-        assert_eq!(alt_data.landmarks[0], 1);
+        assert_eq!(alt_data.landmarks[0], 3);
         assert_eq!(
             alt_data.travel_times_to_all,
-            vec![vec![(u32::MAX, u32::MAX), (0, 0), (1, 6), (2, 2)]]
+            vec![vec![(u32::MAX, u32::MAX), (2, 2), (3, 4), (0, 0)]]
         )
     }
 }

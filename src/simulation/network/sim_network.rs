@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
 use tracing::instrument;
 
 use crate::simulation::config;
@@ -123,7 +123,7 @@ impl SimNetworkPartition {
         SimNetworkPartition {
             nodes,
             links,
-            rnd: thread_rng(),
+            rnd: rng(),
             active_links: Default::default(),
             active_nodes: Default::default(),
             veh_counter: 0,
@@ -360,7 +360,7 @@ impl SimNetworkPartition {
 
         while avail_capacity > 1e-10 {
             // draw random number between 0 and available capacity
-            let rnd_num: f32 = rnd.gen::<f32>() * avail_capacity;
+            let rnd_num: f32 = rnd.random::<f32>() * avail_capacity;
 
             #[allow(clippy::needless_range_loop)]
             // go through all in links and fetch one, which is not exhausted yet.
