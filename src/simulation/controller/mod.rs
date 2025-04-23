@@ -1,81 +1,25 @@
+pub mod local_controller;
+#[cfg(feature = "mpi")]
+pub mod mpi_controller;
+
 use std::cell::RefCell;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::thread::{sleep, JoinHandle};
 use std::time::Duration;
-use std::{fs, thread};
-
-use clap::Parser;
-use mpi::traits::{Communicator, CommunicatorCollectives};
-use nohash_hasher::IntMap;
-use tracing::info;
 
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::communication::communicators::{
-    ChannelSimCommunicator, MpiSimCommunicator, SimCommunicator,
-};
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::Simulation;
-use crate::simulation::{id, io, logging};
-
-pub fn run_channel() {
-    let args = CommandLineArgs::parse();
-    let config = Config::from_file(&args);
-
-    let _guards = logging::init_logging(&config, &args.config_path, 0);
-
-    info!(
-        "Starting Multithreaded Simulation with {} partitions.",
-        config.partitioning().num_parts
-    );
-    let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
-
-    let handles: IntMap<u32, JoinHandle<()>> = comms
-        .into_iter()
-        .map(|comm| {
-            let config_path = args.clone();
-            (
-                comm.rank(),
-                thread::Builder::new()
-                    .name(comm.rank().to_string())
-                    .spawn(move || execute_partition(comm, &config_path))
-                    .unwrap(),
-            )
-        })
-        .collect();
-
-    try_join(handles);
-}
-
-pub fn run_mpi() {
-    let universe = mpi::initialize().unwrap();
-    let world = universe.world();
-    let size = world.size();
-    let rank = world.rank();
-
-    let comm = MpiSimCommunicator::new(world);
-
-    let mut args = CommandLineArgs::parse();
-    // override the num part argument, with the number of processes mpi has started.
-    args.num_parts = Some(size as u32);
-    let config = Config::from_file(&args);
-
-    let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
-
-    info!(
-        "Starting MPI Simulation with {} partitions",
-        config.partitioning().num_parts
-    );
-    execute_partition(comm, &args);
-
-    info!("#{} at barrier.", rank);
-    universe.world().barrier();
-    info!("Process #{} finishing.", rank);
-}
+use crate::simulation::{id, io};
+use nohash_hasher::IntMap;
+use tracing::info;
 
 fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     let config_path = &args.config_path;

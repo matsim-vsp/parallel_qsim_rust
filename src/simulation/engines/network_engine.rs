@@ -1,5 +1,5 @@
-use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::wire_types::messages::Vehicle;

@@ -1,8 +1,8 @@
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
 use crate::simulation::id::Id;
-use crate::simulation::messaging::communication::communicators::SimCommunicator;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::messages::SimulationAgentState;
 use crate::simulation::network::sim_network::SimNetworkPartition;

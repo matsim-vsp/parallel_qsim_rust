@@ -8,9 +8,11 @@ The most recent release can be cited with the following reference
 [![DOI](https://zenodo.org/badge/498376436.svg)](https://zenodo.org/doi/10.5281/zenodo.13928119)
 
 The project is described in a journal publication:
+
 - [High-Performance Mobility Simulation: Implementation of a Parallel Distributed Message-Passing Algorithm for MATSim](https://doi.org/10.3390/info16020116)
 
 And two conference papers, which were presented at ISPDC 24 in Chur, Switzerland, July 2024:
+
 - [High-Performance Simulations for Urban Planning: Implementing Parallel Distributed Multi-Agent Systems in MATSim](https://doi.org/10.1109/ISPDC62236.2024.10705395)
 - [Real-Time Routing in Traffic Simulations: A Distributed Event Processing Approach](https://doi.org/10.1109/ISPDC62236.2024.10705399)
 
@@ -40,11 +42,17 @@ this project is built on.
 The project uses MPI for message passing between processes. The message passing is implemented using the
 [rsmpi](https://github.com/rsmpi/rsmpi) crate as an interface around a corresponding C-library on the system.
 
-We maintain our own fork of the project because we depend on a more recent commit than the last release on
-[crates.io](https://crates.io/), due to some `bingen` issue with MacOS 13.4 or higher.
-
 The actual implementation of the message passing library is up to the system the project is run on. A good candiate
 is [open-mpi](https://www.open-mpi.org/).
+
+Since MPI is a feature, which is installed most probably only on High Performance Infrastructure, it is also a feature
+in this crate, which must be turned on manually while compilation.
+
+```shell
+cargo build --features mpi
+```
+
+This compiles the MPI related code and provides the `mpi_qsim` binary.
 
 ### Install dependencies
 
@@ -63,7 +71,7 @@ sudo apt -y install libclang-dev llvm-dev libmetis-dev libopenmpi-dev
 The dependencies are available via [homebrew](https://brew.sh/) on macOS.
 
 ```shell
-brew install metis open-mpi
+brew install metis open-mpi cmake
 ```
 
 The project contains a `config.toml` which tries to set the `CPATH` and the `RUSTFLAGS` environment variable. In case
@@ -85,6 +93,7 @@ module load metis-5.1 ompi/gcc/4.1.2
 ```
 
 #### HLRN (CPU-CLX Partition)
+
 https://nhr-zib.atlassian.net/wiki/spaces/PUB/pages/430586/CPU+CLX+partition
 
 ##### Setup conda
@@ -124,11 +133,12 @@ The activation automatically updates the environment variables such that `libcla
 Source: https://nhr-zib.atlassian.net/wiki/spaces/PUB/pages/430343/Anaconda+conda+and+Mamba
 
 #### HLRN (CPU-GENOA Partition)
+
 https://nhr-zib.atlassian.net/wiki/spaces/PUB/pages/119832634/CPU+Genoa+partition
 
 ##### Compilation
 
-In contrast to the CLX partition, you don't need anaconda here. But, you need to compile with AMD compiler. 
+In contrast to the CLX partition, you don't need anaconda here. But, you need to compile with AMD compiler.
 
 ```shell
 module load openmpi/aocc/5.0.3
@@ -137,11 +147,12 @@ export CXX=clang++
 export RUSTFLAGS="-C linker=clang"
 ```
 
-Hint: You need to set these environment variables, otherwise there are compilation errors (paul, jan'25). 
+Hint: You need to set these environment variables, otherwise there are compilation errors (paul, jan'25).
 
 ##### Execution
 
-For some reason, the runtime linker doesn't find the correct libraries. You need to add them manually before execution (in the job script): 
+For some reason, the runtime linker doesn't find the correct libraries. You need to add them manually before execution (
+in the job script):
 
 ```shell
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/comm/openmpi/5.0.3/genoa.el9/aocc/lib
@@ -151,21 +162,49 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/comm/openmpi/5.0.3/genoa.el9/aocc/li
 
 The project is built using cargo.
 
+### Run locally (multithreaded)
+
+Run
+
 ```shell
 cargo build --release
 ```
 
-Then a simulation can be started like the following:
+to compile and then
+
+```shell
+.target/release/local_qsim --config-path /path/to/config.yml
+```
+
+or
+
+```shell
+cargo --release --bin local_qsim -- --config-path /path/to/config.yml
+```
+
+to run the simulation.
+
+### Run with MPI (distributed)
+
+Run
+
+```shell
+cargo build --release --features mpi
+```
+
+to compile and then
 
 ```shell
 mpirun -np 2 ./target/release/mpi_qsim --config-path /path/to/config.yml
 ```
 
+to run the simulation.
+
 It is also possible to execute a build before running by executing the following. This is way, one doesn't
 forget to re-compile before running.
 
 ```shell
-cargo mpirun --np 2 --release --bin mpi_qsim -- --config-path /path/to/config.yaml
+cargo mpirun --np 2 --release --features mpi --bin mpi_qsim -- --config-path /path/to/config.yaml
 ```
 
 We also have a
