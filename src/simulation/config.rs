@@ -1,11 +1,11 @@
+use ahash::HashMap;
+use clap::{Parser, ValueEnum};
+use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::cell::RefCell;
 use std::fs::File;
 use std::io::BufReader;
-
-use ahash::HashMap;
-use clap::{Parser, ValueEnum};
-use serde::{Deserialize, Serialize};
+use std::net::IpAddr;
 use tracing::Level;
 
 use crate::simulation::config::VertexWeight::InLinkCapacity;
@@ -150,7 +150,7 @@ impl Config {
             let default = ComputationalSetup::default();
             self.modules
                 .borrow_mut()
-                .insert("computational_setup".to_string(), Box::new(default));
+                .insert("computational_setup".to_string(), Box::new(default.clone()));
             default
         }
     }
@@ -195,16 +195,7 @@ pub struct Routing {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Drt {
-    #[serde(default)]
-    pub process_type: DrtProcessType,
     pub services: Vec<DrtService>,
-}
-
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum DrtProcessType {
-    #[default]
-    OneProcess,
-    OneProcessPerService,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -228,9 +219,22 @@ pub struct Simulation {
     pub stuck_threshold: u32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Clone, Default)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
+    pub external_services: Vec<ExternalService>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ExternalService {
+    pub name: String,
+    pub process_type: ExternalServiceType,
+    pub address: IpAddr,
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize)]
+pub enum ExternalServiceType {
+    Router,
 }
 
 #[typetag::serde(tag = "type")]
@@ -450,9 +454,10 @@ fn default_profiling_level() -> String {
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{
-        ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight, MetisOptions,
-        PartitionMethod, Partitioning, VertexWeight,
+        ComputationalSetup, Config, Drt, DrtService, EdgeWeight, ExternalService,
+        ExternalServiceType, MetisOptions, PartitionMethod, Partitioning, VertexWeight,
     };
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
     #[test]
     fn read_from_yaml() {
@@ -469,7 +474,14 @@ mod tests {
                 contiguous: true,
             }),
         };
-        let computational_setup = ComputationalSetup { global_sync: true };
+        let computational_setup = ComputationalSetup {
+            global_sync: true,
+            external_services: vec![ExternalService {
+                name: String::from("ExternalService"),
+                process_type: ExternalServiceType::Router,
+                address: Ipv6Addr::LOCALHOST.into(),
+            }],
+        };
         config
             .modules
             .borrow_mut()
@@ -595,7 +607,6 @@ mod tests {
             modules: Default::default(),
         };
         let drt = Drt {
-            process_type: DrtProcessType::OneProcess,
             services: vec![DrtService {
                 mode: "drt_a".to_string(),
                 stop_duration: 60,
@@ -611,10 +622,6 @@ mod tests {
 
         let parsed_config: Config = serde_yaml::from_str(serde).expect("failed to parse config");
         assert_eq!(
-            parsed_config.drt().unwrap().process_type,
-            DrtProcessType::OneProcess
-        );
-        assert_eq!(
             parsed_config.drt().unwrap().services[0].mode,
             "drt_a".to_string()
         );
@@ -627,6 +634,49 @@ mod tests {
         assert_eq!(
             parsed_config.drt().unwrap().services[0].max_travel_time_beta,
             600.
+        );
+    }
+
+    #[test]
+    fn test_computational_setup() {
+        let serde = r#"
+        modules:
+          computational_setup:
+            type: ComputationalSetup
+            global_sync: true
+            external_services:
+            - name: ExternalService
+              process_type: Router
+              address: 127.0.0.1
+        "#;
+
+        let config = Config {
+            modules: Default::default(),
+        };
+
+        let computational_setup = ComputationalSetup {
+            global_sync: true,
+            external_services: vec![ExternalService {
+                name: "ExternalService".to_string(),
+                process_type: ExternalServiceType::Router,
+                address: Ipv4Addr::LOCALHOST.into(),
+            }],
+        };
+
+        config.modules.borrow_mut().insert(
+            "computational_setup".to_string(),
+            Box::new(computational_setup),
+        );
+        let parsed_config: Config = serde_yaml::from_str(serde).expect("failed to parse config");
+
+        assert_eq!(parsed_config.compuational_setup().global_sync, true);
+
+        let service = &parsed_config.compuational_setup().external_services[0];
+        assert_eq!(service.name, "ExternalService".to_string());
+        assert_eq!(service.process_type, ExternalServiceType::Router);
+        assert_eq!(
+            service.address,
+            <Ipv4Addr as Into<IpAddr>>::into(Ipv4Addr::LOCALHOST)
         );
     }
 }
