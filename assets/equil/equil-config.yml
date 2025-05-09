@@ -1,17 +1,17 @@
 modules:
   protofiles:
     type: ProtoFiles
-    network: ./assets/equil/equil-network.binpb
-    population: ./assets/equil/equil-plans.binpb
-    vehicles: ./assets/equil/equil-vehicles.binpb
-    ids: ./assets/equil/ids.binpb
+    ids: "output-1/equil.ids.binpb"
+    network: "output-1/equil.network.binpb"
+    population: "output-1/equil.plans.binpb"
+    vehicles: "output-1/equil.vehicles.binpb"
   partitioning:
     type: Partitioning
     num_parts: 12
     method: !Metis
   output:
     type: Output
-    output_dir: ./assets/equil/output
+    output_dir: ./assets/equil/output-1
     write_events: Proto
   routing:
     type: Routing
@@ -22,4 +22,3 @@ modules:
     end_time: 86400
     sample_size: 1.0
     stuck_threshold: 1000
-
