@@ -52,7 +52,7 @@ impl TeleportationEngine {
             let mode: Id<String> = Id::get(leg.mode);
             self.events.borrow_mut().publish_event(
                 now,
-                &Event::new_travelled(agent.id(), route.distance, mode.internal()),
+                &Event::new_travelled(agent.id(), route.as_generic().distance, mode.internal()),
             );
             vehicle.register_vehicle_exited();
         }

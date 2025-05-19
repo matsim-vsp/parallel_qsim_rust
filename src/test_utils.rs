@@ -4,16 +4,29 @@ use std::path::PathBuf;
 use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::wire_types::messages::{PlanLogic, SimulationAgent, SimulationAgentLogic};
-use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
-use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
+use crate::simulation::wire_types::population::leg::Route;
+use crate::simulation::wire_types::population::{
+    Activity, GenericRoute, Leg, NetworkRoute, Person, Plan,
+};
+use crate::simulation::wire_types::vehicles::VehicleType;
+
+pub fn create_agent_without_route(id: u64) -> SimulationAgent {
+    //inserting a dummy route
+    create_agent(id, vec![0, 1])
+}
 
 pub fn create_agent(id: u64, route: Vec<u64>) -> SimulationAgent {
-    let route = Route {
-        veh_id: id,
-        distance: 0.0,
+    let route = NetworkRoute {
+        delegate: Some(GenericRoute {
+            start_link: *route.first().unwrap(),
+            end_link: *route.last().unwrap(),
+            trav_time: 0,
+            distance: 0.0,
+            veh_id: id,
+        }),
         route,
     };
-    let leg = Leg::new(route, 0, 0, None);
+    let leg = Leg::new(Route::NetworkRoute(route), 0, 0, None);
     let act = Activity::new(0., 0., 0, 1, None, None, None);
     let mut plan = Plan::new();
     plan.add_act(act);
@@ -51,7 +64,6 @@ pub fn create_vehicle_type(id: &Id<VehicleType>, net_mode: Id<String>) -> Vehicl
         pce: 0.0,
         fef: 0.0,
         net_mode: net_mode.internal(),
-        lod: LevelOfDetail::Network as i32,
     }
 }
 
@@ -61,5 +73,6 @@ pub fn config() -> config::Simulation {
         end_time: 0,
         sample_size: 1.0,
         stuck_threshold: u32::MAX,
+        main_modes: vec![String::from("car")],
     }
 }

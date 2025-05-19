@@ -7,8 +7,10 @@ use crate::simulation::population::io::{
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
-use crate::simulation::wire_types::population::{Activity, Leg, Person, Plan, Route};
-use crate::simulation::wire_types::vehicles::VehicleType;
+use crate::simulation::wire_types::population::leg::Route;
+use crate::simulation::wire_types::population::{
+    Activity, GenericRoute, Leg, NetworkRoute, Person, Plan, PtRoute,
+};
 use std::collections::HashMap;
 use std::path::Path;
 use tracing::debug;
@@ -244,22 +246,37 @@ impl Leg {
             parse_time_opt(route_trav_time).unwrap_or(0)
         }
     }
-
-    pub fn vehicle_type_id(&self, garage: &Garage) -> Id<VehicleType> {
-        self.route
-            .as_ref()
-            .map(|r| garage.vehicle_type_id(&Id::get(r.veh_id)))
-            .unwrap()
-    }
 }
 
 impl Route {
+    pub fn as_generic(&self) -> &GenericRoute {
+        match self {
+            Route::GenericRoute(g) => g,
+            Route::NetworkRoute(n) => n.delegate.as_ref().unwrap(),
+            Route::PtRoute(p) => p.delegate.as_ref().unwrap(),
+        }
+    }
+
+    pub fn as_network(&self) -> Option<&NetworkRoute> {
+        match self {
+            Route::NetworkRoute(n) => Some(n),
+            _ => None,
+        }
+    }
+
+    pub fn as_pt(&self) -> Option<&PtRoute> {
+        match self {
+            Route::PtRoute(p) => Some(p),
+            _ => None,
+        }
+    }
+
     pub fn start_link(&self) -> u64 {
-        *self.route.first().unwrap()
+        self.as_generic().start_link
     }
 
     pub fn end_link(&self) -> u64 {
-        *self.route.last().unwrap()
+        self.as_generic().end_link
     }
 
     fn from_io(io_route: &IORoute, person_id: &Id<Person>, mode: &Id<String>) -> Self {
@@ -268,7 +285,6 @@ impl Route {
             "links" => Self::from_io_net_route(io_route, person_id, mode),
             _t => panic!("Unsupported route type: '{_t}'"),
         };
-
         route
     }
 
@@ -278,11 +294,19 @@ impl Route {
         let external = format!("{}_{}", person_id.external(), mode.external());
         let veh_id: Id<Vehicle> = Id::get_from_ext(&external);
 
-        Route {
+        let trav_time = io_route
+            .trav_time
+            .as_ref()
+            .map(|trav_time| parse_time(trav_time).unwrap_or(0))
+            .unwrap_or(0) as u64;
+
+        Route::GenericRoute(GenericRoute {
+            start_link: start_link.internal(),
+            end_link: end_link.internal(),
+            trav_time,
             distance: io_route.distance,
             veh_id: veh_id.internal(),
-            route: vec![start_link.internal(), end_link.internal()],
-        }
+        })
     }
 
     fn from_io_net_route(io_route: &IORoute, person_id: &Id<Person>, mode: &Id<String>) -> Self {
@@ -300,11 +324,22 @@ impl Route {
                         .map(|matsim_id| Id::<Link>::get_from_ext(matsim_id).internal())
                         .collect(),
                 };
-                Route {
-                    distance: io_route.distance,
-                    veh_id: veh_id.internal(),
+
+                let trav_time = match &io_route.trav_time {
+                    None => 0,
+                    Some(t) => parse_time(t).unwrap_or(0),
+                };
+
+                Route::NetworkRoute(NetworkRoute {
+                    delegate: Some(GenericRoute {
+                        start_link: *link_ids.first().unwrap(),
+                        end_link: *link_ids.last().unwrap(),
+                        trav_time: trav_time as u64,
+                        distance: io_route.distance,
+                        veh_id: veh_id.internal(),
+                    }),
                     route: link_ids,
-                }
+                })
             }
         } else {
             panic!("vehicle id is expected to be set.")
@@ -418,10 +453,10 @@ mod tests {
         let leg = plan.legs.first().unwrap();
         assert_eq!(None, leg.dep_time);
         assert!(leg.route.is_some());
-        let net_route = leg.route.as_ref().unwrap();
+        let net_route = leg.route.as_ref().unwrap().as_network().unwrap();
         assert_eq!(
             Id::<Vehicle>::get_from_ext("1_car").internal(),
-            net_route.veh_id
+            net_route.delegate.unwrap().veh_id
         );
         assert_eq!(
             vec![

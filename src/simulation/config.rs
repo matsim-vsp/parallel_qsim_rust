@@ -90,6 +90,18 @@ impl Config {
             .insert("partitioning".to_string(), Box::new(partitioning));
     }
 
+    pub fn set_computational_setup(&mut self, setup: ComputationalSetup) {
+        self.modules
+            .get_mut()
+            .insert("computational_setup".to_string(), Box::new(setup));
+    }
+
+    pub fn set_simulation(&mut self, simulation: Simulation) {
+        self.modules
+            .get_mut()
+            .insert("simulation".to_string(), Box::new(simulation));
+    }
+
     pub fn output(&self) -> Output {
         if let Some(output) = self.module::<Output>("output") {
             output
@@ -220,12 +232,13 @@ pub struct DrtService {
     pub max_travel_time_beta: f32,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
     pub sample_size: f32,
     pub stuck_threshold: u32,
+    pub main_modes: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default)]
@@ -294,6 +307,7 @@ impl Default for Simulation {
             end_time: 86400,
             sample_size: 1.0,
             stuck_threshold: u32::MAX,
+            main_modes: vec![],
         }
     }
 }
@@ -451,12 +465,12 @@ fn default_profiling_level() -> String {
 mod tests {
     use crate::simulation::config::{
         ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight, MetisOptions,
-        PartitionMethod, Partitioning, VertexWeight,
+        PartitionMethod, Partitioning, Simulation, VertexWeight,
     };
 
     #[test]
     fn read_from_yaml() {
-        let config = Config {
+        let mut config = Config {
             modules: Default::default(),
         };
         let partitioning = Partitioning {
@@ -470,14 +484,18 @@ mod tests {
             }),
         };
         let computational_setup = ComputationalSetup { global_sync: true };
-        config
-            .modules
-            .borrow_mut()
-            .insert("partitioning".to_string(), Box::new(partitioning));
-        config.modules.borrow_mut().insert(
-            "computational_setup".to_string(),
-            Box::new(computational_setup),
-        );
+
+        let simulation = Simulation {
+            start_time: 0,
+            end_time: 42,
+            sample_size: 0.1,
+            stuck_threshold: 1,
+            main_modes: vec!["bike".to_string()],
+        };
+
+        config.set_partitioning(partitioning);
+        config.set_computational_setup(computational_setup);
+        config.set_simulation(simulation);
 
         let yaml = serde_yaml::to_string(&config).expect("Failed to serialize yaml");
 
@@ -499,6 +517,12 @@ mod tests {
         );
 
         assert_eq!(parsed_config.compuational_setup().global_sync, true);
+
+        assert_eq!(parsed_config.simulation().start_time, 0);
+        assert_eq!(parsed_config.simulation().end_time, 42);
+        assert_eq!(parsed_config.simulation().sample_size, 0.1);
+        assert_eq!(parsed_config.simulation().stuck_threshold, 1);
+        assert_eq!(parsed_config.simulation().main_modes, vec!["bike"]);
     }
 
     #[test]

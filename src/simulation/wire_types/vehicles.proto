@@ -16,10 +16,4 @@ message VehicleType {
   float pce = 5;
   float fef = 6;
   uint64 net_mode = 7;
-  LevelOfDetail lod = 8;
-}
-
-enum LevelOfDetail {
-  Network = 0;
-  Teleported = 1;
 }

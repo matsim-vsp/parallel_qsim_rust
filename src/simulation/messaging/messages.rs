@@ -11,6 +11,7 @@ use crate::simulation::wire_types::messages::{
     Empty, PlanLogic, RollingHorizonLogic, SimMessage, SimulationAgent, SimulationAgentLogic,
     StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
 };
+use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::{Activity, Leg, Person};
 use crate::simulation::wire_types::vehicles::VehicleType;
 use prost::Message;
@@ -183,28 +184,39 @@ impl Vehicle {
     /// the vehicle is independent of whether the leg has a Generic-Teleportation route or a network
     /// route.
     pub fn route_index_to_last(&mut self) {
-        let route_len = self.driver().curr_leg().route.as_ref().unwrap().route.len() as u32;
-        self.curr_route_elem = route_len - 1;
+        let route = self.driver().curr_leg().route.as_ref().unwrap();
+        if route.as_network().is_some() {
+            unimplemented!("This function is not implemented for network routes yet")
+        }
+        self.curr_route_elem = 1;
     }
 
     pub fn curr_link_id(&self) -> Option<u64> {
         let leg = self.driver().curr_leg();
         let route = leg.route.as_ref().unwrap();
-        let index = self.curr_route_elem as usize;
-        route.route.get(index).copied()
-    }
 
-    // todo same as above
-    pub fn is_current_link_last(&self) -> bool {
-        let leg = self.driver().curr_leg();
-        let route = leg.route.as_ref().unwrap();
-        self.curr_route_elem + 1 >= route.route.len() as u32
+        match route {
+            Route::GenericRoute(g) => match self.curr_route_elem {
+                0 => Some(g.start_link),
+                1 => Some(g.end_link),
+                _ => panic!("A generic route only has two elements."),
+            },
+            Route::NetworkRoute(n) => n.route.get(self.curr_route_elem as usize).copied(),
+            Route::PtRoute(_) => {
+                unimplemented!()
+            }
+        }
     }
 
     pub fn peek_next_route_element(&self) -> Option<u64> {
         let route = self.driver().curr_leg().route.as_ref().unwrap();
         let next_i = self.curr_route_elem as usize + 1;
-        route.route.get(next_i).copied()
+        route
+            .as_network()
+            .expect("You can only ask for the next link id in case of network routes.")
+            .route
+            .get(next_i)
+            .copied()
     }
 }
 

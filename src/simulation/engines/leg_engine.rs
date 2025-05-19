@@ -9,8 +9,8 @@ use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::events::Event;
 use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
+use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::Person;
-use crate::simulation::wire_types::vehicles::LevelOfDetail;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -143,15 +143,12 @@ impl<C: SimCommunicator> LegEngine<C> {
     }
 
     fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: Vehicle, route_begin: bool) {
-        let veh_type_id = Id::get(vehicle.r#type);
-        let veh_type = self.garage.vehicle_types.get(&veh_type_id).unwrap();
-
-        match veh_type.lod() {
-            LevelOfDetail::Network => {
+        match vehicle.driver().curr_leg().route.as_ref().unwrap() {
+            Route::NetworkRoute(_) => {
                 self.network_engine
                     .receive_vehicle(now, vehicle, route_begin);
             }
-            LevelOfDetail::Teleported => {
+            _ => {
                 self.teleportation_engine.receive_vehicle(
                     now,
                     vehicle,
@@ -186,22 +183,15 @@ impl VehicularDepartureHandler {
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let leg_mode: Id<String> = Id::get(leg.mode);
-        let veh_id = Id::get(route.veh_id);
 
         self.events.borrow_mut().publish_event(
             now,
             &Event::new_departure(agent.id(), route.start_link(), leg_mode.internal()),
         );
 
-        let veh_type_id = garage
-            .vehicles
-            .get(&veh_id)
-            .unwrap_or_else(|| panic!("Couldn't find vehicle with id {:?}", veh_id))
-            .r#type;
-        if LevelOfDetail::try_from(garage.vehicle_types.get(&Id::get(veh_type_id)).unwrap().lod)
-            .unwrap()
-            == LevelOfDetail::Network
-        {
+        let veh_id = Id::get(route.as_generic().veh_id);
+
+        if route.as_network().is_some() {
             self.events.borrow_mut().publish_event(
                 now,
                 &Event::new_person_enters_veh(agent.id(), veh_id.internal()),
