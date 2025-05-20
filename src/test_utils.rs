@@ -20,9 +20,9 @@ pub fn create_agent(id: u64, route: Vec<u64>) -> SimulationAgent {
         delegate: Some(GenericRoute {
             start_link: *route.first().unwrap(),
             end_link: *route.last().unwrap(),
-            trav_time: 0,
-            distance: 0.0,
-            veh_id: id,
+            trav_time: None,
+            distance: None,
+            veh_id: Some(id),
         }),
         route,
     };

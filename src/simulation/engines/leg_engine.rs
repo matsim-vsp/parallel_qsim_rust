@@ -204,11 +204,13 @@ impl VehicularDepartureHandler {
         assert_eq!(agent.state(), SimulationAgentState::LEG);
 
         let leg = agent.curr_leg();
-        let route = leg.route.as_ref().expect(&*format!(
-            "Missing route for agent {} at leg {:?}",
-            Id::<Person>::get(agent.id()).external(),
-            leg
-        ));
+        let route = leg.route.as_ref().unwrap_or_else(|| {
+            panic!(
+                "Missing route for agent {} at leg {:?}",
+                Id::<Person>::get(agent.id()).external(),
+                leg
+            )
+        });
         let leg_mode: Id<String> = Id::get(leg.mode);
 
         self.events.borrow_mut().publish_event(
@@ -216,7 +218,12 @@ impl VehicularDepartureHandler {
             &Event::new_departure(agent.id(), route.start_link(), leg_mode.internal()),
         );
 
-        let veh_id = Id::get(route.as_generic().veh_id);
+        let veh_id = Id::get(
+            route
+                .as_generic()
+                .veh_id
+                .expect("Route doesn't have a vehicle id."),
+        );
 
         if route.as_network().is_some() && self.main_modes.contains(&leg_mode.internal()) {
             self.events.borrow_mut().publish_event(

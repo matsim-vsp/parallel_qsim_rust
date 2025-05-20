@@ -6,7 +6,7 @@ use std::path::Path;
 
 use prost::Message;
 use serde::Deserialize;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
@@ -16,6 +16,7 @@ use crate::simulation::population::population_data::Population;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::population::Header;
 use crate::simulation::wire_types::population::Person;
+use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub fn from_file<F: Fn(&Person) -> bool>(
     path: &Path,
@@ -137,6 +138,11 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
     info!("Creating vehicle ids");
     for (person_id, type_id) in raw_veh {
         garage.add_veh_by_type(&person_id, &type_id);
+    }
+
+    info!("Creating PT vehicle ids");
+    if Id::<VehicleType>::try_get_from_ext("pt").is_some() {
+        warn!("PT vehicle type already exists. This might cause confusion later on.");
     }
 
     info!("Creating activity types");
@@ -416,6 +422,28 @@ mod tests {
         assert_eq!(route.distance, 57.23726831365165);
         assert_eq!(route.vehicle, None);
         assert_eq!(route.route, None);
+    }
+
+    #[test]
+    fn test_read_leg_with_pt() {
+        let xml = "<leg mode=\"pt\" trav_time=\"00:10:01\">
+				<attributes>
+					<attribute name=\"routingMode\" class=\"java.lang.String\">pt</attribute>
+				</attributes>
+				<route type=\"default_pt\" start_link=\"33\" end_link=\"11\" trav_time=\"00:10:01\" distance=\"NaN\">{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}</route>
+			</leg>";
+        let leg = from_str::<IOLeg>(xml).unwrap();
+        assert_eq!(leg.mode, "pt");
+        assert_eq!(leg.dep_time, None);
+        assert_eq!(leg.trav_time, Some(String::from("00:10:01")));
+        let route = leg.route.as_ref().unwrap();
+        assert_eq!(route.r#type, "default_pt");
+        assert_eq!(route.start_link, "33");
+        assert_eq!(route.end_link, "11");
+        assert_eq!(route.trav_time, Some(String::from("00:10:01")));
+        assert!(route.distance.is_nan());
+        assert_eq!(route.vehicle, None);
+        assert_eq!(route.route, Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")));
     }
 
     #[test]

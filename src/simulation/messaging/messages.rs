@@ -202,9 +202,11 @@ impl Vehicle {
                 _ => panic!("A generic route only has two elements."),
             },
             Route::NetworkRoute(n) => n.route.get(self.curr_route_elem as usize).copied(),
-            Route::PtRoute(_) => {
-                unimplemented!()
-            }
+            Route::PtRoute(p) => match self.curr_route_elem {
+                0 => Some(p.delegate.unwrap().start_link),
+                1 => Some(p.delegate.unwrap().end_link),
+                _ => panic!("A generic route only has two elements."),
+            },
         }
     }
 

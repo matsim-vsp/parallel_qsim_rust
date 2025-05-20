@@ -22,6 +22,7 @@ message Event {
     PassengerDroppedOffEvent passengerDroppedOff = 12;
     DvrpTaskStartedEvent dvrpTaskStarted = 13;
     DvrpTaskEndedEvent dvrpTaskEnded = 14;
+    TravelledWithPtEvent travelledWithPt = 15;
   }
 }
 
@@ -80,6 +81,14 @@ message TravelledEvent {
   uint64 person = 1;
   uint64 mode = 3;
   double distance = 2;
+}
+
+message TravelledWithPtEvent {
+  uint64 person = 1;
+  double distance = 2;
+  uint64 mode = 3;
+  uint64 route = 4;
+  uint64 line = 5;
 }
 
 message PassengerPickedUpEvent{

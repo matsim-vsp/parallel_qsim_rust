@@ -45,9 +45,9 @@ message Leg {
 message GenericRoute {
   uint64 start_link = 1;
   uint64 end_link = 2;
-  uint64 trav_time = 3;
-  double distance = 4;
-  uint64 veh_id = 5;
+  optional uint64 trav_time = 3;
+  optional double distance = 4;
+  optional uint64 veh_id = 5;
 }
 
 message NetworkRoute {
@@ -57,13 +57,13 @@ message NetworkRoute {
 
 message PtRoute {
   GenericRoute delegate = 1;
-  PtInformation information = 2;
+  PtRouteDescription information = 2;
 }
 
-message PtInformation {
+message PtRouteDescription {
   string transitRouteId = 1;
-  uint64 boardingTime = 2;
-  string transitLine = 3;
+  optional uint32 boardingTime = 2;
+  string transitLineId = 3;
   string accessFacilityId = 4;
   string egressFacilityId = 5;
 }

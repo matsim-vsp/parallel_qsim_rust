@@ -9,10 +9,12 @@ use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::{
-    Activity, GenericRoute, Leg, NetworkRoute, Person, Plan, PtRoute,
+    Activity, GenericRoute, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,
 };
+use serde_json::{Error, Value};
 use std::collections::HashMap;
 use std::path::Path;
+use std::str::FromStr;
 use tracing::debug;
 
 impl Person {
@@ -290,6 +292,7 @@ impl Route {
         let route = match io_route.r#type.as_str() {
             "generic" => Self::from_io_generic(io_route, person_id, mode),
             "links" => Self::from_io_net_route(io_route, person_id, mode),
+            "default_pt" => Self::from_io_pt_route(io_route, person_id, mode),
             _t => panic!("Unsupported route type: '{_t}'"),
         };
         route
@@ -301,18 +304,16 @@ impl Route {
         let external = format!("{}_{}", person_id.external(), mode.external());
         let veh_id: Id<Vehicle> = Id::get_from_ext(&external);
 
-        let trav_time = io_route
-            .trav_time
-            .as_ref()
-            .map(|trav_time| parse_time(trav_time).unwrap_or(0))
-            .unwrap_or(0) as u64;
-
         Route::GenericRoute(GenericRoute {
             start_link: start_link.internal(),
             end_link: end_link.internal(),
-            trav_time,
-            distance: io_route.distance,
-            veh_id: veh_id.internal(),
+            trav_time: io_route
+                .trav_time
+                .as_ref()
+                .and_then(|t| parse_time(&t))
+                .and_then(|t| Some(t as u64)),
+            distance: Some(io_route.distance),
+            veh_id: Some(veh_id.internal()),
         })
     }
 
@@ -332,18 +333,17 @@ impl Route {
                         .collect(),
                 };
 
-                let trav_time = match &io_route.trav_time {
-                    None => 0,
-                    Some(t) => parse_time(t).unwrap_or(0),
-                };
-
                 Route::NetworkRoute(NetworkRoute {
                     delegate: Some(GenericRoute {
                         start_link: *link_ids.first().unwrap(),
                         end_link: *link_ids.last().unwrap(),
-                        trav_time: trav_time as u64,
-                        distance: io_route.distance,
-                        veh_id: veh_id.internal(),
+                        trav_time: io_route
+                            .trav_time
+                            .as_ref()
+                            .and_then(|t| parse_time(&t))
+                            .map(|t| t as u64),
+                        distance: Some(io_route.distance),
+                        veh_id: Some(veh_id.internal()),
                     }),
                     route: link_ids,
                 })
@@ -352,6 +352,51 @@ impl Route {
             panic!("vehicle id is expected to be set.")
         }
     }
+
+    fn from_io_pt_route(io_route: &IORoute, person_id: &Id<Person>, mode: &Id<String>) -> Self {
+        let start_link: Id<Link> = Id::get_from_ext(&io_route.start_link);
+        let end_link: Id<Link> = Id::get_from_ext(&io_route.end_link);
+        let external = format!("{}_{}", person_id.external(), mode.external());
+        let veh_id: Id<Vehicle> = Id::get_from_ext(&external);
+
+        Route::PtRoute(PtRoute {
+            delegate: Some(GenericRoute {
+                start_link: start_link.internal(),
+                end_link: end_link.internal(),
+                trav_time: io_route
+                    .trav_time
+                    .as_ref()
+                    .and_then(|t| parse_time(&t))
+                    .map(|t| t as u64),
+                distance: Some(io_route.distance),
+                veh_id: Some(veh_id.internal()),
+            }),
+            information: io_route
+                .route
+                .as_ref()
+                .and_then(|r| PtRouteDescription::from_str(&r).ok()),
+        })
+    }
+}
+
+impl FromStr for PtRouteDescription {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let desc: Value = serde_json::from_str(s)?;
+
+        Ok(PtRouteDescription {
+            transit_route_id: trim_quotes(&desc["transitRouteId"]),
+            boarding_time: desc["boardingTime"].as_str().and_then(parse_time),
+            transit_line_id: trim_quotes(&desc["transitLineId"]),
+            access_facility_id: trim_quotes(&desc["accessFacilityId"]),
+            egress_facility_id: trim_quotes(&desc["egressFacilityId"]),
+        })
+    }
+}
+
+fn trim_quotes(s: &Value) -> String {
+    s.to_string().trim_matches('"').to_string()
 }
 
 fn parse_time_opt(value: &Option<String>) -> Option<u32> {
@@ -464,7 +509,7 @@ mod tests {
         assert!(leg.route.is_some());
         let net_route = leg.route.as_ref().unwrap().as_network().unwrap();
         assert_eq!(
-            Id::<Vehicle>::get_from_ext("1_car").internal(),
+            Some(Id::<Vehicle>::get_from_ext("1_car").internal()),
             net_route.delegate.unwrap().veh_id
         );
         assert_eq!(
@@ -571,7 +616,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_io_route() {
+    fn test_from_io_generic_route() {
         Id::<Link>::create("1");
         Id::<Link>::create("2");
         Id::<Vehicle>::create("person_car");
@@ -584,7 +629,7 @@ mod tests {
                 r#type: "generic".to_string(),
                 start_link: "1".to_string(),
                 end_link: "2".to_string(),
-                trav_time: Some("00:30:00".to_string()),
+                trav_time: Some("00:20:00".to_string()),
                 distance: 42.0,
                 vehicle: None,
                 route: None,
@@ -605,11 +650,39 @@ mod tests {
             "1"
         );
         assert_eq!(Id::<Link>::get(route.as_generic().end_link).external(), "2");
-        assert_eq!(route.as_generic().trav_time, 1800);
-        assert_eq!(route.as_generic().distance, 42.0);
+        assert_eq!(route.as_generic().trav_time, Some(1200));
+        assert_eq!(route.as_generic().distance, Some(42.0));
         assert_eq!(
-            Id::<Vehicle>::get(route.as_generic().veh_id).external(),
+            Id::<Vehicle>::get(route.as_generic().veh_id.unwrap()).external(),
             "person_car"
         );
+    }
+
+    #[test]
+    fn test_from_io_pt_route() {
+        Id::<Link>::create("1");
+        Id::<Link>::create("2");
+        Id::<String>::create("pt");
+        Id::<Vehicle>::create("person_pt");
+
+        let io_leg = IOLeg {
+            mode: "pt".to_string(),
+            dep_time: None,
+            trav_time: Some("00:30:00".to_string()),
+            route: Some(IORoute {
+                r#type: "default_pt".to_string(),
+                start_link: "1".to_string(),
+                end_link: "2".to_string(),
+                trav_time: Some("00:20:00".to_string()),
+                distance: f64::NAN,
+                vehicle: None,
+                route: Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}"))
+            }),
+            attributes: None,
+        };
+
+        let leg = Leg::from_io(&io_leg, &Id::<Person>::create("person"));
+
+        print!("{:?}", leg);
     }
 }
