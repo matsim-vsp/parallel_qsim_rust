@@ -215,6 +215,13 @@ impl Leg {
             .as_ref()
             .map(|r| Route::from_io(r, person_id, &mode));
 
+        assert!(
+            route.is_some(),
+            "Route is expected to be set. This is not the case for person {} with IOLeg {:?}",
+            person_id.external(),
+            io_leg
+        );
+
         Self {
             route,
             mode: mode.internal(),
@@ -417,10 +424,12 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::{Link, Network};
+    use crate::simulation::population::io::{IOLeg, IORoute};
     use crate::simulation::population::population_data::Population;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::wire_types::messages::Vehicle;
-    use crate::simulation::wire_types::population::Person;
+    use crate::simulation::wire_types::population::leg::Route;
+    use crate::simulation::wire_types::population::{Leg, Person};
 
     #[test]
     fn from_io_1_plan() {
@@ -559,5 +568,48 @@ mod tests {
         population.to_file(&temp_file);
         let population2 = Population::from_file_filtered_part(&temp_file, &net, &mut garage, 0);
         assert_eq!(population, population2);
+    }
+
+    #[test]
+    fn test_from_io_route() {
+        Id::<Link>::create("1");
+        Id::<Link>::create("2");
+        Id::<Vehicle>::create("person_car");
+
+        let io_leg = IOLeg {
+            mode: "car".to_string(),
+            dep_time: Some("12:00:00".to_string()),
+            trav_time: Some("00:30:00".to_string()),
+            route: Some(IORoute {
+                r#type: "generic".to_string(),
+                start_link: "1".to_string(),
+                end_link: "2".to_string(),
+                trav_time: Some("00:30:00".to_string()),
+                distance: 42.0,
+                vehicle: None,
+                route: None,
+            }),
+            attributes: None,
+        };
+
+        let leg = Leg::from_io(&io_leg, &Id::<Person>::create("person"));
+
+        assert_eq!(Id::<String>::get(leg.mode).external(), "car");
+        assert_eq!(leg.trav_time, 1800);
+        assert_eq!(leg.dep_time, Some(43200));
+        assert_eq!(Id::<String>::get(leg.routing_mode).external(), "car");
+        let route = leg.route.as_ref().unwrap();
+        assert!(matches!(route, Route::GenericRoute(_)));
+        assert_eq!(
+            Id::<Link>::get(route.as_generic().start_link).external(),
+            "1"
+        );
+        assert_eq!(Id::<Link>::get(route.as_generic().end_link).external(), "2");
+        assert_eq!(route.as_generic().trav_time, 1800);
+        assert_eq!(route.as_generic().distance, 42.0);
+        assert_eq!(
+            Id::<Vehicle>::get(route.as_generic().veh_id).external(),
+            "person_car"
+        );
     }
 }

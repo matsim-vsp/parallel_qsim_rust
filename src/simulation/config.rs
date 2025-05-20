@@ -307,7 +307,7 @@ impl Default for Simulation {
             end_time: 86400,
             sample_size: 1.0,
             stuck_threshold: u32::MAX,
-            main_modes: vec![],
+            main_modes: vec!["car".to_string()],
         }
     }
 }

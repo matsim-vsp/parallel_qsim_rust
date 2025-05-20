@@ -285,7 +285,7 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::population::io::{load_from_xml, IOPlanElement, IOPopulation};
+    use crate::simulation::population::io::{load_from_xml, IOLeg, IOPlanElement, IOPopulation};
     use crate::simulation::population::population_data::Population;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::wire_types::population::Person;
@@ -393,6 +393,29 @@ mod tests {
                 panic!("Plan element at inded 6 was expected to be an activity but was a Leg.")
             }
         }
+    }
+
+    #[test]
+    fn test_read_leg() {
+        let xml = "<leg mode=\"walk\" dep_time=\"00:00:00\">
+                                <attributes>
+                                        <attribute name=\"routingMode\" class=\"java.lang.String\">car</attribute>
+                                </attributes>
+                                <route type=\"generic\" start_link=\"4410448#0\" end_link=\"4410448#0\" trav_time=\"00:00:46\" distance=\"57.23726831365165\"></route>
+                        </leg>";
+
+        let leg = from_str::<IOLeg>(xml).unwrap();
+        assert_eq!(leg.mode, "walk");
+        assert_eq!(leg.dep_time, Some(String::from("00:00:00")));
+        assert_eq!(leg.trav_time, None);
+        let route = leg.route.as_ref().unwrap();
+        assert_eq!(route.r#type, "generic");
+        assert_eq!(route.start_link, "4410448#0");
+        assert_eq!(route.end_link, "4410448#0");
+        assert_eq!(route.trav_time, Some(String::from("00:00:46")));
+        assert_eq!(route.distance, 57.23726831365165);
+        assert_eq!(route.vehicle, None);
+        assert_eq!(route.route, None);
     }
 
     #[test]
