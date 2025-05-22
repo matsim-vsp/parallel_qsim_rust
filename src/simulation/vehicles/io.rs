@@ -79,7 +79,7 @@ fn write_to_xml(garage: &Garage, path: &Path) {
         vehicles: vec![],
     };
 
-    xml::write_to_file(&io_vehicles, path, "http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd")
+    xml::write_to_file(&io_vehicles, path, "<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd\">")
 }
 
 fn write_to_proto(garage: &Garage, path: &Path) {
@@ -163,8 +163,9 @@ pub struct IOVehicleDefinitions {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOVehicle {
+    #[serde(rename = "@id")]
     pub id: String,
-    #[serde(rename = "type")]
+    #[serde(rename = "@type")]
     pub vehicle_type: String,
     pub attributes: Option<Attrs>,
 }
@@ -172,6 +173,7 @@ pub struct IOVehicle {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IOVehicleType {
+    #[serde(rename = "@id")]
     pub id: String,
     pub description: Option<String>,
     pub capacity: Option<IOCapacity>,
@@ -193,6 +195,7 @@ pub struct IOCapacity {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IODimension {
+    #[serde(rename = "@meter")]
     pub(crate) meter: f32,
 }
 
@@ -205,6 +208,7 @@ impl Default for IODimension {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IOVelocity {
+    #[serde(rename = "@meterPerSecond")]
     pub(crate) meter_per_second: f32,
 }
 
@@ -218,6 +222,7 @@ impl Default for IOVelocity {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOPassengerCarEquivalents {
+    #[serde(rename = "@pce")]
     pub(crate) pce: f32,
 }
 
@@ -230,6 +235,7 @@ impl Default for IOPassengerCarEquivalents {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IONetworkMode {
+    #[serde(rename = "@networkMode")]
     pub(crate) network_mode: String,
 }
 
@@ -243,6 +249,7 @@ impl Default for IONetworkMode {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOFowEfficiencyFactor {
+    #[serde(rename = "@factor")]
     pub(crate) factor: f32,
 }
 

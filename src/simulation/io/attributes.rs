@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Attr {
+    #[serde(rename = "@name")]
     pub name: String,
+    #[serde(rename = "@class")]
     pub class: String,
     #[serde(rename = "$value", default)]
     pub value: String,

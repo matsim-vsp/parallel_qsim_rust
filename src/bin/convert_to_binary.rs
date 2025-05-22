@@ -8,6 +8,7 @@ use tracing::info;
 use rust_q_sim::simulation::config::PartitionMethod;
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::pt::TransitSchedule;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 
 #[derive(Parser, Debug)]
@@ -22,6 +23,8 @@ struct InputArgs {
     pub output_dir: PathBuf,
     #[arg(short, long)]
     pub run_id: String,
+    #[arg(short, long)]
+    pub transit_schedule: Option<PathBuf>,
 }
 
 fn main() {
@@ -31,6 +34,11 @@ fn main() {
     let mut veh = Garage::from_file(&args.vehicles);
     let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
     let pop = Population::from_file(&args.population, &mut veh);
+
+    if let Some(transit_schedule) = args.transit_schedule.as_ref() {
+        // For now, we only read the transit schedule to extract the ids. It is not used in the simulation.
+        TransitSchedule::from_file(transit_schedule);
+    }
 
     let cmp_weights = compute_computational_weights(&pop);
     assign_computational_weights(&mut net, cmp_weights);

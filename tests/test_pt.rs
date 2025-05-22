@@ -5,6 +5,7 @@ use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::pt::TransitSchedule;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
 
@@ -15,6 +16,7 @@ fn create_resources(out_dir: &PathBuf) {
     let net = Network::from_file_as_is(&input_dir.join("multimodalnetwork.xml"));
     let mut garage = Garage::from_file(&input_dir.join("vehicles.xml"));
     let pop = Population::from_file(&input_dir.join("plans_1.xml.gz"), &mut garage);
+    TransitSchedule::from_file(&input_dir.join("transitschedule.xml"));
 
     store_to_file(&out_dir.join("ids.binpb"));
     net.to_file(&out_dir.join("network.binpb"));

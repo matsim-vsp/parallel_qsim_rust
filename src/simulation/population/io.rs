@@ -5,7 +5,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 use prost::Message;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use tracing::{info, warn};
 
 use crate::simulation::id::Id;
@@ -173,12 +173,21 @@ fn create_population(io_pop: &IOPopulation) -> HashMap<Id<Person>, Person> {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IORoute {
+    #[serde(rename = "@type")]
     pub r#type: String,
+    #[serde(rename = "@start_link")]
     pub start_link: String,
+    #[serde(rename = "@end_link")]
     pub end_link: String,
+    #[serde(rename = "@trav_time")]
     pub trav_time: Option<String>,
+    #[serde(rename = "@distance")]
     pub distance: f64,
-    #[serde(rename = "vehicleRefId")]
+    #[serde(
+        rename = "@vehicleRefId",
+        default,
+        deserialize_with = "option_string_preserve_null"
+    )]
     pub vehicle: Option<String>,
 
     // this needs to be parsed later
@@ -186,14 +195,32 @@ pub struct IORoute {
     pub route: Option<String>,
 }
 
+fn option_string_preserve_null<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt {
+        Some(ref s) if s == "null" => Ok(Some("null".to_string())),
+        other => Ok(other),
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOActivity {
+    #[serde(rename = "@type")]
     pub r#type: String,
+    #[serde(rename = "@link")]
     pub link: String,
+    #[serde(rename = "@x")]
     pub x: f64,
+    #[serde(rename = "@y")]
     pub y: f64,
+    #[serde(rename = "@start_time")]
     pub start_time: Option<String>,
+    #[serde(rename = "@end_time")]
     pub end_time: Option<String>,
+    #[serde(rename = "@max_dur")]
     pub max_dur: Option<String>,
 }
 
@@ -205,8 +232,11 @@ impl IOActivity {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOLeg {
+    #[serde(rename = "@mode")]
     pub mode: String,
+    #[serde(rename = "@dep_time")]
     pub dep_time: Option<String>,
+    #[serde(rename = "@trav_time")]
     pub trav_time: Option<String>,
     pub route: Option<IORoute>,
     pub attributes: Option<Attrs>,
@@ -246,14 +276,28 @@ impl IOPlanElement {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOPlan {
+    #[serde(rename = "@selected", deserialize_with = "bool_from_yes_no")]
     pub selected: bool,
     // https://users.rust-lang.org/t/serde-deserializing-a-vector-of-enums/51647/2
     #[serde(rename = "$value")]
     pub elements: Vec<IOPlanElement>,
 }
 
+fn bool_from_yes_no<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    match s.to_lowercase().as_str() {
+        "yes" => Ok(true),
+        "no" => Ok(false),
+        _ => Err(serde::de::Error::custom(format!("invalid value: {}", s))),
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOPerson {
+    #[serde(rename = "@id")]
     pub id: String,
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,

@@ -9,10 +9,15 @@ pub struct IODrtVehicles {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IODrtVehicle {
+    #[serde(rename = "@id")]
     pub id: String,
+    #[serde(rename = "@start_link")]
     pub start_link: String,
+    #[serde(rename = "@t_0")]
     pub t_0: u32,
+    #[serde(rename = "@t_1")]
     pub t_1: u32,
+    #[serde(rename = "@capacity")]
     pub capacity: u32,
 }
 

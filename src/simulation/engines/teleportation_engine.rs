@@ -79,7 +79,7 @@ impl TeleportationEngine {
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let mode: Id<String> = Id::get(leg.mode);
-        let transit_line_id = Id::<String>::create(
+        let transit_line_id = Id::<String>::get_from_ext(
             route
                 .as_pt()
                 .unwrap()
@@ -90,7 +90,7 @@ impl TeleportationEngine {
                 .as_str(),
         )
         .internal();
-        let transit_route_id = Id::<String>::create(
+        let transit_route_id = Id::<String>::get_from_ext(
             route
                 .as_pt()
                 .unwrap()

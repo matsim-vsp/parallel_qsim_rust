@@ -14,9 +14,7 @@ required-features = ["mpi"]
 [dependencies]
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.93"
-# sticking with quick-xml 0.23.0 because the serialization API changed: https://github.com/tafia/quick-xml/issues/499
-# since the new API would need an adapter from std::fmt::Write to std::io::Write, we stick with the old API
-quick-xml = { version = "0.23.0", features = ["serialize"] }
+quick-xml = { version = "0.37.5", features = ["serialize"] }
 flate2 = { version = "1.0.24" }
 rand = "0.9.0"
 metis = "0.2.2"
