@@ -1,6 +1,9 @@
 use crate::simulation::id::Id;
+use flate2::bufread::GzDecoder;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::Path;
 use tracing::info;
 
@@ -18,7 +21,18 @@ impl TransitSchedule {
     }
 
     fn create_schedule(file_path: &Path) -> TransitSchedule {
-        let mut reader = Reader::from_file(file_path).unwrap();
+        let mut reader = if file_path.extension().unwrap() == "gz" {
+            let file = File::open(file_path)
+                .unwrap_or_else(|_| panic!("Could not open file at {}", file_path.display()));
+            let buf_reader = BufReader::new(file);
+            let decoder: Box<dyn Read> = Box::new(GzDecoder::new(buf_reader));
+            let gz_reader = BufReader::new(decoder);
+            Reader::from_reader(gz_reader)
+        } else {
+            let file: Box<dyn Read> = Box::new(File::open(file_path).unwrap());
+            let buf_reader = BufReader::new(file);
+            Reader::from_reader(buf_reader)
+        };
 
         let mut lines = Vec::new();
         let mut routes = Vec::new();
@@ -50,7 +64,7 @@ impl TransitSchedule {
         'attr: for attr in e.attributes().flatten() {
             if attr.key.as_ref() == b"id" {
                 let id_value = attr.unescape_value().unwrap();
-                println!("id = {}", id_value);
+                // println!("id = {}", id_value);
                 lines.push(id_value.to_string());
                 break 'attr;
             }

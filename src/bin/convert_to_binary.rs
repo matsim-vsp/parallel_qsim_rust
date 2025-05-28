@@ -33,12 +33,11 @@ fn main() {
 
     let mut veh = Garage::from_file(&args.vehicles);
     let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
-    let pop = Population::from_file(&args.population, &mut veh);
-
     if let Some(transit_schedule) = args.transit_schedule.as_ref() {
         // For now, we only read the transit schedule to extract the ids. It is not used in the simulation.
         TransitSchedule::from_file(transit_schedule);
     }
+    let pop = Population::from_file(&args.population, &mut veh);
 
     let cmp_weights = compute_computational_weights(&pop);
     assign_computational_weights(&mut net, cmp_weights);

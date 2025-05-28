@@ -155,7 +155,7 @@ impl Config {
         self.module::<Drt>("drt")
     }
 
-    pub fn compuational_setup(&self) -> ComputationalSetup {
+    pub fn computational_setup(&self) -> ComputationalSetup {
         if let Some(setup) = self.module::<ComputationalSetup>("computational_setup") {
             setup
         } else {
@@ -516,7 +516,7 @@ mod tests {
             })
         );
 
-        assert_eq!(parsed_config.compuational_setup().global_sync, true);
+        assert_eq!(parsed_config.computational_setup().global_sync, true);
 
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);

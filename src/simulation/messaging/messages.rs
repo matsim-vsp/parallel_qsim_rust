@@ -186,9 +186,11 @@ impl Vehicle {
     pub fn route_index_to_last(&mut self) {
         let route = self.driver().curr_leg().route.as_ref().unwrap();
         if route.as_network().is_some() {
-            unimplemented!("This function is not implemented for network routes yet")
+            let last = route.as_network().unwrap().route.len() - 1;
+            self.curr_route_elem = last as u32;
+        } else {
+            self.curr_route_elem = 1;
         }
-        self.curr_route_elem = 1;
     }
 
     pub fn curr_link_id(&self) -> Option<u64> {

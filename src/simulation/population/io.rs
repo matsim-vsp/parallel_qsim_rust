@@ -6,7 +6,7 @@ use std::path::Path;
 
 use prost::Message;
 use serde::{Deserialize, Deserializer};
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
@@ -16,7 +16,6 @@ use crate::simulation::population::population_data::Population;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::population::Header;
 use crate::simulation::wire_types::population::Person;
-use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub fn from_file<F: Fn(&Person) -> bool>(
     path: &Path,
@@ -138,11 +137,6 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
     info!("Creating vehicle ids");
     for (person_id, type_id) in raw_veh {
         garage.add_veh_by_type(&person_id, &type_id);
-    }
-
-    info!("Creating PT vehicle ids");
-    if Id::<VehicleType>::try_get_from_ext("pt").is_some() {
-        warn!("PT vehicle type already exists. This might cause confusion later on.");
     }
 
     info!("Creating activity types");
