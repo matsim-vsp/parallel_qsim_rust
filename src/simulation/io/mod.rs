@@ -1,11 +1,8 @@
 use std::path::PathBuf;
 
 pub mod attributes;
-pub mod matsim_id;
-pub mod non_blocking_io;
 pub mod proto;
 pub mod proto_events;
-mod worker;
 pub mod xml;
 pub mod xml_events;
 
@@ -21,4 +18,8 @@ pub fn resolve_path(config: &String, file: &str) -> PathBuf {
     } else {
         file_path
     }
+}
+
+pub trait MatsimId {
+    fn id(&self) -> &str;
 }

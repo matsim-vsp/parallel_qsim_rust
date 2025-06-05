@@ -8,6 +8,7 @@ use tracing::info;
 use rust_q_sim::simulation::config::PartitionMethod;
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::pt::TransitSchedule;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 
 #[derive(Parser, Debug)]
@@ -22,6 +23,8 @@ struct InputArgs {
     pub output_dir: PathBuf,
     #[arg(short, long)]
     pub run_id: String,
+    #[arg(short, long)]
+    pub transit_schedule: Option<PathBuf>,
 }
 
 fn main() {
@@ -30,6 +33,10 @@ fn main() {
 
     let mut veh = Garage::from_file(&args.vehicles);
     let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
+    if let Some(transit_schedule) = args.transit_schedule.as_ref() {
+        // For now, we only read the transit schedule to extract the ids. It is not used in the simulation.
+        TransitSchedule::from_file(transit_schedule);
+    }
     let pop = Population::from_file(&args.population, &mut veh);
 
     let cmp_weights = compute_computational_weights(&pop);
@@ -54,7 +61,8 @@ fn compute_computational_weights(pop: &Population) -> IntMap<u64, u32> {
         .values()
         .flat_map(|p| p.plan.as_ref().unwrap().legs.iter())
         .filter(|leg| leg.route.is_some())
-        .flat_map(|leg| leg.route.as_ref().unwrap().route.iter())
+        .filter_map(|leg| leg.route.as_ref()?.as_network())
+        .flat_map(|n| n.route.iter())
         .fold(IntMap::new(), |mut map, link_id| {
             map.entry(*link_id)
                 .and_modify(|counter| *counter += 1)

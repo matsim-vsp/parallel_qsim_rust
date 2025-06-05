@@ -259,6 +259,18 @@ impl IdStore<'_> {
         Id::new(untyped_id)
     }
 
+    pub(crate) fn try_get_from_ext<T: StableTypeId + 'static>(
+        &self,
+        external: &str,
+    ) -> Option<Id<T>> {
+        let type_id = T::stable_type_id();
+        let type_mapping = self.mapping.get(&type_id)?;
+
+        let index = type_mapping.get(external)?;
+        let id = self.get(*index);
+        Some(id)
+    }
+
     pub(crate) fn get_from_ext<T: StableTypeId + 'static>(&self, external: &str) -> Id<T> {
         let type_id = T::stable_type_id();
         let type_mapping = self.mapping.get(&type_id).unwrap_or_else(|| {

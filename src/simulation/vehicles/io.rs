@@ -5,11 +5,11 @@ use tracing::info;
 
 use crate::simulation;
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::{Attr, Attrs};
+use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::xml;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::messages::Vehicle;
-use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType, VehiclesContainer};
+use crate::simulation::wire_types::vehicles::{VehicleType, VehiclesContainer};
 
 pub fn from_file(path: &Path) -> Garage {
     if path.extension().unwrap().eq("binpb") {
@@ -54,32 +54,23 @@ fn write_to_xml(garage: &Garage, path: &Path) {
     let veh_types = garage
         .vehicle_types
         .values()
-        .map(|t| {
-            let attrs = Attrs {
-                attributes: vec![Attr {
-                    name: "lod".to_string(),
-                    class: "java.lang.String".to_string(),
-                    value: t.lod().as_str_name().to_owned(),
-                }],
-            };
-            IOVehicleType {
-                id: Id::<VehicleType>::get(t.id).external().to_owned(),
-                description: None,
-                capacity: None,
-                length: Some(IODimension { meter: t.length }),
-                width: Some(IODimension { meter: t.width }),
-                maximum_velocity: Some(IOVelocity {
-                    meter_per_second: t.max_v,
-                }),
-                engine_information: None,
-                cost_information: None,
-                passenger_car_equivalents: Some(IOPassengerCarEquivalents { pce: t.pce }),
-                network_mode: Some(IONetworkMode {
-                    network_mode: Id::<String>::get(t.net_mode).external().to_owned(),
-                }),
-                flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: t.fef }),
-                attributes: Some(attrs),
-            }
+        .map(|t| IOVehicleType {
+            id: Id::<VehicleType>::get(t.id).external().to_owned(),
+            description: None,
+            capacity: None,
+            length: Some(IODimension { meter: t.length }),
+            width: Some(IODimension { meter: t.width }),
+            maximum_velocity: Some(IOVelocity {
+                meter_per_second: t.max_v,
+            }),
+            engine_information: None,
+            cost_information: None,
+            passenger_car_equivalents: Some(IOPassengerCarEquivalents { pce: t.pce }),
+            network_mode: Some(IONetworkMode {
+                network_mode: Id::<String>::get(t.net_mode).external().to_owned(),
+            }),
+            flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: t.fef }),
+            attributes: None,
         })
         .collect();
 
@@ -88,7 +79,7 @@ fn write_to_xml(garage: &Garage, path: &Path) {
         vehicles: vec![],
     };
 
-    xml::write_to_file(&io_vehicles, path, "http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd")
+    xml::write_to_file(&io_vehicles, path, "<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd\">")
 }
 
 fn write_to_proto(garage: &Garage, path: &Path) {
@@ -126,21 +117,6 @@ fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
     let id: Id<VehicleType> = Id::create(&io_veh_type.id);
     let net_mode: Id<String> =
         Id::create(&io_veh_type.network_mode.unwrap_or_default().network_mode);
-    let lod = if let Some(attr) = io_veh_type
-        .attributes
-        .unwrap_or_default()
-        .attributes
-        .iter()
-        .find(|&attr| attr.name.eq("lod"))
-    {
-        match attr.value.to_lowercase().as_str() {
-            "teleported" => LevelOfDetail::Teleported,
-            "network" => LevelOfDetail::Network,
-            _ => LevelOfDetail::Network,
-        }
-    } else {
-        LevelOfDetail::Network
-    };
 
     let veh_type = VehicleType {
         id: id.internal(),
@@ -159,7 +135,6 @@ fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
             .unwrap_or_default()
             .factor,
         net_mode: net_mode.internal(),
-        lod: lod as i32,
     };
     garage.add_veh_type(veh_type);
 }
@@ -188,8 +163,9 @@ pub struct IOVehicleDefinitions {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOVehicle {
+    #[serde(rename = "@id")]
     pub id: String,
-    #[serde(rename = "type")]
+    #[serde(rename = "@type")]
     pub vehicle_type: String,
     pub attributes: Option<Attrs>,
 }
@@ -197,6 +173,7 @@ pub struct IOVehicle {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IOVehicleType {
+    #[serde(rename = "@id")]
     pub id: String,
     pub description: Option<String>,
     pub capacity: Option<IOCapacity>,
@@ -218,6 +195,7 @@ pub struct IOCapacity {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IODimension {
+    #[serde(rename = "@meter")]
     pub(crate) meter: f32,
 }
 
@@ -230,6 +208,7 @@ impl Default for IODimension {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IOVelocity {
+    #[serde(rename = "@meterPerSecond")]
     pub(crate) meter_per_second: f32,
 }
 
@@ -243,6 +222,7 @@ impl Default for IOVelocity {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOPassengerCarEquivalents {
+    #[serde(rename = "@pce")]
     pub(crate) pce: f32,
 }
 
@@ -255,6 +235,7 @@ impl Default for IOPassengerCarEquivalents {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IONetworkMode {
+    #[serde(rename = "@networkMode")]
     pub(crate) network_mode: String,
 }
 
@@ -268,6 +249,7 @@ impl Default for IONetworkMode {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOFowEfficiencyFactor {
+    #[serde(rename = "@factor")]
     pub(crate) factor: f32,
 }
 
@@ -306,7 +288,7 @@ mod test {
         add_io_veh_type, from_file, to_file, IODimension, IOFowEfficiencyFactor, IONetworkMode,
         IOPassengerCarEquivalents, IOVehicleDefinitions, IOVehicleType, IOVelocity,
     };
-    use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
+    use crate::simulation::wire_types::vehicles::VehicleType;
 
     #[test]
     fn from_string_empty_type() {
@@ -408,7 +390,6 @@ mod test {
             pce: 20.0,
             fef: 0.3,
             net_mode: Id::<String>::create("some network type 🚕").internal(),
-            lod: LevelOfDetail::Teleported as i32,
         });
         garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
@@ -432,7 +413,6 @@ mod test {
             pce: 20.0,
             fef: 0.3,
             net_mode: Id::<String>::create("some network type 🚕").internal(),
-            lod: LevelOfDetail::Teleported as i32,
         });
         garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
@@ -469,8 +449,6 @@ mod test {
 
         let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
-        let veh_type = veh_type_opt.unwrap();
-        assert!(matches!(veh_type.lod(), LevelOfDetail::Network));
     }
 
     #[test]
@@ -504,7 +482,6 @@ mod test {
         let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
         let veh_type = veh_type_opt.unwrap();
-        assert!(matches!(veh_type.lod(), LevelOfDetail::Teleported));
         assert_eq!(veh_type.max_v, 100.);
         assert_eq!(veh_type.width, 5.0);
         assert_eq!(veh_type.length, 10.);

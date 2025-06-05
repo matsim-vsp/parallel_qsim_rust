@@ -23,6 +23,8 @@ modules:
     end_time: 84600
     sample_size: 1
     stuck_threshold: 30
+    main_modes:
+      - car
   drt:
     type: Drt
     services:

@@ -8,8 +8,8 @@ use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
-use crate::simulation::io::matsim_id::MatsimId;
 use crate::simulation::io::xml;
+use crate::simulation::io::MatsimId;
 use crate::simulation::network::global_network::{Link, Network, Node};
 
 pub fn from_file(path: &Path) -> Network {
@@ -177,9 +177,13 @@ fn write_to_proto(network: &Network, path: &Path) {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IONode {
+    #[serde(rename = "@id")]
     pub id: String,
+    #[serde(rename = "@x")]
     pub x: f64,
+    #[serde(rename = "@y")]
     pub y: f64,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<Attrs>,
 }
 
@@ -191,15 +195,23 @@ impl MatsimId for IONode {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Default, Clone)]
 pub struct IOLink {
+    #[serde(rename = "@id")]
     pub id: String,
+    #[serde(rename = "@from")]
     pub from: String,
+    #[serde(rename = "@to")]
     pub to: String,
+    #[serde(rename = "@length")]
     pub length: f64,
+    #[serde(rename = "@capacity")]
     pub capacity: f32,
+    #[serde(rename = "@freespeed")]
     pub freespeed: f32,
+    #[serde(rename = "@permlanes")]
     pub permlanes: f32,
-    #[serde(default)]
+    #[serde(default, rename = "@modes")]
     pub modes: String,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<Attrs>,
 }
 
@@ -219,13 +231,14 @@ struct Nodes {
 struct Links {
     #[serde(rename = "link", default)]
     pub links: Vec<IOLink>,
-    #[serde(rename = "effectivecellsize")]
+    #[serde(rename = "@effectivecellsize")]
     pub effective_cell_size: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename = "network")]
 struct IONetwork {
+    #[serde(rename = "@name")]
     pub name: Option<String>,
     pub nodes: Nodes,
     pub links: Links,
@@ -481,6 +494,8 @@ mod tests {
 
         assert_eq!(2259, network.nodes().len());
         assert_eq!(4288, network.links().len());
+
+        assert_eq!(None, network.nodes.nodes.first().unwrap().attributes);
     }
 
     #[test]

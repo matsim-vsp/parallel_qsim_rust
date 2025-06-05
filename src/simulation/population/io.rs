@@ -5,7 +5,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 use prost::Message;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use tracing::info;
 
 use crate::simulation::id::Id;
@@ -167,12 +167,21 @@ fn create_population(io_pop: &IOPopulation) -> HashMap<Id<Person>, Person> {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IORoute {
+    #[serde(rename = "@type")]
     pub r#type: String,
+    #[serde(rename = "@start_link")]
     pub start_link: String,
+    #[serde(rename = "@end_link")]
     pub end_link: String,
+    #[serde(rename = "@trav_time")]
     pub trav_time: Option<String>,
+    #[serde(rename = "@distance")]
     pub distance: f64,
-    #[serde(rename = "vehicleRefId")]
+    #[serde(
+        rename = "@vehicleRefId",
+        default,
+        deserialize_with = "option_string_preserve_null"
+    )]
     pub vehicle: Option<String>,
 
     // this needs to be parsed later
@@ -180,14 +189,32 @@ pub struct IORoute {
     pub route: Option<String>,
 }
 
+fn option_string_preserve_null<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    match opt {
+        Some(ref s) if s == "null" => Ok(Some("null".to_string())),
+        other => Ok(other),
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOActivity {
+    #[serde(rename = "@type")]
     pub r#type: String,
+    #[serde(rename = "@link")]
     pub link: String,
+    #[serde(rename = "@x")]
     pub x: f64,
+    #[serde(rename = "@y")]
     pub y: f64,
+    #[serde(rename = "@start_time")]
     pub start_time: Option<String>,
+    #[serde(rename = "@end_time")]
     pub end_time: Option<String>,
+    #[serde(rename = "@max_dur")]
     pub max_dur: Option<String>,
 }
 
@@ -199,8 +226,11 @@ impl IOActivity {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOLeg {
+    #[serde(rename = "@mode")]
     pub mode: String,
+    #[serde(rename = "@dep_time")]
     pub dep_time: Option<String>,
+    #[serde(rename = "@trav_time")]
     pub trav_time: Option<String>,
     pub route: Option<IORoute>,
     pub attributes: Option<Attrs>,
@@ -240,14 +270,28 @@ impl IOPlanElement {
 
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOPlan {
+    #[serde(rename = "@selected", deserialize_with = "bool_from_yes_no")]
     pub selected: bool,
     // https://users.rust-lang.org/t/serde-deserializing-a-vector-of-enums/51647/2
     #[serde(rename = "$value")]
     pub elements: Vec<IOPlanElement>,
 }
 
+fn bool_from_yes_no<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    match s.to_lowercase().as_str() {
+        "yes" => Ok(true),
+        "no" => Ok(false),
+        _ => Err(serde::de::Error::custom(format!("invalid value: {}", s))),
+    }
+}
+
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct IOPerson {
+    #[serde(rename = "@id")]
     pub id: String,
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,
@@ -285,7 +329,7 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::Network;
-    use crate::simulation::population::io::{load_from_xml, IOPlanElement, IOPopulation};
+    use crate::simulation::population::io::{load_from_xml, IOLeg, IOPlanElement, IOPopulation};
     use crate::simulation::population::population_data::Population;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::wire_types::population::Person;
@@ -393,6 +437,51 @@ mod tests {
                 panic!("Plan element at inded 6 was expected to be an activity but was a Leg.")
             }
         }
+    }
+
+    #[test]
+    fn test_read_leg() {
+        let xml = "<leg mode=\"walk\" dep_time=\"00:00:00\">
+                                <attributes>
+                                        <attribute name=\"routingMode\" class=\"java.lang.String\">car</attribute>
+                                </attributes>
+                                <route type=\"generic\" start_link=\"4410448#0\" end_link=\"4410448#0\" trav_time=\"00:00:46\" distance=\"57.23726831365165\"></route>
+                        </leg>";
+
+        let leg = from_str::<IOLeg>(xml).unwrap();
+        assert_eq!(leg.mode, "walk");
+        assert_eq!(leg.dep_time, Some(String::from("00:00:00")));
+        assert_eq!(leg.trav_time, None);
+        let route = leg.route.as_ref().unwrap();
+        assert_eq!(route.r#type, "generic");
+        assert_eq!(route.start_link, "4410448#0");
+        assert_eq!(route.end_link, "4410448#0");
+        assert_eq!(route.trav_time, Some(String::from("00:00:46")));
+        assert_eq!(route.distance, 57.23726831365165);
+        assert_eq!(route.vehicle, None);
+        assert_eq!(route.route, None);
+    }
+
+    #[test]
+    fn test_read_leg_with_pt() {
+        let xml = "<leg mode=\"pt\" trav_time=\"00:10:01\">
+				<attributes>
+					<attribute name=\"routingMode\" class=\"java.lang.String\">pt</attribute>
+				</attributes>
+				<route type=\"default_pt\" start_link=\"33\" end_link=\"11\" trav_time=\"00:10:01\" distance=\"NaN\">{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}</route>
+			</leg>";
+        let leg = from_str::<IOLeg>(xml).unwrap();
+        assert_eq!(leg.mode, "pt");
+        assert_eq!(leg.dep_time, None);
+        assert_eq!(leg.trav_time, Some(String::from("00:10:01")));
+        let route = leg.route.as_ref().unwrap();
+        assert_eq!(route.r#type, "default_pt");
+        assert_eq!(route.start_link, "33");
+        assert_eq!(route.end_link, "11");
+        assert_eq!(route.trav_time, Some(String::from("00:10:01")));
+        assert!(route.distance.is_nan());
+        assert_eq!(route.vehicle, None);
+        assert_eq!(route.route, Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")));
     }
 
     #[test]

@@ -34,12 +34,36 @@ message Leg {
   uint64 routing_mode = 2;
   optional uint32 dep_time = 3;
   uint32 trav_time = 4;
-  Route route = 5;
   map<string, general.AttributeValue> attributes = 6;
+  oneof route {
+    GenericRoute generic_route = 7;
+    NetworkRoute network_route = 8;
+    PtRoute pt_route = 9;
+  };
 }
 
-message Route {
-  uint64 veh_id = 1;
-  double distance = 2;
-  repeated uint64 route = 3;
+message GenericRoute {
+  uint64 start_link = 1;
+  uint64 end_link = 2;
+  optional uint64 trav_time = 3;
+  optional double distance = 4;
+  optional uint64 veh_id = 5;
+}
+
+message NetworkRoute {
+  GenericRoute delegate = 1;
+  repeated uint64 route = 2;
+}
+
+message PtRoute {
+  GenericRoute delegate = 1;
+  PtRouteDescription information = 2;
+}
+
+message PtRouteDescription {
+  string transitRouteId = 1;
+  optional uint32 boardingTime = 2;
+  string transitLineId = 3;
+  string accessFacilityId = 4;
+  string egressFacilityId = 5;
 }
