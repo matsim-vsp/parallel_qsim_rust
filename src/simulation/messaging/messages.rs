@@ -423,7 +423,7 @@ impl SimulationAgentLogic {
                 l.person.as_ref().unwrap().end_time(now)
             }
             crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
-                l,
+                _,
             ) => unimplemented!(),
         }
     }

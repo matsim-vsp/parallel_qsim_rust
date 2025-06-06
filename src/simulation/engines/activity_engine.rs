@@ -1,5 +1,4 @@
 use crate::simulation::config::Config;
-use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::time_queue::{EndTime, TimeQueue};
 use crate::simulation::wire_types::events::Event;
@@ -41,10 +40,13 @@ impl ActivityEngine {
 
         let mut res = Vec::with_capacity(wake_up.len() + end.len());
         for agent in wake_up.into_iter().chain(end.into_iter()) {
-            let act_type: Id<String> = Id::get(agent.curr_act().act_type);
             self.events.borrow_mut().publish_event(
                 now,
-                &Event::new_act_end(agent.id(), agent.curr_act().link_id, act_type.internal()),
+                &Event::new_act_end(
+                    agent.id(),
+                    agent.curr_act().link_id,
+                    agent.curr_act().act_type,
+                ),
             );
             res.push(agent);
         }
@@ -54,10 +56,9 @@ impl ActivityEngine {
     fn receive_agent(&mut self, now: u32, agent: AsleepSimulationAgent) {
         // emmit act start event
         let act = agent.agent.curr_act();
-        let act_type: Id<String> = Id::get(act.act_type);
         self.events.borrow_mut().publish_event(
             now,
-            &Event::new_act_start(agent.agent.id(), act.link_id, act_type.internal()),
+            &Event::new_act_start(agent.agent.id(), act.link_id, act.act_type),
         );
         self.asleep_q.add(agent, now);
     }
@@ -138,7 +139,6 @@ struct AsleepSimulationAgent {
 impl AsleepSimulationAgent {
     fn build(agent: SimulationAgent, now: u32) -> Self {
         let wakeup_time = agent.wakeup_time(now);
-
         AsleepSimulationAgent { agent, wakeup_time }
     }
 }
@@ -146,5 +146,96 @@ impl AsleepSimulationAgent {
 impl EndTime for AsleepSimulationAgent {
     fn end_time(&self, _now: u32) -> u32 {
         self.wakeup_time
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::simulation::config::Config;
+    use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
+    use crate::simulation::messaging::events::EventsPublisher;
+    use crate::simulation::wire_types::messages::SimulationAgent;
+    use crate::simulation::wire_types::population::leg::Route;
+    use crate::simulation::wire_types::population::{Activity, GenericRoute, Leg, Person, Plan};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    #[test]
+    fn test_activity_engine_build() {
+        let mut engine = ActivityEngineBuilder::new(
+            vec![],
+            Rc::new(RefCell::new(EventsPublisher::new())),
+            &Config::default(),
+        )
+        .build();
+
+        assert_eq!(engine.awake_q.len(), 0);
+        assert_eq!(engine.asleep_q.len(), 0);
+        engine.end(0);
+    }
+
+    #[test]
+    fn test_activity_engine_wake_up_plan() {
+        let plan = create_plan_with_plan_logic();
+
+        let agent = SimulationAgent::new_plan_logic(Person::new(1, plan));
+        let agents = vec![agent];
+
+        let mut engine = create_engine(agents);
+
+        {
+            let agents = engine.wake_up(0);
+            assert!(agents.is_empty());
+        }
+        {
+            let agents = engine.wake_up(10);
+            assert_eq!(agents.len(), 1);
+        }
+    }
+
+    #[test]
+    fn test_activity_engine_end() {
+        let plan = create_plan_with_plan_logic();
+
+        let agent = SimulationAgent::new_plan_logic(Person::new(1, plan));
+        let agents = vec![agent];
+
+        let mut engine = create_engine(agents);
+
+        {
+            let agents = engine.do_step(0, vec![]);
+            assert!(agents.is_empty());
+        }
+        {
+            let agents = engine.do_step(10, vec![]);
+            assert_eq!(agents.len(), 1);
+        }
+    }
+
+    #[test]
+    fn test_activity_engine_wake_up_rolling_horizon() {
+        unimplemented!()
+    }
+
+    fn create_engine(agents: Vec<SimulationAgent>) -> ActivityEngine {
+        ActivityEngineBuilder::new(
+            agents,
+            Rc::new(RefCell::new(EventsPublisher::new())),
+            &Config::default(),
+        )
+        .build()
+    }
+
+    fn create_plan_with_plan_logic() -> Plan {
+        let mut plan = Plan::new();
+        plan.add_act(Activity::new(0.0, 0.0, 0, 1, Some(0), Some(10), None));
+        plan.add_leg(Leg::new(
+            Route::GenericRoute(GenericRoute::default()),
+            0,
+            1,
+            Some(2),
+        ));
+        plan.add_act(Activity::new(0.0, 0.0, 0, 1, Some(25), Some(10), None));
+        plan
     }
 }

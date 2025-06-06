@@ -28,6 +28,7 @@ pub mod wire_types {
     use crate::simulation::io::attributes::Attr;
     use crate::simulation::wire_types::general::attribute_value::Type;
     use crate::simulation::wire_types::general::AttributeValue;
+    use tracing::info;
 
     impl AttributeValue {
         fn new_int(value: i64) -> Self {
@@ -88,7 +89,13 @@ pub mod wire_types {
                 "java.lang.Double" => AttributeValue::new_double(attr.value.parse().unwrap()),
                 "java.lang.Integer" => AttributeValue::new_int(attr.value.parse().unwrap()),
                 "java.lang.Boolean" => AttributeValue::new_bool(attr.value.parse().unwrap()),
-                _ => panic!("Unsupported attribute class: {}", attr.class),
+                _ => {
+                    info!(
+                        "Unsupported attribute class: {}. Falling back to string",
+                        attr.class
+                    );
+                    AttributeValue::new_string(attr.value)
+                }
             }
         }
     }

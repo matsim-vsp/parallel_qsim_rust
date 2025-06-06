@@ -84,6 +84,10 @@ where
 
         result
     }
+
+    pub fn len(&self) -> usize {
+        self.q.len()
+    }
 }
 
 #[derive(Default)]
