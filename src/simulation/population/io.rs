@@ -48,7 +48,7 @@ pub fn to_file(population: &Population, path: &Path) {
 fn load_from_xml(path: &Path, garage: &mut Garage) -> HashMap<Id<Person>, Person> {
     let io_pop = IOPopulation::from_file(path.to_str().unwrap());
     create_ids(&io_pop, garage);
-    create_population(&io_pop)
+    create_population(io_pop)
 }
 
 fn write_to_xml(_population: &Population, _path: &Path) {
@@ -156,9 +156,9 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
         });
 }
 
-fn create_population(io_pop: &IOPopulation) -> HashMap<Id<Person>, Person> {
+fn create_population(io_pop: IOPopulation) -> HashMap<Id<Person>, Person> {
     let mut result = HashMap::new();
-    for io_person in &io_pop.persons {
+    for io_person in io_pop.persons {
         let person = Person::from_io(io_person);
         result.insert(Id::get(person.id()), person);
     }
@@ -295,12 +295,8 @@ pub struct IOPerson {
     pub id: String,
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,
-}
-
-impl IOPerson {
-    pub fn selected_plan(&self) -> &IOPlan {
-        self.plans.iter().find(|p| p.selected).unwrap()
-    }
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<Attrs>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]

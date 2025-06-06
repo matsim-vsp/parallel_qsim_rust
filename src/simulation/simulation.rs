@@ -4,14 +4,13 @@ use std::fmt::Formatter;
 use std::rc::Rc;
 
 use crate::simulation::config::Config;
-use crate::simulation::engines::activity_engine::ActivityEngine;
+use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::population::agent_source::{AgentSource, DefaultAgentSource};
+use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::Scenario;
-use crate::simulation::time_queue::MutTimeQueue;
 use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use tracing::info;
 
@@ -27,41 +26,6 @@ impl<C> Simulation<C>
 where
     C: SimCommunicator,
 {
-    pub fn new(
-        config: Config,
-        mut scenario: Scenario,
-        net_message_broker: NetMessageBroker<C>,
-        events: Rc<RefCell<EventsPublisher>>,
-    ) -> Self {
-        let mut activity_q = MutTimeQueue::new();
-
-        // this needs to be adapted if new agent sources are introduced
-        let agent_source = DefaultAgentSource {};
-        let agents = agent_source.create_agents(&mut scenario, &config);
-
-        for agent in agents.into_values() {
-            activity_q.add(agent, config.simulation().start_time);
-        }
-
-        let activity_engine = ActivityEngine::new(activity_q, events.clone());
-
-        let leg_engine = LegEngine::new(
-            scenario.network_partition,
-            scenario.garage,
-            net_message_broker,
-            events.clone(),
-            &config.simulation(),
-        );
-
-        Simulation {
-            activity_engine,
-            leg_engine,
-            events,
-            start_time: config.simulation().start_time,
-            end_time: config.simulation().end_time,
-        }
-    }
-
     #[tracing::instrument(level = "info", skip(self), fields(rank = self.leg_engine.net_message_broker().rank()))]
     pub fn run(&mut self) {
         // use fixed start and end times
@@ -124,5 +88,57 @@ impl<C: SimCommunicator + 'static> Debug for Simulation<C> {
             "Simulation with Rank #{}",
             self.leg_engine.net_message_broker().rank()
         )
+    }
+}
+
+pub struct SimulationBuilder<C: SimCommunicator> {
+    config: Config,
+    scenario: Scenario,
+    net_message_broker: NetMessageBroker<C>,
+    events: Rc<RefCell<EventsPublisher>>,
+}
+
+impl<C: SimCommunicator> SimulationBuilder<C> {
+    pub fn new(
+        config: Config,
+        scenario: Scenario,
+        net_message_broker: NetMessageBroker<C>,
+        events: Rc<RefCell<EventsPublisher>>,
+    ) -> Self {
+        SimulationBuilder {
+            config,
+            scenario,
+            net_message_broker,
+            events,
+        }
+    }
+
+    pub fn build(mut self) -> Simulation<C> {
+        // this needs to be adapted if new agent sources are introduced
+        let agent_source = PopulationAgentSource {};
+        let agents = agent_source.create_agents(&mut self.scenario, &self.config);
+
+        let activity_engine = ActivityEngineBuilder::new(
+            agents.into_values().collect(),
+            self.events.clone(),
+            &self.config,
+        )
+        .build();
+
+        let leg_engine = LegEngine::new(
+            self.scenario.network_partition,
+            self.scenario.garage,
+            self.net_message_broker,
+            self.events.clone(),
+            &self.config.simulation(),
+        );
+
+        Simulation {
+            activity_engine,
+            leg_engine,
+            events: self.events,
+            start_time: self.config.simulation().start_time,
+            end_time: self.config.simulation().end_time,
+        }
     }
 }

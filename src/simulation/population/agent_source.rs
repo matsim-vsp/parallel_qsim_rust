@@ -15,24 +15,49 @@ pub trait AgentSource {
     ) -> HashMap<Id<SimulationAgent>, SimulationAgent>;
 }
 
-pub struct DefaultAgentSource {}
+pub struct PopulationAgentSource {}
 
-impl AgentSource for DefaultAgentSource {
+impl AgentSource for PopulationAgentSource {
     fn create_agents(
         &self,
         scenario: &mut Scenario,
         _config: &Config,
     ) -> HashMap<Id<SimulationAgent>, SimulationAgent> {
-        // take Persons and copy them into queues. This way we can keep population around to translate
+        // take Persons and copy them into queues. This way we can keep the population around to translate
         // ids for events processing...
         let persons = std::mem::take(&mut scenario.population.persons);
         let mut agents = HashMap::with_capacity(persons.len());
 
         for (id, person) in persons {
             let new_id = Id::<SimulationAgent>::create(id.external());
-            agents.insert(new_id, SimulationAgent::new_plan_logic(person));
+            Self::identify_logic_and_insert(&mut agents, new_id, person);
         }
         agents
+    }
+}
+
+impl PopulationAgentSource {
+    fn identify_logic_and_insert(
+        agents: &mut HashMap<Id<SimulationAgent>, SimulationAgent>,
+        id: Id<SimulationAgent>,
+        person: Person,
+    ) {
+        // go through all attributes of person's legs and check whether there is some marked as rolling horizon logic
+        let has_at_least_one_rolling_horizon_planning = person
+            .plan
+            .as_ref()
+            .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
+            .legs
+            .iter()
+            .any(|l| l.attributes.contains_key("rollingHorizonLogic"));
+
+        if has_at_least_one_rolling_horizon_planning {
+            agents.insert(id, SimulationAgent::new_rolling_horizon_logic(person));
+        } else {
+            // if there is no rolling horizon logic, we assume that the person has a plan logic
+            // and we create a SimulationAgent with plan logic
+            agents.insert(id, SimulationAgent::new_plan_logic(person));
+        }
     }
 }
 
@@ -139,7 +164,7 @@ mod tests {
     use crate::simulation::config::{CommandLineArgs, Config};
     use crate::simulation::id::Id;
     use crate::simulation::population::agent_source::{
-        AgentSource, DefaultAgentSource, DrtAgentSource,
+        AgentSource, DrtAgentSource, PopulationAgentSource,
     };
     use crate::simulation::scenario::Scenario;
     use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
@@ -147,7 +172,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn test() {
+    fn test_drt_agent_source() {
         let config_path = "./assets/drt/config.yml";
         let config = Config::from_file(&CommandLineArgs {
             config_path: String::from(config_path),
@@ -161,7 +186,7 @@ mod tests {
         let drt_source = DrtAgentSource {};
         let drt_agents = drt_source.create_agents(&mut scenario, &config);
 
-        let agent_source = DefaultAgentSource {};
+        let agent_source = PopulationAgentSource {};
         let default_agents = agent_source.create_agents(&mut scenario, &config);
 
         assert_eq!(scenario.network.nodes.len(), 62);

@@ -243,6 +243,11 @@ impl SimulationAgent {
         SimulationAgent { agent_logic }
     }
 
+    pub fn new_rolling_horizon_logic(person: Person) -> Self {
+        let agent_logic = Some(SimulationAgentLogic::new_rolling_logic(person));
+        SimulationAgent { agent_logic }
+    }
+
     pub fn id(&self) -> u64 {
         self.agent_logic.as_ref().expect("No AgentLogic").id()
     }
@@ -253,6 +258,10 @@ impl SimulationAgent {
 
     pub fn curr_leg(&self) -> &Leg {
         self.agent_logic.as_ref().expect("No AgentLogic").curr_leg()
+    }
+
+    pub fn next_leg(&self) -> Option<&Leg> {
+        self.agent_logic.as_ref().expect("No AgentLogic").next_leg()
     }
 
     pub fn advance_plan(&mut self) {
@@ -266,8 +275,9 @@ impl SimulationAgent {
         self.agent_logic.as_ref().unwrap().state()
     }
 
-    // we want this in principle, but therefore the curr_route_elem has to be moved from vehicle to agent logic
-    // fn choose_next_link_id(&mut self) -> u64;
+    pub fn wakeup_time(&self, now: u32) -> u32 {
+        self.agent_logic.as_ref().unwrap().wakeup_time(now)
+    }
 }
 
 impl EndTime for SimulationAgent {
@@ -295,17 +305,35 @@ impl SimulationAgentLogic {
         }
     }
 
-    pub fn new_rolling_logic(_person: Person) -> Self {
-        // SimulationAgentLogic {
-        //     r#type: Some(
-        //         crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingLogic(
-        //             RollingLogic {
-        //                 person: Some(person),
-        //             },
-        //         ),
-        //     ),
-        // }
-        unimplemented!("Rolling logic not implemented yet")
+    pub fn new_rolling_logic(person: Person) -> Self {
+        Self::check_rolling_horizon_plan_consistency(&person);
+
+        SimulationAgentLogic {
+            r#type: Some(
+                crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                    RollingHorizonLogic {
+                        person: Some(person),
+                    },
+                ),
+            ),
+        }
+    }
+
+    fn check_rolling_horizon_plan_consistency(person: &Person) {
+        for i in 0..person.legs().len() {
+            let curr_leg = person.legs().get(i).unwrap();
+            let before_act = person.acts().get(i).unwrap();
+            let after_act = person.acts().get(i + 1).unwrap();
+
+            if !curr_leg.attributes.contains_key("rollingHorizon") {
+                continue;
+            }
+
+            if before_act.is_interaction() || after_act.is_interaction() {
+                let id = Id::<Person>::get(person.id);
+                panic!("Rolling horizon logic of a leg cannot be used with interaction activities. Check the plan of person {}.", id.external());
+            }
+        }
     }
 
     pub fn id(&self) -> u64 {
@@ -338,6 +366,17 @@ impl SimulationAgentLogic {
             crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
                 l,
             ) => l.curr_leg(),
+        }
+    }
+
+    pub fn next_leg(&self) -> Option<&Leg> {
+        match self.r#type.as_ref().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                l.next_leg()
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                l,
+            ) => l.next_leg(),
         }
     }
 
@@ -377,6 +416,17 @@ impl SimulationAgentLogic {
             ) => unimplemented!(),
         }
     }
+
+    pub fn wakeup_time(&self, now: u32) -> u32 {
+        match self.r#type.as_ref().unwrap() {
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(l) => {
+                l.person.as_ref().unwrap().end_time(now)
+            }
+            crate::simulation::wire_types::messages::simulation_agent_logic::Type::RollingHorizonLogic(
+                l,
+            ) => unimplemented!(),
+        }
+    }
 }
 
 impl PlanLogic {
@@ -390,6 +440,10 @@ impl PlanLogic {
 
     pub fn curr_leg(&self) -> &Leg {
         self.person.as_ref().unwrap().curr_leg()
+    }
+
+    pub fn next_leg(&self) -> Option<&Leg> {
+        self.person.as_ref().unwrap().next_leg()
     }
 
     pub fn advance_plan(&mut self) {
@@ -428,11 +482,43 @@ impl RollingHorizonLogic {
         unimplemented!()
     }
 
+    pub fn next_leg(&self) -> Option<&Leg> {
+        unimplemented!()
+    }
+
     pub fn advance_plan(&mut self) {
         unimplemented!()
     }
 
     pub fn state(&self) -> SimulationAgentState {
+        unimplemented!()
+    }
+
+    pub fn wakeup_time(&self, now: u32) -> u32 {
+        if let Some(x) = self
+            .person
+            .as_ref()
+            .unwrap()
+            .attributes
+            .get("rollingHorizon")
+        {
+            x.as_int() as u32
+        } else {
+            self.person.as_ref().unwrap().end_time(now) as u32
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_rolling_horizon_plan_consistency_ok() {
+        unimplemented!()
+    }
+
+    #[test]
+    fn test_rolling_horizon_plan_consistency_fail() {
         unimplemented!()
     }
 }

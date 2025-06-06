@@ -12,6 +12,7 @@ message Person {
   uint64 id = 1;
   uint32 curr_plan_elem = 2;
   Plan plan = 3;
+  map<string, general.AttributeValue> attributes = 4;
 }
 
 message Plan {

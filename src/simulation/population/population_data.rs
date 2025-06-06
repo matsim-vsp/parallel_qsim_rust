@@ -6,6 +6,7 @@ use crate::simulation::population::io::{
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::wire_types::general::AttributeValue;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::{
@@ -18,10 +19,18 @@ use std::str::FromStr;
 use tracing::debug;
 
 impl Person {
-    pub fn from_io(io_person: &IOPerson) -> Person {
+    pub fn from_io(io_person: IOPerson) -> Person {
+        let mut attributes = HashMap::new();
+        if let Some(attrs) = io_person.attributes {
+            for attr in attrs.attributes {
+                attributes.insert(attr.name.clone(), AttributeValue::from_io_attr(attr));
+            }
+        }
+
         let person_id = Id::get_from_ext(&io_person.id);
 
-        let plan = Plan::from_io(io_person.selected_plan(), &person_id);
+        let selected_plan = io_person.plans.iter().find(|p| p.selected).unwrap();
+        let plan = Plan::from_io(selected_plan, &person_id);
 
         if plan.acts.is_empty() {
             debug!("There is an empty plan for person {:?}", io_person.id);
@@ -31,6 +40,7 @@ impl Person {
             id: person_id.internal(),
             plan: Some(plan),
             curr_plan_elem: 0,
+            attributes,
         }
     }
 
@@ -39,6 +49,7 @@ impl Person {
             id,
             curr_plan_elem: 0,
             plan: Some(plan),
+            attributes: HashMap::new(),
         }
     }
 
@@ -68,6 +79,28 @@ impl Person {
             .unwrap()
     }
 
+    pub fn next_leg(&self) -> Option<&Leg> {
+        // position index: 0      | 1
+        // activities:     a0 (0) | a1 (2)
+        // legs:           l0 (1) | l1 (3)
+        // e.g., if current is a1, next leg is l1 => curr_plan_elem/2
+        // e.g., if current is l0, next leg is l1 => (curr_plan_elem + 1)/2
+
+        let next_leg_index = if self.curr_plan_elem % 2 == 0 {
+            // current element is an activity
+            self.curr_plan_elem / 2
+        } else {
+            // current element is a leg
+            (self.curr_plan_elem + 1) / 2
+        };
+
+        self.plan
+            .as_ref()
+            .unwrap()
+            .legs
+            .get(next_leg_index as usize)
+    }
+
     fn get_act_at_index(&self, index: u32) -> &Activity {
         self.plan
             .as_ref()
@@ -88,6 +121,14 @@ impl Person {
             )
         }
         self.curr_plan_elem = next;
+    }
+
+    pub fn legs(&self) -> &[Leg] {
+        self.plan.as_ref().unwrap().legs.as_slice()
+    }
+
+    pub fn acts(&self) -> &[Activity] {
+        self.plan.as_ref().unwrap().acts.as_slice()
     }
 }
 
