@@ -17,10 +17,10 @@ use rust_q_sim::simulation::controller::{
 };
 use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
-use rust_q_sim::simulation::messaging::communication::local_communicator::ChannelSimCommunicator;
-use rust_q_sim::simulation::messaging::communication::message_broker::NetMessageBroker;
-use rust_q_sim::simulation::messaging::communication::SimCommunicator;
 use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
+use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
+use rust_q_sim::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use rust_q_sim::simulation::messaging::sim_communication::SimCommunicator;
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
 use rust_q_sim::simulation::population::population_data::Population;

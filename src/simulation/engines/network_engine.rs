@@ -1,6 +1,6 @@
-use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::wire_types::messages::Vehicle;
 use std::cell::RefCell;
@@ -29,14 +29,14 @@ impl NetworkEngine {
         self.network.send_veh_en_route(vehicle, events, now)
     }
 
-    pub(crate) fn move_nodes(&mut self, now: u32) -> Vec<Vehicle> {
+    pub(super) fn move_nodes(&mut self, now: u32) -> Vec<Vehicle> {
         let exited_vehicles = self
             .network
             .move_nodes(self.events.borrow_mut().deref_mut(), now);
         exited_vehicles
     }
 
-    pub(crate) fn move_links<C: SimCommunicator>(
+    pub(super) fn move_links<C: SimCommunicator>(
         &mut self,
         now: u32,
         net_message_broker: &mut NetMessageBroker<C>,

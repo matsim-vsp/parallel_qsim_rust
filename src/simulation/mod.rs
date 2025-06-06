@@ -1,4 +1,3 @@
-mod computational_environment;
 pub mod config;
 pub mod controller;
 pub mod engines;

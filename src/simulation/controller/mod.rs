@@ -11,9 +11,9 @@ use std::time::Duration;
 
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};

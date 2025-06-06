@@ -1,4 +1,4 @@
-use crate::simulation::messaging::communication::SimCommunicator;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::wire_types::messages::{SimMessage, SyncMessage};
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{channel, Receiver, Sender};

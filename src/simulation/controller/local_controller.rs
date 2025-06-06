@@ -1,5 +1,5 @@
 use crate::simulation::config::{CommandLineArgs, Config};
-use crate::simulation::messaging::communication::local_communicator::ChannelSimCommunicator;
+use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::{controller, logging};
 use clap::Parser;
 use nohash_hasher::IntMap;

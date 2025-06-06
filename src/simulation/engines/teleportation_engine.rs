@@ -1,7 +1,7 @@
 use crate::simulation::id::Id;
-use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::wire_types::events::Event;

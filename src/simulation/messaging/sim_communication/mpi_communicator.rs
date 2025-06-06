@@ -1,4 +1,4 @@
-use crate::simulation::messaging::communication::SimCommunicator;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::wire_types::messages::{SimMessage, SyncMessage};
 use mpi::collective::CommunicatorCollectives;
 use mpi::point_to_point::{Destination, Source};
@@ -47,7 +47,7 @@ impl SimCommunicator for MpiSimCommunicator {
         // buffer. In the case of the above example, both processes are calling MPI_Recv and provide
         // a buffer to write the message into, which was issued in MPI_Isend.
         //
-        // The rsmpi library wraps non-blocking mpi-communication into a scope, so that the compiler
+        // The rsmpi library wraps non-blocking mpi-sim_communication into a scope, so that the compiler
         // can ensure that a buffer is not moved while the request is in progress.
         mpi::request::multiple_scope(buf_msg.len(), |scope, reqs| {
             // ------- Send Part ---------
