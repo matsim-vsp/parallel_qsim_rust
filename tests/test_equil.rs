@@ -1,12 +1,33 @@
+use std::path::PathBuf;
+
 mod test_simulation;
 use test_simulation::execute_sim_with_channels;
 use rust_q_sim::simulation::config::CommandLineArgs;
+use rust_q_sim::simulation::id::store_to_file;
+use rust_q_sim::simulation::network::global_network::Network;
+use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::vehicles::garage::Garage;
+
+fn create_resources(out_dir: &PathBuf) {
+    let input_dir = PathBuf::from("./assets/equil/");
+    let net = Network::from_file_as_is(&input_dir.join("equil-network.xml"));
+    let mut garage = Garage::from_file(&input_dir.join("equil-vehicles.xml"));
+    let pop = Population::from_file(&input_dir.join("equil-1-plan.xml"), &mut garage);
+
+    store_to_file(&out_dir.join("ids.binpb"));
+    net.to_file(&out_dir.join("equil-network.binpb"));
+    pop.to_file(&out_dir.join("equil-1-plan.binpb"));
+    garage.to_file(&out_dir.join("equil-vehicles.binpb"));
+}
 
 #[test]
 fn test_equil_scenario() {
+    let test_dir = PathBuf::from("./test_output/simulation/equil/");
+    create_resources(&test_dir);
+
     let args = CommandLineArgs {
-        config_path: "assets/equil/equil-config.yml".to_string(),
-        num_parts:   Some(1),
+        config_path: "./tests/resources/equil/equil-config.yml".to_string(),
+        num_parts: None,
     };
-    execute_sim_with_channels(args, "tests/resources/equil/expected_events.xml");
+    execute_sim_with_channels(args, "./tests/resources/equil/expected_events.xml");
 }

@@ -22,3 +22,4 @@ modules:
     end_time: 86400
     sample_size: 1.0
     stuck_threshold: 1000
+    main_modes: ["car"]
