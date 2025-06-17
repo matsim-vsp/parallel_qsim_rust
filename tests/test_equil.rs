@@ -27,7 +27,7 @@ fn execute_equil_single_part() {
     create_resources(&test_dir);
 
     let config_args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config.yml".to_string(),
+        config_path: "./tests/resources/equil/equil-config-1.yml".to_string(),
         num_parts: None,
     };
 
@@ -41,17 +41,17 @@ fn execute_equil_single_part() {
 }
 
 #[test]
-fn execute_equil_with_channels() {
+fn execute_equil_2_parts() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
     create_resources(&test_dir);
 
-    let args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config.yml".to_string(),
+    let config_args = CommandLineArgs {
+        config_path: "./tests/resources/equil/equil-config-2.yml".to_string(),
         num_parts: None,
     };
 
     execute_sim_with_channels(
-        args,
+        config_args,
         "./tests/resources/equil/expected_events.xml",
     );
 }
