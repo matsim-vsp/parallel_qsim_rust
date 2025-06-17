@@ -7,7 +7,7 @@ use tracing::info;
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
-use crate::simulation::wire_types::vehicles::{LevelOfDetail, VehicleType};
+use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub struct NetworkConverter {}
 
@@ -18,11 +18,6 @@ impl NetworkConverter {
     ) -> IntMap<Id<VehicleType>, ForwardBackwardGraph> {
         vehicle_types
             .iter()
-            .filter(|(_, vt)| {
-                LevelOfDetail::try_from(vt.lod)
-                    .unwrap()
-                    .eq(&LevelOfDetail::Network)
-            })
             .map(|(id, vt)| (id.clone(), Self::convert_network(network, Some(vt))))
             .collect()
     }
@@ -256,9 +251,13 @@ mod test {
         let vehicle_type2graph =
             NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
 
-        // "walk" is marked as teleported, so we expect no graph for it
+        // No link allows mode "walk". So the graph is expected to be empty.
         let walk_id = &Id::<VehicleType>::get_from_ext("walk");
-        assert!(vehicle_type2graph.get(walk_id).is_none());
+        assert!(vehicle_type2graph
+            .get(walk_id)
+            .unwrap()
+            .forward_link_ids()
+            .is_empty());
 
         // Test for mode "car"
         let car_id = &Id::<VehicleType>::get_from_ext("car");

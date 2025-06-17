@@ -100,6 +100,14 @@ impl XmlEventsWriter {
                         e.distance,
                         Id::<String>::get(e.mode).external())
             }
+            Type::TravelledWithPt(e) => {
+                format!("<event time=\"{time}\" type=\"travelled with pt\" person=\"{}\" distance=\"{}\" mode=\"{}\" line=\"{}\" route=\"{}\"/>\n",
+                        Id::<Person>::get(e.person).external(),
+                        e.distance,
+                        Id::<String>::get(e.mode).external(),
+                        Id::<String>::get(e.line).external(),
+                        Id::<String>::get(e.route).external())
+            }
             Type::PassengerPickedUp(e) => {
                 format!("<event time=\"{time}\" type=\"passenger picked up\" person=\"{}\" mode=\"{}\" request=\"{}\" vehicle=\"{}\"/>\n",
                         Id::<Person>::get(e.person).external(),
@@ -177,8 +185,8 @@ impl XmlEventsReader {
             let result = self.parser.next();
             match result {
                 Ok(XmlEvent::StartElement {
-                    name, attributes, ..
-                }) => {
+                       name, attributes, ..
+                   }) => {
                     if name.local_name.eq("event") {
                         let time: u32 = attributes.first().unwrap().value.parse().unwrap();
                         let event = handle(attributes);

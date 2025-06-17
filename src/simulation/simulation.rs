@@ -50,6 +50,7 @@ where
             scenario.garage,
             net_message_broker,
             events.clone(),
+            &config.simulation(),
         );
 
         Simulation {

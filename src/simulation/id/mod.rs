@@ -65,6 +65,10 @@ impl<T: StableTypeId + 'static> Id<T> {
     pub fn get_from_ext(external: &str) -> Self {
         ID_STORE.with(|store| store.borrow().get_from_ext(external))
     }
+
+    pub fn try_get_from_ext(external: &str) -> Option<Self> {
+        ID_STORE.with(|store| store.borrow().try_get_from_ext(external))
+    }
 }
 
 pub fn store_to_file(file_path: &Path) {

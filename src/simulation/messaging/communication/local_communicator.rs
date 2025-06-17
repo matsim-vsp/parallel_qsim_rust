@@ -50,7 +50,12 @@ impl SimCommunicator for ChannelSimCommunicator {
             let sender = self.senders.get(target as usize).unwrap();
             sender
                 .send(SimMessage::from_sync_message(msg))
-                .expect("Failed to send vehicle message in message broker");
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Error while sending message to rank {} with error {}",
+                        target, e
+                    )
+                });
         }
 
         // receive messages from everyone

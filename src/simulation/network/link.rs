@@ -381,7 +381,7 @@ mod sim_link_tests {
     use crate::simulation::network::link::{LocalLink, SimLink};
     use crate::simulation::wire_types::messages::Vehicle;
     use crate::test_utils;
-    use crate::test_utils::create_agent;
+    use crate::test_utils::create_agent_without_route;
 
     #[test]
     fn storage_cap_consumed() {
@@ -396,7 +396,7 @@ mod sim_link_tests {
             Id::new_internal(1),
             Id::new_internal(2),
         ));
-        let agent = create_agent(1, vec![]);
+        let agent = create_agent_without_route(1);
         let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
 
         link.push_veh(vehicle, 0);
@@ -418,7 +418,7 @@ mod sim_link_tests {
             Id::new_internal(1),
             Id::new_internal(2),
         ));
-        let agent = create_agent(1, vec![]);
+        let agent = create_agent_without_route(1);
         let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
 
         link.push_veh(vehicle, 0);
@@ -450,9 +450,9 @@ mod sim_link_tests {
             Id::new_internal(2),
         ));
 
-        let agent1 = create_agent(1, vec![]);
+        let agent1 = create_agent_without_route(1);
         let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
-        let agent2 = create_agent(2, vec![]);
+        let agent2 = create_agent_without_route(2);
         let vehicle2 = Vehicle::new(2, 0, 10., 1.5, Some(agent2));
 
         link.push_veh(vehicle1, 0);
@@ -490,7 +490,7 @@ mod sim_link_tests {
             Id::new_internal(2),
         ));
 
-        let agent1 = create_agent(1, vec![]);
+        let agent1 = create_agent_without_route(1);
         let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
 
         link.push_veh(vehicle1, 0);
@@ -520,9 +520,9 @@ mod sim_link_tests {
             Id::new_internal(0),
         ));
 
-        let agent1 = create_agent(1, vec![]);
+        let agent1 = create_agent_without_route(1);
         let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
-        let agent2 = create_agent(1, vec![]);
+        let agent2 = create_agent_without_route(1);
         let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
 
         link.push_veh(vehicle1, 0);
@@ -549,6 +549,7 @@ mod sim_link_tests {
             end_time: 0,
             sample_size: 1.0,
             stuck_threshold,
+            main_modes: vec![],
         };
         let mut link = SimLink::Local(LocalLink::new(
             Id::create("stuck-link"),
@@ -587,6 +588,7 @@ mod sim_link_tests {
             end_time: 0,
             sample_size: 1.0,
             stuck_threshold,
+            main_modes: vec![],
         };
         let mut link = SimLink::Local(LocalLink::new(
             Id::create("stuck-link"),
@@ -628,7 +630,7 @@ mod out_link_tests {
     use crate::simulation::network::link::{SimLink, SplitOutLink};
     use crate::simulation::network::storage_cap::StorageCap;
     use crate::simulation::wire_types::messages::Vehicle;
-    use crate::test_utils::create_agent;
+    use crate::test_utils::create_agent_without_route;
 
     #[test]
     fn push_and_take() {
@@ -640,9 +642,9 @@ mod out_link_tests {
         });
         let id1 = 42;
         let id2 = 43;
-        let agent1 = create_agent(1, vec![]);
+        let agent1 = create_agent_without_route(1);
         let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
-        let agent2 = create_agent(1, vec![]);
+        let agent2 = create_agent_without_route(1);
         let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
 
         link.push_veh(vehicle1, 0);

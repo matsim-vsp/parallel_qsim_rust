@@ -51,7 +51,7 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
         Rc::clone(&rc_comm),
         &scenario.network,
         &scenario.network_partition,
-        config.compuational_setup().global_sync,
+        config.computational_setup().global_sync,
     );
 
     let mut simulation: Simulation<C> =

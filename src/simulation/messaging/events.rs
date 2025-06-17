@@ -7,12 +7,13 @@ use tracing::{info, instrument};
 use crate::simulation::wire_types::events::event::Type::{
     ActEnd, ActStart, Arrival, Departure, DvrpTaskEnded, DvrpTaskStarted, Generic, LinkEnter,
     LinkLeave, PassengerDroppedOff, PassengerPickedUp, PersonEntersVeh, PersonLeavesVeh, Travelled,
+    TravelledWithPt,
 };
 use crate::simulation::wire_types::events::{
     ActivityEndEvent, ActivityStartEvent, ArrivalEvent, DepartureEvent, DvrpTaskEndedEvent,
     DvrpTaskStartedEvent, Event, GenericEvent, LinkEnterEvent, LinkLeaveEvent,
     PassengerDroppedOffEvent, PassengerPickedUpEvent, PersonEntersVehicleEvent,
-    PersonLeavesVehicleEvent, TravelledEvent,
+    PersonLeavesVehicleEvent, TravelledEvent, TravelledWithPtEvent,
 };
 
 pub trait EventsSubscriber {
@@ -201,6 +202,24 @@ impl Event {
                 person,
                 distance,
                 mode,
+            })),
+        }
+    }
+
+    pub fn new_travelled_with_pt(
+        person: u64,
+        distance: f64,
+        mode: u64,
+        line: u64,
+        route: u64,
+    ) -> Event {
+        Event {
+            r#type: Some(TravelledWithPt(TravelledWithPtEvent {
+                person,
+                distance,
+                mode,
+                route,
+                line,
             })),
         }
     }

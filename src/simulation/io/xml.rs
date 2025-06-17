@@ -32,12 +32,8 @@ where
         }
     } else if file_path.ends_with(".xml") {
         let mut deserializer = quick_xml::de::Deserializer::from_reader(buffered_reader);
-        match serde_path_to_error::deserialize(&mut deserializer) {
-            Ok(x) => x,
-            Err(_e) => {
-                panic!("Problem reading file: {_e:?}")
-            }
-        }
+        serde_path_to_error::deserialize(&mut deserializer)
+            .unwrap_or_else(|_e| panic!("Problem reading file: {_e:?}"))
     } else {
         panic!(
             "xml_reader::read: Can't open file path: {}. Only files with endings '.xml' or '.xml.gz' are supported.",
@@ -46,15 +42,24 @@ where
     }
 }
 
+// Adapter from std::fmt::Write to std::io::Write. Needed because of an odd API of quick-xml.
+// See https://github.com/tafia/quick-xml/issues/499 for more details.
+struct ToFmtWrite<T>(pub T);
+
+impl<T> std::fmt::Write for ToFmtWrite<T>
+where
+    T: Write,
+{
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.0.write_all(s.as_bytes()).map_err(|_| std::fmt::Error)
+    }
+}
+
 pub fn write_to_file<T: Serialize>(serde_message: &T, path: &Path, dtd_spec: &str) {
-    // Create the file and all necessary directories
-    // this doesn't cover some edge cases, but this will do for now
-    //let path = Path::new(file_path);
     let prefix = path.parent().unwrap();
     fs::create_dir_all(prefix).unwrap();
     let file = File::create(path).unwrap();
     let mut file_writer = BufWriter::new(file);
-    //let header = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/{dtd_spec}\">");
 
     info!("Starting to write file to: {path:?}");
     if path.extension().unwrap().eq("gz") {
@@ -63,13 +68,13 @@ pub fn write_to_file<T: Serialize>(serde_message: &T, path: &Path, dtd_spec: &st
             .write_all(dtd_spec.as_bytes())
             .expect("Failed to write header");
         // serialize the actual message
-        quick_xml::se::to_writer(compressor, &serde_message)
+        quick_xml::se::to_writer(ToFmtWrite(compressor), &serde_message)
             .expect("Failed to write message to file");
     } else if path.extension().unwrap().eq("xml") {
         file_writer
             .write_all(dtd_spec.as_bytes())
             .expect("Failed to write header");
-        quick_xml::se::to_writer(file_writer, &serde_message)
+        quick_xml::se::to_writer(ToFmtWrite(file_writer), &serde_message)
             .expect("failed to write serde message");
     } else {
         panic!("Tried to write {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
