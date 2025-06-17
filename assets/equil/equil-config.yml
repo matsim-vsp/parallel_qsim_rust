@@ -1,10 +1,10 @@
 modules:
   protofiles:
     type: ProtoFiles
-    network: ./assets/equil/equil-network.binpb
-    population: ./assets/equil/equil-plans.binpb
-    vehicles: ./assets/equil/equil-vehicles.binpb
-    ids: ./assets/equil/ids.binpb
+    ids: "output/equil.ids.binpb"
+    network: "output/equil.network.binpb"
+    population: "output/equil.plans.binpb"
+    vehicles: "output/equil.vehicles.binpb"
   partitioning:
     type: Partitioning
     num_parts: 12
@@ -22,4 +22,4 @@ modules:
     end_time: 86400
     sample_size: 1.0
     stuck_threshold: 1000
-
+    main_modes: ["car"]
