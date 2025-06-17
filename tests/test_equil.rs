@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
 mod test_simulation;
-use test_simulation::execute_sim_with_channels;
+use test_simulation::{execute_sim, execute_sim_with_channels, TestSubscriber};
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
+use rust_q_sim::simulation::messaging::communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::population::population_data::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
@@ -21,13 +22,36 @@ fn create_resources(out_dir: &PathBuf) {
 }
 
 #[test]
-fn test_equil_scenario() {
-    let test_dir = PathBuf::from("./test_output/simulation/equil/");
+fn execute_equil_single_part() {
+    let test_dir = PathBuf::from("./test_output/simulation/equil_single_part/");
+    create_resources(&test_dir);
+
+    let config_args = CommandLineArgs {
+        config_path: "./tests/resources/equil/equil-config.yml".to_string(),
+        num_parts: None,
+    };
+
+    execute_sim(
+        DummySimCommunicator(),
+        Box::new(TestSubscriber::new_with_events_from_file(
+            "./tests/resources/equil/expected_events.xml",
+        )),
+        config_args,
+    );
+}
+
+#[test]
+fn execute_equil_with_channels() {
+    let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
     create_resources(&test_dir);
 
     let args = CommandLineArgs {
         config_path: "./tests/resources/equil/equil-config.yml".to_string(),
         num_parts: None,
     };
-    execute_sim_with_channels(args, "./tests/resources/equil/expected_events.xml");
+
+    execute_sim_with_channels(
+        args,
+        "./tests/resources/equil/expected_events.xml",
+    );
 }
