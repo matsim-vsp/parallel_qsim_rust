@@ -22,5 +22,8 @@ fn main() {
     }
 
     // Compiling the protobuf files
-    prost_build::compile_protos(&proto_files, &["src/"]).unwrap();
+    tonic_build::configure()
+        .build_client(true)
+        .compile_protos(&proto_files, &["src/"])
+        .unwrap();
 }

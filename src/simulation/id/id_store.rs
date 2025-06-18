@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use ahash::{AHashMap, RandomState};
 use bytes::{Buf, BufMut};
+use lz4::BlockMode;
 use nohash_hasher::IntMap;
 use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
@@ -91,16 +92,19 @@ fn serialize_ids_uncompressed(ids: &Vec<Rc<UntypedId>>) -> Data {
 }
 
 fn serialize_ids_compressed(ids: &Vec<Rc<UntypedId>>) -> Data {
-    let writer = BufWriter::new(Vec::new());
-    let mut compressor = lz4_flex::frame::FrameEncoder::new(writer);
+    let mut writer = Vec::new();
+    {
+        let mut encoder = lz4::EncoderBuilder::new()
+            .block_mode(BlockMode::Independent)
+            .build(&mut writer)
+            .expect("Failed to create LZ4 encoder");
 
-    encode_ids(ids, &mut compressor);
+        encode_ids(ids, &mut encoder);
 
-    let bytes = compressor
-        .into_inner()
-        .into_inner()
-        .expect("Failed to transform writer into_inner as Vec<u8>");
-    Data::Lz4Data(bytes)
+        let (_output, result) = encoder.finish();
+        result.expect("Failed to finish LZ4 encoding");
+    }
+    Data::Lz4Data(writer)
 }
 
 fn encode_ids<W: Write>(ids: &Vec<Rc<UntypedId>>, writer: &mut W) {

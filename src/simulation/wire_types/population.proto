@@ -62,9 +62,9 @@ message PtRoute {
 }
 
 message PtRouteDescription {
-  string transitRouteId = 1;
-  optional uint32 boardingTime = 2;
-  string transitLineId = 3;
-  string accessFacilityId = 4;
-  string egressFacilityId = 5;
+  string transit_route_id = 1;
+  optional uint32 boarding_time = 2;
+  string transit_line_id = 3;
+  string access_facility_id = 4;
+  string egress_facility_id = 5;
 }

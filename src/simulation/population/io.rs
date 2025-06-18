@@ -5,7 +5,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 
 use prost::Message;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use tracing::info;
 
 use crate::simulation::id::Id;
@@ -165,7 +165,7 @@ fn create_population(io_pop: IOPopulation) -> HashMap<Id<Person>, Person> {
     result
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IORoute {
     #[serde(rename = "@type")]
     pub r#type: String,
@@ -200,7 +200,7 @@ where
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOActivity {
     #[serde(rename = "@type")]
     pub r#type: String,
@@ -224,7 +224,7 @@ impl IOActivity {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOLeg {
     #[serde(rename = "@mode")]
     pub mode: String,
@@ -236,7 +236,7 @@ pub struct IOLeg {
     pub attributes: Option<Attrs>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum IOPlanElement {
     // the current matsim implementation has more logic with facility-id, link-id and coord.
@@ -268,9 +268,13 @@ impl IOPlanElement {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOPlan {
-    #[serde(rename = "@selected", deserialize_with = "bool_from_yes_no")]
+    #[serde(
+        rename = "@selected",
+        deserialize_with = "bool_from_yes_no",
+        serialize_with = "bool_to_yes_no"
+    )]
     pub selected: bool,
     // https://users.rust-lang.org/t/serde-deserializing-a-vector-of-enums/51647/2
     #[serde(rename = "$value")]
@@ -285,11 +289,21 @@ where
     match s.to_lowercase().as_str() {
         "yes" => Ok(true),
         "no" => Ok(false),
+        "true" => Ok(true),
+        "false" => Ok(false),
         _ => Err(serde::de::Error::custom(format!("invalid value: {}", s))),
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+fn bool_to_yes_no<S>(value: &bool, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let s = if *value { "yes" } else { "no" };
+    serializer.serialize_str(s)
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOPerson {
     #[serde(rename = "@id")]
     pub id: String,
@@ -299,7 +313,8 @@ pub struct IOPerson {
     pub attributes: Option<Attrs>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename = "population")]
 pub struct IOPopulation {
     #[serde(rename = "person", default)]
     pub persons: Vec<IOPerson>,
