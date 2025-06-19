@@ -185,8 +185,8 @@ impl XmlEventsReader {
             let result = self.parser.next();
             match result {
                 Ok(XmlEvent::StartElement {
-                       name, attributes, ..
-                   }) => {
+                    name, attributes, ..
+                }) => {
                     if name.local_name.eq("event") {
                         let time: u32 = attributes.first().unwrap().value.parse().unwrap();
                         let event = handle(attributes);

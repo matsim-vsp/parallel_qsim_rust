@@ -771,6 +771,7 @@ mod tests {
             permlanes: 1.0,
             modes: Default::default(),
             partition: 0,
+            attributes: Default::default(),
         });
         net.add_link(Link {
             id: Id::new_internal(1),
@@ -782,6 +783,7 @@ mod tests {
             permlanes: 1.0,
             modes: Default::default(),
             partition: 0,
+            attributes: Default::default(),
         });
         net.add_link(Link {
             id: Id::new_internal(2),
@@ -793,6 +795,7 @@ mod tests {
             permlanes: 1.0,
             modes: Default::default(),
             partition: 0,
+            attributes: Default::default(),
         });
         let mut sim_net = SimNetworkPartition::from_network(&net, 0, test_utils::config());
 

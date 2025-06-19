@@ -539,6 +539,7 @@ mod tests {
             permlanes: 0.0,
             modes: Default::default(),
             partition,
+            attributes: Default::default(),
         }
     }
 }

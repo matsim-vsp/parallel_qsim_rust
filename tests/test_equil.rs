@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
 mod test_simulation;
-use test_simulation::{execute_sim, execute_sim_with_channels, TestSubscriber};
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::communication::local_communicator::DummySimCommunicator;
+use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::population::population_data::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
+use test_simulation::{execute_sim, execute_sim_with_channels, TestSubscriber};
 
 fn create_resources(out_dir: &PathBuf) {
     let input_dir = PathBuf::from("./assets/equil/");
@@ -50,8 +50,5 @@ fn execute_equil_2_parts() {
         num_parts: None,
     };
 
-    execute_sim_with_channels(
-        config_args,
-        "./tests/resources/equil/expected_events.xml",
-    );
+    execute_sim_with_channels(config_args, "./tests/resources/equil/expected_events.xml");
 }

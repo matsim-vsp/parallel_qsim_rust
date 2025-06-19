@@ -57,7 +57,10 @@ fn main() {
 
     net1.to_file(&out_path);
 
-    info!("Finished partitioning Network. Written file to {:?}", out_path);
+    info!(
+        "Finished partitioning Network. Written file to {:?}",
+        out_path
+    );
 }
 
 #[derive(Parser, Debug)]

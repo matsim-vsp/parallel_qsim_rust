@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::path::Path;
-use std::str::FromStr;
 
 use nohash_hasher::IntSet;
 use serde::{Deserialize, Serialize};
@@ -33,20 +32,8 @@ pub fn to_file(network: &Network, path: &Path) {
 }
 
 fn load_from_xml(path: &Path) -> Network {
-    let mut result = Network::new();
     let io_net = IONetwork::from_file(path.to_str().unwrap());
-
-    for io_node in &io_net.nodes.nodes {
-        add_io_node(&mut result, io_node);
-    }
-
-    for io_link in &io_net.links.links {
-        add_io_link(&mut result, io_link);
-    }
-
-    result.effective_cell_size = io_net.effective_cell_size();
-
-    result
+    Network::from(io_net)
 }
 
 fn write_to_xml(network: &Network, path: &Path) {
@@ -237,11 +224,11 @@ struct Links {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename = "network")]
-struct IONetwork {
+pub struct IONetwork {
     #[serde(rename = "@name")]
     pub name: Option<String>,
-    pub nodes: Nodes,
-    pub links: Links,
+    nodes: Nodes,
+    links: Links,
 }
 
 impl IONetwork {
@@ -295,45 +282,6 @@ impl IONetwork {
     }
 }
 
-fn add_io_node(network: &mut Network, io_node: &IONode) {
-    let id = Id::create(&io_node.id);
-    let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
-    let cmp_weight_attr = Attrs::find_or_else_opt(&io_node.attributes, "cmp_weight", || "1");
-    let partition = u32::from_str(part_attr).unwrap();
-    let cmp_weight = u32::from_str(cmp_weight_attr).unwrap();
-
-    let mut node = Node::new(id, io_node.x, io_node.y, partition, cmp_weight);
-    node.partition = partition;
-    network.add_node(node);
-}
-
-fn add_io_link(network: &mut Network, io_link: &IOLink) {
-    let id = Id::create(&io_link.id);
-    let part_attr = Attrs::find_or_else_opt(&io_link.attributes, "partition", || "0");
-    let partition = u32::from_str(part_attr).unwrap();
-    let modes: IntSet<Id<String>> = io_link
-        .modes
-        .split(',')
-        .map(|s| s.trim())
-        .map(Id::create)
-        .collect();
-    let from_id = Id::get_from_ext(&io_link.from);
-    let to_id = Id::get_from_ext(&io_link.to);
-
-    let link = Link::new(
-        id,
-        from_id,
-        to_id,
-        io_link.length,
-        io_link.capacity,
-        io_link.freespeed,
-        io_link.permlanes,
-        modes,
-        partition,
-    );
-    network.add_link(link);
-}
-
 #[cfg(test)]
 mod tests {
     use std::error::Error;
@@ -342,9 +290,7 @@ mod tests {
 
     use quick_xml::de::from_str;
 
-    use crate::simulation::id::Id;
-    use crate::simulation::network::global_network::Network;
-    use crate::simulation::network::io::{add_io_link, add_io_node, IOLink, IONetwork, IONode};
+    use crate::simulation::network::io::IONetwork;
 
     static OUTPUT_FOLDER: &str = "./test_output/io/network/";
 
@@ -496,83 +442,5 @@ mod tests {
         assert_eq!(4288, network.links().len());
 
         assert_eq!(None, network.nodes.nodes.first().unwrap().attributes);
-    }
-
-    #[test]
-    fn test_add_io_node() {
-        let external_id = String::from("some-id");
-        let x = 1.;
-        let y = 2.;
-        let io_node = IONode {
-            id: external_id.clone(),
-            x,
-            y,
-            attributes: None,
-        };
-        let mut network = Network::new();
-
-        add_io_node(&mut network, &io_node);
-
-        // the node should be in nodes vec and there should be a node id
-        let id = Id::get_from_ext(&external_id);
-        assert_eq!(0, id.internal());
-        assert_eq!(external_id, id.external());
-
-        let node = network.get_node(&id);
-        assert_eq!(x, node.x);
-        assert_eq!(y, node.y);
-        assert_eq!(id, node.id);
-    }
-
-    #[test]
-    fn test_add_io_link() {
-        let ext_from_id = String::from("from");
-        let ext_to_id = String::from("to");
-        let ext_link_id = String::from("link");
-
-        let io_from = IONode {
-            id: ext_from_id.clone(),
-            x: 0.,
-            y: 0.,
-            attributes: None,
-        };
-        let io_to = IONode {
-            id: ext_to_id.clone(),
-            x: 100.,
-            y: 100.,
-            attributes: None,
-        };
-        let io_link = IOLink {
-            id: ext_link_id.clone(),
-            from: ext_from_id.clone(),
-            to: ext_to_id.clone(),
-            length: 100.,
-            capacity: 100.,
-            freespeed: 10.,
-            permlanes: 2.,
-            modes: String::from("car,ride, bike"),
-            attributes: None,
-        };
-
-        let mut network = Network::new();
-        add_io_node(&mut network, &io_from);
-        add_io_node(&mut network, &io_to);
-        add_io_link(&mut network, &io_link);
-
-        let from = network.get_node(&Id::get_from_ext(&ext_from_id));
-        let to = network.get_node(&Id::get_from_ext(&ext_to_id));
-        let link = network.get_link(&Id::get_from_ext(&ext_link_id));
-
-        assert_eq!(from.id, link.from);
-        assert_eq!(to.id, link.to);
-        assert_eq!(ext_link_id, link.id.external());
-        assert_eq!(io_link.length, link.length);
-        assert_eq!(io_link.capacity, link.capacity);
-        assert_eq!(io_link.freespeed, link.freespeed);
-        assert_eq!(io_link.permlanes, link.permlanes);
-
-        assert!(link.modes.contains(&Id::get_from_ext("car")));
-        assert!(link.modes.contains(&Id::get_from_ext("ride")));
-        assert!(link.modes.contains(&Id::get_from_ext("bike")));
     }
 }
