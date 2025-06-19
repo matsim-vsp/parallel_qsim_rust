@@ -3,12 +3,12 @@ use std::path::PathBuf;
 
 use crate::simulation::config;
 use crate::simulation::id::Id;
+use crate::simulation::vehicles::InternalVehicleType;
 use crate::simulation::wire_types::messages::{PlanLogic, SimulationAgent, SimulationAgentLogic};
 use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::{
     Activity, GenericRoute, Leg, NetworkRoute, Person, Plan,
 };
-use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub fn create_agent_without_route(id: u64) -> SimulationAgent {
     //inserting a dummy route
@@ -55,15 +55,19 @@ pub fn create_folders(path: PathBuf) -> PathBuf {
     path
 }
 
-pub fn create_vehicle_type(id: &Id<VehicleType>, net_mode: Id<String>) -> VehicleType {
-    VehicleType {
-        id: id.internal(),
+pub fn create_vehicle_type(
+    id: &Id<InternalVehicleType>,
+    net_mode: Id<String>,
+) -> InternalVehicleType {
+    InternalVehicleType {
+        id: id.clone(),
         length: 0.0,
         width: 0.0,
         max_v: 0.0,
         pce: 0.0,
         fef: 0.0,
-        net_mode: net_mode.internal(),
+        net_mode,
+        attributes: None,
     }
 }
 

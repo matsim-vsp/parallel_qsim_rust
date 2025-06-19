@@ -8,6 +8,7 @@ use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::xml;
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::vehicles::InternalVehicleType;
 use crate::simulation::wire_types::messages::Vehicle;
 use crate::simulation::wire_types::vehicles::{VehicleType, VehiclesContainer};
 
@@ -55,7 +56,7 @@ fn write_to_xml(garage: &Garage, path: &Path) {
         .vehicle_types
         .values()
         .map(|t| IOVehicleType {
-            id: Id::<VehicleType>::get(t.id).external().to_owned(),
+            id: t.id.external().to_owned(),
             description: None,
             capacity: None,
             length: Some(IODimension { meter: t.length }),
@@ -67,7 +68,7 @@ fn write_to_xml(garage: &Garage, path: &Path) {
             cost_information: None,
             passenger_car_equivalents: Some(IOPassengerCarEquivalents { pce: t.pce }),
             network_mode: Some(IONetworkMode {
-                network_mode: Id::<String>::get(t.net_mode).external().to_owned(),
+                network_mode: t.net_mode.external().to_owned(),
             }),
             flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: t.fef }),
             attributes: None,
@@ -83,43 +84,45 @@ fn write_to_xml(garage: &Garage, path: &Path) {
 }
 
 fn write_to_proto(garage: &Garage, path: &Path) {
-    info!("Converting Garage into wire type");
-    let vehicle_types = garage.vehicle_types.values().cloned().collect();
-    let vehicles = garage.vehicles.values().cloned().collect();
-
-    let wire_format = VehiclesContainer {
-        vehicle_types,
-        vehicles,
-    };
-    info!("Finished converting Garage into wire type");
-    simulation::io::proto::write_to_file(wire_format, path);
+    // info!("Converting Garage into wire type");
+    // let vehicle_types = garage.vehicle_types.values().cloned().collect();
+    // let vehicles = garage.vehicles.values().cloned().collect();
+    //
+    // let wire_format = VehiclesContainer {
+    //     vehicle_types,
+    //     vehicles,
+    // };
+    // info!("Finished converting Garage into wire type");
+    // simulation::io::proto::write_to_file(wire_format, path);
+    unimplemented!()
 }
 
 fn load_from_proto(path: &Path) -> Garage {
-    let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
-    let vehicles = wire_garage
-        .vehicles
-        .into_iter()
-        .map(|v| (Id::<Vehicle>::get(v.id), v))
-        .collect();
-    let vehicle_types = wire_garage
-        .vehicle_types
-        .into_iter()
-        .map(|v_type| (Id::get(v_type.id), v_type))
-        .collect();
-    Garage {
-        vehicles,
-        vehicle_types,
-    }
+    // let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
+    // let vehicles = wire_garage
+    //     .vehicles
+    //     .into_iter()
+    //     .map(|v| (Id::<Vehicle>::get(v.id), v))
+    //     .collect();
+    // let vehicle_types = wire_garage
+    //     .vehicle_types
+    //     .into_iter()
+    //     .map(|v_type| (Id::get(v_type.id), v_type))
+    //     .collect();
+    // Garage {
+    //     vehicles,
+    //     vehicle_types,
+    // }
+    unimplemented!()
 }
 
 fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
-    let id: Id<VehicleType> = Id::create(&io_veh_type.id);
+    let id: Id<InternalVehicleType> = Id::create(&io_veh_type.id);
     let net_mode: Id<String> =
         Id::create(&io_veh_type.network_mode.unwrap_or_default().network_mode);
 
-    let veh_type = VehicleType {
-        id: id.internal(),
+    let veh_type = InternalVehicleType {
+        id,
         length: io_veh_type.length.unwrap_or_default().meter,
         width: io_veh_type.width.unwrap_or_default().meter,
         max_v: io_veh_type
@@ -134,7 +137,8 @@ fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
             .flow_efficiency_factor
             .unwrap_or_default()
             .factor,
-        net_mode: net_mode.internal(),
+        net_mode,
+        attributes: io_veh_type.attributes.map(Into::into),
     };
     garage.add_veh_type(veh_type);
 }
@@ -145,8 +149,13 @@ fn add_io_veh(garage: &mut Garage, io_veh: IOVehicle) {
     let vehicle = Vehicle::from_io(io_veh, veh_type);
 
     //add id for drt mode
-    if let Some(o) = vehicle.attributes.get("dvrpMode") {
-        Id::<String>::create(o.as_string().as_str());
+    if let Some(o) = vehicle
+        .attributes
+        .as_ref()
+        .unwrap()
+        .get::<String>("dvrpMode")
+    {
+        Id::<String>::create(o.as_str());
     }
 
     garage.add_veh(vehicle);
@@ -205,7 +214,7 @@ impl Default for IODimension {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct IOVelocity {
     #[serde(rename = "@meterPerSecond")]
@@ -220,7 +229,7 @@ impl Default for IOVelocity {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
 pub struct IOPassengerCarEquivalents {
     #[serde(rename = "@pce")]
     pub(crate) pce: f32,
@@ -288,6 +297,7 @@ mod test {
         add_io_veh_type, from_file, to_file, IODimension, IOFowEfficiencyFactor, IONetworkMode,
         IOPassengerCarEquivalents, IOVehicleDefinitions, IOVehicleType, IOVelocity,
     };
+    use crate::simulation::vehicles::InternalVehicleType;
     use crate::simulation::wire_types::vehicles::VehicleType;
 
     #[test]
@@ -382,14 +392,15 @@ mod test {
         );
         let mut garage = Garage::new();
 
-        garage.add_veh_type(VehicleType {
-            id: Id::<VehicleType>::create("some-type").internal(),
+        garage.add_veh_type(InternalVehicleType {
+            id: Id::create("some-type"),
             length: 10.,
             width: 20.0,
             max_v: 1000.0,
             pce: 20.0,
             fef: 0.3,
-            net_mode: Id::<String>::create("some network type 🚕").internal(),
+            net_mode: Id::<String>::create("some network type 🚕"),
+            attributes: None,
         });
         garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
@@ -405,14 +416,15 @@ mod test {
         );
         let mut garage = Garage::new();
 
-        garage.add_veh_type(VehicleType {
-            id: Id::<VehicleType>::create("some-type").internal(),
+        garage.add_veh_type(InternalVehicleType {
+            id: Id::create("some-type"),
             length: 10.,
             width: 20.0,
             max_v: 1000.0,
             pce: 20.0,
             fef: 0.3,
-            net_mode: Id::<String>::create("some network type 🚕").internal(),
+            net_mode: Id::<String>::create("some network type 🚕"),
+            attributes: None,
         });
         garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
@@ -487,7 +499,7 @@ mod test {
         assert_eq!(veh_type.length, 10.);
         assert_eq!(veh_type.pce, 21.);
         assert_eq!(veh_type.fef, 2.);
-        assert_eq!(veh_type.id, expected_id.internal());
-        assert_eq!(veh_type.net_mode, expected_mode.internal())
+        assert_eq!(veh_type.id.internal(), expected_id.internal());
+        assert_eq!(veh_type.net_mode.internal(), expected_mode.internal())
     }
 }

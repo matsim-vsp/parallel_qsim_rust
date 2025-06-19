@@ -10,6 +10,7 @@ use lz4::BlockMode;
 use nohash_hasher::IntMap;
 use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
+use serde::Serialize;
 use tracing::info;
 
 use crate::simulation::id::serializable_type::StableTypeId;
@@ -168,7 +169,7 @@ fn decode_ids<B: Buf>(buffer: &mut B) -> Vec<String> {
     result
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct UntypedId {
     pub(crate) internal: u64,
     pub(crate) external: String,

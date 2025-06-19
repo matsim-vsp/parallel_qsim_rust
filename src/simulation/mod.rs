@@ -1,4 +1,5 @@
 use crate::simulation::io::attributes::Attrs;
+use crate::simulation::population::InternalPerson;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -24,8 +25,17 @@ pub mod time_queue;
 pub mod vehicles;
 pub mod wire_types;
 
+pub struct InternalSimulationAgent {
+    logic: InternalSimulationAgentLogic,
+}
+
+pub struct InternalSimulationAgentLogic {
+    basic_agent_delegate: InternalPerson,
+}
+
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
 pub struct InternalAttributes {
+    // we are using serde_json::Value to allow for flexible attribute types and serializability
     attributes: HashMap<String, serde_json::Value>,
 }
 

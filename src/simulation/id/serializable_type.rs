@@ -1,5 +1,6 @@
 use crate::simulation::network::global_network::{Link, Node};
 use crate::simulation::population::InternalPerson;
+use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
 use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
@@ -39,6 +40,18 @@ impl StableTypeId for VehicleType {
 }
 
 impl StableTypeId for Vehicle {
+    fn stable_type_id() -> u64 {
+        VEHICLE_TYPE_ID
+    }
+}
+
+impl StableTypeId for InternalVehicleType {
+    fn stable_type_id() -> u64 {
+        VEHICLE_TYPE_ID
+    }
+}
+
+impl StableTypeId for InternalVehicle {
     fn stable_type_id() -> u64 {
         VEHICLE_TYPE_ID
     }

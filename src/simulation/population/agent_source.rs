@@ -2,6 +2,7 @@ use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::Link;
 use crate::simulation::scenario::Scenario;
+use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use crate::simulation::wire_types::population::{Activity, Person, Plan};
 use std::collections::HashMap;
@@ -99,8 +100,8 @@ impl DrtAgentSource {
             .vehicles
             .values()
             .filter(|&v| {
-                if let Some(value) = v.attributes.get("dvrpMode") {
-                    drt_modes.contains(&value.as_string())
+                if let Some(value) = v.attributes.as_ref().unwrap().get::<String>("dvrpMode") {
+                    drt_modes.contains(&value)
                 } else {
                     false
                 }
@@ -108,14 +109,15 @@ impl DrtAgentSource {
             .map(|v| {
                 let link = v
                     .attributes
-                    .get("startLink")
-                    .expect("No start link for drt vehicle provided.")
-                    .as_string();
+                    .as_ref()
+                    .unwrap()
+                    .get::<String>("startLink")
+                    .expect("No start link for drt vehicle provided.");
                 let link_id = Id::<Link>::get_from_ext(link.as_str()).internal();
                 (link_id, v)
             })
             .filter(|(l, _)| scenario.network_partition.get_link_ids().contains(l))
-            .collect::<Vec<(u64, &Vehicle)>>();
+            .collect::<Vec<(u64, &InternalVehicle)>>();
 
         let mut result = HashMap::new();
 
@@ -123,11 +125,12 @@ impl DrtAgentSource {
         for (link, vehicle) in local_drt_vehicles {
             let start = vehicle
                 .attributes
-                .get("serviceBeginTime")
-                .expect("No service begin time for drt vehicle provided.")
-                .as_double() as u32;
+                .as_ref()
+                .unwrap()
+                .get::<u32>("serviceBeginTime")
+                .expect("No service begin time for drt vehicle provided.");
 
-            let veh_id = Id::<Vehicle>::get(vehicle.id);
+            let veh_id = vehicle.id.clone();
             let person_id = Id::<Person>::create(veh_id.external());
             let from = scenario.network_partition.links.get(&link).unwrap().from();
             let x = scenario.network.get_node(from).x;
@@ -167,7 +170,8 @@ mod tests {
         AgentSource, DrtAgentSource, PopulationAgentSource,
     };
     use crate::simulation::scenario::Scenario;
-    use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
+    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::wire_types::messages::SimulationAgent;
     use itertools::Itertools;
     use std::path::PathBuf;
 
@@ -208,7 +212,7 @@ mod tests {
             .garage
             .vehicles
             .keys()
-            .collect::<Vec<&Id<Vehicle>>>();
+            .collect::<Vec<&Id<InternalVehicle>>>();
 
         for n in 0..10u64 {
             assert!(

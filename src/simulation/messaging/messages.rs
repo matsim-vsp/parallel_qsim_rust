@@ -5,7 +5,7 @@ use std::io::Cursor;
 use crate::simulation::id::Id;
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::io::IOVehicle;
-use crate::simulation::wire_types::general::AttributeValue;
+use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
 use crate::simulation::wire_types::messages::sim_message::Type;
 use crate::simulation::wire_types::messages::{
     Empty, PlanLogic, RollingHorizonLogic, SimMessage, SimulationAgent, SimulationAgentLogic,
@@ -13,7 +13,6 @@ use crate::simulation::wire_types::messages::{
 };
 use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::{Activity, Leg, Person};
-use crate::simulation::wire_types::vehicles::VehicleType;
 use prost::Message;
 
 impl SimMessage {
@@ -134,28 +133,19 @@ impl Vehicle {
         }
     }
 
-    pub fn from_io(io_veh: IOVehicle, veh_type: &VehicleType) -> Vehicle {
-        let veh_id = Id::<Vehicle>::create(&io_veh.id);
-        let veh_type_id = Id::<VehicleType>::get_from_ext(&io_veh.vehicle_type);
+    pub fn from_io(io_veh: IOVehicle, veh_type: &InternalVehicleType) -> InternalVehicle {
+        //TODO use from trait?
+        let veh_id = Id::<InternalVehicle>::create(&io_veh.id);
+        let veh_type_id = Id::<InternalVehicleType>::get_from_ext(&io_veh.vehicle_type);
 
-        let mut attributes = HashMap::new();
-        if let Some(attr) = io_veh.attributes {
-            for x in attr.attributes {
-                let key = x.name.clone();
-                let value = AttributeValue::from_io_attr(x);
-                attributes.insert(key, value);
-            }
-        }
-
-        Vehicle {
-            id: veh_id.internal(),
-            curr_route_elem: 0,
-            r#type: veh_type_id.internal(),
+        InternalVehicle {
+            id: veh_id,
             max_v: veh_type.max_v,
             pce: veh_type.pce,
             driver: None,
             passengers: vec![],
-            attributes,
+            vehicle_type: veh_type_id,
+            attributes: io_veh.attributes.map(Into::into),
         }
     }
 

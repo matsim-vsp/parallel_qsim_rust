@@ -1,3 +1,7 @@
+use crate::simulation::id::id_store::IdStore;
+use crate::simulation::id::id_store::UntypedId;
+use crate::simulation::id::serializable_type::StableTypeId;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
@@ -5,10 +9,6 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::rc::Rc;
-
-use crate::simulation::id::id_store::IdStore;
-use crate::simulation::id::id_store::UntypedId;
-use crate::simulation::id::serializable_type::StableTypeId;
 
 // keep this private, as we don't want to leak how we cache ids.
 mod id_store;
@@ -68,6 +68,24 @@ impl<T: StableTypeId + 'static> Id<T> {
 
     pub fn try_get_from_ext(external: &str) -> Option<Self> {
         ID_STORE.with(|store| store.borrow().try_get_from_ext(external))
+    }
+}
+
+impl<T: StableTypeId + 'static> Serialize for Id<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        todo!()
+    }
+}
+
+impl<'de, T: StableTypeId + 'static> Deserialize<'de> for Id<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        todo!()
     }
 }
 

@@ -4,6 +4,7 @@ use nohash_hasher::IntMap;
 
 use crate::simulation::id::Id;
 use crate::simulation::vehicles::io::{from_file, to_file};
+use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
 use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
@@ -11,8 +12,8 @@ use crate::simulation::wire_types::vehicles::VehicleType;
 #[derive(Debug)]
 //TODO rename to Vehicles
 pub struct Garage {
-    pub vehicles: IntMap<Id<Vehicle>, Vehicle>,
-    pub vehicle_types: IntMap<Id<VehicleType>, VehicleType>,
+    pub vehicles: IntMap<Id<InternalVehicle>, InternalVehicle>,
+    pub vehicle_types: IntMap<Id<InternalVehicleType>, InternalVehicleType>,
 }
 
 impl Default for Garage {
@@ -37,44 +38,37 @@ impl Garage {
         to_file(self, file_path);
     }
 
-    pub fn add_veh_type(&mut self, veh_type: VehicleType) {
+    pub fn add_veh_type(&mut self, veh_type: InternalVehicleType) {
         assert!(
-            !self.vehicle_types.contains_key(&Id::get(veh_type.id)),
+            !self.vehicle_types.contains_key(&veh_type.id),
             "Vehicle type with id {:?} already exists.",
-            Id::<VehicleType>::get(veh_type.id)
+            &veh_type.id
         );
 
-        self.vehicle_types.insert(Id::get(veh_type.id), veh_type);
+        self.vehicle_types.insert(veh_type.id.clone(), veh_type);
     }
 
-    pub fn add_veh_by_type(
-        &mut self,
-        person_id: &Id<Person>,
-        type_id: &Id<VehicleType>,
-    ) -> Id<Vehicle> {
+    pub fn add_veh_by_type(&mut self, person_id: &Id<Person>, type_id: &Id<InternalVehicleType>) {
         let veh_id_ext = format!("{}_{}", person_id.external(), type_id.external());
         let veh_id = Id::create(&veh_id_ext);
 
         let veh_type = self.vehicle_types.get(type_id).unwrap();
 
-        let vehicle = Vehicle {
-            id: veh_id.internal(),
-            curr_route_elem: 0,
-            r#type: veh_type.id,
-            max_v: veh_type.max_v,
-            pce: veh_type.pce,
+        let vehicle = InternalVehicle {
+            id: veh_id,
             driver: None,
             passengers: vec![],
+            vehicle_type: veh_type.id.clone(),
             attributes: Default::default(),
+            max_v: veh_type.max_v,
+            pce: veh_type.pce,
         };
 
         self.add_veh(vehicle);
-
-        veh_id
     }
 
-    pub fn add_veh(&mut self, veh: Vehicle) {
-        let id = Id::<Vehicle>::get(veh.id);
+    pub fn add_veh(&mut self, veh: InternalVehicle) {
+        let id = veh.id.clone();
         self.vehicles.insert(id, veh);
     }
 
@@ -99,23 +93,22 @@ impl Garage {
         &mut self,
         agent: SimulationAgent,
         passengers: Vec<SimulationAgent>,
-        id: &Id<Vehicle>,
-    ) -> Vehicle {
-        let veh_type_id = Id::get(self
+        id: &Id<InternalVehicle>,
+    ) -> InternalVehicle {
+        let veh_type_id = &self
             .vehicles
             .get(id)
-            .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len())).r#type);
+            .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len())).vehicle_type;
 
         let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
 
-        Vehicle {
-            id: id.internal(),
-            curr_route_elem: 0,
-            r#type: veh_type.id,
+        InternalVehicle {
+            id: id.clone(),
             max_v: veh_type.max_v,
             pce: veh_type.pce,
             driver: Some(agent),
             passengers,
+            vehicle_type: veh_type_id.clone(),
             attributes: Default::default(),
         }
 
@@ -132,12 +125,19 @@ impl Garage {
         // vehicle
     }
 
-    pub fn unpark_veh(&mut self, agent: SimulationAgent, id: &Id<Vehicle>) -> Vehicle {
+    pub fn unpark_veh(
+        &mut self,
+        agent: SimulationAgent,
+        id: &Id<InternalVehicle>,
+    ) -> InternalVehicle {
         self.unpark_veh_with_passengers(agent, vec![], id)
     }
 
-    pub fn vehicle_type_id(&self, veh: &Id<Vehicle>) -> Id<VehicleType> {
-        self.vehicles.get(veh).map(|v| Id::get(v.r#type)).unwrap()
+    pub fn vehicle_type_id(&self, veh: &Id<InternalVehicle>) -> Id<InternalVehicleType> {
+        self.vehicles
+            .get(veh)
+            .map(|v| v.vehicle_type.clone())
+            .unwrap()
     }
 }
 
@@ -147,7 +147,7 @@ mod tests {
 
     use crate::simulation::id::Id;
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_vehicle_type;
 
     #[test]
@@ -179,14 +179,13 @@ mod tests {
     #[should_panic]
     fn add_vehicle_without_type() {
         let mut garage = Garage::new();
-        garage.add_veh(Vehicle {
-            id: 0,
-            curr_route_elem: 0,
-            r#type: 0,
+        garage.add_veh(InternalVehicle {
+            id: Id::create("0"),
             max_v: 0.0,
             pce: 0.0,
             driver: None,
             passengers: vec![],
+            vehicle_type: Id::create("0"),
             attributes: Default::default(),
         });
     }
@@ -198,17 +197,17 @@ mod tests {
         let type_id = Id::create("vehicle_type");
         let mode = Id::create("car");
         let veh_type = create_vehicle_type(&type_id, mode);
+        let veh_type_id = veh_type.id.clone();
         garage.add_veh_type(veh_type);
 
-        let id = Id::<Vehicle>::create("veh");
-        garage.add_veh(Vehicle {
-            id: id.internal(),
-            curr_route_elem: 0,
-            r#type: type_id.internal(),
+        let id = Id::<InternalVehicle>::create("veh");
+        garage.add_veh(InternalVehicle {
+            id: id,
             max_v: 0.0,
             pce: 0.0,
             driver: None,
             passengers: vec![],
+            vehicle_type: veh_type_id,
             attributes: Default::default(),
         });
 
