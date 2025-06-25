@@ -11,6 +11,7 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::Scenario;
+use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use tracing::info;
 
@@ -73,7 +74,10 @@ where
         agents_leg_to_act
     }
 
-    pub(crate) fn is_local_route(veh: &Vehicle, message_broker: &NetMessageBroker<C>) -> bool {
+    pub(crate) fn is_local_route(
+        veh: &InternalVehicle,
+        message_broker: &NetMessageBroker<C>,
+    ) -> bool {
         let leg = veh.driver.as_ref().unwrap().curr_leg();
         let route = leg.route.as_ref().unwrap();
         let to = message_broker.rank_for_link(route.end_link());

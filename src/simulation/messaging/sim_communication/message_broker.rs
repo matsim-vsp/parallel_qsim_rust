@@ -4,9 +4,8 @@ use std::rc::Rc;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
-use crate::simulation::wire_types::messages::{
-    StorageCap, SyncMessage, TravelTimesMessage, Vehicle,
-};
+use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::wire_types::messages::{StorageCap, SyncMessage, TravelTimesMessage};
 
 pub struct TravelTimesMessageBroker<C>
 where
@@ -40,7 +39,6 @@ pub struct NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
-    //communicator: SystemCommunicator,
     communicator: Rc<C>,
     out_messages: HashMap<u32, SyncMessage>,
     in_messages: BinaryHeap<SyncMessage>,
@@ -86,9 +84,9 @@ where
         *self.link_mapping.get(&(link_id)).unwrap()
     }
 
-    pub fn add_veh(&mut self, vehicle: Vehicle, now: u32) {
+    pub fn add_veh(&mut self, vehicle: InternalVehicle, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap();
-        let partition = *self.link_mapping.get(&link_id).unwrap();
+        let partition = *self.link_mapping.get(&link_id.internal()).unwrap();
         let rank = self.rank();
         let message = self
             .out_messages

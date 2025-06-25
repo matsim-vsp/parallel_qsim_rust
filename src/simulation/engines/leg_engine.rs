@@ -10,7 +10,7 @@ use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::wire_types::events::Event;
-use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
+use crate::simulation::wire_types::messages::SimulationAgent;
 use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::Person;
 use nohash_hasher::IntSet;
@@ -93,7 +93,7 @@ impl<C: SimCommunicator> LegEngine<C> {
     fn publish_end_events(
         &mut self,
         now: u32,
-        vehicles: Vec<Vehicle>,
+        vehicles: Vec<InternalVehicle>,
         publish_leave_vehicle: bool,
     ) -> Vec<SimulationAgent> {
         let mut agents = vec![];
@@ -155,7 +155,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         agents
     }
 
-    fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: Vehicle, route_begin: bool) {
+    fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: InternalVehicle, route_begin: bool) {
         let leg = vehicle.driver().curr_leg();
 
         // If mode of leg is not main mode, teleport vehicle in every case

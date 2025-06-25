@@ -8,7 +8,7 @@ use crate::simulation::network::global_network::Node;
 use crate::simulation::network::sim_network::StorageUpdate;
 use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
-use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::vehicles::InternalVehicle;
 
 use super::global_network::Link;
 
@@ -68,7 +68,7 @@ impl SimLink {
         }
     }
 
-    pub fn offers_veh(&self, now: u32) -> Option<&Vehicle> {
+    pub fn offers_veh(&self, now: u32) -> Option<&InternalVehicle> {
         match self {
             SimLink::Local(ll) => ll.q_front(now),
             SimLink::In(il) => il.local_link.q_front(now),
@@ -106,7 +106,7 @@ impl SimLink {
         }
     }
 
-    pub fn push_veh(&mut self, vehicle: Vehicle, now: u32) {
+    pub fn push_veh(&mut self, vehicle: InternalVehicle, now: u32) {
         match self {
             SimLink::Local(l) => l.push_veh(vehicle, now),
             SimLink::In(il) => il.local_link.push_veh(vehicle, now),
@@ -114,7 +114,7 @@ impl SimLink {
         }
     }
 
-    pub fn pop_veh(&mut self) -> Vehicle {
+    pub fn pop_veh(&mut self) -> InternalVehicle {
         match self {
             SimLink::Local(ll) => ll.pop_front(),
             SimLink::In(il) => il.local_link.pop_front(),
@@ -160,7 +160,7 @@ pub struct LocalLink {
 
 #[derive(Debug, Clone)]
 struct VehicleQEntry {
-    vehicle: Vehicle,
+    vehicle: InternalVehicle,
     earliest_exit_time: u32,
 }
 
@@ -225,7 +225,7 @@ impl LocalLink {
         }
     }
 
-    pub fn push_veh(&mut self, vehicle: Vehicle, now: u32) {
+    pub fn push_veh(&mut self, vehicle: InternalVehicle, now: u32) {
         let speed = self.free_speed.min(vehicle.max_v);
         let duration = 1.max((self.length / speed as f64) as u32); // at least 1 second per link
         let earliest_exit_time = now + duration;
@@ -238,7 +238,7 @@ impl LocalLink {
         });
     }
 
-    pub fn pop_front(&mut self) -> Vehicle {
+    pub fn pop_front(&mut self) -> InternalVehicle {
         let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
         self.flow_cap.consume_capacity(veh.vehicle.pce);
         self.storage_cap.release(veh.vehicle.pce);
@@ -251,7 +251,7 @@ impl LocalLink {
         self.flow_cap.update_capacity(now);
     }
 
-    pub fn q_front(&self, now: u32) -> Option<&Vehicle> {
+    pub fn q_front(&self, now: u32) -> Option<&InternalVehicle> {
         // check if we have flow cap left for current time step, otherwise abort
         if !self.flow_cap.has_capacity() {
             return None;
@@ -297,7 +297,7 @@ impl LocalLink {
 pub struct SplitOutLink {
     pub id: Id<Link>,
     pub to_part: u32,
-    q: VecDeque<Vehicle>,
+    q: VecDeque<InternalVehicle>,
     storage_cap: StorageCap,
 }
 
@@ -329,12 +329,12 @@ impl SplitOutLink {
         self.storage_cap.apply_updates();
     }
 
-    pub fn take_veh(&mut self) -> VecDeque<Vehicle> {
+    pub fn take_veh(&mut self) -> VecDeque<InternalVehicle> {
         self.storage_cap.apply_updates();
         std::mem::take(&mut self.q)
     }
 
-    pub fn push_veh(&mut self, veh: Vehicle) {
+    pub fn push_veh(&mut self, veh: InternalVehicle) {
         self.storage_cap.consume(veh.pce);
         self.q.push_back(veh);
     }
@@ -379,7 +379,7 @@ mod sim_link_tests {
     use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::network::link::{LocalLink, SimLink};
-    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils;
     use crate::test_utils::create_agent_without_route;
 
@@ -397,7 +397,7 @@ mod sim_link_tests {
             Id::new_internal(2),
         ));
         let agent = create_agent_without_route(1);
-        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
+        let vehicle = InternalVehicle::new(1, 0, 10., 1.5, Some(agent));
 
         link.push_veh(vehicle, 0);
 
@@ -419,7 +419,7 @@ mod sim_link_tests {
             Id::new_internal(2),
         ));
         let agent = create_agent_without_route(1);
-        let vehicle = Vehicle::new(1, 0, 10., 1.5, Some(agent));
+        let vehicle = InternalVehicle::new(1, 0, 10., 1.5, Some(agent));
 
         link.push_veh(vehicle, 0);
         let _vehicle = link.pop_veh();
@@ -451,16 +451,16 @@ mod sim_link_tests {
         ));
 
         let agent1 = create_agent_without_route(1);
-        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
+        let vehicle1 = InternalVehicle::new(1, 0, 10., 1.5, Some(agent1));
         let agent2 = create_agent_without_route(2);
-        let vehicle2 = Vehicle::new(2, 0, 10., 1.5, Some(agent2));
+        let vehicle2 = InternalVehicle::new(2, 0, 10., 1.5, Some(agent2));
 
         link.push_veh(vehicle1, 0);
         link.push_veh(vehicle2, 0);
         link.update_flow_cap(10);
         // this should reduce the flow capacity, so that no other vehicle can leave during this time step
         let popped1 = link.pop_veh();
-        assert_eq!(1, popped1.id);
+        assert_eq!(1, popped1.id.internal());
 
         // as the flow cap is 0.1/s the next vehicle can leave the link 15s after the first
         for now in 11..24 {
@@ -470,7 +470,7 @@ mod sim_link_tests {
 
         link.update_flow_cap(25);
         if let Some(popped2) = link.offers_veh(25) {
-            assert_eq!(2, popped2.id);
+            assert_eq!(2, popped2.id.internal());
         } else {
             panic!("Expected vehicle2 to be available at t=30")
         }
@@ -491,7 +491,7 @@ mod sim_link_tests {
         ));
 
         let agent1 = create_agent_without_route(1);
-        let vehicle1 = Vehicle::new(1, 0, 10., 1.5, Some(agent1));
+        let vehicle1 = InternalVehicle::new(1, 0, 10., 1.5, Some(agent1));
 
         link.push_veh(vehicle1, 0);
 
@@ -521,9 +521,9 @@ mod sim_link_tests {
         ));
 
         let agent1 = create_agent_without_route(1);
-        let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
+        let vehicle1 = InternalVehicle::new(id1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent_without_route(1);
-        let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
+        let vehicle2 = InternalVehicle::new(id2, 0, 10., 1., Some(agent2));
 
         link.push_veh(vehicle1, 0);
         assert_approx_eq!(1., link.used_storage());
@@ -535,10 +535,10 @@ mod sim_link_tests {
 
         // make sure that vehicles are added ad the end of the queue
         let popped_vehicle1 = link.pop_veh();
-        assert_eq!(id1, popped_vehicle1.id);
+        assert_eq!(id1, popped_vehicle1.id.internal());
 
         let popped_vehicle2 = link.pop_veh();
-        assert_eq!(id2, popped_vehicle2.id);
+        assert_eq!(id2, popped_vehicle2.id.internal());
     }
 
     #[test]
@@ -563,7 +563,7 @@ mod sim_link_tests {
             Id::create("to-node"),
         ));
 
-        let vehicle = Vehicle::new(1, 0, 10., 1., None);
+        let vehicle = InternalVehicle::new(1, 0, 10., 1., None);
         link.push_veh(vehicle, 0);
 
         // earliest exit is at 10. Therefore this call should not trigger the stuck timer
@@ -602,8 +602,8 @@ mod sim_link_tests {
             Id::create("to-node"),
         ));
 
-        let vehicle1 = Vehicle::new(1, 0, earliest_exit as f32, 1., None);
-        let vehicle2 = Vehicle::new(2, 0, earliest_exit as f32, 1., None);
+        let vehicle1 = InternalVehicle::new(1, 0, earliest_exit as f32, 1., None);
+        let vehicle2 = InternalVehicle::new(2, 0, earliest_exit as f32, 1., None);
         link.push_veh(vehicle1, 0);
         link.push_veh(vehicle2, 0);
 
@@ -629,7 +629,7 @@ mod out_link_tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::link::{SimLink, SplitOutLink};
     use crate::simulation::network::storage_cap::StorageCap;
-    use crate::simulation::wire_types::messages::Vehicle;
+    use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent_without_route;
 
     #[test]
@@ -643,9 +643,9 @@ mod out_link_tests {
         let id1 = 42;
         let id2 = 43;
         let agent1 = create_agent_without_route(1);
-        let vehicle1 = Vehicle::new(id1, 0, 10., 1., Some(agent1));
+        let vehicle1 = InternalVehicle::new(id1, 0, 10., 1., Some(agent1));
         let agent2 = create_agent_without_route(1);
-        let vehicle2 = Vehicle::new(id2, 0, 10., 1., Some(agent2));
+        let vehicle2 = InternalVehicle::new(id2, 0, 10., 1., Some(agent2));
 
         link.push_veh(vehicle1, 0);
         link.push_veh(vehicle2, 0);
@@ -659,9 +659,9 @@ mod out_link_tests {
             // make sure, that vehicles have correct order
             assert_eq!(2, result.len());
             let taken_1 = result.pop_front().unwrap();
-            assert_eq!(id1, taken_1.id);
+            assert_eq!(id1, taken_1.id.internal());
             let taken_2 = result.pop_front().unwrap();
-            assert_eq!(id2, taken_2.id);
+            assert_eq!(id2, taken_2.id.internal());
 
             // make sure storage capacity is not released
             assert_eq!(2., link.used_storage());

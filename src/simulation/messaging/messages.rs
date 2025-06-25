@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 use crate::simulation::id::Id;
+use crate::simulation::network::sim_network::StorageUpdate;
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::io::IOVehicle;
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
@@ -14,6 +15,36 @@ use crate::simulation::wire_types::messages::{
 use crate::simulation::wire_types::population::leg::Route;
 use crate::simulation::wire_types::population::{Activity, Leg, Person};
 use prost::Message;
+
+enum InternalSimMessage {
+    Sync(InternalSyncMessage),
+    Barrier,
+}
+
+struct InternalSyncMessage {
+    time: u32,
+    from_process: u32,
+    to_process: u32,
+    vehicles: Vec<InternalVehicle>,
+    storage_capacities: Vec<StorageUpdate>,
+}
+
+impl InternalSimMessage {
+    pub fn sync_message(self) -> InternalSyncMessage {
+        match self {
+            InternalSimMessage::Sync(m) => m,
+            _ => panic!("That message is no sync message."),
+        }
+    }
+
+    pub fn from_sync_message(m: InternalSyncMessage) -> InternalSimMessage {
+        InternalSimMessage::Sync(m)
+    }
+
+    pub fn barrier() -> InternalSimMessage {
+        InternalSimMessage::Barrier
+    }
+}
 
 impl SimMessage {
     pub fn sync_message(self) -> SyncMessage {
