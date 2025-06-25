@@ -1,10 +1,10 @@
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::Link;
+use crate::simulation::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
-use crate::simulation::wire_types::population::{Activity, Person, Plan};
+use crate::simulation::InternalSimulationAgent;
 use std::collections::HashMap;
 use tracing::info;
 
@@ -13,7 +13,7 @@ pub trait AgentSource {
         &self,
         scenario: &mut Scenario,
         config: &Config,
-    ) -> HashMap<Id<SimulationAgent>, SimulationAgent>;
+    ) -> HashMap<Id<InternalSimulationAgent>, InternalSimulationAgent>;
 }
 
 pub struct PopulationAgentSource {}
@@ -23,14 +23,14 @@ impl AgentSource for PopulationAgentSource {
         &self,
         scenario: &mut Scenario,
         _config: &Config,
-    ) -> HashMap<Id<SimulationAgent>, SimulationAgent> {
+    ) -> HashMap<Id<InternalSimulationAgent>, InternalSimulationAgent> {
         // take Persons and copy them into queues. This way we can keep the population around to translate
         // ids for events processing...
         let persons = std::mem::take(&mut scenario.population.persons);
         let mut agents = HashMap::with_capacity(persons.len());
 
         for (id, person) in persons {
-            let new_id = Id::<SimulationAgent>::create(id.external());
+            let new_id = Id::<InternalSimulationAgent>::create(id.external());
             Self::identify_logic_and_insert(&mut agents, new_id, person);
         }
         agents
@@ -39,25 +39,33 @@ impl AgentSource for PopulationAgentSource {
 
 impl PopulationAgentSource {
     fn identify_logic_and_insert(
-        agents: &mut HashMap<Id<SimulationAgent>, SimulationAgent>,
-        id: Id<SimulationAgent>,
-        person: Person,
+        agents: &mut HashMap<Id<InternalSimulationAgent>, InternalSimulationAgent>,
+        id: Id<InternalSimulationAgent>,
+        person: InternalPerson,
     ) {
         // go through all attributes of person's legs and check whether there is some marked as rolling horizon logic
         let has_at_least_one_rolling_horizon_planning = person
-            .plan
+            .selected_plan()
             .as_ref()
             .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
-            .legs
+            .legs()
             .iter()
-            .any(|l| l.attributes.contains_key("rollingHorizonLogic"));
+            .any(|l| {
+                l.attributes
+                    .as_ref()
+                    .map(|a| a.attributes.contains_key("rollingHorizonLogic"))
+                    .unwrap_or_else(|| false)
+            });
 
         if has_at_least_one_rolling_horizon_planning {
-            agents.insert(id, SimulationAgent::new_rolling_horizon_logic(person));
+            agents.insert(
+                id,
+                InternalSimulationAgent::new_rolling_horizon_logic(person),
+            );
         } else {
             // if there is no rolling horizon logic, we assume that the person has a plan logic
-            // and we create a SimulationAgent with plan logic
-            agents.insert(id, SimulationAgent::new_plan_logic(person));
+            // and we create a InternalSimulationAgent with plan logic
+            agents.insert(id, InternalSimulationAgent::new_plan_logic(person));
         }
     }
 }
@@ -82,7 +90,7 @@ impl DrtAgentSource {
     fn add_drt_driver(
         scenario: &mut Scenario,
         config: &Config,
-    ) -> HashMap<Id<SimulationAgent>, SimulationAgent> {
+    ) -> HashMap<Id<InternalSimulationAgent>, InternalSimulationAgent> {
         info!("Creating DRT drivers");
 
         let drt_modes = config
@@ -131,21 +139,28 @@ impl DrtAgentSource {
                 .expect("No service begin time for drt vehicle provided.");
 
             let veh_id = vehicle.id.clone();
-            let person_id = Id::<Person>::create(veh_id.external());
+            let person_id = Id::<InternalPerson>::create(veh_id.external());
             let from = scenario.network_partition.links.get(&link).unwrap().from();
             let x = scenario.network.get_node(from).x;
             let y = scenario.network.get_node(from).y;
 
-            let mut plan = Plan::new();
+            let mut plan = InternalPlan::default();
             //TODO is Some(start) as end time correct?
-            plan.add_act(Activity::new(x, y, 0, link, Some(0), Some(start), None));
-            let person_id_internal = person_id.internal();
+            // plan.add_act(InternalActivity::new(
+            //     x,
+            //     y,
+            //     "act",
+            //     Id::new_internal(link),
+            //     Some(0),
+            //     Some(start),
+            //     None,
+            // ));
 
-            let person = Person::new(person_id_internal, plan);
+            let person = InternalPerson::new(person_id, plan);
 
-            let agent_id = Id::<SimulationAgent>::create(veh_id.external());
+            let agent_id = Id::<InternalSimulationAgent>::create(veh_id.external());
             //TODO
-            result.insert(agent_id, SimulationAgent::new_plan_logic(person));
+            result.insert(agent_id, InternalSimulationAgent::new_plan_logic(person));
         }
         result
     }
@@ -156,7 +171,7 @@ impl AgentSource for DrtAgentSource {
         &self,
         scenario: &mut Scenario,
         config: &Config,
-    ) -> HashMap<Id<SimulationAgent>, SimulationAgent> {
+    ) -> HashMap<Id<InternalSimulationAgent>, InternalSimulationAgent> {
         Self::add_drt_ids();
         Self::add_drt_driver(scenario, config)
     }
@@ -171,7 +186,7 @@ mod tests {
     };
     use crate::simulation::scenario::Scenario;
     use crate::simulation::vehicles::InternalVehicle;
-    use crate::simulation::wire_types::messages::SimulationAgent;
+    use crate::simulation::InternalSimulationAgent;
     use itertools::Itertools;
     use std::path::PathBuf;
 
@@ -206,7 +221,9 @@ mod tests {
         //there is only one predefined vehicle type (car)
         assert_eq!(scenario.garage.vehicle_types.len(), 1);
 
-        let default_agent_ids = default_agents.keys().collect::<Vec<&Id<SimulationAgent>>>();
+        let default_agent_ids = default_agents
+            .keys()
+            .collect::<Vec<&Id<InternalSimulationAgent>>>();
 
         let vehicle_ids = scenario
             .garage

@@ -1,7 +1,6 @@
 use crate::simulation::id::id_store::IdStore;
 use crate::simulation::id::id_store::UntypedId;
 use crate::simulation::id::serializable_type::StableTypeId;
-use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};

@@ -3,7 +3,6 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::simulation;
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::io::xml;

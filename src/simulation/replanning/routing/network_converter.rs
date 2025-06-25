@@ -8,7 +8,6 @@ use crate::simulation::id::Id;
 use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
 use crate::simulation::vehicles::InternalVehicleType;
-use crate::simulation::wire_types::vehicles::VehicleType;
 
 pub struct NetworkConverter {}
 

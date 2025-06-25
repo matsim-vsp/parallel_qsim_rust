@@ -12,7 +12,7 @@ use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
+use crate::simulation::InternalSimulationAgent;
 use tracing::info;
 
 pub struct Simulation<C: SimCommunicator> {
@@ -62,7 +62,11 @@ where
         self.events.borrow_mut().finish();
     }
 
-    fn do_sim_step(&mut self, now: u32, agents: Vec<SimulationAgent>) -> Vec<SimulationAgent> {
+    fn do_sim_step(
+        &mut self,
+        now: u32,
+        agents: Vec<InternalSimulationAgent>,
+    ) -> Vec<InternalSimulationAgent> {
         let mut agents_act_to_leg = self.activity_engine.do_step(now, agents);
         for agent in &mut agents_act_to_leg {
             agent.advance_plan();

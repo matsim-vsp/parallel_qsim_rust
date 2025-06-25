@@ -5,9 +5,9 @@ use nohash_hasher::IntMap;
 use crate::simulation::id::Id;
 use crate::simulation::vehicles::io::{from_file, to_file};
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
-use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
+use crate::simulation::InternalSimulationAgent;
 
 #[derive(Debug)]
 //TODO rename to Vehicles
@@ -72,12 +72,19 @@ impl Garage {
         self.vehicles.insert(id, veh);
     }
 
-    pub fn veh_id(&self, person_id: &Id<Person>, veh_type_id: &Id<VehicleType>) -> Id<Vehicle> {
+    pub fn veh_id(
+        &self,
+        person_id: &Id<Person>,
+        veh_type_id: &Id<VehicleType>,
+    ) -> Id<InternalVehicle> {
         let external = format!("{}_{}", person_id.external(), veh_type_id.external());
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, mut vehicle: InternalVehicle) -> Vec<SimulationAgent> {
+    pub(crate) fn park_veh(
+        &mut self,
+        mut vehicle: InternalVehicle,
+    ) -> Vec<InternalSimulationAgent> {
         let mut agents = std::mem::take(&mut vehicle.passengers);
         let person = vehicle.driver.take().expect("Vehicle has no driver.");
         agents.push(person);
@@ -91,13 +98,13 @@ impl Garage {
 
     pub fn unpark_veh_with_passengers(
         &mut self,
-        agent: SimulationAgent,
-        passengers: Vec<SimulationAgent>,
-        id: &Id<InternalVehicle>,
+        agent: InternalSimulationAgent,
+        passengers: Vec<InternalSimulationAgent>,
+        id: Id<InternalVehicle>,
     ) -> InternalVehicle {
         let veh_type_id = &self
             .vehicles
-            .get(id)
+            .get(&id)
             .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len())).vehicle_type;
 
         let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
@@ -127,8 +134,8 @@ impl Garage {
 
     pub fn unpark_veh(
         &mut self,
-        agent: SimulationAgent,
-        id: &Id<InternalVehicle>,
+        agent: InternalSimulationAgent,
+        id: Id<InternalVehicle>,
     ) -> InternalVehicle {
         self.unpark_veh_with_passengers(agent, vec![], id)
     }

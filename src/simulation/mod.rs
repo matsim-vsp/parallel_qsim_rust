@@ -1,5 +1,9 @@
+use crate::external_services::routing::population::{Leg, Person};
 use crate::simulation::io::attributes::Attrs;
-use crate::simulation::population::InternalPerson;
+use crate::simulation::messaging::messages::SimulationAgentState;
+use crate::simulation::population::{InternalActivity, InternalLeg, InternalPerson};
+use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::wire_types::messages::SimulationAgentLogic;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -25,12 +29,74 @@ pub mod time_queue;
 pub mod vehicles;
 pub mod wire_types;
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct InternalSimulationAgent {
-    logic: InternalSimulationAgentLogic,
+    pub(crate) logic: InternalSimulationAgentLogic,
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub struct InternalSimulationAgentLogic {
-    basic_agent_delegate: InternalPerson,
+    pub(crate) basic_agent_delegate: InternalPerson,
+}
+
+impl EndTime for InternalSimulationAgent {
+    fn end_time(&self, now: u32) -> u32 {
+        self.logic.end_time(now)
+    }
+}
+
+impl Identifiable for InternalSimulationAgent {
+    fn id(&self) -> u64 {
+        self.logic.id()
+    }
+}
+
+impl InternalSimulationAgent {
+    pub fn new_plan_logic(person: InternalPerson) -> Self {
+        todo!()
+    }
+
+    pub fn new_rolling_horizon_logic(person: InternalPerson) -> Self {
+        todo!()
+    }
+
+    pub fn id(&self) -> u64 {
+        todo!()
+    }
+
+    pub fn curr_act(&self) -> &InternalActivity {
+        todo!()
+    }
+
+    pub fn curr_leg(&self) -> &InternalLeg {
+        todo!()
+    }
+
+    pub fn next_leg(&self) -> Option<&InternalLeg> {
+        todo!()
+    }
+
+    pub fn advance_plan(&mut self) {
+        todo!()
+    }
+
+    pub fn state(&self) -> SimulationAgentState {
+        todo!()
+    }
+
+    pub fn wakeup_time(&self, now: u32) -> u32 {
+        todo!()
+    }
+}
+
+impl InternalSimulationAgentLogic {
+    pub fn end_time(&self, now: u32) -> u32 {
+        todo!()
+    }
+
+    pub fn id(&self) -> u64 {
+        todo!()
+    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]

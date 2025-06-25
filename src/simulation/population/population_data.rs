@@ -4,6 +4,7 @@ use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::population::io::{
     from_file, to_file, IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
+use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::wire_types::general::AttributeValue;
@@ -463,7 +464,7 @@ fn parse_time(value: &str) -> Option<u32> {
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Population {
-    pub persons: HashMap<Id<Person>, Person>,
+    pub persons: HashMap<Id<InternalPerson>, InternalPerson>,
 }
 
 impl Population {
@@ -479,7 +480,7 @@ impl Population {
 
     pub fn from_file_filtered<F>(file_path: &Path, garage: &mut Garage, filter: F) -> Self
     where
-        F: Fn(&Person) -> bool,
+        F: Fn(&InternalPerson) -> bool,
     {
         from_file(file_path, garage, filter)
     }
@@ -491,9 +492,10 @@ impl Population {
         part: u32,
     ) -> Self {
         from_file(file_path, garage, |p| {
-            let act = p.curr_act();
-            let partition = net.links.get(act.link_id as usize).unwrap().partition;
-            partition == part
+            todo!()
+            // let act = p.curr_act();
+            // let partition = net.links.get(&act.link_id).unwrap().partition;
+            // partition == part
         })
     }
 
@@ -513,6 +515,7 @@ mod tests {
     use crate::simulation::population::io::{IOLeg, IORoute};
     use crate::simulation::population::population_data::Population;
     use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::vehicles::InternalVehicle;
     use crate::simulation::wire_types::messages::Vehicle;
     use crate::simulation::wire_types::population::leg::Route;
     use crate::simulation::wire_types::population::{Leg, Person};
@@ -529,36 +532,35 @@ mod tests {
         assert_eq!(1, pop.persons.len());
 
         let agent = pop.persons.get(&Id::get_from_ext("1")).unwrap();
-        assert!(agent.plan.is_some());
+        assert!(agent.selected_plan().is_some());
 
-        let plan = agent.plan.as_ref().unwrap();
-        assert_eq!(4, plan.acts.len());
-        assert_eq!(3, plan.legs.len());
+        let plan = agent.selected_plan().unwrap();
+        assert_eq!(4, plan.acts().len());
+        assert_eq!(3, plan.legs().len());
 
-        let home_act = plan.acts.first().unwrap();
-        let act_type: Id<String> = Id::get(home_act.act_type);
-        assert_eq!("h", act_type.external());
-        assert_eq!(Id::<Link>::get_from_ext("1").internal(), home_act.link_id);
+        let home_act = plan.acts().first().unwrap();
+        assert_eq!("h", home_act.act_type.external());
+        assert_eq!(Id::<Link>::get_from_ext("1"), home_act.link_id);
         assert_eq!(-25000., home_act.x);
         assert_eq!(0., home_act.y);
         assert_eq!(Some(6 * 3600), home_act.end_time);
         assert_eq!(None, home_act.start_time);
         assert_eq!(None, home_act.max_dur);
 
-        let leg = plan.legs.first().unwrap();
+        let leg = plan.legs().first().unwrap();
         assert_eq!(None, leg.dep_time);
         assert!(leg.route.is_some());
         let net_route = leg.route.as_ref().unwrap().as_network().unwrap();
         assert_eq!(
-            Some(Id::<Vehicle>::get_from_ext("1_car").internal()),
-            net_route.delegate.unwrap().veh_id
+            Some(Id::<InternalVehicle>::get_from_ext("1_car")),
+            net_route.generic_delegate.vehicle
         );
         assert_eq!(
             vec![
-                Id::<Link>::get_from_ext("1").internal(),
-                Id::<Link>::get_from_ext("6").internal(),
-                Id::<Link>::get_from_ext("15").internal(),
-                Id::<Link>::get_from_ext("20").internal(),
+                Id::<Link>::get_from_ext("1"),
+                Id::<Link>::get_from_ext("6"),
+                Id::<Link>::get_from_ext("15"),
+                Id::<Link>::get_from_ext("20"),
             ],
             net_route.route
         );

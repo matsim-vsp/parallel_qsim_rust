@@ -1,48 +1,46 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::simulation::config;
 use crate::simulation::id::Id;
-use crate::simulation::vehicles::InternalVehicleType;
-use crate::simulation::wire_types::messages::{PlanLogic, SimulationAgent, SimulationAgentLogic};
-use crate::simulation::wire_types::population::leg::Route;
-use crate::simulation::wire_types::population::{
-    Activity, GenericRoute, Leg, NetworkRoute, Person, Plan,
+use crate::simulation::population::{
+    InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
+    InternalPlan, InternalRoute,
 };
+use crate::simulation::vehicles::InternalVehicleType;
+use crate::simulation::{config, InternalSimulationAgent, InternalSimulationAgentLogic};
 
-pub fn create_agent_without_route(id: u64) -> SimulationAgent {
+pub fn create_agent_without_route(id: u64) -> InternalSimulationAgent {
     //inserting a dummy route
     create_agent(id, vec![0, 1])
 }
 
-pub fn create_agent(id: u64, route: Vec<u64>) -> SimulationAgent {
-    let route = NetworkRoute {
-        delegate: Some(GenericRoute {
-            start_link: *route.first().unwrap(),
-            end_link: *route.last().unwrap(),
+pub fn create_agent(id: u64, route: Vec<u64>) -> InternalSimulationAgent {
+    let route = InternalNetworkRoute {
+        generic_delegate: InternalGenericRoute {
+            start_link: Id::create(&*route.first().unwrap().to_string()),
+            end_link: Id::create(&*route.first().unwrap().to_string()),
             trav_time: None,
             distance: None,
-            veh_id: Some(id),
-        }),
-        route,
+            vehicle: None,
+        },
+        route: route
+            .into_iter()
+            .map(|u| u.to_string())
+            .map(|s| Id::create(s.as_ref()))
+            .collect(),
     };
-    let leg = Leg::new(Route::NetworkRoute(route), 0, 0, None);
-    let act = Activity::new(0., 0., 0, 1, None, None, None);
-    let mut plan = Plan::new();
+
+    let leg = InternalLeg::new(InternalRoute::Network(route), "car", 0, None);
+    let act = InternalActivity::new(0., 0., "act", Id::create("1"), None, None, None);
+    let mut plan = InternalPlan::default();
     plan.add_act(act);
     plan.add_leg(leg);
-    let person = Person::new(id, plan);
+    let person = InternalPerson::new(Id::create(id.to_string().as_str()), plan);
 
-    let mut agent = SimulationAgent {
-        agent_logic: Some(SimulationAgentLogic {
-            r#type: Some(
-                crate::simulation::wire_types::messages::simulation_agent_logic::Type::PlanLogic(
-                    PlanLogic {
-                        person: Some(person),
-                    },
-                ),
-            ),
-        }),
+    let mut agent = InternalSimulationAgent {
+        logic: InternalSimulationAgentLogic {
+            basic_agent_delegate: person,
+        },
     };
     agent.advance_plan();
 

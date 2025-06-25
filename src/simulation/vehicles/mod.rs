@@ -2,8 +2,7 @@ use crate::simulation::id::Id;
 use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::io::{IOVehicle, IOVehicleDefinitions, IOVehicleType};
-use crate::simulation::wire_types::messages::SimulationAgent;
-use crate::simulation::InternalAttributes;
+use crate::simulation::{InternalAttributes, InternalSimulationAgent};
 use itertools::Itertools;
 
 pub mod garage;
@@ -26,8 +25,8 @@ pub struct InternalVehicle {
     pub id: Id<InternalVehicle>,
     pub max_v: f32,
     pub pce: f32,
-    pub driver: Option<SimulationAgent>,
-    pub passengers: Vec<SimulationAgent>,
+    pub driver: Option<InternalSimulationAgent>,
+    pub passengers: Vec<InternalSimulationAgent>,
     pub vehicle_type: Id<InternalVehicleType>,
     pub attributes: Option<InternalAttributes>,
 }
@@ -83,24 +82,24 @@ impl InternalVehicle {
         veh_type: u64,
         max_v: f32,
         pce: f32,
-        driver: Option<SimulationAgent>,
+        driver: Option<InternalSimulationAgent>,
     ) -> Self {
         InternalVehicle {
             id: Id::create(&*id.to_string()),
             max_v: max_v,
             pce,
-            driver: None,
+            driver,
             passengers: Vec::new(),
             vehicle_type: Id::create(&*veh_type.to_string()),
             attributes: Default::default(),
         }
     }
 
-    pub fn driver(&self) -> &SimulationAgent {
+    pub fn driver(&self) -> &InternalSimulationAgent {
         self.driver.as_ref().unwrap()
     }
 
-    pub fn passengers(&self) -> &Vec<SimulationAgent> {
+    pub fn passengers(&self) -> &Vec<InternalSimulationAgent> {
         &self.passengers
     }
 

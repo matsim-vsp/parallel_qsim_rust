@@ -2,7 +2,7 @@ use crate::simulation::config::Config;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::time_queue::{EndTime, TimeQueue};
 use crate::simulation::wire_types::events::Event;
-use crate::simulation::wire_types::messages::SimulationAgent;
+use crate::simulation::InternalSimulationAgent;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -28,8 +28,8 @@ impl ActivityEngine {
     pub(crate) fn do_step(
         &mut self,
         now: u32,
-        agents: Vec<SimulationAgent>,
-    ) -> Vec<SimulationAgent> {
+        agents: Vec<InternalSimulationAgent>,
+    ) -> Vec<InternalSimulationAgent> {
         for agent in agents {
             self.receive_agent(now, AsleepSimulationAgent::build(agent, now));
         }
@@ -44,8 +44,8 @@ impl ActivityEngine {
                 now,
                 &Event::new_act_end(
                     agent.id(),
-                    agent.curr_act().link_id,
-                    agent.curr_act().act_type,
+                    agent.curr_act().link_id.internal(),
+                    agent.curr_act().act_type.internal(),
                 ),
             );
             res.push(agent);
@@ -58,12 +58,16 @@ impl ActivityEngine {
         let act = agent.agent.curr_act();
         self.events.borrow_mut().publish_event(
             now,
-            &Event::new_act_start(agent.agent.id(), act.link_id, act.act_type),
+            &Event::new_act_start(
+                agent.agent.id(),
+                act.link_id.internal(),
+                act.act_type.internal(),
+            ),
         );
         self.asleep_q.add(agent, now);
     }
 
-    fn wake_up(&mut self, now: u32) -> Vec<SimulationAgent> {
+    fn wake_up(&mut self, now: u32) -> Vec<InternalSimulationAgent> {
         let mut end_agents = Vec::new();
         let wake_up = self.asleep_q.pop(now);
 
@@ -78,7 +82,7 @@ impl ActivityEngine {
         end_agents
     }
 
-    fn end(&mut self, now: u32) -> Vec<SimulationAgent> {
+    fn end(&mut self, now: u32) -> Vec<InternalSimulationAgent> {
         let mut agents = Vec::new();
 
         let mut i = 0;
@@ -101,14 +105,14 @@ impl ActivityEngine {
 }
 
 pub struct ActivityEngineBuilder<'c> {
-    agents: Vec<SimulationAgent>,
+    agents: Vec<InternalSimulationAgent>,
     events: Rc<RefCell<EventsPublisher>>,
     config: &'c Config,
 }
 
 impl<'c> ActivityEngineBuilder<'c> {
     pub fn new(
-        agents: Vec<SimulationAgent>,
+        agents: Vec<InternalSimulationAgent>,
         events: Rc<RefCell<EventsPublisher>>,
         config: &'c Config,
     ) -> Self {
@@ -132,12 +136,12 @@ impl<'c> ActivityEngineBuilder<'c> {
 }
 
 struct AsleepSimulationAgent {
-    agent: SimulationAgent,
+    agent: InternalSimulationAgent,
     wakeup_time: u32,
 }
 
 impl AsleepSimulationAgent {
-    fn build(agent: SimulationAgent, now: u32) -> Self {
+    fn build(agent: InternalSimulationAgent, now: u32) -> Self {
         let wakeup_time = agent.wakeup_time(now);
         AsleepSimulationAgent { agent, wakeup_time }
     }
@@ -153,10 +157,13 @@ impl EndTime for AsleepSimulationAgent {
 mod tests {
     use crate::simulation::config::Config;
     use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
+    use crate::simulation::id::Id;
     use crate::simulation::messaging::events::EventsPublisher;
-    use crate::simulation::wire_types::messages::SimulationAgent;
-    use crate::simulation::wire_types::population::leg::Route;
-    use crate::simulation::wire_types::population::{Activity, GenericRoute, Leg, Person, Plan};
+    use crate::simulation::population::{
+        InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
+        InternalRoute,
+    };
+    use crate::simulation::InternalSimulationAgent;
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -178,7 +185,8 @@ mod tests {
     fn test_activity_engine_wake_up_plan() {
         let plan = create_plan_with_plan_logic();
 
-        let agent = SimulationAgent::new_plan_logic(Person::new(1, plan));
+        let agent =
+            InternalSimulationAgent::new_plan_logic(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);
@@ -197,7 +205,8 @@ mod tests {
     fn test_activity_engine_end() {
         let plan = create_plan_with_plan_logic();
 
-        let agent = SimulationAgent::new_plan_logic(Person::new(1, plan));
+        let agent =
+            InternalSimulationAgent::new_plan_logic(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);
@@ -217,7 +226,7 @@ mod tests {
         unimplemented!()
     }
 
-    fn create_engine(agents: Vec<SimulationAgent>) -> ActivityEngine {
+    fn create_engine(agents: Vec<InternalSimulationAgent>) -> ActivityEngine {
         ActivityEngineBuilder::new(
             agents,
             Rc::new(RefCell::new(EventsPublisher::new())),
@@ -226,16 +235,38 @@ mod tests {
         .build()
     }
 
-    fn create_plan_with_plan_logic() -> Plan {
-        let mut plan = Plan::new();
-        plan.add_act(Activity::new(0.0, 0.0, 0, 1, Some(0), Some(10), None));
-        plan.add_leg(Leg::new(
-            Route::GenericRoute(GenericRoute::default()),
-            0,
+    fn create_plan_with_plan_logic() -> InternalPlan {
+        let mut plan = InternalPlan::default();
+        plan.add_act(InternalActivity::new(
+            0.0,
+            0.0,
+            "act",
+            Id::create("0"),
+            Some(0),
+            Some(10),
+            None,
+        ));
+        plan.add_leg(InternalLeg::new(
+            InternalRoute::Generic(InternalGenericRoute {
+                start_link: Id::create("start"),
+                end_link: Id::create("end"),
+                trav_time: None,
+                distance: None,
+                vehicle: None,
+            }),
+            "mode",
             1,
             Some(2),
         ));
-        plan.add_act(Activity::new(0.0, 0.0, 0, 1, Some(25), Some(10), None));
+        plan.add_act(InternalActivity::new(
+            0.0,
+            0.0,
+            "act",
+            Id::create("1"),
+            Some(25),
+            Some(10),
+            None,
+        ));
         plan
     }
 }

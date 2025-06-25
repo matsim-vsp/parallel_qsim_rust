@@ -4,6 +4,7 @@ use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
 use crate::simulation::wire_types::messages::{SimulationAgent, Vehicle};
 use crate::simulation::wire_types::population::Person;
 use crate::simulation::wire_types::vehicles::VehicleType;
+use crate::simulation::InternalSimulationAgent;
 
 pub trait StableTypeId {
     fn stable_type_id() -> u64;
@@ -88,6 +89,12 @@ impl StableTypeId for f32 {
 }
 
 impl StableTypeId for SimulationAgent {
+    fn stable_type_id() -> u64 {
+        SIMULATION_AGENT_TYPE_ID
+    }
+}
+
+impl StableTypeId for InternalSimulationAgent {
     fn stable_type_id() -> u64 {
         SIMULATION_AGENT_TYPE_ID
     }

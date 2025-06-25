@@ -1,6 +1,7 @@
+use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::network::global_network::Network;
+use crate::simulation::network::global_network::{Link, Network};
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
 use crate::simulation::vehicles::InternalVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -15,7 +16,7 @@ where
     in_messages: BinaryHeap<InternalSyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
-    link_mapping: HashMap<u64, u32>,
+    link_mapping: HashMap<Id<Link>, u32>,
     neighbors: HashSet<u32>,
     global_sync: bool,
 }
@@ -34,7 +35,7 @@ where
         let link_mapping = global_network
             .links
             .iter()
-            .map(|link| (link.id.internal(), link.partition))
+            .map(|link| (link.id.clone(), link.partition))
             .collect();
 
         Self {
@@ -51,13 +52,13 @@ where
         self.communicator.rank()
     }
 
-    pub fn rank_for_link(&self, link_id: u64) -> u32 {
+    pub fn rank_for_link(&self, link_id: &Id<Link>) -> u32 {
         *self.link_mapping.get(&(link_id)).unwrap()
     }
 
     pub fn add_veh(&mut self, vehicle: InternalVehicle, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap();
-        let partition = *self.link_mapping.get(&link_id.internal()).unwrap();
+        let partition = *self.link_mapping.get(&link_id).unwrap();
         let rank = self.rank();
         let message = self
             .out_messages
