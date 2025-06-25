@@ -12,7 +12,6 @@ use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::wire_types::events::Event;
-use crate::simulation::wire_types::messages::StorageCap;
 use crate::simulation::wire_types::population::Person;
 
 use super::{
@@ -20,6 +19,7 @@ use super::{
     link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
 };
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct StorageUpdate {
     pub link_id: u64,
     pub from_part: u32,
@@ -236,10 +236,10 @@ impl SimNetworkPartition {
         Self::activate_link(&mut self.active_links, link.id().internal());
     }
 
-    pub fn apply_storage_cap_updates(&mut self, storage_caps: Vec<StorageCap>) {
+    pub fn apply_storage_cap_updates(&mut self, storage_caps: Vec<StorageUpdate>) {
         for cap in storage_caps {
             if let SimLink::Out(link) = self.links.get_mut(&cap.link_id).unwrap() {
-                link.apply_storage_cap_update(cap.value);
+                link.apply_storage_cap_update(cap.released);
             } else {
                 panic!("only expecting ids for split out links ")
             }

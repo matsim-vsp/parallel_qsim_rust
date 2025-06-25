@@ -1,14 +1,14 @@
 use crate::simulation::id::id_store::IdStore;
 use crate::simulation::id::id_store::UntypedId;
 use crate::simulation::id::serializable_type::StableTypeId;
+use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::path::Path;
-use std::rc::Rc;
+use std::sync::{Arc, OnceLock, RwLock};
 
 // keep this private, as we don't want to leak how we cache ids.
 mod id_store;
@@ -27,11 +27,11 @@ pub mod serializable_type;
 #[derive(Debug)]
 pub struct Id<T: StableTypeId> {
     _type_marker: PhantomData<T>,
-    id: Rc<UntypedId>,
+    id: Arc<UntypedId>,
 }
 
 impl<T: StableTypeId + 'static> Id<T> {
-    fn new(untyped_id: Rc<UntypedId>) -> Self {
+    fn new(untyped_id: Arc<UntypedId>) -> Self {
         Self {
             _type_marker: PhantomData,
             id: untyped_id,
@@ -43,7 +43,7 @@ impl<T: StableTypeId + 'static> Id<T> {
     #[cfg(test)]
     pub(crate) fn new_internal(internal: u64) -> Self {
         let untyped_id = UntypedId::new(internal, String::from(""));
-        Self::new(Rc::new(untyped_id))
+        Self::new(Arc::new(untyped_id))
     }
 
     pub fn internal(&self) -> u64 {
@@ -55,19 +55,31 @@ impl<T: StableTypeId + 'static> Id<T> {
     }
 
     pub fn create(id: &str) -> Self {
-        ID_STORE.with(|store| store.borrow_mut().create_id(id))
+        get_id_store()
+            .write()
+            .expect("IdStore is not initialized")
+            .create_id(id)
     }
 
     pub fn get(internal: u64) -> Self {
-        ID_STORE.with(|store| store.borrow().get(internal))
+        get_id_store()
+            .read()
+            .expect("IdStore is not initialized")
+            .get(internal)
     }
 
     pub fn get_from_ext(external: &str) -> Self {
-        ID_STORE.with(|store| store.borrow().get_from_ext(external))
+        get_id_store()
+            .read()
+            .expect("IdStore is not initialized")
+            .get_from_ext(external)
     }
 
     pub fn try_get_from_ext(external: &str) -> Option<Self> {
-        ID_STORE.with(|store| store.borrow().try_get_from_ext(external))
+        get_id_store()
+            .read()
+            .expect("IdStore is not initialized")
+            .try_get_from_ext(external)
     }
 }
 
@@ -90,11 +102,17 @@ impl<'de, T: StableTypeId + 'static> Deserialize<'de> for Id<T> {
 }
 
 pub fn store_to_file(file_path: &Path) {
-    ID_STORE.with(|store| store.borrow().to_file(file_path))
+    get_id_store()
+        .read()
+        .expect("IdStore is not initialized")
+        .to_file(file_path)
 }
 
 pub fn load_from_file(file_path: &Path) {
-    ID_STORE.with(|store| store.borrow_mut().load_from_file(file_path))
+    get_id_store()
+        .write()
+        .expect("IdStore is not initialized")
+        .load_from_file(file_path)
 }
 
 /// Mark Id as enabled for the nohash_hasher::NoHashHasher t
@@ -146,26 +164,29 @@ impl<T: StableTypeId> Clone for Id<T> {
     }
 }
 
-thread_local! {static ID_STORE: RefCell<IdStore<'static>> = RefCell::new(IdStore::new())}
+static ID_STORE: OnceLock<RwLock<IdStore<'static>>> = OnceLock::new();
+
+fn get_id_store() -> &'static RwLock<IdStore<'static>> {
+    ID_STORE.get_or_init(|| RwLock::new(IdStore::new()))
+}
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use crate::simulation::id::{Id, UntypedId};
+    use std::sync::Arc;
 
     #[test]
     fn test_id_eq() {
-        let id: Id<()> = Id::new(Rc::new(UntypedId::new(1, String::from("external-id"))));
+        let id: Id<()> = Id::new(Arc::new(UntypedId::new(1, String::from("external-id"))));
         assert_eq!(id, id.clone());
 
-        let equal = Id::new(Rc::new(UntypedId::new(
+        let equal = Id::new(Arc::new(UntypedId::new(
             1,
             String::from("other-external-value-which-should-be-ignored"),
         )));
         assert_eq!(id, equal);
 
-        let unequal = Id::new(Rc::new(UntypedId::new(2, String::from("external-id"))));
+        let unequal = Id::new(Arc::new(UntypedId::new(2, String::from("external-id"))));
         assert_ne!(id, unequal)
     }
 

@@ -1,47 +1,18 @@
-use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::rc::Rc;
-
+use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::wire_types::messages::{StorageCap, SyncMessage, TravelTimesMessage};
-
-pub struct TravelTimesMessageBroker<C>
-where
-    C: SimCommunicator,
-{
-    communicator: Rc<C>,
-}
-
-impl<C> TravelTimesMessageBroker<C>
-where
-    C: SimCommunicator,
-{
-    pub fn new(communicator: Rc<C>) -> Self {
-        TravelTimesMessageBroker { communicator }
-    }
-
-    pub fn rank(&self) -> u32 {
-        self.communicator.rank()
-    }
-
-    pub fn send_recv(
-        &self,
-        _now: u32,
-        _travel_times: HashMap<u64, u32>,
-    ) -> Vec<TravelTimesMessage> {
-        unimplemented!()
-    }
-}
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::rc::Rc;
 
 pub struct NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
     communicator: Rc<C>,
-    out_messages: HashMap<u32, SyncMessage>,
-    in_messages: BinaryHeap<SyncMessage>,
+    out_messages: HashMap<u32, InternalSyncMessage>,
+    in_messages: BinaryHeap<InternalSyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
     link_mapping: HashMap<u64, u32>,
@@ -91,7 +62,7 @@ where
         let message = self
             .out_messages
             .entry(partition)
-            .or_insert_with(|| SyncMessage::new(now, rank, partition));
+            .or_insert_with(|| InternalSyncMessage::new(now, rank, partition));
         message.add_veh(vehicle);
     }
 
@@ -100,17 +71,18 @@ where
         let message = self
             .out_messages
             .entry(cap.from_part)
-            .or_insert_with(|| SyncMessage::new(now, rank, cap.from_part));
-        message.add_storage_cap(StorageCap {
+            .or_insert_with(|| InternalSyncMessage::new(now, rank, cap.from_part));
+        message.add_storage_cap(StorageUpdate {
             link_id: cap.link_id,
-            value: cap.released,
+            from_part: rank,
+            released: cap.released,
         });
     }
 
-    pub fn send_recv(&mut self, now: u32) -> Vec<SyncMessage> {
+    pub fn send_recv(&mut self, now: u32) -> Vec<InternalSyncMessage> {
         let vehicles = self.prepare_send_recv_vehicles(now);
 
-        let mut result: Vec<SyncMessage> = Vec::new();
+        let mut result: Vec<InternalSyncMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
 
         self.pop_from_cache(&mut expected_vehicle_messages, &mut result, now);
@@ -135,12 +107,12 @@ where
     }
 
     fn handle_incoming_msg(
-        msg: SyncMessage,
-        result: &mut Vec<SyncMessage>,
-        in_messages: &mut BinaryHeap<SyncMessage>,
+        msg: InternalSyncMessage,
+        result: &mut Vec<InternalSyncMessage>,
+        in_messages: &mut BinaryHeap<InternalSyncMessage>,
         now: u32,
     ) {
-        if msg.time <= now {
+        if msg.time() <= now {
             result.push(msg);
         } else {
             in_messages.push(msg);
@@ -150,12 +122,12 @@ where
     fn pop_from_cache(
         &mut self,
         expected_messages: &mut HashSet<u32>,
-        messages: &mut Vec<SyncMessage>,
+        messages: &mut Vec<InternalSyncMessage>,
         now: u32,
     ) {
         while let Some(msg) = self.in_messages.peek() {
-            if msg.time <= now {
-                expected_messages.remove(&msg.from_process);
+            if msg.time() <= now {
+                expected_messages.remove(&msg.from_process());
                 messages.push(self.in_messages.pop().unwrap())
             } else {
                 break; // important! otherwise this is an infinite loop
@@ -163,7 +135,7 @@ where
         }
     }
 
-    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, SyncMessage> {
+    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, InternalSyncMessage> {
         let capacity = self.out_messages.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
@@ -172,7 +144,7 @@ where
             let neighbor_rank = *partition;
             messages
                 .entry(neighbor_rank)
-                .or_insert_with(|| SyncMessage::new(now, self.rank(), neighbor_rank));
+                .or_insert_with(|| InternalSyncMessage::new(now, self.rank(), neighbor_rank));
         }
         messages
     }
@@ -180,7 +152,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::rc::Rc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
@@ -189,12 +160,10 @@ mod tests {
     use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
-    use crate::simulation::messaging::sim_communication::message_broker::{
-        NetMessageBroker, TravelTimesMessageBroker,
-    };
+    use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
-    use crate::simulation::wire_types::messages::{TravelTimesMessage, Vehicle};
+    use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent;
 
     #[test]
@@ -227,7 +196,7 @@ mod tests {
             };
 
             for msg in result {
-                assert!(msg.vehicles.is_empty());
+                assert!(msg.vehicles().is_empty());
             }
         });
     }
@@ -242,7 +211,7 @@ mod tests {
             // place vehicle into partition 0
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec![2, 6]);
-                let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
+                let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle.clone(), 0);
             }
 
@@ -253,16 +222,16 @@ mod tests {
             if broker.rank() == 2 {
                 let mut msg = result_0
                     .into_iter()
-                    .find(|msg| msg.from_process == 0)
+                    .find(|msg| msg.from_process() == 0)
                     .unwrap();
-                assert_eq!(0, msg.time);
-                assert_eq!(1, msg.vehicles.len());
-                let mut vehicle = msg.vehicles.remove(0);
+                assert_eq!(0, msg.time());
+                assert_eq!(1, msg.vehicles().len());
+                let mut vehicle = msg.vehicles_mut().remove(0);
                 vehicle.register_moved_to_next_link();
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {
-                    assert!(msg.vehicles.is_empty());
+                    assert!(msg.vehicles().is_empty());
                 }
             }
 
@@ -273,15 +242,15 @@ mod tests {
             if broker.rank() == 3 {
                 let mut msg = result_1
                     .into_iter()
-                    .find(|msg| msg.from_process == 2)
+                    .find(|msg| msg.from_process() == 2)
                     .unwrap();
-                assert_eq!(1, msg.time);
-                assert_eq!(1, msg.vehicles.len());
-                let vehicle = msg.vehicles.remove(0);
+                assert_eq!(1, msg.time());
+                assert_eq!(1, msg.vehicles().len());
+                let vehicle = msg.vehicles_mut().remove(0);
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_1 {
-                    assert!(msg.vehicles.is_empty());
+                    assert!(msg.vehicles().is_empty());
                 }
             }
         });
@@ -295,7 +264,7 @@ mod tests {
             // place vehicle into partition 0 with a future timestamp
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec![6]);
-                let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
+                let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle, 1);
             }
 
@@ -303,19 +272,19 @@ mod tests {
             let result_0 = broker.send_recv(0);
 
             for msg in result_0 {
-                assert_eq!(0, msg.time);
-                assert!(msg.vehicles.is_empty());
+                assert_eq!(0, msg.time());
+                assert!(msg.vehicles().is_empty());
             }
 
             // do sync step for all partitions for "future" time step
             let result_1 = broker.send_recv(1);
 
             for msg in result_1 {
-                if broker.rank() == 3 && msg.from_process == 0 {
-                    assert_eq!(1, msg.vehicles.len());
+                if broker.rank() == 3 && msg.from_process() == 0 {
+                    assert_eq!(1, msg.vehicles().len());
                 }
 
-                assert_eq!(1, msg.time);
+                assert_eq!(1, msg.time());
             }
         });
     }
@@ -328,7 +297,7 @@ mod tests {
             if broker.rank() == 0 {
                 // place vehicle into partition 0 with a future timestamp with remote destination
                 let agent = create_agent(0, vec![6]);
-                let vehicle = Vehicle::new(0, 0, 0., 0., Some(agent));
+                let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle, 1);
             }
 
@@ -336,14 +305,14 @@ mod tests {
             let result_0 = broker.send_recv(0);
 
             for msg in result_0 {
-                assert_eq!(0, msg.time);
-                assert!(msg.vehicles.is_empty());
+                assert_eq!(0, msg.time());
+                assert!(msg.vehicles().is_empty());
             }
 
             if broker.rank() == 2 {
                 // place vehicle into partition 2 with a current timestamp with neighbor destination
                 let agent = create_agent(1, vec![6]);
-                let vehicle = Vehicle::new(1, 0, 0., 0., Some(agent));
+                let vehicle = InternalVehicle::new(1, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle, 1);
             }
 
@@ -351,17 +320,17 @@ mod tests {
             let result_1 = broker.send_recv(1);
 
             for msg in result_1 {
-                if broker.rank() == 3 && msg.from_process == 0 {
-                    assert_eq!(1, msg.vehicles.len());
-                    assert_eq!(0, msg.vehicles.first().unwrap().id);
-                } else if broker.rank() == 3 && msg.from_process == 2 {
-                    assert_eq!(1, msg.vehicles.len());
-                    assert_eq!(1, msg.vehicles.first().unwrap().id);
+                if broker.rank() == 3 && msg.from_process() == 0 {
+                    assert_eq!(1, msg.vehicles().len());
+                    assert_eq!(0, msg.vehicles().first().unwrap().id.internal());
+                } else if broker.rank() == 3 && msg.from_process() == 2 {
+                    assert_eq!(1, msg.vehicles().len());
+                    assert_eq!(1, msg.vehicles().first().unwrap().id.internal());
                 } else {
-                    assert_eq!(0, msg.vehicles.len());
+                    assert_eq!(0, msg.vehicles().len());
                 }
 
-                assert_eq!(1, msg.time);
+                assert_eq!(1, msg.time());
             }
         });
     }
@@ -408,64 +377,13 @@ mod tests {
             // broker 1 should have received the StorageCap message
             // all others should not have any storage cap messages.
             for msg in result_0 {
-                if msg.from_process == 2 && msg.to_process == 1 {
-                    assert_eq!(1, msg.storage_capacities.len(), "{msg:?}")
+                if msg.from_process() == 2 && msg.to_process() == 1 {
+                    assert_eq!(1, msg.storage_capacities().len(), "{msg:?}")
                 } else {
-                    assert!(msg.storage_capacities.is_empty(), "{msg:?}");
+                    assert!(msg.storage_capacities().is_empty(), "{msg:?}");
                 }
             }
         });
-    }
-
-    #[test]
-    #[ignore]
-    fn test_travel_times_message_broker() {
-        execute_test(|communicator| {
-            let broker = TravelTimesMessageBroker::new(Rc::new(communicator));
-
-            let res;
-            if broker.rank() == 0 {
-                let mut travel_times = HashMap::new();
-                travel_times.insert(0, 20);
-                travel_times.insert(1, 20);
-                res = broker.send_recv(42, travel_times)
-            } else if broker.rank() == 1 {
-                let mut travel_times = HashMap::new();
-                travel_times.insert(2, 5);
-                travel_times.insert(3, 5);
-                res = broker.send_recv(42, travel_times)
-            } else if broker.rank() == 2 {
-                let mut travel_times = HashMap::new();
-                travel_times.insert(4, 1);
-                travel_times.insert(5, 1);
-                res = broker.send_recv(42, travel_times)
-            } else {
-                res = broker.send_recv(42, HashMap::new())
-            };
-
-            assert_eq!(res.len(), 4);
-
-            //from rank 0
-            let mut map = HashMap::new();
-            map.insert(0, 20);
-            map.insert(1, 20);
-            assert!(res.contains(&TravelTimesMessage::from(map)));
-
-            //from rank 1
-            let mut map = HashMap::new();
-            map.insert(2, 5);
-            map.insert(3, 5);
-            assert!(res.contains(&TravelTimesMessage::from(map)));
-
-            //from rank 2
-            let mut map = HashMap::new();
-            map.insert(4, 1);
-            map.insert(5, 1);
-            assert!(res.contains(&TravelTimesMessage::from(map)));
-
-            //from rank 3
-            assert!(res.contains(&TravelTimesMessage::new()));
-        })
     }
 
     fn execute_test<F>(test: F)

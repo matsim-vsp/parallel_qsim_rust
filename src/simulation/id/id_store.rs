@@ -1,9 +1,3 @@
-use std::fs;
-use std::fs::File;
-use std::io::{BufReader, BufWriter, Cursor, Read, Seek, Write};
-use std::path::Path;
-use std::rc::Rc;
-
 use ahash::{AHashMap, RandomState};
 use bytes::{Buf, BufMut};
 use lz4::BlockMode;
@@ -11,6 +5,12 @@ use nohash_hasher::IntMap;
 use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
 use serde::Serialize;
+use std::fs;
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Cursor, Read, Seek, Write};
+use std::path::Path;
+use std::rc::Rc;
+use std::sync::Arc;
 use tracing::info;
 
 use crate::simulation::id::serializable_type::StableTypeId;
@@ -75,14 +75,14 @@ fn deserialize<R: Read + Seek>(store: &mut IdStore, reader: R) {
     info!("Finished de-serializing id store.");
 }
 
-fn serialize_ids(ids: &Vec<Rc<UntypedId>>, mode: IdCompression) -> Data {
+fn serialize_ids(ids: &Vec<Arc<UntypedId>>, mode: IdCompression) -> Data {
     match mode {
         IdCompression::LZ4 => serialize_ids_compressed(ids),
         IdCompression::None => serialize_ids_uncompressed(ids),
     }
 }
 
-fn serialize_ids_uncompressed(ids: &Vec<Rc<UntypedId>>) -> Data {
+fn serialize_ids_uncompressed(ids: &Vec<Arc<UntypedId>>) -> Data {
     let mut writer = BufWriter::new(Vec::new());
     encode_ids(ids, &mut writer);
 
@@ -92,7 +92,7 @@ fn serialize_ids_uncompressed(ids: &Vec<Rc<UntypedId>>) -> Data {
     Data::Raw(bytes)
 }
 
-fn serialize_ids_compressed(ids: &Vec<Rc<UntypedId>>) -> Data {
+fn serialize_ids_compressed(ids: &Vec<Arc<UntypedId>>) -> Data {
     let mut writer = Vec::new();
     {
         let mut encoder = lz4::EncoderBuilder::new()
@@ -108,7 +108,7 @@ fn serialize_ids_compressed(ids: &Vec<Rc<UntypedId>>) -> Data {
     Data::Lz4Data(writer)
 }
 
-fn encode_ids<W: Write>(ids: &Vec<Rc<UntypedId>>, writer: &mut W) {
+fn encode_ids<W: Write>(ids: &Vec<Arc<UntypedId>>, writer: &mut W) {
     let mut id_buffer = Vec::new();
 
     for id in ids {
@@ -183,7 +183,7 @@ impl UntypedId {
 
 #[derive(Debug)]
 pub struct IdStore<'ext> {
-    ids: IntMap<u64, Vec<Rc<UntypedId>>>,
+    ids: IntMap<u64, Vec<Arc<UntypedId>>>,
     mapping: IntMap<u64, AHashMap<&'ext str, u64>>,
 }
 
@@ -197,7 +197,7 @@ impl IdStore<'_> {
         }
     }
 
-    fn create_id_with_type_id(&mut self, id: &str, type_id: u64) -> Rc<UntypedId> {
+    fn create_id_with_type_id(&mut self, id: &str, type_id: u64) -> Arc<UntypedId> {
         let type_mapping = self
             .mapping
             .entry(type_id)
@@ -216,7 +216,7 @@ impl IdStore<'_> {
 
         let type_ids = self.ids.entry(type_id).or_default();
         let next_internal = type_ids.len() as u64;
-        let next_id = Rc::new(UntypedId::new(next_internal, String::from(id)));
+        let next_id = Arc::new(UntypedId::new(next_internal, String::from(id)));
         type_ids.push(next_id.clone());
 
         let ptr_external: *const String = &next_id.external;

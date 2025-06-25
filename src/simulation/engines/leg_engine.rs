@@ -77,12 +77,12 @@ impl<C: SimCommunicator> LegEngine<C> {
             .move_links(now, &mut self.net_message_broker);
         let sync_messages = self.net_message_broker.send_recv(now);
 
-        for msg in sync_messages {
+        for mut msg in sync_messages {
             self.network_engine
                 .network
-                .apply_storage_cap_updates(msg.storage_capacities);
+                .apply_storage_cap_updates(msg.take_storage_capacities());
 
-            for veh in msg.vehicles {
+            for veh in msg.take_vehicles() {
                 self.pass_vehicle_to_engine(now, veh, false);
             }
         }
@@ -102,7 +102,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             if publish_leave_vehicle {
                 self.events.borrow_mut().publish_event(
                     now,
-                    &Event::new_person_leaves_veh(veh.driver().id(), veh.id),
+                    &Event::new_person_leaves_veh(veh.driver().id(), veh.id.internal()),
                 );
             }
 
@@ -113,13 +113,14 @@ impl<C: SimCommunicator> LegEngine<C> {
                         passenger.id(),
                         passenger.curr_leg().mode,
                         0, //TODO
-                        veh.id,
+                        veh.id.internal(),
                     ),
                 );
                 if publish_leave_vehicle {
-                    self.events
-                        .borrow_mut()
-                        .publish_event(now, &Event::new_person_leaves_veh(passenger.id(), veh.id));
+                    self.events.borrow_mut().publish_event(
+                        now,
+                        &Event::new_person_leaves_veh(passenger.id(), veh.id.internal()),
+                    );
                 }
             }
 
@@ -129,7 +130,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                 now,
                 &Event::new_arrival(
                     veh.driver().id(),
-                    veh.curr_link_id().unwrap(),
+                    veh.curr_link_id().unwrap().internal(),
                     mode.internal(),
                 ),
             );

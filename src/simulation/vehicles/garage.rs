@@ -77,7 +77,7 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, mut vehicle: Vehicle) -> Vec<SimulationAgent> {
+    pub(crate) fn park_veh(&mut self, mut vehicle: InternalVehicle) -> Vec<SimulationAgent> {
         let mut agents = std::mem::take(&mut vehicle.passengers);
         let person = vehicle.driver.take().expect("Vehicle has no driver.");
         agents.push(person);
