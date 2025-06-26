@@ -12,8 +12,6 @@ use crate::simulation::io::{proto, xml};
 use crate::simulation::population::population_data::Population;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::population::Header;
-use crate::simulation::wire_types::population::Person;
 
 pub fn from_file<F: Fn(&InternalPerson) -> bool>(
     path: &Path,
@@ -119,7 +117,7 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
     let raw_veh: Vec<_> = io_pop
         .persons
         .iter()
-        .map(|p| Id::<Person>::create(p.id.as_str()))
+        .map(|p| Id::<InternalPerson>::create(p.id.as_str()))
         .flat_map(|p_id| {
             garage
                 .vehicle_types

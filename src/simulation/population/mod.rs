@@ -1,10 +1,13 @@
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::network::global_network::Link;
-use crate::simulation::population::io::{IOPerson, IOPlan, IOPlanElement, IORoute};
+use crate::simulation::population::io::{
+    IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
+};
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
-use serde_json::Value;
+use serde_json::{Error, Value};
+use std::str::FromStr;
 
 pub mod agent_source;
 pub mod io;
@@ -24,6 +27,7 @@ pub struct InternalActivity {
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalLeg {
     pub mode: Id<String>,
+    pub routing_mode: Id<String>,
     pub dep_time: Option<u32>,
     pub trav_time: Option<u32>,
     pub route: Option<InternalRoute>,
@@ -254,6 +258,22 @@ impl InternalActivity {
     }
 }
 
+impl FromStr for InternalPtRouteDescription {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let desc: Value = serde_json::from_str(s)?;
+
+        Ok(InternalPtRouteDescription {
+            transit_route_id: trim_quotes(&desc["transitRouteId"]),
+            boarding_time: desc["boardingTime"].as_str().and_then(parse_time),
+            transit_line_id: trim_quotes(&desc["transitLineId"]),
+            access_facility_id: trim_quotes(&desc["accessFacilityId"]),
+            egress_facility_id: trim_quotes(&desc["egressFacilityId"]),
+        })
+    }
+}
+
 impl InternalRoute {
     pub fn as_generic(&self) -> &InternalGenericRoute {
         match self {
@@ -291,17 +311,53 @@ impl InternalLeg {
         Self {
             route: Some(route),
             mode: Id::create(mode),
+            routing_mode: Id::create(mode),
             trav_time: Some(trav_time),
             dep_time,
             attributes: None,
         }
     }
 
-    fn parse_trav_time(leg_trav_time: &Option<String>, route_trav_time: &Option<String>) -> u32 {
+    fn parse_trav_time(leg_trav_time: &Option<String>, route_trav_time: &Option<u32>) -> u32 {
         if let Some(trav_time) = parse_time_opt(leg_trav_time) {
             trav_time
         } else {
-            parse_time_opt(route_trav_time).unwrap_or(0)
+            route_trav_time.unwrap_or(0)
+        }
+    }
+}
+
+impl From<IOLeg> for InternalLeg {
+    fn from(io: IOLeg) -> Self {
+        let routing_mode = io
+            .attributes
+            .as_ref()
+            .expect("No attributes provided for leg")
+            .find_or_else("routingMode", || panic!("No routing mode provied"));
+
+        InternalLeg {
+            mode: Id::create(&io.mode),
+            routing_mode: Id::create(&routing_mode),
+            dep_time: io.dep_time.and_then(|s| s.parse().ok()),
+            trav_time: io.trav_time.and_then(|s| s.parse().ok()),
+            route: io.route.map(InternalRoute::from),
+            attributes: io
+                .attributes
+                .and_then(|a| InternalAttributes::from(a).into()),
+        }
+    }
+}
+
+impl From<IOActivity> for InternalActivity {
+    fn from(io: IOActivity) -> Self {
+        InternalActivity {
+            act_type: Id::create(&io.r#type),
+            link_id: Id::create(&io.link),
+            x: io.x,
+            y: io.y,
+            start_time: io.start_time.and_then(|s| s.parse().ok()),
+            end_time: io.end_time.and_then(|s| s.parse().ok()),
+            max_dur: io.max_dur.and_then(|s| s.parse().ok()),
         }
     }
 }
@@ -344,24 +400,10 @@ impl From<IOPerson> for InternalPerson {
 impl From<IOPlanElement> for InternalPlanElement {
     fn from(io: IOPlanElement) -> Self {
         match io {
-            IOPlanElement::Activity(act) => InternalPlanElement::Activity(InternalActivity {
-                act_type: Id::create(&act.r#type),
-                link_id: Id::create(&act.link),
-                x: act.x,
-                y: act.y,
-                start_time: act.start_time.and_then(|s| s.parse().ok()),
-                end_time: act.end_time.and_then(|s| s.parse().ok()),
-                max_dur: act.max_dur.and_then(|s| s.parse().ok()),
-            }),
-            IOPlanElement::Leg(leg) => InternalPlanElement::Leg(InternalLeg {
-                mode: Id::create(&leg.mode),
-                dep_time: leg.dep_time.and_then(|s| s.parse().ok()),
-                trav_time: leg.trav_time.and_then(|s| s.parse().ok()),
-                route: leg.route.map(InternalRoute::from),
-                attributes: leg
-                    .attributes
-                    .and_then(|a| InternalAttributes::from(a).into()),
-            }),
+            IOPlanElement::Activity(act) => {
+                InternalPlanElement::Activity(InternalActivity::from(act))
+            }
+            IOPlanElement::Leg(leg) => InternalPlanElement::Leg(InternalLeg::from(leg)),
         }
     }
 }
@@ -391,5 +433,225 @@ impl From<IOPlan> for InternalPlan {
                 .map(InternalPlanElement::from)
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::simulation::config::{MetisOptions, PartitionMethod};
+    use crate::simulation::id::Id;
+    use crate::simulation::network::global_network::{Link, Network};
+    use crate::simulation::population::io::{IOLeg, IORoute};
+    use crate::simulation::population::population_data::Population;
+    use crate::simulation::population::{InternalLeg, InternalPerson, InternalRoute};
+    use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::vehicles::InternalVehicle;
+    use std::collections::HashSet;
+    use std::path::PathBuf;
+
+    #[test]
+    fn from_io_1_plan() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let pop = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-1-plan.xml"),
+            &mut garage,
+        );
+
+        assert_eq!(1, pop.persons.len());
+
+        let agent = pop.persons.get(&Id::get_from_ext("1")).unwrap();
+        assert!(agent.selected_plan().is_some());
+
+        let plan = agent.selected_plan().unwrap();
+        assert_eq!(4, plan.acts().len());
+        assert_eq!(3, plan.legs().len());
+
+        let home_act = plan.acts().first().unwrap();
+        assert_eq!("h", home_act.act_type.external());
+        assert_eq!(Id::<Link>::get_from_ext("1"), home_act.link_id);
+        assert_eq!(-25000., home_act.x);
+        assert_eq!(0., home_act.y);
+        assert_eq!(Some(6 * 3600), home_act.end_time);
+        assert_eq!(None, home_act.start_time);
+        assert_eq!(None, home_act.max_dur);
+
+        let leg = plan.legs().first().unwrap();
+        assert_eq!(None, leg.dep_time);
+        assert!(leg.route.is_some());
+        let net_route = leg.route.as_ref().unwrap().as_network().unwrap();
+        assert_eq!(
+            Some(Id::<InternalVehicle>::get_from_ext("1_car")),
+            net_route.generic_delegate.vehicle
+        );
+        assert_eq!(
+            vec![
+                Id::<Link>::get_from_ext("1"),
+                Id::<Link>::get_from_ext("6"),
+                Id::<Link>::get_from_ext("15"),
+                Id::<Link>::get_from_ext("20"),
+            ],
+            net_route.route
+        );
+    }
+
+    #[test]
+    fn from_io_multi_mode() {
+        let _net = Network::from_file_as_is(&PathBuf::from("./assets/3-links/3-links-network.xml"));
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
+        let pop =
+            Population::from_file(&PathBuf::from("./assets/3-links/3-agent.xml"), &mut garage);
+
+        // check that we have all three vehicle types
+        let expected_veh_types = HashSet::from(["car", "bike", "walk"]);
+        assert_eq!(3, garage.vehicle_types.len());
+        assert!(garage
+            .vehicle_types
+            .keys()
+            .all(|type_id| expected_veh_types.contains(type_id.external())));
+
+        // check that we have a vehicle for each mode and for each person
+        assert_eq!(9, garage.vehicles.len());
+
+        // check population
+        // activity types should be done as id. If id is not present this will crash
+        assert_eq!("home", Id::<String>::get_from_ext("home").external());
+        assert_eq!("errands", Id::<String>::get_from_ext("errands").external());
+
+        // each of the network mode should also have an interaction activity type
+        assert_eq!(
+            "car interaction",
+            Id::<String>::get_from_ext("car interaction").external()
+        );
+        assert_eq!(
+            "bike interaction",
+            Id::<String>::get_from_ext("bike interaction").external()
+        );
+
+        // agents should also have ids
+        assert_eq!("100", Id::<InternalPerson>::get_from_ext("100").external());
+        assert_eq!("200", Id::<InternalPerson>::get_from_ext("200").external());
+        assert_eq!("300", Id::<InternalPerson>::get_from_ext("300").external());
+
+        // we expect three agents overall
+        assert_eq!(3, pop.persons.len());
+
+        // todo test bookkeeping of garage person_2_vehicle
+    }
+
+    #[test]
+    fn from_io() {
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            2,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let pop1 = Population::from_file_filtered_part(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &net,
+            &mut garage,
+            0,
+        );
+        let pop2 = Population::from_file_filtered_part(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &net,
+            &mut garage,
+            1,
+        );
+
+        // metis produces unstable results on small networks so, make sure that one of the populations
+        // has all the agents and the other doesn't
+        assert!(pop1.persons.len() == 100 || pop2.persons.len() == 100);
+        assert!(pop1.persons.is_empty() || pop2.persons.is_empty());
+    }
+
+    #[test]
+    fn test_from_xml_to_binpb_same() {
+        let net = Network::from_file(
+            "./assets/equil/equil-network.xml",
+            1,
+            PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
+        let population = Population::from_file(
+            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
+            &mut garage,
+        );
+
+        let temp_file = PathBuf::from(
+            "test_output/simulation/population/population/test_from_xml_to_binpb_same/plans.binpb",
+        );
+        population.to_file(&temp_file);
+        let population2 = Population::from_file_filtered_part(&temp_file, &net, &mut garage, 0);
+        assert_eq!(population, population2);
+    }
+
+    #[test]
+    fn test_from_io_generic_route() {
+        Id::<Link>::create("1");
+        Id::<Link>::create("2");
+        Id::<InternalVehicle>::create("person_car");
+
+        let io_leg = IOLeg {
+            mode: "car".to_string(),
+            dep_time: Some("12:00:00".to_string()),
+            trav_time: Some("00:30:00".to_string()),
+            route: Some(IORoute {
+                r#type: "generic".to_string(),
+                start_link: "1".to_string(),
+                end_link: "2".to_string(),
+                trav_time: Some("00:20:00".to_string()),
+                distance: 42.0,
+                vehicle: None,
+                route: None,
+            }),
+            attributes: None,
+        };
+
+        let leg = InternalLeg::from(io_leg);
+
+        assert_eq!(leg.mode.external(), "car");
+        assert_eq!(leg.trav_time, Some(1800));
+        assert_eq!(leg.dep_time, Some(43200));
+        assert_eq!(leg.routing_mode.external(), "car");
+        let route = leg.route.as_ref().unwrap();
+        assert!(matches!(route, InternalRoute::Generic(_)));
+        assert_eq!(route.as_generic().start_link.external(), "1");
+        assert_eq!(route.as_generic().end_link.external(), "2");
+        assert_eq!(route.as_generic().trav_time, Some(1200));
+        assert_eq!(route.as_generic().distance, Some(42.0));
+        assert_eq!(
+            route.as_generic().vehicle.as_ref().unwrap().external(),
+            "person_car"
+        );
+    }
+
+    #[test]
+    fn test_from_io_pt_route() {
+        Id::<Link>::create("1");
+        Id::<Link>::create("2");
+        Id::<String>::create("pt");
+        Id::<InternalVehicle>::create("person_pt");
+
+        let io_leg = IOLeg {
+            mode: "pt".to_string(),
+            dep_time: None,
+            trav_time: Some("00:30:00".to_string()),
+            route: Some(IORoute {
+                r#type: "default_pt".to_string(),
+                start_link: "1".to_string(),
+                end_link: "2".to_string(),
+                trav_time: Some("00:20:00".to_string()),
+                distance: f64::NAN,
+                vehicle: None,
+                route: Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}"))
+            }),
+            attributes: None,
+        };
+
+        let leg = InternalLeg::from(io_leg);
+
+        print!("{:?}", leg);
     }
 }

@@ -11,7 +11,6 @@ use crate::simulation::population::InternalRoute;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::wire_types::events::Event;
-use crate::simulation::wire_types::population::Person;
 use crate::simulation::InternalSimulationAgent;
 use nohash_hasher::IntSet;
 use std::cell::RefCell;
@@ -102,7 +101,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             if publish_leave_vehicle {
                 self.events.borrow_mut().publish_event(
                     now,
-                    &Event::new_person_leaves_veh(veh.driver().id(), veh.id.internal()),
+                    &Event::new_person_leaves_veh(veh.driver().id().internal(), veh.id.internal()),
                 );
             }
 
@@ -110,7 +109,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                 self.events.borrow_mut().publish_event(
                     now,
                     &Event::new_passenger_dropped_off(
-                        passenger.id(),
+                        passenger.id().internal(),
                         passenger.curr_leg().mode.internal(),
                         0, //TODO
                         veh.id.internal(),
@@ -119,7 +118,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                 if publish_leave_vehicle {
                     self.events.borrow_mut().publish_event(
                         now,
-                        &Event::new_person_leaves_veh(passenger.id(), veh.id.internal()),
+                        &Event::new_person_leaves_veh(passenger.id().internal(), veh.id.internal()),
                     );
                 }
             }
@@ -128,7 +127,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             self.events.borrow_mut().publish_event(
                 now,
                 &Event::new_arrival(
-                    veh.driver().id(),
+                    veh.driver().id().internal(),
                     veh.curr_link_id().unwrap().internal(),
                     leg.mode.internal(),
                 ),
@@ -147,12 +146,6 @@ impl<C: SimCommunicator> LegEngine<C> {
         if let Some(vehicle) = vehicle {
             self.pass_vehicle_to_engine(now, vehicle, true);
         }
-    }
-
-    pub fn agents(&mut self) -> Vec<&mut Person> {
-        let mut agents = self.network_engine.network.active_agents();
-        agents.extend(self.teleportation_engine.agents());
-        agents
     }
 
     fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: InternalVehicle, route_begin: bool) {
@@ -205,18 +198,15 @@ impl VehicularDepartureHandler {
         assert_eq!(agent.state(), SimulationAgentState::LEG);
 
         let leg = agent.curr_leg();
-        let route = leg.route.as_ref().unwrap_or_else(|| {
-            panic!(
-                "Missing route for agent {} at leg {:?}",
-                Id::<Person>::get(agent.id().clone()).external(),
-                leg
-            )
-        });
+        let route = leg
+            .route
+            .as_ref()
+            .unwrap_or_else(|| panic!("Missing route for agent {} at leg {:?}", agent.id(), leg));
 
         self.events.borrow_mut().publish_event(
             now,
             &Event::new_departure(
-                agent.id(),
+                agent.id().internal(),
                 route.start_link().internal(),
                 leg.mode.internal(),
             ),
@@ -232,7 +222,7 @@ impl VehicularDepartureHandler {
         if route.as_network().is_some() && self.main_modes.contains(&leg.mode) {
             self.events.borrow_mut().publish_event(
                 now,
-                &Event::new_person_enters_veh(agent.id(), veh_id.internal()),
+                &Event::new_person_enters_veh(agent.id().internal(), veh_id.internal()),
             );
         }
 

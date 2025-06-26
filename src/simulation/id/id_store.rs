@@ -311,10 +311,9 @@ mod tests {
     use crate::simulation::logging::init_std_out_logging;
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::population::population_data::Population;
+    use crate::simulation::population::InternalPerson;
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::wire_types::messages::Vehicle;
-    use crate::simulation::wire_types::population::Person;
-    use crate::simulation::wire_types::vehicles::VehicleType;
+    use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_folders;
 
     #[test]
@@ -434,15 +433,15 @@ mod tests {
         );
 
         for p_id in pop.persons.keys() {
-            store.create_id::<Person>(p_id.external());
+            store.create_id::<InternalPerson>(p_id.external());
         }
 
         for v_id in garage.vehicles.keys() {
-            store.create_id::<Vehicle>(v_id.external());
+            store.create_id::<InternalVehicle>(v_id.external());
         }
 
         for t_id in garage.vehicle_types.keys() {
-            store.create_id::<VehicleType>(t_id.external());
+            store.create_id::<InternalVehicleType>(t_id.external());
         }
 
         println!("Starting to write id store raw");

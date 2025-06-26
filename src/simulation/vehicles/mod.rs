@@ -1,7 +1,7 @@
 use crate::simulation::id::Id;
 use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
-use crate::simulation::vehicles::io::{IOVehicle, IOVehicleDefinitions, IOVehicleType};
+use crate::simulation::vehicles::io::{IOVehicle, IOVehicleType};
 use crate::simulation::{InternalAttributes, InternalSimulationAgent};
 use itertools::Itertools;
 
@@ -31,12 +31,6 @@ pub struct InternalVehicle {
     pub attributes: Option<InternalAttributes>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct InternalGarage {
-    pub vehicle_types: Vec<InternalVehicleType>,
-    pub vehicles: Vec<InternalVehicle>,
-}
-
 impl From<IOVehicleType> for InternalVehicleType {
     fn from(io: IOVehicleType) -> Self {
         InternalVehicleType {
@@ -53,22 +47,11 @@ impl From<IOVehicleType> for InternalVehicleType {
 }
 
 impl InternalVehicle {
-    pub fn from_io(io_veh_types: &Vec<IOVehicleType>, io: IOVehicle) -> Self {
-        let io_veh_type = io_veh_types
-            .iter()
-            .find_or_first(|io_type| io_type.id == io.id)
-            .unwrap();
-
+    pub fn from_io(io: IOVehicle, io_veh_type: &InternalVehicleType) -> Self {
         InternalVehicle {
             id: Id::create(&io.id),
-            max_v: io_veh_type
-                .maximum_velocity
-                .unwrap_or_default()
-                .meter_per_second,
-            pce: io_veh_type
-                .passenger_car_equivalents
-                .unwrap_or_default()
-                .pce,
+            max_v: io_veh_type.max_v,
+            pce: io_veh_type.pce,
             driver: None,
             passengers: Vec::new(),
             vehicle_type: Id::create(&io.vehicle_type),
@@ -131,19 +114,5 @@ impl InternalVehicle {
 impl EndTime for InternalVehicle {
     fn end_time(&self, now: u32) -> u32 {
         self.driver().end_time(now)
-    }
-}
-
-impl From<IOVehicleDefinitions> for InternalGarage {
-    fn from(io: IOVehicleDefinitions) -> Self {
-        let veh = io
-            .vehicles
-            .into_iter()
-            .map(|v| InternalVehicle::from_io(&io.veh_types, v))
-            .collect();
-        InternalGarage {
-            vehicle_types: io.veh_types.into_iter().map(Into::into).collect(),
-            vehicles: veh,
-        }
     }
 }

@@ -1,5 +1,4 @@
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::wire_types::messages::{SimMessage, SyncMessage};
 use mpi::collective::CommunicatorCollectives;
 use mpi::point_to_point::{Destination, Source};
 use mpi::topology::{Communicator, SimpleCommunicator};

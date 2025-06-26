@@ -59,12 +59,12 @@ fn compute_computational_weights(pop: &Population) -> IntMap<u64, u32> {
     let result: IntMap<u64, u32> = pop
         .persons
         .values()
-        .flat_map(|p| p.plan.as_ref().unwrap().legs.iter())
+        .flat_map(|p| p.selected_plan().as_ref().unwrap().legs().iter())
         .filter(|leg| leg.route.is_some())
         .filter_map(|leg| leg.route.as_ref()?.as_network())
         .flat_map(|n| n.route.iter())
         .fold(IntMap::new(), |mut map, link_id| {
-            map.entry(*link_id)
+            map.entry(link_id.internal())
                 .and_modify(|counter| *counter += 1)
                 .or_insert(1u32);
             map

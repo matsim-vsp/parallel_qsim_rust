@@ -43,7 +43,7 @@ impl ActivityEngine {
             self.events.borrow_mut().publish_event(
                 now,
                 &Event::new_act_end(
-                    agent.id(),
+                    agent.id().internal(),
                     agent.curr_act().link_id.internal(),
                     agent.curr_act().act_type.internal(),
                 ),
@@ -59,7 +59,7 @@ impl ActivityEngine {
         self.events.borrow_mut().publish_event(
             now,
             &Event::new_act_start(
-                agent.agent.id(),
+                agent.agent.id().internal(),
                 act.link_id.internal(),
                 act.act_type.internal(),
             ),
@@ -185,8 +185,7 @@ mod tests {
     fn test_activity_engine_wake_up_plan() {
         let plan = create_plan_with_plan_logic();
 
-        let agent =
-            InternalSimulationAgent::new_plan_logic(InternalPerson::new(Id::create("1"), plan));
+        let agent = InternalSimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);
@@ -205,8 +204,7 @@ mod tests {
     fn test_activity_engine_end() {
         let plan = create_plan_with_plan_logic();
 
-        let agent =
-            InternalSimulationAgent::new_plan_logic(InternalPerson::new(Id::create("1"), plan));
+        let agent = InternalSimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);

@@ -7,7 +7,6 @@ use crate::simulation::simulation::Simulation;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::wire_types::events::Event;
-use crate::simulation::wire_types::population::Person;
 use crate::simulation::InternalSimulationAgent;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -65,7 +64,7 @@ impl TeleportationEngine {
         self.events.borrow_mut().publish_event(
             now,
             &Event::new_travelled(
-                agent.id(),
+                agent.id().internal(),
                 route
                     .as_generic()
                     .distance
@@ -88,7 +87,7 @@ impl TeleportationEngine {
         self.events.borrow_mut().publish_event(
             now,
             &Event::new_travelled_with_pt(
-                agent.id(),
+                agent.id().internal(),
                 route
                     .as_generic()
                     .distance
@@ -98,9 +97,5 @@ impl TeleportationEngine {
                 transit_route_id,
             ),
         );
-    }
-
-    pub fn agents(&self) -> Vec<&mut Person> {
-        todo!()
     }
 }

@@ -1,9 +1,8 @@
-use crate::external_services::routing::population::{Leg, Person};
+use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::messaging::messages::SimulationAgentState;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPerson};
 use crate::simulation::time_queue::{EndTime, Identifiable};
-use crate::simulation::wire_types::messages::SimulationAgentLogic;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -52,16 +51,16 @@ impl Identifiable for InternalSimulationAgent {
 }
 
 impl InternalSimulationAgent {
-    pub fn new_plan_logic(person: InternalPerson) -> Self {
-        todo!()
+    pub fn new(person: InternalPerson) -> Self {
+        Self {
+            logic: InternalSimulationAgentLogic {
+                basic_agent_delegate: person,
+            },
+        }
     }
 
-    pub fn new_rolling_horizon_logic(person: InternalPerson) -> Self {
-        todo!()
-    }
-
-    pub fn id(&self) -> u64 {
-        todo!()
+    pub fn id(&self) -> &Id<InternalPerson> {
+        &self.logic.basic_agent_delegate.id
     }
 
     pub fn curr_act(&self) -> &InternalActivity {

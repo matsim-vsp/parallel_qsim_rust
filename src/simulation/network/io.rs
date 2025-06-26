@@ -97,69 +97,71 @@ fn write_to_xml(network: &Network, path: &Path) {
 }
 
 fn load_from_proto(path: &Path) -> Network {
-    let wire_net: crate::simulation::wire_types::network::Network =
-        crate::simulation::io::proto::read_from_file(path);
-    let mut result = Network::new();
-    result.effective_cell_size = wire_net.effective_cell_size;
-    for wn in &wire_net.nodes {
-        let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition, wn.cmp_weight);
-        result.add_node(node);
-    }
-    for wl in &wire_net.links {
-        let modes: IntSet<Id<String>> = wl.modes.iter().map(|id| Id::get(*id)).collect();
-
-        let link = Link::new(
-            Id::get(wl.id),
-            Id::get(wl.from),
-            Id::get(wl.to),
-            wl.length,
-            wl.capacity,
-            wl.freespeed,
-            wl.permlanes,
-            modes,
-            wl.partition,
-        );
-        result.add_link(link);
-    }
-    info!("Finished converting protobuf wire type into Network");
-    result
+    todo!()
+    // let wire_net: crate::simulation::wire_types::network::Network =
+    //     crate::simulation::io::proto::read_from_file(path);
+    // let mut result = Network::new();
+    // result.effective_cell_size = wire_net.effective_cell_size;
+    // for wn in &wire_net.nodes {
+    //     let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition, wn.cmp_weight);
+    //     result.add_node(node);
+    // }
+    // for wl in &wire_net.links {
+    //     let modes: IntSet<Id<String>> = wl.modes.iter().map(|id| Id::get(*id)).collect();
+    //
+    //     let link = Link::new(
+    //         Id::get(wl.id),
+    //         Id::get(wl.from),
+    //         Id::get(wl.to),
+    //         wl.length,
+    //         wl.capacity,
+    //         wl.freespeed,
+    //         wl.permlanes,
+    //         modes,
+    //         wl.partition,
+    //     );
+    //     result.add_link(link);
+    // }
+    // info!("Finished converting protobuf wire type into Network");
+    // result
 }
 
 fn write_to_proto(network: &Network, path: &Path) {
-    info!("Converting Network into wire format");
-    let nodes: Vec<_> = network
-        .nodes
-        .iter()
-        .map(|n| crate::simulation::wire_types::network::Node {
-            id: n.id.internal(),
-            x: n.x,
-            y: n.y,
-            partition: n.partition,
-            cmp_weight: n.cmp_weight,
-        })
-        .collect();
-    let links: Vec<_> = network
-        .links
-        .iter()
-        .map(|l| crate::simulation::wire_types::network::Link {
-            id: l.id.internal(),
-            from: l.from.internal(),
-            to: l.to.internal(),
-            length: l.length,
-            capacity: l.capacity,
-            freespeed: l.freespeed,
-            permlanes: l.permlanes,
-            modes: l.modes.iter().map(|id| id.internal()).collect(),
-            partition: l.partition,
-        })
-        .collect();
-
-    let wire_network = crate::simulation::wire_types::network::Network {
-        nodes,
-        links,
-        effective_cell_size: network.effective_cell_size,
-    };
-    crate::simulation::io::proto::write_to_file(wire_network, path);
+    todo!()
+    // info!("Converting Network into wire format");
+    // let nodes: Vec<_> = network
+    //     .nodes
+    //     .iter()
+    //     .map(|n| crate::simulation::wire_types::network::Node {
+    //         id: n.id.internal(),
+    //         x: n.x,
+    //         y: n.y,
+    //         partition: n.partition,
+    //         cmp_weight: n.cmp_weight,
+    //     })
+    //     .collect();
+    // let links: Vec<_> = network
+    //     .links
+    //     .iter()
+    //     .map(|l| crate::simulation::wire_types::network::Link {
+    //         id: l.id.internal(),
+    //         from: l.from.internal(),
+    //         to: l.to.internal(),
+    //         length: l.length,
+    //         capacity: l.capacity,
+    //         freespeed: l.freespeed,
+    //         permlanes: l.permlanes,
+    //         modes: l.modes.iter().map(|id| id.internal()).collect(),
+    //         partition: l.partition,
+    //     })
+    //     .collect();
+    //
+    // let wire_network = crate::simulation::wire_types::network::Network {
+    //     nodes,
+    //     links,
+    //     effective_cell_size: network.effective_cell_size,
+    // };
+    // crate::simulation::io::proto::write_to_file(wire_network, path);
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
