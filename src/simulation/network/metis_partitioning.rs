@@ -1,23 +1,41 @@
+use ahash::{HashMap, HashMapExt};
 use metis::{Graph, Idx};
+use nohash_hasher::{IntMap, IntSet};
 use tracing::info;
 
-use crate::simulation::config::{EdgeWeight, MetisOptions, VertexWeight};
-
 use super::global_network::{Link, Network, Node};
+use crate::simulation::config::{EdgeWeight, MetisOptions, VertexWeight};
+use crate::simulation::id::Id;
 
-pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Vec<Idx> {
+pub fn partition(
+    network: &Network,
+    num_parts: u32,
+    options: MetisOptions,
+) -> IntMap<Id<Node>, Idx> {
     if num_parts <= 1 {
-        return vec![0; network.nodes.len()];
+        let mut result = IntMap::new();
+        for node in network.nodes() {
+            result.insert(node.id.clone(), 0);
+        }
+        return result;
     }
 
+    //stores start positions of each node in the adjacency list
     let mut xadj: Vec<Idx> = Vec::from([0]);
     let mut adjncy: Vec<Idx> = Vec::new();
     let mut adjwgt: Vec<Idx> = Vec::new();
     let mut vwgt: Vec<Idx> = Vec::new();
-    let mut result: Vec<Idx> = vec![0x00; network.nodes.len()];
+    let mut metis_result: Vec<Idx> = vec![0x00; network.nodes().len()];
+
+    let mut pos_by_node_id = IntMap::default();
+    let mut node_id_by_pos = IntMap::default();
+    for (i, node) in network.nodes().iter().enumerate() {
+        pos_by_node_id.insert(node.id.internal(), i);
+        node_id_by_pos.insert(i, node.id.internal());
+    }
 
     info!("Converting network into Metis format");
-    for node in &network.nodes {
+    for node in network.nodes() {
         let num_out_links = node.out_links.len() as Idx;
         let num_in_links = node.in_links.len() as Idx;
         let next_adjacency_index = xadj.last().unwrap() + num_out_links + num_in_links;
@@ -27,14 +45,16 @@ pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Ve
         add_vwgt(network, &options, &mut vwgt, node);
 
         for id in &node.out_links {
-            let link = &network.links[id.internal() as usize];
-            adjncy.push(link.to.internal() as Idx);
+            let link = &network.get_link(id);
+            let node_pos = pos_by_node_id.get(&link.to.internal()).unwrap();
+            adjncy.push(*node_pos as Idx);
             adjwgt.push(get_adjwgt(&options, link) as Idx);
         }
 
         for id in &node.in_links {
-            let link = &network.links[id.internal() as usize];
-            adjncy.push(link.from.internal() as Idx);
+            let link = &network.get_link(id);
+            let node_pos = pos_by_node_id.get(&link.to.internal()).unwrap();
+            adjncy.push(*node_pos as Idx);
             adjwgt.push(get_adjwgt(&options, link) as Idx);
         }
     }
@@ -57,7 +77,16 @@ pub fn partition(network: &Network, num_parts: u32, options: MetisOptions) -> Ve
         graph = graph.set_vwgt(&vwgt);
     }
 
-    graph.part_kway(&mut result).unwrap();
+    graph.part_kway(&mut metis_result).unwrap();
+
+    let mut result = IntMap::default();
+    for (pos, part) in metis_result.iter().enumerate() {
+        let internal_node_id = node_id_by_pos
+            .get(&pos)
+            .expect("Something went wrong with node positions");
+        let id = Id::get(*internal_node_id);
+        result.insert(id, *part);
+    }
 
     result
 }
@@ -69,7 +98,7 @@ fn add_vwgt(network: &Network, options: &MetisOptions, vwgt: &mut Vec<Idx>, node
                 vwgt.push(
                     node.in_links
                         .iter()
-                        .map(|id| network.links[id.internal() as usize].capacity as Idx)
+                        .map(|id| network.get_link(id).capacity as Idx)
                         .sum(),
                 );
             }
@@ -222,7 +251,7 @@ mod tests {
     }
 
     fn node_count(network: &Network) -> BTreeMap<u32, usize> {
-        let map = network.nodes.iter().map(|n| n.partition).fold(
+        let map = network.nodes().iter().map(|n| n.partition).fold(
             BTreeMap::<u32, usize>::new(),
             |mut m, x| {
                 *m.entry(x).or_default() += 1;
@@ -234,7 +263,7 @@ mod tests {
     }
 
     fn edge_count(network: Network) -> BTreeMap<u32, usize> {
-        let map = network.links.iter().map(|l| l.partition).fold(
+        let map = network.links().iter().map(|l| l.partition).fold(
             BTreeMap::<u32, usize>::new(),
             |mut m, x| {
                 *m.entry(x).or_default() += 1;

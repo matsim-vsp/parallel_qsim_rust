@@ -50,4 +50,11 @@ impl Attrs {
             f()
         }
     }
+
+    pub fn find(&self, name: &str) -> Option<&str> {
+        self.attributes
+            .iter()
+            .find(|&attr| attr.name.eq(name))
+            .map(|attr| attr.value.as_str())
+    }
 }

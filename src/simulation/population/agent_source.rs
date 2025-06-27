@@ -117,11 +117,11 @@ impl DrtAgentSource {
                     .unwrap()
                     .get::<String>("startLink")
                     .expect("No start link for drt vehicle provided.");
-                let link_id = Id::<Link>::get_from_ext(link.as_str()).internal();
+                let link_id = Id::<Link>::get_from_ext(link.as_str());
                 (link_id, v)
             })
             .filter(|(l, _)| scenario.network_partition.get_link_ids().contains(l))
-            .collect::<Vec<(u64, &InternalVehicle)>>();
+            .collect::<Vec<(_, &InternalVehicle)>>();
 
         let mut result = HashMap::new();
 
@@ -204,8 +204,8 @@ mod tests {
         let agent_source = PopulationAgentSource {};
         let default_agents = agent_source.create_agents(&mut scenario, &config);
 
-        assert_eq!(scenario.network.nodes.len(), 62);
-        assert_eq!(scenario.network.links.len(), 170);
+        assert_eq!(scenario.network.nodes().len(), 62);
+        assert_eq!(scenario.network.links().len(), 170);
 
         // 10 agents, 1 drt agent
         assert_eq!(default_agents.len(), 10);

@@ -33,7 +33,7 @@ where
     ) -> Self {
         let neighbors = net.neighbors().iter().copied().collect();
         let link_mapping = global_network
-            .links
+            .links()
             .iter()
             .map(|link| (link.id.clone(), link.partition))
             .collect();
@@ -211,7 +211,7 @@ mod tests {
 
             // place vehicle into partition 0
             if broker.rank() == 0 {
-                let agent = create_agent(0, vec![2, 6]);
+                let agent = create_agent(0, vec!["2", "6"]);
                 let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle.clone(), 0);
             }
@@ -259,12 +259,13 @@ mod tests {
 
     #[test]
     fn send_recv_remote_message() {
+        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
 
             // place vehicle into partition 0 with a future timestamp
             if broker.rank() == 0 {
-                let agent = create_agent(0, vec![6]);
+                let agent = create_agent(0, vec!["6"]);
                 let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle, 1);
             }
@@ -292,12 +293,13 @@ mod tests {
 
     #[test]
     fn send_recv_local_and_remote_msg() {
+        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
 
             if broker.rank() == 0 {
                 // place vehicle into partition 0 with a future timestamp with remote destination
-                let agent = create_agent(0, vec![6]);
+                let agent = create_agent(0, vec!["6"]);
                 let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle, 1);
             }
@@ -312,7 +314,7 @@ mod tests {
 
             if broker.rank() == 2 {
                 // place vehicle into partition 2 with a current timestamp with neighbor destination
-                let agent = create_agent(1, vec![6]);
+                let agent = create_agent(1, vec!["6"]);
                 let vehicle = InternalVehicle::new(1, 0, 0., 0., Some(agent));
                 broker.add_veh(vehicle, 1);
             }
@@ -364,7 +366,7 @@ mod tests {
             if broker.rank() == 2 {
                 broker.add_cap_update(
                     StorageUpdate {
-                        link_id: 4,
+                        link_id: Id::create("4"),
                         released: 42.0,
                         from_part: 1,
                     },
@@ -392,7 +394,7 @@ mod tests {
         F: Fn(ChannelSimCommunicator) + Send + Sync + 'static,
     {
         let network = create_network();
-        let communicators = ChannelSimCommunicator::create_n_2_n(network.nodes.len() as u32);
+        let communicators = ChannelSimCommunicator::create_n_2_n(network.nodes().len() as u32);
 
         let mut join_handles = Vec::new();
 

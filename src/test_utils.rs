@@ -7,41 +7,34 @@ use crate::simulation::population::{
     InternalPlan, InternalRoute,
 };
 use crate::simulation::vehicles::InternalVehicleType;
-use crate::simulation::{config, InternalSimulationAgent, InternalSimulationAgentLogic};
+use crate::simulation::{config, InternalSimulationAgent};
 
 pub fn create_agent_without_route(id: u64) -> InternalSimulationAgent {
     //inserting a dummy route
-    create_agent(id, vec![0, 1])
+    create_agent(id, vec!["0", "1"])
 }
 
-pub fn create_agent(id: u64, route: Vec<u64>) -> InternalSimulationAgent {
-    let route = InternalNetworkRoute {
-        generic_delegate: InternalGenericRoute {
-            start_link: Id::create(&*route.first().unwrap().to_string()),
-            end_link: Id::create(&*route.first().unwrap().to_string()),
-            trav_time: None,
-            distance: None,
-            vehicle: None,
-        },
-        route: route
-            .into_iter()
-            .map(|u| u.to_string())
-            .map(|s| Id::create(s.as_ref()))
-            .collect(),
-    };
+pub fn create_agent(id: u64, route: Vec<&str>) -> InternalSimulationAgent {
+    let generic_route = InternalGenericRoute::new(
+        Id::create(&route.first().unwrap().to_string()),
+        Id::create(&route.last().unwrap().to_string()),
+        None,
+        None,
+        None,
+    );
 
-    let leg = InternalLeg::new(InternalRoute::Network(route), "car", 0, None);
+    let vec = route.into_iter().map(|s| Id::create(s)).collect();
+
+    let net_route = InternalNetworkRoute::new(generic_route, vec);
+
+    let leg = InternalLeg::new(InternalRoute::Network(net_route), "car", 0, None);
     let act = InternalActivity::new(0., 0., "act", Id::create("1"), None, None, None);
     let mut plan = InternalPlan::default();
     plan.add_act(act);
     plan.add_leg(leg);
     let person = InternalPerson::new(Id::create(id.to_string().as_str()), plan);
 
-    let mut agent = InternalSimulationAgent {
-        logic: InternalSimulationAgentLogic {
-            basic_agent_delegate: person,
-        },
-    };
+    let mut agent = InternalSimulationAgent::new(person);
     agent.advance_plan();
 
     agent

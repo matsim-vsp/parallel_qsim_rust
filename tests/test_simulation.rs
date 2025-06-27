@@ -108,7 +108,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     info!(
         "Partitioning: Rank {rank}; Links {:?}; Nodes {:?}",
         &sim_net.get_link_ids(),
-        &sim_net.nodes.keys().copied().collect::<HashSet<u64>>()
+        &sim_net.get_node_ids()
     );
 
     let events = Rc::new(RefCell::new(EventsPublisher::new()));

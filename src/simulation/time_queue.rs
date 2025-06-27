@@ -1,3 +1,5 @@
+use crate::simulation::id::serializable_type::StableTypeId;
+use crate::simulation::id::Id;
 use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -6,8 +8,8 @@ pub trait EndTime {
     fn end_time(&self, now: u32) -> u32;
 }
 
-pub trait Identifiable {
-    fn id(&self) -> u64;
+pub trait Identifiable<I: StableTypeId> {
+    fn id(&self) -> &Id<I>;
 }
 
 struct Entry<T>
@@ -47,21 +49,22 @@ where
     }
 }
 
-#[derive(Default)]
-pub struct TimeQueue<T>
+pub struct TimeQueue<T, I>
 where
     T: EndTime,
 {
     q: BinaryHeap<Entry<T>>,
+    _phantom: std::marker::PhantomData<I>,
 }
 
-impl<T> TimeQueue<T>
+impl<T, I> TimeQueue<T, I>
 where
     T: EndTime,
 {
     pub fn new() -> Self {
         TimeQueue {
             q: BinaryHeap::new(),
+            _phantom: std::marker::PhantomData,
         }
     }
 
@@ -90,19 +93,18 @@ where
     }
 }
 
-#[derive(Default)]
-struct ValueWrap {
-    id: u64,
+struct ValueWrap<I: StableTypeId> {
+    id: Id<I>,
     end_time: u32,
 }
 
-impl ValueWrap {
-    fn new(id: u64, end_time: u32) -> Self {
+impl<I: StableTypeId> ValueWrap<I> {
+    fn new(id: Id<I>, end_time: u32) -> Self {
         ValueWrap { id, end_time }
     }
 }
 
-impl EndTime for ValueWrap {
+impl<I: StableTypeId> EndTime for ValueWrap<I> {
     fn end_time(&self, _: u32) -> u32 {
         self.end_time
     }
@@ -111,18 +113,19 @@ impl EndTime for ValueWrap {
 /// This is a mutable version of TimeQueue. It allows to mutate the values in the queue.
 /// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
 /// TODO taxi driver needs to be able to change his end_time such that order is changed
-#[derive(Default)]
-pub struct MutTimeQueue<T>
+pub struct MutTimeQueue<T, I>
 where
-    T: EndTime + Identifiable,
+    T: EndTime + Identifiable<I>,
+    I: StableTypeId,
 {
-    q: TimeQueue<ValueWrap>,
-    cache: IntMap<u64, T>,
+    q: TimeQueue<ValueWrap<I>, I>,
+    cache: IntMap<Id<I>, T>,
 }
 
-impl<T> MutTimeQueue<T>
+impl<T, I> MutTimeQueue<T, I>
 where
-    T: EndTime + Identifiable,
+    T: EndTime + Identifiable<I>,
+    I: StableTypeId + 'static,
 {
     pub fn new() -> Self {
         MutTimeQueue {
@@ -133,8 +136,9 @@ where
 
     pub fn add(&mut self, value: T, now: u32) {
         let id = value.id();
-        self.q.add(ValueWrap::new(id, value.end_time(now)), now);
-        self.cache.insert(id, value);
+        self.q
+            .add(ValueWrap::new(id.clone(), value.end_time(now)), now);
+        self.cache.insert(id.clone(), value);
     }
 
     pub fn pop(&mut self, now: u32) -> Vec<T> {

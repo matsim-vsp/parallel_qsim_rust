@@ -59,10 +59,10 @@ fn compute_computational_weights(pop: &Population) -> IntMap<u64, u32> {
     let result: IntMap<u64, u32> = pop
         .persons
         .values()
-        .flat_map(|p| p.selected_plan().as_ref().unwrap().legs().iter())
+        .flat_map(|p| p.selected_plan().as_ref().unwrap().legs())
         .filter(|leg| leg.route.is_some())
         .filter_map(|leg| leg.route.as_ref()?.as_network())
-        .flat_map(|n| n.route.iter())
+        .flat_map(|n| n.route().iter())
         .fold(IntMap::new(), |mut map, link_id| {
             map.entry(link_id.internal())
                 .and_modify(|counter| *counter += 1)
@@ -74,9 +74,10 @@ fn compute_computational_weights(pop: &Population) -> IntMap<u64, u32> {
 }
 
 fn assign_computational_weights(net: &mut Network, cmp_weights: IntMap<u64, u32>) {
-    for (link_id, weight) in cmp_weights {
-        let link = &net.links[link_id as usize];
-        let node = &mut net.nodes[link.to.internal() as usize];
-        node.cmp_weight = weight;
-    }
+    todo!()
+    // for (link_id, weight) in cmp_weights {
+    //     let link = &net.links[link_id as usize];
+    //     let node = &mut net.nodes[link.to.internal() as usize];
+    //     node.cmp_weight = weight;
+    // }
 }

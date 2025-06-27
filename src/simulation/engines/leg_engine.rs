@@ -214,7 +214,7 @@ impl VehicularDepartureHandler {
 
         let veh_id = route
             .as_generic()
-            .vehicle
+            .vehicle()
             .as_ref()
             .expect("Route doesn't have a vehicle id.")
             .clone();

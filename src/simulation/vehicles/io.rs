@@ -116,6 +116,7 @@ pub struct IOVehicle {
     pub id: String,
     #[serde(rename = "@type")]
     pub vehicle_type: String,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<Attrs>,
 }
 
@@ -134,6 +135,7 @@ pub struct IOVehicleType {
     pub passenger_car_equivalents: Option<IOPassengerCarEquivalents>,
     pub network_mode: Option<IONetworkMode>,
     pub flow_efficiency_factor: Option<IOFowEfficiencyFactor>,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<Attrs>,
 }
 

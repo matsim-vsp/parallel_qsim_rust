@@ -481,10 +481,9 @@ impl Population {
         part: u32,
     ) -> Self {
         from_file(file_path, garage, |p| {
-            todo!()
-            // let act = p.curr_act();
-            // let partition = net.links.get(&act.link_id).unwrap().partition;
-            // partition == part
+            let act = p.plan_element_at(0).as_activity().unwrap();
+            let partition = net.get_link(&act.link_id).partition;
+            partition == part
         })
     }
 

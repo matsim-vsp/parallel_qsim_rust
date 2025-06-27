@@ -39,7 +39,7 @@ fn main() {
                 contiguous: true,
             }),
         );
-        let distinct_partitions: HashSet<u32> = net.nodes.iter().map(|n| n.partition).collect();
+        let distinct_partitions: HashSet<u32> = net.nodes().iter().map(|n| n.partition).collect();
         for partition in distinct_partitions {
             let net_partition =
                 SimNetworkPartition::from_network(&net, partition, config::Simulation::default());

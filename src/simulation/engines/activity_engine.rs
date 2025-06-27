@@ -1,5 +1,6 @@
 use crate::simulation::config::Config;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, TimeQueue};
 use crate::simulation::wire_types::events::Event;
 use crate::simulation::InternalSimulationAgent;
@@ -7,14 +8,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct ActivityEngine {
-    asleep_q: TimeQueue<AsleepSimulationAgent>,
+    asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
     awake_q: Vec<AsleepSimulationAgent>,
     events: Rc<RefCell<EventsPublisher>>,
 }
 
 impl ActivityEngine {
     fn new(
-        asleep_q: TimeQueue<AsleepSimulationAgent>,
+        asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
         awake_q: Vec<AsleepSimulationAgent>,
         events: Rc<RefCell<EventsPublisher>>,
     ) -> Self {
@@ -245,13 +246,13 @@ mod tests {
             None,
         ));
         plan.add_leg(InternalLeg::new(
-            InternalRoute::Generic(InternalGenericRoute {
-                start_link: Id::create("start"),
-                end_link: Id::create("end"),
-                trav_time: None,
-                distance: None,
-                vehicle: None,
-            }),
+            InternalRoute::Generic(InternalGenericRoute::new(
+                Id::create("start"),
+                Id::create("end"),
+                None,
+                None,
+                None,
+            )),
             "mode",
             1,
             Some(2),

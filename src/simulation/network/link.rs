@@ -358,7 +358,7 @@ impl SplitInLink {
         if self.has_released() {
             let released = self.local_link.storage_cap.released();
             Some(StorageUpdate {
-                link_id: self.local_link.id.internal(),
+                link_id: self.local_link.id.clone(),
                 released,
                 from_part: self.from_part,
             })
@@ -460,7 +460,7 @@ mod sim_link_tests {
         link.update_flow_cap(10);
         // this should reduce the flow capacity, so that no other vehicle can leave during this time step
         let popped1 = link.pop_veh();
-        assert_eq!(1, popped1.id.internal());
+        assert_eq!("1", popped1.id.external());
 
         // as the flow cap is 0.1/s the next vehicle can leave the link 15s after the first
         for now in 11..24 {
@@ -470,7 +470,7 @@ mod sim_link_tests {
 
         link.update_flow_cap(25);
         if let Some(popped2) = link.offers_veh(25) {
-            assert_eq!(2, popped2.id.internal());
+            assert_eq!("2", popped2.id.external());
         } else {
             panic!("Expected vehicle2 to be available at t=30")
         }
@@ -535,10 +535,10 @@ mod sim_link_tests {
 
         // make sure that vehicles are added ad the end of the queue
         let popped_vehicle1 = link.pop_veh();
-        assert_eq!(id1, popped_vehicle1.id.internal());
+        assert_eq!(id1.to_string(), popped_vehicle1.id.external());
 
         let popped_vehicle2 = link.pop_veh();
-        assert_eq!(id2, popped_vehicle2.id.internal());
+        assert_eq!(id2.to_string(), popped_vehicle2.id.external());
     }
 
     #[test]
@@ -659,9 +659,9 @@ mod out_link_tests {
             // make sure, that vehicles have correct order
             assert_eq!(2, result.len());
             let taken_1 = result.pop_front().unwrap();
-            assert_eq!(id1, taken_1.id.internal());
+            assert_eq!(id1.to_string(), taken_1.id.external());
             let taken_2 = result.pop_front().unwrap();
-            assert_eq!(id2, taken_2.id.internal());
+            assert_eq!(id2.to_string(), taken_2.id.external());
 
             // make sure storage capacity is not released
             assert_eq!(2., link.used_storage());

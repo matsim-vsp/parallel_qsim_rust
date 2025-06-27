@@ -417,10 +417,10 @@ mod tests {
             1,
             PartitionMethod::None,
         );
-        for link in &net.links {
+        for link in net.links() {
             store.create_id::<Link>(link.id.external());
         }
-        for node in &net.nodes {
+        for node in net.nodes() {
             store.create_id::<Node>(node.id.external());
         }
 

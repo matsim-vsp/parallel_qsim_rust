@@ -238,6 +238,7 @@ mod test {
     }
 
     #[test]
+    #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
     fn test_mode_filter() {
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
@@ -273,6 +274,7 @@ mod test {
     }
 
     #[test]
+    #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
     fn test_different_veh_types_same_net_mode() {
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",

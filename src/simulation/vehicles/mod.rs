@@ -4,6 +4,7 @@ use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::io::{IOVehicle, IOVehicleType};
 use crate::simulation::{InternalAttributes, InternalSimulationAgent};
 use itertools::Itertools;
+use std::fmt::Debug;
 
 pub mod garage;
 pub mod io;
@@ -78,6 +79,10 @@ impl InternalVehicle {
         }
     }
 
+    fn driver_mut(&mut self) -> &mut InternalSimulationAgent {
+        self.driver.as_mut().unwrap()
+    }
+
     pub fn driver(&self) -> &InternalSimulationAgent {
         self.driver.as_ref().unwrap()
     }
@@ -91,23 +96,23 @@ impl InternalVehicle {
     }
 
     pub fn register_moved_to_next_link(&mut self) {
-        todo!()
+        self.driver_mut().register_moved_to_next_link();
     }
 
     pub fn register_vehicle_exited(&mut self) {
-        todo!()
+        self.driver_mut().register_vehicle_exited();
     }
 
     pub fn route_index_to_last(&mut self) {
-        todo!()
+        self.driver_mut().route_index_to_last();
     }
 
-    pub fn curr_link_id(&self) -> Option<Id<Link>> {
-        todo!()
+    pub fn curr_link_id(&self) -> Option<&Id<Link>> {
+        self.driver().curr_link_id()
     }
 
-    pub fn peek_next_route_element(&self) -> Option<Id<Link>> {
-        todo!()
+    pub fn peek_next_route_element(&self) -> Option<&Id<Link>> {
+        self.driver().peek_next_link_id()
     }
 }
 

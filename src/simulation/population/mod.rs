@@ -13,6 +13,10 @@ pub mod agent_source;
 pub mod io;
 pub mod population_data;
 
+trait FromIOPerson<T> {
+    fn from_io(io: T, id: Id<InternalPerson>) -> Self;
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalActivity {
     pub act_type: Id<String>,
@@ -27,7 +31,7 @@ pub struct InternalActivity {
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalLeg {
     pub mode: Id<String>,
-    pub routing_mode: Id<String>,
+    pub routing_mode: Option<Id<String>>,
     pub dep_time: Option<u32>,
     pub trav_time: Option<u32>,
     pub route: Option<InternalRoute>,
@@ -43,17 +47,17 @@ pub enum InternalRoute {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalGenericRoute {
-    pub start_link: Id<Link>,
-    pub end_link: Id<Link>,
-    pub trav_time: Option<u32>,
-    pub distance: Option<f64>,
-    pub vehicle: Option<Id<InternalVehicle>>,
+    start_link: Id<Link>,
+    end_link: Id<Link>,
+    trav_time: Option<u32>,
+    distance: Option<f64>,
+    vehicle: Option<Id<InternalVehicle>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalNetworkRoute {
-    pub generic_delegate: InternalGenericRoute,
-    pub route: Vec<Id<Link>>,
+    generic_delegate: InternalGenericRoute,
+    route: Vec<Id<Link>>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -85,9 +89,9 @@ pub struct InternalPlan {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalPerson {
-    pub id: Id<InternalPerson>,
-    pub plans: Vec<InternalPlan>,
-    pub attributes: Option<Attrs>,
+    id: Id<InternalPerson>,
+    plans: Vec<InternalPlan>,
+    attributes: Option<Attrs>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -108,85 +112,16 @@ impl InternalPerson {
         &self.id
     }
 
-    pub fn curr_act(&self) -> &InternalActivity {
-        // if self.curr_plan_elem % 2 != 0 {
-        //     panic!("Current element is not an activity");
-        // }
-        // let act_index = self.curr_plan_elem / 2;
-        // self.get_act_at_index(act_index)
-        todo!()
+    pub fn plan_element_at(&self, index: usize) -> &InternalPlanElement {
+        self.selected_plan()
+            .unwrap()
+            .elements
+            .get(index)
+            .expect("Plan index out of bounds")
     }
 
-    pub fn curr_leg(&self) -> &InternalLeg {
-        // if self.curr_plan_elem % 2 != 1 {
-        //     panic!("Current element is not a leg.");
-        // }
-        //
-        // let leg_index = (self.curr_plan_elem - 1) / 2;
-        // self.plan
-        //     .as_ref()
-        //     .unwrap()
-        //     .legs
-        //     .get(leg_index as usize)
-        //     .unwrap()
-        todo!()
-    }
-
-    pub fn next_leg(&self) -> Option<&InternalLeg> {
-        // position index: 0      | 1
-        // activities:     a0 (0) | a1 (2)
-        // legs:           l0 (1) | l1 (3)
-        // e.g., if current is a1, next leg is l1 => curr_plan_elem/2
-        // e.g., if current is l0, next leg is l1 => (curr_plan_elem + 1)/2
-
-        // let next_leg_index = if self.curr_plan_elem % 2 == 0 {
-        //     // current element is an activity
-        //     self.curr_plan_elem / 2
-        // } else {
-        //     // current element is a leg
-        //     (self.curr_plan_elem + 1) / 2
-        // };
-        //
-        // self.plan
-        //     .as_ref()
-        //     .unwrap()
-        //     .legs
-        //     .get(next_leg_index as usize)
-        todo!()
-    }
-
-    fn get_act_at_index(&self, index: u32) -> &InternalActivity {
-        // self.plan
-        //     .as_ref()
-        //     .unwrap()
-        //     .acts
-        //     .get(index as usize)
-        //     .unwrap()
-        todo!()
-    }
-
-    pub fn advance_plan(&mut self) {
-        // let next = self.curr_plan_elem + 1;
-        // if self.plan.as_ref().unwrap().acts.len() + self.plan.as_ref().unwrap().legs.len()
-        //     == next as usize
-        // {
-        //     panic!(
-        //         "Person: Advance plan was called on Person #{}, but no element is remaining.",
-        //         self.id
-        //     )
-        // }
-        // self.curr_plan_elem = next;
-        todo!()
-    }
-
-    pub fn legs(&self) -> &[InternalLeg] {
-        // self.plan.as_ref().unwrap().legs.as_slice()
-        todo!()
-    }
-
-    pub fn acts(&self) -> &[InternalActivity] {
-        // self.plan.as_ref().unwrap().acts.as_slice()
-        todo!()
+    pub fn total_elements(&self) -> usize {
+        self.selected_plan().unwrap().elements.len()
     }
 
     pub fn selected_plan(&self) -> Option<&InternalPlan> {
@@ -212,12 +147,24 @@ impl InternalPlan {
         self.elements.push(InternalPlanElement::Activity(activity));
     }
 
-    pub fn legs(&self) -> &Vec<InternalLeg> {
-        todo!()
+    pub fn legs(&self) -> Vec<&InternalLeg> {
+        self.elements
+            .iter()
+            .filter_map(|e| match e {
+                InternalPlanElement::Leg(leg) => Some(leg),
+                _ => None,
+            })
+            .collect()
     }
 
-    pub fn acts(&self) -> &Vec<InternalActivity> {
-        todo!()
+    pub fn acts(&self) -> Vec<&InternalActivity> {
+        self.elements
+            .iter()
+            .filter_map(|e| match e {
+                InternalPlanElement::Activity(act) => Some(act),
+                _ => None,
+            })
+            .collect()
     }
 }
 
@@ -302,7 +249,114 @@ impl InternalRoute {
     }
 
     pub fn end_link(&self) -> &Id<Link> {
-        &self.as_generic().start_link
+        &self.as_generic().end_link
+    }
+
+    fn from_io(io: IORoute, id: Id<InternalPerson>, mode: Id<String>) -> Self {
+        let external = format!("{}_{}", id.external(), mode.external());
+        let generic = InternalGenericRoute::new(
+            Id::create(io.start_link.as_str()),
+            Id::create(io.end_link.as_str()),
+            parse_time_opt(&io.trav_time),
+            Option::from(io.distance),
+            Some(Id::create(&external)),
+        );
+
+        match io.r#type.as_str() {
+            "generic" => InternalRoute::Generic(generic),
+            "default_pt" => {
+                let description = io
+                    .route
+                    .and_then(|s| InternalPtRouteDescription::from_str(&s).ok())
+                    .expect("Failed to parse PT route description");
+                InternalRoute::Pt(InternalPtRoute {
+                    generic_delegate: generic,
+                    description,
+                })
+            }
+            "links" => {
+                let route = io
+                    .route
+                    .unwrap_or_default()
+                    .split(' ')
+                    .map(|link| Id::create(link.trim()))
+                    .collect();
+                InternalRoute::Network(InternalNetworkRoute {
+                    generic_delegate: generic,
+                    route,
+                })
+            }
+            _ => panic!("Unknown route type: {}", io.r#type),
+        }
+    }
+}
+
+impl InternalGenericRoute {
+    pub fn new(
+        start_link: Id<Link>,
+        end_link: Id<Link>,
+        trav_time: Option<u32>,
+        distance: Option<f64>,
+        vehicle: Option<Id<InternalVehicle>>,
+    ) -> Self {
+        Self {
+            start_link,
+            end_link,
+            trav_time,
+            distance,
+            vehicle,
+        }
+    }
+
+    pub fn end_link(&self) -> &Id<Link> {
+        &self.end_link
+    }
+
+    pub fn start_link(&self) -> &Id<Link> {
+        &self.start_link
+    }
+
+    pub fn vehicle(&self) -> &Option<Id<InternalVehicle>> {
+        &self.vehicle
+    }
+
+    pub fn trav_time(&self) -> Option<u32> {
+        self.trav_time
+    }
+
+    pub fn distance(&self) -> Option<f64> {
+        self.distance
+    }
+}
+
+impl InternalNetworkRoute {
+    pub fn route_element_at(&self, index: usize) -> Option<&Id<Link>> {
+        self.route.get(index)
+    }
+
+    pub fn new(generic_delegate: InternalGenericRoute, route: Vec<Id<Link>>) -> Self {
+        Self {
+            generic_delegate,
+            route,
+        }
+    }
+
+    pub fn generic_delegate(&self) -> &InternalGenericRoute {
+        &self.generic_delegate
+    }
+
+    pub fn route(&self) -> &Vec<Id<Link>> {
+        &self.route
+    }
+}
+
+impl InternalPtRoute {
+    pub fn start_link(&self) -> &Id<Link> {
+        &self.generic_delegate.start_link
+    }
+
+    pub fn end_link(&self) -> &Id<Link> {
+        &self.generic_delegate.end_link
     }
 }
 
@@ -311,7 +365,7 @@ impl InternalLeg {
         Self {
             route: Some(route),
             mode: Id::create(mode),
-            routing_mode: Id::create(mode),
+            routing_mode: Some(Id::create(mode)),
             trav_time: Some(trav_time),
             dep_time,
             attributes: None,
@@ -327,20 +381,21 @@ impl InternalLeg {
     }
 }
 
-impl From<IOLeg> for InternalLeg {
-    fn from(io: IOLeg) -> Self {
+impl FromIOPerson<IOLeg> for InternalLeg {
+    fn from_io(io: IOLeg, id: Id<InternalPerson>) -> Self {
         let routing_mode = io
             .attributes
             .as_ref()
-            .expect("No attributes provided for leg")
-            .find_or_else("routingMode", || panic!("No routing mode provied"));
+            .and_then(|a| a.find("routingMode"))
+            .map(Id::<String>::create);
 
+        let mode = Id::create(&io.mode);
         InternalLeg {
-            mode: Id::create(&io.mode),
-            routing_mode: Id::create(&routing_mode),
-            dep_time: io.dep_time.and_then(|s| s.parse().ok()),
-            trav_time: io.trav_time.and_then(|s| s.parse().ok()),
-            route: io.route.map(InternalRoute::from),
+            mode: mode.clone(),
+            routing_mode,
+            dep_time: parse_time_opt(&io.dep_time),
+            trav_time: parse_time_opt(&io.trav_time),
+            route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes
                 .and_then(|a| InternalAttributes::from(a).into()),
@@ -355,9 +410,9 @@ impl From<IOActivity> for InternalActivity {
             link_id: Id::create(&io.link),
             x: io.x,
             y: io.y,
-            start_time: io.start_time.and_then(|s| s.parse().ok()),
-            end_time: io.end_time.and_then(|s| s.parse().ok()),
-            max_dur: io.max_dur.and_then(|s| s.parse().ok()),
+            start_time: parse_time_opt(&io.start_time),
+            end_time: parse_time_opt(&io.end_time),
+            max_dur: parse_time_opt(&io.max_dur),
         }
     }
 }
@@ -389,48 +444,56 @@ fn parse_time(value: &str) -> Option<u32> {
 
 impl From<IOPerson> for InternalPerson {
     fn from(io: IOPerson) -> Self {
+        let id = Id::create(&io.id);
         InternalPerson {
-            id: Id::create(&io.id),
-            plans: io.plans.into_iter().map(InternalPlan::from).collect(),
+            id: id.clone(),
+            plans: io
+                .plans
+                .into_iter()
+                .map(|p| InternalPlan::from_io(p, id.clone()))
+                .collect(),
             attributes: io.attributes,
         }
     }
 }
 
-impl From<IOPlanElement> for InternalPlanElement {
-    fn from(io: IOPlanElement) -> Self {
+impl FromIOPerson<IOPlanElement> for InternalPlanElement {
+    fn from_io(io: IOPlanElement, id: Id<InternalPerson>) -> Self {
         match io {
             IOPlanElement::Activity(act) => {
                 InternalPlanElement::Activity(InternalActivity::from(act))
             }
-            IOPlanElement::Leg(leg) => InternalPlanElement::Leg(InternalLeg::from(leg)),
+            IOPlanElement::Leg(leg) => InternalPlanElement::Leg(InternalLeg::from_io(leg, id)),
         }
     }
 }
 
-impl From<IORoute> for InternalRoute {
-    fn from(io: IORoute) -> Self {
-        todo!()
-        // InternalRoute {
-        //     r#type: Id::create(&io.r#type),
-        //     start_link: Id::create(&io.start_link),
-        //     end_link: Id::create(&io.end_link),
-        //     trav_time: io.trav_time.and_then(|s| s.parse().ok()),
-        //     distance: io.distance,
-        //     vehicle: io.vehicle.map(|v| Id::create(&v)),
-        //     route: todo!("Convert route links from IORoute to InternalRoute"),
-        // }
+impl InternalPlanElement {
+    pub fn as_activity(&self) -> Option<&InternalActivity> {
+        if let InternalPlanElement::Activity(act) = self {
+            Some(act)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_leg(&self) -> Option<&InternalLeg> {
+        if let InternalPlanElement::Leg(leg) = self {
+            Some(leg)
+        } else {
+            None
+        }
     }
 }
 
-impl From<IOPlan> for InternalPlan {
-    fn from(io: IOPlan) -> Self {
+impl FromIOPerson<IOPlan> for InternalPlan {
+    fn from_io(io: IOPlan, id: Id<InternalPerson>) -> Self {
         InternalPlan {
             selected: io.selected,
             elements: io
                 .elements
                 .into_iter()
-                .map(InternalPlanElement::from)
+                .map(|p| InternalPlanElement::from_io(p, id.clone()))
                 .collect(),
         }
     }
@@ -443,7 +506,7 @@ mod tests {
     use crate::simulation::network::global_network::{Link, Network};
     use crate::simulation::population::io::{IOLeg, IORoute};
     use crate::simulation::population::population_data::Population;
-    use crate::simulation::population::{InternalLeg, InternalPerson, InternalRoute};
+    use crate::simulation::population::{FromIOPerson, InternalLeg, InternalPerson, InternalRoute};
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::InternalVehicle;
     use std::collections::HashSet;
@@ -467,7 +530,8 @@ mod tests {
         assert_eq!(4, plan.acts().len());
         assert_eq!(3, plan.legs().len());
 
-        let home_act = plan.acts().first().unwrap();
+        let binding = plan.acts();
+        let home_act = binding.first().unwrap();
         assert_eq!("h", home_act.act_type.external());
         assert_eq!(Id::<Link>::get_from_ext("1"), home_act.link_id);
         assert_eq!(-25000., home_act.x);
@@ -476,7 +540,8 @@ mod tests {
         assert_eq!(None, home_act.start_time);
         assert_eq!(None, home_act.max_dur);
 
-        let leg = plan.legs().first().unwrap();
+        let binding = plan.legs();
+        let leg = binding.first().unwrap();
         assert_eq!(None, leg.dep_time);
         assert!(leg.route.is_some());
         let net_route = leg.route.as_ref().unwrap().as_network().unwrap();
@@ -609,12 +674,12 @@ mod tests {
             attributes: None,
         };
 
-        let leg = InternalLeg::from(io_leg);
+        let leg = InternalLeg::from_io(io_leg, Id::create("person"));
 
         assert_eq!(leg.mode.external(), "car");
         assert_eq!(leg.trav_time, Some(1800));
         assert_eq!(leg.dep_time, Some(43200));
-        assert_eq!(leg.routing_mode.external(), "car");
+        assert_eq!(leg.routing_mode, None);
         let route = leg.route.as_ref().unwrap();
         assert!(matches!(route, InternalRoute::Generic(_)));
         assert_eq!(route.as_generic().start_link.external(), "1");
@@ -645,12 +710,12 @@ mod tests {
                 trav_time: Some("00:20:00".to_string()),
                 distance: f64::NAN,
                 vehicle: None,
-                route: Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}"))
+                route: Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")),
             }),
             attributes: None,
         };
 
-        let leg = InternalLeg::from(io_leg);
+        let leg = InternalLeg::from_io(io_leg, Id::create("person"));
 
         print!("{:?}", leg);
     }

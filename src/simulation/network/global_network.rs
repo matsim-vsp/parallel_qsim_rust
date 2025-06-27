@@ -1,22 +1,21 @@
-use itertools::Itertools;
-use nohash_hasher::IntSet;
-use std::path::PathBuf;
-use std::str::FromStr;
-use std::{collections::HashSet, path::Path};
-
 use super::metis_partitioning;
 use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
 use crate::simulation::network::io::{IOLink, IONetwork, IONode};
 use crate::simulation::InternalAttributes;
+use itertools::Itertools;
+use nohash_hasher::{IntMap, IntSet};
+use std::path::PathBuf;
+use std::str::FromStr;
+use std::{collections::HashSet, path::Path};
 
 /// This is called global network but could also be renamed into network when things are sorted out a little
 #[derive(Debug, Clone)]
 pub struct Network {
-    pub nodes: Vec<Node>,
-    pub links: Vec<Link>,
-    pub effective_cell_size: f32,
+    nodes: IntMap<Id<Node>, Node>,
+    links: IntMap<Id<Link>, Link>,
+    effective_cell_size: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -53,10 +52,14 @@ impl Default for Network {
 impl Network {
     pub fn new() -> Self {
         Network {
-            nodes: Vec::new(),
-            links: Vec::new(),
+            nodes: IntMap::default(),
+            links: IntMap::default(),
             effective_cell_size: 7.5,
         }
+    }
+
+    pub fn effective_cell_size(&self) -> f32 {
+        self.effective_cell_size
     }
 
     pub fn from_file(file: &str, num_parts: u32, partition_method: PartitionMethod) -> Self {
@@ -82,64 +85,64 @@ impl Network {
     }
 
     pub fn add_node(&mut self, node: Node) {
-        assert_eq!(
-            node.id.internal(),
-            self.nodes.len() as u64,
-            "internal id {} and slot in node vec {} were note the same. Probably, node id {} already exsists.",
-            node.id.internal(),
-            self.nodes.len(),
-            node.id.external()
+        let id = node.id.clone();
+        let option = self.nodes.insert(id.clone(), node);
+        assert!(
+            option.is_none(),
+            "Node with id {} already exists in the network.",
+            id
         );
-        self.nodes.push(node);
     }
 
     pub fn add_link(&mut self, link: Link) {
-        assert_eq!(
-            link.id.internal(),
-            self.links.len() as u64,
-            "internal id {} and slot in link vec {} were note the same. Probably, this link id {} already exists",
-            link.id.internal(),
-            self.links.len(),
-            link.id.external()
-        );
-
         // wire up in and out links and push link to the links vec
+        let id = link.id.clone();
         self.nodes
-            .get_mut(link.from.internal() as usize)
+            .get_mut(&link.from)
             .unwrap()
             .out_links
-            .push(link.id.clone());
+            .push(id.clone());
         self.nodes
-            .get_mut(link.to.internal() as usize)
+            .get_mut(&link.to)
             .unwrap()
             .in_links
-            .push(link.id.clone());
-        self.links.push(link);
+            .push(id.clone());
+
+        let option = self.links.insert(id.clone(), link);
+        assert!(
+            option.is_none(),
+            "Link with id {} already exists in the network.",
+            id
+        );
     }
 
     pub fn get_node(&self, id: &Id<Node>) -> &Node {
-        self.nodes.get(id.internal() as usize).unwrap()
+        self.nodes.get(id).unwrap()
     }
 
     pub fn get_link(&self, id: &Id<Link>) -> &Link {
-        self.links.get(id.internal() as usize).unwrap()
+        self.links.get(id).unwrap()
     }
 
-    pub fn get_link_form_internal(&self, id: u64) -> &Link {
-        self.links.get(id as usize).unwrap()
+    pub fn get_node_mut(&mut self, id: &Id<Node>) -> &mut Node {
+        self.nodes.get_mut(id).unwrap()
+    }
+
+    pub fn get_link_mut(&mut self, id: &Id<Link>) -> &mut Link {
+        self.links.get_mut(id).unwrap()
     }
 
     fn partition_network(network: &mut Network, partition_method: PartitionMethod, num_parts: u32) {
         match partition_method {
             PartitionMethod::Metis(options) => {
                 let partitions = metis_partitioning::partition(network, num_parts, options);
-                for node in network.nodes.iter_mut() {
-                    let partition = partitions[node.id.internal() as usize] as u32;
-                    node.partition = partition;
+                for (id, node) in network.nodes.iter_mut() {
+                    let partition = partitions.get(id).unwrap();
+                    node.partition = *partition as u32;
 
                     for link_id in &node.in_links {
-                        let link = network.links.get_mut(link_id.internal() as usize).unwrap();
-                        link.partition = partition;
+                        let link = network.links.get_mut(link_id).unwrap();
+                        link.partition = *partition as u32;
                     }
                 }
             }
@@ -147,18 +150,24 @@ impl Network {
         }
     }
 
-    pub fn get_all_links_sorted(&self) -> Vec<&Link> {
-        self.links
-            .iter()
-            .sorted_by_key(|&l| &l.id)
-            .collect::<Vec<&Link>>()
-    }
-
     pub fn get_all_nodes_sorted(&self) -> Vec<&Node> {
         self.nodes
             .iter()
-            .sorted_by_key(|&n| &n.id)
+            .sorted_by_key(|&(id, _)| id.clone())
+            .map(|(_, node)| node)
             .collect::<Vec<&Node>>()
+    }
+
+    pub fn set_effective_cell_size(&mut self, effective_cell_size: f32) {
+        self.effective_cell_size = effective_cell_size;
+    }
+
+    pub fn nodes(&self) -> Vec<&Node> {
+        self.nodes.values().collect::<Vec<&Node>>()
+    }
+
+    pub fn links(&self) -> Vec<&Link> {
+        self.links.values().collect::<Vec<&Link>>()
     }
 }
 
@@ -369,17 +378,17 @@ mod tests {
 
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
-        for node in &network.nodes {
+        for (_, node) in &network.nodes {
             let expected_partition = expected_partitions[node.id.internal() as usize];
             assert_eq!(expected_partition, node.partition);
         }
-        for link in &network.links {
+        for (_, link) in &network.links {
             let expected_partition = expected_partitions[link.to.internal() as usize];
             assert_eq!(expected_partition, link.partition);
         }
 
         // probe in and out links
-        for node in &network.nodes {
+        for node in network.nodes() {
             match &node.id.internal() {
                 11 => {
                     assert_eq!(9, node.in_links.len());
@@ -433,7 +442,6 @@ mod tests {
 
         // the node should be in nodes vec and there should be a node id
         let id = Id::get_from_ext(&external_id);
-        assert_eq!(0, id.internal());
         assert_eq!(external_id, id.external());
 
         let node = network.get_node(&id);

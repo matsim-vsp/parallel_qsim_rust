@@ -39,7 +39,7 @@ fn load_from_xml(path: &Path) -> Network {
 fn write_to_xml(network: &Network, path: &Path) {
     let mut result = IONetwork::new(None);
 
-    for node in &network.nodes {
+    for node in network.nodes() {
         let attributes = Attrs {
             attributes: vec![
                 Attr {
@@ -63,7 +63,7 @@ fn write_to_xml(network: &Network, path: &Path) {
         result.nodes_mut().push(io_node);
     }
 
-    for link in &network.links {
+    for link in network.links() {
         let modes = link
             .modes
             .iter()
@@ -89,7 +89,7 @@ fn write_to_xml(network: &Network, path: &Path) {
             modes,
             attributes: Some(attributes),
         };
-        result.links.effective_cell_size = Some(network.effective_cell_size);
+        result.links.effective_cell_size = Some(network.effective_cell_size());
         result.links_mut().push(io_link);
     }
 

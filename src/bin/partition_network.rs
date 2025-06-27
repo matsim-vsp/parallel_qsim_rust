@@ -51,8 +51,8 @@ fn main() {
     );
     info!(
         "Network is loaded with {} links and {} nodes.",
-        net1.links.len(),
-        net1.nodes.len()
+        net1.links().len(),
+        net1.nodes().len()
     );
 
     net1.to_file(&out_path);

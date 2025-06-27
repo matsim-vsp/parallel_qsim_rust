@@ -12,7 +12,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct TeleportationEngine {
-    queue: TimeQueue<InternalVehicle>,
+    queue: TimeQueue<InternalVehicle, InternalVehicle>,
     pub events: Rc<RefCell<EventsPublisher>>,
 }
 
@@ -67,7 +67,7 @@ impl TeleportationEngine {
                 agent.id().internal(),
                 route
                     .as_generic()
-                    .distance
+                    .distance()
                     .expect("Route distance needs to be set."),
                 leg.mode.internal(),
             ),
@@ -90,7 +90,7 @@ impl TeleportationEngine {
                 agent.id().internal(),
                 route
                     .as_generic()
-                    .distance
+                    .distance()
                     .expect("Route distance needs to be set."),
                 leg.mode.internal(),
                 transit_line_id,
