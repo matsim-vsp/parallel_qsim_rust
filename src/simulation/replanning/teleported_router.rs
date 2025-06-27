@@ -109,7 +109,7 @@ use std::fmt::Debug;
 //     use crate::simulation::vehicles::garage::Garage;
 //     use crate::simulation::wire_types::population::Person;
 //
-//     #[test]
+//     #[parallel_qsim_test_utils::integration_test]
 //     fn test_teleported_router() {
 //         let network = Network::from_file(
 //             "./assets/equil/equil-network.xml",

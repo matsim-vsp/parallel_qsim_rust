@@ -161,7 +161,7 @@ pub(crate) mod tests {
         NetworkConverter::convert_network(&network, None)
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     #[should_panic]
     fn test_graph_not_valid() {
         ForwardBackwardGraph::new(
@@ -174,7 +174,7 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_graph_valid() {
         ForwardBackwardGraph::new(
             Graph::new(
@@ -190,7 +190,7 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn clone_without_change() {
         let graph = get_triangle_test_graph();
         let new_graph = graph.clone_with_new_travel_times_by_link(HashMap::new());
@@ -198,7 +198,7 @@ pub(crate) mod tests {
         assert_eq!(graph, new_graph);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn clone_with_change() {
         let mut graph = get_triangle_test_graph();
         let mut change = HashMap::new();

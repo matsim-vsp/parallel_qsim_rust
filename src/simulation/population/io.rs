@@ -347,7 +347,7 @@ mod tests {
     This tests against the first person from the equil scenario. Probably this doesn't cover all
     possibilities and needs to improved later.
      */
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn read_population_from_string() {
         let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <!DOCTYPE population SYSTEM \"http://www.matsim.org/files/dtd/population_v6.dtd\">
@@ -448,7 +448,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_read_leg() {
         let xml = "<leg mode=\"walk\" dep_time=\"00:00:00\">
                                 <attributes>
@@ -471,7 +471,7 @@ mod tests {
         assert_eq!(route.route, None);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_read_leg_with_pt() {
         let xml = "<leg mode=\"pt\" trav_time=\"00:10:01\">
 				<attributes>
@@ -493,19 +493,19 @@ mod tests {
         assert_eq!(route.route, Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")));
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn read_example_file() {
         let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml");
         assert_eq!(34, population.persons.len())
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn read_example_file_gzipped() {
         let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml.gz");
         assert_eq!(34, population.persons.len())
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_conversion() {
         let _net = Network::from_file(
             "./assets/equil/equil-network.xml",
@@ -525,7 +525,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
@@ -547,7 +547,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_filtered_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));

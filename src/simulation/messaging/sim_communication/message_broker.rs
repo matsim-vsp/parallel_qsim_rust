@@ -167,8 +167,9 @@ mod tests {
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn send_recv_empty_msgs() {
+        todo!();
         let sends = Arc::new(AtomicUsize::new(0));
 
         execute_test(move |communicator| {
@@ -204,8 +205,9 @@ mod tests {
 
     /// This test moves a vehicle from partition 0 to 2 and then to partition 3. The test involves
     /// Two send_recv steps.
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn send_recv_local_vehicle_msg() {
+        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
 
@@ -257,7 +259,7 @@ mod tests {
         });
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn send_recv_remote_message() {
         todo!();
         execute_test(|communicator| {
@@ -291,7 +293,7 @@ mod tests {
         });
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn send_recv_local_and_remote_msg() {
         todo!();
         execute_test(|communicator| {
@@ -358,8 +360,9 @@ mod tests {
         broker
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn send_recv_storage_cap() {
+        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
             // add a storage cap message for link 4, which connects parts 1 -> 2

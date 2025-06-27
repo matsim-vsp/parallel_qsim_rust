@@ -25,7 +25,7 @@ pub struct IODrtVehicle {
 mod tests {
     use crate::dvrp::io::IODrtVehicles;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_read() {
         let s = r#"
         <vehicles>

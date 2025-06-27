@@ -89,7 +89,7 @@ mod tests {
     // only testing the invalid case here, since the other cases
     // are implicitly tested when data containers are loaded e.g. in
     // network and population
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     #[should_panic]
     fn unsupported_ending() {
         read_from_file("file-path-with-unsupported.ending")

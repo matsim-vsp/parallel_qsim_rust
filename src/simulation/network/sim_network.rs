@@ -507,7 +507,7 @@ mod tests {
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn from_network() {
         let mut network = Network::new();
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
@@ -531,7 +531,7 @@ mod tests {
         assert!(matches!(in_link, SimLink::In(_)));
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn vehicle_travels_local() {
         let mut publisher = EventsPublisher::new();
         let global_net = Network::from_file(
@@ -575,7 +575,7 @@ mod tests {
         assert_eq!(0, network.veh_on_net());
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn vehicle_reaches_boundary() {
         let mut publisher = EventsPublisher::new();
         let global_net = Network::from_file(
@@ -605,7 +605,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = EventsPublisher::new();
         let global_net = Network::from_file(
@@ -638,7 +638,7 @@ mod tests {
         assert_eq!(100, counter);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = EventsPublisher::new();
         let mut global_net = Network::from_file(
@@ -682,7 +682,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn move_nodes_stuck_threshold() {
         let mut publisher = EventsPublisher::new();
         let mut global_net = Network::from_file(
@@ -729,7 +729,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn move_nodes_transition_logic() {
         let mut net = Network::new();
         let node1 = Node {
@@ -837,7 +837,7 @@ mod tests {
         assert_approx_eq!(link1 * 2., link2, 100.);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn storage_cap_over_boundaries() {
         // use programmed network here, to avoid instabilities with metis algorithm for small
         // network graphs
@@ -879,7 +879,7 @@ mod tests {
         assert_approx_eq!(100., storage_cap.released, 0.00001);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn neighbors() {
         let mut net = Network::new();
         let node = Node::new(Id::create("node-1"), -0., 0., 0, 1);

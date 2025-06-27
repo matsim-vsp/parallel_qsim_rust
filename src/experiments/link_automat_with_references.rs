@@ -107,7 +107,7 @@ fn move_nodes(nodes_iter: IterMut<(Option<&mut Q>, Option<&mut Q>, i32)>) {
 mod tests {
     use crate::experiments::link_automat_with_references::run;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_run() {
         run()
     }

@@ -168,7 +168,7 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_activity_engine_build() {
         let mut engine = ActivityEngineBuilder::new(
             vec![],
@@ -182,7 +182,7 @@ mod tests {
         engine.end(0);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_activity_engine_wake_up_plan() {
         let plan = create_plan_with_plan_logic();
 
@@ -201,7 +201,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_activity_engine_end() {
         let plan = create_plan_with_plan_logic();
 
@@ -220,7 +220,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_activity_engine_wake_up_rolling_horizon() {
         unimplemented!()
     }

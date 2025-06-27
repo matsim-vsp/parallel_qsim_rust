@@ -99,7 +99,7 @@ mod test {
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::wire_types::events::Event;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_one_vehicle() {
         let mut collector = TravelTimeCollector::new();
         collector.receive_event(1, &Event::new_link_leave(1, 1));
@@ -114,7 +114,7 @@ mod test {
         assert_eq!(collector.cache_enter_time_by_vehicle.get(&1), None)
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     /// Tests travel time collection with two vehicles passing link 2.
     /// Vehicle 1: 2s
     /// Vehicle 2: 4s
@@ -147,7 +147,7 @@ mod test {
         assert_eq!(collector.cache_enter_time_by_vehicle.get(&3).unwrap(), &5)
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     /// Tests whether PersonLeavesVehicleEvent discards travel time
     fn test_with_person_leaves_vehicle() {
         let mut collector = TravelTimeCollector::new();
@@ -159,7 +159,7 @@ mod test {
         assert_eq!(collector.cache_enter_time_by_vehicle.get(&1), None);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     /// Tests whether PersonLeavesVehicleEvent discards travel time
     fn test_with_person_leaves_vehicle_complex() {
         let mut collector = TravelTimeCollector::new();

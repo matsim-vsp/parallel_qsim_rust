@@ -213,7 +213,7 @@ struct Message {
 mod tests {
     use crate::experiments::concurrent_dispatch::run;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_run() {
         run();
     }

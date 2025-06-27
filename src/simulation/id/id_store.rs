@@ -316,7 +316,7 @@ mod tests {
     use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_folders;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn write_read_ids_store() {
         let folder = create_folders(PathBuf::from(
             "./test_output/simulation/id/id_store/write_read_ids_store/",
@@ -343,7 +343,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn write_read_ids_store_uncompressed() {
         let folder = create_folders(PathBuf::from(
             "./test_output/simulation/id/id_store/write_read_ids_store_uncompressed/",
@@ -370,7 +370,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_serialize_ids() {
         let mut store = IdStore::new();
         store.create_id::<()>("test-1");
@@ -403,7 +403,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     #[ignore]
     fn compare_compression() {
         init_std_out_logging();

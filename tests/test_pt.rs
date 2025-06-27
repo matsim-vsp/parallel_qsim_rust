@@ -1,4 +1,5 @@
 use crate::test_simulation::{execute_sim, TestSubscriber};
+use parallel_qsim_test_utils::integration_test;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
 use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
@@ -23,7 +24,7 @@ fn create_resources(out_dir: &PathBuf) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
-#[test]
+#[integration_test(rust_q_sim)]
 fn test_pt_tutorial() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial/");
     create_resources(&test_dir);

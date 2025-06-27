@@ -86,7 +86,7 @@ impl TransitSchedule {
 mod tests {
     use crate::simulation::pt::TransitSchedule;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test() {
         let schedule =
             TransitSchedule::from_file("./assets/pt_tutorial/transitschedule.xml".as_ref());

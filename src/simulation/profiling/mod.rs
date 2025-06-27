@@ -259,7 +259,7 @@ mod tests {
 
     use crate::simulation::profiling::SpanDurationToCSVLayer;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_events() {
         let path = PathBuf::from("./test_output/simulation/profiling/test_events.csv");
 

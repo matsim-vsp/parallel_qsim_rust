@@ -46,13 +46,13 @@ mod tests {
 
     use crate::simulation::network::flow_cap::Flowcap;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn init() {
         let cap = Flowcap::new(5432., 0.31415);
         assert_approx_eq!(0.47401747, cap.capacity_s, 0.0001);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn flowcap_consume_capacity() {
         let mut flowcap = Flowcap::new(36000., 1.);
         assert!(flowcap.has_capacity());
@@ -61,7 +61,7 @@ mod tests {
         assert!(!flowcap.has_capacity());
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn flowcap_max_capacity_s() {
         let mut flowcap = Flowcap::new(36000., 1.);
 
@@ -71,7 +71,7 @@ mod tests {
         assert_eq!(20, flowcap.last_update_time);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn flowcap_acc_capacity() {
         let mut flowcap = Flowcap::new(900., 1.);
         assert!(flowcap.has_capacity());

@@ -590,12 +590,12 @@ pub enum SimulationAgentState {
 #[cfg(test)]
 mod tests {
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_rolling_horizon_plan_consistency_ok() {
         unimplemented!()
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_rolling_horizon_plan_consistency_fail() {
         unimplemented!()
     }

@@ -1,3 +1,4 @@
+use parallel_qsim_test_utils::integration_test;
 use std::path::PathBuf;
 
 mod test_simulation;
@@ -21,7 +22,7 @@ fn create_resources(out_dir: &PathBuf) {
     garage.to_file(&out_dir.join("equil-vehicles.binpb"));
 }
 
-#[test]
+#[integration_test(rust_q_sim)]
 fn execute_equil_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part/");
     create_resources(&test_dir);
@@ -40,7 +41,7 @@ fn execute_equil_single_part() {
     );
 }
 
-#[test]
+#[integration_test(rust_q_sim)]
 fn execute_equil_2_parts() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
     create_resources(&test_dir);

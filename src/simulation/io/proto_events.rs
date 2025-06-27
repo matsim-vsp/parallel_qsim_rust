@@ -169,7 +169,7 @@ mod tests {
     use crate::simulation::wire_types::events::event::Type;
     use crate::simulation::wire_types::events::Event;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn write_read_single() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_single/events.pbf");
@@ -189,7 +189,7 @@ mod tests {
         match_events(&event, events.get(0).unwrap());
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn write_read_multiple() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_multiple/events.pbf");
@@ -219,7 +219,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn write_read_multiple_time_steps() {
         let path = create_path_with_prefix(
             "./test_output/io/proto_events/write_read_multiple_time_steps/events.pbf",

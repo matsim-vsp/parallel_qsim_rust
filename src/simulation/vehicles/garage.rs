@@ -230,7 +230,7 @@ mod tests {
     use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_vehicle_type;
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn add_veh_type() {
         let mut garage = Garage::new();
         let type_id = Id::create("some-type");
@@ -242,7 +242,7 @@ mod tests {
         assert_eq!(1, garage.vehicle_types.len());
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     #[should_panic]
     fn add_veh_type_reject_duplicate() {
         let mut garage = Garage::new();
@@ -255,7 +255,7 @@ mod tests {
         garage.add_veh_type(veh_type2);
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn add_vehicle_without_type() {
         let mut garage = Garage::new();
         garage.add_veh(InternalVehicle {
@@ -269,7 +269,7 @@ mod tests {
         });
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn add_vehicle() {
         // prepare garage with type
         let mut garage = Garage::new();
@@ -293,14 +293,14 @@ mod tests {
         assert_eq!(1, garage.vehicles.len());
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn from_file() {
         let garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         assert_eq!(3, garage.vehicle_types.len());
         assert_eq!(0, garage.vehicles.len());
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn add_empty_io_veh_type() {
         let io_veh_type = IOVehicleType {
             id: "some-id".to_string(),
@@ -330,7 +330,7 @@ mod tests {
         assert!(veh_type_opt.is_some());
     }
 
-    #[test]
+    #[parallel_qsim_test_utils::integration_test]
     fn test_add_io_veh_type() {
         let io_veh_type = IOVehicleType {
             id: "some-id".to_string(),
