@@ -1,7 +1,6 @@
 use nohash_hasher::IntMap;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;

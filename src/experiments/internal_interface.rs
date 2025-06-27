@@ -137,7 +137,7 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::{Rc, Weak};
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_run() {
         let activity_engine: Rc<RefCell<dyn Engine>> = Rc::new(RefCell::new(ActivityEngine {
             agents: vec![Agent::new(String::from("agent"), State::ACTIVITY)],

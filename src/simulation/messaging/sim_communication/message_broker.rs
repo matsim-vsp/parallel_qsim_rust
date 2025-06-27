@@ -58,7 +58,7 @@ where
 
     pub fn add_veh(&mut self, vehicle: InternalVehicle, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap();
-        let partition = *self.link_mapping.get(&link_id).unwrap();
+        let partition = *self.link_mapping.get(link_id).unwrap();
         let rank = self.rank();
         let message = self
             .out_messages
@@ -169,7 +169,6 @@ mod tests {
 
     #[parallel_qsim_test_utils::integration_test]
     fn send_recv_empty_msgs() {
-        todo!();
         let sends = Arc::new(AtomicUsize::new(0));
 
         execute_test(move |communicator| {
@@ -207,7 +206,6 @@ mod tests {
     /// Two send_recv steps.
     #[parallel_qsim_test_utils::integration_test]
     fn send_recv_local_vehicle_msg() {
-        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
 
@@ -234,7 +232,9 @@ mod tests {
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {
-                    assert!(msg.vehicles().is_empty());
+                    if !msg.vehicles().is_empty() {
+                        panic!("Process {} received vehicles: {msg:?}", broker.rank());
+                    }
                 }
             }
 
@@ -261,7 +261,6 @@ mod tests {
 
     #[parallel_qsim_test_utils::integration_test]
     fn send_recv_remote_message() {
-        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
 
@@ -295,7 +294,6 @@ mod tests {
 
     #[parallel_qsim_test_utils::integration_test]
     fn send_recv_local_and_remote_msg() {
-        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
 
@@ -351,18 +349,27 @@ mod tests {
             stuck_threshold: 0,
             main_modes: vec![],
         };
-        let broker = NetMessageBroker::new(
-            Rc::new(communicator),
-            &create_network(),
-            &SimNetworkPartition::from_network(&create_network(), rank, config),
-            false,
-        );
+        let partition = SimNetworkPartition::from_network(&create_network(), rank, config);
+
+        assert_eq!(partition.get_node_ids().len(), 1);
+
+        if rank == 0 {
+            assert_eq!(partition.get_link_ids().len(), 2);
+        } else if rank == 1 {
+            assert_eq!(partition.get_link_ids().len(), 2);
+        } else if rank == 2 {
+            assert_eq!(partition.get_link_ids().len(), 3);
+        } else if rank == 3 {
+            assert_eq!(partition.get_link_ids().len(), 1);
+        }
+
+        let broker =
+            NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false);
         broker
     }
 
     #[parallel_qsim_test_utils::integration_test]
     fn send_recv_storage_cap() {
-        todo!();
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
             // add a storage cap message for link 4, which connects parts 1 -> 2
@@ -427,34 +434,34 @@ mod tests {
         result.add_node(create_node(3, 3));
 
         // connection 0 <-> 1
-        result.add_link(create_link(0, Id::new_internal(0), Id::new_internal(1), 1));
-        result.add_link(create_link(1, Id::new_internal(1), Id::new_internal(0), 0));
+        result.add_link(create_link(0, 0, 1, 1));
+        result.add_link(create_link(1, 1, 0, 0));
 
         // connection 0 <-> 2
-        result.add_link(create_link(2, Id::new_internal(0), Id::new_internal(2), 2));
-        result.add_link(create_link(3, Id::new_internal(2), Id::new_internal(0), 0));
+        result.add_link(create_link(2, 0, 2, 2));
+        result.add_link(create_link(3, 2, 0, 0));
 
         // connection 1 <-> 2
-        result.add_link(create_link(4, Id::new_internal(1), Id::new_internal(2), 2));
-        result.add_link(create_link(5, Id::new_internal(2), Id::new_internal(1), 1));
+        result.add_link(create_link(4, 1, 2, 2));
+        result.add_link(create_link(5, 2, 1, 1));
 
         // connection 2 <-> 3
-        result.add_link(create_link(6, Id::new_internal(2), Id::new_internal(3), 3));
-        result.add_link(create_link(7, Id::new_internal(3), Id::new_internal(2), 2));
+        result.add_link(create_link(6, 2, 3, 3));
+        result.add_link(create_link(7, 3, 2, 2));
 
         result
     }
 
     fn create_node(id: u64, partition: u32) -> Node {
-        let node = Node::new(Id::new_internal(id), 0., 0., partition, 1);
+        let node = Node::new(Id::create(&id.to_string()), 0., 0., partition, 1);
         node
     }
 
-    fn create_link(id: u64, from: Id<Node>, to: Id<Node>, partition: u32) -> Link {
+    fn create_link(id: u64, from: u64, to: u64, partition: u32) -> Link {
         Link {
-            id: Id::new_internal(id),
-            from,
-            to,
+            id: Id::create(&id.to_string()),
+            from: Id::create(&from.to_string()),
+            to: Id::create(&to.to_string()),
             length: 10.0,
             capacity: 1.0,
             freespeed: 1.0,

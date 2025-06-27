@@ -3,7 +3,6 @@ use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::io::{IOVehicle, IOVehicleType};
 use crate::simulation::{InternalAttributes, InternalSimulationAgent};
-use itertools::Itertools;
 use std::fmt::Debug;
 
 pub mod garage;

@@ -175,7 +175,7 @@ impl Garage {
             .get(&id)
             .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len())).vehicle_type;
 
-        let veh_type = self.vehicle_types.get(&veh_type_id).unwrap();
+        let veh_type = self.vehicle_types.get(veh_type_id).unwrap();
 
         InternalVehicle {
             id: id.clone(),

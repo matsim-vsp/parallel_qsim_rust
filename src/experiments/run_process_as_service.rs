@@ -90,7 +90,7 @@ fn run() {
 mod tests {
     use crate::experiments::run_process_as_service::run;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_run() {
         run();
     }

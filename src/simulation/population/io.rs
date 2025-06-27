@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io::{BufWriter, Read, Write};
 use std::path::Path;
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -7,8 +6,7 @@ use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::proto::MessageIter;
-use crate::simulation::io::{proto, xml};
+use crate::simulation::io::xml;
 use crate::simulation::population::population_data::Population;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::garage::Garage;

@@ -55,7 +55,7 @@ fn run() {
 mod tests {
     use crate::experiments::stack_vs_heap::run;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_run() {
         run()
     }

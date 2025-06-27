@@ -124,7 +124,7 @@ fn move_nodes(nodes: Iter<Node>, links: &mut Vec<Link>) {
 mod tests {
     use crate::experiments::link_automat_with_adjacency_list::run;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_run() {
         run();
     }

@@ -1,6 +1,6 @@
-use ahash::{HashMap, HashMapExt};
+use ahash::HashMapExt;
 use metis::{Graph, Idx};
-use nohash_hasher::{IntMap, IntSet};
+use nohash_hasher::IntMap;
 use tracing::info;
 
 use super::global_network::{Link, Network, Node};

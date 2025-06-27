@@ -207,7 +207,7 @@ impl InternalSimulationAgentLogic {
             .plan_element_at(self.curr_plan_element)
         {
             InternalPlanElement::Activity(a) => a.cmp_end_time(now),
-            InternalPlanElement::Leg(l) => panic!("Cannot wake up on a leg!"),
+            InternalPlanElement::Leg(_) => panic!("Cannot wake up on a leg!"),
         }
     }
 

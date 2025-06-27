@@ -476,7 +476,7 @@ mod tests {
         PartitionMethod, Partitioning, Simulation, VertexWeight,
     };
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_from_yaml() {
         let mut config = Config {
             modules: Default::default(),
@@ -533,7 +533,7 @@ mod tests {
         assert_eq!(parsed_config.simulation().main_modes, vec!["bike"]);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_none_partitioning() {
         let yaml = r#"
         modules:
@@ -547,7 +547,7 @@ mod tests {
         assert_eq!(parsed_config.partitioning().method, PartitionMethod::None);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_metis_partitioning() {
         let yaml = r#"
         modules:
@@ -574,7 +574,7 @@ mod tests {
         );
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_imbalance_factor() {
         assert_eq!(
             MetisOptions::default().set_imbalance_factor(0.03).ufactor(),
@@ -608,7 +608,7 @@ mod tests {
         );
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_drt() {
         let serde = r#"
         modules:

@@ -82,24 +82,6 @@ impl<T: StableTypeId + 'static> Id<T> {
     }
 }
 
-impl<T: StableTypeId + 'static> Serialize for Id<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        todo!()
-    }
-}
-
-impl<'de, T: StableTypeId + 'static> Deserialize<'de> for Id<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        todo!()
-    }
-}
-
 pub fn store_to_file(file_path: &Path) {
     get_id_store()
         .read()
@@ -169,12 +151,12 @@ fn get_id_store() -> &'static RwLock<IdStore<'static>> {
     ID_STORE.get_or_init(|| RwLock::new(IdStore::new()))
 }
 
-#[cfg(feature = "test_utils")]
+#[cfg(any(test, feature = "test_utils"))]
 pub fn init_store() {
     ID_STORE.get_or_init(|| RwLock::new(IdStore::new()));
 }
 
-#[cfg(feature = "test_utils")]
+#[cfg(any(test, feature = "test_utils"))]
 pub fn reset_store() {
     let mut store = ID_STORE.get().unwrap().write().unwrap();
     *store = IdStore::new();

@@ -140,7 +140,7 @@ impl DrtAgentSource {
             let x = scenario.network.get_node(from).x;
             let y = scenario.network.get_node(from).y;
 
-            let mut plan = InternalPlan::default();
+            let plan = InternalPlan::default();
             //TODO is Some(start) as end time correct?
             // plan.add_act(InternalActivity::new(
             //     x,

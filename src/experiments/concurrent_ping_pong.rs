@@ -80,7 +80,7 @@ struct Message {
 mod tests {
     use crate::experiments::concurrent_ping_pong::run;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_run() {
         run();
     }

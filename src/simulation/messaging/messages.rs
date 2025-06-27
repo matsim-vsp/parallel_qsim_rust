@@ -1,9 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::simulation::network::sim_network::StorageUpdate;
-use crate::simulation::time_queue::{EndTime, Identifiable};
 use crate::simulation::vehicles::InternalVehicle;
-use prost::Message;
 
 pub enum InternalSimMessage {
     Sync(InternalSyncMessage),

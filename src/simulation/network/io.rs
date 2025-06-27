@@ -1,15 +1,13 @@
 use std::fmt::Debug;
 use std::path::Path;
 
-use nohash_hasher::IntSet;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{Attr, Attrs};
 use crate::simulation::io::xml;
 use crate::simulation::io::MatsimId;
-use crate::simulation::network::global_network::{Link, Network, Node};
+use crate::simulation::network::global_network::Network;
 
 pub fn from_file(path: &Path) -> Network {
     if path.extension().unwrap().eq("binpb") {

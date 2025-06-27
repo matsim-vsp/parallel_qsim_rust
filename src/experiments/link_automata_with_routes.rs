@@ -196,7 +196,7 @@ fn move_nodes(nodes: Iter<Node>, links: &mut Vec<Link>, now: u32) {
 mod tests {
     use crate::experiments::link_automata_with_routes::run;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_run() {
         run();
     }

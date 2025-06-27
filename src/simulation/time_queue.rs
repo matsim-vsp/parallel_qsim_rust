@@ -57,6 +57,15 @@ where
     _phantom: std::marker::PhantomData<I>,
 }
 
+impl<T, I> Default for TimeQueue<T, I>
+where
+    T: EndTime,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, I> TimeQueue<T, I>
 where
     T: EndTime,

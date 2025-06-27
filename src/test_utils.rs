@@ -23,7 +23,7 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> InternalSimulationAgent {
         None,
     );
 
-    let vec = route.into_iter().map(|s| Id::create(s)).collect();
+    let vec = route.into_iter().map(Id::create).collect();
 
     let net_route = InternalNetworkRoute::new(generic_route, vec);
 

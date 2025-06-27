@@ -87,7 +87,7 @@ impl SimNetworkPartition {
     }
 
     fn create_sim_node(node: &Node) -> SimNode {
-        let in_links: Vec<_> = node.in_links.iter().map(|l_id| l_id.clone()).collect();
+        let in_links: Vec<_> = node.in_links.iter().cloned().collect();
 
         SimNode {
             id: node.id.clone(),

@@ -69,7 +69,7 @@ fn run() {
 mod test {
     use crate::experiments::pointers::run;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test() {
         run()
     }
