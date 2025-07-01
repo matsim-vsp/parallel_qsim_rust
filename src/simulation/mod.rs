@@ -325,10 +325,6 @@ impl From<HashMap<String, AttributeValue>> for InternalAttributes {
                 Type::BoolValue(b) => {
                     res.insert(key, b);
                 }
-                _ => {
-                    warn!("Unknown attribute type {:?}. Skipping...", value.r#type);
-                    continue;
-                }
             };
         }
         res

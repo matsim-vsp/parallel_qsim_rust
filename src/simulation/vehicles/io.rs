@@ -1,9 +1,7 @@
 use std::path::Path;
 
 use crate::simulation;
-use crate::simulation::id::Id;
 use crate::simulation::io::attributes::IOAttributes;
-use crate::simulation::io::proto::general::AttributeValue;
 use crate::simulation::io::proto::messages::Vehicle;
 use crate::simulation::io::proto::vehicles::{VehicleType, VehiclesContainer};
 use crate::simulation::io::xml;

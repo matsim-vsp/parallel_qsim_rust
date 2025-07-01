@@ -1,9 +1,7 @@
-use crate::simulation::id::Id;
 use crate::simulation::io::attributes::{IOAttribute, IOAttributes};
 use crate::simulation::io::xml;
 use crate::simulation::io::MatsimId;
-use crate::simulation::network::global_network::{Link, Network, Node};
-use nohash_hasher::IntSet;
+use crate::simulation::network::global_network::Network;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::path::Path;

@@ -120,7 +120,7 @@ impl DrtAgentSource {
 
         //for each drt vehicle, create a driver agent
         for (link, vehicle) in local_drt_vehicles {
-            let start = vehicle
+            let _start = vehicle
                 .attributes
                 .get::<u32>("serviceBeginTime")
                 .expect("No service begin time for drt vehicle provided.");
@@ -128,8 +128,8 @@ impl DrtAgentSource {
             let veh_id = vehicle.id.clone();
             let person_id = Id::<InternalPerson>::create(veh_id.external());
             let from = scenario.network_partition.links.get(&link).unwrap().from();
-            let x = scenario.network.get_node(from).x;
-            let y = scenario.network.get_node(from).y;
+            let _x = scenario.network.get_node(from).x;
+            let _y = scenario.network.get_node(from).y;
 
             let plan = InternalPlan::default();
             //TODO is Some(start) as end time correct?

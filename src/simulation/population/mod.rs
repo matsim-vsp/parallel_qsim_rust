@@ -9,7 +9,6 @@ use crate::simulation::population::io::{
 };
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
-use clap::builder::TypedValueParser;
 use itertools::{EitherOrBoth, Itertools};
 use serde_json::{Error, Value};
 use std::str::FromStr;
@@ -426,14 +425,6 @@ impl InternalLeg {
             trav_time: Some(trav_time),
             dep_time,
             attributes: InternalAttributes::default(),
-        }
-    }
-
-    fn parse_trav_time(leg_trav_time: &Option<String>, route_trav_time: &Option<u32>) -> u32 {
-        if let Some(trav_time) = parse_time_opt(leg_trav_time) {
-            trav_time
-        } else {
-            route_trav_time.unwrap_or(0)
         }
     }
 }
