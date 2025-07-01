@@ -1,3 +1,4 @@
+use crate::test_simulation::{execute_sim, execute_sim_with_channels, TestSubscriber};
 use parallel_qsim_test_utils::integration_test;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
@@ -6,8 +7,6 @@ use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::population::population_data::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
-
-use crate::test_simulation::{execute_sim, execute_sim_with_channels, TestSubscriber};
 
 mod test_simulation;
 
@@ -25,7 +24,6 @@ fn create_resources(out_dir: &PathBuf) {
 
 #[integration_test(rust_q_sim)]
 fn execute_3_links_single_part() {
-    rust_q_sim::simulation::id::init_store();
     let test_dir = PathBuf::from("./test_output/simulation/execute_3_links_single_part/");
     create_resources(&test_dir);
 

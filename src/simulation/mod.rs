@@ -181,6 +181,7 @@ impl InternalSimulationAgentLogic {
 
     pub fn advance_plan(&mut self) {
         self.curr_plan_element += 1;
+        self.curr_route_element = 0;
         assert!(
             self.curr_plan_element < self.basic_agent_delegate.total_elements(),
             "Cannot advance plan of agents {:?} beyond its last element.",
@@ -254,7 +255,7 @@ impl InternalAttributes {
         self.attributes.insert(key.into(), json!(value));
     }
 
-    fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+    pub(crate) fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         self.attributes
             .get(key)
             .and_then(|v| serde_json::from_value(v.clone()).ok())

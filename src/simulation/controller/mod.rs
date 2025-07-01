@@ -34,6 +34,12 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     if rank == 0 {
         info!("#{rank} preparing to create input for partitions.");
         partition_input(&config, config_path);
+
+        info!(
+            "#{rank} loading ids from file: {}",
+            config.proto_files().ids
+        );
+        id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
     }
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
