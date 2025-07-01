@@ -1,7 +1,7 @@
 use super::metis_partitioning;
 use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::Attrs;
+use crate::simulation::io::attributes::IOAttributes;
 use crate::simulation::network::io::{IOLink, IONetwork, IONode};
 use crate::simulation::InternalAttributes;
 use itertools::Itertools;
@@ -9,6 +9,7 @@ use nohash_hasher::{IntMap, IntSet};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::{collections::HashSet, path::Path};
+use tracing::info;
 
 /// This is called global network but could also be renamed into network when things are sorted out a little
 #[derive(Debug, Clone)]
@@ -188,10 +189,39 @@ impl From<IONetwork> for Network {
     }
 }
 
+impl From<crate::simulation::io::proto::network::Network> for Network {
+    fn from(value: crate::simulation::io::proto::network::Network) -> Self {
+        let mut result = Network::new();
+        result.set_effective_cell_size(value.effective_cell_size);
+        for wn in &value.nodes {
+            let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition, wn.cmp_weight);
+            result.add_node(node);
+        }
+        for wl in &value.links {
+            let modes: IntSet<Id<String>> = wl.modes.iter().map(|id| Id::get(*id)).collect();
+
+            let link = Link::new(
+                Id::get(wl.id),
+                Id::get(wl.from),
+                Id::get(wl.to),
+                wl.length,
+                wl.capacity,
+                wl.freespeed,
+                wl.permlanes,
+                modes,
+                wl.partition,
+            );
+            result.add_link(link);
+        }
+        info!("Finished converting protobuf wire type into Network");
+        result
+    }
+}
+
 fn add_io_node(network: &mut Network, io_node: &IONode) {
     let id = Id::create(&io_node.id);
-    let part_attr = Attrs::find_or_else_opt(&io_node.attributes, "partition", || "0");
-    let cmp_weight_attr = Attrs::find_or_else_opt(&io_node.attributes, "cmp_weight", || "1");
+    let part_attr = IOAttributes::find_or_else_opt(&io_node.attributes, "partition", || "0");
+    let cmp_weight_attr = IOAttributes::find_or_else_opt(&io_node.attributes, "cmp_weight", || "1");
     let partition = u32::from_str(part_attr).unwrap();
     let cmp_weight = u32::from_str(cmp_weight_attr).unwrap();
 
@@ -202,7 +232,7 @@ fn add_io_node(network: &mut Network, io_node: &IONode) {
 
 fn add_io_link(network: &mut Network, io_link: &IOLink) {
     let id = Id::create(&io_link.id);
-    let part_attr = Attrs::find_or_else_opt(&io_link.attributes, "partition", || "0");
+    let part_attr = IOAttributes::find_or_else_opt(&io_link.attributes, "partition", || "0");
     let partition = u32::from_str(part_attr).unwrap();
     let modes: IntSet<Id<String>> = io_link
         .modes

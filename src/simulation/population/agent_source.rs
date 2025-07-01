@@ -49,12 +49,7 @@ impl PopulationAgentSource {
             .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
             .legs()
             .iter()
-            .any(|l| {
-                l.attributes
-                    .as_ref()
-                    .map(|a| a.attributes.contains_key("rollingHorizonLogic"))
-                    .unwrap_or_else(|| false)
-            });
+            .any(|l| l.attributes.attributes.contains_key("rollingHorizonLogic"));
 
         if has_at_least_one_rolling_horizon_planning {
             agents.insert(id, InternalSimulationAgent::new(person));
@@ -104,7 +99,7 @@ impl DrtAgentSource {
             .vehicles
             .values()
             .filter(|&v| {
-                if let Some(value) = v.attributes.as_ref().unwrap().get::<String>("dvrpMode") {
+                if let Some(value) = v.attributes.get::<String>("dvrpMode") {
                     drt_modes.contains(&value)
                 } else {
                     false
@@ -113,8 +108,6 @@ impl DrtAgentSource {
             .map(|v| {
                 let link = v
                     .attributes
-                    .as_ref()
-                    .unwrap()
                     .get::<String>("startLink")
                     .expect("No start link for drt vehicle provided.");
                 let link_id = Id::<Link>::get_from_ext(link.as_str());
@@ -129,8 +122,6 @@ impl DrtAgentSource {
         for (link, vehicle) in local_drt_vehicles {
             let start = vehicle
                 .attributes
-                .as_ref()
-                .unwrap()
                 .get::<u32>("serviceBeginTime")
                 .expect("No service begin time for drt vehicle provided.");
 

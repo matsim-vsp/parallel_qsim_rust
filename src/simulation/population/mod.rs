@@ -1,11 +1,16 @@
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::Attrs;
+use crate::simulation::io::proto::population::leg::Route;
+use crate::simulation::io::proto::population::{
+    Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription,
+};
 use crate::simulation::network::global_network::Link;
 use crate::simulation::population::io::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
+use clap::builder::TypedValueParser;
+use itertools::{EitherOrBoth, Itertools};
 use serde_json::{Error, Value};
 use std::str::FromStr;
 
@@ -35,7 +40,7 @@ pub struct InternalLeg {
     pub dep_time: Option<u32>,
     pub trav_time: Option<u32>,
     pub route: Option<InternalRoute>,
-    pub attributes: Option<InternalAttributes>,
+    pub attributes: InternalAttributes,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -91,7 +96,7 @@ pub struct InternalPlan {
 pub struct InternalPerson {
     id: Id<InternalPerson>,
     plans: Vec<InternalPlan>,
-    attributes: Option<Attrs>,
+    attributes: InternalAttributes,
 }
 
 #[derive(Debug, PartialEq)]
@@ -104,12 +109,16 @@ impl InternalPerson {
         InternalPerson {
             id,
             plans: vec![plan],
-            attributes: None,
+            attributes: InternalAttributes::default(),
         }
     }
 
     pub fn id(&self) -> &Id<InternalPerson> {
         &self.id
+    }
+
+    pub fn plans(&self) -> &Vec<InternalPlan> {
+        &self.plans
     }
 
     pub fn plan_element_at(&self, index: usize) -> &InternalPlanElement {
@@ -291,6 +300,46 @@ impl InternalRoute {
     }
 }
 
+impl From<Route> for InternalRoute {
+    fn from(route: Route) -> Self {
+        match route {
+            Route::GenericRoute(g) => InternalRoute::Generic(g.into()),
+            Route::NetworkRoute(n) => InternalRoute::Network(InternalNetworkRoute {
+                generic_delegate: n.delegate.unwrap().into(),
+                route: n.route.into_iter().map(|id| Id::get(id)).collect(),
+            }),
+            Route::PtRoute(p) => InternalRoute::Pt(InternalPtRoute {
+                generic_delegate: p.delegate.unwrap().into(),
+                description: p.information.unwrap().into(),
+            }),
+        }
+    }
+}
+
+impl From<GenericRoute> for InternalGenericRoute {
+    fn from(g: GenericRoute) -> Self {
+        InternalGenericRoute {
+            start_link: Id::get(g.start_link),
+            end_link: Id::get(g.end_link),
+            trav_time: g.trav_time,
+            distance: g.distance,
+            vehicle: g.veh_id.map(Id::get),
+        }
+    }
+}
+
+impl From<PtRouteDescription> for InternalPtRouteDescription {
+    fn from(value: PtRouteDescription) -> Self {
+        InternalPtRouteDescription {
+            transit_route_id: value.transit_route_id,
+            boarding_time: value.boarding_time,
+            transit_line_id: value.transit_line_id,
+            access_facility_id: value.access_facility_id,
+            egress_facility_id: value.egress_facility_id,
+        }
+    }
+}
+
 impl InternalGenericRoute {
     pub fn new(
         start_link: Id<Link>,
@@ -351,6 +400,14 @@ impl InternalNetworkRoute {
 }
 
 impl InternalPtRoute {
+    pub fn generic_delegate(&self) -> &InternalGenericRoute {
+        &self.generic_delegate
+    }
+
+    pub fn description(&self) -> &InternalPtRouteDescription {
+        &self.description
+    }
+
     pub fn start_link(&self) -> &Id<Link> {
         &self.generic_delegate.start_link
     }
@@ -368,7 +425,7 @@ impl InternalLeg {
             routing_mode: Some(Id::create(mode)),
             trav_time: Some(trav_time),
             dep_time,
-            attributes: None,
+            attributes: InternalAttributes::default(),
         }
     }
 
@@ -398,7 +455,21 @@ impl FromIOPerson<IOLeg> for InternalLeg {
             route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes
-                .and_then(|a| InternalAttributes::from(a).into()),
+                .map(|a| InternalAttributes::from(a).into())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl From<Leg> for InternalLeg {
+    fn from(io: Leg) -> Self {
+        InternalLeg {
+            mode: Id::get(io.mode),
+            routing_mode: io.routing_mode.map(Id::get),
+            dep_time: io.dep_time,
+            trav_time: io.trav_time,
+            route: io.route.map(InternalRoute::from),
+            attributes: InternalAttributes::from(io.attributes),
         }
     }
 }
@@ -413,6 +484,20 @@ impl From<IOActivity> for InternalActivity {
             start_time: parse_time_opt(&io.start_time),
             end_time: parse_time_opt(&io.end_time),
             max_dur: parse_time_opt(&io.max_dur),
+        }
+    }
+}
+
+impl From<Activity> for InternalActivity {
+    fn from(value: Activity) -> Self {
+        InternalActivity {
+            act_type: Id::get(value.act_type),
+            link_id: Id::get(value.link_id),
+            x: value.x,
+            y: value.y,
+            start_time: value.start_time,
+            end_time: value.end_time,
+            max_dur: value.max_dur,
         }
     }
 }
@@ -452,7 +537,21 @@ impl From<IOPerson> for InternalPerson {
                 .into_iter()
                 .map(|p| InternalPlan::from_io(p, id.clone()))
                 .collect(),
-            attributes: io.attributes,
+            attributes: io
+                .attributes
+                .map(InternalAttributes::from)
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl From<Person> for InternalPerson {
+    fn from(value: Person) -> Self {
+        let id: Id<InternalPerson> = Id::get(value.id);
+        InternalPerson {
+            id: id.clone(),
+            plans: value.plan.into_iter().map(InternalPlan::from).collect(),
+            attributes: InternalAttributes::from(value.attributes),
         }
     }
 }
@@ -495,6 +594,42 @@ impl FromIOPerson<IOPlan> for InternalPlan {
                 .into_iter()
                 .map(|p| InternalPlanElement::from_io(p, id.clone()))
                 .collect(),
+        }
+    }
+}
+
+impl From<Plan> for InternalPlan {
+    fn from(io: Plan) -> Self {
+        let acts = io
+            .acts
+            .into_iter()
+            .map(InternalActivity::from)
+            .collect::<Vec<_>>();
+        let legs = io
+            .legs
+            .into_iter()
+            .map(InternalLeg::from)
+            .collect::<Vec<_>>();
+
+        let mut elements = Vec::new();
+        for pair in acts.into_iter().zip_longest(legs.into_iter()) {
+            match pair {
+                EitherOrBoth::Both(a, l) => {
+                    elements.push(InternalPlanElement::Activity(a));
+                    elements.push(InternalPlanElement::Leg(l));
+                }
+                EitherOrBoth::Left(a) => {
+                    elements.push(InternalPlanElement::Activity(a));
+                }
+                EitherOrBoth::Right(l) => {
+                    panic!("Plan ends with a leg {:?}. That is not allowed.", l);
+                }
+            }
+        }
+
+        InternalPlan {
+            selected: io.selected,
+            elements,
         }
     }
 }

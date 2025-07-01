@@ -1,13 +1,13 @@
-use std::fmt::Debug;
-use std::path::Path;
-
-use serde::{Deserialize, Serialize};
-use tracing::info;
-
-use crate::simulation::io::attributes::{Attr, Attrs};
+use crate::simulation::id::Id;
+use crate::simulation::io::attributes::{IOAttribute, IOAttributes};
 use crate::simulation::io::xml;
 use crate::simulation::io::MatsimId;
-use crate::simulation::network::global_network::Network;
+use crate::simulation::network::global_network::{Link, Network, Node};
+use nohash_hasher::IntSet;
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+use std::path::Path;
+use tracing::info;
 
 pub fn from_file(path: &Path) -> Network {
     if path.extension().unwrap().eq("binpb") {
@@ -38,14 +38,14 @@ fn write_to_xml(network: &Network, path: &Path) {
     let mut result = IONetwork::new(None);
 
     for node in network.nodes() {
-        let attributes = Attrs {
+        let attributes = IOAttributes {
             attributes: vec![
-                Attr {
+                IOAttribute {
                     name: "partition".to_string(),
                     value: node.partition.to_string(),
                     class: "java.lang.Integer".to_string(),
                 },
-                Attr {
+                IOAttribute {
                     name: "cmp_weight".to_string(),
                     class: "java.lang.Integer".to_string(),
                     value: node.cmp_weight.to_string(),
@@ -68,8 +68,8 @@ fn write_to_xml(network: &Network, path: &Path) {
             .map(|m| m.external().to_string())
             .reduce(|modes, mode| format!("{modes},{mode}"))
             .unwrap();
-        let attributes = Attrs {
-            attributes: vec![Attr {
+        let attributes = IOAttributes {
+            attributes: vec![IOAttribute {
                 name: String::from("partition"),
                 value: link.partition.to_string(),
                 class: String::from("java.lang.Integer"),
@@ -95,71 +95,14 @@ fn write_to_xml(network: &Network, path: &Path) {
 }
 
 fn load_from_proto(path: &Path) -> Network {
-    todo!()
-    // let wire_net: crate::simulation::wire_types::network::Network =
-    //     crate::simulation::io::proto::read_from_file(path);
-    // let mut result = Network::new();
-    // result.effective_cell_size = wire_net.effective_cell_size;
-    // for wn in &wire_net.nodes {
-    //     let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition, wn.cmp_weight);
-    //     result.add_node(node);
-    // }
-    // for wl in &wire_net.links {
-    //     let modes: IntSet<Id<String>> = wl.modes.iter().map(|id| Id::get(*id)).collect();
-    //
-    //     let link = Link::new(
-    //         Id::get(wl.id),
-    //         Id::get(wl.from),
-    //         Id::get(wl.to),
-    //         wl.length,
-    //         wl.capacity,
-    //         wl.freespeed,
-    //         wl.permlanes,
-    //         modes,
-    //         wl.partition,
-    //     );
-    //     result.add_link(link);
-    // }
-    // info!("Finished converting protobuf wire type into Network");
-    // result
+    let wire_net: crate::simulation::io::proto::network::Network =
+        crate::simulation::io::proto::read_from_file(path);
+    Network::from(wire_net)
 }
 
 fn write_to_proto(network: &Network, path: &Path) {
-    todo!()
-    // info!("Converting Network into wire format");
-    // let nodes: Vec<_> = network
-    //     .nodes
-    //     .iter()
-    //     .map(|n| crate::simulation::wire_types::network::Node {
-    //         id: n.id.internal(),
-    //         x: n.x,
-    //         y: n.y,
-    //         partition: n.partition,
-    //         cmp_weight: n.cmp_weight,
-    //     })
-    //     .collect();
-    // let links: Vec<_> = network
-    //     .links
-    //     .iter()
-    //     .map(|l| crate::simulation::wire_types::network::Link {
-    //         id: l.id.internal(),
-    //         from: l.from.internal(),
-    //         to: l.to.internal(),
-    //         length: l.length,
-    //         capacity: l.capacity,
-    //         freespeed: l.freespeed,
-    //         permlanes: l.permlanes,
-    //         modes: l.modes.iter().map(|id| id.internal()).collect(),
-    //         partition: l.partition,
-    //     })
-    //     .collect();
-    //
-    // let wire_network = crate::simulation::wire_types::network::Network {
-    //     nodes,
-    //     links,
-    //     effective_cell_size: network.effective_cell_size,
-    // };
-    // crate::simulation::io::proto::write_to_file(wire_network, path);
+    let wire_network = crate::simulation::io::proto::network::Network::from(network);
+    crate::simulation::io::proto::write_to_file(wire_network, path);
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -171,7 +114,7 @@ pub struct IONode {
     #[serde(rename = "@y")]
     pub y: f64,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<Attrs>,
+    pub attributes: Option<IOAttributes>,
 }
 
 impl MatsimId for IONode {
@@ -199,7 +142,7 @@ pub struct IOLink {
     #[serde(default, rename = "@modes")]
     pub modes: String,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<Attrs>,
+    pub attributes: Option<IOAttributes>,
 }
 
 impl MatsimId for IOLink {

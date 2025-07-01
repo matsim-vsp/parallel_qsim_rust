@@ -14,9 +14,9 @@ use tracing::info;
 
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
+use crate::simulation::io::proto::ids::ids_with_type::Data;
+use crate::simulation::io::proto::ids::IdsWithType;
 use crate::simulation::io::proto::MessageIter;
-use crate::simulation::wire_types::ids::ids_with_type::Data;
-use crate::simulation::wire_types::ids::IdsWithType;
 
 #[derive(Clone, Copy)]
 #[allow(dead_code)] // allow dead code, because we never construct None. I still want to have it as option here.

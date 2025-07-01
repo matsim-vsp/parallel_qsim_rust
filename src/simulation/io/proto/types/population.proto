@@ -1,5 +1,5 @@
 syntax = "proto3";
-import "simulation/wire_types/general.proto";
+import "simulation/io/proto/types/general.proto";
 
 package population;
 
@@ -10,14 +10,14 @@ message Header {
 
 message Person {
   uint64 id = 1;
-  uint32 curr_plan_elem = 2;
-  Plan plan = 3;
-  map<string, general.AttributeValue> attributes = 4;
+  repeated Plan plan = 2;
+  map<string, general.AttributeValue> attributes = 3;
 }
 
 message Plan {
-  repeated Leg legs = 1;
-  repeated Activity acts = 2;
+  bool selected = 1;
+  repeated Leg legs = 2;
+  repeated Activity acts = 3;
 }
 
 message Activity {
@@ -32,9 +32,9 @@ message Activity {
 
 message Leg {
   uint64 mode = 1;
-  uint64 routing_mode = 2;
+  optional uint64 routing_mode = 2;
   optional uint32 dep_time = 3;
-  uint32 trav_time = 4;
+  optional uint32 trav_time = 4;
   map<string, general.AttributeValue> attributes = 6;
   oneof route {
     GenericRoute generic_route = 7;
@@ -46,7 +46,7 @@ message Leg {
 message GenericRoute {
   uint64 start_link = 1;
   uint64 end_link = 2;
-  optional uint64 trav_time = 3;
+  optional uint32 trav_time = 3;
   optional double distance = 4;
   optional uint64 veh_id = 5;
 }

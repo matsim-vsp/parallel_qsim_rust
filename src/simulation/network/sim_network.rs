@@ -9,9 +9,9 @@ use tracing::instrument;
 
 use crate::simulation::config;
 use crate::simulation::id::Id;
+use crate::simulation::io::proto::events::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::wire_types::events::Event;
 
 use super::{
     global_network::{Link, Network, Node},
@@ -87,7 +87,7 @@ impl SimNetworkPartition {
     }
 
     fn create_sim_node(node: &Node) -> SimNode {
-        let in_links: Vec<_> = node.in_links.iter().cloned().collect();
+        let in_links: Vec<_> = node.in_links.to_vec();
 
         SimNode {
             id: node.id.clone(),

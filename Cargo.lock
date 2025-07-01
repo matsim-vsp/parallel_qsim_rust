@@ -1528,6 +1528,7 @@ dependencies = [
  "protobuf-src",
  "quick-xml",
  "rand",
+ "rust_q_sim",
  "serde",
  "serde_json",
  "serde_path_to_error",

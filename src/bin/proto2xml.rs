@@ -5,11 +5,11 @@ use clap::Parser;
 use tracing::info;
 
 use rust_q_sim::simulation::id;
+use rust_q_sim::simulation::io::proto::events::Event;
+use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::io::proto_events::EventsReader;
-use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::logging::init_std_out_logging;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;
-use rust_q_sim::simulation::wire_types::events::Event;
 
 struct StatefulReader<R: Read + Seek> {
     reader: EventsReader<R>,

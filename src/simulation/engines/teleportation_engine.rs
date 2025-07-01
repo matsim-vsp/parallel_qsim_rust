@@ -1,4 +1,5 @@
 use crate::simulation::id::Id;
+use crate::simulation::io::proto::events::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -6,7 +7,6 @@ use crate::simulation::population::InternalRoute;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::wire_types::events::Event;
 use crate::simulation::InternalSimulationAgent;
 use std::cell::RefCell;
 use std::rc::Rc;

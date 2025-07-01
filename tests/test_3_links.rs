@@ -25,6 +25,7 @@ fn create_resources(out_dir: &PathBuf) {
 
 #[integration_test(rust_q_sim)]
 fn execute_3_links_single_part() {
+    rust_q_sim::simulation::id::init_store();
     let test_dir = PathBuf::from("./test_output/simulation/execute_3_links_single_part/");
     create_resources(&test_dir);
 

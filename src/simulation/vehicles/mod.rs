@@ -1,4 +1,6 @@
 use crate::simulation::id::Id;
+use crate::simulation::io::proto::messages::Vehicle;
+use crate::simulation::io::proto::vehicles::VehicleType;
 use crate::simulation::network::global_network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::io::{IOVehicle, IOVehicleType};
@@ -17,7 +19,7 @@ pub struct InternalVehicleType {
     pub pce: f32,
     pub fef: f32,
     pub net_mode: Id<String>,
-    pub attributes: Option<InternalAttributes>,
+    pub attributes: InternalAttributes,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -28,7 +30,7 @@ pub struct InternalVehicle {
     pub driver: Option<InternalSimulationAgent>,
     pub passengers: Vec<InternalSimulationAgent>,
     pub vehicle_type: Id<InternalVehicleType>,
-    pub attributes: Option<InternalAttributes>,
+    pub attributes: InternalAttributes,
 }
 
 impl From<IOVehicleType> for InternalVehicleType {
@@ -41,7 +43,36 @@ impl From<IOVehicleType> for InternalVehicleType {
             pce: io.passenger_car_equivalents.unwrap_or_default().pce,
             fef: io.flow_efficiency_factor.unwrap_or_default().factor,
             net_mode: Id::create(&io.network_mode.unwrap_or_default().network_mode),
-            attributes: io.attributes.map(Into::into),
+            attributes: io.attributes.map(Into::into).unwrap_or_default(),
+        }
+    }
+}
+
+impl From<VehicleType> for InternalVehicleType {
+    fn from(value: VehicleType) -> Self {
+        Self {
+            id: Id::get(value.id),
+            length: value.length,
+            width: value.width,
+            max_v: value.max_v,
+            pce: value.pce,
+            fef: value.fef,
+            net_mode: Id::get(value.net_mode),
+            attributes: InternalAttributes::default(),
+        }
+    }
+}
+
+impl From<Vehicle> for InternalVehicle {
+    fn from(value: Vehicle) -> Self {
+        Self {
+            id: Id::get(value.id),
+            max_v: value.max_v,
+            pce: value.pce,
+            driver: None,
+            passengers: vec![],
+            vehicle_type: Id::get(value.r#type),
+            attributes: InternalAttributes::from(value.attributes),
         }
     }
 }
@@ -55,7 +86,7 @@ impl InternalVehicle {
             driver: None,
             passengers: Vec::new(),
             vehicle_type: Id::create(&io.vehicle_type),
-            attributes: io.attributes.map(Into::into),
+            attributes: io.attributes.map(Into::into).unwrap_or_default(),
         }
     }
 

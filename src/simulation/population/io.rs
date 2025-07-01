@@ -1,12 +1,17 @@
-use std::collections::HashMap;
-use std::path::Path;
-
+use prost::Message;
 use serde::{Deserialize, Deserializer, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::fs::File;
+use std::io::{BufReader, BufWriter, Read, Write};
+use std::path::Path;
 use tracing::info;
 
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::xml;
+use crate::simulation::io::attributes::IOAttributes;
+use crate::simulation::io::proto::population::{Header, Person};
+use crate::simulation::io::proto::MessageIter;
+use crate::simulation::io::{proto, xml};
 use crate::simulation::population::population_data::Population;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::garage::Garage;
@@ -53,60 +58,60 @@ fn load_from_proto<F>(path: &Path, filter: F) -> Population
 where
     F: Fn(&InternalPerson) -> bool,
 {
-    todo!()
-    // info!("Loading population from file at: {path:?}");
-    // let file = File::open(path).unwrap_or_else(|_| panic!("Could not open File at {path:?}"));
-    // let mut reader = BufReader::new(file);
-    //
-    // if let Some(header_delim) = proto::read_delimiter(&mut reader) {
-    //     let mut buffer = vec![0; header_delim];
-    //     reader
-    //         .read_exact(&mut buffer)
-    //         .expect("Failed to read delimited buffer.");
-    //     let header = Header::decode(buffer.as_slice()).expect("oh nono");
-    //     info!("Header Info: {header:?}");
-    // }
-    //
-    // let mut persons = HashMap::new();
-    //
-    // for person in MessageIter::<Person, BufReader<File>>::new(reader) {
-    //     let id = Id::get(person.id);
-    //     if filter(&person) {
-    //         persons.insert(id, person);
-    //     }
-    // }
-    //
-    // Population { persons }
+    info!("Loading population from file at: {path:?}");
+    let file = File::open(path).unwrap_or_else(|_| panic!("Could not open File at {path:?}"));
+    let mut reader = BufReader::new(file);
+
+    if let Some(header_delim) = proto::read_delimiter(&mut reader) {
+        let mut buffer = vec![0; header_delim];
+        reader
+            .read_exact(&mut buffer)
+            .expect("Failed to read delimited buffer.");
+        let header = Header::decode(buffer.as_slice()).expect("oh nono");
+        info!("Header Info: {header:?}");
+    }
+
+    let mut persons = HashMap::new();
+
+    for person in MessageIter::<Person, BufReader<File>>::new(reader) {
+        let id = Id::get(person.id);
+        let internal_person = InternalPerson::from(person);
+
+        if filter(&internal_person) {
+            persons.insert(id, internal_person);
+        }
+    }
+
+    Population { persons }
 }
 
 fn write_to_proto(population: &Population, path: &Path) {
-    todo!()
-    // info!("Converting Population into wire format");
-    //
-    // let prefix = path.parent().unwrap();
-    // fs::create_dir_all(prefix).unwrap();
-    // let file = File::create(path).unwrap_or_else(|_| panic!("Failed to create file at: {path:?}"));
-    // let mut writer = BufWriter::new(file);
-    // //write header
-    // let header = Header {
-    //     version: 1,
-    //     size: population.persons.len() as u32,
-    // };
-    // let mut bytes = Vec::new();
-    // header
-    //     .encode_length_delimited(&mut bytes)
-    //     .expect("TODO: panic message");
-    // writer.write_all(&bytes).expect("Failed to write");
-    //
-    // for person in population.persons.values() {
-    //     bytes.clear();
-    //     person
-    //         .encode_length_delimited(&mut bytes)
-    //         .expect("Failed to encode person");
-    //     writer.write_all(&bytes).expect("failed to write buffer");
-    // }
-    //
-    // writer.flush().expect("Failed to flush buffer");
+    info!("Converting Population into wire format");
+
+    let prefix = path.parent().unwrap();
+    fs::create_dir_all(prefix).unwrap();
+    let file = File::create(path).unwrap_or_else(|_| panic!("Failed to create file at: {path:?}"));
+    let mut writer = BufWriter::new(file);
+    //write header
+    let header = Header {
+        version: 1,
+        size: population.persons.len() as u32,
+    };
+    let mut bytes = Vec::new();
+    header
+        .encode_length_delimited(&mut bytes)
+        .expect("TODO: panic message");
+    writer.write_all(&bytes).expect("Failed to write");
+
+    for person in population.persons.values() {
+        bytes.clear();
+        Person::from(person)
+            .encode_length_delimited(&mut bytes)
+            .expect("Failed to encode person");
+        writer.write_all(&bytes).expect("failed to write buffer");
+    }
+
+    writer.flush().expect("Failed to flush buffer");
 }
 
 fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
@@ -229,7 +234,7 @@ pub struct IOLeg {
     #[serde(rename = "@trav_time")]
     pub trav_time: Option<String>,
     pub route: Option<IORoute>,
-    pub attributes: Option<Attrs>,
+    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -306,7 +311,7 @@ pub struct IOPerson {
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<Attrs>,
+    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

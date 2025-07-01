@@ -12,6 +12,10 @@ name = "mpi_qsim"
 path = "src/bin/mpi_qsim.rs"
 required-features = ["mpi"]
 
+[dev-dependencies]
+# Activate the test utils for the tests. This explicit dependency is needed for id store reset in integration tests.
+rust_q_sim = { path = ".", features = ["test_utils"] }
+
 [dependencies]
 parallel_qsim_test_utils = { path = "../parallel_qsim_test_utils" }
 serde = { version = "1.0.137", features = ["derive"] }

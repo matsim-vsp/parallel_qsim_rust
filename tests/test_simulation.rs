@@ -15,7 +15,8 @@ use rust_q_sim::simulation::controller::{
     create_output_filename, get_numbered_output_filename, partition_input,
 };
 use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
+use rust_q_sim::simulation::io::proto::events::Event;
+use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
 use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use rust_q_sim::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -27,7 +28,6 @@ use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTi
 use rust_q_sim::simulation::scenario::Scenario;
 use rust_q_sim::simulation::simulation::SimulationBuilder;
 use rust_q_sim::simulation::vehicles::garage::Garage;
-use rust_q_sim::simulation::wire_types::events::Event;
 
 pub fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str) {
     let config = Config::from_file(&config_args);

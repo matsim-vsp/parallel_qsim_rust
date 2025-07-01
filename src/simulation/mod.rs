@@ -1,5 +1,7 @@
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::Attrs;
+use crate::simulation::io::attributes::IOAttributes;
+use crate::simulation::io::proto::general::attribute_value::Type;
+use crate::simulation::io::proto::general::AttributeValue;
 use crate::simulation::messaging::messages::SimulationAgentState;
 use crate::simulation::network::global_network::Link;
 use crate::simulation::population::{
@@ -8,7 +10,7 @@ use crate::simulation::population::{
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use tracing::warn;
 
@@ -29,7 +31,6 @@ pub mod scenario;
 pub mod simulation;
 pub mod time_queue;
 pub mod vehicles;
-pub mod wire_types;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalSimulationAgent {
@@ -116,10 +117,6 @@ impl InternalSimulationAgent {
 }
 
 impl InternalSimulationAgentLogic {
-    pub fn end_time(&self, now: u32) -> u32 {
-        todo!()
-    }
-
     pub(crate) fn curr_link_id(&self) -> Option<&Id<Link>> {
         if self.state() != SimulationAgentState::LEG {
             return None;
@@ -262,10 +259,40 @@ impl InternalAttributes {
             .get(key)
             .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
+
+    pub fn iter(&self) -> std::collections::hash_map::Iter<'_, String, Value> {
+        self.attributes.iter()
+    }
+
+    pub fn as_cloned_map(&self) -> HashMap<String, AttributeValue> {
+        let mut attributes = HashMap::new();
+        for (key, value) in self.iter() {
+            let insert = match value {
+                Value::Bool(b) => AttributeValue::new_bool(*b),
+                Value::Number(n) => {
+                    if n.is_i64() {
+                        AttributeValue::new_int(n.as_i64().unwrap())
+                    } else if n.is_f64() {
+                        AttributeValue::new_double(n.as_f64().unwrap())
+                    } else {
+                        warn!("Unsupported number type for key '{}': {:?}", key, n);
+                        continue;
+                    }
+                }
+                Value::String(s) => AttributeValue::new_string(s.clone()),
+                _ => {
+                    warn!("Unsupported attribute type for key '{}': {:?}", key, value);
+                    continue;
+                }
+            };
+            attributes.insert(key.clone(), insert);
+        }
+        attributes
+    }
 }
 
-impl From<Attrs> for InternalAttributes {
-    fn from(attrs: Attrs) -> Self {
+impl From<IOAttributes> for InternalAttributes {
+    fn from(attrs: IOAttributes) -> Self {
         let mut res = InternalAttributes::default();
         for attr in attrs.attributes {
             match attr.class.as_str() {
@@ -275,6 +302,33 @@ impl From<Attrs> for InternalAttributes {
                 "java.lang.String" => res.insert(attr.name, attr.value),
                 "java.lang.Boolean" => res.insert(attr.name, attr.value.parse::<bool>().unwrap()),
                 _ => warn!("Unknown attribute class {:?}. Skipping...", attr.class),
+            };
+        }
+        res
+    }
+}
+
+impl From<HashMap<String, AttributeValue>> for InternalAttributes {
+    fn from(map: HashMap<String, AttributeValue>) -> Self {
+        let mut res = InternalAttributes::default();
+        for (key, value) in map {
+            match value.r#type.as_ref().unwrap() {
+                Type::IntValue(i) => {
+                    res.insert(key, i);
+                }
+                Type::StringValue(s) => {
+                    res.insert(key, s);
+                }
+                Type::DoubleValue(d) => {
+                    res.insert(key, d);
+                }
+                Type::BoolValue(b) => {
+                    res.insert(key, b);
+                }
+                _ => {
+                    warn!("Unknown attribute type {:?}. Skipping...", value.r#type);
+                    continue;
+                }
             };
         }
         res

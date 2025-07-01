@@ -1,8 +1,8 @@
 syntax = "proto3";
 package messages;
 
-import "simulation/wire_types/population.proto";
-import "simulation/wire_types/general.proto";
+import "simulation/io/proto/types/population.proto";
+import "simulation/io/proto/types/general.proto";
 
 message SimMessage{
   oneof type {
@@ -62,30 +62,8 @@ message StorageCap {
 
 message Vehicle {
   uint64 id = 1;
-  uint32 curr_route_elem = 2;
-  uint64 type = 3;
-  float max_v = 4;
-  float pce = 5;
-  SimulationAgent driver = 6;
-  repeated SimulationAgent passengers = 7;
-  map<string, general.AttributeValue> attributes = 8;
-}
-
-message SimulationAgent {
-  SimulationAgentLogic agent_logic = 1;
-}
-
-message SimulationAgentLogic {
-  oneof type {
-    PlanLogic plan_logic = 1;
-    RollingHorizonLogic rolling_horizon_logic = 2;
-  }
-}
-
-message PlanLogic {
-  population.Person person = 1;
-}
-
-message RollingHorizonLogic {
-  population.Person person = 1;
+  uint64 type = 2;
+  float max_v = 3;
+  float pce = 4;
+  map<string, general.AttributeValue> attributes = 5;
 }

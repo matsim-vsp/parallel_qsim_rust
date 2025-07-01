@@ -63,7 +63,7 @@ fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
             .unwrap_or_default()
             .factor,
         net_mode,
-        attributes: io_veh_type.attributes.map(Into::into),
+        attributes: io_veh_type.attributes.map(Into::into).unwrap_or_default(),
     };
     garage.add_veh_type(veh_type);
 }
@@ -74,12 +74,7 @@ fn add_io_veh(garage: &mut Garage, io_veh: IOVehicle) {
     let vehicle = InternalVehicle::from_io(io_veh, veh_type);
 
     //add id for drt mode
-    if let Some(o) = vehicle
-        .attributes
-        .as_ref()
-        .unwrap()
-        .get::<String>("dvrpMode")
-    {
+    if let Some(o) = vehicle.attributes.get::<String>("dvrpMode") {
         Id::<String>::create(o.as_str());
     }
 
@@ -221,7 +216,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::simulation::id::Id;
-    use crate::simulation::io::attributes::{Attr, Attrs};
+    use crate::simulation::io::attributes::{IOAttribute, IOAttributes};
     use crate::simulation::vehicles::garage::{add_io_veh_type, Garage};
     use crate::simulation::vehicles::io::{
         IODimension, IOFowEfficiencyFactor, IONetworkMode, IOPassengerCarEquivalents,
@@ -348,8 +343,11 @@ mod tests {
                 network_mode: "some_mode".to_string(),
             }),
             flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: 2. }),
-            attributes: Some(Attrs {
-                attributes: vec![Attr::new(String::from("lod"), String::from("teleported"))],
+            attributes: Some(IOAttributes {
+                attributes: vec![IOAttribute::new(
+                    String::from("lod"),
+                    String::from("teleported"),
+                )],
             }),
         };
         let mut garage = Garage::new();

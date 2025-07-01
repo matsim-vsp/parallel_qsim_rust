@@ -1,8 +1,8 @@
 use crate::simulation::config::Config;
+use crate::simulation::io::proto::events::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, TimeQueue};
-use crate::simulation::wire_types::events::Event;
 use crate::simulation::InternalSimulationAgent;
 use std::cell::RefCell;
 use std::rc::Rc;

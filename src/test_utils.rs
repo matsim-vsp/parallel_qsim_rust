@@ -7,7 +7,7 @@ use crate::simulation::population::{
     InternalPlan, InternalRoute,
 };
 use crate::simulation::vehicles::InternalVehicleType;
-use crate::simulation::{config, InternalSimulationAgent};
+use crate::simulation::{config, InternalAttributes, InternalSimulationAgent};
 
 pub fn create_agent_without_route(id: u64) -> InternalSimulationAgent {
     //inserting a dummy route
@@ -58,7 +58,7 @@ pub fn create_vehicle_type(
         pce: 0.0,
         fef: 0.0,
         net_mode,
-        attributes: None,
+        attributes: InternalAttributes::default(),
     }
 }
 

@@ -1,5 +1,5 @@
 syntax = "proto3";
-import "simulation/wire_types/messages.proto";
+import "simulation/io/proto/types/messages.proto";
 
 package vehicles;
 

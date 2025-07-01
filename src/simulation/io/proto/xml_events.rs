@@ -11,12 +11,12 @@ use xml::reader::XmlEvent;
 use xml::EventReader;
 
 use crate::simulation::id::Id;
+use crate::simulation::io::proto::events::event::Type;
+use crate::simulation::io::proto::events::Event;
 use crate::simulation::messaging::events::EventsSubscriber;
 use crate::simulation::network::global_network::Link;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::wire_types::events::event::Type;
-use crate::simulation::wire_types::events::Event;
 
 pub struct XmlEventsWriter {
     writer: Mutex<Box<dyn Write + Send>>,

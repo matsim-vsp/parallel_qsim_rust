@@ -1,11 +1,16 @@
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
-use tracing::info;
-
-use crate::simulation::io::attributes::Attrs;
+use crate::simulation;
+use crate::simulation::id::Id;
+use crate::simulation::io::attributes::IOAttributes;
+use crate::simulation::io::proto::general::AttributeValue;
+use crate::simulation::io::proto::messages::Vehicle;
+use crate::simulation::io::proto::vehicles::{VehicleType, VehiclesContainer};
 use crate::simulation::io::xml;
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
+use serde::{Deserialize, Serialize};
+use tracing::info;
 
 pub fn from_file(path: &Path) -> Garage {
     if path.extension().unwrap().eq("binpb") {
@@ -67,36 +72,44 @@ fn write_to_xml(garage: &Garage, path: &Path) {
 }
 
 fn write_to_proto(garage: &Garage, path: &Path) {
-    // info!("Converting Garage into wire type");
-    // let vehicle_types = garage.vehicle_types.values().cloned().collect();
-    // let vehicles = garage.vehicles.values().cloned().collect();
-    //
-    // let wire_format = VehiclesContainer {
-    //     vehicle_types,
-    //     vehicles,
-    // };
-    // info!("Finished converting Garage into wire type");
-    // simulation::io::proto::write_to_file(wire_format, path);
-    unimplemented!()
+    info!("Converting Garage into wire type");
+    let vehicle_types = garage
+        .vehicle_types
+        .values()
+        .map(|v| VehicleType::from(&v))
+        .collect();
+    let vehicles = garage
+        .vehicles
+        .values()
+        .map(|v| Vehicle::from(&v))
+        .collect();
+
+    let wire_format = VehiclesContainer {
+        vehicle_types,
+        vehicles,
+    };
+    info!("Finished converting Garage into wire type");
+    simulation::io::proto::write_to_file(wire_format, path);
 }
 
 fn load_from_proto(path: &Path) -> Garage {
-    // let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
-    // let vehicles = wire_garage
-    //     .vehicles
-    //     .into_iter()
-    //     .map(|v| (Id::<Vehicle>::get(v.id), v))
-    //     .collect();
-    // let vehicle_types = wire_garage
-    //     .vehicle_types
-    //     .into_iter()
-    //     .map(|v_type| (Id::get(v_type.id), v_type))
-    //     .collect();
-    // Garage {
-    //     vehicles,
-    //     vehicle_types,
-    // }
-    unimplemented!()
+    let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
+    let vehicles = wire_garage
+        .vehicles
+        .into_iter()
+        .map(InternalVehicle::from)
+        .map(|v| (v.id.clone(), v))
+        .collect();
+    let vehicle_types = wire_garage
+        .vehicle_types
+        .into_iter()
+        .map(InternalVehicleType::from)
+        .map(|v_type| (v_type.id.clone(), v_type))
+        .collect();
+    Garage {
+        vehicles,
+        vehicle_types,
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -115,7 +128,7 @@ pub struct IOVehicle {
     #[serde(rename = "@type")]
     pub vehicle_type: String,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<Attrs>,
+    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -134,7 +147,7 @@ pub struct IOVehicleType {
     pub network_mode: Option<IONetworkMode>,
     pub flow_efficiency_factor: Option<IOFowEfficiencyFactor>,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<Attrs>,
+    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -224,6 +237,32 @@ impl IOVehicleDefinitions {
     }
 }
 
+impl Vehicle {
+    pub fn from(vehicle: &InternalVehicle) -> Self {
+        Self {
+            id: vehicle.id().internal(),
+            r#type: vehicle.vehicle_type.internal(),
+            max_v: vehicle.max_v,
+            pce: vehicle.pce,
+            attributes: vehicle.attributes.as_cloned_map(),
+        }
+    }
+}
+
+impl VehicleType {
+    pub fn from(vehicle: &InternalVehicleType) -> Self {
+        Self {
+            id: vehicle.id.internal(),
+            length: vehicle.length,
+            width: vehicle.width,
+            max_v: vehicle.max_v,
+            pce: vehicle.pce,
+            fef: vehicle.fef,
+            net_mode: vehicle.net_mode.internal(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use std::path::PathBuf;
@@ -234,6 +273,7 @@ mod test {
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::io::{from_file, to_file, IOVehicleDefinitions};
     use crate::simulation::vehicles::InternalVehicleType;
+    use crate::simulation::InternalAttributes;
 
     #[parallel_qsim_test_utils::integration_test]
     fn from_string_empty_type() {
@@ -335,7 +375,7 @@ mod test {
             pce: 20.0,
             fef: 0.3,
             net_mode: Id::<String>::create("some network type 🚕"),
-            attributes: None,
+            attributes: InternalAttributes::default(),
         });
         garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
@@ -359,7 +399,7 @@ mod test {
             pce: 20.0,
             fef: 0.3,
             net_mode: Id::<String>::create("some network type 🚕"),
-            attributes: None,
+            attributes: InternalAttributes::default(),
         });
         garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 

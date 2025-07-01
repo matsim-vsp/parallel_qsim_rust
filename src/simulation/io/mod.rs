@@ -4,7 +4,6 @@ pub mod attributes;
 pub mod proto;
 pub mod proto_events;
 pub mod xml;
-pub mod xml_events;
 
 pub fn resolve_path(config: &String, file: &str) -> PathBuf {
     let file_path = PathBuf::from(file);
