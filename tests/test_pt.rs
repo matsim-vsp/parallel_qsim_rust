@@ -1,4 +1,5 @@
-use crate::test_simulation::{execute_sim, TestSubscriber};
+use crate::test_simulation::execute_sim;
+use crate::test_simulation::TestSubscriber;
 use parallel_qsim_test_utils::integration_test;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;

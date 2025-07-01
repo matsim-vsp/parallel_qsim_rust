@@ -221,6 +221,7 @@ mod tests {
     }
 
     #[parallel_qsim_test_utils::integration_test]
+    #[ignore]
     fn test_activity_engine_wake_up_rolling_horizon() {
         unimplemented!()
     }

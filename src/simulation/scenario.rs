@@ -1,10 +1,10 @@
 use crate::simulation::config::{Config, PartitionMethod};
 use crate::simulation::controller::get_numbered_output_filename;
+use crate::simulation::io;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population_data::Population;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{id, io};
 use std::path::Path;
 use tracing::info;
 
