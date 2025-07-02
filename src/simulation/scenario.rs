@@ -1,10 +1,10 @@
 use crate::simulation::config::{Config, PartitionMethod};
 use crate::simulation::controller::get_numbered_output_filename;
-use crate::simulation::io;
 use crate::simulation::network::global_network::Network;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::population_data::Population;
 use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::{id, io};
 use std::path::Path;
 use tracing::info;
 
@@ -17,6 +17,8 @@ pub struct Scenario {
 
 impl Scenario {
     pub fn build(config: &Config, config_path: &String, rank: u32, output_path: &Path) -> Self {
+        id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
+
         // mandatory content to create a scenario
         let network = Self::create_network(config, config_path, output_path);
         let mut garage = Self::create_garage(config, config_path);

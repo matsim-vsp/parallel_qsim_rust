@@ -1,12 +1,13 @@
 use crate::simulation::id::id_store::IdStore;
 use crate::simulation::id::id_store::UntypedId;
 use crate::simulation::id::serializable_type::StableTypeId;
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::path::Path;
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::Arc;
 
 // keep this private, as we don't want to leak how we cache ids.
 mod id_store;
@@ -53,46 +54,28 @@ impl<T: StableTypeId + 'static> Id<T> {
     }
 
     pub fn create(id: &str) -> Self {
-        get_id_store()
-            .write()
-            .expect("IdStore is not initialized")
-            .create_id(id)
+        ID_STORE.with(|store| store.borrow_mut().create_id(id))
     }
 
     pub fn get(internal: u64) -> Self {
-        get_id_store()
-            .read()
-            .expect("IdStore is not initialized")
-            .get(internal)
+        ID_STORE.with(|store| store.borrow().get(internal))
     }
 
     pub fn get_from_ext(external: &str) -> Self {
-        get_id_store()
-            .read()
-            .expect("IdStore is not initialized")
-            .get_from_ext(external)
+        ID_STORE.with(|store| store.borrow().get_from_ext(external))
     }
 
     pub fn try_get_from_ext(external: &str) -> Option<Self> {
-        get_id_store()
-            .read()
-            .expect("IdStore is not initialized")
-            .try_get_from_ext(external)
+        ID_STORE.with(|store| store.borrow().try_get_from_ext(external))
     }
 }
 
 pub fn store_to_file(file_path: &Path) {
-    get_id_store()
-        .read()
-        .expect("IdStore is not initialized")
-        .to_file(file_path)
+    ID_STORE.with(|store| store.borrow().to_file(file_path))
 }
 
 pub fn load_from_file(file_path: &Path) {
-    get_id_store()
-        .write()
-        .expect("IdStore is not initialized")
-        .load_from_file(file_path)
+    ID_STORE.with(|store| store.borrow_mut().load_from_file(file_path))
 }
 
 /// Mark Id as enabled for the nohash_hasher::NoHashHasher t
@@ -144,30 +127,14 @@ impl<T: StableTypeId> Clone for Id<T> {
     }
 }
 
-static ID_STORE: OnceLock<RwLock<IdStore<'static>>> = OnceLock::new();
-
-fn get_id_store() -> &'static RwLock<IdStore<'static>> {
-    ID_STORE.get_or_init(|| RwLock::new(IdStore::new()))
-}
-
-#[cfg(any(test, feature = "test_utils"))]
-pub fn init_store() {
-    ID_STORE.get_or_init(|| RwLock::new(IdStore::new()));
-}
-
-#[cfg(any(test, feature = "test_utils"))]
-pub fn reset_store() {
-    let mut store = ID_STORE.get().unwrap().write().unwrap();
-    *store = IdStore::new();
-}
+thread_local! {static ID_STORE: RefCell<IdStore<'static>> = RefCell::new(IdStore::new())}
 
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::{Id, UntypedId};
-    use parallel_qsim_test_utils::integration_test;
     use std::sync::Arc;
 
-    #[integration_test]
+    #[test]
     fn test_id_eq() {
         let id: Id<()> = Id::new(Arc::new(UntypedId::new(1, String::from("external-id"))));
         assert_eq!(id, id.clone());
@@ -182,7 +149,7 @@ mod tests {
         assert_ne!(id, unequal)
     }
 
-    #[integration_test]
+    #[test]
     fn create_id() {
         let external = String::from("external-id");
 
@@ -191,7 +158,7 @@ mod tests {
         assert_eq!(0, id.internal());
     }
 
-    #[integration_test]
+    #[test]
     fn create_id_duplicate() {
         let external = String::from("external-id");
 
@@ -201,7 +168,7 @@ mod tests {
         assert_eq!(id, duplicate);
     }
 
-    #[integration_test]
+    #[test]
     fn create_id_multiple_types() {
         let external = String::from("external-id");
 
@@ -214,7 +181,7 @@ mod tests {
         assert_eq!(0, float_id.internal());
     }
 
-    #[integration_test]
+    #[test]
     fn get_id() {
         let external_1 = String::from("id-1");
         let external_2 = String::from("id-2");
@@ -227,7 +194,7 @@ mod tests {
         assert_eq!(fetched_2.external(), external_2);
     }
 
-    #[integration_test]
+    #[test]
     fn id_store_get_ext() {
         let external_1 = String::from("id-1");
         let external_2 = String::from("id-2");

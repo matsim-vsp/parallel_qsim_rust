@@ -167,7 +167,7 @@ mod tests {
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn send_recv_empty_msgs() {
         let sends = Arc::new(AtomicUsize::new(0));
 
@@ -204,7 +204,7 @@ mod tests {
 
     /// This test moves a vehicle from partition 0 to 2 and then to partition 3. The test involves
     /// Two send_recv steps.
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn send_recv_local_vehicle_msg() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -259,7 +259,7 @@ mod tests {
         });
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn send_recv_remote_message() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -292,7 +292,7 @@ mod tests {
         });
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn send_recv_local_and_remote_msg() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -325,10 +325,10 @@ mod tests {
             for msg in result_1 {
                 if broker.rank() == 3 && msg.from_process() == 0 {
                     assert_eq!(1, msg.vehicles().len());
-                    assert_eq!(0, msg.vehicles().first().unwrap().id.internal());
+                    assert_eq!("0", msg.vehicles().first().unwrap().id.external());
                 } else if broker.rank() == 3 && msg.from_process() == 2 {
                     assert_eq!(1, msg.vehicles().len());
-                    assert_eq!(1, msg.vehicles().first().unwrap().id.internal());
+                    assert_eq!("1", msg.vehicles().first().unwrap().id.external());
                 } else {
                     assert_eq!(0, msg.vehicles().len());
                 }
@@ -368,7 +368,7 @@ mod tests {
         broker
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn send_recv_storage_cap() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);

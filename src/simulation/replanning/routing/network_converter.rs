@@ -176,7 +176,7 @@ mod test {
     use crate::simulation::vehicles::InternalVehicleType;
     use crate::test_utils::create_vehicle_type;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_simple_network() {
         let network = Network::from_file(
             "./assets/routing_tests/triangle-network.xml",
@@ -197,7 +197,7 @@ mod test {
         // we don't check y and y so far
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_simple_network_with_modes() {
         let network = Network::from_file(
             "./assets/routing_tests/network_different_modes.xml",
@@ -237,7 +237,7 @@ mod test {
         assert_eq!(bike_network.forward_link_ids().len(), 4);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
     fn test_mode_filter() {
         let network = Network::from_file(
@@ -273,7 +273,7 @@ mod test {
         assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
     fn test_different_veh_types_same_net_mode() {
         let network = Network::from_file(

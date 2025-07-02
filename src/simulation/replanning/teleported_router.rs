@@ -1,4 +1,3 @@
-
 //
 // pub trait TeleportedRouter {
 //     fn query_access_egress(
@@ -108,7 +107,7 @@
 //     use crate::simulation::vehicles::garage::Garage;
 //     use crate::simulation::wire_types::population::Person;
 //
-//     #[parallel_qsim_test_utils::integration_test]
+//     #[test]
 //     fn test_teleported_router() {
 //         let network = Network::from_file(
 //             "./assets/equil/equil-network.xml",

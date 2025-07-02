@@ -126,13 +126,17 @@ impl InternalSimulationAgentLogic {
             InternalRoute::Generic(g) => match self.curr_route_element {
                 0 => Some(g.start_link()),
                 1 => Some(g.end_link()),
-                _ => panic!("A generic route only has two elements."),
+                _ => panic!(
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                ),
             },
             InternalRoute::Network(n) => n.route_element_at(self.curr_route_element),
             InternalRoute::Pt(p) => match self.curr_route_element {
                 0 => Some(p.start_link()),
                 1 => Some(p.end_link()),
-                _ => panic!("A generic route only has two elements."),
+                _ => panic!(
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                ),
             },
         }
     }

@@ -10,7 +10,7 @@ use crate::simulation::population::{
 impl Person {
     pub fn from(value: &InternalPerson) -> Self {
         Self {
-            id: value.id().internal(),
+            id: value.id().external().to_string(),
             plan: value.plans().iter().map(|p| Plan::from(p)).collect(),
             attributes: Default::default(),
         }
@@ -30,8 +30,8 @@ impl Plan {
 impl Activity {
     fn from(value: &InternalActivity) -> Self {
         Self {
-            act_type: value.act_type.internal(),
-            link_id: value.link_id.internal(),
+            act_type: value.act_type.external().to_string(),
+            link_id: value.link_id.external().to_string(),
             x: value.x,
             y: value.y,
             start_time: value.start_time,
@@ -44,8 +44,11 @@ impl Activity {
 impl Leg {
     fn from(value: &InternalLeg) -> Self {
         Self {
-            mode: value.mode.internal(),
-            routing_mode: value.routing_mode.as_ref().map(|r| r.internal()),
+            mode: value.mode.external().to_string(),
+            routing_mode: value
+                .routing_mode
+                .as_ref()
+                .map(|r| r.external().to_string()),
             dep_time: value.dep_time,
             trav_time: value.trav_time,
             attributes: value.attributes.as_cloned_map(),
@@ -67,11 +70,11 @@ impl Route {
 impl GenericRoute {
     fn from(value: &InternalGenericRoute) -> Self {
         Self {
-            start_link: value.start_link().internal(),
-            end_link: value.end_link().internal(),
+            start_link: value.start_link().external().to_string(),
+            end_link: value.end_link().external().to_string(),
             trav_time: value.trav_time(),
             distance: value.distance(),
-            veh_id: value.vehicle().as_ref().map(|v| v.internal()),
+            veh_id: value.vehicle().as_ref().map(|v| v.external().to_string()),
         }
     }
 }
@@ -80,7 +83,11 @@ impl NetworkRoute {
     fn from(value: &InternalNetworkRoute) -> Self {
         Self {
             delegate: Some(GenericRoute::from(value.generic_delegate())),
-            route: value.route().iter().map(|id| id.internal()).collect(),
+            route: value
+                .route()
+                .iter()
+                .map(|id| id.external().to_string())
+                .collect(),
         }
     }
 }

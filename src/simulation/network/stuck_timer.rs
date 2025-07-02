@@ -37,14 +37,14 @@ impl StuckTimer {
 mod tests {
     use crate::simulation::network::stuck_timer::StuckTimer;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn init() {
         let timer = StuckTimer::new(42);
         assert!(timer.timer_started.get().is_none());
         assert_eq!(42, timer.stuck_threshold);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn start() {
         let timer = StuckTimer::new(42);
 
@@ -55,7 +55,7 @@ mod tests {
         assert_eq!(1, timer.timer_started.get().unwrap());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn reset() {
         let timer = StuckTimer::new(42);
 
@@ -66,7 +66,7 @@ mod tests {
         assert!(timer.timer_started.get().is_none());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn is_stuck() {
         let timer = StuckTimer::new(42);
 

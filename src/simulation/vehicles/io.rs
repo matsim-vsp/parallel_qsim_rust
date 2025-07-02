@@ -273,7 +273,7 @@ mod test {
     use crate::simulation::vehicles::InternalVehicleType;
     use crate::simulation::InternalAttributes;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn from_string_empty_type() {
         let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
                             <vehicleDefinitions xmlns=\"http://www.matsim.org/files/dtd\">\
@@ -289,7 +289,7 @@ mod test {
         assert_eq!("some-vehicle-id", veh_type.id.as_str());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn from_string_full_type() {
         let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
                             <vehicleDefinitions xmlns=\"http://www.matsim.org/files/dtd\">\
@@ -358,7 +358,7 @@ mod test {
         assert_eq!("84000", attrs.find_or_else("serviceEndTime", || ""));
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_to_from_file_xml() {
         let file = &PathBuf::from(
             "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.xml",
@@ -382,7 +382,7 @@ mod test {
         assert_eq!(garage.vehicle_types, loaded_garage.vehicle_types);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_to_from_file_proto() {
         let file = &PathBuf::from(
             "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.binpb",

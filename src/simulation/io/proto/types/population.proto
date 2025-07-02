@@ -9,7 +9,7 @@ message Header {
 }
 
 message Person {
-  uint64 id = 1;
+  string id = 1;
   repeated Plan plan = 2;
   map<string, general.AttributeValue> attributes = 3;
 }
@@ -21,8 +21,8 @@ message Plan {
 }
 
 message Activity {
-  uint64 act_type = 1;
-  uint64 link_id = 2;
+  string act_type = 1;
+  string link_id = 2;
   double x = 3;
   double y = 4;
   optional uint32 start_time = 5;
@@ -31,8 +31,8 @@ message Activity {
 }
 
 message Leg {
-  uint64 mode = 1;
-  optional uint64 routing_mode = 2;
+  string mode = 1;
+  optional string routing_mode = 2;
   optional uint32 dep_time = 3;
   optional uint32 trav_time = 4;
   map<string, general.AttributeValue> attributes = 6;
@@ -44,16 +44,16 @@ message Leg {
 }
 
 message GenericRoute {
-  uint64 start_link = 1;
-  uint64 end_link = 2;
+  string start_link = 1;
+  string end_link = 2;
   optional uint32 trav_time = 3;
   optional double distance = 4;
-  optional uint64 veh_id = 5;
+  optional string veh_id = 5;
 }
 
 message NetworkRoute {
   GenericRoute delegate = 1;
-  repeated uint64 route = 2;
+  repeated string route = 2;
 }
 
 message PtRoute {

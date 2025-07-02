@@ -296,7 +296,7 @@ mod tests {
         )
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_simple_alt_routing() {
         let graph = get_triangle_test_graph();
         let router = AltRouter::new(graph);
@@ -307,7 +307,7 @@ mod tests {
         query_and_check(&router, 0, 1, None, None);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_mode_alt_routing() {
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",

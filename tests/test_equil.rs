@@ -22,7 +22,7 @@ fn create_resources(out_dir: &PathBuf) {
     garage.to_file(&out_dir.join("equil-vehicles.binpb"));
 }
 
-#[integration_test(rust_q_sim)]
+#[test]
 fn execute_equil_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part/");
     create_resources(&test_dir);
@@ -41,7 +41,7 @@ fn execute_equil_single_part() {
     );
 }
 
-#[integration_test(rust_q_sim)]
+#[test]
 fn execute_equil_2_parts() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
     create_resources(&test_dir);

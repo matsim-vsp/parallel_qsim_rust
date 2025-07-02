@@ -250,7 +250,7 @@ mod tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn write_and_read_simple_network() {
         // set up
         let test_name = "write_and_read_simple_network";
@@ -276,7 +276,7 @@ mod tests {
         assert_eq!(network, result);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn parse_simple_network() -> Result<(), Box<dyn Error>> {
         let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
                 <!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v1.dtd\">
@@ -323,7 +323,7 @@ mod tests {
         Ok(())
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_simple_network() {
         let file_path = "./assets/io_network_tests/simple-network.xml";
         let network: IONetwork = IONetwork::from_file(file_path);
@@ -362,7 +362,7 @@ mod tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_example_file() {
         let file_path = "./assets/equil/equil-network.xml";
         let network: IONetwork = IONetwork::from_file(file_path);
@@ -375,7 +375,7 @@ mod tests {
         assert_eq!(7.5, network.effective_cell_size());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_example_file_gzipped() {
         let network: IONetwork = IONetwork::from_file("./assets/andorra-network.xml.gz");
 

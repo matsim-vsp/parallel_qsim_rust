@@ -124,7 +124,7 @@ mod tests {
     use itertools::Itertools;
     use std::path::PathBuf;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     #[ignore]
     fn test_drt_agent_source() {
         let config_path = "./assets/drt/config.yml";

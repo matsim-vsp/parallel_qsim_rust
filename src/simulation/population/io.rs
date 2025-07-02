@@ -74,13 +74,15 @@ where
     let mut persons = HashMap::new();
 
     for person in MessageIter::<Person, BufReader<File>>::new(reader) {
-        let id = Id::get(person.id);
+        let id = Id::get_from_ext(&person.id);
         let internal_person = InternalPerson::from(person);
 
         if filter(&internal_person) {
             persons.insert(id, internal_person);
         }
     }
+
+    info!("Finished loading population");
 
     Population { persons }
 }
@@ -350,7 +352,7 @@ mod tests {
     This tests against the first person from the equil scenario. Probably this doesn't cover all
     possibilities and needs to improved later.
      */
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_population_from_string() {
         let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <!DOCTYPE population SYSTEM \"http://www.matsim.org/files/dtd/population_v6.dtd\">
@@ -451,7 +453,7 @@ mod tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_read_leg() {
         let xml = "<leg mode=\"walk\" dep_time=\"00:00:00\">
                                 <attributes>
@@ -474,7 +476,7 @@ mod tests {
         assert_eq!(route.route, None);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_read_leg_with_pt() {
         let xml = "<leg mode=\"pt\" trav_time=\"00:10:01\">
 				<attributes>
@@ -496,19 +498,19 @@ mod tests {
         assert_eq!(route.route, Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")));
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_example_file() {
         let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml");
         assert_eq!(34, population.persons.len())
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn read_example_file_gzipped() {
         let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml.gz");
         assert_eq!(34, population.persons.len())
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_conversion() {
         let _net = Network::from_file(
             "./assets/equil/equil-network.xml",
@@ -528,7 +530,7 @@ mod tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
@@ -550,7 +552,7 @@ mod tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_filtered_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));

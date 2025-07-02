@@ -39,7 +39,6 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
             "#{rank} loading ids from file: {}",
             config.proto_files().ids
         );
-        id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
     }
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
@@ -67,7 +66,7 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
     rc_comm.barrier();
-    simulation.run();
+    // simulation.run();
 }
 
 fn create_events(

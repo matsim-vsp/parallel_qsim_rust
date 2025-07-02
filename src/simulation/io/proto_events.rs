@@ -167,7 +167,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn write_read_single() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_single/events.pbf");
@@ -187,7 +187,7 @@ mod tests {
         match_events(&event, events.get(0).unwrap());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn write_read_multiple() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_multiple/events.pbf");
@@ -217,7 +217,7 @@ mod tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn write_read_multiple_time_steps() {
         let path = create_path_with_prefix(
             "./test_output/io/proto_events/write_read_multiple_time_steps/events.pbf",

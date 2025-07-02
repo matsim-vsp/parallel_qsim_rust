@@ -269,6 +269,10 @@ impl Node {
             cmp_weight,
         }
     }
+
+    pub fn set_cmp_weight(&mut self, cmp_weight: u32) {
+        self.cmp_weight = cmp_weight;
+    }
 }
 
 impl Link {
@@ -326,7 +330,7 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::io::{IOLink, IONode};
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn add_node() {
         let mut network = Network::new();
         let id = Id::create("node-id");
@@ -338,7 +342,7 @@ mod tests {
         assert_eq!(id, network.get_node(&id).id);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     #[should_panic]
     fn add_node_reject_duplicate() {
         let mut network = Network::new();
@@ -351,7 +355,7 @@ mod tests {
         network.add_node(duplicate); // expecting panic here.
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn add_link() {
         let mut network = Network::new();
         let from = Node::new(Id::create("from"), 0., 0., 0, 1);
@@ -380,7 +384,7 @@ mod tests {
         assert_eq!(&id, to.in_links.get(0).unwrap());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     #[should_panic]
     fn add_link_reject_duplicate() {
         let mut network = Network::new();
@@ -396,7 +400,7 @@ mod tests {
         network.add_link(duplicate); // expecting panic here
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     #[ignore] // ingore this test, because it keeps not working, due to non determined ordering of metis
     fn from_file() {
         let network = Network::from_file(
@@ -439,7 +443,7 @@ mod tests {
         assert_eq!(7.5, network.effective_cell_size);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn link_new_with_default() {
         let from = Node::new(Id::create("from"), 0., 0., 0, 1);
         let to = Node::new(Id::create("to"), 3., 4., 0, 1);
@@ -452,10 +456,10 @@ mod tests {
         assert_eq!(to.id, link.to);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_metis_with_large_graph() {}
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_add_io_node() {
         let external_id = String::from("some-id");
         let x = 1.;
@@ -480,7 +484,7 @@ mod tests {
         assert_eq!(id, node.id);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_add_io_link() {
         let ext_from_id = String::from("from");
         let ext_to_id = String::from("to");

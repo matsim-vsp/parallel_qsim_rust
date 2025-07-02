@@ -128,10 +128,9 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::metis_partitioning::partition;
-    use parallel_qsim_test_utils::integration_test;
     use std::collections::BTreeMap;
 
-    #[integration_test]
+    #[test]
     fn simple_graph() {
         let mut net = Network::new();
         let from_id = Id::create("from");
@@ -150,7 +149,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[test]
     fn test_andorra_with_default() {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
@@ -162,7 +161,7 @@ mod tests {
         let _edge_count = edge_count(network);
     }
 
-    #[integration_test]
+    #[test]
     fn test_andorra_with_capacity() {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
@@ -179,7 +178,7 @@ mod tests {
         let _edge_count = edge_count(network);
     }
 
-    #[integration_test]
+    #[test]
     fn test_andorra_with_inlinkcount() {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
@@ -196,7 +195,7 @@ mod tests {
         let _edge_count = edge_count(network);
     }
 
-    #[integration_test]
+    #[test]
     fn test_andorra_with_inlinkcount_and_capacity() {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
@@ -214,7 +213,7 @@ mod tests {
         let _edge_count = edge_count(network);
     }
 
-    #[integration_test]
+    #[test]
     fn test_andorra_with_vertex_constant() {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
@@ -231,7 +230,7 @@ mod tests {
         let _edge_count = edge_count(network);
     }
 
-    #[integration_test]
+    #[test]
     fn test_andorra_with_vertex_constant_and_inlinkcount() {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",

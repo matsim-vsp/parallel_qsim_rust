@@ -383,7 +383,7 @@ mod sim_link_tests {
     use crate::test_utils;
     use crate::test_utils::create_agent_without_route;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn storage_cap_consumed() {
         let mut link = SimLink::Local(LocalLink::new(
             Id::new_internal(1),
@@ -405,7 +405,7 @@ mod sim_link_tests {
         assert_eq!(1.5, link.used_storage())
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn storage_cap_released() {
         let mut link = SimLink::Local(LocalLink::new(
             Id::new_internal(1),
@@ -436,7 +436,7 @@ mod sim_link_tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn flow_cap_accumulates() {
         let mut link = SimLink::Local(LocalLink::new(
             Id::new_internal(1),
@@ -476,7 +476,7 @@ mod sim_link_tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn calculates_exit_time() {
         let mut link = SimLink::Local(LocalLink::new(
             Id::new_internal(1),
@@ -504,7 +504,7 @@ mod sim_link_tests {
         assert!(link.offers_veh(10).is_some())
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn fifo_ordering() {
         let id1 = 42;
         let id2 = 43;
@@ -541,7 +541,7 @@ mod sim_link_tests {
         assert_eq!(id2.to_string(), popped_vehicle2.id.external());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     pub fn stuck_time() {
         let stuck_threshold = 10;
         let config = config::Simulation {
@@ -579,7 +579,7 @@ mod sim_link_tests {
         assert!(link.is_veh_stuck(expected_timer_start + stuck_threshold));
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     pub fn stuck_time_reset() {
         let stuck_threshold = 10;
         let earliest_exit: u32 = 10;
@@ -632,7 +632,7 @@ mod out_link_tests {
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent_without_route;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn push_and_take() {
         let mut link = SimLink::Out(SplitOutLink {
             id: Id::new_internal(0),
@@ -670,7 +670,7 @@ mod out_link_tests {
         }
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn update_storage_caps() {
         // set up the link, so that we consume two units of storage.
         let mut cap = StorageCap::new(100., 1., 1., 1., 1.);

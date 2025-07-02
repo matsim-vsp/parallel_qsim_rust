@@ -22,7 +22,7 @@ fn create_resources(out_dir: &PathBuf) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
-#[integration_test(rust_q_sim)]
+#[test]
 fn execute_3_links_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/execute_3_links_single_part/");
     create_resources(&test_dir);
@@ -41,7 +41,7 @@ fn execute_3_links_single_part() {
     );
 }
 
-#[integration_test(rust_q_sim)]
+#[test]
 fn execute_3_links_2_parts() {
     create_resources(&PathBuf::from(
         "./test_output/simulation/execute_3_links_2_parts/",

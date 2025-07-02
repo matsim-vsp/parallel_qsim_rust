@@ -61,7 +61,7 @@ mod tests {
     use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_landmark_choice() {
         let graph = get_triangle_test_graph();
         let alt_data = AltLandmarkData::new(&graph);

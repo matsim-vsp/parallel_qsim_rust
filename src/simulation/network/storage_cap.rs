@@ -89,13 +89,13 @@ impl StorageCap {
 mod test {
     use crate::simulation::network::storage_cap::StorageCap;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn init_default() {
         let cap = StorageCap::new(100., 3., 1., 0.2, 7.5);
         assert_eq!(8., cap.max);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn init_large_capacity() {
         let cap = StorageCap::new(100., 3., 360000., 0.2, 7.5);
         // we expect a storage size of 20. because it the flow cap/s is 20 (36000 * 0.2 / 3600)

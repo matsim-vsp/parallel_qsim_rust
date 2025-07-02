@@ -25,7 +25,7 @@ fn create_resources(out_dir: &PathBuf) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
-#[integration_test(rust_q_sim)]
+#[test]
 fn test_pt_tutorial() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial/");
     create_resources(&test_dir);

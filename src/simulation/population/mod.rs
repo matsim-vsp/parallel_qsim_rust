@@ -305,7 +305,11 @@ impl From<Route> for InternalRoute {
             Route::GenericRoute(g) => InternalRoute::Generic(g.into()),
             Route::NetworkRoute(n) => InternalRoute::Network(InternalNetworkRoute {
                 generic_delegate: n.delegate.unwrap().into(),
-                route: n.route.into_iter().map(|id| Id::get(id)).collect(),
+                route: n
+                    .route
+                    .into_iter()
+                    .map(|id| Id::get_from_ext(&id))
+                    .collect(),
             }),
             Route::PtRoute(p) => InternalRoute::Pt(InternalPtRoute {
                 generic_delegate: p.delegate.unwrap().into(),
@@ -318,11 +322,11 @@ impl From<Route> for InternalRoute {
 impl From<GenericRoute> for InternalGenericRoute {
     fn from(g: GenericRoute) -> Self {
         InternalGenericRoute {
-            start_link: Id::get(g.start_link),
-            end_link: Id::get(g.end_link),
+            start_link: Id::get_from_ext(&g.start_link),
+            end_link: Id::get_from_ext(&g.end_link),
             trav_time: g.trav_time,
             distance: g.distance,
-            vehicle: g.veh_id.map(Id::get),
+            vehicle: g.veh_id.map(|s| Id::get_from_ext(&s)),
         }
     }
 }
@@ -458,8 +462,8 @@ impl FromIOPerson<IOLeg> for InternalLeg {
 impl From<Leg> for InternalLeg {
     fn from(io: Leg) -> Self {
         InternalLeg {
-            mode: Id::get(io.mode),
-            routing_mode: io.routing_mode.map(Id::get),
+            mode: Id::get_from_ext(&io.mode),
+            routing_mode: io.routing_mode.map(|s| Id::get_from_ext(&s)),
             dep_time: io.dep_time,
             trav_time: io.trav_time,
             route: io.route.map(InternalRoute::from),
@@ -485,8 +489,8 @@ impl From<IOActivity> for InternalActivity {
 impl From<Activity> for InternalActivity {
     fn from(value: Activity) -> Self {
         InternalActivity {
-            act_type: Id::get(value.act_type),
-            link_id: Id::get(value.link_id),
+            act_type: Id::get_from_ext(&value.act_type),
+            link_id: Id::get_from_ext(&value.link_id),
             x: value.x,
             y: value.y,
             start_time: value.start_time,
@@ -552,7 +556,7 @@ impl From<IOPerson> for InternalPerson {
 
 impl From<Person> for InternalPerson {
     fn from(value: Person) -> Self {
-        let id: Id<InternalPerson> = Id::get(value.id);
+        let id: Id<InternalPerson> = Id::get_from_ext(&value.id);
         InternalPerson {
             id: id.clone(),
             plans: value.plan.into_iter().map(InternalPlan::from).collect(),
@@ -652,7 +656,7 @@ mod tests {
     use std::collections::HashSet;
     use std::path::PathBuf;
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn from_io_1_plan() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
@@ -700,7 +704,7 @@ mod tests {
         );
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn from_io_multi_mode() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/3-links/3-links-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
@@ -744,7 +748,7 @@ mod tests {
         // todo test bookkeeping of garage person_2_vehicle
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn from_io() {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
@@ -771,7 +775,7 @@ mod tests {
         assert!(pop1.persons.is_empty() || pop2.persons.is_empty());
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_from_xml_to_binpb_same() {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
@@ -792,7 +796,7 @@ mod tests {
         assert_eq!(population, population2);
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_from_io_generic_route() {
         Id::<Link>::create("1");
         Id::<Link>::create("2");
@@ -832,7 +836,7 @@ mod tests {
         );
     }
 
-    #[parallel_qsim_test_utils::integration_test]
+    #[test]
     fn test_from_io_pt_route() {
         Id::<Link>::create("1");
         Id::<Link>::create("2");

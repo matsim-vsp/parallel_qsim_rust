@@ -6,7 +6,8 @@ use nohash_hasher::IntMap;
 use tracing::info;
 
 use rust_q_sim::simulation::config::PartitionMethod;
-use rust_q_sim::simulation::network::global_network::Network;
+use rust_q_sim::simulation::id::Id;
+use rust_q_sim::simulation::network::global_network::{Link, Network};
 use rust_q_sim::simulation::population::population_data::Population;
 use rust_q_sim::simulation::pt::TransitSchedule;
 use rust_q_sim::simulation::vehicles::garage::Garage;
@@ -54,9 +55,9 @@ fn create_file_path(args: &InputArgs, extension: &str) -> PathBuf {
         .join(format!("{}.{}.binpb", args.run_id, extension))
 }
 
-fn compute_computational_weights(pop: &Population) -> IntMap<u64, u32> {
+fn compute_computational_weights(pop: &Population) -> IntMap<Id<Link>, u32> {
     info!("Computing computational weights based on routes in plans file");
-    let result: IntMap<u64, u32> = pop
+    let result: IntMap<Id<Link>, u32> = pop
         .persons
         .values()
         .flat_map(|p| p.selected_plan().as_ref().unwrap().legs())
@@ -64,7 +65,7 @@ fn compute_computational_weights(pop: &Population) -> IntMap<u64, u32> {
         .filter_map(|leg| leg.route.as_ref()?.as_network())
         .flat_map(|n| n.route().iter())
         .fold(IntMap::new(), |mut map, link_id| {
-            map.entry(link_id.internal())
+            map.entry(link_id.clone())
                 .and_modify(|counter| *counter += 1)
                 .or_insert(1u32);
             map
@@ -73,11 +74,10 @@ fn compute_computational_weights(pop: &Population) -> IntMap<u64, u32> {
     result
 }
 
-fn assign_computational_weights(net: &mut Network, cmp_weights: IntMap<u64, u32>) {
-    todo!()
-    // for (link_id, weight) in cmp_weights {
-    //     let link = &net.links[link_id as usize];
-    //     let node = &mut net.nodes[link.to.internal() as usize];
-    //     node.cmp_weight = weight;
-    // }
+fn assign_computational_weights(net: &mut Network, cmp_weights: IntMap<Id<Link>, u32>) {
+    for (link_id, weight) in cmp_weights {
+        let link = net.get_link(&link_id);
+        let node = net.get_node_mut(&link.to.clone());
+        node.cmp_weight = weight;
+    }
 }
