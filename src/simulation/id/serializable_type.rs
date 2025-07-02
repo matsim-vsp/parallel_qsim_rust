@@ -1,4 +1,4 @@
-use crate::simulation::network::global_network::{Link, Node};
+use crate::simulation::network::{Link, Node};
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
 

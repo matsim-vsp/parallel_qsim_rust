@@ -52,8 +52,6 @@ impl TeleportationEngine {
                 InternalRoute::Network(_) => self.emit_travelled(now, &agent),
                 InternalRoute::Pt(_) => self.emit_travelled_with_pt(now, &agent),
             }
-
-            vehicle.register_vehicle_exited();
         }
         teleportation_vehicles
     }

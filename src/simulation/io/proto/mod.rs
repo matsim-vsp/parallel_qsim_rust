@@ -1,10 +1,10 @@
-mod proto_population;
+pub mod proto_population;
 pub mod xml_events;
 
-use crate::simulation::io::attributes::IOAttribute;
 use crate::simulation::io::proto::general::attribute_value::Type;
 use crate::simulation::io::proto::general::AttributeValue;
 use crate::simulation::io::proto::network::{Link, Network, Node};
+use crate::simulation::io::xml::attributes::IOAttribute;
 use prost::Message;
 use std::fs;
 use std::fs::File;
@@ -209,7 +209,7 @@ impl AttributeValue {
 }
 
 impl Network {
-    pub fn from(network: &crate::simulation::network::global_network::Network) -> Self {
+    pub fn from(network: &crate::simulation::network::Network) -> Self {
         info!("Converting Network into wire format");
         let nodes: Vec<_> = network
             .nodes()

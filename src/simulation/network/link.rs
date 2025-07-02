@@ -4,13 +4,13 @@ use std::fmt::Debug;
 use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
-use crate::simulation::network::global_network::Node;
 use crate::simulation::network::sim_network::StorageUpdate;
 use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
+use crate::simulation::network::Node;
 use crate::simulation::vehicles::InternalVehicle;
 
-use super::global_network::Link;
+use crate::simulation::network::Link;
 
 #[derive(Debug, Clone)]
 pub enum SimLink {

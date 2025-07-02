@@ -14,8 +14,8 @@ use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::vehicles::InternalVehicle;
 
 use super::{
-    global_network::{Link, Network, Node},
     link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
+    Link, Network, Node,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -502,8 +502,8 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::messaging::events::EventsPublisher;
-    use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::link::SimLink;
+    use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils;
 
@@ -922,24 +922,6 @@ mod tests {
         assert!(neighbors.contains(&2));
         assert!(neighbors.contains(&3));
         assert!(!neighbors.contains(&4));
-    }
-
-    fn init_three_node_network(network: &mut Network) {
-        let node1 = Node::new(Id::create("node-1"), -100., 0., 0, 1);
-        let node2 = Node::new(Id::create("node-2"), 0., 0., 0, 1);
-        let node3 = Node::new(Id::create("node-3"), 100., 0., 0, 1);
-        let mut link1 = Link::new_with_default(Id::create("link-1"), &node1, &node2);
-        link1.capacity = 3600.;
-        link1.freespeed = 10.;
-        let mut link2 = Link::new_with_default(Id::create("link-2"), &node2, &node3);
-        link2.capacity = 3600.;
-        link2.freespeed = 10.;
-
-        network.add_node(node1);
-        network.add_node(node2);
-        network.add_node(node3);
-        network.add_link(link1);
-        network.add_link(link2);
     }
 
     fn create_three_node_sim_network_with_partition(

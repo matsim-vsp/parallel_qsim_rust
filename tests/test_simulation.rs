@@ -21,9 +21,9 @@ use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscribe
 use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use rust_q_sim::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use rust_q_sim::simulation::messaging::sim_communication::SimCommunicator;
-use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
-use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::network::Network;
+use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use rust_q_sim::simulation::scenario::Scenario;
 use rust_q_sim::simulation::simulation::SimulationBuilder;

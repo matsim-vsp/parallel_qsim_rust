@@ -14,7 +14,7 @@ use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::network::global_network::Network;
+use crate::simulation::network::Network;
 use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{id, io};
@@ -66,7 +66,7 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
     rc_comm.barrier();
-    // simulation.run();
+    simulation.run();
 }
 
 fn create_events(

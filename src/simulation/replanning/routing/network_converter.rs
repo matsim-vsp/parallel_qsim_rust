@@ -5,12 +5,13 @@ use nohash_hasher::IntMap;
 use tracing::info;
 
 use crate::simulation::id::Id;
-use crate::simulation::network::global_network::{Link, Network};
+use crate::simulation::network::{Link, Network};
 use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
 use crate::simulation::vehicles::InternalVehicleType;
 
 pub struct NetworkConverter {}
 
+#[allow(dead_code)]
 impl NetworkConverter {
     pub fn convert_network_with_vehicle_types(
         network: &Network,
@@ -170,7 +171,7 @@ mod test {
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::network::global_network::Network;
+    use crate::simulation::network::Network;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::InternalVehicleType;

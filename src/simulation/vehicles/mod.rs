@@ -1,14 +1,13 @@
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::messages::Vehicle;
 use crate::simulation::io::proto::vehicles::VehicleType;
-use crate::simulation::network::global_network::Link;
+use crate::simulation::io::xml::vehicles::{IOVehicle, IOVehicleType};
+use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;
-use crate::simulation::vehicles::io::{IOVehicle, IOVehicleType};
 use crate::simulation::{InternalAttributes, InternalSimulationAgent};
 use std::fmt::Debug;
 
 pub mod garage;
-pub mod io;
 
 #[derive(Debug, PartialEq)]
 pub struct InternalVehicleType {
@@ -127,10 +126,6 @@ impl InternalVehicle {
 
     pub fn register_moved_to_next_link(&mut self) {
         self.driver_mut().register_moved_to_next_link();
-    }
-
-    pub fn register_vehicle_exited(&mut self) {
-        self.driver_mut().register_vehicle_exited();
     }
 
     pub fn route_index_to_last(&mut self) {

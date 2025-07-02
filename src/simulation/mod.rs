@@ -1,13 +1,12 @@
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::IOAttributes;
 use crate::simulation::io::proto::general::attribute_value::Type;
 use crate::simulation::io::proto::general::AttributeValue;
-use crate::simulation::messaging::messages::SimulationAgentState;
-use crate::simulation::network::global_network::Link;
 use crate::simulation::population::{
     InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute,
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
+use io::xml::attributes::IOAttributes;
+use network::Link;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -42,6 +41,13 @@ pub struct InternalSimulationAgentLogic {
     basic_agent_delegate: InternalPerson,
     curr_plan_element: usize,
     curr_route_element: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SimulationAgentState {
+    LEG,
+    ACTIVITY,
+    STUCK,
 }
 
 impl EndTime for InternalSimulationAgent {
@@ -105,10 +111,6 @@ impl InternalSimulationAgent {
 
     pub fn register_moved_to_next_link(&mut self) {
         self.logic.register_moved_to_next_link();
-    }
-
-    pub fn register_vehicle_exited(&mut self) {
-        self.logic.register_vehicle_exited();
     }
 
     pub fn route_index_to_last(&mut self) {
@@ -214,10 +216,6 @@ impl InternalSimulationAgentLogic {
     }
 
     pub fn register_moved_to_next_link(&mut self) {
-        self.curr_route_element += 1;
-    }
-
-    pub fn register_vehicle_exited(&mut self) {
         self.curr_route_element += 1;
     }
 

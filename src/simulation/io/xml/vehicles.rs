@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use crate::simulation;
-use crate::simulation::io::attributes::IOAttributes;
 use crate::simulation::io::proto::messages::Vehicle;
 use crate::simulation::io::proto::vehicles::{VehicleType, VehiclesContainer};
 use crate::simulation::io::xml;
+use crate::simulation::io::xml::attributes::IOAttributes;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
 use serde::{Deserialize, Serialize};
@@ -268,8 +268,8 @@ mod test {
     use quick_xml::de::from_str;
 
     use crate::simulation::id::Id;
+    use crate::simulation::io::xml::vehicles::{from_file, to_file, IOVehicleDefinitions};
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::io::{from_file, to_file, IOVehicleDefinitions};
     use crate::simulation::vehicles::InternalVehicleType;
     use crate::simulation::InternalAttributes;
 

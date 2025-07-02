@@ -309,9 +309,9 @@ mod tests {
         deserialize, deserialize_from_file, serialize, serialize_to_file, IdCompression, IdStore,
     };
     use crate::simulation::logging::init_std_out_logging;
-    use crate::simulation::network::global_network::{Link, Network, Node};
-    use crate::simulation::population::population_data::Population;
+    use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::population::InternalPerson;
+    use crate::simulation::population::Population;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_folders;

@@ -1,7 +1,7 @@
-use crate::simulation::io::attributes::{IOAttribute, IOAttributes};
 use crate::simulation::io::xml;
+use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
 use crate::simulation::io::MatsimId;
-use crate::simulation::network::global_network::Network;
+use crate::simulation::network::Network;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::path::Path;
@@ -231,7 +231,7 @@ mod tests {
 
     use quick_xml::de::from_str;
 
-    use crate::simulation::network::io::IONetwork;
+    use crate::simulation::io::xml::network::IONetwork;
 
     static OUTPUT_FOLDER: &str = "./test_output/io/network/";
 

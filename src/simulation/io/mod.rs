@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-pub mod attributes;
 pub mod proto;
 pub mod proto_events;
 pub mod xml;

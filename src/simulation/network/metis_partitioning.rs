@@ -3,9 +3,9 @@ use metis::{Graph, Idx};
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use super::global_network::{Link, Network, Node};
 use crate::simulation::config::{EdgeWeight, MetisOptions, VertexWeight};
 use crate::simulation::id::Id;
+use crate::simulation::network::{Link, Network, Node};
 
 pub fn partition(
     network: &Network,
@@ -126,8 +126,8 @@ fn get_adjwgt(options: &MetisOptions, link: &Link) -> f32 {
 mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod, VertexWeight};
     use crate::simulation::id::Id;
-    use crate::simulation::network::global_network::{Link, Network, Node};
     use crate::simulation::network::metis_partitioning::partition;
+    use crate::simulation::network::{Link, Network, Node};
     use std::collections::BTreeMap;
 
     #[test]

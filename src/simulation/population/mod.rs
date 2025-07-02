@@ -3,22 +3,94 @@ use crate::simulation::io::proto::population::leg::Route;
 use crate::simulation::io::proto::population::{
     Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription,
 };
-use crate::simulation::network::global_network::Link;
-use crate::simulation::population::io::{
+use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
+use crate::simulation::io::xml::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
+use crate::simulation::network::{Link, Network};
+use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
 use itertools::{EitherOrBoth, Itertools};
 use serde_json::{Error, Value};
+use std::collections::HashMap;
+use std::path::Path;
 use std::str::FromStr;
 
 pub mod agent_source;
-pub mod io;
 pub mod population_data;
 
 trait FromIOPerson<T> {
     fn from_io(io: T, id: Id<InternalPerson>) -> Self;
+}
+
+pub fn from_file<F: Fn(&InternalPerson) -> bool>(
+    path: &Path,
+    garage: &mut Garage,
+    filter: F,
+) -> Population {
+    if path.extension().unwrap().eq("binpb") {
+        load_from_proto(path, filter)
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        let persons = crate::simulation::io::xml::population::load_from_xml(path, garage)
+            .into_iter()
+            .filter(|(_id, p)| filter(p))
+            .collect();
+        Population { persons }
+    } else {
+        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+pub fn to_file(population: &Population, path: &Path) {
+    if path.extension().unwrap().eq("binpb") {
+        write_to_proto(population, path);
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        crate::simulation::io::xml::population::write_to_xml(population, path);
+    } else {
+        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+#[derive(Debug, Default, PartialEq)]
+pub struct Population {
+    pub persons: HashMap<Id<InternalPerson>, InternalPerson>,
+}
+
+impl Population {
+    pub fn new() -> Self {
+        Population {
+            persons: HashMap::default(),
+        }
+    }
+
+    pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
+        from_file(file_path, garage, |_p| true)
+    }
+
+    pub fn from_file_filtered<F>(file_path: &Path, garage: &mut Garage, filter: F) -> Self
+    where
+        F: Fn(&InternalPerson) -> bool,
+    {
+        from_file(file_path, garage, filter)
+    }
+
+    pub fn from_file_filtered_part(
+        file_path: &Path,
+        net: &Network,
+        garage: &mut Garage,
+        part: u32,
+    ) -> Self {
+        from_file(file_path, garage, |p| {
+            let act = p.plan_element_at(0).as_activity().unwrap();
+            let partition = net.get_link(&act.link_id).partition;
+            partition == part
+        })
+    }
+
+    pub fn to_file(&self, file_path: &Path) {
+        to_file(self, file_path);
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -647,9 +719,9 @@ impl From<Plan> for InternalPlan {
 mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::network::global_network::{Link, Network};
-    use crate::simulation::population::io::{IOLeg, IORoute};
-    use crate::simulation::population::population_data::Population;
+    use crate::simulation::io::xml::population::{IOLeg, IORoute};
+    use crate::simulation::network::{Link, Network};
+    use crate::simulation::population::Population;
     use crate::simulation::population::{FromIOPerson, InternalLeg, InternalPerson, InternalRoute};
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::InternalVehicle;

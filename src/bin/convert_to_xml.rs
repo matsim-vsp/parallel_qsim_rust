@@ -4,8 +4,8 @@ use clap::Parser;
 use tracing::info;
 
 use rust_q_sim::simulation::config::PartitionMethod;
-use rust_q_sim::simulation::network::global_network::Network;
-use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::network::Network;
+use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 
 #[derive(Parser, Debug)]

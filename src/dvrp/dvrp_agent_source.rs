@@ -1,6 +1,6 @@
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
-use crate::simulation::network::global_network::Link;
+use crate::simulation::network::Link;
 use crate::simulation::population::agent_source::AgentSource;
 use crate::simulation::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::Scenario;

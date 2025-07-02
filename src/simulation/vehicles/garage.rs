@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use crate::simulation::id::Id;
-use crate::simulation::population::InternalPerson;
-use crate::simulation::vehicles::io::{
+use crate::simulation::io::xml::vehicles::{
     from_file, to_file, IOVehicle, IOVehicleDefinitions, IOVehicleType,
 };
+use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
 use crate::simulation::InternalSimulationAgent;
 use nohash_hasher::IntMap;
@@ -216,12 +216,12 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::simulation::id::Id;
-    use crate::simulation::io::attributes::{IOAttribute, IOAttributes};
-    use crate::simulation::vehicles::garage::{add_io_veh_type, Garage};
-    use crate::simulation::vehicles::io::{
+    use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
+    use crate::simulation::io::xml::vehicles::{
         IODimension, IOFowEfficiencyFactor, IONetworkMode, IOPassengerCarEquivalents,
         IOVehicleType, IOVelocity,
     };
+    use crate::simulation::vehicles::garage::{add_io_veh_type, Garage};
     use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_vehicle_type;
 

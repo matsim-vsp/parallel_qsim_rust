@@ -7,8 +7,8 @@ use tracing::info;
 
 use rust_q_sim::simulation::config::PartitionMethod;
 use rust_q_sim::simulation::id::Id;
-use rust_q_sim::simulation::network::global_network::{Link, Network};
-use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::network::{Link, Network};
+use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::pt::TransitSchedule;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 
