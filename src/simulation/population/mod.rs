@@ -18,7 +18,6 @@ use std::path::Path;
 use std::str::FromStr;
 
 pub mod agent_source;
-pub mod population_data;
 
 trait FromIOPerson<T> {
     fn from_io(io: T, id: Id<InternalPerson>) -> Self;

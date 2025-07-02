@@ -1,13 +1,35 @@
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::messages::Vehicle;
-use crate::simulation::io::proto::vehicles::VehicleType;
-use crate::simulation::io::xml::vehicles::{IOVehicle, IOVehicleType};
+use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
+use crate::simulation::io::proto::vehicles::{Vehicle, VehicleType};
+use crate::simulation::io::xml::vehicles::{load_from_xml, write_to_xml, IOVehicle, IOVehicleType};
 use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;
+use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{InternalAttributes, InternalSimulationAgent};
 use std::fmt::Debug;
+use std::path::Path;
 
 pub mod garage;
+
+pub fn from_file(path: &Path) -> Garage {
+    if path.extension().unwrap().eq("binpb") {
+        load_from_proto(path)
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        load_from_xml(path)
+    } else {
+        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+pub fn to_file(garage: &Garage, path: &Path) {
+    if path.extension().unwrap().eq("binpb") {
+        write_to_proto(garage, path);
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        write_to_xml(garage, path);
+    } else {
+        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub struct InternalVehicleType {

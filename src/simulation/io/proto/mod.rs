@@ -1,4 +1,6 @@
+pub mod proto_network;
 pub mod proto_population;
+pub mod proto_vehicles;
 pub mod xml_events;
 
 use crate::simulation::io::proto::general::attribute_value::Type;
@@ -19,9 +21,6 @@ pub mod events {
 }
 pub mod ids {
     include!(concat!(env!("OUT_DIR"), "/ids.rs"));
-}
-pub mod messages {
-    include!(concat!(env!("OUT_DIR"), "/messages.rs"));
 }
 
 pub mod network {

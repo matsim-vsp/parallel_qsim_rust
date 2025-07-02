@@ -1,8 +1,9 @@
 use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
+use crate::simulation::io::proto::proto_network::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::attributes::IOAttributes;
 use crate::simulation::io::xml::network;
-use crate::simulation::io::xml::network::{IOLink, IONetwork, IONode};
+use crate::simulation::io::xml::network::{write_to_xml, IOLink, IONetwork, IONode};
 use crate::simulation::InternalAttributes;
 use itertools::Itertools;
 use nohash_hasher::{IntMap, IntSet};
@@ -78,17 +79,17 @@ impl Network {
         num_parts: u32,
         partition_method: PartitionMethod,
     ) -> Self {
-        let mut result = network::from_file(file_path);
+        let mut result = from_file(file_path);
         Self::partition_network(&mut result, partition_method, num_parts);
         result
     }
 
     pub fn from_file_as_is(path: &Path) -> Self {
-        network::from_file(path)
+        from_file(path)
     }
 
     pub fn to_file(&self, file_path: &Path) {
-        network::to_file(self, file_path);
+        to_file(self, file_path);
     }
 
     pub fn add_node(&mut self, node: Node) {
@@ -540,5 +541,25 @@ mod tests {
         assert!(link.modes.contains(&Id::get_from_ext("car")));
         assert!(link.modes.contains(&Id::get_from_ext("ride")));
         assert!(link.modes.contains(&Id::get_from_ext("bike")));
+    }
+}
+
+pub fn from_file(path: &Path) -> Network {
+    if path.extension().unwrap().eq("binpb") {
+        load_from_proto(path)
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        network::load_from_xml(path)
+    } else {
+        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+pub fn to_file(network: &Network, path: &Path) {
+    if path.extension().unwrap().eq("binpb") {
+        write_to_proto(network, path);
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        write_to_xml(network, path);
+    } else {
+        panic!("Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
     }
 }

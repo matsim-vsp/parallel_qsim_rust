@@ -1,11 +1,11 @@
 syntax = "proto3";
-import "simulation/io/proto/types/messages.proto";
+import "simulation/io/proto/types/general.proto";
 
 package vehicles;
 
 message VehiclesContainer {
   repeated VehicleType vehicle_types = 1;
-  repeated messages.Vehicle vehicles = 2;
+  repeated Vehicle vehicles = 2;
 }
 
 message VehicleType {
@@ -16,4 +16,12 @@ message VehicleType {
   float pce = 5;
   float fef = 6;
   uint64 net_mode = 7;
+}
+
+message Vehicle {
+  uint64 id = 1;
+  uint64 type = 2;
+  float max_v = 3;
+  float pce = 4;
+  map<string, general.AttributeValue> attributes = 5;
 }

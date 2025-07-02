@@ -7,32 +7,12 @@ use std::fmt::Debug;
 use std::path::Path;
 use tracing::info;
 
-pub fn from_file(path: &Path) -> Network {
-    if path.extension().unwrap().eq("binpb") {
-        load_from_proto(path)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        load_from_xml(path)
-    } else {
-        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
-    }
-}
-
-pub fn to_file(network: &Network, path: &Path) {
-    if path.extension().unwrap().eq("binpb") {
-        write_to_proto(network, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        write_to_xml(network, path);
-    } else {
-        panic!("Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
-    }
-}
-
-fn load_from_xml(path: &Path) -> Network {
+pub(crate) fn load_from_xml(path: &Path) -> Network {
     let io_net = IONetwork::from_file(path.to_str().unwrap());
     Network::from(io_net)
 }
 
-fn write_to_xml(network: &Network, path: &Path) {
+pub(crate) fn write_to_xml(network: &Network, path: &Path) {
     let mut result = IONetwork::new(None);
 
     for node in network.nodes() {
@@ -90,17 +70,6 @@ fn write_to_xml(network: &Network, path: &Path) {
     }
 
     result.to_file(path);
-}
-
-fn load_from_proto(path: &Path) -> Network {
-    let wire_net: crate::simulation::io::proto::network::Network =
-        crate::simulation::io::proto::read_from_file(path);
-    Network::from(wire_net)
-}
-
-fn write_to_proto(network: &Network, path: &Path) {
-    let wire_network = crate::simulation::io::proto::network::Network::from(network);
-    crate::simulation::io::proto::write_to_file(wire_network, path);
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
