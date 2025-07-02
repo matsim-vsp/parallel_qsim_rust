@@ -431,20 +431,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef8ae57c4978a2acd8b869ce6b9ca1dfe817bff704c220209fdef2c0b75a01b9"
 
 [[package]]
-name = "dashmap"
-version = "7.0.0-rc2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4a1e35a65fe0538a60167f0ada6e195ad5d477f6ddae273943596d4a1a5730b"
-dependencies = [
- "cfg-if",
- "crossbeam-utils",
- "equivalent",
- "hashbrown 0.15.2",
- "lock_api",
- "parking_lot_core",
-]
-
-[[package]]
 name = "earcutr"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1218,15 +1204,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
-name = "parallel_qsim_test_utils"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1536,7 +1513,6 @@ dependencies = [
  "bincode",
  "bytes",
  "clap",
- "dashmap",
  "flate2",
  "geo",
  "itertools 0.14.0",
@@ -1546,14 +1522,11 @@ dependencies = [
  "metis",
  "mpi",
  "nohash-hasher",
- "parallel_qsim_test_utils",
- "parking_lot",
  "prost",
  "prost-build",
  "protobuf-src",
  "quick-xml",
  "rand",
- "rust_q_sim",
  "serde",
  "serde_json",
  "serde_path_to_error",

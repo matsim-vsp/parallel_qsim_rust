@@ -5,19 +5,13 @@ edition = "2021"
 
 [features]
 mpi = ["dep:mpi"]
-test_utils = []
 
 [[bin]]
 name = "mpi_qsim"
 path = "src/bin/mpi_qsim.rs"
 required-features = ["mpi"]
 
-[dev-dependencies]
-# Activate the test utils for the tests. This explicit dependency is needed for id store reset in integration tests.
-rust_q_sim = { path = ".", features = ["test_utils"] }
-
 [dependencies]
-parallel_qsim_test_utils = { path = "../parallel_qsim_test_utils" }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.93"
 quick-xml = { version = "0.37.5", features = ["serialize"] }
@@ -49,8 +43,6 @@ tonic = "0.13.1"
 tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
 lz4 = "1.28.1"
 bincode = { version = "2.0.1", features = ["serde"] }
-parking_lot = "0.12.4"
-dashmap = "7.0.0-rc2"
 
 [build-dependencies]
 # generates types based on .proto files
