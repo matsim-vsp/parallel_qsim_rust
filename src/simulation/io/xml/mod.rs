@@ -8,6 +8,11 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tracing::info;
 
+pub mod attributes;
+pub mod network;
+pub mod population;
+pub mod vehicles;
+
 pub fn read_from_file<T>(file_path: &str) -> T
 where
     T: DeserializeOwned,

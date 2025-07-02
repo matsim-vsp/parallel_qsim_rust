@@ -1,7 +1,6 @@
 use nohash_hasher::IntMap;
 use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -16,19 +15,19 @@ use rust_q_sim::simulation::controller::{
     create_output_filename, get_numbered_output_filename, partition_input,
 };
 use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::io::xml_events::XmlEventsWriter;
-use rust_q_sim::simulation::messaging::communication::local_communicator::ChannelSimCommunicator;
-use rust_q_sim::simulation::messaging::communication::message_broker::NetMessageBroker;
-use rust_q_sim::simulation::messaging::communication::SimCommunicator;
+use rust_q_sim::simulation::io::proto::events::Event;
+use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
-use rust_q_sim::simulation::network::global_network::Network;
+use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
+use rust_q_sim::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use rust_q_sim::simulation::messaging::sim_communication::SimCommunicator;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
-use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::network::Network;
+use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 use rust_q_sim::simulation::scenario::Scenario;
-use rust_q_sim::simulation::simulation::Simulation;
+use rust_q_sim::simulation::simulation::SimulationBuilder;
 use rust_q_sim::simulation::vehicles::garage::Garage;
-use rust_q_sim::simulation::wire_types::events::Event;
 
 pub fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str) {
     let config = Config::from_file(&config_args);
@@ -108,7 +107,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
     info!(
         "Partitioning: Rank {rank}; Links {:?}; Nodes {:?}",
         &sim_net.get_link_ids(),
-        &sim_net.nodes.keys().copied().collect::<HashSet<u64>>()
+        &sim_net.get_node_ids()
     );
 
     let events = Rc::new(RefCell::new(EventsPublisher::new()));
@@ -127,7 +126,7 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
         network_partition: sim_net,
     };
 
-    let mut sim = Simulation::new(config, scenario, broker, events);
+    let mut sim = SimulationBuilder::new(config, scenario, broker, events).build();
     sim.run();
 }
 

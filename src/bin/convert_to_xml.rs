@@ -4,8 +4,8 @@ use clap::Parser;
 use tracing::info;
 
 use rust_q_sim::simulation::config::PartitionMethod;
-use rust_q_sim::simulation::network::global_network::Network;
-use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::network::Network;
+use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 
 #[derive(Parser, Debug)]
@@ -54,8 +54,7 @@ fn main() {
         info!("Loading population from {:?}", pop_path);
         let pop = Population::from_file(
             &pop_path,
-            veh
-                .as_mut()
+            veh.as_mut()
                 .expect("Vehicles must be provided if population is provided."),
         );
         info!("Converting population to XML format");

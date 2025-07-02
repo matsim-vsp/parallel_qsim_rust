@@ -24,6 +24,14 @@ pub struct Config {
     modules: RefCell<HashMap<String, Box<dyn ConfigModule>>>,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            modules: RefCell::new(HashMap::default()),
+        }
+    }
+}
+
 impl Config {
     pub fn from_file(args: &CommandLineArgs) -> Self {
         let reader = BufReader::new(File::open(&args.config_path).unwrap_or_else(|e| {

@@ -1,12 +1,11 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use tracing::info;
-
-use rust_q_sim::simulation::io::xml_events::{XmlEventsReader, XmlEventsWriter};
+use rust_q_sim::simulation::io::proto::events::Event;
+use rust_q_sim::simulation::io::proto::xml_events::{XmlEventsReader, XmlEventsWriter};
 use rust_q_sim::simulation::logging::init_std_out_logging;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;
-use rust_q_sim::simulation::wire_types::events::Event;
+use tracing::info;
 
 struct StatefulReader {
     reader: XmlEventsReader,

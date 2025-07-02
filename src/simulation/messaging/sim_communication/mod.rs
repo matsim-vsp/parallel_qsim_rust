@@ -1,4 +1,4 @@
-use crate::simulation::wire_types::messages::SyncMessage;
+use crate::simulation::messaging::messages::InternalSyncMessage;
 use std::collections::{HashMap, HashSet};
 
 pub mod local_communicator;
@@ -10,12 +10,12 @@ pub mod mpi_communicator;
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        vehicles: HashMap<u32, SyncMessage>,
+        vehicles: HashMap<u32, InternalSyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
         now: u32,
         on_msg: F,
     ) where
-        F: FnMut(SyncMessage);
+        F: FnMut(InternalSyncMessage);
 
     fn barrier(&self);
 

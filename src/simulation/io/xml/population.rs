@@ -1,116 +1,25 @@
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
-use std::fs;
-use std::fs::File;
-use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
-
-use prost::Message;
-use serde::{Deserialize, Deserializer};
 use tracing::info;
 
 use crate::simulation::id::Id;
-use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::proto::MessageIter;
-use crate::simulation::io::{proto, xml};
-use crate::simulation::population::population_data::Population;
+use crate::simulation::io::xml;
+use crate::simulation::io::xml::attributes::IOAttributes;
+use crate::simulation::population::{InternalPerson, Population};
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::population::Header;
-use crate::simulation::wire_types::population::Person;
 
-pub fn from_file<F: Fn(&Person) -> bool>(
+pub(crate) fn load_from_xml(
     path: &Path,
     garage: &mut Garage,
-    filter: F,
-) -> Population {
-    if path.extension().unwrap().eq("binpb") {
-        load_from_proto(path, filter)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        let persons = load_from_xml(path, garage)
-            .into_iter()
-            .filter(|(_id, p)| filter(p))
-            .collect();
-        Population { persons }
-    } else {
-        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
-    }
-}
-
-pub fn to_file(population: &Population, path: &Path) {
-    if path.extension().unwrap().eq("binpb") {
-        write_to_proto(population, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        write_to_xml(population, path);
-    } else {
-        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
-    }
-}
-
-fn load_from_xml(path: &Path, garage: &mut Garage) -> HashMap<Id<Person>, Person> {
+) -> HashMap<Id<InternalPerson>, InternalPerson> {
     let io_pop = IOPopulation::from_file(path.to_str().unwrap());
     create_ids(&io_pop, garage);
-    create_population(&io_pop)
+    create_population(io_pop)
 }
 
-fn write_to_xml(_population: &Population, _path: &Path) {
+pub(crate) fn write_to_xml(_population: &Population, _path: &Path) {
     panic!("Write to xml is not implemented for Population. Only writing to `.binpb` is supported")
-}
-
-fn load_from_proto<F>(path: &Path, filter: F) -> Population
-where
-    F: Fn(&Person) -> bool,
-{
-    info!("Loading population from file at: {path:?}");
-    let file = File::open(path).unwrap_or_else(|_| panic!("Could not open File at {path:?}"));
-    let mut reader = BufReader::new(file);
-
-    if let Some(header_delim) = proto::read_delimiter(&mut reader) {
-        let mut buffer = vec![0; header_delim];
-        reader
-            .read_exact(&mut buffer)
-            .expect("Failed to read delimited buffer.");
-        let header = Header::decode(buffer.as_slice()).expect("oh nono");
-        info!("Header Info: {header:?}");
-    }
-
-    let mut persons = HashMap::new();
-
-    for person in MessageIter::<Person, BufReader<File>>::new(reader) {
-        let id = Id::get(person.id);
-        if filter(&person) {
-            persons.insert(id, person);
-        }
-    }
-
-    Population { persons }
-}
-
-fn write_to_proto(population: &Population, path: &Path) {
-    info!("Converting Population into wire format");
-
-    let prefix = path.parent().unwrap();
-    fs::create_dir_all(prefix).unwrap();
-    let file = File::create(path).unwrap_or_else(|_| panic!("Failed to create file at: {path:?}"));
-    let mut writer = BufWriter::new(file);
-    //write header
-    let header = Header {
-        version: 1,
-        size: population.persons.len() as u32,
-    };
-    let mut bytes = Vec::new();
-    header
-        .encode_length_delimited(&mut bytes)
-        .expect("TODO: panic message");
-    writer.write_all(&bytes).expect("Failed to write");
-
-    for person in population.persons.values() {
-        bytes.clear();
-        person
-            .encode_length_delimited(&mut bytes)
-            .expect("Failed to encode person");
-        writer.write_all(&bytes).expect("failed to write buffer");
-    }
-
-    writer.flush().expect("Failed to flush buffer");
 }
 
 fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
@@ -119,7 +28,7 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
     let raw_veh: Vec<_> = io_pop
         .persons
         .iter()
-        .map(|p| Id::<Person>::create(p.id.as_str()))
+        .map(|p| Id::<InternalPerson>::create(p.id.as_str()))
         .flat_map(|p_id| {
             garage
                 .vehicle_types
@@ -156,16 +65,16 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
         });
 }
 
-fn create_population(io_pop: &IOPopulation) -> HashMap<Id<Person>, Person> {
+fn create_population(io_pop: IOPopulation) -> HashMap<Id<InternalPerson>, InternalPerson> {
     let mut result = HashMap::new();
-    for io_person in &io_pop.persons {
-        let person = Person::from_io(io_person);
-        result.insert(Id::get(person.id()), person);
+    for io_person in io_pop.persons {
+        let person = InternalPerson::from(io_person);
+        result.insert(person.id().clone(), person);
     }
     result
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IORoute {
     #[serde(rename = "@type")]
     pub r#type: String,
@@ -200,7 +109,7 @@ where
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOActivity {
     #[serde(rename = "@type")]
     pub r#type: String,
@@ -224,7 +133,7 @@ impl IOActivity {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOLeg {
     #[serde(rename = "@mode")]
     pub mode: String,
@@ -233,10 +142,10 @@ pub struct IOLeg {
     #[serde(rename = "@trav_time")]
     pub trav_time: Option<String>,
     pub route: Option<IORoute>,
-    pub attributes: Option<Attrs>,
+    pub attributes: Option<IOAttributes>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum IOPlanElement {
     // the current matsim implementation has more logic with facility-id, link-id and coord.
@@ -268,9 +177,13 @@ impl IOPlanElement {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOPlan {
-    #[serde(rename = "@selected", deserialize_with = "bool_from_yes_no")]
+    #[serde(
+        rename = "@selected",
+        deserialize_with = "bool_from_yes_no",
+        serialize_with = "bool_to_yes_no"
+    )]
     pub selected: bool,
     // https://users.rust-lang.org/t/serde-deserializing-a-vector-of-enums/51647/2
     #[serde(rename = "$value")]
@@ -285,25 +198,32 @@ where
     match s.to_lowercase().as_str() {
         "yes" => Ok(true),
         "no" => Ok(false),
+        "true" => Ok(true),
+        "false" => Ok(false),
         _ => Err(serde::de::Error::custom(format!("invalid value: {}", s))),
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+fn bool_to_yes_no<S>(value: &bool, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let s = if *value { "yes" } else { "no" };
+    serializer.serialize_str(s)
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOPerson {
     #[serde(rename = "@id")]
     pub id: String,
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
 }
 
-impl IOPerson {
-    pub fn selected_plan(&self) -> &IOPlan {
-        self.plans.iter().find(|p| p.selected).unwrap()
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename = "population")]
 pub struct IOPopulation {
     #[serde(rename = "person", default)]
     pub persons: Vec<IOPerson>,
@@ -328,11 +248,11 @@ mod tests {
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::network::global_network::Network;
-    use crate::simulation::population::io::{load_from_xml, IOLeg, IOPlanElement, IOPopulation};
-    use crate::simulation::population::population_data::Population;
+    use crate::simulation::io::xml::population::{
+        load_from_xml, IOLeg, IOPlanElement, IOPopulation,
+    };
+    use crate::simulation::network::Network;
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::wire_types::population::Person;
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all
@@ -514,47 +434,5 @@ mod tests {
         for i in 1u32..101 {
             assert!(persons.get(&Id::get_from_ext(&format!("{}", i))).is_some());
         }
-    }
-
-    #[test]
-    fn test_proto() {
-        let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
-        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
-        let pop = Population::from_file(
-            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
-            &mut garage,
-        );
-
-        let file_path =
-            PathBuf::from("./test_output/simulation/population/io/test_proto/plans.binpb");
-        pop.to_file(&file_path);
-
-        let proto_pop = Population::from_file(&file_path, &mut garage);
-
-        for (id, person) in pop.persons {
-            assert!(proto_pop.persons.contains_key(&id));
-            let proto_person = proto_pop.persons.get(&id).unwrap();
-            assert_eq!(person.id, proto_person.id);
-        }
-    }
-
-    #[test]
-    fn test_filtered_proto() {
-        let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
-        let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
-        let pop = Population::from_file(
-            &PathBuf::from("./assets/equil/equil-plans.xml.gz"),
-            &mut garage,
-        );
-
-        let file_path =
-            PathBuf::from("./test_output/simulation/population/io/test_proto/plans.binpb");
-        pop.to_file(&file_path);
-
-        let proto_pop = Population::from_file_filtered(&file_path, &mut garage, |p| p.id == 1);
-
-        let expected_id: Id<Person> = Id::get(1);
-        assert_eq!(1, proto_pop.persons.len());
-        assert!(proto_pop.persons.contains_key(&expected_id));
     }
 }

@@ -1,61 +1,24 @@
 use std::path::Path;
 
+use crate::simulation::io::xml;
+use crate::simulation::io::xml::attributes::IOAttributes;
+use crate::simulation::vehicles::garage::Garage;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::simulation;
-use crate::simulation::id::Id;
-use crate::simulation::io::attributes::Attrs;
-use crate::simulation::io::xml;
-use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::wire_types::messages::Vehicle;
-use crate::simulation::wire_types::vehicles::{VehicleType, VehiclesContainer};
-
-pub fn from_file(path: &Path) -> Garage {
-    if path.extension().unwrap().eq("binpb") {
-        load_from_proto(path)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        load_from_xml(path)
-    } else {
-        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
-    }
-}
-
-pub fn to_file(garage: &Garage, path: &Path) {
-    if path.extension().unwrap().eq("binpb") {
-        write_to_proto(garage, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        write_to_xml(garage, path);
-    } else {
-        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
-    }
-}
-
-fn load_from_xml(path: &Path) -> Garage {
+pub(crate) fn load_from_xml(path: &Path) -> Garage {
     let io_vehicles = IOVehicleDefinitions::from_file(path.to_str().unwrap());
-    let mut result = Garage::new();
-    for io_veh_type in io_vehicles.veh_types {
-        add_io_veh_type(&mut result, io_veh_type);
-    }
-    for io_veh in io_vehicles.vehicles {
-        add_io_veh(&mut result, io_veh)
-    }
-    let keys_ext: Vec<_> = result.vehicle_types.keys().map(|k| k.external()).collect();
-    info!(
-        "Created Garage from file with vehicle types: {:?}",
-        keys_ext
-    );
-    result
+    Garage::from(io_vehicles)
 }
 
-fn write_to_xml(garage: &Garage, path: &Path) {
+pub(crate) fn write_to_xml(garage: &Garage, path: &Path) {
     info!("Converting Garage into xml type");
 
     let veh_types = garage
         .vehicle_types
         .values()
         .map(|t| IOVehicleType {
-            id: Id::<VehicleType>::get(t.id).external().to_owned(),
+            id: t.id.external().to_owned(),
             description: None,
             capacity: None,
             length: Some(IODimension { meter: t.length }),
@@ -67,7 +30,7 @@ fn write_to_xml(garage: &Garage, path: &Path) {
             cost_information: None,
             passenger_car_equivalents: Some(IOPassengerCarEquivalents { pce: t.pce }),
             network_mode: Some(IONetworkMode {
-                network_mode: Id::<String>::get(t.net_mode).external().to_owned(),
+                network_mode: t.net_mode.external().to_owned(),
             }),
             flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: t.fef }),
             attributes: None,
@@ -80,76 +43,6 @@ fn write_to_xml(garage: &Garage, path: &Path) {
     };
 
     xml::write_to_file(&io_vehicles, path, "<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd\">")
-}
-
-fn write_to_proto(garage: &Garage, path: &Path) {
-    info!("Converting Garage into wire type");
-    let vehicle_types = garage.vehicle_types.values().cloned().collect();
-    let vehicles = garage.vehicles.values().cloned().collect();
-
-    let wire_format = VehiclesContainer {
-        vehicle_types,
-        vehicles,
-    };
-    info!("Finished converting Garage into wire type");
-    simulation::io::proto::write_to_file(wire_format, path);
-}
-
-fn load_from_proto(path: &Path) -> Garage {
-    let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
-    let vehicles = wire_garage
-        .vehicles
-        .into_iter()
-        .map(|v| (Id::<Vehicle>::get(v.id), v))
-        .collect();
-    let vehicle_types = wire_garage
-        .vehicle_types
-        .into_iter()
-        .map(|v_type| (Id::get(v_type.id), v_type))
-        .collect();
-    Garage {
-        vehicles,
-        vehicle_types,
-    }
-}
-
-fn add_io_veh_type(garage: &mut Garage, io_veh_type: IOVehicleType) {
-    let id: Id<VehicleType> = Id::create(&io_veh_type.id);
-    let net_mode: Id<String> =
-        Id::create(&io_veh_type.network_mode.unwrap_or_default().network_mode);
-
-    let veh_type = VehicleType {
-        id: id.internal(),
-        length: io_veh_type.length.unwrap_or_default().meter,
-        width: io_veh_type.width.unwrap_or_default().meter,
-        max_v: io_veh_type
-            .maximum_velocity
-            .unwrap_or_default()
-            .meter_per_second,
-        pce: io_veh_type
-            .passenger_car_equivalents
-            .unwrap_or_default()
-            .pce,
-        fef: io_veh_type
-            .flow_efficiency_factor
-            .unwrap_or_default()
-            .factor,
-        net_mode: net_mode.internal(),
-    };
-    garage.add_veh_type(veh_type);
-}
-
-fn add_io_veh(garage: &mut Garage, io_veh: IOVehicle) {
-    let veh_type = garage.vehicle_types.get(&Id::get_from_ext(io_veh.vehicle_type.as_str()))
-        .expect("Vehicle type of vehicle not found. There has to be a vehicle type defined before a vehicle can be added.");
-    let vehicle = Vehicle::from_io(io_veh, veh_type);
-
-    //add id for drt mode
-    if let Some(o) = vehicle.attributes.get("dvrpMode") {
-        Id::<String>::create(o.as_string().as_str());
-    }
-
-    garage.add_veh(vehicle);
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -167,7 +60,8 @@ pub struct IOVehicle {
     pub id: String,
     #[serde(rename = "@type")]
     pub vehicle_type: String,
-    pub attributes: Option<Attrs>,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -185,7 +79,8 @@ pub struct IOVehicleType {
     pub passenger_car_equivalents: Option<IOPassengerCarEquivalents>,
     pub network_mode: Option<IONetworkMode>,
     pub flow_efficiency_factor: Option<IOFowEfficiencyFactor>,
-    pub attributes: Option<Attrs>,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -205,7 +100,7 @@ impl Default for IODimension {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct IOVelocity {
     #[serde(rename = "@meterPerSecond")]
@@ -220,7 +115,7 @@ impl Default for IOVelocity {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
 pub struct IOPassengerCarEquivalents {
     #[serde(rename = "@pce")]
     pub(crate) pce: f32,
@@ -282,13 +177,10 @@ mod test {
     use quick_xml::de::from_str;
 
     use crate::simulation::id::Id;
-    use crate::simulation::io::attributes::{Attr, Attrs};
+    use crate::simulation::io::xml::vehicles::IOVehicleDefinitions;
     use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::io::{
-        add_io_veh_type, from_file, to_file, IODimension, IOFowEfficiencyFactor, IONetworkMode,
-        IOPassengerCarEquivalents, IOVehicleDefinitions, IOVehicleType, IOVelocity,
-    };
-    use crate::simulation::wire_types::vehicles::VehicleType;
+    use crate::simulation::vehicles::{from_file, to_file, InternalVehicleType};
+    use crate::simulation::InternalAttributes;
 
     #[test]
     fn from_string_empty_type() {
@@ -382,112 +274,20 @@ mod test {
         );
         let mut garage = Garage::new();
 
-        garage.add_veh_type(VehicleType {
-            id: Id::<VehicleType>::create("some-type").internal(),
+        garage.add_veh_type(InternalVehicleType {
+            id: Id::create("some-type"),
             length: 10.,
             width: 20.0,
             max_v: 1000.0,
             pce: 20.0,
             fef: 0.3,
-            net_mode: Id::<String>::create("some network type 🚕").internal(),
+            net_mode: Id::<String>::create("some network type 🚕"),
+            attributes: InternalAttributes::default(),
         });
         garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
 
         to_file(&garage, file);
         let loaded_garage = from_file(file);
         assert_eq!(garage.vehicle_types, loaded_garage.vehicle_types);
-    }
-
-    #[test]
-    fn test_to_from_file_proto() {
-        let file = &PathBuf::from(
-            "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.binpb",
-        );
-        let mut garage = Garage::new();
-
-        garage.add_veh_type(VehicleType {
-            id: Id::<VehicleType>::create("some-type").internal(),
-            length: 10.,
-            width: 20.0,
-            max_v: 1000.0,
-            pce: 20.0,
-            fef: 0.3,
-            net_mode: Id::<String>::create("some network type 🚕").internal(),
-        });
-        garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
-
-        to_file(&garage, file);
-        let loaded_garage = from_file(file);
-
-        assert_eq!(garage.vehicle_types, loaded_garage.vehicle_types);
-        assert_eq!(garage.vehicles, loaded_garage.vehicles);
-    }
-
-    #[test]
-    fn add_empty_io_veh_type() {
-        let io_veh_type = IOVehicleType {
-            id: "some-id".to_string(),
-            description: None,
-            capacity: None,
-            length: None,
-            width: None,
-            maximum_velocity: None,
-            engine_information: None,
-            cost_information: None,
-            passenger_car_equivalents: None,
-            network_mode: None,
-            flow_efficiency_factor: None,
-            attributes: None,
-        };
-        let mut garage = Garage::new();
-
-        add_io_veh_type(&mut garage, io_veh_type);
-
-        assert_eq!(1, garage.vehicle_types.len());
-        assert_eq!(0, Id::<String>::get_from_ext("car").internal());
-        assert_eq!(0, Id::<VehicleType>::get_from_ext("some-id").internal());
-
-        let veh_type_opt = garage.vehicle_types.values().next();
-        assert!(veh_type_opt.is_some());
-    }
-
-    #[test]
-    fn test_add_io_veh_type() {
-        let io_veh_type = IOVehicleType {
-            id: "some-id".to_string(),
-            description: None,
-            capacity: None,
-            length: Some(IODimension { meter: 10. }),
-            width: Some(IODimension { meter: 5. }),
-            maximum_velocity: Some(IOVelocity {
-                meter_per_second: 100.,
-            }),
-            engine_information: None,
-            cost_information: None,
-            passenger_car_equivalents: Some(IOPassengerCarEquivalents { pce: 21.0 }),
-            network_mode: Some(IONetworkMode {
-                network_mode: "some_mode".to_string(),
-            }),
-            flow_efficiency_factor: Some(IOFowEfficiencyFactor { factor: 2. }),
-            attributes: Some(Attrs {
-                attributes: vec![Attr::new(String::from("lod"), String::from("teleported"))],
-            }),
-        };
-        let mut garage = Garage::new();
-        add_io_veh_type(&mut garage, io_veh_type);
-
-        let expected_id: Id<VehicleType> = Id::get_from_ext("some-id");
-        let expected_mode: Id<String> = Id::get_from_ext("some_mode");
-
-        let veh_type_opt = garage.vehicle_types.values().next();
-        assert!(veh_type_opt.is_some());
-        let veh_type = veh_type_opt.unwrap();
-        assert_eq!(veh_type.max_v, 100.);
-        assert_eq!(veh_type.width, 5.0);
-        assert_eq!(veh_type.length, 10.);
-        assert_eq!(veh_type.pce, 21.);
-        assert_eq!(veh_type.fef, 2.);
-        assert_eq!(veh_type.id, expected_id.internal());
-        assert_eq!(veh_type.net_mode, expected_mode.internal())
     }
 }

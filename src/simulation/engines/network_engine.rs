@@ -1,8 +1,8 @@
-use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::wire_types::messages::Vehicle;
+use crate::simulation::vehicles::InternalVehicle;
 use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
@@ -17,7 +17,7 @@ impl NetworkEngine {
         NetworkEngine { network, events }
     }
 
-    pub fn receive_vehicle(&mut self, now: u32, vehicle: Vehicle, route_begin: bool) {
+    pub fn receive_vehicle(&mut self, now: u32, vehicle: InternalVehicle, route_begin: bool) {
         let events = if route_begin {
             //if route has just begun, no link enter event should be published
             None
@@ -29,14 +29,14 @@ impl NetworkEngine {
         self.network.send_veh_en_route(vehicle, events, now)
     }
 
-    pub(crate) fn move_nodes(&mut self, now: u32) -> Vec<Vehicle> {
+    pub(super) fn move_nodes(&mut self, now: u32) -> Vec<InternalVehicle> {
         let exited_vehicles = self
             .network
             .move_nodes(self.events.borrow_mut().deref_mut(), now);
         exited_vehicles
     }
 
-    pub(crate) fn move_links<C: SimCommunicator>(
+    pub(super) fn move_links<C: SimCommunicator>(
         &mut self,
         now: u32,
         net_message_broker: &mut NetMessageBroker<C>,

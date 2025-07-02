@@ -3,10 +3,9 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
 use std::path::Path;
 
-use prost::Message;
-
+use crate::simulation::io::proto::events::{Event, TimeStep};
 use crate::simulation::messaging::events::EventsSubscriber;
-use crate::simulation::wire_types::events::{Event, TimeStep};
+use prost::Message;
 
 pub struct ProtoEventsWriter {
     encoded_events: Vec<u8>,
@@ -160,14 +159,13 @@ impl EventsReader<File> {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::io::proto::events::event::Type;
+    use crate::simulation::io::proto::events::Event;
+    use crate::simulation::io::proto_events::{EventsReader, ProtoEventsWriter};
+    use crate::simulation::messaging::events::EventsSubscriber;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
-
-    use crate::simulation::io::proto_events::{EventsReader, ProtoEventsWriter};
-    use crate::simulation::messaging::events::EventsSubscriber;
-    use crate::simulation::wire_types::events::event::Type;
-    use crate::simulation::wire_types::events::Event;
 
     #[test]
     fn write_read_single() {

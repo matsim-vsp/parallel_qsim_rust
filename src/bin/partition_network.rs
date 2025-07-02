@@ -5,7 +5,7 @@ use tracing::info;
 
 use rust_q_sim::simulation::config::{MetisOptions, PartitionMethod};
 use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::network::global_network::Network;
+use rust_q_sim::simulation::network::Network;
 
 /// This binary partitions a network into a given number of parts.
 /// A new network file is written to the same folder as the input network file.
@@ -51,13 +51,16 @@ fn main() {
     );
     info!(
         "Network is loaded with {} links and {} nodes.",
-        net1.links.len(),
-        net1.nodes.len()
+        net1.links().len(),
+        net1.nodes().len()
     );
 
     net1.to_file(&out_path);
 
-    info!("Finished partitioning Network. Written file to {:?}", out_path);
+    info!(
+        "Finished partitioning Network. Written file to {:?}",
+        out_path
+    );
 }
 
 #[derive(Parser, Debug)]

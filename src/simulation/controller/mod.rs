@@ -11,12 +11,12 @@ use std::time::Duration;
 
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::communication::message_broker::NetMessageBroker;
-use crate::simulation::messaging::communication::SimCommunicator;
 use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::network::global_network::Network;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
+use crate::simulation::network::Network;
 use crate::simulation::scenario::Scenario;
-use crate::simulation::simulation::Simulation;
+use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{id, io};
 use nohash_hasher::IntMap;
 use tracing::info;
@@ -34,6 +34,11 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     if rank == 0 {
         info!("#{rank} preparing to create input for partitions.");
         partition_input(&config, config_path);
+
+        info!(
+            "#{rank} loading ids from file: {}",
+            config.proto_files().ids
+        );
     }
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
@@ -55,7 +60,7 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     );
 
     let mut simulation: Simulation<C> =
-        Simulation::new(config, scenario, net_message_broker, events);
+        SimulationBuilder::new(config, scenario, net_message_broker, events).build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to

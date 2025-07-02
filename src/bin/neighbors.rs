@@ -8,8 +8,8 @@ use tracing::info;
 
 use rust_q_sim::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod, VertexWeight};
 use rust_q_sim::simulation::logging::init_std_out_logging;
-use rust_q_sim::simulation::network::global_network::Network;
 use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
+use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::{config, id};
 
 // I would have expected, that we read already partitioned networks and write the neighbors of each partition to a file.
@@ -39,7 +39,7 @@ fn main() {
                 contiguous: true,
             }),
         );
-        let distinct_partitions: HashSet<u32> = net.nodes.iter().map(|n| n.partition).collect();
+        let distinct_partitions: HashSet<u32> = net.nodes().iter().map(|n| n.partition).collect();
         for partition in distinct_partitions {
             let net_partition =
                 SimNetworkPartition::from_network(&net, partition, config::Simulation::default());

@@ -1,9 +1,10 @@
-use crate::test_simulation::{execute_sim, TestSubscriber};
+use crate::test_simulation::execute_sim;
+use crate::test_simulation::TestSubscriber;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::communication::local_communicator::DummySimCommunicator;
-use rust_q_sim::simulation::network::global_network::Network;
-use rust_q_sim::simulation::population::population_data::Population;
+use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
+use rust_q_sim::simulation::network::Network;
+use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::pt::TransitSchedule;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;

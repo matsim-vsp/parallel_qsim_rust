@@ -1,14 +1,13 @@
+use crate::simulation::id::id_store::IdStore;
+use crate::simulation::id::id_store::UntypedId;
+use crate::simulation::id::serializable_type::StableTypeId;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::path::Path;
-use std::rc::Rc;
-
-use crate::simulation::id::id_store::IdStore;
-use crate::simulation::id::id_store::UntypedId;
-use crate::simulation::id::serializable_type::StableTypeId;
+use std::sync::Arc;
 
 // keep this private, as we don't want to leak how we cache ids.
 mod id_store;
@@ -27,11 +26,11 @@ pub mod serializable_type;
 #[derive(Debug)]
 pub struct Id<T: StableTypeId> {
     _type_marker: PhantomData<T>,
-    id: Rc<UntypedId>,
+    id: Arc<UntypedId>,
 }
 
 impl<T: StableTypeId + 'static> Id<T> {
-    fn new(untyped_id: Rc<UntypedId>) -> Self {
+    fn new(untyped_id: Arc<UntypedId>) -> Self {
         Self {
             _type_marker: PhantomData,
             id: untyped_id,
@@ -43,7 +42,7 @@ impl<T: StableTypeId + 'static> Id<T> {
     #[cfg(test)]
     pub(crate) fn new_internal(internal: u64) -> Self {
         let untyped_id = UntypedId::new(internal, String::from(""));
-        Self::new(Rc::new(untyped_id))
+        Self::new(Arc::new(untyped_id))
     }
 
     pub fn internal(&self) -> u64 {
@@ -132,22 +131,21 @@ thread_local! {static ID_STORE: RefCell<IdStore<'static>> = RefCell::new(IdStore
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use crate::simulation::id::{Id, UntypedId};
+    use std::sync::Arc;
 
     #[test]
     fn test_id_eq() {
-        let id: Id<()> = Id::new(Rc::new(UntypedId::new(1, String::from("external-id"))));
+        let id: Id<()> = Id::new(Arc::new(UntypedId::new(1, String::from("external-id"))));
         assert_eq!(id, id.clone());
 
-        let equal = Id::new(Rc::new(UntypedId::new(
+        let equal = Id::new(Arc::new(UntypedId::new(
             1,
             String::from("other-external-value-which-should-be-ignored"),
         )));
         assert_eq!(id, equal);
 
-        let unequal = Id::new(Rc::new(UntypedId::new(2, String::from("external-id"))));
+        let unequal = Id::new(Arc::new(UntypedId::new(2, String::from("external-id"))));
         assert_ne!(id, unequal)
     }
 

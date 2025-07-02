@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct Attr {
+pub struct IOAttribute {
     #[serde(rename = "@name")]
     pub name: String,
     #[serde(rename = "@class")]
@@ -10,9 +10,9 @@ pub struct Attr {
     pub value: String,
 }
 
-impl Attr {
+impl IOAttribute {
     pub fn new(name: String, value: String) -> Self {
-        Attr {
+        IOAttribute {
             name,
             class: "".to_string(),
             value,
@@ -21,12 +21,12 @@ impl Attr {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
-pub struct Attrs {
+pub struct IOAttributes {
     #[serde(rename = "attribute", default)]
-    pub attributes: Vec<Attr>,
+    pub attributes: Vec<IOAttribute>,
 }
 
-impl Attrs {
+impl IOAttributes {
     #[allow(clippy::needless_lifetimes)] // lifetimes are in fact needed here i think
     pub fn find_or_else<'a, F>(&'a self, name: &str, f: F) -> &'a str
     where
@@ -40,7 +40,7 @@ impl Attrs {
         }
     }
 
-    pub fn find_or_else_opt<'a, F>(attrs_opt: &'a Option<Attrs>, name: &str, f: F) -> &'a str
+    pub fn find_or_else_opt<'a, F>(attrs_opt: &'a Option<IOAttributes>, name: &str, f: F) -> &'a str
     where
         F: FnOnce() -> &'a str,
     {
@@ -49,5 +49,12 @@ impl Attrs {
         } else {
             f()
         }
+    }
+
+    pub fn find(&self, name: &str) -> Option<&str> {
+        self.attributes
+            .iter()
+            .find(|&attr| attr.name.eq(name))
+            .map(|attr| attr.value.as_str())
     }
 }

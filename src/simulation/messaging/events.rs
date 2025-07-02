@@ -2,19 +2,18 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use tracing::{info, instrument};
-
-use crate::simulation::wire_types::events::event::Type::{
+use crate::simulation::io::proto::events::event::Type::{
     ActEnd, ActStart, Arrival, Departure, DvrpTaskEnded, DvrpTaskStarted, Generic, LinkEnter,
     LinkLeave, PassengerDroppedOff, PassengerPickedUp, PersonEntersVeh, PersonLeavesVeh, Travelled,
     TravelledWithPt,
 };
-use crate::simulation::wire_types::events::{
+use crate::simulation::io::proto::events::{
     ActivityEndEvent, ActivityStartEvent, ArrivalEvent, DepartureEvent, DvrpTaskEndedEvent,
     DvrpTaskStartedEvent, Event, GenericEvent, LinkEnterEvent, LinkLeaveEvent,
     PassengerDroppedOffEvent, PassengerPickedUpEvent, PersonEntersVehicleEvent,
     PersonLeavesVehicleEvent, TravelledEvent, TravelledWithPtEvent,
 };
+use tracing::{info, instrument};
 
 pub trait EventsSubscriber {
     fn receive_event(&mut self, time: u32, event: &Event);

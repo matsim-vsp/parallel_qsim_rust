@@ -7,13 +7,12 @@ fn main() {
     std::env::set_var("PROTOC", protobuf_src::protoc());
 
     let proto_files = [
-        "src/simulation/wire_types/general.proto",
-        "src/simulation/wire_types/messages.proto",
-        "src/simulation/wire_types/events.proto",
-        "src/simulation/wire_types/ids.proto",
-        "src/simulation/wire_types/network.proto",
-        "src/simulation/wire_types/population.proto",
-        "src/simulation/wire_types/vehicles.proto",
+        "src/simulation/io/proto/types/general.proto",
+        "src/simulation/io/proto/types/events.proto",
+        "src/simulation/io/proto/types/ids.proto",
+        "src/simulation/io/proto/types/network.proto",
+        "src/simulation/io/proto/types/population.proto",
+        "src/simulation/io/proto/types/vehicles.proto",
     ];
 
     // tell cargo to rerun this build script if any of the proto files change
@@ -22,5 +21,8 @@ fn main() {
     }
 
     // Compiling the protobuf files
-    prost_build::compile_protos(&proto_files, &["src/"]).unwrap();
+    tonic_build::configure()
+        .build_client(true)
+        .compile_protos(&proto_files, &["src/"])
+        .unwrap();
 }

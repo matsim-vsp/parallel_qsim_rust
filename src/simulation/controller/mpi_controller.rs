@@ -1,6 +1,6 @@
 use crate::simulation::config::{CommandLineArgs, Config};
-use crate::simulation::messaging::communication::mpi_communicator::MpiSimCommunicator;
-use crate::simulation::messaging::communication::SimCommunicator;
+use crate::simulation::messaging::sim_communication::mpi_communicator::MpiSimCommunicator;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::{controller, logging};
 use clap::Parser;
 use mpi::collective::CommunicatorCollectives;
