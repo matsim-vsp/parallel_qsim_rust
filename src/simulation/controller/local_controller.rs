@@ -14,7 +14,7 @@ pub fn run_channel() {
     let _guards = logging::init_logging(&config, &args.config_path, 0);
 
     info!(
-        "Starting Multithreaded Simulation with {} partitions.",
+        "Starting multithreaded Simulation with {} partitions.",
         config.partitioning().num_parts
     );
     let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);

@@ -1,8 +1,6 @@
+use crate::generated::population::leg::Route;
+use crate::generated::population::{Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription};
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::population::leg::Route;
-use crate::simulation::io::proto::population::{
-    Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription,
-};
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,

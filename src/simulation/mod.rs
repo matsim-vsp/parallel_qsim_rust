@@ -1,6 +1,6 @@
+use crate::generated::general::attribute_value::Type;
+use crate::generated::general::AttributeValue;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::general::attribute_value::Type;
-use crate::simulation::io::proto::general::AttributeValue;
 use crate::simulation::population::{
     InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute,
 };

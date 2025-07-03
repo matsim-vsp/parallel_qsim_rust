@@ -2,12 +2,12 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use crate::simulation::io::proto::events::event::Type::{
+use crate::generated::events::event::Type::{
     ActEnd, ActStart, Arrival, Departure, DvrpTaskEnded, DvrpTaskStarted, Generic, LinkEnter,
     LinkLeave, PassengerDroppedOff, PassengerPickedUp, PersonEntersVeh, PersonLeavesVeh, Travelled,
     TravelledWithPt,
 };
-use crate::simulation::io::proto::events::{
+use crate::generated::events::{
     ActivityEndEvent, ActivityStartEvent, ArrivalEvent, DepartureEvent, DvrpTaskEndedEvent,
     DvrpTaskStartedEvent, Event, GenericEvent, LinkEnterEvent, LinkLeaveEvent,
     PassengerDroppedOffEvent, PassengerPickedUpEvent, PersonEntersVehicleEvent,

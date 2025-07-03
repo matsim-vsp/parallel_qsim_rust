@@ -1,6 +1,6 @@
+use crate::generated::vehicles::{Vehicle, VehicleType};
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
-use crate::simulation::io::proto::vehicles::{Vehicle, VehicleType};
 use crate::simulation::io::xml::vehicles::{load_from_xml, write_to_xml, IOVehicle, IOVehicleType};
 use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use rust_q_sim::simulation::io::proto::events::Event;
+use rust_q_sim::generated::events::Event;
 use rust_q_sim::simulation::io::proto::xml_events::{XmlEventsReader, XmlEventsWriter};
 use rust_q_sim::simulation::logging::init_std_out_logging;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;

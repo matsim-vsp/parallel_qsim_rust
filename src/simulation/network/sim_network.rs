@@ -7,9 +7,9 @@ use rand::rngs::ThreadRng;
 use rand::{rng, Rng};
 use tracing::instrument;
 
+use crate::generated::events::Event;
 use crate::simulation::config;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::events::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::vehicles::InternalVehicle;
 

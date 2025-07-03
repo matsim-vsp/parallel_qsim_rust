@@ -1,5 +1,5 @@
+use crate::generated::events::Event;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::events::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;

@@ -1,7 +1,7 @@
-use crate::simulation;
-use crate::simulation::io::proto::vehicles::{Vehicle, VehicleType, VehiclesContainer};
+use crate::generated::vehicles::{Vehicle, VehicleType, VehiclesContainer};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
+use crate::{generated, simulation};
 use std::path::Path;
 use tracing::info;
 
@@ -23,11 +23,11 @@ pub(crate) fn write_to_proto(garage: &Garage, path: &Path) {
         vehicles,
     };
     info!("Finished converting Garage into wire type");
-    simulation::io::proto::write_to_file(wire_format, path);
+    generated::write_to_file(wire_format, path);
 }
 
 pub(crate) fn load_from_proto(path: &Path) -> Garage {
-    let wire_garage: VehiclesContainer = simulation::io::proto::read_from_file(path);
+    let wire_garage: VehiclesContainer = generated::read_from_file(path);
     let vehicles = wire_garage
         .vehicles
         .into_iter()

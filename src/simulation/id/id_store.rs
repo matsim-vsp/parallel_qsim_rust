@@ -12,11 +12,11 @@ use std::path::Path;
 use std::sync::Arc;
 use tracing::info;
 
+use crate::generated::ids::ids_with_type::Data;
+use crate::generated::ids::IdsWithType;
+use crate::generated::MessageIter;
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::ids::ids_with_type::Data;
-use crate::simulation::io::proto::ids::IdsWithType;
-use crate::simulation::io::proto::MessageIter;
 
 #[derive(Clone, Copy)]
 #[allow(dead_code)] // allow dead code, because we never construct None. I still want to have it as option here.

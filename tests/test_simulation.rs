@@ -10,12 +10,12 @@ use std::thread::JoinHandle;
 use std::{fs, thread};
 use tracing::info;
 
+use rust_q_sim::generated::events::Event;
 use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
 use rust_q_sim::simulation::controller::{
     create_output_filename, get_numbered_output_filename, partition_input,
 };
 use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::io::proto::events::Event;
 use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
 use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;

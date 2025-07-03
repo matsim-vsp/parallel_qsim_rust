@@ -1,7 +1,5 @@
-use crate::simulation::io::proto::events::event::Type;
-use crate::simulation::io::proto::events::{
-    Event, LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent,
-};
+use crate::generated::events::event::Type;
+use crate::generated::events::{Event, LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent};
 use crate::simulation::messaging::events::EventsSubscriber;
 use std::any::Any;
 use std::collections::HashMap;
@@ -94,7 +92,7 @@ impl EventsSubscriber for TravelTimeCollector {
 
 #[cfg(test)]
 mod test {
-    use crate::simulation::io::proto::events::Event;
+    use crate::generated::events::Event;
     use crate::simulation::messaging::events::EventsSubscriber;
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
 

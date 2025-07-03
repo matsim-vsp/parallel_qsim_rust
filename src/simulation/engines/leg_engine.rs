@@ -1,8 +1,8 @@
+use crate::generated::events::Event;
 use crate::simulation::config::Simulation;
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::events::Event;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;

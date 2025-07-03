@@ -1,10 +1,10 @@
-use crate::simulation::id::Id;
-use crate::simulation::io::proto;
-use crate::simulation::io::proto::population::leg::Route;
-use crate::simulation::io::proto::population::{
+use crate::generated;
+use crate::generated::population::leg::Route;
+use crate::generated::population::{
     Activity, GenericRoute, Header, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,
 };
-use crate::simulation::io::proto::MessageIter;
+use crate::generated::MessageIter;
+use crate::simulation::id::Id;
 use crate::simulation::population::{
     InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
     InternalPlan, InternalPtRoute, InternalPtRouteDescription, InternalRoute, Population,
@@ -25,7 +25,7 @@ where
     let file = File::open(path).unwrap_or_else(|_| panic!("Could not open File at {path:?}"));
     let mut reader = BufReader::new(file);
 
-    if let Some(header_delim) = proto::read_delimiter(&mut reader) {
+    if let Some(header_delim) = generated::read_delimiter(&mut reader) {
         let mut buffer = vec![0; header_delim];
         reader
             .read_exact(&mut buffer)
