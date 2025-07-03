@@ -126,7 +126,8 @@ pub fn execute_sim<C: SimCommunicator + 'static>(
         network_partition: sim_net,
     };
 
-    let mut sim = SimulationBuilder::new(config, scenario, broker, events).build();
+    let mut sim =
+        SimulationBuilder::new(config, scenario, broker, events, Default::default()).build();
     sim.run();
 }
 

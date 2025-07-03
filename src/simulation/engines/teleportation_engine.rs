@@ -5,9 +5,9 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::InternalRoute;
 use crate::simulation::simulation::Simulation;
-use crate::simulation::time_queue::TimeQueue;
+use crate::simulation::time_queue::{Identifiable, TimeQueue};
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::InternalSimulationAgent;
+use crate::simulation::{InternalSimulationAgent, SimulationAgentLogic};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -30,11 +30,7 @@ impl TeleportationEngine {
         mut vehicle: InternalVehicle,
         net_message_broker: &mut NetMessageBroker<C>,
     ) {
-        // set the pointer of the route to the last element, so that the current link
-        // is the destination of this leg. Setting this to the last element makes this
-        // logic independent of whether the agent has a Generic-Route with only start
-        // and end link or a full Network-Route, which is often the case for ride modes.
-        vehicle.route_index_to_last();
+        vehicle.register_teleportation_started();
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
             self.queue.add(vehicle, now);

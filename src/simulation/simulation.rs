@@ -8,7 +8,7 @@ use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::InternalSimulationAgent;
+use crate::simulation::{InternalSimulationAgent, SimulationAgentLogic};
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;

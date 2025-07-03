@@ -1,5 +1,6 @@
 use crate::generated::general::attribute_value::Type;
 use crate::generated::general::AttributeValue;
+use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::population::{
     InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute,
@@ -11,6 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::warn;
 
 pub mod config;
@@ -30,6 +32,33 @@ pub mod scenario;
 pub mod simulation;
 pub mod time_queue;
 pub mod vehicles;
+
+pub trait SimulationAgentLogic: EndTime + Identifiable<InternalPerson> {
+    fn curr_act(&self) -> &InternalActivity;
+    fn curr_leg(&self) -> &InternalLeg;
+    fn next_leg(&self) -> Option<&InternalLeg>;
+    fn advance_plan(&mut self);
+    fn wakeup_time(&self, now: u32) -> u32;
+    fn state(&self) -> SimulationAgentState;
+    fn curr_link_id(&self) -> Option<&Id<Link>>;
+    fn peek_next_link_id(&self) -> Option<&Id<Link>>;
+}
+
+pub trait EnvironmentalEventRegistry {
+    // Register activity events
+    fn notify_activity_started(&mut self, comp_env: Arc<ComputationalEnvironment>);
+    fn notify_wakeup(&mut self, comp_env: Arc<ComputationalEnvironment>);
+    fn notify_activity_finished(&mut self, comp_env: Arc<ComputationalEnvironment>);
+
+    // Register leg events
+    fn notify_teleportation_started(&mut self);
+    fn notify_teleportation_finished(&mut self, comp_env: Arc<ComputationalEnvironment>);
+
+    // Register network leg events
+    fn notify_network_leg_started(&mut self, comp_env: Arc<ComputationalEnvironment>);
+    fn notify_moved_to_next_link(&mut self);
+    fn notify_network_leg_finished(&mut self, comp_env: Arc<ComputationalEnvironment>);
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalSimulationAgent {
@@ -72,54 +101,125 @@ impl InternalSimulationAgent {
             },
         }
     }
+}
 
-    pub fn id(&self) -> &Id<InternalPerson> {
-        &self.logic.basic_agent_delegate.id()
+impl EnvironmentalEventRegistry for InternalSimulationAgent {
+    fn notify_activity_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
     }
 
-    pub fn curr_act(&self) -> &InternalActivity {
-        self.logic.curr_act()
+    fn notify_wakeup(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
     }
 
-    pub fn curr_leg(&self) -> &InternalLeg {
-        self.logic.curr_leg()
+    fn notify_activity_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
     }
 
-    pub fn next_leg(&self) -> Option<&InternalLeg> {
-        self.logic.next_leg()
+    fn notify_teleportation_started(&mut self) {
+        // set the pointer of the route to the last element, so that the current link
+        // is the destination of this leg. Setting this to the last element makes this
+        // logic independent of whether the agent has a Generic-Route with only start
+        // and end link or a full Network-Route, which is often the case for ride modes.
+        self.logic.notify_teleportation_started();
     }
 
-    pub fn advance_plan(&mut self) {
-        self.logic.advance_plan();
+    fn notify_teleportation_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
     }
 
-    pub fn wakeup_time(&self, now: u32) -> u32 {
-        self.logic.wakeup_time(now)
+    fn notify_network_leg_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
     }
 
-    pub fn state(&self) -> SimulationAgentState {
-        self.logic.state()
+    fn notify_moved_to_next_link(&mut self) {
+        self.logic.notify_moved_to_next_link();
     }
 
-    pub fn curr_link_id(&self) -> Option<&Id<Link>> {
-        self.logic.curr_link_id()
-    }
-
-    pub fn peek_next_link_id(&self) -> Option<&Id<Link>> {
-        self.logic.peek_next_link_id()
-    }
-
-    pub fn register_moved_to_next_link(&mut self) {
-        self.logic.register_moved_to_next_link();
-    }
-
-    pub fn route_index_to_last(&mut self) {
-        self.logic.route_index_to_last();
+    fn notify_network_leg_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
     }
 }
 
-impl InternalSimulationAgentLogic {
-    pub(crate) fn curr_link_id(&self) -> Option<&Id<Link>> {
+impl SimulationAgentLogic for InternalSimulationAgent {
+    fn curr_act(&self) -> &InternalActivity {
+        self.logic.curr_act()
+    }
+    fn curr_leg(&self) -> &InternalLeg {
+        self.logic.curr_leg()
+    }
+    fn next_leg(&self) -> Option<&InternalLeg> {
+        self.logic.next_leg()
+    }
+    fn advance_plan(&mut self) {
+        self.logic.advance_plan();
+    }
+    fn wakeup_time(&self, now: u32) -> u32 {
+        self.logic.wakeup_time(now)
+    }
+    fn state(&self) -> SimulationAgentState {
+        self.logic.state()
+    }
+    fn curr_link_id(&self) -> Option<&Id<Link>> {
+        self.logic.curr_link_id()
+    }
+    fn peek_next_link_id(&self) -> Option<&Id<Link>> {
+        self.logic.peek_next_link_id()
+    }
+}
+
+impl Identifiable<InternalPerson> for InternalSimulationAgentLogic {
+    fn id(&self) -> &Id<InternalPerson> {
+        self.basic_agent_delegate.id()
+    }
+}
+
+impl EnvironmentalEventRegistry for InternalSimulationAgentLogic {
+    fn notify_activity_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
+    }
+
+    fn notify_wakeup(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
+    }
+
+    fn notify_activity_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
+    }
+
+    fn notify_teleportation_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
+    }
+
+    fn notify_network_leg_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
+    }
+
+    fn notify_network_leg_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
+        todo!()
+    }
+
+    fn notify_moved_to_next_link(&mut self) {
+        self.curr_route_element += 1;
+    }
+
+    /// This method advances the pointer to the last element of the route. We need this in case of
+    /// teleported legs. Advancing the route pointer to the last element directly ensures that teleporting
+    /// the vehicle is independent of whether the leg has a Generic-Teleportation route or a network
+    /// route.
+    fn notify_teleportation_started(&mut self) {
+        let route = self.curr_leg().route.as_ref().unwrap();
+        if route.as_network().is_some() {
+            let last = route.as_network().unwrap().route().len() - 1;
+            self.curr_route_element = last;
+        } else {
+            self.curr_route_element = 1;
+        }
+    }
+}
+
+impl SimulationAgentLogic for InternalSimulationAgentLogic {
+    fn curr_link_id(&self) -> Option<&Id<Link>> {
         if self.state() != SimulationAgentState::LEG {
             return None;
         }
@@ -143,7 +243,7 @@ impl InternalSimulationAgentLogic {
         }
     }
 
-    pub fn peek_next_link_id(&self) -> Option<&Id<Link>> {
+    fn peek_next_link_id(&self) -> Option<&Id<Link>> {
         let next_i = self.curr_route_element + 1;
         self.curr_leg()
             .route
@@ -154,25 +254,21 @@ impl InternalSimulationAgentLogic {
             .route_element_at(next_i)
     }
 
-    pub fn id(&self) -> &Id<InternalPerson> {
-        self.basic_agent_delegate.id()
-    }
-
-    pub fn curr_act(&self) -> &InternalActivity {
+    fn curr_act(&self) -> &InternalActivity {
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
             .as_activity()
             .unwrap()
     }
 
-    pub fn curr_leg(&self) -> &InternalLeg {
+    fn curr_leg(&self) -> &InternalLeg {
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
             .as_leg()
             .unwrap()
     }
 
-    pub fn next_leg(&self) -> Option<&InternalLeg> {
+    fn next_leg(&self) -> Option<&InternalLeg> {
         let add = if self.curr_plan_element % 2 == 0 {
             // If the current plan element is an activity, the next one should be a leg
             1
@@ -185,7 +281,7 @@ impl InternalSimulationAgentLogic {
             .as_leg()
     }
 
-    pub fn advance_plan(&mut self) {
+    fn advance_plan(&mut self) {
         self.curr_plan_element += 1;
         self.curr_route_element = 0;
         assert!(
@@ -195,7 +291,7 @@ impl InternalSimulationAgentLogic {
         );
     }
 
-    pub fn state(&self) -> SimulationAgentState {
+    fn state(&self) -> SimulationAgentState {
         match self.curr_plan_element % 2 {
             0 => SimulationAgentState::ACTIVITY,
             1 => SimulationAgentState::LEG,
@@ -203,7 +299,7 @@ impl InternalSimulationAgentLogic {
         }
     }
 
-    pub fn wakeup_time(&self, now: u32) -> u32 {
+    fn wakeup_time(&self, now: u32) -> u32 {
         // TODO this might be adapted with rolling horizon logic
 
         match self
@@ -212,24 +308,6 @@ impl InternalSimulationAgentLogic {
         {
             InternalPlanElement::Activity(a) => a.cmp_end_time(now),
             InternalPlanElement::Leg(_) => panic!("Cannot wake up on a leg!"),
-        }
-    }
-
-    pub fn register_moved_to_next_link(&mut self) {
-        self.curr_route_element += 1;
-    }
-
-    /// This method advances the pointer to the last element of the route. We need this in case of
-    /// teleported legs. Advancing the route pointer to the last element directly ensures that teleporting
-    /// the vehicle is independent of whether the leg has a Generic-Teleportation route or a network
-    /// route.
-    pub fn route_index_to_last(&mut self) {
-        let route = self.curr_leg().route.as_ref().unwrap();
-        if route.as_network().is_some() {
-            let last = route.as_network().unwrap().route().len() - 1;
-            self.curr_route_element = last;
-        } else {
-            self.curr_route_element = 1;
         }
     }
 }

@@ -5,7 +5,9 @@ use crate::simulation::io::xml::vehicles::{load_from_xml, write_to_xml, IOVehicl
 use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{InternalAttributes, InternalSimulationAgent};
+use crate::simulation::{
+    EnvironmentalEventRegistry, InternalAttributes, InternalSimulationAgent, SimulationAgentLogic,
+};
 use std::fmt::Debug;
 use std::path::Path;
 
@@ -147,11 +149,11 @@ impl InternalVehicle {
     }
 
     pub fn register_moved_to_next_link(&mut self) {
-        self.driver_mut().register_moved_to_next_link();
+        self.driver_mut().notify_moved_to_next_link();
     }
 
-    pub fn route_index_to_last(&mut self) {
-        self.driver_mut().route_index_to_last();
+    pub fn register_teleportation_started(&mut self) {
+        self.driver_mut().notify_teleportation_started();
     }
 
     pub fn curr_link_id(&self) -> Option<&Id<Link>> {

@@ -9,9 +9,10 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::InternalRoute;
+use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::{InternalSimulationAgent, SimulationAgentState};
+use crate::simulation::{InternalSimulationAgent, SimulationAgentLogic, SimulationAgentState};
 use nohash_hasher::IntSet;
 use std::cell::RefCell;
 use std::rc::Rc;

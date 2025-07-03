@@ -8,12 +8,11 @@ pub enum ExternalServiceType {
     Routing(String),
 }
 
-pub trait RequestAdapter<T> {
-    // Writing an async function this way, otherwise clippy warns.
-    fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()> + Send;
+pub(crate) trait RequestAdapter<T> {
+    fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
 }
 
-pub fn execute_adapter<T>(
+pub(crate) fn execute_adapter<T>(
     mut receiver: Receiver<T>,
     mut req_adapter: impl RequestAdapter<T>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
