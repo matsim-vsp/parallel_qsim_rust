@@ -1,5 +1,6 @@
 use crate::generated::events::Event;
 use crate::simulation::config::Simulation;
+use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
 use crate::simulation::id::Id;
@@ -14,6 +15,7 @@ use crate::simulation::{InternalSimulationAgent, SimulationAgentState};
 use nohash_hasher::IntSet;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
@@ -23,6 +25,7 @@ pub struct LegEngine<C: SimCommunicator> {
     events: Rc<RefCell<EventsPublisher>>,
     departure_handler: VehicularDepartureHandler,
     main_modes: IntSet<Id<String>>,
+    comp_env: Arc<ComputationalEnvironment>,
 }
 
 impl<C: SimCommunicator> LegEngine<C> {
@@ -32,6 +35,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         net_message_broker: NetMessageBroker<C>,
         events: Rc<RefCell<EventsPublisher>>,
         config: &Simulation,
+        comp_env: Arc<ComputationalEnvironment>,
     ) -> Self {
         let main_modes: IntSet<Id<String>> = config
             .main_modes
@@ -52,6 +56,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             events,
             departure_handler,
             main_modes,
+            comp_env,
         }
     }
 

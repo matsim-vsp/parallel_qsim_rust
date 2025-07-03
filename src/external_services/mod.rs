@@ -3,13 +3,19 @@ use tracing::info;
 
 pub mod routing;
 
-trait RequestHandler<T> {
-    async fn on_request(&mut self, req: T);
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ExternalServiceType {
+    Routing(String),
 }
 
-fn execute_adapter<T>(
+pub trait RequestAdapter<T> {
+    // Writing an async function this way, otherwise clippy warns.
+    fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()> + Send;
+}
+
+pub fn execute_adapter<T>(
     mut receiver: Receiver<T>,
-    mut req_handler: impl RequestHandler<T>,
+    mut req_adapter: impl RequestAdapter<T>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     info!("Starting adapter");
@@ -29,7 +35,7 @@ fn execute_adapter<T>(
                 }
                 maybe_req = receiver.recv() => {
                     if let Some(req) = maybe_req {
-                        req_handler.on_request(req).await;
+                        req_adapter.on_request(req).await;
                     }
                 }
             }
@@ -48,8 +54,8 @@ mod tests {
     fn test_execute_adapter() {
         let (tx, rx) = mpsc::channel(10);
         let counter = Arc::new(Mutex::new(0));
-        let handler = MockRequestHandler(counter.clone());
-        let (shoutdown_send, shutdown_recv) = tokio::sync::watch::channel(false);
+        let handler = MockRequestAdapter(counter.clone());
+        let (shutdown_send, shutdown_recv) = tokio::sync::watch::channel(false);
 
         // Spawn the adapter in a separate task
         let handle = thread::spawn(move || {
@@ -67,7 +73,7 @@ mod tests {
         let string = recv.blocking_recv().unwrap();
         assert_eq!(string, String::from("Ok"));
         assert_eq!(*counter.lock().unwrap(), 1);
-        shoutdown_send.send(true).unwrap();
+        shutdown_send.send(true).unwrap();
 
         handle.join().unwrap();
     }
@@ -77,13 +83,15 @@ mod tests {
         response_tx: tokio::sync::oneshot::Sender<String>,
     }
 
-    struct MockRequestHandler(Arc<Mutex<usize>>);
+    struct MockRequestAdapter(Arc<Mutex<usize>>);
 
-    impl RequestHandler<MockRequest> for MockRequestHandler {
+    impl RequestAdapter<MockRequest> for MockRequestAdapter {
         async fn on_request(&mut self, req: MockRequest) {
             println!("Mock handler received request: {}", req.payload);
-            let mut guard = self.0.lock().unwrap();
-            *guard += 1;
+            {
+                let mut guard = self.0.lock().unwrap();
+                *guard += 1;
+            }
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await; // Simulate some processing delay
             req.response_tx.send(String::from("Ok")).unwrap();
         }

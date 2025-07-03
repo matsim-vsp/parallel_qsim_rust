@@ -6,10 +6,12 @@ use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::Duration;
 
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
+use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -19,9 +21,14 @@ use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{id, io};
 use nohash_hasher::IntMap;
+use tokio::sync::watch::{Receiver, Sender};
 use tracing::info;
 
-fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
+fn execute_partition<C: SimCommunicator>(
+    comm: C,
+    comp_env: Arc<ComputationalEnvironment>,
+    args: &CommandLineArgs,
+) {
     let config_path = &args.config_path;
     let config = Config::from_file(args);
 
@@ -60,7 +67,7 @@ fn execute_partition<C: SimCommunicator>(comm: C, args: &CommandLineArgs) {
     );
 
     let mut simulation: Simulation<C> =
-        SimulationBuilder::new(config, scenario, net_message_broker, events).build();
+        SimulationBuilder::new(config, scenario, net_message_broker, events, comp_env).build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
@@ -91,7 +98,10 @@ fn create_events(
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also
 /// cause the main thread to panic.
-fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
+fn try_join(
+    mut handles: IntMap<u32, JoinHandle<()>>,
+    adapters: Vec<(JoinHandle<()>, Sender<bool>)>,
+) {
     while !handles.is_empty() {
         sleep(Duration::from_secs(1)); // test for finished threads once a second
         let mut finished = Vec::new();
@@ -104,6 +114,15 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
             let handle = handles.remove(&i).unwrap();
             handle.join().expect("Error in a thread");
         }
+    }
+
+    // When all simulation threads are finished, we shutdown the adapters.
+    for (handle, shutdown_sender) in adapters {
+        shutdown_sender.send(true).unwrap();
+        let name = handle.thread().name().unwrap().to_string();
+        handle
+            .join()
+            .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
     }
 }
 

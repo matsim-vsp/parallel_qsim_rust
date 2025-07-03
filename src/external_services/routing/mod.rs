@@ -1,4 +1,4 @@
-use crate::external_services::RequestHandler;
+use crate::external_services::RequestAdapter;
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::id::Id;
@@ -10,21 +10,22 @@ use itertools::{EitherOrBoth, Itertools};
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot::Sender;
 
-struct RoutingServiceAdapter {
+pub struct RoutingServiceAdapter {
     client: RoutingServiceClient<tonic::transport::Channel>,
 }
 
-struct InternalRoutingRequest {
+pub struct InternalRoutingRequest {
     payload: InternalRoutingRequestPayload,
     response_tx: Sender<InternalRoutingResponse>,
 }
 
-struct InternalRoutingRequestPayload {
+pub struct InternalRoutingRequestPayload {
     person_id: Id<InternalPerson>,
     from_link: Id<Link>,
     to_link: Id<Link>,
     mode: String,
     departure_time: u32,
+    now: u32,
 }
 
 struct InternalRoutingResponse(Vec<InternalPlanElement>);
@@ -76,9 +77,9 @@ impl From<Response> for InternalRoutingResponse {
 }
 
 impl RoutingServiceAdapter {
-    pub fn new(ip: String) -> Self {
+    pub fn new(ip: &str) -> Self {
         let client = Runtime::new().unwrap().block_on(async {
-            RoutingServiceClient::connect(ip)
+            RoutingServiceClient::connect(ip.to_string())
                 .await
                 .expect("Failed to connect to routing service")
         });
@@ -86,7 +87,7 @@ impl RoutingServiceAdapter {
     }
 }
 
-impl RequestHandler<InternalRoutingRequest> for RoutingServiceAdapter {
+impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
     async fn on_request(&mut self, internal_req: InternalRoutingRequest) {
         let request = Request::from(internal_req.payload);
         let response = self

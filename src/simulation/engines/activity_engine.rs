@@ -1,16 +1,19 @@
 use crate::generated::events::Event;
 use crate::simulation::config::Config;
+use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, TimeQueue};
 use crate::simulation::InternalSimulationAgent;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
     awake_q: Vec<AsleepSimulationAgent>,
     events: Rc<RefCell<EventsPublisher>>,
+    comp_env: Arc<ComputationalEnvironment>,
 }
 
 impl ActivityEngine {
@@ -18,11 +21,13 @@ impl ActivityEngine {
         asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
         awake_q: Vec<AsleepSimulationAgent>,
         events: Rc<RefCell<EventsPublisher>>,
+        comp_env: Arc<ComputationalEnvironment>,
     ) -> Self {
         ActivityEngine {
             asleep_q,
             awake_q,
             events,
+            comp_env,
         }
     }
 
@@ -109,6 +114,7 @@ pub struct ActivityEngineBuilder<'c> {
     agents: Vec<InternalSimulationAgent>,
     events: Rc<RefCell<EventsPublisher>>,
     config: &'c Config,
+    comp_env: Arc<ComputationalEnvironment>,
 }
 
 impl<'c> ActivityEngineBuilder<'c> {
@@ -116,11 +122,13 @@ impl<'c> ActivityEngineBuilder<'c> {
         agents: Vec<InternalSimulationAgent>,
         events: Rc<RefCell<EventsPublisher>>,
         config: &'c Config,
+        comp_env: Arc<ComputationalEnvironment>,
     ) -> Self {
         ActivityEngineBuilder {
             agents,
             events,
             config,
+            comp_env,
         }
     }
 
@@ -132,7 +140,7 @@ impl<'c> ActivityEngineBuilder<'c> {
             asleep.add(AsleepSimulationAgent::build(agent, now), now);
         }
         let awake_q = Vec::new();
-        ActivityEngine::new(asleep, awake_q, self.events)
+        ActivityEngine::new(asleep, awake_q, self.events, self.comp_env)
     }
 }
 
@@ -174,6 +182,7 @@ mod tests {
             vec![],
             Rc::new(RefCell::new(EventsPublisher::new())),
             &Config::default(),
+            Default::default(),
         )
         .build();
 
@@ -231,6 +240,7 @@ mod tests {
             agents,
             Rc::new(RefCell::new(EventsPublisher::new())),
             &Config::default(),
+            Default::default(),
         )
         .build()
     }

@@ -1,9 +1,5 @@
-use std::cell::RefCell;
-use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::rc::Rc;
-
 use crate::simulation::config::Config;
+use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::messaging::events::EventsPublisher;
@@ -13,6 +9,11 @@ use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSo
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalSimulationAgent;
+use std::cell::RefCell;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::rc::Rc;
+use std::sync::Arc;
 use tracing::info;
 
 pub struct Simulation<C: SimCommunicator> {
@@ -104,6 +105,7 @@ pub struct SimulationBuilder<C: SimCommunicator> {
     scenario: Scenario,
     net_message_broker: NetMessageBroker<C>,
     events: Rc<RefCell<EventsPublisher>>,
+    comp_env: Arc<ComputationalEnvironment>,
 }
 
 impl<C: SimCommunicator> SimulationBuilder<C> {
@@ -112,12 +114,14 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
         scenario: Scenario,
         net_message_broker: NetMessageBroker<C>,
         events: Rc<RefCell<EventsPublisher>>,
+        comp_env: Arc<ComputationalEnvironment>,
     ) -> Self {
         SimulationBuilder {
             config,
             scenario,
             net_message_broker,
             events,
+            comp_env,
         }
     }
 
@@ -130,6 +134,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             agents.into_values().collect(),
             self.events.clone(),
             &self.config,
+            self.comp_env.clone(),
         )
         .build();
 
@@ -139,6 +144,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             self.net_message_broker,
             self.events.clone(),
             &self.config.simulation(),
+            self.comp_env.clone(),
         );
 
         Simulation {
