@@ -158,13 +158,14 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
 
+    use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
+    use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
     use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
-    use crate::simulation::{config, AgentEvent, EnvironmentalEventObserver};
     use crate::test_utils::create_agent;
 
     #[test]

@@ -1,14 +1,13 @@
 use crate::generated::vehicles::{Vehicle, VehicleType};
+use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::vehicles::{load_from_xml, write_to_xml, IOVehicle, IOVehicleType};
 use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{
-    AgentEvent, EnvironmentalEventObserver, InternalAttributes, SimulationAgent,
-    SimulationAgentLogic,
-};
+use crate::simulation::InternalAttributes;
 use std::fmt::Debug;
 use std::path::Path;
 

@@ -1,3 +1,5 @@
+use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::config::Config;
 use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
@@ -7,7 +9,6 @@ use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::{SimulationAgent, SimulationAgentLogic};
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tracing::info;

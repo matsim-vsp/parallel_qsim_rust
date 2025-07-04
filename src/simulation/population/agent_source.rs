@@ -1,8 +1,8 @@
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::scenario::Scenario;
-use crate::simulation::SimulationAgent;
 use std::collections::HashMap;
 
 pub trait AgentSource {

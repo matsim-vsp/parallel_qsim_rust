@@ -1,10 +1,10 @@
 use std::path::Path;
 
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
 use crate::simulation::io::xml::vehicles::{IOVehicle, IOVehicleDefinitions, IOVehicleType};
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::{from_file, to_file, InternalVehicle, InternalVehicleType};
-use crate::simulation::SimulationAgent;
 use nohash_hasher::IntMap;
 use tracing::info;
 

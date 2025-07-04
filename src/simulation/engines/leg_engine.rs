@@ -1,4 +1,6 @@
 use crate::generated::events::Event;
+use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
 use crate::simulation::config::Simulation;
 use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::engines::network_engine::NetworkEngine;
@@ -11,7 +13,6 @@ use crate::simulation::population::InternalRoute;
 use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::{SimulationAgent, SimulationAgentLogic, SimulationAgentState};
 use nohash_hasher::IntSet;
 
 pub struct LegEngine<C: SimCommunicator> {

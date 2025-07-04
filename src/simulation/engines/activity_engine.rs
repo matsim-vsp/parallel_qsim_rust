@@ -1,9 +1,10 @@
 use crate::generated::events::Event;
+use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::config::Config;
 use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
-use crate::simulation::{SimulationAgent, SimulationAgentLogic};
 
 pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
@@ -158,11 +159,11 @@ mod tests {
     use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
     use crate::simulation::id::Id;
 
+    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalRoute,
     };
-    use crate::simulation::SimulationAgent;
 
     #[test]
     fn test_activity_engine_build() {

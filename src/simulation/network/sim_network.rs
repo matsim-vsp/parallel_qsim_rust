@@ -12,11 +12,12 @@ use super::{
     Link, Network, Node,
 };
 use crate::generated::events::Event;
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
+use crate::simulation::config;
 use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::{config, AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StorageUpdate {
