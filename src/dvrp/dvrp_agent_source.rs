@@ -5,7 +5,7 @@ use crate::simulation::population::agent_source::AgentSource;
 use crate::simulation::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::InternalSimulationAgent;
+use crate::simulation::SimulationAgent;
 use std::collections::HashMap;
 use tracing::info;
 
@@ -29,7 +29,7 @@ impl DrtAgentSource {
     fn add_drt_driver(
         scenario: &mut Scenario,
         config: &Config,
-    ) -> HashMap<Id<InternalPerson>, InternalSimulationAgent> {
+    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         info!("Creating DRT drivers");
 
         let drt_modes = config
@@ -95,7 +95,7 @@ impl DrtAgentSource {
 
             let agent_id = Id::<InternalPerson>::create(veh_id.external());
             //TODO
-            result.insert(agent_id, InternalSimulationAgent::new(person));
+            result.insert(agent_id, SimulationAgent::new(person));
         }
         result
     }
@@ -106,7 +106,7 @@ impl AgentSource for DrtAgentSource {
         &self,
         scenario: &mut Scenario,
         config: &Config,
-    ) -> HashMap<Id<InternalPerson>, InternalSimulationAgent> {
+    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         Self::add_drt_ids();
         Self::add_drt_driver(scenario, config)
     }

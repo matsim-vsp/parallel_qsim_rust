@@ -8,7 +8,7 @@ use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::{InternalSimulationAgent, SimulationAgentLogic};
+use crate::simulation::{SimulationAgent, SimulationAgentLogic};
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -19,7 +19,7 @@ use tracing::info;
 pub struct Simulation<C: SimCommunicator> {
     activity_engine: ActivityEngine,
     leg_engine: LegEngine<C>,
-    events: Rc<RefCell<EventsPublisher>>,
+    comp_env: ComputationalEnvironment,
     start_time: u32,
     end_time: u32,
 }
@@ -60,14 +60,10 @@ where
         }
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
-        self.events.borrow_mut().finish();
+        self.comp_env.events_publisher_borrow_mut().finish();
     }
 
-    fn do_sim_step(
-        &mut self,
-        now: u32,
-        agents: Vec<InternalSimulationAgent>,
-    ) -> Vec<InternalSimulationAgent> {
+    fn do_sim_step(&mut self, now: u32, agents: Vec<SimulationAgent>) -> Vec<SimulationAgent> {
         let mut agents_act_to_leg = self.activity_engine.do_step(now, agents);
         for agent in &mut agents_act_to_leg {
             agent.advance_plan();
@@ -104,8 +100,7 @@ pub struct SimulationBuilder<C: SimCommunicator> {
     config: Config,
     scenario: Scenario,
     net_message_broker: NetMessageBroker<C>,
-    events: Rc<RefCell<EventsPublisher>>,
-    comp_env: Arc<ComputationalEnvironment>,
+    comp_env: ComputationalEnvironment,
 }
 
 impl<C: SimCommunicator> SimulationBuilder<C> {
@@ -113,14 +108,12 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
         config: Config,
         scenario: Scenario,
         net_message_broker: NetMessageBroker<C>,
-        events: Rc<RefCell<EventsPublisher>>,
-        comp_env: Arc<ComputationalEnvironment>,
+        comp_env: ComputationalEnvironment,
     ) -> Self {
         SimulationBuilder {
             config,
             scenario,
             net_message_broker,
-            events,
             comp_env,
         }
     }
@@ -132,7 +125,6 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
 
         let activity_engine = ActivityEngineBuilder::new(
             agents.into_values().collect(),
-            self.events.clone(),
             &self.config,
             self.comp_env.clone(),
         )
@@ -142,7 +134,6 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             self.scenario.network_partition,
             self.scenario.garage,
             self.net_message_broker,
-            self.events.clone(),
             &self.config.simulation(),
             self.comp_env.clone(),
         );
@@ -150,7 +141,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
         Simulation {
             activity_engine,
             leg_engine,
-            events: self.events,
+            comp_env: self.comp_env,
             start_time: self.config.simulation().start_time,
             end_time: self.config.simulation().end_time,
         }

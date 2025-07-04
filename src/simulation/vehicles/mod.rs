@@ -6,7 +6,8 @@ use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{
-    EnvironmentalEventRegistry, InternalAttributes, InternalSimulationAgent, SimulationAgentLogic,
+    AgentEvent, EnvironmentalEventObserver, InternalAttributes, SimulationAgent,
+    SimulationAgentLogic,
 };
 use std::fmt::Debug;
 use std::path::Path;
@@ -45,13 +46,13 @@ pub struct InternalVehicleType {
     pub attributes: InternalAttributes,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub struct InternalVehicle {
     pub id: Id<InternalVehicle>,
     pub max_v: f32,
     pub pce: f32,
-    pub driver: Option<InternalSimulationAgent>,
-    pub passengers: Vec<InternalSimulationAgent>,
+    pub driver: Option<SimulationAgent>,
+    pub passengers: Vec<SimulationAgent>,
     pub vehicle_type: Id<InternalVehicleType>,
     pub attributes: InternalAttributes,
 }
@@ -119,7 +120,7 @@ impl InternalVehicle {
         veh_type: u64,
         max_v: f32,
         pce: f32,
-        driver: Option<InternalSimulationAgent>,
+        driver: Option<SimulationAgent>,
     ) -> Self {
         InternalVehicle {
             id: Id::create(&*id.to_string()),
@@ -132,28 +133,20 @@ impl InternalVehicle {
         }
     }
 
-    fn driver_mut(&mut self) -> &mut InternalSimulationAgent {
+    fn driver_mut(&mut self) -> &mut SimulationAgent {
         self.driver.as_mut().unwrap()
     }
 
-    pub fn driver(&self) -> &InternalSimulationAgent {
+    pub fn driver(&self) -> &SimulationAgent {
         self.driver.as_ref().unwrap()
     }
 
-    pub fn passengers(&self) -> &Vec<InternalSimulationAgent> {
+    pub fn passengers(&self) -> &Vec<SimulationAgent> {
         &self.passengers
     }
 
     pub fn id(&self) -> &Id<InternalVehicle> {
         &self.id
-    }
-
-    pub fn register_moved_to_next_link(&mut self) {
-        self.driver_mut().notify_moved_to_next_link();
-    }
-
-    pub fn register_teleportation_started(&mut self) {
-        self.driver_mut().notify_teleportation_started();
     }
 
     pub fn curr_link_id(&self) -> Option<&Id<Link>> {
@@ -162,6 +155,16 @@ impl InternalVehicle {
 
     pub fn peek_next_route_element(&self) -> Option<&Id<Link>> {
         self.driver().peek_next_link_id()
+    }
+}
+
+impl EnvironmentalEventObserver for InternalVehicle {
+    fn notify_event(&mut self, event: AgentEvent, now: u32) {
+        self.driver_mut().notify_event(event.clone(), now);
+        self.passengers.iter_mut().for_each(|p| {
+            p.notify_event(event.clone(), now);
+        });
+        // todo!("Better provide event as &mut?")
     }
 }
 

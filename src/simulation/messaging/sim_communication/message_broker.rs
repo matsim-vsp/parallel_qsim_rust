@@ -158,13 +158,13 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
 
-    use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
     use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::{config, AgentEvent, EnvironmentalEventObserver};
     use crate::test_utils::create_agent;
 
     #[test]
@@ -213,7 +213,7 @@ mod tests {
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec!["2", "6"]);
                 let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
-                broker.add_veh(vehicle.clone(), 0);
+                broker.add_veh(vehicle, 0);
             }
 
             // do sync step for all partitions
@@ -228,7 +228,12 @@ mod tests {
                 assert_eq!(0, msg.time());
                 assert_eq!(1, msg.vehicles().len());
                 let mut vehicle = msg.vehicles_mut().remove(0);
-                vehicle.register_moved_to_next_link();
+                vehicle.notify_event(
+                    AgentEvent::MovedToNextLink {
+                        comp_env: Default::default(),
+                    },
+                    0,
+                );
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {

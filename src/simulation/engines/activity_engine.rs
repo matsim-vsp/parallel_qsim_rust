@@ -4,29 +4,25 @@ use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
-use crate::simulation::{InternalSimulationAgent, SimulationAgentLogic};
+use crate::simulation::{SimulationAgent, SimulationAgentLogic};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
 
 pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
     awake_q: Vec<AsleepSimulationAgent>,
-    events: Rc<RefCell<EventsPublisher>>,
-    comp_env: Arc<ComputationalEnvironment>,
+    comp_env: ComputationalEnvironment,
 }
 
 impl ActivityEngine {
     fn new(
         asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
         awake_q: Vec<AsleepSimulationAgent>,
-        events: Rc<RefCell<EventsPublisher>>,
-        comp_env: Arc<ComputationalEnvironment>,
+        comp_env: ComputationalEnvironment,
     ) -> Self {
         ActivityEngine {
             asleep_q,
             awake_q,
-            events,
             comp_env,
         }
     }
@@ -34,8 +30,8 @@ impl ActivityEngine {
     pub(crate) fn do_step(
         &mut self,
         now: u32,
-        agents: Vec<InternalSimulationAgent>,
-    ) -> Vec<InternalSimulationAgent> {
+        agents: Vec<SimulationAgent>,
+    ) -> Vec<SimulationAgent> {
         for agent in agents {
             self.receive_agent(now, AsleepSimulationAgent::build(agent, now));
         }
@@ -46,7 +42,7 @@ impl ActivityEngine {
 
         let mut res = Vec::with_capacity(wake_up.len() + end.len());
         for agent in wake_up.into_iter().chain(end.into_iter()) {
-            self.events.borrow_mut().publish_event(
+            self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_act_end(
                     agent.id().internal(),
@@ -62,7 +58,7 @@ impl ActivityEngine {
     fn receive_agent(&mut self, now: u32, agent: AsleepSimulationAgent) {
         // emmit act start event
         let act = agent.agent.curr_act();
-        self.events.borrow_mut().publish_event(
+        self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
             &Event::new_act_start(
                 agent.agent.id().internal(),
@@ -73,7 +69,7 @@ impl ActivityEngine {
         self.asleep_q.add(agent, now);
     }
 
-    fn wake_up(&mut self, now: u32) -> Vec<InternalSimulationAgent> {
+    fn wake_up(&mut self, now: u32) -> Vec<SimulationAgent> {
         let mut end_agents = Vec::new();
         let wake_up = self.asleep_q.pop(now);
 
@@ -88,7 +84,7 @@ impl ActivityEngine {
         end_agents
     }
 
-    fn end(&mut self, now: u32) -> Vec<InternalSimulationAgent> {
+    fn end(&mut self, now: u32) -> Vec<SimulationAgent> {
         let mut agents = Vec::new();
 
         let mut i = 0;
@@ -111,22 +107,19 @@ impl ActivityEngine {
 }
 
 pub struct ActivityEngineBuilder<'c> {
-    agents: Vec<InternalSimulationAgent>,
-    events: Rc<RefCell<EventsPublisher>>,
+    agents: Vec<SimulationAgent>,
     config: &'c Config,
-    comp_env: Arc<ComputationalEnvironment>,
+    comp_env: ComputationalEnvironment,
 }
 
 impl<'c> ActivityEngineBuilder<'c> {
     pub fn new(
-        agents: Vec<InternalSimulationAgent>,
-        events: Rc<RefCell<EventsPublisher>>,
+        agents: Vec<SimulationAgent>,
         config: &'c Config,
-        comp_env: Arc<ComputationalEnvironment>,
+        comp_env: ComputationalEnvironment,
     ) -> Self {
         ActivityEngineBuilder {
             agents,
-            events,
             config,
             comp_env,
         }
@@ -140,17 +133,17 @@ impl<'c> ActivityEngineBuilder<'c> {
             asleep.add(AsleepSimulationAgent::build(agent, now), now);
         }
         let awake_q = Vec::new();
-        ActivityEngine::new(asleep, awake_q, self.events, self.comp_env)
+        ActivityEngine::new(asleep, awake_q, self.comp_env)
     }
 }
 
 struct AsleepSimulationAgent {
-    agent: InternalSimulationAgent,
+    agent: SimulationAgent,
     wakeup_time: u32,
 }
 
 impl AsleepSimulationAgent {
-    fn build(agent: InternalSimulationAgent, now: u32) -> Self {
+    fn build(agent: SimulationAgent, now: u32) -> Self {
         let wakeup_time = agent.wakeup_time(now);
         AsleepSimulationAgent { agent, wakeup_time }
     }
@@ -172,19 +165,14 @@ mod tests {
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalRoute,
     };
-    use crate::simulation::InternalSimulationAgent;
+    use crate::simulation::SimulationAgent;
     use std::cell::RefCell;
     use std::rc::Rc;
 
     #[test]
     fn test_activity_engine_build() {
-        let mut engine = ActivityEngineBuilder::new(
-            vec![],
-            Rc::new(RefCell::new(EventsPublisher::new())),
-            &Config::default(),
-            Default::default(),
-        )
-        .build();
+        let mut engine =
+            ActivityEngineBuilder::new(vec![], &Config::default(), Default::default()).build();
 
         assert_eq!(engine.awake_q.len(), 0);
         assert_eq!(engine.asleep_q.len(), 0);
@@ -195,7 +183,7 @@ mod tests {
     fn test_activity_engine_wake_up_plan() {
         let plan = create_plan_with_plan_logic();
 
-        let agent = InternalSimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
+        let agent = SimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);
@@ -214,7 +202,7 @@ mod tests {
     fn test_activity_engine_end() {
         let plan = create_plan_with_plan_logic();
 
-        let agent = InternalSimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
+        let agent = SimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);
@@ -235,14 +223,8 @@ mod tests {
         unimplemented!()
     }
 
-    fn create_engine(agents: Vec<InternalSimulationAgent>) -> ActivityEngine {
-        ActivityEngineBuilder::new(
-            agents,
-            Rc::new(RefCell::new(EventsPublisher::new())),
-            &Config::default(),
-            Default::default(),
-        )
-        .build()
+    fn create_engine(agents: Vec<SimulationAgent>) -> ActivityEngine {
+        ActivityEngineBuilder::new(agents, &Config::default(), Default::default()).build()
     }
 
     fn create_plan_with_plan_logic() -> InternalPlan {

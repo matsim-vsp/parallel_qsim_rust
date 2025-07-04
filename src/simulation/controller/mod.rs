@@ -2,7 +2,9 @@ pub mod local_controller;
 #[cfg(feature = "mpi")]
 pub mod mpi_controller;
 
+use std::any::Any;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -10,8 +12,11 @@ use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::Duration;
 
+use crate::external_services::ExternalServiceType;
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::local_controller::{
+    ComputationalEnvironment, ComputationalEnvironmentBuilder,
+};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -26,7 +31,7 @@ use tracing::info;
 
 fn execute_partition<C: SimCommunicator>(
     comm: C,
-    comp_env: Arc<ComputationalEnvironment>,
+    external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
     args: &CommandLineArgs,
 ) {
     let config_path = &args.config_path;
@@ -66,8 +71,14 @@ fn execute_partition<C: SimCommunicator>(
         config.computational_setup().global_sync,
     );
 
+    let comp_env = ComputationalEnvironmentBuilder::default()
+        .services(external_services)
+        .events_publisher(events.clone())
+        .build()
+        .unwrap();
+
     let mut simulation: Simulation<C> =
-        SimulationBuilder::new(config, scenario, net_message_broker, events, comp_env).build();
+        SimulationBuilder::new(config, scenario, net_message_broker, comp_env).build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to

@@ -8,7 +8,7 @@ pub enum InternalSimMessage {
     Barrier,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub struct InternalSyncMessage {
     time: u32,
     from_process: u32,
@@ -83,6 +83,12 @@ impl InternalSyncMessage {
 
     pub fn take_vehicles(&mut self) -> Vec<InternalVehicle> {
         std::mem::take(&mut self.vehicles)
+    }
+}
+
+impl PartialEq for InternalSyncMessage {
+    fn eq(&self, other: &Self) -> bool {
+        self.time == other.time
     }
 }
 

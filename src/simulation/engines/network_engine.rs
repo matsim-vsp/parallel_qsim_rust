@@ -1,20 +1,17 @@
-use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::InternalVehicle;
-use std::cell::RefCell;
-use std::ops::DerefMut;
-use std::rc::Rc;
 
 pub struct NetworkEngine {
     pub(crate) network: SimNetworkPartition,
-    pub events: Rc<RefCell<EventsPublisher>>,
+    comp_env: ComputationalEnvironment,
 }
 
 impl NetworkEngine {
-    pub fn new(network: SimNetworkPartition, events: Rc<RefCell<EventsPublisher>>) -> Self {
-        NetworkEngine { network, events }
+    pub fn new(network: SimNetworkPartition, comp_env: ComputationalEnvironment) -> Self {
+        NetworkEngine { network, comp_env }
     }
 
     pub fn receive_vehicle(&mut self, now: u32, vehicle: InternalVehicle, route_begin: bool) {
@@ -24,15 +21,13 @@ impl NetworkEngine {
         } else {
             //if route is already in progress, this method gets vehicles from another partition and should publish link enter event
             //this is because the receiving partition is the owner of this link and should publish the event
-            Some(self.events.clone())
+            Some(self.comp_env.events_publisher())
         };
         self.network.send_veh_en_route(vehicle, events, now)
     }
 
     pub(super) fn move_nodes(&mut self, now: u32) -> Vec<InternalVehicle> {
-        let exited_vehicles = self
-            .network
-            .move_nodes(self.events.borrow_mut().deref_mut(), now);
+        let exited_vehicles = self.network.move_nodes(&mut self.comp_env, now);
         exited_vehicles
     }
 

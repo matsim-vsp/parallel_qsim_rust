@@ -11,7 +11,9 @@ use network::Link;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::any::Any;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::sync::Arc;
 use tracing::warn;
 
@@ -33,7 +35,9 @@ pub mod simulation;
 pub mod time_queue;
 pub mod vehicles;
 
-pub trait SimulationAgentLogic: EndTime + Identifiable<InternalPerson> {
+pub trait SimulationAgentLogic:
+    EndTime + Identifiable<InternalPerson> + EnvironmentalEventObserver + Send
+{
     fn curr_act(&self) -> &InternalActivity;
     fn curr_leg(&self) -> &InternalLeg;
     fn next_leg(&self) -> Option<&InternalLeg>;
@@ -44,29 +48,46 @@ pub trait SimulationAgentLogic: EndTime + Identifiable<InternalPerson> {
     fn peek_next_link_id(&self) -> Option<&Id<Link>>;
 }
 
-pub trait EnvironmentalEventRegistry {
-    // Register activity events
-    fn notify_activity_started(&mut self, comp_env: Arc<ComputationalEnvironment>);
-    fn notify_wakeup(&mut self, comp_env: Arc<ComputationalEnvironment>);
-    fn notify_activity_finished(&mut self, comp_env: Arc<ComputationalEnvironment>);
+pub trait EnvironmentalEventObserver {
+    fn notify_event(&mut self, event: AgentEvent, now: u32);
+}
 
-    // Register leg events
-    fn notify_teleportation_started(&mut self);
-    fn notify_teleportation_finished(&mut self, comp_env: Arc<ComputationalEnvironment>);
+#[non_exhaustive]
+#[derive(Clone)]
+pub enum AgentEvent {
+    ActivityStarted { comp_env: ComputationalEnvironment },
+    Wakeup { comp_env: ComputationalEnvironment },
+    ActivityFinished { comp_env: ComputationalEnvironment },
+    TeleportationStarted { comp_env: ComputationalEnvironment },
+    TeleportationFinished { comp_env: ComputationalEnvironment },
+    NetworkLegStarted { comp_env: ComputationalEnvironment },
+    MovedToNextLink { comp_env: ComputationalEnvironment },
+    NetworkLegFinished { comp_env: ComputationalEnvironment },
+}
 
-    // Register network leg events
-    fn notify_network_leg_started(&mut self, comp_env: Arc<ComputationalEnvironment>);
-    fn notify_moved_to_next_link(&mut self);
-    fn notify_network_leg_finished(&mut self, comp_env: Arc<ComputationalEnvironment>);
+#[derive(Debug)]
+pub struct SimulationAgent {
+    logic: Box<dyn SimulationAgentLogic>,
+}
+
+impl Debug for dyn SimulationAgentLogic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Simulation Agent Logic for agent with id {}",
+            self.id().external()
+        )
+    }
+}
+
+impl PartialEq for SimulationAgent {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct InternalSimulationAgent {
-    logic: InternalSimulationAgentLogic,
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct InternalSimulationAgentLogic {
+pub struct PlanBasedSimulationLogic {
     basic_agent_delegate: InternalPerson,
     curr_plan_element: usize,
     curr_route_element: usize,
@@ -79,69 +100,37 @@ pub enum SimulationAgentState {
     STUCK,
 }
 
-impl EndTime for InternalSimulationAgent {
+impl SimulationAgent {
+    pub fn new(person: InternalPerson) -> Self {
+        Self {
+            logic: Box::new(PlanBasedSimulationLogic {
+                basic_agent_delegate: person,
+                curr_plan_element: 0,
+                curr_route_element: 0,
+            }),
+        }
+    }
+}
+
+impl EndTime for SimulationAgent {
     fn end_time(&self, now: u32) -> u32 {
         self.logic.end_time(now)
     }
 }
 
-impl Identifiable<InternalPerson> for InternalSimulationAgent {
+impl Identifiable<InternalPerson> for SimulationAgent {
     fn id(&self) -> &Id<InternalPerson> {
         self.logic.id()
     }
 }
 
-impl InternalSimulationAgent {
-    pub fn new(person: InternalPerson) -> Self {
-        Self {
-            logic: InternalSimulationAgentLogic {
-                basic_agent_delegate: person,
-                curr_plan_element: 0,
-                curr_route_element: 0,
-            },
-        }
+impl EnvironmentalEventObserver for SimulationAgent {
+    fn notify_event(&mut self, event: AgentEvent, now: u32) {
+        self.logic.notify_event(event, now)
     }
 }
 
-impl EnvironmentalEventRegistry for InternalSimulationAgent {
-    fn notify_activity_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_wakeup(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_activity_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_teleportation_started(&mut self) {
-        // set the pointer of the route to the last element, so that the current link
-        // is the destination of this leg. Setting this to the last element makes this
-        // logic independent of whether the agent has a Generic-Route with only start
-        // and end link or a full Network-Route, which is often the case for ride modes.
-        self.logic.notify_teleportation_started();
-    }
-
-    fn notify_teleportation_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_network_leg_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_moved_to_next_link(&mut self) {
-        self.logic.notify_moved_to_next_link();
-    }
-
-    fn notify_network_leg_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-}
-
-impl SimulationAgentLogic for InternalSimulationAgent {
+impl SimulationAgentLogic for SimulationAgent {
     fn curr_act(&self) -> &InternalActivity {
         self.logic.curr_act()
     }
@@ -168,46 +157,32 @@ impl SimulationAgentLogic for InternalSimulationAgent {
     }
 }
 
-impl Identifiable<InternalPerson> for InternalSimulationAgentLogic {
+impl Identifiable<InternalPerson> for PlanBasedSimulationLogic {
     fn id(&self) -> &Id<InternalPerson> {
         self.basic_agent_delegate.id()
     }
 }
 
-impl EnvironmentalEventRegistry for InternalSimulationAgentLogic {
-    fn notify_activity_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
+impl EnvironmentalEventObserver for PlanBasedSimulationLogic {
+    fn notify_event(&mut self, event: AgentEvent, _now: u32) {
+        match event {
+            AgentEvent::TeleportationStarted { .. } => {
+                self.set_curr_route_element_to_last();
+            }
+            AgentEvent::MovedToNextLink { .. } => {
+                self.curr_route_element += 1;
+            }
+            _ => {}
+        }
     }
+}
 
-    fn notify_wakeup(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_activity_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_teleportation_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_network_leg_started(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_network_leg_finished(&mut self, comp_env: Arc<ComputationalEnvironment>) {
-        todo!()
-    }
-
-    fn notify_moved_to_next_link(&mut self) {
-        self.curr_route_element += 1;
-    }
-
+impl PlanBasedSimulationLogic {
     /// This method advances the pointer to the last element of the route. We need this in case of
     /// teleported legs. Advancing the route pointer to the last element directly ensures that teleporting
     /// the vehicle is independent of whether the leg has a Generic-Teleportation route or a network
     /// route.
-    fn notify_teleportation_started(&mut self) {
+    fn set_curr_route_element_to_last(&mut self) {
         let route = self.curr_leg().route.as_ref().unwrap();
         if route.as_network().is_some() {
             let last = route.as_network().unwrap().route().len() - 1;
@@ -218,42 +193,7 @@ impl EnvironmentalEventRegistry for InternalSimulationAgentLogic {
     }
 }
 
-impl SimulationAgentLogic for InternalSimulationAgentLogic {
-    fn curr_link_id(&self) -> Option<&Id<Link>> {
-        if self.state() != SimulationAgentState::LEG {
-            return None;
-        }
-
-        match self.curr_leg().route.as_ref().unwrap() {
-            InternalRoute::Generic(g) => match self.curr_route_element {
-                0 => Some(g.start_link()),
-                1 => Some(g.end_link()),
-                _ => panic!(
-                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
-                ),
-            },
-            InternalRoute::Network(n) => n.route_element_at(self.curr_route_element),
-            InternalRoute::Pt(p) => match self.curr_route_element {
-                0 => Some(p.start_link()),
-                1 => Some(p.end_link()),
-                _ => panic!(
-                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
-                ),
-            },
-        }
-    }
-
-    fn peek_next_link_id(&self) -> Option<&Id<Link>> {
-        let next_i = self.curr_route_element + 1;
-        self.curr_leg()
-            .route
-            .as_ref()
-            .unwrap()
-            .as_network()
-            .unwrap()
-            .route_element_at(next_i)
-    }
-
+impl SimulationAgentLogic for PlanBasedSimulationLogic {
     fn curr_act(&self) -> &InternalActivity {
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
@@ -291,14 +231,6 @@ impl SimulationAgentLogic for InternalSimulationAgentLogic {
         );
     }
 
-    fn state(&self) -> SimulationAgentState {
-        match self.curr_plan_element % 2 {
-            0 => SimulationAgentState::ACTIVITY,
-            1 => SimulationAgentState::LEG,
-            _ => unreachable!(),
-        }
-    }
-
     fn wakeup_time(&self, now: u32) -> u32 {
         // TODO this might be adapted with rolling horizon logic
 
@@ -310,9 +242,52 @@ impl SimulationAgentLogic for InternalSimulationAgentLogic {
             InternalPlanElement::Leg(_) => panic!("Cannot wake up on a leg!"),
         }
     }
+
+    fn state(&self) -> SimulationAgentState {
+        match self.curr_plan_element % 2 {
+            0 => SimulationAgentState::ACTIVITY,
+            1 => SimulationAgentState::LEG,
+            _ => unreachable!(),
+        }
+    }
+
+    fn curr_link_id(&self) -> Option<&Id<Link>> {
+        if self.state() != SimulationAgentState::LEG {
+            return None;
+        }
+
+        match self.curr_leg().route.as_ref().unwrap() {
+            InternalRoute::Generic(g) => match self.curr_route_element {
+                0 => Some(g.start_link()),
+                1 => Some(g.end_link()),
+                _ => panic!(
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                ),
+            },
+            InternalRoute::Network(n) => n.route_element_at(self.curr_route_element),
+            InternalRoute::Pt(p) => match self.curr_route_element {
+                0 => Some(p.start_link()),
+                1 => Some(p.end_link()),
+                _ => panic!(
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                ),
+            },
+        }
+    }
+
+    fn peek_next_link_id(&self) -> Option<&Id<Link>> {
+        let next_i = self.curr_route_element + 1;
+        self.curr_leg()
+            .route
+            .as_ref()
+            .unwrap()
+            .as_network()
+            .unwrap()
+            .route_element_at(next_i)
+    }
 }
 
-impl EndTime for InternalSimulationAgentLogic {
+impl EndTime for PlanBasedSimulationLogic {
     fn end_time(&self, now: u32) -> u32 {
         match self
             .basic_agent_delegate

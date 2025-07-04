@@ -226,7 +226,7 @@ mod tests {
         );
 
         let file_path =
-            PathBuf::from("./test_output/simulation/population/io/test_proto/plans.binpb");
+            PathBuf::from("./test_output/simulation/population/io/test_filtered_proto/plans.binpb");
         pop.to_file(&file_path);
 
         let proto_pop =

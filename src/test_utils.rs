@@ -7,16 +7,14 @@ use crate::simulation::population::{
     InternalPlan, InternalRoute,
 };
 use crate::simulation::vehicles::InternalVehicleType;
-use crate::simulation::{
-    config, InternalAttributes, InternalSimulationAgent, SimulationAgentLogic,
-};
+use crate::simulation::{config, InternalAttributes, SimulationAgent, SimulationAgentLogic};
 
-pub fn create_agent_without_route(id: u64) -> InternalSimulationAgent {
+pub fn create_agent_without_route(id: u64) -> SimulationAgent {
     //inserting a dummy route
     create_agent(id, vec!["0", "1"])
 }
 
-pub fn create_agent(id: u64, route: Vec<&str>) -> InternalSimulationAgent {
+pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
     let generic_route = InternalGenericRoute::new(
         Id::create(&route.first().unwrap().to_string()),
         Id::create(&route.last().unwrap().to_string()),
@@ -36,7 +34,7 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> InternalSimulationAgent {
     plan.add_leg(leg);
     let person = InternalPerson::new(Id::create(id.to_string().as_str()), plan);
 
-    let mut agent = InternalSimulationAgent::new(person);
+    let mut agent = SimulationAgent::new(person);
     agent.advance_plan();
 
     agent
