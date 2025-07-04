@@ -106,18 +106,3 @@ impl Ord for InternalSyncMessage {
         other.time.cmp(&self.time)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    #[ignore]
-    fn test_rolling_horizon_plan_consistency_ok() {
-        unimplemented!()
-    }
-
-    #[test]
-    #[ignore]
-    fn test_rolling_horizon_plan_consistency_fail() {
-        unimplemented!()
-    }
-}

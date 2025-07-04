@@ -54,6 +54,14 @@ impl PlanBasedSimulationLogic {
             self.curr_route_element = 1;
         }
     }
+
+    pub fn new(basic_agent_delegate: InternalPerson) -> Self {
+        Self {
+            basic_agent_delegate,
+            curr_plan_element: 0,
+            curr_route_element: 0,
+        }
+    }
 }
 
 impl SimulationAgentLogic for PlanBasedSimulationLogic {
@@ -95,8 +103,6 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     }
 
     fn wakeup_time(&self, now: u32) -> u32 {
-        // TODO this might be adapted with rolling horizon logic
-
         match self
             .basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
@@ -150,6 +156,18 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     }
 }
 
+impl EndTime for PlanBasedSimulationLogic {
+    fn end_time(&self, now: u32) -> u32 {
+        match self
+            .basic_agent_delegate
+            .plan_element_at(self.curr_plan_element)
+        {
+            InternalPlanElement::Activity(a) => a.cmp_end_time(now),
+            InternalPlanElement::Leg(l) => l.trav_time.unwrap() + now,
+        }
+    }
+}
+
 impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
     fn curr_act(&self) -> &InternalActivity {
         self.delegate.curr_act()
@@ -168,7 +186,16 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
     }
 
     fn wakeup_time(&self, now: u32) -> u32 {
-        self.delegate.wakeup_time(now)
+        let mut end = self.delegate.curr_act().cmp_end_time(now);
+        if let Some(l) = self.delegate.next_leg() {
+            let horizon: Option<u32> = l
+                .attributes
+                .get(crate::simulation::population::PREPLANNING_HORIZON);
+            if let Some(h) = horizon {
+                end -= h;
+            }
+        }
+        end
     }
 
     fn state(&self) -> SimulationAgentState {
@@ -198,18 +225,14 @@ impl Identifiable<InternalPerson> for AdaptivePlanBasedSimulationLogic {
 
 impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
     fn notify_event(&mut self, event: AgentEvent, now: u32) {
-        todo!()
+        //todo!()
     }
 }
 
-impl EndTime for PlanBasedSimulationLogic {
-    fn end_time(&self, now: u32) -> u32 {
-        match self
-            .basic_agent_delegate
-            .plan_element_at(self.curr_plan_element)
-        {
-            InternalPlanElement::Activity(a) => a.cmp_end_time(now),
-            InternalPlanElement::Leg(l) => l.trav_time.unwrap() + now,
+impl AdaptivePlanBasedSimulationLogic {
+    pub fn new(person: InternalPerson) -> Self {
+        Self {
+            delegate: PlanBasedSimulationLogic::new(person),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::agents::SimulationAgentLogic;
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::config::Config;
 use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::population::InternalPerson;
@@ -8,14 +8,14 @@ use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
 
 pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
-    awake_q: Vec<AsleepSimulationAgent>,
+    awake_q: Vec<AwakeSimulationAgent>,
     comp_env: ComputationalEnvironment,
 }
 
 impl ActivityEngine {
     fn new(
         asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
-        awake_q: Vec<AsleepSimulationAgent>,
+        awake_q: Vec<AwakeSimulationAgent>,
         comp_env: ComputationalEnvironment,
     ) -> Self {
         ActivityEngine {
@@ -34,12 +34,16 @@ impl ActivityEngine {
             self.receive_agent(now, AsleepSimulationAgent::build(agent, now));
         }
 
-        let wake_up = self.wake_up(now);
-        self.inform(now);
+        if now == 23457 {
+            println!()
+        }
+
+        let mut end_after_wake_up = self.wake_up(now);
+        self.inform_wakeup_all(&mut end_after_wake_up, now);
         let end = self.end(now);
 
-        let mut res = Vec::with_capacity(wake_up.len() + end.len());
-        for agent in wake_up.into_iter().chain(end.into_iter()) {
+        let mut res = Vec::with_capacity(end_after_wake_up.len() + end.len());
+        for agent in end_after_wake_up.into_iter().chain(end.into_iter()) {
             self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_act_end(
@@ -73,10 +77,12 @@ impl ActivityEngine {
 
         // for fast turnaround, agents whose end time is already reached are directly returned and not put into the awake queue
         for agent in wake_up {
-            if agent.end_time(now) <= now {
-                end_agents.push(agent.agent);
+            let mut awake: AwakeSimulationAgent = agent.into();
+            if awake.end_time(now) <= now {
+                self.inform_wakeup(&mut awake.agent, now);
+                end_agents.push(awake.agent);
             } else {
-                self.awake_q.push(agent);
+                self.awake_q.push(awake);
             }
         }
         end_agents
@@ -98,9 +104,25 @@ impl ActivityEngine {
         agents
     }
 
-    fn inform(&mut self, _now: u32) {
+    fn inform_wakeup_all(&mut self, agents: &mut [SimulationAgent], now: u32) {
         // Go through all awakened agents and inform them about current time.
-        // Provide structs that are needed for replanning.
+        agents.iter_mut().for_each(|agent| {
+            self.inform_wakeup(agent, now);
+        });
+    }
+
+    fn inform_wakeup(&mut self, agent: &mut SimulationAgent, now: u32) {
+        agent.notify_event(
+            AgentEvent::Wakeup {
+                comp_env: self.comp_env.clone(),
+            },
+            now,
+        );
+    }
+
+    #[cfg(test)]
+    fn awake_agents(&self) -> Vec<&SimulationAgent> {
+        self.awake_q.iter().map(|a| &a.agent).collect()
     }
 }
 
@@ -135,20 +157,47 @@ impl<'c> ActivityEngineBuilder<'c> {
     }
 }
 
+struct AwakeSimulationAgent {
+    agent: SimulationAgent,
+    begin_time: u32,
+}
+
+impl From<AsleepSimulationAgent> for AwakeSimulationAgent {
+    fn from(value: AsleepSimulationAgent) -> Self {
+        Self {
+            agent: value.agent,
+            begin_time: value.begin_time,
+        }
+    }
+}
+
+impl EndTime for AwakeSimulationAgent {
+    fn end_time(&self, _now: u32) -> u32 {
+        // Using begin_time as reference because if only max_dur is set for activity, the agent assumes that the argument of end_time is the time when the activity started.
+        self.agent.end_time(self.begin_time)
+    }
+}
+
 struct AsleepSimulationAgent {
     agent: SimulationAgent,
     wakeup_time: u32,
+    begin_time: u32,
 }
 
 impl AsleepSimulationAgent {
     fn build(agent: SimulationAgent, now: u32) -> Self {
         let wakeup_time = agent.wakeup_time(now);
-        AsleepSimulationAgent { agent, wakeup_time }
+        AsleepSimulationAgent {
+            agent,
+            wakeup_time,
+            begin_time: now,
+        }
     }
 }
 
 impl EndTime for AsleepSimulationAgent {
     fn end_time(&self, _now: u32) -> u32 {
+        // end_time is used for the wake-up queue, so it should return the time when the agent is supposed to wake up.
         self.wakeup_time
     }
 }
@@ -164,6 +213,7 @@ mod tests {
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalRoute,
     };
+    use crate::simulation::time_queue::Identifiable;
 
     #[test]
     fn test_activity_engine_build() {
@@ -179,7 +229,7 @@ mod tests {
     fn test_activity_engine_wake_up_plan() {
         let plan = create_plan_with_plan_logic();
 
-        let agent = SimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
+        let agent = SimulationAgent::new_plan_based(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);
@@ -198,7 +248,7 @@ mod tests {
     fn test_activity_engine_end() {
         let plan = create_plan_with_plan_logic();
 
-        let agent = SimulationAgent::new(InternalPerson::new(Id::create("1"), plan));
+        let agent = SimulationAgent::new_plan_based(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
         let mut engine = create_engine(agents);
@@ -206,17 +256,49 @@ mod tests {
         {
             let agents = engine.do_step(0, vec![]);
             assert!(agents.is_empty());
+            assert_eq!(engine.awake_agents().len(), 0);
         }
         {
             let agents = engine.do_step(10, vec![]);
             assert_eq!(agents.len(), 1);
+            assert_eq!(engine.awake_agents().len(), 0);
         }
     }
 
     #[test]
-    #[ignore]
-    fn test_activity_engine_wake_up_rolling_horizon() {
-        unimplemented!()
+    fn test_activity_engine_wake_up_with_max_dur() {
+        let plan = create_plan_with_plan_logic_max_dur();
+        test_adaptive(plan);
+    }
+
+    #[test]
+    fn test_activity_engine_wake_up_with_preplanning_horizon() {
+        let plan = create_plan_with_plan_logic();
+        test_adaptive(plan);
+    }
+
+    fn test_adaptive(plan: InternalPlan) {
+        let agent =
+            SimulationAgent::new_adaptive_plan_based(InternalPerson::new(Id::create("1"), plan));
+        let agents = vec![agent];
+        let mut engine = create_engine(agents);
+        {
+            let agents = engine.do_step(0, vec![]);
+            assert!(agents.is_empty());
+            assert_eq!(engine.awake_agents().len(), 0);
+        }
+        {
+            // agent is not released, but awake
+            let agents = engine.do_step(5, vec![]);
+            assert!(agents.is_empty());
+            assert_eq!(engine.awake_agents().len(), 1);
+            assert_eq!(engine.awake_agents()[0].id(), &Id::create("1"));
+        }
+        {
+            let agents = engine.do_step(10, vec![]);
+            assert_eq!(agents.len(), 1);
+            assert_eq!(engine.awake_agents().len(), 0);
+        }
     }
 
     fn create_engine(agents: Vec<SimulationAgent>) -> ActivityEngine {
@@ -234,7 +316,7 @@ mod tests {
             Some(10),
             None,
         ));
-        plan.add_leg(InternalLeg::new(
+        let mut leg = InternalLeg::new(
             InternalRoute::Generic(InternalGenericRoute::new(
                 Id::create("start"),
                 Id::create("end"),
@@ -245,7 +327,10 @@ mod tests {
             "mode",
             1,
             Some(2),
-        ));
+        );
+        leg.attributes
+            .add(crate::simulation::population::PREPLANNING_HORIZON, 5);
+        plan.add_leg(leg);
         plan.add_act(InternalActivity::new(
             0.0,
             0.0,
@@ -254,6 +339,44 @@ mod tests {
             Some(25),
             Some(10),
             None,
+        ));
+        plan
+    }
+
+    fn create_plan_with_plan_logic_max_dur() -> InternalPlan {
+        let mut plan = InternalPlan::default();
+        plan.add_act(InternalActivity::new(
+            0.0,
+            0.0,
+            "act",
+            Id::create("0"),
+            None,
+            None,
+            Some(10),
+        ));
+        let mut leg = InternalLeg::new(
+            InternalRoute::Generic(InternalGenericRoute::new(
+                Id::create("start"),
+                Id::create("end"),
+                None,
+                None,
+                None,
+            )),
+            "mode",
+            1,
+            Some(2),
+        );
+        leg.attributes
+            .add(crate::simulation::population::PREPLANNING_HORIZON, 5);
+        plan.add_leg(leg);
+        plan.add_act(InternalActivity::new(
+            0.0,
+            0.0,
+            "act",
+            Id::create("1"),
+            None,
+            None,
+            Some(10),
         ));
         plan
     }

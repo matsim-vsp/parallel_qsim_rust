@@ -40,20 +40,24 @@ impl PopulationAgentSource {
         person: InternalPerson,
     ) {
         // go through all attributes of person's legs and check whether there is some marked as rolling horizon logic
-        let has_at_least_one_rolling_horizon_planning = person
+        let has_at_least_one_preplanning_horizon = person
             .selected_plan()
             .as_ref()
             .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
             .legs()
             .iter()
-            .any(|l| l.attributes.attributes.contains_key("rollingHorizonLogic"));
+            .any(|l| {
+                l.attributes
+                    .attributes
+                    .contains_key(crate::simulation::population::PREPLANNING_HORIZON)
+            });
 
-        if has_at_least_one_rolling_horizon_planning {
-            agents.insert(id, SimulationAgent::new(person));
+        if has_at_least_one_preplanning_horizon {
+            agents.insert(id, SimulationAgent::new_adaptive_plan_based(person));
         } else {
             // if there is no rolling horizon logic, we assume that the person has a plan logic
             // and we create a InternalSimulationAgent with plan logic
-            agents.insert(id, SimulationAgent::new(person));
+            agents.insert(id, SimulationAgent::new_plan_based(person));
         }
     }
 }

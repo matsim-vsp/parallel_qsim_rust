@@ -1,4 +1,6 @@
-use crate::simulation::agents::agent_logic::PlanBasedSimulationLogic;
+use crate::simulation::agents::agent_logic::{
+    AdaptivePlanBasedSimulationLogic, PlanBasedSimulationLogic,
+};
 use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
@@ -19,13 +21,15 @@ impl PartialEq for SimulationAgent {
 }
 
 impl SimulationAgent {
-    pub fn new(person: InternalPerson) -> Self {
+    pub fn new_plan_based(person: InternalPerson) -> Self {
         Self {
-            logic: Box::new(PlanBasedSimulationLogic {
-                basic_agent_delegate: person,
-                curr_plan_element: 0,
-                curr_route_element: 0,
-            }),
+            logic: Box::new(PlanBasedSimulationLogic::new(person)),
+        }
+    }
+
+    pub fn new_adaptive_plan_based(person: InternalPerson) -> Self {
+        Self {
+            logic: Box::new(AdaptivePlanBasedSimulationLogic::new(person)),
         }
     }
 }

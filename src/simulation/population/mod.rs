@@ -17,6 +17,8 @@ use std::str::FromStr;
 
 pub mod agent_source;
 
+pub const PREPLANNING_HORIZON: &str = "preplanningHorizon";
+
 trait FromIOPerson<T> {
     fn from_io(io: T, id: Id<InternalPerson>) -> Self;
 }
@@ -120,7 +122,7 @@ pub enum InternalRoute {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalGenericRoute {
-    start_link: Id<Link>,
+    pub start_link: Id<Link>,
     end_link: Id<Link>,
     trav_time: Option<u32>,
     distance: Option<f64>,
@@ -266,11 +268,11 @@ impl InternalActivity {
         }
     }
 
-    pub(crate) fn cmp_end_time(&self, now: u32) -> u32 {
+    pub(crate) fn cmp_end_time(&self, begin: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {
-            now + max_dur
+            begin + max_dur
         } else {
             // supposed to be an equivalent for OptionalTime.undefined() in the java code
             u32::MAX

@@ -30,7 +30,7 @@ pub mod vehicles;
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
 pub struct InternalAttributes {
     // we are using serde_json::Value to allow for flexible attribute types and serializability
-    attributes: HashMap<String, serde_json::Value>,
+    attributes: HashMap<String, Value>,
 }
 
 impl InternalAttributes {
@@ -72,6 +72,11 @@ impl InternalAttributes {
             attributes.insert(key.clone(), insert);
         }
         attributes
+    }
+
+    pub fn add(&mut self, key: impl Into<String>, value: impl Serialize) {
+        self.attributes
+            .insert(key.into(), serde_json::to_value(value).unwrap());
     }
 }
 

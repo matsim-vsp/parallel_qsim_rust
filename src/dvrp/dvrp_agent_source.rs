@@ -95,7 +95,7 @@ impl DrtAgentSource {
 
             let agent_id = Id::<InternalPerson>::create(veh_id.external());
             //TODO
-            result.insert(agent_id, SimulationAgent::new(person));
+            result.insert(agent_id, SimulationAgent::new_plan_based(person));
         }
         result
     }
