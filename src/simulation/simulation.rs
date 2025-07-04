@@ -2,18 +2,14 @@ use crate::simulation::config::Config;
 use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
-use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::{SimulationAgent, SimulationAgentLogic};
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::rc::Rc;
-use std::sync::Arc;
 use tracing::info;
 
 pub struct Simulation<C: SimCommunicator> {

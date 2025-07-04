@@ -258,7 +258,7 @@ impl InternalActivity {
         InternalActivity {
             x,
             y,
-            act_type: Id::create(&act_type),
+            act_type: Id::create(act_type),
             link_id,
             start_time,
             end_time,
@@ -522,7 +522,7 @@ impl FromIOPerson<IOLeg> for InternalLeg {
             route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes
-                .map(|a| InternalAttributes::from(a).into())
+                .map(InternalAttributes::from)
                 .unwrap_or_default(),
         }
     }

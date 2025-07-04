@@ -14,9 +14,7 @@ use std::time::Duration;
 
 use crate::external_services::ExternalServiceType;
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
-use crate::simulation::controller::local_controller::{
-    ComputationalEnvironment, ComputationalEnvironmentBuilder,
-};
+use crate::simulation::controller::local_controller::ComputationalEnvironmentBuilder;
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -26,7 +24,7 @@ use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{id, io};
 use nohash_hasher::IntMap;
-use tokio::sync::watch::{Receiver, Sender};
+use tokio::sync::watch::Sender;
 use tracing::info;
 
 fn execute_partition<C: SimCommunicator>(

@@ -524,7 +524,7 @@ mod tests {
             })
         );
 
-        assert_eq!(parsed_config.computational_setup().global_sync, true);
+        assert!(parsed_config.computational_setup().global_sync);
 
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);

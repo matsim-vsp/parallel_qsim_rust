@@ -177,7 +177,7 @@ impl PtRouteDescription {
     fn from(value: &InternalPtRouteDescription) -> Self {
         Self {
             transit_route_id: value.transit_route_id.clone(),
-            boarding_time: value.boarding_time.clone(),
+            boarding_time: value.boarding_time,
             transit_line_id: value.transit_line_id.clone(),
             access_facility_id: value.access_facility_id.clone(),
             egress_facility_id: value.egress_facility_id.clone(),

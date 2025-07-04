@@ -123,12 +123,12 @@ impl InternalVehicle {
         driver: Option<SimulationAgent>,
     ) -> Self {
         InternalVehicle {
-            id: Id::create(&*id.to_string()),
-            max_v: max_v,
+            id: Id::create(&id.to_string()),
+            max_v,
             pce,
             driver,
             passengers: Vec::new(),
-            vehicle_type: Id::create(&*veh_type.to_string()),
+            vehicle_type: Id::create(&veh_type.to_string()),
             attributes: Default::default(),
         }
     }

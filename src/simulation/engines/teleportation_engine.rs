@@ -50,9 +50,9 @@ impl TeleportationEngine {
             let agent = vehicle.driver.as_ref().unwrap();
 
             match agent.curr_leg().route.as_ref().unwrap() {
-                InternalRoute::Generic(_) => self.emit_travelled(now, &agent),
-                InternalRoute::Network(_) => self.emit_travelled(now, &agent),
-                InternalRoute::Pt(_) => self.emit_travelled_with_pt(now, &agent),
+                InternalRoute::Generic(_) => self.emit_travelled(now, agent),
+                InternalRoute::Network(_) => self.emit_travelled(now, agent),
+                InternalRoute::Pt(_) => self.emit_travelled_with_pt(now, agent),
             }
         }
         teleportation_vehicles

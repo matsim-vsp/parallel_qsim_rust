@@ -53,7 +53,7 @@ where
     }
 
     pub fn rank_for_link(&self, link_id: &Id<Link>) -> u32 {
-        *self.link_mapping.get(&(link_id)).unwrap()
+        *self.link_mapping.get(link_id).unwrap()
     }
 
     pub fn add_veh(&mut self, vehicle: InternalVehicle, now: u32) {
@@ -368,9 +368,7 @@ mod tests {
             assert_eq!(partition.get_link_ids().len(), 1);
         }
 
-        let broker =
-            NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false);
-        broker
+        NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false)
     }
 
     #[test]
@@ -458,8 +456,7 @@ mod tests {
     }
 
     fn create_node(id: u64, partition: u32) -> Node {
-        let node = Node::new(Id::create(&id.to_string()), 0., 0., partition, 1);
-        node
+        Node::new(Id::create(&id.to_string()), 0., 0., partition, 1)
     }
 
     fn create_link(id: u64, from: u64, to: u64, partition: u32) -> Link {

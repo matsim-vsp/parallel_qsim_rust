@@ -270,7 +270,7 @@ mod tests {
 
         let id = Id::<InternalVehicle>::create("veh");
         garage.add_veh(InternalVehicle {
-            id: id,
+            id,
             max_v: 0.0,
             pce: 0.0,
             driver: None,

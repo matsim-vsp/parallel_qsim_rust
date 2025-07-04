@@ -16,8 +16,8 @@ pub fn create_agent_without_route(id: u64) -> SimulationAgent {
 
 pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
     let generic_route = InternalGenericRoute::new(
-        Id::create(&route.first().unwrap().to_string()),
-        Id::create(&route.last().unwrap().to_string()),
+        Id::create(route.first().unwrap()),
+        Id::create(route.last().unwrap()),
         None,
         None,
         None,

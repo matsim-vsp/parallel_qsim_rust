@@ -330,6 +330,26 @@ impl Link {
     }
 }
 
+pub fn from_file(path: &Path) -> Network {
+    if path.extension().unwrap().eq("binpb") {
+        load_from_proto(path)
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        network::load_from_xml(path)
+    } else {
+        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+pub fn to_file(network: &Network, path: &Path) {
+    if path.extension().unwrap().eq("binpb") {
+        write_to_proto(network, path);
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        write_to_xml(network, path);
+    } else {
+        panic!("Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod};
@@ -385,10 +405,10 @@ mod tests {
         assert_eq!(id, link.id);
         assert_eq!(0, from.in_links.len());
         assert_eq!(1, from.out_links.len());
-        assert_eq!(&id, from.out_links.get(0).unwrap());
+        assert_eq!(&id, from.out_links.first().unwrap());
         assert_eq!(0, to.out_links.len());
         assert_eq!(1, to.in_links.len());
-        assert_eq!(&id, to.in_links.get(0).unwrap());
+        assert_eq!(&id, to.in_links.first().unwrap());
     }
 
     #[test]
@@ -419,11 +439,11 @@ mod tests {
 
         // check partitioning
         let expected_partitions = [0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0];
-        for (_, node) in &network.nodes {
+        for node in network.nodes.values() {
             let expected_partition = expected_partitions[node.id.internal() as usize];
             assert_eq!(expected_partition, node.partition);
         }
-        for (_, link) in &network.links {
+        for link in network.links.values() {
             let expected_partition = expected_partitions[link.to.internal() as usize];
             assert_eq!(expected_partition, link.partition);
         }
@@ -541,25 +561,5 @@ mod tests {
         assert!(link.modes.contains(&Id::get_from_ext("car")));
         assert!(link.modes.contains(&Id::get_from_ext("ride")));
         assert!(link.modes.contains(&Id::get_from_ext("bike")));
-    }
-}
-
-pub fn from_file(path: &Path) -> Network {
-    if path.extension().unwrap().eq("binpb") {
-        load_from_proto(path)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        network::load_from_xml(path)
-    } else {
-        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
-    }
-}
-
-pub fn to_file(network: &Network, path: &Path) {
-    if path.extension().unwrap().eq("binpb") {
-        write_to_proto(network, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
-        write_to_xml(network, path);
-    } else {
-        panic!("Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
     }
 }

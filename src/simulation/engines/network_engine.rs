@@ -27,8 +27,7 @@ impl NetworkEngine {
     }
 
     pub(super) fn move_nodes(&mut self, now: u32) -> Vec<InternalVehicle> {
-        let exited_vehicles = self.network.move_nodes(&mut self.comp_env, now);
-        exited_vehicles
+        self.network.move_nodes(&mut self.comp_env, now)
     }
 
     pub(super) fn move_links<C: SimCommunicator>(

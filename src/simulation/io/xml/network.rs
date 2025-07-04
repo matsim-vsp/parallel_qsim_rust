@@ -308,7 +308,7 @@ mod tests {
                 }
                 Some(attrs) => {
                     assert_eq!(1, attrs.attributes.len());
-                    let attr = attrs.attributes.get(0).unwrap();
+                    let attr = attrs.attributes.first().unwrap();
                     assert_eq!("test", attr.name);
                     assert_eq!("value", attr.value);
                 }
@@ -323,7 +323,7 @@ mod tests {
                 Some(attrs) => {
                     assert_eq!("link-with-attr", link.id);
                     assert_eq!(1, attrs.attributes.len());
-                    let attr = attrs.attributes.get(0).unwrap();
+                    let attr = attrs.attributes.first().unwrap();
                     assert_eq!("test", attr.name);
                     assert_eq!("value", attr.value);
                 }

@@ -1,5 +1,4 @@
-use crate::external_services::routing::{InternalRoutingRequest, RoutingServiceAdapter};
-use crate::external_services::{execute_adapter, ExternalServiceType};
+use crate::external_services::ExternalServiceType;
 use crate::simulation::config::{CommandLineArgs, Config};
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;

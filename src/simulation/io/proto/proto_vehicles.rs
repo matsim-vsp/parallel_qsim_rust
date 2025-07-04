@@ -1,7 +1,7 @@
 use crate::generated::vehicles::{Vehicle, VehicleType, VehiclesContainer};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
-use crate::{generated, simulation};
+use crate::generated;
 use std::path::Path;
 use tracing::info;
 
@@ -10,12 +10,12 @@ pub(crate) fn write_to_proto(garage: &Garage, path: &Path) {
     let vehicle_types = garage
         .vehicle_types
         .values()
-        .map(|v| VehicleType::from(&v))
+        .map(VehicleType::from)
         .collect();
     let vehicles = garage
         .vehicles
         .values()
-        .map(|v| Vehicle::from(&v))
+        .map(Vehicle::from)
         .collect();
 
     let wire_format = VehiclesContainer {

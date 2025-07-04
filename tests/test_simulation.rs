@@ -12,9 +12,7 @@ use tracing::info;
 
 use rust_q_sim::generated::events::Event;
 use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
-use rust_q_sim::simulation::controller::local_controller::{
-    ComputationalEnvironment, ComputationalEnvironmentBuilder,
-};
+use rust_q_sim::simulation::controller::local_controller::ComputationalEnvironmentBuilder;
 use rust_q_sim::simulation::controller::{
     create_output_filename, get_numbered_output_filename, partition_input,
 };

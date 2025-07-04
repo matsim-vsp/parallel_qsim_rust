@@ -184,7 +184,7 @@ mod tests {
         let (time, events) = reader.next().expect("Couldn't read timestep.");
         assert_eq!(1, time);
         assert_eq!(1, events.len());
-        match_events(&event, events.get(0).unwrap());
+        match_events(&event, events.first().unwrap());
     }
 
     #[test]
