@@ -229,12 +229,7 @@ mod tests {
                 assert_eq!(0, msg.time());
                 assert_eq!(1, msg.vehicles().len());
                 let mut vehicle = msg.vehicles_mut().remove(0);
-                vehicle.notify_event(
-                    AgentEvent::MovedToNextLink {
-                        comp_env: Default::default(),
-                    },
-                    0,
-                );
+                vehicle.notify_event(AgentEvent::MovedToNextLink(Default::default()), 0);
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {

@@ -56,6 +56,9 @@ impl SimulationAgentLogic for SimulationAgent {
     fn curr_act(&self) -> &InternalActivity {
         self.logic.curr_act()
     }
+    fn next_act(&self) -> &InternalActivity {
+        self.logic.next_act()
+    }
     fn curr_leg(&self) -> &InternalLeg {
         self.logic.curr_leg()
     }

@@ -36,10 +36,10 @@ impl Default for ComputationalEnvironment {
 impl ComputationalEnvironment {
     pub fn get_service<T: Any + Send + Sync>(
         &self,
-        service_type: &ExternalServiceType,
+        service_type: ExternalServiceType,
     ) -> Option<&T> {
         self.services
-            .get(service_type)
+            .get(&service_type)
             .and_then(|s| s.downcast_ref::<T>())
     }
 

@@ -1,12 +1,23 @@
+use crate::external_services::routing::{
+    InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
+};
+use crate::external_services::ExternalServiceType;
 use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
+use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
+use crate::simulation::population::trip_structure_utils::{
+    find_trip_starting_at_activity_default, identify_main_mode,
+};
 use crate::simulation::population::{
-    InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute,
+    InternalActivity, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement, InternalRoute,
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
+use std::fmt::{Debug, Formatter};
+use tokio::sync::mpsc::Sender;
+use tokio::sync::oneshot::Receiver;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PlanBasedSimulationLogic {
@@ -15,9 +26,20 @@ pub struct PlanBasedSimulationLogic {
     pub(super) curr_route_element: usize,
 }
 
-#[derive(Debug, PartialEq, Clone)]
 pub struct AdaptivePlanBasedSimulationLogic {
     delegate: PlanBasedSimulationLogic,
+    route_receiver: Option<Receiver<InternalRoutingResponse>>,
+}
+
+impl Debug for AdaptivePlanBasedSimulationLogic {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?}, RouteReceiver {:?}",
+            self.delegate,
+            self.route_receiver.is_some()
+        )
+    }
 }
 
 impl Identifiable<InternalPerson> for PlanBasedSimulationLogic {
@@ -68,6 +90,20 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     fn curr_act(&self) -> &InternalActivity {
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
+            .as_activity()
+            .unwrap()
+    }
+
+    fn next_act(&self) -> &InternalActivity {
+        let add = if self.curr_plan_element % 2 == 0 {
+            // If the current plan element is an activity, the next one should be a leg
+            2
+        } else {
+            // If the current plan element is a leg, the next one should be an activity
+            1
+        };
+        self.basic_agent_delegate
+            .plan_element_at(self.curr_plan_element + add)
             .as_activity()
             .unwrap()
     }
@@ -173,6 +209,10 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         self.delegate.curr_act()
     }
 
+    fn next_act(&self) -> &InternalActivity {
+        self.delegate.next_act()
+    }
+
     fn curr_leg(&self) -> &InternalLeg {
         self.delegate.curr_leg()
     }
@@ -224,8 +264,15 @@ impl Identifiable<InternalPerson> for AdaptivePlanBasedSimulationLogic {
 }
 
 impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
-    fn notify_event(&mut self, event: AgentEvent, now: u32) {
-        //todo!()
+    fn notify_event(&mut self, mut event: AgentEvent, now: u32) {
+        match &mut event {
+            AgentEvent::Wakeup(w) => {
+                self.call_router(&mut w.comp_env, w.end_time, now);
+            }
+            AgentEvent::ActivityFinished(_) => self.replace_route(),
+            _ => {}
+        }
+        self.delegate.notify_event(event, now);
     }
 }
 
@@ -233,6 +280,191 @@ impl AdaptivePlanBasedSimulationLogic {
     pub fn new(person: InternalPerson) -> Self {
         Self {
             delegate: PlanBasedSimulationLogic::new(person),
+            route_receiver: None,
         }
+    }
+
+    fn call_router(
+        &mut self,
+        comp_env: &mut ComputationalEnvironment,
+        departure_time: u32,
+        now: u32,
+    ) {
+        if self.route_receiver.is_some() {
+            // If we already have a route request in progress, we do not call the router again.
+            return;
+        }
+
+        let preplan = self
+            .next_leg()
+            .and_then(|l| {
+                l.attributes
+                    .get::<u32>(crate::simulation::population::PREPLANNING_HORIZON)
+            })
+            .is_some();
+
+        if !preplan {
+            // No reason to call the router if we are not preplanning.
+            return;
+        }
+
+        let (send, recv) = tokio::sync::oneshot::channel();
+
+        let trip = find_trip_starting_at_activity_default(
+            &self
+                .delegate
+                .basic_agent_delegate
+                .selected_plan()
+                .unwrap()
+                .elements,
+            self.delegate.curr_plan_element,
+        )
+        .unwrap();
+
+        let mode = identify_main_mode(trip.legs).unwrap_or_else(|| {
+            panic!(
+                "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
+                self.delegate.curr_act(),
+                self.delegate.id()
+            )
+        });
+
+        let request = InternalRoutingRequest {
+            payload: InternalRoutingRequestPayload {
+                person_id: self.delegate.id().clone(),
+                from_link: self.delegate.curr_act().link_id.clone(),
+                to_link: self.delegate.next_act().link_id.clone(),
+                mode: mode.clone(),
+                departure_time,
+                now,
+            },
+            response_tx: send,
+        };
+
+        comp_env
+            .get_service::<Sender<InternalRoutingRequest>>(ExternalServiceType::Routing(mode))
+            .unwrap()
+            .blocking_send(request)
+            .expect("InternalRoutingRequest channel closed unexpectedly");
+
+        self.route_receiver = Some(recv);
+    }
+
+    fn replace_route(&mut self) {
+        if self.route_receiver.is_none() {
+            // No route request in progress, nothing to replace.
+            return;
+        }
+
+        let receiver = self.route_receiver.take().unwrap();
+        let response = receiver
+            .blocking_recv()
+            .expect("InternalRoutingRequest channel closed unexpectedly");
+        self.replace_next_trip(response);
+    }
+
+    /// Replaces the next trip in the plan with the legs and activities from the given InternalRoutingResponse.
+    fn replace_next_trip(&mut self, response: InternalRoutingResponse) {
+        let plan = self.delegate.basic_agent_delegate.selected_plan_mut();
+        let start_index = self.delegate.curr_plan_element;
+
+        let trip = find_trip_starting_at_activity_default(&plan.elements, start_index)
+            .expect("No trip found starting at the current plan element");
+
+        let origin_ptr = trip.origin as *const _;
+        let dest_ptr = trip.destination as *const _;
+
+        let origin_idx = Self::get_index(plan, origin_ptr);
+        let dest_idx = Self::get_index(plan, dest_ptr);
+
+        // Replace the trip elements (legs and intermediate activities) with the new response
+        plan.elements.splice(origin_idx + 1..dest_idx, response.0);
+    }
+
+    fn get_index(plan: &mut InternalPlan, origin_ptr: *const InternalActivity) -> usize {
+        plan.elements
+            .iter()
+            .position(|e| e.as_activity().map(|a| a as *const _) == Some(origin_ptr))
+            .expect("Didn't find the activity in the plan")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::external_services::routing::InternalRoutingResponse;
+    use crate::simulation::id::Id;
+    use crate::simulation::population::{
+        InternalActivity, InternalLeg, InternalPlan, InternalRoute,
+    };
+
+    fn make_activity(act_type: &str, link: &str) -> InternalActivity {
+        InternalActivity {
+            act_type: Id::create(act_type),
+            link_id: Id::create(link),
+            x: 0.0,
+            y: 0.0,
+            start_time: None,
+            end_time: None,
+            max_dur: None,
+        }
+    }
+
+    fn make_leg(mode: &str) -> InternalLeg {
+        InternalLeg {
+            mode: Id::create(mode),
+            routing_mode: Some(Id::create(mode)),
+            dep_time: None,
+            trav_time: Some(10),
+            route: Some(InternalRoute::Generic(
+                crate::simulation::population::InternalGenericRoute::new(
+                    Id::create("l1"),
+                    Id::create("l2"),
+                    Some(10),
+                    Some(100.0),
+                    None,
+                ),
+            )),
+            attributes: Default::default(),
+        }
+    }
+
+    #[test]
+    fn test_replace_next_trip_basic() {
+        // Plan: home --leg1--> work --leg2--> shop
+        let mut plan = InternalPlan::default();
+        plan.add_act(make_activity("home", "1"));
+        plan.add_leg(make_leg("car"));
+        plan.add_act(make_activity("work", "2"));
+        plan.add_leg(make_leg("walk"));
+        plan.add_act(make_activity("home", "3"));
+        let person = InternalPerson::new(Id::create("p1"), plan);
+        let mut logic = AdaptivePlanBasedSimulationLogic::new(person);
+
+        // Replace the first trip (home->work)
+        let response = InternalRoutingResponse(vec![InternalPlanElement::Leg(make_leg("bike"))]);
+
+        logic.replace_next_trip(response.clone());
+        let elements = &logic
+            .delegate
+            .basic_agent_delegate
+            .selected_plan()
+            .unwrap()
+            .elements;
+
+        assert_eq!(
+            elements[0].as_activity().unwrap().act_type.external(),
+            "home"
+        );
+        assert_eq!(elements[1].as_leg().unwrap().mode.external(), "bike");
+        assert_eq!(
+            elements[2].as_activity().unwrap().act_type.external(),
+            "work"
+        );
+        assert_eq!(elements[3].as_leg().unwrap().mode.external(), "walk");
+        assert_eq!(
+            elements[4].as_activity().unwrap().act_type.external(),
+            "home"
+        );
     }
 }

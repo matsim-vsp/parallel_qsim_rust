@@ -16,6 +16,7 @@ use std::path::Path;
 use std::str::FromStr;
 
 pub mod agent_source;
+pub mod trip_structure_utils;
 
 pub const PREPLANNING_HORIZON: &str = "preplanningHorizon";
 
@@ -167,6 +168,15 @@ pub struct InternalPerson {
     id: Id<InternalPerson>,
     plans: Vec<InternalPlan>,
     attributes: InternalAttributes,
+}
+
+impl InternalPerson {
+    pub(crate) fn selected_plan_mut(&mut self) -> &mut InternalPlan {
+        self.plans
+            .iter_mut()
+            .find(|plan| plan.selected)
+            .expect("No selected plan found")
+    }
 }
 
 #[derive(Debug, PartialEq)]

@@ -15,20 +15,21 @@ pub struct RoutingServiceAdapter {
 }
 
 pub struct InternalRoutingRequest {
-    payload: InternalRoutingRequestPayload,
-    response_tx: Sender<InternalRoutingResponse>,
+    pub payload: InternalRoutingRequestPayload,
+    pub response_tx: Sender<InternalRoutingResponse>,
 }
 
 pub struct InternalRoutingRequestPayload {
-    person_id: Id<InternalPerson>,
-    from_link: Id<Link>,
-    to_link: Id<Link>,
-    mode: String,
-    departure_time: u32,
-    now: u32,
+    pub person_id: Id<InternalPerson>,
+    pub from_link: Id<Link>,
+    pub to_link: Id<Link>,
+    pub mode: String,
+    pub departure_time: u32,
+    pub now: u32,
 }
 
-struct InternalRoutingResponse(Vec<InternalPlanElement>);
+#[derive(Debug, Clone)]
+pub struct InternalRoutingResponse(pub(crate) Vec<InternalPlanElement>);
 
 impl From<InternalRoutingRequestPayload> for Request {
     fn from(req: InternalRoutingRequestPayload) -> Self {

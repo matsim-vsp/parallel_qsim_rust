@@ -29,12 +29,7 @@ impl TeleportationEngine {
         mut vehicle: InternalVehicle,
         net_message_broker: &mut NetMessageBroker<C>,
     ) {
-        vehicle.notify_event(
-            AgentEvent::TeleportationStarted {
-                comp_env: self.comp_env.clone(),
-            },
-            now,
-        );
+        vehicle.notify_event(AgentEvent::TeleportationStarted(self.comp_env.clone()), now);
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
             self.queue.add(vehicle, now);

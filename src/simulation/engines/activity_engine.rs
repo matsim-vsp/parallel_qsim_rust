@@ -1,6 +1,8 @@
 use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
+use crate::simulation::agents::{
+    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WakeupEvent,
+};
 use crate::simulation::config::Config;
 use crate::simulation::controller::local_controller::ComputationalEnvironment;
 use crate::simulation::population::InternalPerson;
@@ -34,12 +36,18 @@ impl ActivityEngine {
             self.receive_agent(now, AsleepSimulationAgent::build(agent, now));
         }
 
-        if now == 23457 {
-            println!()
+        let mut end_after_wake_up = self.wake_up(now);
+        // inform agents about wakeup
+        end_after_wake_up.iter_mut().for_each(|agent| {
+            ActivityEngine::inform_wakeup(self.comp_env.clone(), agent, now, now);
+        });
+
+        // inform all awake agents about wakeup
+        for agent in &mut self.awake_q {
+            let end_time = agent.end_time(now);
+            ActivityEngine::inform_wakeup(self.comp_env.clone(), &mut agent.agent, end_time, now);
         }
 
-        let mut end_after_wake_up = self.wake_up(now);
-        self.inform_wakeup_all(&mut end_after_wake_up, now);
         let end = self.end(now);
 
         let mut res = Vec::with_capacity(end_after_wake_up.len() + end.len());
@@ -78,8 +86,8 @@ impl ActivityEngine {
         // for fast turnaround, agents whose end time is already reached are directly returned and not put into the awake queue
         for agent in wake_up {
             let mut awake: AwakeSimulationAgent = agent.into();
-            if awake.end_time(now) <= now {
-                self.inform_wakeup(&mut awake.agent, now);
+            let end_time = awake.end_time(now);
+            if end_time <= now {
                 end_agents.push(awake.agent);
             } else {
                 self.awake_q.push(awake);
@@ -104,20 +112,13 @@ impl ActivityEngine {
         agents
     }
 
-    fn inform_wakeup_all(&mut self, agents: &mut [SimulationAgent], now: u32) {
-        // Go through all awakened agents and inform them about current time.
-        agents.iter_mut().for_each(|agent| {
-            self.inform_wakeup(agent, now);
-        });
-    }
-
-    fn inform_wakeup(&mut self, agent: &mut SimulationAgent, now: u32) {
-        agent.notify_event(
-            AgentEvent::Wakeup {
-                comp_env: self.comp_env.clone(),
-            },
-            now,
-        );
+    fn inform_wakeup(
+        comp_env: ComputationalEnvironment,
+        agent: &mut SimulationAgent,
+        end_time: u32,
+        now: u32,
+    ) {
+        agent.notify_event(AgentEvent::Wakeup(WakeupEvent { comp_env, end_time }), now);
     }
 
     #[cfg(test)]
@@ -267,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_activity_engine_wake_up_with_max_dur() {
-        let plan = create_plan_with_plan_logic_max_dur();
+        let plan = create_plan();
         test_adaptive(plan);
     }
 
@@ -343,7 +344,7 @@ mod tests {
         plan
     }
 
-    fn create_plan_with_plan_logic_max_dur() -> InternalPlan {
+    fn create_plan() -> InternalPlan {
         let mut plan = InternalPlan::default();
         plan.add_act(InternalActivity::new(
             0.0,

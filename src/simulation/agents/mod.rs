@@ -12,6 +12,7 @@ pub trait SimulationAgentLogic:
     EndTime + Identifiable<InternalPerson> + EnvironmentalEventObserver + Send
 {
     fn curr_act(&self) -> &InternalActivity;
+    fn next_act(&self) -> &InternalActivity;
     fn curr_leg(&self) -> &InternalLeg;
     fn next_leg(&self) -> Option<&InternalLeg>;
     fn advance_plan(&mut self);
@@ -28,14 +29,20 @@ pub trait EnvironmentalEventObserver {
 #[non_exhaustive]
 #[derive(Clone)]
 pub enum AgentEvent {
-    ActivityStarted { comp_env: ComputationalEnvironment },
-    Wakeup { comp_env: ComputationalEnvironment },
-    ActivityFinished { comp_env: ComputationalEnvironment },
-    TeleportationStarted { comp_env: ComputationalEnvironment },
-    TeleportationFinished { comp_env: ComputationalEnvironment },
-    NetworkLegStarted { comp_env: ComputationalEnvironment },
-    MovedToNextLink { comp_env: ComputationalEnvironment },
-    NetworkLegFinished { comp_env: ComputationalEnvironment },
+    ActivityStarted(ComputationalEnvironment),
+    Wakeup(WakeupEvent),
+    ActivityFinished(ComputationalEnvironment),
+    TeleportationStarted(ComputationalEnvironment),
+    TeleportationFinished(ComputationalEnvironment),
+    NetworkLegStarted(ComputationalEnvironment),
+    MovedToNextLink(ComputationalEnvironment),
+    NetworkLegFinished(ComputationalEnvironment),
+}
+
+#[derive(Clone)]
+pub struct WakeupEvent {
+    pub comp_env: ComputationalEnvironment,
+    pub end_time: u32,
 }
 
 impl Debug for dyn SimulationAgentLogic {

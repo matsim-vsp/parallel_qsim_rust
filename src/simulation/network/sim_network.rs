@@ -482,12 +482,7 @@ impl SimNetworkPartition {
                 vehicle.id.internal(),
             ),
         );
-        vehicle.notify_event(
-            AgentEvent::MovedToNextLink {
-                comp_env: comp_env.clone(),
-            },
-            now,
-        );
+        vehicle.notify_event(AgentEvent::MovedToNextLink(comp_env.clone()), now);
         let link_id = vehicle.curr_link_id().unwrap().clone();
         let link = links.get_mut(&link_id).unwrap();
 
