@@ -1,0 +1,25 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    ids: "output-teleport-generic-main-mode-car/equil.ids.binpb"
+    network: "output-teleport-generic-main-mode-car/equil.network.binpb"
+    population: "output-teleport-generic-main-mode-car/equil.plans.binpb"
+    vehicles: "output-teleport-generic-main-mode-car/equil.vehicles.binpb"
+  partitioning:
+    type: Partitioning
+    num_parts: 12
+    method: !Metis
+  output:
+    type: Output
+    output_dir: ./assets/equil/output-teleport-generic-main-mode-car
+    write_events: Proto
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 86400
+    sample_size: 1.0
+    stuck_threshold: 1000
+    main_modes: ["car"]
