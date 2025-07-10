@@ -29,6 +29,8 @@ use rust_q_sim::simulation::scenario::Scenario;
 use rust_q_sim::simulation::simulation::SimulationBuilder;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 
+// this function is used only in some tests. The compiler complains if the tests are compiled which do not use it.
+#[allow(dead_code)]
 pub fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str) {
     let config = Config::from_file(&config_args);
     let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
