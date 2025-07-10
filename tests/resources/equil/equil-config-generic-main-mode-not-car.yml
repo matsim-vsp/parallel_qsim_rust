@@ -1,10 +1,10 @@
 modules:
   protofiles:
     type: ProtoFiles
-    ids: "output-teleport-generic-main-mode-not-car/equil.ids.binpb"
-    network: "output-teleport-generic-main-mode-not-car/equil.network.binpb"
-    population: "output-teleport-generic-main-mode-not-car/equil.plans.binpb"
-    vehicles: "output-teleport-generic-main-mode-not-car/equil.vehicles.binpb"
+    ids: "./test_output/simulation/output-teleport-generic-main-mode-not-car/equil.ids.binpb"
+    network: "./test_output/simulation/output-teleport-generic-main-mode-not-car/equil.network.binpb"
+    population: "./test_output/simulation/output-teleport-generic-main-mode-not-car/equil.population.binpb"
+    vehicles: "./test_output/simulation/output-teleport-generic-main-mode-not-car/equil.vehicles.binpb"
   partitioning:
     type: Partitioning
     num_parts: 12
