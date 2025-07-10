@@ -502,6 +502,21 @@ impl InternalLeg {
             attributes: InternalAttributes::default(),
         }
     }
+
+    pub fn travel_time(&self) -> u32 {
+        if let Some(leg_trav_time) = self.trav_time {
+            leg_trav_time
+        } else {
+            self.route
+                .as_ref()
+                .unwrap()
+                .as_generic()
+                .trav_time
+                .unwrap_or_else(|| {
+                    panic!("Neither leg nor route travel time is set at leg {:?}", self);
+                })
+        }
+    }
 }
 
 impl FromIOPerson<IOLeg> for InternalLeg {

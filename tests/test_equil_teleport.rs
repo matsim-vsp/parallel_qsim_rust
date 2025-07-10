@@ -7,7 +7,6 @@ use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
-
 use test_simulation::{execute_sim, TestSubscriber};
 
 fn create_resources(out_dir: &PathBuf, population: &str) {
@@ -87,7 +86,7 @@ fn teleport_links_main_mode_car() {
 
 // one agent having a generic route, car being a main mode => simulation should crash
 #[test]
-// #[should_panic]
+#[should_panic]
 fn teleport_generic_main_mode_car() {
     let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-main-mode-car/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");

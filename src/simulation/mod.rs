@@ -241,7 +241,7 @@ impl EndTime for InternalSimulationAgentLogic {
             .plan_element_at(self.curr_plan_element)
         {
             InternalPlanElement::Activity(a) => a.cmp_end_time(now),
-            InternalPlanElement::Leg(l) => l.trav_time.unwrap() + now,
+            InternalPlanElement::Leg(l) => l.travel_time() + now,
         }
     }
 }
