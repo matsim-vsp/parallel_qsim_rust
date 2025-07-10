@@ -7,7 +7,7 @@ modules:
     vehicles: "./test_output/simulation/output-teleport-links-main-mode-car/equil.vehicles.binpb"
   partitioning:
     type: Partitioning
-    num_parts: 12
+    num_parts: 1
     method: !Metis
   output:
     type: Output
@@ -22,4 +22,4 @@ modules:
     end_time: 86400
     sample_size: 1.0
     stuck_threshold: 1000
-    main_modes: ["car"]
+    main_modes: [ "car" ]
