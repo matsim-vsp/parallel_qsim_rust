@@ -128,10 +128,7 @@ mod tests {
     #[ignore]
     fn test_drt_agent_source() {
         let config_path = "./assets/drt/config.yml";
-        let config = Config::from_file(&CommandLineArgs {
-            config_path: String::from(config_path),
-            num_parts: None,
-        });
+        let config = Config::from_file(&CommandLineArgs::new_with_path(config_path));
 
         let output_path = PathBuf::from(config.output().output_dir);
 

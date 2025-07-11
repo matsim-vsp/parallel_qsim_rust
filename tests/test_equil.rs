@@ -41,10 +41,7 @@ fn execute_equil_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part/");
     create_resources(&test_dir, |_pop| {});
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config-1.yml".to_string(),
-        num_parts: None,
-    };
+    let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
 
     TestExecutorBuilder::default()
         .config_args(config_args)
@@ -59,10 +56,7 @@ fn execute_equil_2_parts() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
     create_resources(&test_dir, |_| {});
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config-2.yml".to_string(),
-        num_parts: None,
-    };
+    let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
 
     TestExecutorBuilder::default()
         .config_args(config_args)
@@ -211,10 +205,7 @@ fn execute_adaptive(
 
     create_resources(&test_dir, f);
 
-    let config_args = CommandLineArgs {
-        config_path,
-        num_parts: None,
-    };
+    let config_args = CommandLineArgs::new_with_path(config_path);
 
     TestExecutorBuilder::default()
         .config_args(config_args)
