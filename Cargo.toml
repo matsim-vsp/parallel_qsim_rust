@@ -45,6 +45,7 @@ lz4 = "1.28.1"
 bincode = { version = "2.0.1", features = ["serde"] }
 derive_builder = "0.20.2"
 tempfile = "3.20.0"
+dyn-clone = "1.0.19"
 
 [build-dependencies]
 # generates types based on .proto files

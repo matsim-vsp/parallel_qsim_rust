@@ -72,7 +72,6 @@ impl TestExecutor<'_> {
 
         let mut handles = rust_q_sim::simulation::controller::local_controller::run_channel(
             Config::from_file(&self.config_args),
-            self.config_args.clone(),
             subscribers,
             self.external_services.clone(),
         );
@@ -100,7 +99,6 @@ impl TestExecutor<'_> {
 
         let handles = rust_q_sim::simulation::controller::local_controller::run_channel(
             config,
-            self.config_args.clone(),
             subscribers,
             self.external_services.clone(),
         );

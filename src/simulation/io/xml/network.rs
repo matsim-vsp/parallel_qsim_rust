@@ -1,6 +1,5 @@
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
-use crate::simulation::io::MatsimId;
 use crate::simulation::network::Network;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -84,12 +83,6 @@ pub struct IONode {
     pub attributes: Option<IOAttributes>,
 }
 
-impl MatsimId for IONode {
-    fn id(&self) -> &str {
-        self.id.as_str()
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize, PartialEq, Default, Clone)]
 pub struct IOLink {
     #[serde(rename = "@id")]
@@ -110,12 +103,6 @@ pub struct IOLink {
     pub modes: String,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<IOAttributes>,
-}
-
-impl MatsimId for IOLink {
-    fn id(&self) -> &str {
-        self.id.as_str()
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

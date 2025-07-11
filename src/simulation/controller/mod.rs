@@ -3,7 +3,7 @@ pub mod local_controller;
 pub mod mpi_controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType};
-use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
+use crate::simulation::config::{Config, PartitionMethod, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -69,7 +69,7 @@ impl ThreadLocalComputationalEnvironment {
 #[builder(pattern = "owned")]
 pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
-    command_line_args: CommandLineArgs,
+    config: Config,
     #[builder(default)]
     external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
     #[builder(default)]
@@ -77,38 +77,34 @@ pub struct PartitionArguments<C: SimCommunicator> {
 }
 
 pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
-    let args = partition_arguments.command_line_args;
     let comm = partition_arguments.communicator;
     let external_services = partition_arguments.external_services;
     let subscribers = partition_arguments.events_subscriber;
 
-    let config_path = &args.config_path;
-    let config = Config::from_file(&args);
+    let config = partition_arguments.config;
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
 
-    let output_path = io::resolve_path(config_path, &config.output().output_dir);
+    let output_path = io::resolve_path(config.context(), &config.output().output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
     if rank == 0 {
         info!("#{rank} preparing to create input for partitions.");
-        partition_input(&config, config_path);
+        partition_input(&config);
 
         info!(
             "#{rank} loading ids from file: {}",
-            config.proto_files().ids
+            config.proto_files().ids.display()
         );
     }
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
-    // send emtpy travel times to everybody as a barrier.
-    //comm.send_receive_travel_times(0, std::collections::HashMap::new());
     comm.barrier();
 
-    let scenario = Scenario::build(&config, config_path, rank, &output_path);
+    let scenario = Scenario::build(&config, rank, &output_path);
 
-    let events = create_events(config_path, &config, rank, &output_path, subscribers);
+    let events = create_events(&config, rank, &output_path, subscribers);
 
     let rc_comm = Rc::new(comm);
 
@@ -136,7 +132,6 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
 }
 
 fn create_events(
-    config_path: &String,
     config: &Config,
     rank: u32,
     output_path: &Path,
@@ -146,8 +141,7 @@ fn create_events(
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
-        let events_path =
-            io::resolve_path(config_path, output_path.join(events_file).to_str().unwrap());
+        let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
         info!("adding events writer with path: {events_path:?}");
         events
             .borrow_mut()
@@ -188,14 +182,17 @@ pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterH
     }
 }
 
-pub fn partition_input(config: &Config, config_path: &String) {
+pub fn partition_input(config: &Config) {
     // If we partition the network it is copied to the output folder.
     // Otherwise, nothing is done, and we can load the network from the input folder directly.
     // In this case, we assume that the #partitions is part of the filename as `network.4.binpb` instead of `network.binpb`.
-    id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
+    id::load_from_file(&io::resolve_path(
+        config.context(),
+        &config.proto_files().ids,
+    ));
     if let PartitionMethod::Metis(_) = config.partitioning().method {
         info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
-        partition_network(config, config_path);
+        partition_network(config);
     }
     // don't do anything. If the network is already partitioned, we'll load it from the input folder.
     /*else {
@@ -205,13 +202,13 @@ pub fn partition_input(config: &Config, config_path: &String) {
     */
 }
 
-fn partition_network(config: &Config, config_path: &String) -> Network {
-    let net_in_path = io::resolve_path(config_path, &config.proto_files().network);
+fn partition_network(config: &Config) -> Network {
+    let net_in_path = io::resolve_path(config.context(), &config.proto_files().network);
     let num_parts = config.partitioning().num_parts;
     let network = Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
 
     let mut net_out_path = create_output_filename(
-        &io::resolve_path(config_path, &config.output().output_dir),
+        &io::resolve_path(config.context(), &config.output().output_dir),
         &net_in_path,
     );
     net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);

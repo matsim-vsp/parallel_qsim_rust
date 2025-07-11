@@ -1,11 +1,13 @@
-use std::any::Any;
-use std::cell::RefCell;
-use std::fs::File;
-use std::io::BufReader;
-
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
+use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
+use std::any::Any;
+use std::cell::RefCell;
+use std::fmt::Debug;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::PathBuf;
 use tracing::Level;
 
 use crate::simulation::config::VertexWeight::InLinkCapacity;
@@ -36,15 +38,18 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     modules: RefCell<HashMap<String, Box<dyn ConfigModule>>>,
+    #[serde(skip)]
+    context: Option<PathBuf>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
             modules: RefCell::new(HashMap::default()),
+            context: None,
         }
     }
 }
@@ -63,8 +68,13 @@ impl Config {
                 args.config_path, e
             )
         });
+        config.set_context(Some(args.config_path.clone().parse().unwrap()));
         config.apply_overrides(&args.overrides);
         config
+    }
+
+    pub fn set_context(&mut self, context: Option<PathBuf>) {
+        self.context = context;
     }
 
     /// Apply generic key-value overrides to the config, e.g. protofiles.population=path
@@ -78,10 +88,10 @@ impl Config {
                     "protofiles" => {
                         let mut pf = self.proto_files();
                         match field {
-                            "network" => pf.network = value.clone(),
-                            "population" => pf.population = value.clone(),
-                            "vehicles" => pf.vehicles = value.clone(),
-                            "ids" => pf.ids = value.clone(),
+                            "network" => pf.network = value.into(),
+                            "population" => pf.population = value.into(),
+                            "vehicles" => pf.vehicles = value.into(),
+                            "ids" => pf.ids = value.into(),
                             _ => continue,
                         }
                         self.set_proto_files(pf);
@@ -89,7 +99,7 @@ impl Config {
                     "output" => {
                         let mut out = self.output();
                         match field {
-                            "output_dir" => out.output_dir = value.clone(),
+                            "output_dir" => out.output_dir = value.into(),
                             _ => continue,
                         }
                         self.set_output(out);
@@ -101,9 +111,12 @@ impl Config {
                                 if let Ok(v) = value.parse() {
                                     part.num_parts = v;
                                     // replace some configuration if we get a partition from the outside. This is interesting for testing
-                                    let out_dir = format!("{}-{v}", self.output().output_dir);
+                                    let out_dir = format!(
+                                        "{}-{v}",
+                                        self.output().output_dir.to_str().unwrap()
+                                    );
                                     let mut output = self.output().clone();
-                                    output.output_dir = out_dir;
+                                    output.output_dir = out_dir.into();
                                     self.set_output(output);
                                 }
                             }
@@ -170,7 +183,7 @@ impl Config {
             output
         } else {
             let default = Output {
-                output_dir: "./".to_string(),
+                output_dir: "./".parse().unwrap(),
                 profiling: Profiling::None,
                 logging: Logging::Info,
                 write_events: WriteEvents::None,
@@ -236,25 +249,29 @@ impl Config {
             .get(key)
             .map(|boxed| boxed.as_ref().as_any().downcast_ref::<T>().unwrap().clone())
     }
+
+    pub fn context(&self) -> &Option<PathBuf> {
+        &self.context
+    }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProtoFiles {
-    pub network: String,
-    pub population: String,
-    pub vehicles: String,
-    pub ids: String,
+    pub network: PathBuf,
+    pub population: PathBuf,
+    pub vehicles: PathBuf,
+    pub ids: PathBuf,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Partitioning {
     pub num_parts: u32,
     pub method: PartitionMethod,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Output {
-    pub output_dir: String,
+    pub output_dir: PathBuf,
     #[serde(default)]
     pub profiling: Profiling,
     #[serde(default)]
@@ -263,12 +280,12 @@ pub struct Output {
     pub write_events: WriteEvents,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Routing {
     pub mode: RoutingMode,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Drt {
     #[serde(default)]
     pub process_type: DrtProcessType,
@@ -282,7 +299,7 @@ pub enum DrtProcessType {
     OneProcessPerService,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DrtService {
     pub mode: String,
     #[serde(default)]
@@ -304,13 +321,13 @@ pub struct Simulation {
     pub main_modes: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
 }
 
 #[typetag::serde(tag = "type")]
-pub trait ConfigModule {
+pub trait ConfigModule: Debug + Send + DynClone {
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -362,6 +379,9 @@ impl ConfigModule for Drt {
         self
     }
 }
+
+// This is needed to allow cloning of the trait object and thus cloning of the Config.
+dyn_clone::clone_trait_object!(ConfigModule);
 
 impl Default for Simulation {
     fn default() -> Self {
@@ -536,9 +556,7 @@ mod tests {
 
     #[test]
     fn read_from_yaml() {
-        let mut config = Config {
-            modules: Default::default(),
-        };
+        let mut config = Config::default();
         let partitioning = Partitioning {
             num_parts: 1,
             method: PartitionMethod::Metis(MetisOptions {
@@ -681,9 +699,7 @@ mod tests {
                 max_travel_time_beta: 600.
         "#;
 
-        let config = Config {
-            modules: Default::default(),
-        };
+        let config = Config::default();
         let drt = Drt {
             process_type: DrtProcessType::OneProcess,
             services: vec![DrtService {
@@ -746,8 +762,8 @@ modules:
             overrides: vec![("protofiles.population".to_string(), "new_pop".to_string())],
         };
         let config = Config::from_file(&args);
-        assert_eq!(config.proto_files().population, "new_pop");
-        assert_eq!(config.proto_files().network, "net");
+        assert_eq!(config.proto_files().population.to_str().unwrap(), "new_pop");
+        assert_eq!(config.proto_files().network.to_str().unwrap(), "net");
     }
 
     #[test]
@@ -770,7 +786,7 @@ modules:
             overrides: vec![("output.output_dir".to_string(), "new_out".to_string())],
         };
         let config = Config::from_file(&args);
-        assert_eq!(config.output().output_dir, "new_out");
+        assert_eq!(config.output().output_dir.to_str().unwrap(), "new_out");
     }
 
     #[test]

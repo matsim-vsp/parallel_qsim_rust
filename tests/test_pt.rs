@@ -27,10 +27,8 @@ fn test_pt_tutorial() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial/");
     create_resources(&test_dir);
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/pt_tutorial/pt_tutorial_config.yml".to_string(),
-        num_parts: None,
-    };
+    let config_args =
+        CommandLineArgs::new_with_path("./tests/resources/pt_tutorial/pt_tutorial_config.yml");
 
     TestExecutorBuilder::default()
         .config_args(config_args)

@@ -15,7 +15,6 @@ use tracing::info;
 
 pub fn run_channel(
     config: Config,
-    command_line_args: CommandLineArgs,
     mut events_subscriber_per_partition: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
     external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
 ) -> IntMap<u32, JoinHandle<()>> {
@@ -30,8 +29,8 @@ pub fn run_channel(
         .map(|comm| {
             let rank = comm.rank();
             let args = PartitionArgumentsBuilder::default()
-                .command_line_args(command_line_args.clone())
                 .communicator(comm)
+                .config(config.clone())
                 .external_services(external_services.clone())
                 .events_subscriber(
                     events_subscriber_per_partition
@@ -57,9 +56,9 @@ pub fn run_channel_from_args() {
     let args = CommandLineArgs::parse();
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(&config, &args.config_path, 0);
+    let _guards = logging::init_logging(&config, 0);
 
-    let handles = run_channel(config, args, HashMap::new(), HashMap::new());
+    let handles = run_channel(config, HashMap::new(), HashMap::new());
 
     controller::try_join(handles, Default::default())
 }

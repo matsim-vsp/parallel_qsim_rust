@@ -132,7 +132,7 @@ mod tests {
 
         let output_path = PathBuf::from(config.output().output_dir);
 
-        let mut scenario = Scenario::build(&config, &String::from(config_path), 0, &output_path);
+        let mut scenario = Scenario::build(&config, 0, &output_path);
 
         let drt_source = DrtAgentSource {};
         let drt_agents = drt_source.create_agents(&mut scenario, &config);
