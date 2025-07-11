@@ -1,11 +1,7 @@
-use crate::external_services::RequestAdapter;
+use crate::external_services::{RequestAdapter, RequestToAdapter};
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
-use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::{
-    InternalActivity, InternalLeg, InternalPerson, InternalPlanElement,
-};
+use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use itertools::{EitherOrBoth, Itertools};
 use tokio::runtime::Runtime;
 use tokio::sync::oneshot::Sender;
@@ -14,15 +10,19 @@ pub struct RoutingServiceAdapter {
     client: RoutingServiceClient<tonic::transport::Channel>,
 }
 
+#[derive(Debug)]
 pub struct InternalRoutingRequest {
     pub payload: InternalRoutingRequestPayload,
     pub response_tx: Sender<InternalRoutingResponse>,
 }
 
+impl RequestToAdapter for InternalRoutingRequest {}
+
+#[derive(Debug, PartialEq)]
 pub struct InternalRoutingRequestPayload {
-    pub person_id: Id<InternalPerson>,
-    pub from_link: Id<Link>,
-    pub to_link: Id<Link>,
+    pub person_id: String,
+    pub from_link: String,
+    pub to_link: String,
     pub mode: String,
     pub departure_time: u32,
     pub now: u32,
@@ -34,9 +34,9 @@ pub struct InternalRoutingResponse(pub(crate) Vec<InternalPlanElement>);
 impl From<InternalRoutingRequestPayload> for Request {
     fn from(req: InternalRoutingRequestPayload) -> Self {
         Request {
-            person_id: req.person_id.external().into(),
-            from_link_id: req.from_link.external().into(),
-            to_link_id: req.to_link.external().into(),
+            person_id: req.person_id,
+            from_link_id: req.from_link,
+            to_link_id: req.to_link,
             mode: req.mode,
             departure_time: req.departure_time,
         }

@@ -51,7 +51,7 @@ impl ActivityEngine {
         let end = self.end(now);
 
         let mut res = Vec::with_capacity(end_after_wake_up.len() + end.len());
-        for agent in end_after_wake_up.into_iter().chain(end.into_iter()) {
+        for mut agent in end_after_wake_up.into_iter().chain(end.into_iter()) {
             self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_act_end(
@@ -60,6 +60,7 @@ impl ActivityEngine {
                     agent.curr_act().act_type.internal(),
                 ),
             );
+            ActivityEngine::inform_act_end(self.comp_env.clone(), &mut agent, now);
             res.push(agent);
         }
         res
@@ -119,6 +120,14 @@ impl ActivityEngine {
         now: u32,
     ) {
         agent.notify_event(AgentEvent::Wakeup(WakeupEvent { comp_env, end_time }), now);
+    }
+
+    fn inform_act_end(
+        comp_env: ThreadLocalComputationalEnvironment,
+        agent: &mut SimulationAgent,
+        now: u32,
+    ) {
+        agent.notify_event(AgentEvent::ActivityFinished(comp_env), now);
     }
 
     #[cfg(test)]
@@ -205,16 +214,28 @@ impl EndTime for AsleepSimulationAgent {
 
 #[cfg(test)]
 mod tests {
+    use crate::external_services::routing::{
+        InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
+    };
+    use crate::external_services::ExternalServiceType;
+    use crate::simulation::agents::agent::SimulationAgent;
+    use crate::simulation::agents::SimulationAgentLogic;
     use crate::simulation::config::Config;
+    use crate::simulation::controller::{
+        ThreadLocalComputationalEnvironment, ThreadLocalComputationalEnvironmentBuilder,
+    };
     use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
     use crate::simulation::id::Id;
-
-    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
-        InternalRoute,
+        InternalPlanElement, InternalRoute,
     };
     use crate::simulation::time_queue::Identifiable;
+    use std::any::Any;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use std::thread::JoinHandle;
+    use tokio::sync::mpsc::Receiver;
 
     #[test]
     fn test_activity_engine_build() {
@@ -228,12 +249,12 @@ mod tests {
 
     #[test]
     fn test_activity_engine_wake_up_plan() {
-        let plan = create_plan_with_plan_logic();
+        let plan = create_plan();
 
         let agent = SimulationAgent::new_plan_based(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
-        let mut engine = create_engine(agents);
+        let mut engine = create_engine(agents, Default::default());
 
         {
             let agents = engine.wake_up(0);
@@ -247,12 +268,12 @@ mod tests {
 
     #[test]
     fn test_activity_engine_end() {
-        let plan = create_plan_with_plan_logic();
+        let plan = create_plan();
 
         let agent = SimulationAgent::new_plan_based(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
 
-        let mut engine = create_engine(agents);
+        let mut engine = create_engine(agents, Default::default());
 
         {
             let agents = engine.do_step(0, vec![]);
@@ -267,22 +288,94 @@ mod tests {
     }
 
     #[test]
-    fn test_activity_engine_wake_up_with_max_dur() {
+    fn test_activity_engine_with_preplanning_horizon() {
+        // The new mode id needs to be created before the test, so that it gets the correct internal id.
+        Id::<String>::create("new_mode");
+
+        let mut map: HashMap<ExternalServiceType, Arc<dyn Any + Sync + Send>> = HashMap::new();
+        let (send, mut recv) = tokio::sync::mpsc::channel::<InternalRoutingRequest>(11);
+        map.insert(
+            ExternalServiceType::Routing("mode".to_string()),
+            Arc::new(send),
+        );
+
+        let env = ThreadLocalComputationalEnvironmentBuilder::default()
+            .services(map)
+            .build()
+            .unwrap();
+
         let plan = create_plan();
-        test_adaptive(plan);
+
+        let handle = run_test_thread(recv);
+
+        let agents = test_adaptive(plan, env);
+        let agent = agents.first().unwrap();
+
+        assert_eq!(agent.curr_act().act_type, Id::get_from_ext("home"));
+        assert_eq!(agent.curr_act().link_id, Id::get_from_ext("start"));
+        assert_eq!(agent.next_act().act_type, Id::get_from_ext("work"));
+        assert_eq!(agent.next_act().link_id, Id::get_from_ext("end"));
+
+        let leg = agent.next_leg().unwrap();
+
+        assert_eq!(leg.mode, Id::get_from_ext("new_mode"));
+        assert!(&leg.mode.external().eq("new_mode"));
+        assert_eq!(leg, &new_leg());
+
+        handle.join().unwrap();
     }
 
-    #[test]
-    fn test_activity_engine_wake_up_with_preplanning_horizon() {
-        let plan = create_plan_with_plan_logic();
-        test_adaptive(plan);
+    fn run_test_thread(mut recv: Receiver<InternalRoutingRequest>) -> JoinHandle<()> {
+        let handle = std::thread::spawn(move || {
+            let request = recv.blocking_recv();
+            assert!(request.is_some());
+            assert_eq!(
+                request.as_ref().unwrap().payload,
+                InternalRoutingRequestPayload {
+                    person_id: "1".to_string(),
+                    from_link: "start".to_string(),
+                    to_link: "end".to_string(),
+                    mode: "mode".to_string(),
+                    departure_time: 10,
+                    now: 5,
+                }
+            );
+            request
+                .unwrap()
+                .response_tx
+                .send(InternalRoutingResponse(vec![InternalPlanElement::Leg(
+                    new_leg(),
+                )]))
+                .unwrap();
+        });
+        handle
     }
 
-    fn test_adaptive(plan: InternalPlan) {
+    fn new_leg() -> InternalLeg {
+        InternalLeg {
+            mode: Id::create("new_mode"),
+            routing_mode: Some(Id::create("new_mode")),
+            dep_time: Some(0),
+            trav_time: Some(2),
+            route: Some(InternalRoute::Generic(InternalGenericRoute::new(
+                Id::create("start"),
+                Id::create("end"),
+                None,
+                None,
+                None,
+            ))),
+            attributes: Default::default(),
+        }
+    }
+
+    fn test_adaptive(
+        plan: InternalPlan,
+        comp_env: ThreadLocalComputationalEnvironment,
+    ) -> Vec<SimulationAgent> {
         let agent =
             SimulationAgent::new_adaptive_plan_based(InternalPerson::new(Id::create("1"), plan));
         let agents = vec![agent];
-        let mut engine = create_engine(agents);
+        let mut engine = create_engine(agents, comp_env);
         {
             let agents = engine.do_step(0, vec![]);
             assert!(agents.is_empty());
@@ -299,49 +392,15 @@ mod tests {
             let agents = engine.do_step(10, vec![]);
             assert_eq!(agents.len(), 1);
             assert_eq!(engine.awake_agents().len(), 0);
+            agents
         }
     }
 
-    fn create_engine(agents: Vec<SimulationAgent>) -> ActivityEngine {
-        ActivityEngineBuilder::new(agents, &Config::default(), Default::default()).build()
-    }
-
-    fn create_plan_with_plan_logic() -> InternalPlan {
-        let mut plan = InternalPlan::default();
-        plan.add_act(InternalActivity::new(
-            0.0,
-            0.0,
-            "act",
-            Id::create("0"),
-            Some(0),
-            Some(10),
-            None,
-        ));
-        let mut leg = InternalLeg::new(
-            InternalRoute::Generic(InternalGenericRoute::new(
-                Id::create("start"),
-                Id::create("end"),
-                None,
-                None,
-                None,
-            )),
-            "mode",
-            1,
-            Some(2),
-        );
-        leg.attributes
-            .add(crate::simulation::population::PREPLANNING_HORIZON, 5);
-        plan.add_leg(leg);
-        plan.add_act(InternalActivity::new(
-            0.0,
-            0.0,
-            "act",
-            Id::create("1"),
-            Some(25),
-            Some(10),
-            None,
-        ));
-        plan
+    fn create_engine(
+        agents: Vec<SimulationAgent>,
+        comp_env: ThreadLocalComputationalEnvironment,
+    ) -> ActivityEngine {
+        ActivityEngineBuilder::new(agents, &Config::default(), comp_env).build()
     }
 
     fn create_plan() -> InternalPlan {
@@ -349,8 +408,8 @@ mod tests {
         plan.add_act(InternalActivity::new(
             0.0,
             0.0,
-            "act",
-            Id::create("0"),
+            "home",
+            Id::create("start"),
             None,
             None,
             Some(10),
@@ -373,8 +432,8 @@ mod tests {
         plan.add_act(InternalActivity::new(
             0.0,
             0.0,
-            "act",
-            Id::create("1"),
+            "work",
+            Id::create("end"),
             None,
             None,
             Some(10),

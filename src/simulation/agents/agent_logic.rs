@@ -331,9 +331,9 @@ impl AdaptivePlanBasedSimulationLogic {
 
         let request = InternalRoutingRequest {
             payload: InternalRoutingRequestPayload {
-                person_id: self.delegate.id().clone(),
-                from_link: self.delegate.curr_act().link_id.clone(),
-                to_link: self.delegate.next_act().link_id.clone(),
+                person_id: self.delegate.id().external().to_string(),
+                from_link: self.delegate.curr_act().link_id.external().to_string(),
+                to_link: self.delegate.next_act().link_id.external().to_string(),
                 mode: mode.clone(),
                 departure_time,
                 now,
@@ -365,6 +365,11 @@ impl AdaptivePlanBasedSimulationLogic {
 
     /// Replaces the next trip in the plan with the legs and activities from the given InternalRoutingResponse.
     fn replace_next_trip(&mut self, response: InternalRoutingResponse) {
+        if response.0.is_empty() {
+            // If the response is empty, we do not replace anything.
+            return;
+        }
+
         let plan = self.delegate.basic_agent_delegate.selected_plan_mut();
         let start_index = self.delegate.curr_plan_element;
 

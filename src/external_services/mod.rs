@@ -1,11 +1,14 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
 pub mod routing;
+
+pub trait RequestToAdapter: Debug {}
 
 pub struct AdapterHandle {
     pub(super) handle: JoinHandle<()>,
@@ -17,11 +20,11 @@ pub enum ExternalServiceType {
     Routing(String),
 }
 
-pub(crate) trait RequestAdapter<T> {
+pub(crate) trait RequestAdapter<T: RequestToAdapter> {
     fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
 }
 
-pub(crate) fn execute_adapter<T>(
+pub(crate) fn execute_adapter<T: RequestToAdapter>(
     mut receiver: Receiver<T>,
     mut req_adapter: impl RequestAdapter<T>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
@@ -86,10 +89,13 @@ mod tests {
         handle.join().unwrap();
     }
 
+    #[derive(Debug)]
     struct MockRequest {
         payload: String,
         response_tx: tokio::sync::oneshot::Sender<String>,
     }
+
+    impl RequestToAdapter for MockRequest {}
 
     struct MockRequestAdapter(Arc<Mutex<usize>>);
 

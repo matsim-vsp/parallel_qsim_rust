@@ -1,6 +1,6 @@
 use crate::external_services::routing::RoutingServiceAdapter;
 use crate::external_services::{
-    execute_adapter, AdapterHandle, ExternalServiceType, RequestAdapter,
+    execute_adapter, AdapterHandle, ExternalServiceType, RequestAdapter, RequestToAdapter,
 };
 use crate::simulation::config::{CommandLineArgs, Config};
 use crate::simulation::controller::{PartitionArguments, PartitionArgumentsBuilder};
