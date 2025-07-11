@@ -1,7 +1,7 @@
 pub mod agent;
 pub mod agent_logic;
 
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPerson};
@@ -29,19 +29,19 @@ pub trait EnvironmentalEventObserver {
 #[non_exhaustive]
 #[derive(Clone)]
 pub enum AgentEvent {
-    ActivityStarted(ComputationalEnvironment),
+    ActivityStarted(ThreadLocalComputationalEnvironment),
     Wakeup(WakeupEvent),
-    ActivityFinished(ComputationalEnvironment),
-    TeleportationStarted(ComputationalEnvironment),
-    TeleportationFinished(ComputationalEnvironment),
-    NetworkLegStarted(ComputationalEnvironment),
-    MovedToNextLink(ComputationalEnvironment),
-    NetworkLegFinished(ComputationalEnvironment),
+    ActivityFinished(ThreadLocalComputationalEnvironment),
+    TeleportationStarted(ThreadLocalComputationalEnvironment),
+    TeleportationFinished(ThreadLocalComputationalEnvironment),
+    NetworkLegStarted(ThreadLocalComputationalEnvironment),
+    MovedToNextLink(ThreadLocalComputationalEnvironment),
+    NetworkLegFinished(ThreadLocalComputationalEnvironment),
 }
 
 #[derive(Clone)]
 pub struct WakeupEvent {
-    pub comp_env: ComputationalEnvironment,
+    pub comp_env: ThreadLocalComputationalEnvironment,
     pub end_time: u32,
 }
 

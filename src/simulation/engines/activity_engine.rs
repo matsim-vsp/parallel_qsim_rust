@@ -4,21 +4,21 @@ use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WakeupEvent,
 };
 use crate::simulation::config::Config;
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
 
 pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
     awake_q: Vec<AwakeSimulationAgent>,
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl ActivityEngine {
     fn new(
         asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
         awake_q: Vec<AwakeSimulationAgent>,
-        comp_env: ComputationalEnvironment,
+        comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
         ActivityEngine {
             asleep_q,
@@ -113,7 +113,7 @@ impl ActivityEngine {
     }
 
     fn inform_wakeup(
-        comp_env: ComputationalEnvironment,
+        comp_env: ThreadLocalComputationalEnvironment,
         agent: &mut SimulationAgent,
         end_time: u32,
         now: u32,
@@ -130,14 +130,14 @@ impl ActivityEngine {
 pub struct ActivityEngineBuilder<'c> {
     agents: Vec<SimulationAgent>,
     config: &'c Config,
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl<'c> ActivityEngineBuilder<'c> {
     pub fn new(
         agents: Vec<SimulationAgent>,
         config: &'c Config,
-        comp_env: ComputationalEnvironment,
+        comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
         ActivityEngineBuilder {
             agents,

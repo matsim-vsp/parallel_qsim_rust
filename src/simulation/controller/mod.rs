@@ -2,8 +2,20 @@ pub mod local_controller;
 #[cfg(feature = "mpi")]
 pub mod mpi_controller;
 
+use crate::external_services::{AdapterHandle, ExternalServiceType};
+use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
+use crate::simulation::io::proto_events::ProtoEventsWriter;
+use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
+use crate::simulation::network::Network;
+use crate::simulation::scenario::Scenario;
+use crate::simulation::simulation::{Simulation, SimulationBuilder};
+use crate::simulation::{id, io};
+use derive_builder::Builder;
+use nohash_hasher::IntMap;
 use std::any::Any;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,29 +23,66 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::Duration;
-
-use crate::external_services::ExternalServiceType;
-use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
-use crate::simulation::controller::local_controller::ComputationalEnvironmentBuilder;
-use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
-use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::network::Network;
-use crate::simulation::scenario::Scenario;
-use crate::simulation::simulation::{Simulation, SimulationBuilder};
-use crate::simulation::{id, io};
-use nohash_hasher::IntMap;
 use tokio::sync::watch::Sender;
 use tracing::info;
 
-fn execute_partition<C: SimCommunicator>(
-    comm: C,
+#[derive(Clone, Debug, Builder)]
+pub struct ThreadLocalComputationalEnvironment {
+    // The value is of type Arc as this is the adapter running in another thread.
+    #[builder(default)]
+    services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
+    // The value is of type Rc as this is a thread-local events publisher.
+    #[builder(default)]
+    events_publisher: Rc<RefCell<EventsPublisher>>,
+}
+
+impl Default for ThreadLocalComputationalEnvironment {
+    fn default() -> Self {
+        ThreadLocalComputationalEnvironment {
+            services: HashMap::new(),
+            events_publisher: Rc::new(RefCell::new(EventsPublisher::new())),
+        }
+    }
+}
+
+impl ThreadLocalComputationalEnvironment {
+    pub fn get_service<T: Any + Send + Sync>(
+        &self,
+        service_type: ExternalServiceType,
+    ) -> Option<&T> {
+        self.services
+            .get(&service_type)
+            .and_then(|s| s.downcast_ref::<T>())
+    }
+
+    pub fn events_publisher_borrow_mut(&mut self) -> RefMut<'_, EventsPublisher> {
+        self.events_publisher.borrow_mut()
+    }
+
+    pub fn events_publisher(&self) -> Rc<RefCell<EventsPublisher>> {
+        self.events_publisher.clone()
+    }
+}
+
+#[derive(Debug, Builder)]
+#[builder(pattern = "owned")]
+pub struct PartitionArguments<C: SimCommunicator> {
+    communicator: C,
+    command_line_args: CommandLineArgs,
+    #[builder(default)]
     external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
-    args: &CommandLineArgs,
-) {
+    #[builder(default)]
+    events_subscriber: Vec<Box<dyn EventsSubscriber + Send>>,
+}
+
+pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
+    let args = partition_arguments.command_line_args;
+    let comm = partition_arguments.communicator;
+    let external_services = partition_arguments.external_services;
+    let subscribers = partition_arguments.events_subscriber;
+
     let config_path = &args.config_path;
-    let config = Config::from_file(args);
+    let config = Config::from_file(&args);
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
@@ -58,7 +107,7 @@ fn execute_partition<C: SimCommunicator>(
 
     let scenario = Scenario::build(&config, config_path, rank, &output_path);
 
-    let events = create_events(config_path, &config, rank, &output_path);
+    let events = create_events(config_path, &config, rank, &output_path, subscribers);
 
     let rc_comm = Rc::new(comm);
 
@@ -69,7 +118,7 @@ fn execute_partition<C: SimCommunicator>(
         config.computational_setup().global_sync,
     );
 
-    let comp_env = ComputationalEnvironmentBuilder::default()
+    let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
         .services(external_services)
         .events_publisher(events.clone())
         .build()
@@ -90,6 +139,7 @@ fn create_events(
     config: &Config,
     rank: u32,
     output_path: &Path,
+    additional_subscribers: Vec<Box<dyn EventsSubscriber + Send>>,
 ) -> Rc<RefCell<EventsPublisher>> {
     let events = Rc::new(RefCell::new(EventsPublisher::new()));
 
@@ -102,15 +152,17 @@ fn create_events(
             .borrow_mut()
             .add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
     }
+
+    for subscriber in additional_subscribers {
+        events.borrow_mut().add_subscriber(subscriber);
+    }
+
     events
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also
 /// cause the main thread to panic.
-fn try_join(
-    mut handles: IntMap<u32, JoinHandle<()>>,
-    adapters: Vec<(JoinHandle<()>, Sender<bool>)>,
-) {
+pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandle>) {
     while !handles.is_empty() {
         sleep(Duration::from_secs(1)); // test for finished threads once a second
         let mut finished = Vec::new();
@@ -126,10 +178,10 @@ fn try_join(
     }
 
     // When all simulation threads are finished, we shutdown the adapters.
-    for (handle, shutdown_sender) in adapters {
-        shutdown_sender.send(true).unwrap();
-        let name = handle.thread().name().unwrap().to_string();
-        handle
+    for a in adapters {
+        a.shutdown_sender.send(true).unwrap();
+        let name = a.handle.thread().name().unwrap().to_string();
+        a.handle
             .join()
             .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
     }

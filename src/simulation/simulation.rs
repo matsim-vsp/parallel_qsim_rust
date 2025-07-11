@@ -1,7 +1,7 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::config::Config;
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -16,7 +16,7 @@ use tracing::info;
 pub struct Simulation<C: SimCommunicator> {
     activity_engine: ActivityEngine,
     leg_engine: LegEngine<C>,
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
     start_time: u32,
     end_time: u32,
 }
@@ -97,7 +97,7 @@ pub struct SimulationBuilder<C: SimCommunicator> {
     config: Config,
     scenario: Scenario,
     net_message_broker: NetMessageBroker<C>,
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl<C: SimCommunicator> SimulationBuilder<C> {
@@ -105,7 +105,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
         config: Config,
         scenario: Scenario,
         net_message_broker: NetMessageBroker<C>,
-        comp_env: ComputationalEnvironment,
+        comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
         SimulationBuilder {
             config,

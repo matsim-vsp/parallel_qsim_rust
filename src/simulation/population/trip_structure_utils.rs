@@ -54,6 +54,15 @@ where
         if is_stage_activity(act) {
             continue;
         }
+
+        if origin_activity_index == -1 {
+            // This is the first "full" activity we see, set it as origin. Continue.
+            origin_activity_index = current_index;
+            continue;
+        }
+
+        // It could be the case that we started inside a trip.
+        // In this case, current_index = origin_activity_index, thus the following condition is false.
         if current_index - origin_activity_index > 1 {
             // There is at least one leg between activities
             let origin = plan_elements[origin_activity_index as usize]

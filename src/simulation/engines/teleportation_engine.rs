@@ -1,7 +1,7 @@
 use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -12,11 +12,11 @@ use crate::simulation::vehicles::InternalVehicle;
 
 pub struct TeleportationEngine {
     queue: TimeQueue<InternalVehicle, InternalVehicle>,
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl TeleportationEngine {
-    pub fn new(comp_env: ComputationalEnvironment) -> Self {
+    pub fn new(comp_env: ThreadLocalComputationalEnvironment) -> Self {
         TeleportationEngine {
             queue: TimeQueue::new(),
             comp_env,

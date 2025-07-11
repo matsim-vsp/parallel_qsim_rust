@@ -1,7 +1,16 @@
+use std::any::Any;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::thread::JoinHandle;
 use tokio::sync::mpsc::Receiver;
 use tracing::info;
 
 pub mod routing;
+
+pub struct AdapterHandle {
+    pub(super) handle: JoinHandle<()>,
+    pub(super) shutdown_sender: tokio::sync::watch::Sender<bool>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExternalServiceType {

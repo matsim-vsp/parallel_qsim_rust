@@ -3,7 +3,6 @@ use std::path::PathBuf;
 mod test_simulation;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
@@ -32,10 +31,9 @@ fn execute_equil_single_part() {
     };
 
     execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
+        vec![Box::new(TestSubscriber::new_with_events_from_file(
             "./tests/resources/equil/expected_events.xml",
-        )),
+        ))],
         config_args,
     );
 }

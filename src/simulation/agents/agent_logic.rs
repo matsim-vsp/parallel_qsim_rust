@@ -5,7 +5,7 @@ use crate::external_services::ExternalServiceType;
 use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
 use crate::simulation::population::trip_structure_utils::{
@@ -286,7 +286,7 @@ impl AdaptivePlanBasedSimulationLogic {
 
     fn call_router(
         &mut self,
-        comp_env: &mut ComputationalEnvironment,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
         departure_time: u32,
         now: u32,
     ) {

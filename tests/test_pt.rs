@@ -2,7 +2,6 @@ use crate::test_simulation::execute_sim;
 use crate::test_simulation::TestSubscriber;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::pt::TransitSchedule;
@@ -35,10 +34,9 @@ fn test_pt_tutorial() {
     };
 
     execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
+        vec![Box::new(TestSubscriber::new_with_events_from_file(
             "./tests/resources/pt_tutorial/expected_events.xml",
-        )),
+        ))],
         config_args,
     );
 }

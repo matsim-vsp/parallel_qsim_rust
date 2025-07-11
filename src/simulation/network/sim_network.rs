@@ -14,7 +14,7 @@ use super::{
 use crate::generated::events::Event;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::config;
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::vehicles::InternalVehicle;
@@ -310,7 +310,7 @@ impl SimNetworkPartition {
     #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
     pub fn move_nodes(
         &mut self,
-        comp_env: &mut ComputationalEnvironment,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
         now: u32,
     ) -> Vec<InternalVehicle> {
         let mut exited_vehicles = Vec::new();
@@ -347,7 +347,7 @@ impl SimNetworkPartition {
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut IntSet<Id<Link>>,
         exited_vehicles: &mut Vec<InternalVehicle>,
-        comp_env: &mut ComputationalEnvironment,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
         rnd: &mut ThreadRng,
         now: u32,
     ) -> bool {
@@ -472,7 +472,7 @@ impl SimNetworkPartition {
         mut vehicle: InternalVehicle,
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut IntSet<Id<Link>>,
-        comp_env: &mut ComputationalEnvironment,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
         now: u32,
     ) {
         comp_env.events_publisher_borrow_mut().publish_event(

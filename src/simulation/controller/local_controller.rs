@@ -1,6 +1,10 @@
-use crate::external_services::ExternalServiceType;
+use crate::external_services::routing::RoutingServiceAdapter;
+use crate::external_services::{
+    execute_adapter, AdapterHandle, ExternalServiceType, RequestAdapter,
+};
 use crate::simulation::config::{CommandLineArgs, Config};
-use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::controller::{PartitionArguments, PartitionArgumentsBuilder};
+use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::{controller, logging};
 use clap::Parser;
@@ -13,51 +17,15 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use tokio::sync::mpsc;
 use tracing::info;
 
-#[derive(Clone, Debug, Builder)]
-pub struct ComputationalEnvironment {
-    // This is an Arc, since it is shared across threads.
-    #[builder(default)]
-    services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
-    #[builder(default)]
-    events_publisher: Rc<RefCell<EventsPublisher>>,
-}
-
-impl Default for ComputationalEnvironment {
-    fn default() -> Self {
-        ComputationalEnvironment {
-            services: HashMap::new(),
-            events_publisher: Rc::new(RefCell::new(EventsPublisher::new())),
-        }
-    }
-}
-
-impl ComputationalEnvironment {
-    pub fn get_service<T: Any + Send + Sync>(
-        &self,
-        service_type: ExternalServiceType,
-    ) -> Option<&T> {
-        self.services
-            .get(&service_type)
-            .and_then(|s| s.downcast_ref::<T>())
-    }
-
-    pub fn events_publisher_borrow_mut(&mut self) -> RefMut<'_, EventsPublisher> {
-        self.events_publisher.borrow_mut()
-    }
-
-    pub fn events_publisher(&self) -> Rc<RefCell<EventsPublisher>> {
-        self.events_publisher.clone()
-    }
-}
-
-pub fn run_channel() {
-    let args = CommandLineArgs::parse();
-    let config = Config::from_file(&args);
-
-    let _guards = logging::init_logging(&config, &args.config_path, 0);
-
+pub fn run_channel(
+    config: Config,
+    command_line_args: CommandLineArgs,
+    mut events_subscriber_per_partition: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+    external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
+) -> IntMap<u32, JoinHandle<()>> {
     info!(
         "Starting multithreaded Simulation with {} partitions.",
         config.partitioning().num_parts
@@ -82,20 +50,38 @@ pub fn run_channel() {
     let handles: IntMap<u32, JoinHandle<()>> = comms
         .into_iter()
         .map(|comm| {
-            // let comp_env = computational_env.clone();
-            let config_path = args.clone();
+            let rank = comm.rank();
+            let args = PartitionArgumentsBuilder::default()
+                .command_line_args(command_line_args.clone())
+                .communicator(comm)
+                .external_services(external_services.clone())
+                .events_subscriber(
+                    events_subscriber_per_partition
+                        .remove(&rank)
+                        .unwrap_or_default(),
+                )
+                .build()
+                .unwrap();
             (
-                comm.rank(),
+                rank,
                 thread::Builder::new()
-                    .name(comm.rank().to_string())
-                    .spawn(move || {
-                        controller::execute_partition(comm, Default::default(), &config_path)
-                    })
+                    .name(rank.to_string())
+                    .spawn(move || controller::execute_partition(args))
                     .unwrap(),
             )
         })
         .collect();
 
-    // controller::try_join(handles, vec![(routing_thread.unwrap(), shutdown_send)]);
-    controller::try_join(handles, vec![]);
+    handles
+}
+
+pub fn run_channel_from_args() {
+    let args = CommandLineArgs::parse();
+    let config = Config::from_file(&args);
+
+    let _guards = logging::init_logging(&config, &args.config_path, 0);
+
+    let handles = run_channel(config, args, HashMap::new(), HashMap::new());
+
+    controller::try_join(handles, Default::default())
 }

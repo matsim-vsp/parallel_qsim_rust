@@ -1,4 +1,4 @@
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -6,11 +6,14 @@ use crate::simulation::vehicles::InternalVehicle;
 
 pub struct NetworkEngine {
     pub(crate) network: SimNetworkPartition,
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl NetworkEngine {
-    pub fn new(network: SimNetworkPartition, comp_env: ComputationalEnvironment) -> Self {
+    pub fn new(
+        network: SimNetworkPartition,
+        comp_env: ThreadLocalComputationalEnvironment,
+    ) -> Self {
         NetworkEngine { network, comp_env }
     }
 

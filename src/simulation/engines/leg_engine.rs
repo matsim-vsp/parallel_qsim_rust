@@ -2,7 +2,7 @@ use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
 use crate::simulation::config::Simulation;
-use crate::simulation::controller::local_controller::ComputationalEnvironment;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
 use crate::simulation::id::Id;
@@ -22,7 +22,7 @@ pub struct LegEngine<C: SimCommunicator> {
     net_message_broker: NetMessageBroker<C>,
     departure_handler: VehicularDepartureHandler,
     main_modes: IntSet<Id<String>>,
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl<C: SimCommunicator> LegEngine<C> {
@@ -31,7 +31,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         garage: Garage,
         net_message_broker: NetMessageBroker<C>,
         config: &Simulation,
-        comp_env: ComputationalEnvironment,
+        comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
         let main_modes: IntSet<Id<String>> = config
             .main_modes
@@ -183,7 +183,7 @@ impl<C: SimCommunicator> LegEngine<C> {
 }
 
 struct VehicularDepartureHandler {
-    comp_env: ComputationalEnvironment,
+    comp_env: ThreadLocalComputationalEnvironment,
     main_modes: IntSet<Id<String>>,
 }
 
