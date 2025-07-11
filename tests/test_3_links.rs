@@ -1,4 +1,4 @@
-use crate::test_simulation::{execute_sim, execute_sim_with_channels, TestSubscriber};
+use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
 use rust_q_sim::simulation::network::Network;
@@ -30,12 +30,12 @@ fn execute_3_links_single_part() {
         num_parts: None,
     };
 
-    execute_sim(
-        vec![Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/3-links/expected_events.xml",
-        ))],
-        config_args,
-    );
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events("./tests/resources/3-links/expected_events.xml")
+        .build()
+        .unwrap()
+        .execute();
 }
 
 #[test]
@@ -43,10 +43,16 @@ fn execute_3_links_2_parts() {
     create_resources(&PathBuf::from(
         "./test_output/simulation/execute_3_links_2_parts/",
     ));
+
     let config_args = CommandLineArgs {
         config_path: "./tests/resources/3-links/3-links-config-2.yml".to_string(),
         num_parts: None,
     };
 
-    execute_sim_with_channels(config_args, "./tests/resources/3-links/expected_events.xml");
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events("./tests/resources/3-links/expected_events.xml")
+        .build()
+        .unwrap()
+        .execute();
 }

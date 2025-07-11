@@ -90,7 +90,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     fn curr_act(&self) -> &InternalActivity {
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
-            .as_activity()
+            .and_then(|p| p.as_activity())
             .unwrap()
     }
 
@@ -104,14 +104,14 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
         };
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element + add)
-            .as_activity()
+            .and_then(|p| p.as_activity())
             .unwrap()
     }
 
     fn curr_leg(&self) -> &InternalLeg {
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
-            .as_leg()
+            .and_then(|p| p.as_leg())
             .unwrap()
     }
 
@@ -125,7 +125,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
         };
         self.basic_agent_delegate
             .plan_element_at(self.curr_plan_element + add)
-            .as_leg()
+            .and_then(|p| p.as_leg())
     }
 
     fn advance_plan(&mut self) {
@@ -142,6 +142,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
         match self
             .basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
+            .unwrap()
         {
             InternalPlanElement::Activity(a) => a.cmp_end_time(now),
             InternalPlanElement::Leg(_) => panic!("Cannot wake up on a leg!"),
@@ -197,6 +198,7 @@ impl EndTime for PlanBasedSimulationLogic {
         match self
             .basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
+            .unwrap()
         {
             InternalPlanElement::Activity(a) => a.cmp_end_time(now),
             InternalPlanElement::Leg(l) => l.trav_time.unwrap() + now,

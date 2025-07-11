@@ -82,7 +82,7 @@ impl Population {
         part: u32,
     ) -> Self {
         from_file(file_path, garage, |p| {
-            let act = p.plan_element_at(0).as_activity().unwrap();
+            let act = p.plan_element_at(0).and_then(|p| p.as_activity()).unwrap();
             let partition = net.get_link(&act.link_id).partition;
             partition == part
         })
@@ -171,7 +171,7 @@ pub struct InternalPerson {
 }
 
 impl InternalPerson {
-    pub(crate) fn selected_plan_mut(&mut self) -> &mut InternalPlan {
+    pub fn selected_plan_mut(&mut self) -> &mut InternalPlan {
         self.plans
             .iter_mut()
             .find(|plan| plan.selected)
@@ -201,12 +201,8 @@ impl InternalPerson {
         &self.plans
     }
 
-    pub fn plan_element_at(&self, index: usize) -> &InternalPlanElement {
-        self.selected_plan()
-            .unwrap()
-            .elements
-            .get(index)
-            .expect("Plan index out of bounds")
+    pub fn plan_element_at(&self, index: usize) -> Option<&InternalPlanElement> {
+        self.selected_plan().unwrap().elements.get(index)
     }
 
     pub fn total_elements(&self) -> usize {

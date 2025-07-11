@@ -1,3 +1,4 @@
+use derive_builder::Builder;
 use std::fmt::Debug;
 use std::thread::JoinHandle;
 use tokio::sync::mpsc::Receiver;
@@ -7,6 +8,8 @@ pub mod routing;
 
 pub trait RequestToAdapter: Debug {}
 
+#[derive(Debug, Builder)]
+#[builder(pattern = "owned")]
 pub struct AdapterHandle {
     pub(super) handle: JoinHandle<()>,
     pub(super) shutdown_sender: tokio::sync::watch::Sender<bool>,
@@ -17,11 +20,14 @@ pub enum ExternalServiceType {
     Routing(String),
 }
 
-pub(crate) trait RequestAdapter<T: RequestToAdapter> {
+pub trait RequestAdapter<T: RequestToAdapter> {
     fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
+    fn on_shutdown(&mut self) {
+        info!("Adapter is shutting down");
+    }
 }
 
-pub(crate) fn execute_adapter<T: RequestToAdapter>(
+pub fn execute_adapter<T: RequestToAdapter>(
     mut receiver: Receiver<T>,
     mut req_adapter: impl RequestAdapter<T>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
@@ -37,7 +43,8 @@ pub(crate) fn execute_adapter<T: RequestToAdapter>(
             tokio::select! {
                 _ = shutdown.changed() => {
                     if *shutdown.borrow() {
-                        println!("Shutdown signal received, exiting adapter.");
+                        info!("Shutdown signal received, exiting adapter.");
+                        req_adapter.on_shutdown();
                         break;
                     }
                 }

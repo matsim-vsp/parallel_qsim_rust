@@ -28,7 +28,7 @@ pub struct InternalRoutingRequestPayload {
     pub now: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct InternalRoutingResponse(pub(crate) Vec<InternalPlanElement>);
 
 impl From<InternalRoutingRequestPayload> for Request {

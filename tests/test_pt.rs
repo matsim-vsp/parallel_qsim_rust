@@ -1,5 +1,4 @@
-use crate::test_simulation::execute_sim;
-use crate::test_simulation::TestSubscriber;
+use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
 use rust_q_sim::simulation::network::Network;
@@ -33,10 +32,10 @@ fn test_pt_tutorial() {
         num_parts: None,
     };
 
-    execute_sim(
-        vec![Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/pt_tutorial/expected_events.xml",
-        ))],
-        config_args,
-    );
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events("./tests/resources/pt_tutorial/expected_events.xml")
+        .build()
+        .unwrap()
+        .execute();
 }
