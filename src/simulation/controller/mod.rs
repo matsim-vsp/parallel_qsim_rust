@@ -29,6 +29,7 @@ use tracing::info;
 #[derive(Clone, Debug, Builder)]
 pub struct ThreadLocalComputationalEnvironment {
     // The value is of type Arc as this is the adapter running in another thread.
+    // TODO: The type of this map is super generic. Not using any here would be way better, but this is not trivial. paul, jul'25
     #[builder(default)]
     services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
     // The value is of type Rc as this is a thread-local events publisher.
