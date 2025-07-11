@@ -1,3 +1,4 @@
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
@@ -5,7 +6,6 @@ use crate::simulation::population::agent_source::AgentSource;
 use crate::simulation::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::Scenario;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::InternalSimulationAgent;
 use std::collections::HashMap;
 use tracing::info;
 
@@ -29,7 +29,7 @@ impl DrtAgentSource {
     fn add_drt_driver(
         scenario: &mut Scenario,
         config: &Config,
-    ) -> HashMap<Id<InternalPerson>, InternalSimulationAgent> {
+    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         info!("Creating DRT drivers");
 
         let drt_modes = config
@@ -95,7 +95,7 @@ impl DrtAgentSource {
 
             let agent_id = Id::<InternalPerson>::create(veh_id.external());
             //TODO
-            result.insert(agent_id, InternalSimulationAgent::new(person));
+            result.insert(agent_id, SimulationAgent::new_plan_based(person));
         }
         result
     }
@@ -106,7 +106,7 @@ impl AgentSource for DrtAgentSource {
         &self,
         scenario: &mut Scenario,
         config: &Config,
-    ) -> HashMap<Id<InternalPerson>, InternalSimulationAgent> {
+    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         Self::add_drt_ids();
         Self::add_drt_driver(scenario, config)
     }
@@ -128,14 +128,11 @@ mod tests {
     #[ignore]
     fn test_drt_agent_source() {
         let config_path = "./assets/drt/config.yml";
-        let config = Config::from_file(&CommandLineArgs {
-            config_path: String::from(config_path),
-            num_parts: None,
-        });
+        let config = Config::from_file(&CommandLineArgs::new_with_path(config_path));
 
         let output_path = PathBuf::from(config.output().output_dir);
 
-        let mut scenario = Scenario::build(&config, &String::from(config_path), 0, &output_path);
+        let mut scenario = Scenario::build(&config, 0, &output_path);
 
         let drt_source = DrtAgentSource {};
         let drt_agents = drt_source.create_agents(&mut scenario, &config);

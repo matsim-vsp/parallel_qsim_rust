@@ -131,6 +131,16 @@ where
     cache: IntMap<Id<I>, T>,
 }
 
+impl<T, I> Default for MutTimeQueue<T, I>
+where
+    T: EndTime + Identifiable<I>,
+    I: StableTypeId + 'static,
+ {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, I> MutTimeQueue<T, I>
 where
     T: EndTime + Identifiable<I>,

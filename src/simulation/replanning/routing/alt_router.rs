@@ -331,7 +331,7 @@ mod tests {
 
         // check routing for bike
         query_and_check(
-            &router_by_vehicle_type.get(bike_id).unwrap(),
+            router_by_vehicle_type.get(bike_id).unwrap(),
             0,
             5,
             Some(280),
@@ -340,7 +340,7 @@ mod tests {
 
         // check routing for car
         query_and_check(
-            &router_by_vehicle_type.get(car_id).unwrap(),
+            router_by_vehicle_type.get(car_id).unwrap(),
             0,
             5,
             Some(120),

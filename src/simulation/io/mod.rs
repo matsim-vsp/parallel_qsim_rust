@@ -4,20 +4,15 @@ pub mod proto;
 pub mod proto_events;
 pub mod xml;
 
-pub fn resolve_path(config: &String, file: &str) -> PathBuf {
-    let file_path = PathBuf::from(file);
+pub fn resolve_path(config_path: &Option<PathBuf>, file_path: &PathBuf) -> PathBuf {
+    // This is a bit hacky, but tests rely on that. Paul, jul'25
     if file_path.is_absolute() || file_path.starts_with("./") {
-        return file_path;
+        return file_path.clone();
     }
 
-    let config_path = PathBuf::from(config);
-    if let Some(path) = config_path.parent() {
+    if let Some(path) = config_path.as_ref().and_then(|c| c.parent()) {
         path.join(file_path)
     } else {
-        file_path
+        file_path.clone()
     }
-}
-
-pub trait MatsimId {
-    fn id(&self) -> &str;
 }

@@ -127,6 +127,9 @@ impl<T: StableTypeId> Clone for Id<T> {
     }
 }
 
+// Currently, every thread has its own id store.
+// This means that all IDs must be known in advance and loaded via protobuf.
+// Otherwise, there is an inconsistency between threads.
 thread_local! {static ID_STORE: RefCell<IdStore<'static>> = RefCell::new(IdStore::new())}
 
 #[cfg(test)]

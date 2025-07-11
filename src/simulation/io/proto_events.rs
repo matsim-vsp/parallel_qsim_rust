@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
 use std::path::Path;
 
-use crate::simulation::io::proto::events::{Event, TimeStep};
+use crate::generated::events::{Event, TimeStep};
 use crate::simulation::messaging::events::EventsSubscriber;
 use prost::Message;
 
@@ -159,8 +159,8 @@ impl EventsReader<File> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::io::proto::events::event::Type;
-    use crate::simulation::io::proto::events::Event;
+    use crate::generated::events::event::Type;
+    use crate::generated::events::Event;
     use crate::simulation::io::proto_events::{EventsReader, ProtoEventsWriter};
     use crate::simulation::messaging::events::EventsSubscriber;
     use std::collections::HashMap;
@@ -184,7 +184,7 @@ mod tests {
         let (time, events) = reader.next().expect("Couldn't read timestep.");
         assert_eq!(1, time);
         assert_eq!(1, events.len());
-        match_events(&event, events.get(0).unwrap());
+        match_events(&event, events.first().unwrap());
     }
 
     #[test]

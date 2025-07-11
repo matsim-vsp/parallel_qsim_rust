@@ -8,7 +8,7 @@ pub enum InternalSimMessage {
     Barrier,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub struct InternalSyncMessage {
     time: u32,
     from_process: u32,
@@ -86,6 +86,12 @@ impl InternalSyncMessage {
     }
 }
 
+impl PartialEq for InternalSyncMessage {
+    fn eq(&self, other: &Self) -> bool {
+        self.time == other.time
+    }
+}
+
 // Implementation for ordering, so that vehicle messages can be put into a message queue sorted by time
 impl PartialOrd for InternalSyncMessage {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -98,20 +104,5 @@ impl Eq for InternalSyncMessage {}
 impl Ord for InternalSyncMessage {
     fn cmp(&self, other: &Self) -> Ordering {
         other.time.cmp(&self.time)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    #[ignore]
-    fn test_rolling_horizon_plan_consistency_ok() {
-        unimplemented!()
-    }
-
-    #[test]
-    #[ignore]
-    fn test_rolling_horizon_plan_consistency_fail() {
-        unimplemented!()
     }
 }

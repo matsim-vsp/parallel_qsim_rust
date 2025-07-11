@@ -1,28 +1,28 @@
+use crate::generated::events::Event;
+use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
 use crate::simulation::config::Simulation;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::events::Event;
-use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::population::InternalRoute;
+use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::{InternalSimulationAgent, SimulationAgentState};
 use nohash_hasher::IntSet;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
     network_engine: NetworkEngine,
     garage: Garage,
     net_message_broker: NetMessageBroker<C>,
-    events: Rc<RefCell<EventsPublisher>>,
     departure_handler: VehicularDepartureHandler,
     main_modes: IntSet<Id<String>>,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl<C: SimCommunicator> LegEngine<C> {
@@ -30,8 +30,8 @@ impl<C: SimCommunicator> LegEngine<C> {
         network: SimNetworkPartition,
         garage: Garage,
         net_message_broker: NetMessageBroker<C>,
-        events: Rc<RefCell<EventsPublisher>>,
         config: &Simulation,
+        comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
         let main_modes: IntSet<Id<String>> = config
             .main_modes
@@ -40,26 +40,26 @@ impl<C: SimCommunicator> LegEngine<C> {
             .collect();
 
         let departure_handler = VehicularDepartureHandler {
-            events: events.clone(),
+            comp_env: comp_env.clone(),
             main_modes: main_modes.clone(),
         };
 
         LegEngine {
-            teleportation_engine: TeleportationEngine::new(events.clone()),
-            network_engine: NetworkEngine::new(network, events.clone()),
+            teleportation_engine: TeleportationEngine::new(comp_env.clone()),
+            network_engine: NetworkEngine::new(network, comp_env.clone()),
             garage,
             net_message_broker,
-            events,
             departure_handler,
             main_modes,
+            comp_env,
         }
     }
 
     pub(crate) fn do_step(
         &mut self,
         now: u32,
-        agents: Vec<InternalSimulationAgent>,
-    ) -> Vec<InternalSimulationAgent> {
+        agents: Vec<SimulationAgent>,
+    ) -> Vec<SimulationAgent> {
         for agent in agents {
             self.receive_agent(now, agent);
         }
@@ -93,19 +93,19 @@ impl<C: SimCommunicator> LegEngine<C> {
         now: u32,
         vehicles: Vec<InternalVehicle>,
         publish_leave_vehicle: bool,
-    ) -> Vec<InternalSimulationAgent> {
+    ) -> Vec<SimulationAgent> {
         let mut agents = vec![];
         for veh in vehicles {
             //in case of teleportation, do not publish leave vehicle events
             if publish_leave_vehicle {
-                self.events.borrow_mut().publish_event(
+                self.comp_env.events_publisher_borrow_mut().publish_event(
                     now,
                     &Event::new_person_leaves_veh(veh.driver().id().internal(), veh.id.internal()),
                 );
             }
 
             for passenger in veh.passengers() {
-                self.events.borrow_mut().publish_event(
+                self.comp_env.events_publisher_borrow_mut().publish_event(
                     now,
                     &Event::new_passenger_dropped_off(
                         passenger.id().internal(),
@@ -115,7 +115,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                     ),
                 );
                 if publish_leave_vehicle {
-                    self.events.borrow_mut().publish_event(
+                    self.comp_env.events_publisher_borrow_mut().publish_event(
                         now,
                         &Event::new_person_leaves_veh(passenger.id().internal(), veh.id.internal()),
                     );
@@ -123,7 +123,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             }
 
             let leg = veh.driver().curr_leg();
-            self.events.borrow_mut().publish_event(
+            self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_arrival(
                     veh.driver().id().internal(),
@@ -137,7 +137,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         agents
     }
 
-    pub(crate) fn receive_agent(&mut self, now: u32, agent: InternalSimulationAgent) {
+    pub(crate) fn receive_agent(&mut self, now: u32, agent: SimulationAgent) {
         let vehicle = self
             .departure_handler
             .handle_departure(now, agent, &mut self.garage);
@@ -183,7 +183,7 @@ impl<C: SimCommunicator> LegEngine<C> {
 }
 
 struct VehicularDepartureHandler {
-    events: Rc<RefCell<EventsPublisher>>,
+    comp_env: ThreadLocalComputationalEnvironment,
     main_modes: IntSet<Id<String>>,
 }
 
@@ -191,7 +191,7 @@ impl VehicularDepartureHandler {
     fn handle_departure(
         &mut self,
         now: u32,
-        agent: InternalSimulationAgent,
+        agent: SimulationAgent,
         garage: &mut Garage,
     ) -> Option<InternalVehicle> {
         assert_eq!(agent.state(), SimulationAgentState::LEG);
@@ -202,7 +202,7 @@ impl VehicularDepartureHandler {
             .as_ref()
             .unwrap_or_else(|| panic!("Missing route for agent {} at leg {:?}", agent.id(), leg));
 
-        self.events.borrow_mut().publish_event(
+        self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
             &Event::new_departure(
                 agent.id().internal(),
@@ -219,7 +219,7 @@ impl VehicularDepartureHandler {
             .clone();
 
         if route.as_network().is_some() && self.main_modes.contains(&leg.mode) {
-            self.events.borrow_mut().publish_event(
+            self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_person_enters_veh(agent.id().internal(), veh_id.internal()),
             );

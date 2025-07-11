@@ -1,8 +1,6 @@
-use crate::test_simulation::execute_sim;
-use crate::test_simulation::TestSubscriber;
+use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::pt::TransitSchedule;
@@ -29,16 +27,13 @@ fn test_pt_tutorial() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial/");
     create_resources(&test_dir);
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/pt_tutorial/pt_tutorial_config.yml".to_string(),
-        num_parts: None,
-    };
+    let config_args =
+        CommandLineArgs::new_with_path("./tests/resources/pt_tutorial/pt_tutorial_config.yml");
 
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/pt_tutorial/expected_events.xml",
-        )),
-        config_args,
-    );
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events("./tests/resources/pt_tutorial/expected_events.xml")
+        .build()
+        .unwrap()
+        .execute();
 }

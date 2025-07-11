@@ -23,13 +23,9 @@ pub fn init_std_out_logging() {
     tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
 }
 
-pub fn init_logging(
-    config: &Config,
-    config_path: &String,
-    part: u32,
-) -> (Option<WorkerGuard>, Option<WriterGuard>) {
+pub fn init_logging(config: &Config, part: u32) -> (Option<WorkerGuard>, Option<WriterGuard>) {
     let file_discriminant = part.to_string();
-    let dir = resolve_path(config_path, &config.output().output_dir);
+    let dir = resolve_path(config.context(), &config.output().output_dir);
 
     let (csv_layer, guard) = init_tracing(config, part, &file_discriminant, &dir);
     let (log_layer, log_guard) = if Logging::Info == config.output().logging {

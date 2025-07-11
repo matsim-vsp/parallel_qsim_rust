@@ -1,14 +1,13 @@
 use std::path::Path;
 
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
 use crate::simulation::io::xml::vehicles::{IOVehicle, IOVehicleDefinitions, IOVehicleType};
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::{from_file, to_file, InternalVehicle, InternalVehicleType};
-use crate::simulation::InternalSimulationAgent;
 use nohash_hasher::IntMap;
 use tracing::info;
 
-#[derive(Debug)]
 //TODO rename to Vehicles
 pub struct Garage {
     pub vehicles: IntMap<Id<InternalVehicle>, InternalVehicle>,
@@ -142,10 +141,7 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(
-        &mut self,
-        mut vehicle: InternalVehicle,
-    ) -> Vec<InternalSimulationAgent> {
+    pub(crate) fn park_veh(&mut self, mut vehicle: InternalVehicle) -> Vec<SimulationAgent> {
         let mut agents = std::mem::take(&mut vehicle.passengers);
         let person = vehicle.driver.take().expect("Vehicle has no driver.");
         agents.push(person);
@@ -159,8 +155,8 @@ impl Garage {
 
     pub fn unpark_veh_with_passengers(
         &mut self,
-        agent: InternalSimulationAgent,
-        passengers: Vec<InternalSimulationAgent>,
+        agent: SimulationAgent,
+        passengers: Vec<SimulationAgent>,
         id: Id<InternalVehicle>,
     ) -> InternalVehicle {
         let veh_type_id = &self
@@ -195,7 +191,7 @@ impl Garage {
 
     pub fn unpark_veh(
         &mut self,
-        agent: InternalSimulationAgent,
+        agent: SimulationAgent,
         id: Id<InternalVehicle>,
     ) -> InternalVehicle {
         self.unpark_veh_with_passengers(agent, vec![], id)
@@ -274,7 +270,7 @@ mod tests {
 
         let id = Id::<InternalVehicle>::create("veh");
         garage.add_veh(InternalVehicle {
-            id: id,
+            id,
             max_v: 0.0,
             pce: 0.0,
             driver: None,
