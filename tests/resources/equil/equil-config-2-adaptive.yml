@@ -1,0 +1,19 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: ./test_output/simulation/equil_with_channels-adaptive/equil-network.binpb
+    population: ./test_output/simulation/equil_with_channels-adaptive/equil-1-plan.binpb
+    vehicles: ./test_output/simulation/equil_with_channels-adaptive/equil-vehicles.binpb
+    ids: ./test_output/simulation/equil_with_channels-adaptive/ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 2
+    method: !Metis
+      vertex_weight:
+        - Constant
+  output:
+    type: Output
+    output_dir: ./test_output/simulation/equil_with_channels-adaptive
+  routing:
+    type: Routing
+    mode: UsePlans

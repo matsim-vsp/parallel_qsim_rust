@@ -6,7 +6,6 @@ use rust_q_sim::external_services::{
 };
 use std::any::Any;
 use std::collections::HashMap;
-use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
@@ -58,7 +57,7 @@ fn execute_equil_single_part() {
 #[test]
 fn execute_equil_2_parts() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
-    create_resources(&test_dir, |pop| {});
+    create_resources(&test_dir, |_| {});
 
     let config_args = CommandLineArgs {
         config_path: "./tests/resources/equil/equil-config-2.yml".to_string(),
@@ -94,6 +93,41 @@ fn execute_equil_adaptive_planning_single_part_panics() {
 fn execute_equil_adaptive_planning_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
+    let expected_events = "./tests/resources/equil/expected_events.xml";
+
+    let (tx, rx) = mpsc::channel(10000);
+    let (shutdown_send, shutdown_recv) = tokio::sync::watch::channel(false);
+
+    let adapter = MockRoutingAdapter::default();
+
+    let routing_thread = thread::Builder::new()
+        .name("routing_adapter".to_string())
+        .spawn(move || execute_adapter(rx, adapter, shutdown_recv))
+        .unwrap();
+
+    let mut map: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>> = HashMap::new();
+    map.insert(
+        ExternalServiceType::Routing("car".to_string()),
+        Arc::new(tx) as Arc<dyn Any + Send + Sync>,
+    );
+
+    execute_adaptive(
+        test_dir,
+        config_path,
+        expected_events,
+        map,
+        vec![AdapterHandleBuilder::default()
+            .handle(routing_thread)
+            .shutdown_sender(shutdown_send)
+            .build()
+            .unwrap()],
+    );
+}
+
+#[test]
+fn execute_equil_adaptive_planning_two_parts() {
+    let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels-adaptive/");
+    let config_path = "./tests/resources/equil/equil-config-2-adaptive.yml".to_string();
     let expected_events = "./tests/resources/equil/expected_events.xml";
 
     let (tx, rx) = mpsc::channel(10000);

@@ -33,7 +33,7 @@ impl TestExecutor<'_> {
         self.execute_config_mutation(|_| {});
     }
 
-    pub fn execute_config_mutation<F>(self, config_mutator: F)
+    pub fn execute_config_mutation<F>(mut self, config_mutator: F)
     where
         F: Fn(&mut Config),
     {
@@ -50,7 +50,7 @@ impl TestExecutor<'_> {
         rust_q_sim::simulation::controller::try_join(handles, self.adapter_handles)
     }
 
-    fn execute_sim_with_channels(&self, config: Config) -> IntMap<u32, JoinHandle<()>> {
+    fn execute_sim_with_channels(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
         let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
         let mut receiver = ReceivingSubscriber::new_with_events_from_file(&self.expected_events);
 
@@ -61,7 +61,13 @@ impl TestExecutor<'_> {
                 rank: c.rank(),
                 sender: receiver.channel.0.clone(),
             };
-            subscribers.insert(c.rank(), vec![Box::new(subscr)]);
+            let mut subscriber: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(subscr)];
+            subscriber.append(
+                self.additional_subscribers
+                    .get_mut(&c.rank())
+                    .unwrap_or(&mut vec![]),
+            );
+            subscribers.insert(c.rank(), subscriber);
         }
 
         let mut handles = rust_q_sim::simulation::controller::local_controller::run_channel(
@@ -77,12 +83,18 @@ impl TestExecutor<'_> {
         handles
     }
 
-    fn execute_sim(&self, config: Config) -> IntMap<u32, JoinHandle<()>> {
+    fn execute_sim(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
         let mut subscribers = HashMap::new();
 
-        let subs: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(
+        let mut subs: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(
             TestSubscriber::new_with_events_from_file(self.expected_events),
         )];
+
+        subs.append(
+            self.additional_subscribers
+                .get_mut(&0)
+                .unwrap_or(&mut vec![]),
+        );
 
         subscribers.insert(0, subs);
 
