@@ -86,7 +86,7 @@ impl ActivityEngine {
 
         // for fast turnaround, agents whose end time is already reached are directly returned and not put into the awake queue
         for agent in wake_up {
-            let mut awake: AwakeSimulationAgent = agent.into();
+            let awake: AwakeSimulationAgent = agent.into();
             let end_time = awake.end_time(now);
             if end_time <= now {
                 end_agents.push(awake.agent);
@@ -293,7 +293,7 @@ mod tests {
         Id::<String>::create("new_mode");
 
         let mut map: HashMap<ExternalServiceType, Arc<dyn Any + Sync + Send>> = HashMap::new();
-        let (send, mut recv) = tokio::sync::mpsc::channel::<InternalRoutingRequest>(11);
+        let (send, recv) = tokio::sync::mpsc::channel::<InternalRoutingRequest>(11);
         map.insert(
             ExternalServiceType::Routing("mode".to_string()),
             Arc::new(send),
@@ -326,7 +326,8 @@ mod tests {
     }
 
     fn run_test_thread(mut recv: Receiver<InternalRoutingRequest>) -> JoinHandle<()> {
-        let handle = std::thread::spawn(move || {
+        
+        std::thread::spawn(move || {
             let request = recv.blocking_recv();
             assert!(request.is_some());
             assert_eq!(
@@ -347,8 +348,7 @@ mod tests {
                     new_leg(),
                 )]))
                 .unwrap();
-        });
-        handle
+        })
     }
 
     fn new_leg() -> InternalLeg {

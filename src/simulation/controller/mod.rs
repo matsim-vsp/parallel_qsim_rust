@@ -2,7 +2,7 @@ pub mod local_controller;
 #[cfg(feature = "mpi")]
 pub mod mpi_controller;
 
-use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
+use crate::external_services::{AdapterHandle, ExternalServiceType};
 use crate::simulation::config::{CommandLineArgs, Config, PartitionMethod, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
@@ -24,7 +24,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::Duration;
-use tokio::sync::mpsc::Sender;
 use tracing::info;
 
 #[derive(Clone, Debug, Builder)]

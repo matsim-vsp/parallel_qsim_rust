@@ -1,4 +1,4 @@
-use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
+use crate::simulation::population::{InternalActivity, InternalPlanElement};
 use tracing::error;
 
 pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<String> {

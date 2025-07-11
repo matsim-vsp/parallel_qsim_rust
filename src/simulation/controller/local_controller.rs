@@ -1,23 +1,16 @@
-use crate::external_services::routing::RoutingServiceAdapter;
-use crate::external_services::{
-    execute_adapter, AdapterHandle, ExternalServiceType, RequestAdapter, RequestToAdapter,
-};
+use crate::external_services::ExternalServiceType;
 use crate::simulation::config::{CommandLineArgs, Config};
-use crate::simulation::controller::{PartitionArguments, PartitionArgumentsBuilder};
-use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
+use crate::simulation::controller::PartitionArgumentsBuilder;
+use crate::simulation::messaging::events::EventsSubscriber;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::{controller, logging};
 use clap::Parser;
-use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use std::any::Any;
-use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use tokio::sync::mpsc;
 use tracing::info;
 
 pub fn run_channel(
