@@ -1,14 +1,11 @@
-use crate::external_services::ExternalServiceType;
 use crate::simulation::config::{CommandLineArgs, Config};
-use crate::simulation::controller::PartitionArgumentsBuilder;
+use crate::simulation::controller::{ExternalServices, PartitionArgumentsBuilder};
 use crate::simulation::messaging::events::EventsSubscriber;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::{controller, logging};
 use clap::Parser;
 use nohash_hasher::IntMap;
-use std::any::Any;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use tracing::info;
@@ -16,7 +13,7 @@ use tracing::info;
 pub fn run_channel(
     config: Config,
     mut events_subscriber_per_partition: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
-    external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
+    external_services: ExternalServices,
 ) -> IntMap<u32, JoinHandle<()>> {
     info!(
         "Starting multithreaded Simulation with {} partitions.",
@@ -58,7 +55,7 @@ pub fn run_channel_from_args() {
 
     let _guards = logging::init_logging(&config, 0);
 
-    let handles = run_channel(config, HashMap::new(), HashMap::new());
+    let handles = run_channel(config, HashMap::new(), ExternalServices::default());
 
     controller::try_join(handles, Default::default())
 }
