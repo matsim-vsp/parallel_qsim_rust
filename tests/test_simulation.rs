@@ -1,8 +1,9 @@
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
-use rust_q_sim::external_services::{AdapterHandle, ExternalServiceType};
+use rust_q_sim::external_services::AdapterHandle;
 use rust_q_sim::generated::events::Event;
 use rust_q_sim::simulation::config::{CommandLineArgs, Config};
+use rust_q_sim::simulation::controller::ExternalServices;
 use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::events::EventsSubscriber;
 use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
@@ -11,7 +12,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -21,7 +21,7 @@ pub struct TestExecutor<'s> {
     config_args: CommandLineArgs,
     expected_events: &'s str,
     #[builder(default)]
-    external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
+    external_services: ExternalServices,
     #[builder(default)]
     additional_subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
     #[builder(default)]

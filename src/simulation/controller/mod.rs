@@ -24,14 +24,51 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::{sleep, JoinHandle};
 use std::time::Duration;
+use tokio::sync::mpsc::Sender;
 use tracing::info;
 
+// This is a wrapper around a Sender that can be used to send requests to an external service.
+// The value is of type Arc as this is the adapter running in another thread.
+// It needs to be super generic to store any type of Sender.
+#[derive(Clone, Debug)]
+pub struct RequestSender(Arc<dyn Any + Send + Sync>);
+
+// Implementing this trait provides type safety for the RequestSender. Only Senders can be converted to RequestSender.
+// This comes with the requirement that the type T must 'static in particular -- but I think this is ok for now. Paul, jul'25
+impl<T> From<Arc<Sender<T>>> for RequestSender
+where
+    T: Send + 'static,
+{
+    fn from(value: Arc<Sender<T>>) -> Self {
+        RequestSender(value as Arc<dyn Any + Send + Sync>)
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ExternalServices(HashMap<ExternalServiceType, RequestSender>);
+
+impl From<HashMap<ExternalServiceType, RequestSender>> for ExternalServices {
+    fn from(value: HashMap<ExternalServiceType, RequestSender>) -> Self {
+        ExternalServices(value)
+    }
+}
+
+impl ExternalServices {
+    pub fn get_service<T: Any + Send + Sync>(
+        &self,
+        service_type: ExternalServiceType,
+    ) -> Option<&T> {
+        self.0
+            .get(&service_type)
+            .and_then(|s| s.0.downcast_ref::<T>())
+    }
+}
+
 #[derive(Clone, Debug, Builder)]
+#[builder(pattern = "owned")]
 pub struct ThreadLocalComputationalEnvironment {
-    // The value is of type Arc as this is the adapter running in another thread.
-    // TODO: The type of this map is super generic. Not using any here would be way better, but this is not trivial. paul, jul'25
     #[builder(default)]
-    services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
+    services: ExternalServices,
     // The value is of type Rc as this is a thread-local events publisher.
     #[builder(default)]
     events_publisher: Rc<RefCell<EventsPublisher>>,
@@ -40,7 +77,7 @@ pub struct ThreadLocalComputationalEnvironment {
 impl Default for ThreadLocalComputationalEnvironment {
     fn default() -> Self {
         ThreadLocalComputationalEnvironment {
-            services: HashMap::new(),
+            services: ExternalServices::default(),
             events_publisher: Rc::new(RefCell::new(EventsPublisher::new())),
         }
     }
@@ -51,9 +88,7 @@ impl ThreadLocalComputationalEnvironment {
         &self,
         service_type: ExternalServiceType,
     ) -> Option<&T> {
-        self.services
-            .get(&service_type)
-            .and_then(|s| s.downcast_ref::<T>())
+        self.services.get_service(service_type)
     }
 
     pub fn events_publisher_borrow_mut(&mut self) -> RefMut<'_, EventsPublisher> {
@@ -71,7 +106,7 @@ pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
     config: Config,
     #[builder(default)]
-    external_services: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
+    external_services: ExternalServices,
     #[builder(default)]
     events_subscriber: Vec<Box<dyn EventsSubscriber + Send>>,
 }

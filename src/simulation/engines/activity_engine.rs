@@ -222,7 +222,8 @@ mod tests {
     use crate::simulation::agents::SimulationAgentLogic;
     use crate::simulation::config::Config;
     use crate::simulation::controller::{
-        ThreadLocalComputationalEnvironment, ThreadLocalComputationalEnvironmentBuilder,
+        RequestSender, ThreadLocalComputationalEnvironment,
+        ThreadLocalComputationalEnvironmentBuilder,
     };
     use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
     use crate::simulation::id::Id;
@@ -231,7 +232,6 @@ mod tests {
         InternalPlanElement, InternalRoute,
     };
     use crate::simulation::time_queue::Identifiable;
-    use std::any::Any;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::JoinHandle;
@@ -292,15 +292,15 @@ mod tests {
         // The new mode id needs to be created before the test, so that it gets the correct internal id.
         Id::<String>::create("new_mode");
 
-        let mut map: HashMap<ExternalServiceType, Arc<dyn Any + Sync + Send>> = HashMap::new();
+        let mut map: HashMap<ExternalServiceType, RequestSender> = HashMap::new();
         let (send, recv) = tokio::sync::mpsc::channel::<InternalRoutingRequest>(11);
         map.insert(
             ExternalServiceType::Routing("mode".to_string()),
-            Arc::new(send),
+            Arc::new(send).into(),
         );
 
         let env = ThreadLocalComputationalEnvironmentBuilder::default()
-            .services(map)
+            .services(map.into())
             .build()
             .unwrap();
 
@@ -326,7 +326,6 @@ mod tests {
     }
 
     fn run_test_thread(mut recv: Receiver<InternalRoutingRequest>) -> JoinHandle<()> {
-        
         std::thread::spawn(move || {
             let request = recv.blocking_recv();
             assert!(request.is_some());

@@ -4,7 +4,6 @@ use rust_q_sim::external_services::routing::{
 use rust_q_sim::external_services::{
     execute_adapter, AdapterHandle, AdapterHandleBuilder, ExternalServiceType, RequestAdapter,
 };
-use std::any::Any;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -14,6 +13,7 @@ use tokio::sync::mpsc;
 mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
+use rust_q_sim::simulation::controller::{ExternalServices, RequestSender};
 use rust_q_sim::simulation::id::{store_to_file, Id};
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::{InternalPlanElement, Population, PREPLANNING_HORIZON};
@@ -78,7 +78,7 @@ fn execute_equil_adaptive_planning_single_part_panics() {
         test_dir,
         config_path,
         expected_events,
-        HashMap::new(),
+        ExternalServices::default(),
         vec![],
     );
 }
@@ -99,17 +99,17 @@ fn execute_equil_adaptive_planning_single_part() {
         .spawn(move || execute_adapter(rx, adapter, shutdown_recv))
         .unwrap();
 
-    let mut map: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>> = HashMap::new();
+    let mut map: HashMap<ExternalServiceType, RequestSender> = HashMap::new();
     map.insert(
         ExternalServiceType::Routing("car".to_string()),
-        Arc::new(tx) as Arc<dyn Any + Send + Sync>,
+        Arc::new(tx).into(),
     );
 
     execute_adaptive(
         test_dir,
         config_path,
         expected_events,
-        map,
+        map.into(),
         vec![AdapterHandleBuilder::default()
             .handle(routing_thread)
             .shutdown_sender(shutdown_send)
@@ -134,17 +134,17 @@ fn execute_equil_adaptive_planning_two_parts() {
         .spawn(move || execute_adapter(rx, adapter, shutdown_recv))
         .unwrap();
 
-    let mut map: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>> = HashMap::new();
+    let mut map: HashMap<ExternalServiceType, RequestSender> = HashMap::new();
     map.insert(
         ExternalServiceType::Routing("car".to_string()),
-        Arc::new(tx) as Arc<dyn Any + Send + Sync>,
+        Arc::new(tx).into(),
     );
 
     execute_adaptive(
         test_dir,
         config_path,
         expected_events,
-        map,
+        map.into(),
         vec![AdapterHandleBuilder::default()
             .handle(routing_thread)
             .shutdown_sender(shutdown_send)
@@ -186,7 +186,7 @@ fn execute_adaptive(
     test_dir: PathBuf,
     config_path: String,
     expected_events: &str,
-    map: HashMap<ExternalServiceType, Arc<dyn Any + Send + Sync>>,
+    map: ExternalServices,
     adapter_handles: Vec<AdapterHandle>,
 ) {
     let f = |pop: &mut Population| {
