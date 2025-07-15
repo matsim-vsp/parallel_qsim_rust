@@ -37,7 +37,7 @@ impl TestExecutor<'_> {
     where
         F: Fn(&mut Config),
     {
-        let mut config = Config::from_file(&self.config_args);
+        let mut config = Config::from(self.config_args.clone());
 
         config_mutator(&mut config);
 
@@ -71,7 +71,7 @@ impl TestExecutor<'_> {
         }
 
         let mut handles = rust_q_sim::simulation::controller::local_controller::run_channel(
-            Config::from_file(&self.config_args),
+            Config::from(self.config_args.clone()),
             subscribers,
             self.external_services.clone(),
         );
@@ -97,13 +97,11 @@ impl TestExecutor<'_> {
 
         subscribers.insert(0, subs);
 
-        let handles = rust_q_sim::simulation::controller::local_controller::run_channel(
+        rust_q_sim::simulation::controller::local_controller::run_channel(
             config,
             subscribers,
             self.external_services.clone(),
-        );
-
-        handles
+        )
     }
 }
 

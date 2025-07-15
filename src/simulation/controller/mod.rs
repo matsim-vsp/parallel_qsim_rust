@@ -44,6 +44,15 @@ where
     }
 }
 
+impl<T> From<Sender<T>> for RequestSender
+where
+    T: Send + 'static,
+{
+    fn from(value: Sender<T>) -> Self {
+        RequestSender(Arc::new(value) as Arc<dyn Any + Send + Sync>)
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ExternalServices(HashMap<ExternalServiceType, RequestSender>);
 
@@ -61,6 +70,10 @@ impl ExternalServices {
         self.0
             .get(&service_type)
             .and_then(|s| s.0.downcast_ref::<T>())
+    }
+
+    pub fn insert(&mut self, service_type: ExternalServiceType, sender: RequestSender) {
+        self.0.insert(service_type, sender);
     }
 }
 

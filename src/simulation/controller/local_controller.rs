@@ -51,7 +51,7 @@ pub fn run_channel(
 
 pub fn run_channel_from_args() {
     let args = CommandLineArgs::parse();
-    let config = Config::from_file(&args);
+    let config = Config::from(args);
 
     let _guards = logging::init_logging(&config, 0);
 

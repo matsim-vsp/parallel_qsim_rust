@@ -1,7 +1,8 @@
 use derive_builder::Builder;
 use std::fmt::Debug;
 use std::thread::JoinHandle;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::info;
 
 pub mod routing;
@@ -24,6 +25,19 @@ pub trait RequestAdapter<T: RequestToAdapter> {
     fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
     fn on_shutdown(&mut self) {
         info!("Adapter is shutting down");
+    }
+
+    fn request_channel(&self, buffer: usize) -> (Sender<T>, Receiver<T>) {
+        mpsc::channel(buffer)
+    }
+
+    fn shutdown_channel(
+        &self,
+    ) -> (
+        tokio::sync::watch::Sender<bool>,
+        tokio::sync::watch::Receiver<bool>,
+    ) {
+        tokio::sync::watch::channel(false)
     }
 }
 
