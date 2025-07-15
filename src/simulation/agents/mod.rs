@@ -23,25 +23,23 @@ pub trait SimulationAgentLogic:
 }
 
 pub trait EnvironmentalEventObserver {
-    fn notify_event(&mut self, event: AgentEvent, now: u32);
+    fn notify_event(&mut self, event: &mut AgentEvent, now: u32);
 }
 
 #[non_exhaustive]
-#[derive(Clone)]
-pub enum AgentEvent {
-    ActivityStarted(ThreadLocalComputationalEnvironment),
-    Wakeup(WakeupEvent),
-    ActivityFinished(ThreadLocalComputationalEnvironment),
-    TeleportationStarted(ThreadLocalComputationalEnvironment),
-    TeleportationFinished(ThreadLocalComputationalEnvironment),
-    NetworkLegStarted(ThreadLocalComputationalEnvironment),
-    MovedToNextLink(ThreadLocalComputationalEnvironment),
-    NetworkLegFinished(ThreadLocalComputationalEnvironment),
+pub enum AgentEvent<'a> {
+    ActivityStarted(),
+    Wakeup(WakeupEvent<'a>),
+    ActivityFinished(),
+    TeleportationStarted(),
+    TeleportationFinished(),
+    NetworkLegStarted(),
+    MovedToNextLink(),
+    NetworkLegFinished(),
 }
 
-#[derive(Clone)]
-pub struct WakeupEvent {
-    pub comp_env: ThreadLocalComputationalEnvironment,
+pub struct WakeupEvent<'w> {
+    pub comp_env: &'w mut ThreadLocalComputationalEnvironment,
     pub end_time: u32,
 }
 

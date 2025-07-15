@@ -49,7 +49,7 @@ impl Identifiable<InternalPerson> for PlanBasedSimulationLogic {
 }
 
 impl EnvironmentalEventObserver for PlanBasedSimulationLogic {
-    fn notify_event(&mut self, event: AgentEvent, _now: u32) {
+    fn notify_event(&mut self, event: &mut AgentEvent, _now: u32) {
         match event {
             AgentEvent::TeleportationStarted { .. } => {
                 self.set_curr_route_element_to_last();
@@ -266,12 +266,12 @@ impl Identifiable<InternalPerson> for AdaptivePlanBasedSimulationLogic {
 }
 
 impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
-    fn notify_event(&mut self, mut event: AgentEvent, now: u32) {
+    fn notify_event(&mut self, mut event: &mut AgentEvent, now: u32) {
         match &mut event {
             AgentEvent::Wakeup(w) => {
                 self.call_router(&mut w.comp_env, w.end_time, now);
             }
-            AgentEvent::ActivityFinished(_) => self.replace_route(),
+            AgentEvent::ActivityFinished() => self.replace_route(),
             _ => {}
         }
         self.delegate.notify_event(event, now);

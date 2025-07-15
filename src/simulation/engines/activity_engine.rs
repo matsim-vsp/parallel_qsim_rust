@@ -39,13 +39,13 @@ impl ActivityEngine {
         let mut end_after_wake_up = self.wake_up(now);
         // inform agents about wakeup
         end_after_wake_up.iter_mut().for_each(|agent| {
-            ActivityEngine::inform_wakeup(self.comp_env.clone(), agent, now, now);
+            ActivityEngine::inform_wakeup(&mut self.comp_env, agent, now, now);
         });
 
         // inform all awake agents about wakeup
         for agent in &mut self.awake_q {
             let end_time = agent.end_time(now);
-            ActivityEngine::inform_wakeup(self.comp_env.clone(), &mut agent.agent, end_time, now);
+            ActivityEngine::inform_wakeup(&mut self.comp_env, &mut agent.agent, end_time, now);
         }
 
         let end = self.end(now);
@@ -60,7 +60,7 @@ impl ActivityEngine {
                     agent.curr_act().act_type.internal(),
                 ),
             );
-            ActivityEngine::inform_act_end(self.comp_env.clone(), &mut agent, now);
+            ActivityEngine::inform_act_end(&mut agent, now);
             res.push(agent);
         }
         res
@@ -114,20 +114,19 @@ impl ActivityEngine {
     }
 
     fn inform_wakeup(
-        comp_env: ThreadLocalComputationalEnvironment,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
         agent: &mut SimulationAgent,
         end_time: u32,
         now: u32,
     ) {
-        agent.notify_event(AgentEvent::Wakeup(WakeupEvent { comp_env, end_time }), now);
+        agent.notify_event(
+            &mut AgentEvent::Wakeup(WakeupEvent { comp_env, end_time }),
+            now,
+        );
     }
 
-    fn inform_act_end(
-        comp_env: ThreadLocalComputationalEnvironment,
-        agent: &mut SimulationAgent,
-        now: u32,
-    ) {
-        agent.notify_event(AgentEvent::ActivityFinished(comp_env), now);
+    fn inform_act_end(agent: &mut SimulationAgent, now: u32) {
+        agent.notify_event(&mut AgentEvent::ActivityFinished(), now);
     }
 
     #[cfg(test)]

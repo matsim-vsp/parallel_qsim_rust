@@ -47,7 +47,7 @@ impl Identifiable<InternalPerson> for SimulationAgent {
 }
 
 impl EnvironmentalEventObserver for SimulationAgent {
-    fn notify_event(&mut self, event: AgentEvent, now: u32) {
+    fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
         self.logic.notify_event(event, now)
     }
 }
