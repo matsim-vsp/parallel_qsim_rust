@@ -215,7 +215,11 @@ impl VehicularDepartureHandler {
             .as_generic()
             .vehicle()
             .as_ref()
-            .expect("Route doesn't have a vehicle id.")
+            .unwrap_or(&Id::get_from_ext(&format!(
+                "{}_{}",
+                agent.id().external(),
+                leg.mode.external()
+            )))
             .clone();
 
         if route.as_network().is_some() && self.main_modes.contains(&leg.mode) {

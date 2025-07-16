@@ -19,14 +19,14 @@ struct RoutingCommandLineArgs {
 fn main() {
     let _guard = init_std_out_logging();
     let args = RoutingCommandLineArgs::parse();
+    let config = Config::from(args.delegate);
 
     let (router_handle, send, send_sd) =
-        RoutingServiceAdapterFactory::new(&args.router_ip).as_thread("router");
+        RoutingServiceAdapterFactory::new(&args.router_ip, config.clone()).spawn_thread("router");
 
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    let config = Config::from(args.delegate);
     let sim_handles = run_channel(config, Default::default(), services);
 
     controller::try_join(

@@ -3,6 +3,7 @@ use crate::external_services::{
 };
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
+use crate::simulation::config::Config;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use itertools::{EitherOrBoth, Itertools};
 use std::thread;
@@ -82,16 +83,23 @@ impl From<Response> for InternalRoutingResponse {
 
 pub struct RoutingServiceAdapterFactory {
     ip: String,
+    //TODO think about whether this should be an Arc<Config> or not
+    config: Config,
 }
 
 impl RoutingServiceAdapterFactory {
-    pub fn new(ip: &str) -> Self {
-        Self { ip: ip.to_string() }
+    pub fn new(ip: &str, config: Config) -> Self {
+        Self {
+            ip: ip.to_string(),
+            config,
+        }
     }
 }
 
 impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFactory {
     async fn build(self) -> impl RequestAdapter<InternalRoutingRequest> {
+        crate::simulation::id::load_from_file(&self.config.proto_files().ids);
+
         let client = RoutingServiceClient::connect(self.ip)
             .await
             .expect("Failed to connect to routing service");
@@ -101,7 +109,7 @@ impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFact
 }
 
 impl RoutingServiceAdapterFactory {
-    pub fn as_thread(
+    pub fn spawn_thread(
         self,
         name: &str,
     ) -> (

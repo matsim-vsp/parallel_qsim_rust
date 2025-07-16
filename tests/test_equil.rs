@@ -45,7 +45,7 @@ fn execute_equil_single_part() {
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events("./tests/resources/equil/expected_events.xml")
+        .expected_events(Some("./tests/resources/equil/expected_events.xml"))
         .build()
         .unwrap()
         .execute();
@@ -60,7 +60,7 @@ fn execute_equil_2_parts() {
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events("./tests/resources/equil/expected_events.xml")
+        .expected_events(Some("./tests/resources/equil/expected_events.xml"))
         .build()
         .unwrap()
         .execute();
@@ -218,7 +218,7 @@ fn execute_adaptive(
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(expected_events)
+        .expected_events(Some(expected_events))
         .external_services(map)
         .adapter_handles(adapter_handles)
         .build()
