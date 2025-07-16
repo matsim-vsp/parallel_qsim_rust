@@ -4,7 +4,6 @@ use rust_q_sim::external_services::{AdapterHandleBuilder, ExternalServiceType};
 use rust_q_sim::simulation::config::{CommandLineArgs, Config};
 use rust_q_sim::simulation::controller::ExternalServices;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::events::EventsSubscriber;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
@@ -45,7 +44,9 @@ fn test_pt_tutorial() {
 }
 
 #[test]
-#[ignore]
+// #[ignore]
+// to be tested with running routing service;
+// --config /Users/paulh/git/parallel_qsim_rust/assets/pt_tutorial/config.xml --output output/v6.4/test-router
 fn test_pt_adaptive() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial_adaptive/");
     create_resources(&test_dir, &PathBuf::from("plans_1-dummy.xml"));
@@ -67,8 +68,8 @@ fn test_pt_adaptive() {
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    let mut subs: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
-    subs.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
+    let subs: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
+    // subs.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
 
     TestExecutorBuilder::default()
         .config_args(config_args)
