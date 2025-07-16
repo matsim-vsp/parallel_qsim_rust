@@ -44,7 +44,7 @@ fn test_pt_tutorial() {
 }
 
 #[test]
-// #[ignore]
+#[ignore]
 // to be tested with running routing service;
 // --config /Users/paulh/git/parallel_qsim_rust/assets/pt_tutorial/config.xml --output output/v6.4/test-router
 fn test_pt_adaptive() {
