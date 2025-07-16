@@ -21,16 +21,11 @@ pub enum ExternalServiceType {
     Routing(String),
 }
 
-pub trait RequestAdapter<T: RequestToAdapter> {
-    fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
-    fn on_shutdown(&mut self) {
-        info!("Adapter is shutting down");
-    }
-
+pub trait RequestAdapterFactory<T: RequestToAdapter> {
+    fn build(self) -> impl std::future::Future<Output = impl RequestAdapter<T>>;
     fn request_channel(&self, buffer: usize) -> (Sender<T>, Receiver<T>) {
         mpsc::channel(buffer)
     }
-
     fn shutdown_channel(
         &self,
     ) -> (
@@ -41,9 +36,16 @@ pub trait RequestAdapter<T: RequestToAdapter> {
     }
 }
 
+pub trait RequestAdapter<T: RequestToAdapter> {
+    fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
+    fn on_shutdown(&mut self) {
+        info!("Adapter is shutting down");
+    }
+}
+
 pub fn execute_adapter<T: RequestToAdapter>(
     mut receiver: Receiver<T>,
-    mut req_adapter: impl RequestAdapter<T>,
+    req_adapter_factory: impl RequestAdapterFactory<T>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     info!("Starting adapter");
@@ -53,6 +55,8 @@ pub fn execute_adapter<T: RequestToAdapter>(
         .unwrap();
 
     rt.block_on(async move {
+        let mut req_adapter = req_adapter_factory.build().await;
+
         loop {
             tokio::select! {
                 _ = shutdown.changed() => {
@@ -83,7 +87,7 @@ mod tests {
     fn test_execute_adapter() {
         let (tx, rx) = mpsc::channel(10);
         let counter = Arc::new(Mutex::new(0));
-        let handler = MockRequestAdapter(counter.clone());
+        let handler = MockRequestAdapterBuilder(counter.clone());
         let (shutdown_send, shutdown_recv) = tokio::sync::watch::channel(false);
 
         // Spawn the adapter in a separate task
@@ -126,6 +130,14 @@ mod tests {
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await; // Simulate some processing delay
             req.response_tx.send(String::from("Ok")).unwrap();
+        }
+    }
+
+    struct MockRequestAdapterBuilder(Arc<Mutex<usize>>);
+
+    impl RequestAdapterFactory<MockRequest> for MockRequestAdapterBuilder {
+        async fn build(self) -> impl RequestAdapter<MockRequest> {
+            MockRequestAdapter(self.0)
         }
     }
 }

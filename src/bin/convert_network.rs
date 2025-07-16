@@ -9,7 +9,7 @@ use rust_q_sim::simulation::logging::init_std_out_logging;
 use rust_q_sim::simulation::network::Network;
 
 fn main() {
-    init_std_out_logging();
+    let _g = init_std_out_logging();
     let args = InputArgs::parse();
     info!("Starting network conversion with args: {args:?}");
 

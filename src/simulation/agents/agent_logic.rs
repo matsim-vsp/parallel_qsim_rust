@@ -321,7 +321,14 @@ impl AdaptivePlanBasedSimulationLogic {
                 .elements,
             self.delegate.curr_plan_element,
         )
-        .unwrap();
+        .unwrap_or_else(|| {
+            panic!(
+                "No trip found for agent {:?} at plan element {:?} at time {:?}",
+                self.delegate.id(),
+                self.delegate.curr_plan_element,
+                now
+            )
+        });
 
         let mode = identify_main_mode(trip.legs).unwrap_or_else(|| {
             panic!(
@@ -344,8 +351,8 @@ impl AdaptivePlanBasedSimulationLogic {
         };
 
         comp_env
-            .get_service::<Sender<InternalRoutingRequest>>(ExternalServiceType::Routing(mode))
-            .unwrap()
+            .get_service::<Sender<InternalRoutingRequest>>(ExternalServiceType::Routing(mode.clone()))
+            .unwrap_or_else(|| panic!("There is not service registered for routing of mode {} and agent id {}. Please make sure that you have started a corresponding thread. Next leg {:?}", mode, self.id(), self.next_leg()))
             .blocking_send(request)
             .expect("InternalRoutingRequest channel closed unexpectedly");
 

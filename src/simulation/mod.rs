@@ -90,7 +90,7 @@ impl From<IOAttributes> for InternalAttributes {
                 "java.lang.Double" => res.insert(attr.name, attr.value.parse::<f64>().unwrap()),
                 "java.lang.String" => res.insert(attr.name, attr.value),
                 "java.lang.Boolean" => res.insert(attr.name, attr.value.parse::<bool>().unwrap()),
-                _ => warn!("Unknown attribute class {:?}. Skipping...", attr.class),
+                _ => {} //warn!("Unknown attribute class {:?}. Skipping...", attr.class),
             };
         }
         res

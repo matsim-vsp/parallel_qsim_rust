@@ -21,7 +21,7 @@ struct InputArgs {
 }
 
 fn main() {
-    init_std_out_logging();
+    let _g = init_std_out_logging();
     let args = InputArgs::parse();
     let mut readers = Vec::new();
 

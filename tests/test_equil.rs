@@ -3,12 +3,12 @@ use rust_q_sim::external_services::routing::{
 };
 use rust_q_sim::external_services::{
     execute_adapter, AdapterHandle, AdapterHandleBuilder, ExternalServiceType, RequestAdapter,
+    RequestAdapterFactory,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
-use tokio::sync::mpsc;
 
 mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
@@ -89,14 +89,14 @@ fn execute_equil_adaptive_planning_single_part() {
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
     let expected_events = "./tests/resources/equil/expected_events.xml";
 
-    let (tx, rx) = mpsc::channel(10000);
-    let (shutdown_send, shutdown_recv) = tokio::sync::watch::channel(false);
+    let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let adapter = MockRoutingAdapter::default();
+    let (tx, rx) = mock_routing_adapter.request_channel(10000);
+    let (shutdown_send, shutdown_recv) = mock_routing_adapter.shutdown_channel();
 
     let routing_thread = thread::Builder::new()
         .name("routing_adapter".to_string())
-        .spawn(move || execute_adapter(rx, adapter, shutdown_recv))
+        .spawn(move || execute_adapter(rx, mock_routing_adapter, shutdown_recv))
         .unwrap();
 
     let mut map: HashMap<ExternalServiceType, RequestSender> = HashMap::new();
@@ -124,14 +124,14 @@ fn execute_equil_adaptive_planning_two_parts() {
     let config_path = "./tests/resources/equil/equil-config-2-adaptive.yml".to_string();
     let expected_events = "./tests/resources/equil/expected_events.xml";
 
-    let (tx, rx) = mpsc::channel(10000);
-    let (shutdown_send, shutdown_recv) = tokio::sync::watch::channel(false);
+    let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let adapter = MockRoutingAdapter::default();
+    let (tx, rx) = mock_routing_adapter.request_channel(10000);
+    let (shutdown_send, shutdown_recv) = mock_routing_adapter.shutdown_channel();
 
     let routing_thread = thread::Builder::new()
         .name("routing_adapter".to_string())
-        .spawn(move || execute_adapter(rx, adapter, shutdown_recv))
+        .spawn(move || execute_adapter(rx, mock_routing_adapter, shutdown_recv))
         .unwrap();
 
     let mut map: HashMap<ExternalServiceType, RequestSender> = HashMap::new();
@@ -151,6 +151,15 @@ fn execute_equil_adaptive_planning_two_parts() {
             .build()
             .unwrap()],
     );
+}
+
+#[derive(Default)]
+struct MockRoutingAdapterFactory {}
+
+impl RequestAdapterFactory<InternalRoutingRequest> for MockRoutingAdapterFactory {
+    async fn build(self) -> impl RequestAdapter<InternalRoutingRequest> {
+        MockRoutingAdapter::default()
+    }
 }
 
 #[derive(Default)]

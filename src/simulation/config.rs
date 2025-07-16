@@ -8,7 +8,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
-use tracing::Level;
+use tracing::{info, Level};
 
 use crate::simulation::config::VertexWeight::InLinkCapacity;
 
@@ -17,7 +17,7 @@ use crate::simulation::config::VertexWeight::InLinkCapacity;
 pub struct CommandLineArgs {
     #[arg(long, short)]
     pub config_path: String,
-    #[arg(long= "set", value_parser = parse_key_val, number_of_values = 1)]
+    #[arg(long= "set", value_parser = parse_key_val)]
     pub overrides: Vec<(String, String)>,
 }
 
@@ -88,6 +88,8 @@ impl Config {
 
     /// Apply generic key-value overrides to the config, e.g. protofiles.population=path
     fn apply_overrides(&mut self, overrides: &[(String, String)]) {
+        info!("Applying overrides: {:?}", overrides);
+
         for (key, value) in overrides {
             let mut parts = key.splitn(2, '.');
             let module = parts.next();
@@ -132,6 +134,20 @@ impl Config {
                             _ => continue,
                         }
                         self.set_partitioning(part);
+                    }
+                    "routing" => {
+                        let mut routing = self.routing();
+                        match field {
+                            "mode" => {
+                                if let Ok(r) = RoutingMode::from_str(value, true) {
+                                    routing.mode = r;
+                                    self.set_routing(routing);
+                                } else {
+                                    panic!("invalid routing mode {:?}, expected mode", value);
+                                }
+                            }
+                            _ => continue,
+                        }
                     }
                     // Add more modules/fields as needed
                     _ => continue,
@@ -208,6 +224,12 @@ impl Config {
         self.modules
             .get_mut()
             .insert("output".to_string(), Box::new(output));
+    }
+
+    pub fn set_routing(&mut self, routing: Routing) {
+        self.modules
+            .get_mut()
+            .insert("routing".to_string(), Box::new(routing));
     }
 
     pub fn simulation(&self) -> Simulation {

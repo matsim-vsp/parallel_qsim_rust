@@ -406,7 +406,7 @@ mod tests {
     #[test]
     #[ignore]
     fn compare_compression() {
-        init_std_out_logging();
+        let _g = init_std_out_logging();
         let folder = create_folders(PathBuf::from(
             "./test_output/simulation/id/id_store/compare_compression/",
         ));

@@ -1,11 +1,12 @@
-use crate::external_services::{execute_adapter, RequestAdapter, RequestToAdapter};
+use crate::external_services::{
+    execute_adapter, RequestAdapter, RequestAdapterFactory, RequestToAdapter,
+};
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use itertools::{EitherOrBoth, Itertools};
 use std::thread;
 use std::thread::JoinHandle;
-use tokio::runtime::Runtime;
 use tokio::sync::oneshot::Sender;
 
 pub struct RoutingServiceAdapter {
@@ -79,16 +80,27 @@ impl From<Response> for InternalRoutingResponse {
     }
 }
 
-impl RoutingServiceAdapter {
-    pub fn new(ip: &str) -> Self {
-        let client = Runtime::new().unwrap().block_on(async {
-            RoutingServiceClient::connect(ip.to_string())
-                .await
-                .expect("Failed to connect to routing service")
-        });
-        Self { client }
-    }
+pub struct RoutingServiceAdapterFactory {
+    ip: String,
+}
 
+impl RoutingServiceAdapterFactory {
+    pub fn new(ip: &str) -> Self {
+        Self { ip: ip.to_string() }
+    }
+}
+
+impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFactory {
+    async fn build(self) -> impl RequestAdapter<InternalRoutingRequest> {
+        let client = RoutingServiceClient::connect(self.ip)
+            .await
+            .expect("Failed to connect to routing service");
+
+        RoutingServiceAdapter { client }
+    }
+}
+
+impl RoutingServiceAdapterFactory {
     pub fn as_thread(
         self,
         name: &str,
