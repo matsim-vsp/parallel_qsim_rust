@@ -1,13 +1,12 @@
 mod test_simulation;
 
+use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
-use test_simulation::{execute_sim, TestSubscriber};
 
 fn create_resources(out_dir: &PathBuf, population: &str) {
     let input_dir = PathBuf::from("./assets/equil/");
@@ -25,21 +24,21 @@ fn create_resources(out_dir: &PathBuf, population: &str) {
 #[test]
 fn teleport_links_main_mode_not_car() {
     let test_dir =
-        PathBuf::from("./test_output/simulation/output-teleport-links-main-mode-not-car/");
-    create_resources(&test_dir, "equil-1-plan-links.xml");
+        PathBuf::from("./test_output/simulation/output-teleport-network-main-mode-not-car/");
+    create_resources(&test_dir, "equil-1-plan-network.xml");
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config-links-main-mode-not-car.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/equil/expected_events_teleport_links_main_mode_not_car.xml",
-        )),
-        config_args,
+    let config_args = CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-network-main-mode-not-car.yml",
     );
+
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_teleport_network_main_mode_not_car.xml",
+        ))
+        .build()
+        .unwrap()
+        .execute();
 }
 
 // one agent having a generic route, car being not a main mode => simulation should teleport the agent
@@ -49,39 +48,38 @@ fn teleport_generic_main_mode_not_car() {
         PathBuf::from("./test_output/simulation/output-teleport-generic-main-mode-not-car/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config-generic-main-mode-not-car.yml"
-            .to_string(),
-        num_parts: None,
-    };
-
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/equil/expected_events_teleport_generic_main_mode_not_car.xml",
-        )),
-        config_args,
+    let config_args = CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-generic-main-mode-not-car.yml",
     );
+
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_teleport_generic_main_mode_not_car.xml",
+        ))
+        .build()
+        .unwrap()
+        .execute();
 }
 
 // one agent having a network route, car being a main mode => already implemented
 #[test]
 fn teleport_links_main_mode_car() {
-    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-links-main-mode-car/");
-    create_resources(&test_dir, "equil-1-plan-links.xml");
+    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-network-main-mode-car/");
+    create_resources(&test_dir, "equil-1-plan-network.xml");
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config-links-main-mode-car.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/equil/expected_events_teleport_links_main_mode_car.xml",
-        )),
-        config_args,
+    let config_args = CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-network-main-mode-car.yml",
     );
+
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_teleport_network_main_mode_car.xml",
+        ))
+        .build()
+        .unwrap()
+        .execute();
 }
 
 // one agent having a generic route, car being a main mode => simulation should crash
@@ -91,16 +89,16 @@ fn teleport_generic_main_mode_car() {
     let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-main-mode-car/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/equil/equil-config-generic-main-mode-car.yml".to_string(),
-        num_parts: None,
-    };
-
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/equil/expected_events_teleport_generic_main_mode_car.xml",
-        )),
-        config_args,
+    let config_args = CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-generic-main-mode-car.yml",
     );
+
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_teleport_generic_main_mode_car.xml",
+        ))
+        .build()
+        .unwrap()
+        .execute();
 }

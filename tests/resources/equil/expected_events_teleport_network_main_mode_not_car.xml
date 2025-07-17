@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<events version="1.0">
+<event time="21600" type="actend" person="1" link="1" actType="h"/>
+<event time="21600" type="departure" person="1" link="1" legMode="car"/>
+<event time="22201" type="travelled" person="1" distance="25000" mode="car"/>
+<event time="22201" type="arrival" person="1" link="20" legMode="car"/>
+<event time="22202" type="actstart" person="1" link="20" actType="w"/>
+<event time="22802" type="actend" person="1" link="20" actType="w"/>
+<event time="22802" type="departure" person="1" link="20" legMode="car"/>
+<event time="23402" type="travelled" person="1" distance="0" mode="car"/>
+<event time="23402" type="arrival" person="1" link="20" legMode="car"/>
+<event time="23403" type="actstart" person="1" link="20" actType="w"/>
+<event time="36003" type="actend" person="1" link="20" actType="w"/>
+<event time="36003" type="departure" person="1" link="20" legMode="car"/>
+<event time="36603" type="travelled" person="1" distance="65000" mode="car"/>
+<event time="36603" type="arrival" person="1" link="1" legMode="car"/>
+<event time="36604" type="actstart" person="1" link="1" actType="h"/>
+</events>

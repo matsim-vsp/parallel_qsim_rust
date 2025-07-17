@@ -12,7 +12,7 @@
 <event time="22322" type="actstart" person="1" link="20" actType="w"/>
 <event time="34922" type="actend" person="1" link="20" actType="w"/>
 <event time="34922" type="departure" person="1" link="20" legMode="car"/>
-<event time="34982" type="travelled" person="1" distance="65000" mode="car"/>
-<event time="34982" type="arrival" person="1" link="1" legMode="car"/>
-<event time="34983" type="actstart" person="1" link="1" actType="h"/>
+<event time="34983" type="travelled" person="1" distance="65000" mode="car"/>
+<event time="34983" type="arrival" person="1" link="1" legMode="car"/>
+<event time="34984" type="actstart" person="1" link="1" actType="h"/>
 </events>
