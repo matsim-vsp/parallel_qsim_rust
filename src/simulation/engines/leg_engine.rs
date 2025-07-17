@@ -222,7 +222,12 @@ impl VehicularDepartureHandler {
             )))
             .clone();
 
-        if route.as_network().is_some() && self.main_modes.contains(&leg.mode) {
+        if self.main_modes.contains(&leg.mode) {
+            assert!(
+                route.as_network().is_some(),
+                "{} is set as main mode but route is not network route",
+                leg.mode
+            );
             self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_person_enters_veh(agent.id().internal(), veh_id.internal()),

@@ -1,0 +1,25 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    ids: "output-simulate-network-route/equil.ids.binpb"
+    network: "output-simulate-network-route/equil.network.binpb"
+    population: "output-simulate-network-route/equil.plans.binpb"
+    vehicles: "output-simulate-network-route/equil.vehicles.binpb"
+  partitioning:
+    type: Partitioning
+    num_parts: 12
+    method: !Metis
+  output:
+    type: Output
+    output_dir: ./assets/equil/output-simulate-network-route
+    write_events: Proto
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 86400
+    sample_size: 1.0
+    stuck_threshold: 1000
+    main_modes: [ "car" ]

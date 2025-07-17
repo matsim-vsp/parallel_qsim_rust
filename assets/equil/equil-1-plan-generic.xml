@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE population SYSTEM "http://www.matsim.org/files/dtd/population_v6.dtd">
+
+<population>
+
+    <attributes>
+        <attribute name="coordinateReferenceSystem" class="java.lang.String">Atlantis</attribute>
+    </attributes>
+
+
+    <!-- ====================================================================== -->
+
+    <person id="1">
+        <attributes>
+            <attribute name="vehicles" class="org.matsim.vehicles.PersonVehicles">{"car":"1"}</attribute>
+        </attributes>
+        <plan score="53.10347962692449" selected="yes">
+            <activity type="h" link="1" x="-25000.0" y="0.0" end_time="06:00:00">
+            </activity>
+            <leg mode="car" trav_time="00:01:00">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">car</attribute>
+                </attributes>
+                <route type="generic" start_link="1" end_link="20" distance="25000.0"/>
+            </leg>
+            <activity type="w" link="20" x="3456.0" y="4242.0" max_dur="00:10:00">
+            </activity>
+            <leg mode="car" trav_time="00:01:00">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">car</attribute>
+                </attributes>
+                <route type="generic" start_link="20" end_link="20" distance="0.0"/>
+            </leg>
+            <activity type="w" link="20" x="10000.0" y="0.0" max_dur="03:30:00">
+            </activity>
+            <leg mode="car" trav_time="00:01:00">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">car</attribute>
+                </attributes>
+                <route type="generic" start_link="20" end_link="1" distance="65000.0"/>
+            </leg>
+            <activity type="h" link="1" x="-25000.0" y="0.0">
+            </activity>
+        </plan>
+
+        <plan score="52.9312834015057" selected="no">
+            <activity type="h" link="1" x="-25000.0" y="0.0" end_time="06:00:00">
+            </activity>
+            <leg mode="car" dep_time="06:00:00" trav_time="00:08:59">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">car</attribute>
+                </attributes>
+                <route type="generic" start_link="1" end_link="20" distance="25000.0"/>
+            </leg>
+            <activity type="w" link="20" x="10000.0" y="0.0" max_dur="00:10:00">
+            </activity>
+            <leg mode="car" dep_time="06:18:59" trav_time="00:00:00">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">car</attribute>
+                </attributes>
+                <route type="generic" start_link="20" end_link="20" distance="0.0"/>
+            </leg>
+            <activity type="w" link="20" x="10000.0" y="0.0" max_dur="03:30:00">
+            </activity>
+            <leg mode="car" dep_time="09:48:59" trav_time="00:32:59">
+                <attributes>
+                    <attribute name="routingMode" class="java.lang.String">car</attribute>
+                </attributes>
+                <route type="generic" start_link="20" end_link="1" distance="65000.0"/>
+            </leg>
+            <activity type="h" link="1" x="-25000.0" y="0.0">
+            </activity>
+        </plan>
+
+    </person>
+
+</population>
