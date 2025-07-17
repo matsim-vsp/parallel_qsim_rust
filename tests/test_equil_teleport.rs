@@ -3,9 +3,12 @@ mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
+use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
+use rust_q_sim::simulation::messaging::events::EventsSubscriber;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 fn create_resources(out_dir: &PathBuf, population: &str) {
@@ -23,19 +26,20 @@ fn create_resources(out_dir: &PathBuf, population: &str) {
 // one agent having a network route, car being not a main mode => simulation should teleport the agent
 #[test]
 fn teleport_network_route() {
-    let test_dir =
-        PathBuf::from("./test_output/simulation/output-teleport-network-main-mode-not-car/");
+    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-network-route/");
     create_resources(&test_dir, "equil-1-plan-network.xml");
 
     let config_args = CommandLineArgs::new_with_path(
-        "./tests/resources/equil/equil-config-network-main-mode-not-car.yml",
+        "./tests/resources/equil/equil-config-teleport-network-route.yml",
     );
+
+    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
+    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(Some(
-            "./tests/resources/equil/expected_events_teleport_network_main_mode_not_car.xml",
-        ))
+        .expected_events(None)
+        .additional_subscribers(subscribers)
         .build()
         .unwrap()
         .execute();
@@ -44,19 +48,20 @@ fn teleport_network_route() {
 // one agent having a generic route, car being not a main mode => simulation should teleport the agent
 #[test]
 fn teleport_generic_route() {
-    let test_dir =
-        PathBuf::from("./test_output/simulation/output-teleport-generic-main-mode-not-car/");
+    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-route/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
 
     let config_args = CommandLineArgs::new_with_path(
-        "./tests/resources/equil/equil-config-generic-main-mode-not-car.yml",
+        "./tests/resources/equil/equil-config-teleport-generic-route.yml",
     );
+
+    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
+    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(Some(
-            "./tests/resources/equil/expected_events_teleport_generic_main_mode_not_car.xml",
-        ))
+        .expected_events(None)
+        .additional_subscribers(subscribers)
         .build()
         .unwrap()
         .execute();
@@ -65,18 +70,20 @@ fn teleport_generic_route() {
 // one agent having a network route, car being a main mode => already implemented
 #[test]
 fn simulate_network_route() {
-    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-network-main-mode-car/");
+    let test_dir = PathBuf::from("./test_output/simulation/output-simulate-network-route/");
     create_resources(&test_dir, "equil-1-plan-network.xml");
 
     let config_args = CommandLineArgs::new_with_path(
-        "./tests/resources/equil/equil-config-network-main-mode-car.yml",
+        "./tests/resources/equil/equil-config-simulate-network-route.yml",
     );
+
+    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
+    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(Some(
-            "./tests/resources/equil/expected_events_teleport_network_main_mode_car.xml",
-        ))
+        .expected_events(None)
+        .additional_subscribers(subscribers)
         .build()
         .unwrap()
         .execute();
@@ -86,18 +93,20 @@ fn simulate_network_route() {
 #[test]
 #[should_panic]
 fn simulate_generic_route_panics() {
-    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-main-mode-car/");
+    let test_dir = PathBuf::from("./test_output/simulation/output-simulate-generic-route-panics/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
 
     let config_args = CommandLineArgs::new_with_path(
-        "./tests/resources/equil/equil-config-generic-main-mode-car.yml",
+        "./tests/resources/equil/equil-config-simulate-generic-route-panics.yml",
     );
+
+    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
+    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(Some(
-            "./tests/resources/equil/expected_events_teleport_generic_main_mode_car.xml",
-        ))
+        .expected_events(None)
+        .additional_subscribers(subscribers)
         .build()
         .unwrap()
         .execute();

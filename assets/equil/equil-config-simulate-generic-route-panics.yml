@@ -1,17 +1,17 @@
 modules:
   protofiles:
     type: ProtoFiles
-    ids: "output-teleport-network-main-mode-car/equil.ids.binpb"
-    network: "output-teleport-network-main-mode-car/equil.network.binpb"
-    population: "output-teleport-network-main-mode-car/equil.plans.binpb"
-    vehicles: "output-teleport-network-main-mode-car/equil.vehicles.binpb"
+    ids: "output-simulate-generic-route-panics/equil.ids.binpb"
+    network: "output-simulate-generic-route-panics/equil.network.binpb"
+    population: "output-simulate-generic-route-panics/equil.plans.binpb"
+    vehicles: "output-simulate-generic-route-panics/equil.vehicles.binpb"
   partitioning:
     type: Partitioning
     num_parts: 12
     method: !Metis
   output:
     type: Output
-    output_dir: ./assets/equil/output-teleport-network-main-mode-car
+    output_dir: ./assets/equil/output-simulate-generic-route-panics
     write_events: Proto
   routing:
     type: Routing
