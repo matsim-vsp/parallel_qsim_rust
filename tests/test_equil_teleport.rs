@@ -21,7 +21,7 @@ fn create_resources(out_dir: &PathBuf, population: &str) {
 }
 
 // one agent having a network route, car being not a main mode => simulation should teleport the agent
-#[test]
+#[test] // teleport_network_route
 fn teleport_links_main_mode_not_car() {
     let test_dir =
         PathBuf::from("./test_output/simulation/output-teleport-network-main-mode-not-car/");
@@ -42,7 +42,7 @@ fn teleport_links_main_mode_not_car() {
 }
 
 // one agent having a generic route, car being not a main mode => simulation should teleport the agent
-#[test]
+#[test] // teleport_generic_route
 fn teleport_generic_main_mode_not_car() {
     let test_dir =
         PathBuf::from("./test_output/simulation/output-teleport-generic-main-mode-not-car/");
@@ -63,7 +63,7 @@ fn teleport_generic_main_mode_not_car() {
 }
 
 // one agent having a network route, car being a main mode => already implemented
-#[test]
+#[test] // simulate_network_route
 fn teleport_links_main_mode_car() {
     let test_dir = PathBuf::from("./test_output/simulation/output-teleport-network-main-mode-car/");
     create_resources(&test_dir, "equil-1-plan-network.xml");
@@ -84,7 +84,7 @@ fn teleport_links_main_mode_car() {
 
 // one agent having a generic route, car being a main mode => simulation should crash
 #[test]
-#[should_panic]
+#[should_panic] // simulate_generic_route_panics
 fn teleport_generic_main_mode_car() {
     let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-main-mode-car/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
