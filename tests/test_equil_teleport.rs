@@ -3,12 +3,9 @@ mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_q_sim::simulation::messaging::events::EventsSubscriber;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 fn create_resources(out_dir: &PathBuf, population: &str) {
@@ -26,20 +23,19 @@ fn create_resources(out_dir: &PathBuf, population: &str) {
 // one agent having a network route, car being not a main mode => simulation should teleport the agent
 #[test]
 fn teleport_network_route() {
-    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-network-route/");
+    let test_dir =
+        PathBuf::from("./test_output/simulation/output-teleport-network-route/");
     create_resources(&test_dir, "equil-1-plan-network.xml");
 
     let config_args = CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-teleport-network-route.yml",
     );
 
-    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
-    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
-
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(None)
-        .additional_subscribers(subscribers)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_teleport_network_route.xml",
+        ))
         .build()
         .unwrap()
         .execute();
@@ -48,20 +44,19 @@ fn teleport_network_route() {
 // one agent having a generic route, car being not a main mode => simulation should teleport the agent
 #[test]
 fn teleport_generic_route() {
-    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-route/");
+    let test_dir =
+        PathBuf::from("./test_output/simulation/output-teleport-generic-route/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
 
     let config_args = CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-teleport-generic-route.yml",
     );
 
-    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
-    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
-
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(None)
-        .additional_subscribers(subscribers)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_teleport_generic_route.xml",
+        ))
         .build()
         .unwrap()
         .execute();
@@ -77,13 +72,11 @@ fn simulate_network_route() {
         "./tests/resources/equil/equil-config-simulate-network-route.yml",
     );
 
-    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
-    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
-
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(None)
-        .additional_subscribers(subscribers)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_simulate_network_route.xml",
+        ))
         .build()
         .unwrap()
         .execute();
@@ -100,13 +93,11 @@ fn simulate_generic_route_panics() {
         "./tests/resources/equil/equil-config-simulate-generic-route-panics.yml",
     );
 
-    let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
-    subscribers.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
-
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(None)
-        .additional_subscribers(subscribers)
+        .expected_events(Some(
+            "./tests/resources/equil/expected_events_simulate_generic_route_panics.xml",
+        ))
         .build()
         .unwrap()
         .execute();
