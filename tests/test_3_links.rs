@@ -30,7 +30,7 @@ fn execute_3_links_single_part() {
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events("./tests/resources/3-links/expected_events.xml")
+        .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
         .build()
         .unwrap()
         .execute();
@@ -47,7 +47,7 @@ fn execute_3_links_2_parts() {
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events("./tests/resources/3-links/expected_events.xml")
+        .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
         .build()
         .unwrap()
         .execute();

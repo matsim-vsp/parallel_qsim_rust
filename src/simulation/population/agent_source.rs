@@ -1,5 +1,5 @@
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::config::Config;
+use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::id::Id;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::scenario::Scenario;
@@ -19,7 +19,7 @@ impl AgentSource for PopulationAgentSource {
     fn create_agents(
         &self,
         scenario: &mut Scenario,
-        _config: &Config,
+        config: &Config,
     ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         // take Persons and copy them into queues. This way we can keep the population around to translate
         // ids for events processing...
@@ -27,7 +27,7 @@ impl AgentSource for PopulationAgentSource {
         let mut agents = HashMap::with_capacity(persons.len());
 
         for (id, person) in persons {
-            Self::identify_logic_and_insert(&mut agents, id, person);
+            Self::identify_logic_and_insert(&mut agents, id, person, config);
         }
         agents
     }
@@ -38,7 +38,13 @@ impl PopulationAgentSource {
         agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
         id: Id<InternalPerson>,
         person: InternalPerson,
+        config: &Config,
     ) {
+        if config.routing().mode == RoutingMode::UsePlans {
+            agents.insert(id, SimulationAgent::new_plan_based(person));
+            return;
+        }
+
         // go through all attributes of person's legs and check whether there is some marked as rolling horizon logic
         let has_at_least_one_preplanning_horizon = person
             .selected_plan()

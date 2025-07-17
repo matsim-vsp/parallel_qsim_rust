@@ -278,7 +278,7 @@ impl IdStore<'_> {
     pub(crate) fn get_from_ext<T: StableTypeId + 'static>(&self, external: &str) -> Id<T> {
         let type_id = T::stable_type_id();
         let type_mapping = self.mapping.get(&type_id).unwrap_or_else(|| {
-            panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids")
+            panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids. Requested external id: {external}");
         });
 
         let index = type_mapping.get(external).unwrap_or_else(|| {
@@ -406,7 +406,7 @@ mod tests {
     #[test]
     #[ignore]
     fn compare_compression() {
-        init_std_out_logging();
+        let _g = init_std_out_logging();
         let folder = create_folders(PathBuf::from(
             "./test_output/simulation/id/id_store/compare_compression/",
         ));

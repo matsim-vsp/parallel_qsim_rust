@@ -16,4 +16,4 @@ modules:
     output_dir: ./test_output/simulation/equil_single_part_adaptive
   routing:
     type: Routing
-    mode: UsePlans
+    mode: AdHoc

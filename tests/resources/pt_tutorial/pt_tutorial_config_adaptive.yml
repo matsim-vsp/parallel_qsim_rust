@@ -1,0 +1,19 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: ./test_output/simulation/pt_tutorial_adaptive/network.binpb
+    population: ./test_output/simulation/pt_tutorial_adaptive/plans_1.binpb
+    vehicles: ./test_output/simulation/pt_tutorial_adaptive/vehicles.binpb
+    ids: ./test_output/simulation/pt_tutorial_adaptive/ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: !Metis
+      vertex_weight:
+        - Constant
+  output:
+    type: Output
+    output_dir: ./test_output/simulation/pt_tutorial_adaptive
+  routing:
+    type: Routing
+    mode: AdHoc

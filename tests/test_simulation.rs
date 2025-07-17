@@ -19,7 +19,8 @@ use std::thread::JoinHandle;
 #[builder(pattern = "owned")]
 pub struct TestExecutor<'s> {
     config_args: CommandLineArgs,
-    expected_events: &'s str,
+    #[builder(default)]
+    expected_events: Option<&'s str>,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
@@ -37,7 +38,7 @@ impl TestExecutor<'_> {
     where
         F: Fn(&mut Config),
     {
-        let mut config = Config::from_file(&self.config_args);
+        let mut config = Config::from(self.config_args.clone());
 
         config_mutator(&mut config);
 
@@ -52,14 +53,25 @@ impl TestExecutor<'_> {
 
     fn execute_sim_with_channels(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
         let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
-        let mut receiver = ReceivingSubscriber::new_with_events_from_file(&self.expected_events);
 
         let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
 
+        let receiver = if let Some(expected_events) = self.expected_events {
+            Some(ReceivingSubscriber::new_with_events_from_file(
+                &expected_events,
+            ))
+        } else {
+            None
+        };
+
         for c in comms {
+            if receiver.is_none() {
+                continue;
+            }
+
             let subscr = SendingSubscriber {
                 rank: c.rank(),
-                sender: receiver.channel.0.clone(),
+                sender: receiver.as_ref().unwrap().channel.0.clone(),
             };
             let mut subscriber: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(subscr)];
             subscriber.append(
@@ -71,23 +83,31 @@ impl TestExecutor<'_> {
         }
 
         let mut handles = rust_q_sim::simulation::controller::local_controller::run_channel(
-            Config::from_file(&self.config_args),
+            Config::from(self.config_args.clone()),
             subscribers,
             self.external_services.clone(),
         );
 
-        // create another thread for the receiver, so that the main thread doesn't block.
-        let receiver_handle = thread::spawn(move || receiver.start_listen());
-        handles.insert(handles.len() as u32, receiver_handle);
+        if let Some(mut receiver) = receiver {
+            // create another thread for the receiver, so that the main thread doesn't block.
+            let receiver_handle = thread::spawn(move || receiver.start_listen());
+            handles.insert(handles.len() as u32, receiver_handle);
+        }
+
         handles
     }
 
     fn execute_sim(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
         let mut subscribers = HashMap::new();
 
-        let mut subs: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(
-            TestSubscriber::new_with_events_from_file(self.expected_events),
-        )];
+        let mut subs: Vec<Box<dyn EventsSubscriber + Send>> =
+            if let Some(expected_events) = self.expected_events {
+                vec![Box::new(TestSubscriber::new_with_events_from_file(
+                    expected_events,
+                ))]
+            } else {
+                vec![]
+            };
 
         subs.append(
             self.additional_subscribers
@@ -97,13 +117,11 @@ impl TestExecutor<'_> {
 
         subscribers.insert(0, subs);
 
-        let handles = rust_q_sim::simulation::controller::local_controller::run_channel(
+        rust_q_sim::simulation::controller::local_controller::run_channel(
             config,
             subscribers,
             self.external_services.clone(),
-        );
-
-        handles
+        )
     }
 }
 

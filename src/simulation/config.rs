@@ -8,7 +8,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::PathBuf;
-use tracing::Level;
+use tracing::{info, Level};
 
 use crate::simulation::config::VertexWeight::InLinkCapacity;
 
@@ -17,7 +17,7 @@ use crate::simulation::config::VertexWeight::InLinkCapacity;
 pub struct CommandLineArgs {
     #[arg(long, short)]
     pub config_path: String,
-    #[arg(long= "set", value_parser = parse_key_val, number_of_values = 1)]
+    #[arg(long= "set", value_parser = parse_key_val)]
     pub overrides: Vec<(String, String)>,
 }
 
@@ -54,31 +54,42 @@ impl Default for Config {
     }
 }
 
-impl Config {
-    pub fn from_file(args: &CommandLineArgs) -> Self {
-        let reader = BufReader::new(File::open(&args.config_path).unwrap_or_else(|e| {
+impl From<CommandLineArgs> for Config {
+    fn from(args: CommandLineArgs) -> Self {
+        let mut config = Config::from(args.config_path.parse::<PathBuf>().unwrap());
+        config.apply_overrides(&args.overrides);
+        config
+    }
+}
+
+impl From<PathBuf> for Config {
+    fn from(config_path: PathBuf) -> Self {
+        let reader = BufReader::new(File::open(&config_path).unwrap_or_else(|e| {
             panic!(
-                "Failed to open config file at {}. Original error was {}",
-                args.config_path, e
+                "Failed to open config file at {:?}. Original error was {}",
+                config_path, e
             );
         }));
         let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
             panic!(
-                "Failed to parse config at {}. Original error was: {}",
-                args.config_path, e
+                "Failed to parse config at {:?}. Original error was: {}",
+                config_path, e
             )
         });
-        config.set_context(Some(args.config_path.clone().parse().unwrap()));
-        config.apply_overrides(&args.overrides);
+        config.set_context(Some(config_path.clone()));
         config
     }
+}
 
+impl Config {
     pub fn set_context(&mut self, context: Option<PathBuf>) {
         self.context = context;
     }
 
     /// Apply generic key-value overrides to the config, e.g. protofiles.population=path
     fn apply_overrides(&mut self, overrides: &[(String, String)]) {
+        info!("Applying overrides: {:?}", overrides);
+
         for (key, value) in overrides {
             let mut parts = key.splitn(2, '.');
             let module = parts.next();
@@ -123,6 +134,20 @@ impl Config {
                             _ => continue,
                         }
                         self.set_partitioning(part);
+                    }
+                    "routing" => {
+                        let mut routing = self.routing();
+                        match field {
+                            "mode" => {
+                                if let Ok(r) = RoutingMode::from_str(value, true) {
+                                    routing.mode = r;
+                                    self.set_routing(routing);
+                                } else {
+                                    panic!("invalid routing mode {:?}, expected mode", value);
+                                }
+                            }
+                            _ => continue,
+                        }
                     }
                     // Add more modules/fields as needed
                     _ => continue,
@@ -199,6 +224,12 @@ impl Config {
         self.modules
             .get_mut()
             .insert("output".to_string(), Box::new(output));
+    }
+
+    pub fn set_routing(&mut self, routing: Routing) {
+        self.modules
+            .get_mut()
+            .insert("routing".to_string(), Box::new(routing));
     }
 
     pub fn simulation(&self) -> Simulation {
@@ -761,7 +792,7 @@ modules:
             config_path: file.path().to_str().unwrap().to_string(),
             overrides: vec![("protofiles.population".to_string(), "new_pop".to_string())],
         };
-        let config = Config::from_file(&args);
+        let config = Config::from(args);
         assert_eq!(config.proto_files().population.to_str().unwrap(), "new_pop");
         assert_eq!(config.proto_files().network.to_str().unwrap(), "net");
     }
@@ -785,7 +816,7 @@ modules:
             config_path: file.path().to_str().unwrap().to_string(),
             overrides: vec![("output.output_dir".to_string(), "new_out".to_string())],
         };
-        let config = Config::from_file(&args);
+        let config = Config::from(args);
         assert_eq!(config.output().output_dir.to_str().unwrap(), "new_out");
     }
 
@@ -806,7 +837,7 @@ modules:
             config_path: file.path().to_str().unwrap().to_string(),
             overrides: vec![("partitioning.num_parts".to_string(), "5".to_string())],
         };
-        let config = Config::from_file(&args);
+        let config = Config::from(args);
         assert_eq!(config.partitioning().num_parts, 5);
     }
 

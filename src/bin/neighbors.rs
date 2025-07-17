@@ -15,7 +15,7 @@ use rust_q_sim::simulation::{config, id};
 // I would have expected, that we read already partitioned networks and write the neighbors of each partition to a file.
 // But we are partitioning the network in each iteration and write the neighbors of each partition to a file. paul, jan'25
 fn main() {
-    init_std_out_logging();
+    let _g = init_std_out_logging();
     let args = InputArgs::parse();
 
     id::load_from_file(&args.id_store);

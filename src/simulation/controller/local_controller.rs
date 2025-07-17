@@ -1,8 +1,9 @@
 use crate::simulation::config::{CommandLineArgs, Config};
+use crate::simulation::controller;
 use crate::simulation::controller::{ExternalServices, PartitionArgumentsBuilder};
+use crate::simulation::logging::init_std_out_logging;
 use crate::simulation::messaging::events::EventsSubscriber;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
-use crate::simulation::{controller, logging};
 use clap::Parser;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
@@ -50,10 +51,12 @@ pub fn run_channel(
 }
 
 pub fn run_channel_from_args() {
-    let args = CommandLineArgs::parse();
-    let config = Config::from_file(&args);
+    let _guard = init_std_out_logging();
 
-    let _guards = logging::init_logging(&config, 0);
+    let args = CommandLineArgs::parse();
+    info!("Started with args: {:?}", args);
+
+    let config = Config::from(args);
 
     let handles = run_channel(config, HashMap::new(), ExternalServices::default());
 

@@ -122,17 +122,14 @@ mod tests {
     use crate::simulation::scenario::Scenario;
     use crate::simulation::vehicles::InternalVehicle;
     use itertools::Itertools;
-    use std::path::PathBuf;
 
     #[test]
     #[ignore]
     fn test_drt_agent_source() {
         let config_path = "./assets/drt/config.yml";
-        let config = Config::from_file(&CommandLineArgs::new_with_path(config_path));
+        let config = Config::from(CommandLineArgs::new_with_path(config_path));
 
-        let output_path = PathBuf::from(config.output().output_dir);
-
-        let mut scenario = Scenario::build(&config, 0, &output_path);
+        let mut scenario = Scenario::build(&config, 0, &config.output().output_dir);
 
         let drt_source = DrtAgentSource {};
         let drt_agents = drt_source.create_agents(&mut scenario, &config);

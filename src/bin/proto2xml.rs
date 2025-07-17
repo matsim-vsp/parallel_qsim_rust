@@ -29,7 +29,7 @@ impl<R: Read + Seek> StatefulReader<R> {
 }
 
 fn main() {
-    init_std_out_logging();
+    let _g = init_std_out_logging();
     let args = InputArgs::parse();
     info!("Proto2Xml with args: {args:?}");
 

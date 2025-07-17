@@ -158,12 +158,11 @@ impl InternalVehicle {
 }
 
 impl EnvironmentalEventObserver for InternalVehicle {
-    fn notify_event(&mut self, event: AgentEvent, now: u32) {
-        self.driver_mut().notify_event(event.clone(), now);
+    fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
+        self.driver_mut().notify_event(event, now);
         self.passengers.iter_mut().for_each(|p| {
-            p.notify_event(event.clone(), now);
+            p.notify_event(event, now);
         });
-        // todo!("Better provide event as &mut?")
     }
 }
 

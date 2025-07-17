@@ -11,7 +11,7 @@ use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::Network;
 use crate::simulation::scenario::Scenario;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
-use crate::simulation::{id, io};
+use crate::simulation::{id, io, logging};
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use std::any::Any;
@@ -44,6 +44,15 @@ where
     }
 }
 
+impl<T> From<Sender<T>> for RequestSender
+where
+    T: Send + 'static,
+{
+    fn from(value: Sender<T>) -> Self {
+        RequestSender(Arc::new(value) as Arc<dyn Any + Send + Sync>)
+    }
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ExternalServices(HashMap<ExternalServiceType, RequestSender>);
 
@@ -61,6 +70,10 @@ impl ExternalServices {
         self.0
             .get(&service_type)
             .and_then(|s| s.0.downcast_ref::<T>())
+    }
+
+    pub fn insert(&mut self, service_type: ExternalServiceType, sender: RequestSender) {
+        self.0.insert(service_type, sender);
     }
 }
 
@@ -112,6 +125,11 @@ pub struct PartitionArguments<C: SimCommunicator> {
 }
 
 pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
+    let _guards = logging::init_logging(
+        &partition_arguments.config,
+        partition_arguments.communicator.rank(),
+    );
+
     let comm = partition_arguments.communicator;
     let external_services = partition_arguments.external_services;
     let subscribers = partition_arguments.events_subscriber;
@@ -164,6 +182,11 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
     // load the network and population.
     rc_comm.barrier();
     simulation.run();
+
+    // Drop guards here to make sure that the logging is flushed before we exit.
+    // This is important for integration tests when the same test thread executes multiple simulations
+    // one after another and consequently initializes logging for each test case.
+    drop(_guards);
 }
 
 fn create_events(

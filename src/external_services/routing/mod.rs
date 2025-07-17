@@ -1,9 +1,13 @@
-use crate::external_services::{RequestAdapter, RequestToAdapter};
+use crate::external_services::{
+    execute_adapter, RequestAdapter, RequestAdapterFactory, RequestToAdapter,
+};
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
+use crate::simulation::config::Config;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use itertools::{EitherOrBoth, Itertools};
-use tokio::runtime::Runtime;
+use std::thread;
+use std::thread::JoinHandle;
 use tokio::sync::oneshot::Sender;
 
 pub struct RoutingServiceAdapter {
@@ -77,14 +81,51 @@ impl From<Response> for InternalRoutingResponse {
     }
 }
 
-impl RoutingServiceAdapter {
-    pub fn new(ip: &str) -> Self {
-        let client = Runtime::new().unwrap().block_on(async {
-            RoutingServiceClient::connect(ip.to_string())
-                .await
-                .expect("Failed to connect to routing service")
-        });
-        Self { client }
+pub struct RoutingServiceAdapterFactory {
+    ip: String,
+    //TODO think about whether this should be an Arc<Config> or not
+    config: Config,
+}
+
+impl RoutingServiceAdapterFactory {
+    pub fn new(ip: &str, config: Config) -> Self {
+        Self {
+            ip: ip.to_string(),
+            config,
+        }
+    }
+}
+
+impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFactory {
+    async fn build(self) -> impl RequestAdapter<InternalRoutingRequest> {
+        crate::simulation::id::load_from_file(&self.config.proto_files().ids);
+
+        let client = RoutingServiceClient::connect(self.ip)
+            .await
+            .expect("Failed to connect to routing service");
+
+        RoutingServiceAdapter { client }
+    }
+}
+
+impl RoutingServiceAdapterFactory {
+    pub fn spawn_thread(
+        self,
+        name: &str,
+    ) -> (
+        JoinHandle<()>,
+        tokio::sync::mpsc::Sender<InternalRoutingRequest>,
+        tokio::sync::watch::Sender<bool>,
+    ) {
+        let (send, recv) = self.request_channel(10000);
+        let (send_sd, recv_sd) = self.shutdown_channel();
+
+        let handle = thread::Builder::new()
+            .name(name.into())
+            .spawn(move || execute_adapter(recv, self, recv_sd))
+            .unwrap();
+
+        (handle, send, send_sd)
     }
 }
 
