@@ -7,16 +7,17 @@ use rand::rngs::ThreadRng;
 use rand::{rng, Rng};
 use tracing::instrument;
 
-use crate::simulation::config;
-use crate::simulation::id::Id;
-use crate::simulation::io::proto::events::Event;
-use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::vehicles::InternalVehicle;
-
 use super::{
     link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
     Link, Network, Node,
 };
+use crate::generated::events::Event;
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
+use crate::simulation::config;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::id::Id;
+use crate::simulation::messaging::events::EventsPublisher;
+use crate::simulation::vehicles::InternalVehicle;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StorageUpdate {
@@ -307,7 +308,11 @@ impl SimNetworkPartition {
     }
 
     #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
-    pub fn move_nodes(&mut self, events: &mut EventsPublisher, now: u32) -> Vec<InternalVehicle> {
+    pub fn move_nodes(
+        &mut self,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        now: u32,
+    ) -> Vec<InternalVehicle> {
         let mut exited_vehicles = Vec::new();
         let new_active_nodes: IntSet<_> = self
             .active_nodes
@@ -322,7 +327,7 @@ impl SimNetworkPartition {
                     &mut self.links,
                     &mut self.active_links,
                     &mut exited_vehicles,
-                    events,
+                    comp_env,
                     &mut self.rnd,
                     now,
                 );
@@ -342,7 +347,7 @@ impl SimNetworkPartition {
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut IntSet<Id<Link>>,
         exited_vehicles: &mut Vec<InternalVehicle>,
-        events: &mut EventsPublisher,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
         rnd: &mut ThreadRng,
         now: u32,
     ) -> bool {
@@ -380,7 +385,7 @@ impl SimNetworkPartition {
                     if sel_cap >= rnd_num {
                         let veh = in_link.pop_veh();
                         if veh.peek_next_route_element().is_some() {
-                            Self::move_vehicle(veh, links, active_links, events, now);
+                            Self::move_vehicle(veh, links, active_links, comp_env, now);
                         } else {
                             exited_vehicles.push(veh);
                         }
@@ -467,23 +472,23 @@ impl SimNetworkPartition {
         mut vehicle: InternalVehicle,
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut IntSet<Id<Link>>,
-        events: &mut EventsPublisher,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
         now: u32,
     ) {
-        events.publish_event(
+        comp_env.events_publisher_borrow_mut().publish_event(
             now,
             &Event::new_link_leave(
                 vehicle.curr_link_id().unwrap().internal(),
                 vehicle.id.internal(),
             ),
         );
-        vehicle.register_moved_to_next_link();
+        vehicle.notify_event(&mut AgentEvent::MovedToNextLink(), now);
         let link_id = vehicle.curr_link_id().unwrap().clone();
         let link = links.get_mut(&link_id).unwrap();
 
         // for out links, link enter event is published at receiving partition
         if let SimLink::Local(_) = link {
-            events.publish_event(
+            comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_link_enter(link.id().internal(), vehicle.id.internal()),
             );
@@ -501,7 +506,6 @@ mod tests {
     use super::SimNetworkPartition;
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::messaging::events::EventsPublisher;
     use crate::simulation::network::link::SimLink;
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
@@ -533,7 +537,7 @@ mod tests {
 
     #[test]
     fn vehicle_travels_local() {
-        let mut publisher = EventsPublisher::new();
+        let mut publisher = Default::default();
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -577,7 +581,7 @@ mod tests {
 
     #[test]
     fn vehicle_reaches_boundary() {
-        let mut publisher = EventsPublisher::new();
+        let mut publisher = Default::default();
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             2,
@@ -607,7 +611,7 @@ mod tests {
 
     #[test]
     fn move_nodes_flow_cap_constraint() {
-        let mut publisher = EventsPublisher::new();
+        let mut publisher = Default::default();
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -640,7 +644,7 @@ mod tests {
 
     #[test]
     fn move_nodes_storage_cap_constraint() {
-        let mut publisher = EventsPublisher::new();
+        let mut publisher = Default::default();
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -684,7 +688,7 @@ mod tests {
 
     #[test]
     fn move_nodes_stuck_threshold() {
-        let mut publisher = EventsPublisher::new();
+        let mut publisher = Default::default();
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -817,7 +821,7 @@ mod tests {
             sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
-        let mut publisher = EventsPublisher::new();
+        let mut publisher = Default::default();
         for now in 0..1000 {
             let _ = sim_net.move_nodes(&mut publisher, now);
             let _ = sim_net.move_links(now);
@@ -844,7 +848,7 @@ mod tests {
         let mut network = Network::new();
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
         let net2 = sim_nets.get_mut(1).unwrap();
-        let mut publisher = EventsPublisher::new();
+        let mut publisher = Default::default();
 
         let split_link_id: Id<Link> = Id::get_from_ext("link2");
         let agent = test_utils::create_agent(1, vec![split_link_id.external()]);

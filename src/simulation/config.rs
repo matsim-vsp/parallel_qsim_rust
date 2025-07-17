@@ -1,12 +1,14 @@
-use std::any::Any;
-use std::cell::RefCell;
-use std::fs::File;
-use std::io::BufReader;
-
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
+use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
-use tracing::Level;
+use std::any::Any;
+use std::cell::RefCell;
+use std::fmt::Debug;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::PathBuf;
+use tracing::{info, Level};
 
 use crate::simulation::config::VertexWeight::InLinkCapacity;
 
@@ -15,52 +17,143 @@ use crate::simulation::config::VertexWeight::InLinkCapacity;
 pub struct CommandLineArgs {
     #[arg(long, short)]
     pub config_path: String,
-    #[arg(long, short)]
-    pub num_parts: Option<u32>,
+    #[arg(long= "set", value_parser = parse_key_val)]
+    pub overrides: Vec<(String, String)>,
 }
 
-#[derive(Serialize, Deserialize)]
+impl CommandLineArgs {
+    pub fn new_with_path(path: impl ToString) -> Self {
+        CommandLineArgs {
+            config_path: path.to_string(),
+            overrides: Vec::new(),
+        }
+    }
+}
+
+fn parse_key_val(s: &str) -> Result<(String, String), String> {
+    let pos = s.find('=');
+    match pos {
+        Some(pos) => Ok((s[..pos].to_string(), s[pos + 1..].to_string())),
+        None => Err(format!("invalid KEY=VALUE: no `=` found in `{}`", s)),
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     modules: RefCell<HashMap<String, Box<dyn ConfigModule>>>,
+    #[serde(skip)]
+    context: Option<PathBuf>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
             modules: RefCell::new(HashMap::default()),
+            context: None,
         }
     }
 }
 
-impl Config {
-    pub fn from_file(args: &CommandLineArgs) -> Self {
-        let reader = BufReader::new(File::open(&args.config_path).unwrap_or_else(|e| {
+impl From<CommandLineArgs> for Config {
+    fn from(args: CommandLineArgs) -> Self {
+        let mut config = Config::from(args.config_path.parse::<PathBuf>().unwrap());
+        config.apply_overrides(&args.overrides);
+        config
+    }
+}
+
+impl From<PathBuf> for Config {
+    fn from(config_path: PathBuf) -> Self {
+        let reader = BufReader::new(File::open(&config_path).unwrap_or_else(|e| {
             panic!(
-                "Failed to open config file at {}. Original error was {}",
-                args.config_path, e
+                "Failed to open config file at {:?}. Original error was {}",
+                config_path, e
             );
         }));
         let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
             panic!(
-                "Failed to parse config at {}. Original error was: {}",
-                args.config_path, e
+                "Failed to parse config at {:?}. Original error was: {}",
+                config_path, e
             )
         });
-        // replace some configuration if we get a partition from the outside. This is interesting for testing
-        if let Some(part_args) = args.num_parts {
-            config.set_partitioning(Partitioning {
-                num_parts: part_args,
-                method: config.partitioning().method,
-            });
-            let out_dir = format!("{}-{part_args}", config.output().output_dir);
-            config.set_output(Output {
-                output_dir: out_dir,
-                profiling: config.output().profiling,
-                logging: config.output().logging,
-                write_events: config.output().write_events,
-            });
-        }
+        config.set_context(Some(config_path.clone()));
         config
+    }
+}
+
+impl Config {
+    pub fn set_context(&mut self, context: Option<PathBuf>) {
+        self.context = context;
+    }
+
+    /// Apply generic key-value overrides to the config, e.g. protofiles.population=path
+    fn apply_overrides(&mut self, overrides: &[(String, String)]) {
+        info!("Applying overrides: {:?}", overrides);
+
+        for (key, value) in overrides {
+            let mut parts = key.splitn(2, '.');
+            let module = parts.next();
+            let field = parts.next();
+            if let (Some(module), Some(field)) = (module, field) {
+                match module {
+                    "protofiles" => {
+                        let mut pf = self.proto_files();
+                        match field {
+                            "network" => pf.network = value.into(),
+                            "population" => pf.population = value.into(),
+                            "vehicles" => pf.vehicles = value.into(),
+                            "ids" => pf.ids = value.into(),
+                            _ => continue,
+                        }
+                        self.set_proto_files(pf);
+                    }
+                    "output" => {
+                        let mut out = self.output();
+                        match field {
+                            "output_dir" => out.output_dir = value.into(),
+                            _ => continue,
+                        }
+                        self.set_output(out);
+                    }
+                    "partitioning" => {
+                        let mut part = self.partitioning();
+                        match field {
+                            "num_parts" => {
+                                if let Ok(v) = value.parse() {
+                                    part.num_parts = v;
+                                    // replace some configuration if we get a partition from the outside. This is interesting for testing
+                                    let out_dir = format!(
+                                        "{}-{v}",
+                                        self.output().output_dir.to_str().unwrap()
+                                    );
+                                    let mut output = self.output().clone();
+                                    output.output_dir = out_dir.into();
+                                    self.set_output(output);
+                                }
+                            }
+                            _ => continue,
+                        }
+                        self.set_partitioning(part);
+                    }
+                    "routing" => {
+                        let mut routing = self.routing();
+                        match field {
+                            "mode" => {
+                                if let Ok(r) = RoutingMode::from_str(value, true) {
+                                    routing.mode = r;
+                                    self.set_routing(routing);
+                                } else {
+                                    panic!("invalid routing mode {:?}, expected mode", value);
+                                }
+                            }
+                            _ => continue,
+                        }
+                    }
+                    // Add more modules/fields as needed
+                    _ => continue,
+                }
+            }
+        }
     }
 
     pub fn proto_files(&self) -> ProtoFiles {
@@ -115,7 +208,7 @@ impl Config {
             output
         } else {
             let default = Output {
-                output_dir: "./".to_string(),
+                output_dir: "./".parse().unwrap(),
                 profiling: Profiling::None,
                 logging: Logging::Info,
                 write_events: WriteEvents::None,
@@ -131,6 +224,12 @@ impl Config {
         self.modules
             .get_mut()
             .insert("output".to_string(), Box::new(output));
+    }
+
+    pub fn set_routing(&mut self, routing: Routing) {
+        self.modules
+            .get_mut()
+            .insert("routing".to_string(), Box::new(routing));
     }
 
     pub fn simulation(&self) -> Simulation {
@@ -181,25 +280,29 @@ impl Config {
             .get(key)
             .map(|boxed| boxed.as_ref().as_any().downcast_ref::<T>().unwrap().clone())
     }
+
+    pub fn context(&self) -> &Option<PathBuf> {
+        &self.context
+    }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProtoFiles {
-    pub network: String,
-    pub population: String,
-    pub vehicles: String,
-    pub ids: String,
+    pub network: PathBuf,
+    pub population: PathBuf,
+    pub vehicles: PathBuf,
+    pub ids: PathBuf,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Partitioning {
     pub num_parts: u32,
     pub method: PartitionMethod,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Output {
-    pub output_dir: String,
+    pub output_dir: PathBuf,
     #[serde(default)]
     pub profiling: Profiling,
     #[serde(default)]
@@ -208,12 +311,12 @@ pub struct Output {
     pub write_events: WriteEvents,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Routing {
     pub mode: RoutingMode,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Drt {
     #[serde(default)]
     pub process_type: DrtProcessType,
@@ -227,7 +330,7 @@ pub enum DrtProcessType {
     OneProcessPerService,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct DrtService {
     pub mode: String,
     #[serde(default)]
@@ -249,13 +352,13 @@ pub struct Simulation {
     pub main_modes: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
 }
 
 #[typetag::serde(tag = "type")]
-pub trait ConfigModule {
+pub trait ConfigModule: Debug + Send + DynClone {
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -307,6 +410,9 @@ impl ConfigModule for Drt {
         self
     }
 }
+
+// This is needed to allow cloning of the trait object and thus cloning of the Config.
+dyn_clone::clone_trait_object!(ConfigModule);
 
 impl Default for Simulation {
     fn default() -> Self {
@@ -472,15 +578,16 @@ fn default_profiling_level() -> String {
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{
-        ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight, MetisOptions,
-        PartitionMethod, Partitioning, Simulation, VertexWeight,
+        parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType,
+        DrtService, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation,
+        VertexWeight,
     };
+    use std::io::Write;
+    use tempfile::NamedTempFile;
 
     #[test]
     fn read_from_yaml() {
-        let mut config = Config {
-            modules: Default::default(),
-        };
+        let mut config = Config::default();
         let partitioning = Partitioning {
             num_parts: 1,
             method: PartitionMethod::Metis(MetisOptions {
@@ -524,7 +631,7 @@ mod tests {
             })
         );
 
-        assert_eq!(parsed_config.computational_setup().global_sync, true);
+        assert!(parsed_config.computational_setup().global_sync);
 
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);
@@ -623,9 +730,7 @@ mod tests {
                 max_travel_time_beta: 600.
         "#;
 
-        let config = Config {
-            modules: Default::default(),
-        };
+        let config = Config::default();
         let drt = Drt {
             process_type: DrtProcessType::OneProcess,
             services: vec![DrtService {
@@ -660,5 +765,96 @@ mod tests {
             parsed_config.drt().unwrap().services[0].max_travel_time_beta,
             600.
         );
+    }
+
+    fn write_temp_config(yaml: &str) -> NamedTempFile {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(yaml.as_bytes()).unwrap();
+        file
+    }
+
+    #[test]
+    fn test_override_protofiles_population() {
+        let yaml = r#"
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: net
+    population: pop
+    vehicles: veh
+    ids: ids
+  output:
+    type: Output
+    output_dir: out
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config_path: file.path().to_str().unwrap().to_string(),
+            overrides: vec![("protofiles.population".to_string(), "new_pop".to_string())],
+        };
+        let config = Config::from(args);
+        assert_eq!(config.proto_files().population.to_str().unwrap(), "new_pop");
+        assert_eq!(config.proto_files().network.to_str().unwrap(), "net");
+    }
+
+    #[test]
+    fn test_override_output_dir() {
+        let yaml = r#"
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: net
+    population: pop
+    vehicles: veh
+    ids: ids
+  output:
+    type: Output
+    output_dir: out
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config_path: file.path().to_str().unwrap().to_string(),
+            overrides: vec![("output.output_dir".to_string(), "new_out".to_string())],
+        };
+        let config = Config::from(args);
+        assert_eq!(config.output().output_dir.to_str().unwrap(), "new_out");
+    }
+
+    #[test]
+    fn test_override_partitioning_num_parts() {
+        let yaml = r#"
+modules:
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: None
+  output:
+    type: Output
+    output_dir: out
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config_path: file.path().to_str().unwrap().to_string(),
+            overrides: vec![("partitioning.num_parts".to_string(), "5".to_string())],
+        };
+        let config = Config::from(args);
+        assert_eq!(config.partitioning().num_parts, 5);
+    }
+
+    #[test]
+    fn test_parse_key_val_valid() {
+        let input = "protofiles.population=some_path";
+        let parsed = parse_key_val(input);
+        assert_eq!(
+            parsed,
+            Ok(("protofiles.population".to_string(), "some_path".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_key_val_invalid() {
+        let input = "protofiles.population_some_path";
+        let parsed = parse_key_val(input);
+        assert!(parsed.is_err());
     }
 }

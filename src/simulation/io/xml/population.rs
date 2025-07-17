@@ -309,11 +309,11 @@ mod tests {
         //test overall structure of population
         assert_eq!(1, population.persons.len());
 
-        let person = population.persons.get(0).unwrap();
+        let person = population.persons.first().unwrap();
         assert_eq!("1", person.id);
         assert_eq!(1, person.plans.len());
 
-        let plan = person.plans.get(0).unwrap();
+        let plan = person.plans.first().unwrap();
         assert!(plan.selected);
         assert_eq!(7, plan.elements.len());
 

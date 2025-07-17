@@ -12,7 +12,7 @@ use crate::simulation::vehicles::InternalVehicle;
 
 use crate::simulation::network::Link;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum SimLink {
     Local(LocalLink),
     In(SplitInLink),
@@ -145,7 +145,7 @@ impl SimLink {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LocalLink {
     pub id: Id<Link>,
     q: VecDeque<VehicleQEntry>,
@@ -158,7 +158,7 @@ pub struct LocalLink {
     pub to: Id<Node>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct VehicleQEntry {
     vehicle: InternalVehicle,
     earliest_exit_time: u32,
@@ -293,7 +293,7 @@ impl LocalLink {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SplitOutLink {
     pub id: Id<Link>,
     pub to_part: u32,
@@ -340,7 +340,7 @@ impl SplitOutLink {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SplitInLink {
     pub from_part: u32,
     pub local_link: LocalLink,

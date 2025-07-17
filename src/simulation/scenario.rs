@@ -16,13 +16,16 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    pub fn build(config: &Config, config_path: &String, rank: u32, output_path: &Path) -> Self {
-        id::load_from_file(&io::resolve_path(config_path, &config.proto_files().ids));
+    pub fn build(config: &Config, rank: u32, output_path: &Path) -> Self {
+        id::load_from_file(&io::resolve_path(
+            config.context(),
+            &config.proto_files().ids,
+        ));
 
         // mandatory content to create a scenario
-        let network = Self::create_network(config, config_path, output_path);
-        let mut garage = Self::create_garage(config, config_path);
-        let population = Self::create_population(config, config_path, &network, &mut garage, rank);
+        let network = Self::create_network(config, output_path);
+        let mut garage = Self::create_garage(config);
+        let population = Self::create_population(config, &network, &mut garage, rank);
         let network_partition = Self::create_network_partition(config, rank, &network, &population);
 
         Scenario {
@@ -33,40 +36,39 @@ impl Scenario {
         }
     }
 
-    fn create_network(config: &Config, config_path: &String, output_path: &Path) -> Network {
+    fn create_network(config: &Config, output_path: &Path) -> Network {
         // if we partition the network is copied to the output folder.
         // otherwise nothing is done and we can load the network from the input folder directly.
         let network_path = if let PartitionMethod::Metis(_) = config.partitioning().method {
             get_numbered_output_filename(
                 output_path,
-                &io::resolve_path(config_path, &config.proto_files().network),
+                &io::resolve_path(config.context(), &config.proto_files().network),
                 config.partitioning().num_parts,
             )
         } else {
             crate::simulation::controller::insert_number_in_proto_filename(
-                &io::resolve_path(config_path, &config.proto_files().network),
+                &io::resolve_path(config.context(), &config.proto_files().network),
                 config.partitioning().num_parts,
             )
         };
         Network::from_file_as_is(&network_path)
     }
 
-    fn create_garage(config: &Config, config_path: &String) -> Garage {
+    fn create_garage(config: &Config) -> Garage {
         Garage::from_file(&io::resolve_path(
-            config_path,
+            config.context(),
             &config.proto_files().vehicles,
         ))
     }
 
     fn create_population(
         config: &Config,
-        config_path: &String,
         network: &Network,
         garage: &mut Garage,
         rank: u32,
     ) -> Population {
         Population::from_file_filtered_part(
-            &io::resolve_path(config_path, &config.proto_files().population),
+            &io::resolve_path(config.context(), &config.proto_files().population),
             network,
             garage,
             rank,

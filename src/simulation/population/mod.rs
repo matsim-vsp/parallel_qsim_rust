@@ -1,8 +1,6 @@
+use crate::generated::population::leg::Route;
+use crate::generated::population::{Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription};
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::population::leg::Route;
-use crate::simulation::io::proto::population::{
-    Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription,
-};
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
@@ -18,6 +16,9 @@ use std::path::Path;
 use std::str::FromStr;
 
 pub mod agent_source;
+pub mod trip_structure_utils;
+
+pub const PREPLANNING_HORIZON: &str = "preplanningHorizon";
 
 trait FromIOPerson<T> {
     fn from_io(io: T, id: Id<InternalPerson>) -> Self;
@@ -81,7 +82,7 @@ impl Population {
         part: u32,
     ) -> Self {
         from_file(file_path, garage, |p| {
-            let act = p.plan_element_at(0).as_activity().unwrap();
+            let act = p.plan_element_at(0).and_then(|p| p.as_activity()).unwrap();
             let partition = net.get_link(&act.link_id).partition;
             partition == part
         })
@@ -122,7 +123,7 @@ pub enum InternalRoute {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalGenericRoute {
-    start_link: Id<Link>,
+    pub start_link: Id<Link>,
     end_link: Id<Link>,
     trav_time: Option<u32>,
     distance: Option<f64>,
@@ -169,6 +170,15 @@ pub struct InternalPerson {
     attributes: InternalAttributes,
 }
 
+impl InternalPerson {
+    pub fn selected_plan_mut(&mut self) -> &mut InternalPlan {
+        self.plans
+            .iter_mut()
+            .find(|plan| plan.selected)
+            .expect("No selected plan found")
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub struct InternalPopulation {
     pub persons: Vec<InternalPerson>,
@@ -191,12 +201,8 @@ impl InternalPerson {
         &self.plans
     }
 
-    pub fn plan_element_at(&self, index: usize) -> &InternalPlanElement {
-        self.selected_plan()
-            .unwrap()
-            .elements
-            .get(index)
-            .expect("Plan index out of bounds")
+    pub fn plan_element_at(&self, index: usize) -> Option<&InternalPlanElement> {
+        self.selected_plan().unwrap().elements.get(index)
     }
 
     pub fn total_elements(&self) -> usize {
@@ -260,7 +266,7 @@ impl InternalActivity {
         InternalActivity {
             x,
             y,
-            act_type: Id::create(&act_type),
+            act_type: Id::create(act_type),
             link_id,
             start_time,
             end_time,
@@ -268,11 +274,11 @@ impl InternalActivity {
         }
     }
 
-    pub(crate) fn cmp_end_time(&self, now: u32) -> u32 {
+    pub(crate) fn cmp_end_time(&self, begin: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {
-            now + max_dur
+            begin + max_dur
         } else {
             // supposed to be an equivalent for OptionalTime.undefined() in the java code
             u32::MAX
@@ -539,7 +545,7 @@ impl FromIOPerson<IOLeg> for InternalLeg {
             route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes
-                .map(|a| InternalAttributes::from(a).into())
+                .map(InternalAttributes::from)
                 .unwrap_or_default(),
         }
     }

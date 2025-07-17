@@ -20,7 +20,7 @@ pub fn run_mpi() {
     args.num_parts = Some(size as u32);
     let config = Config::from_file(&args);
 
-    let _guards = logging::init_logging(&config, &args.config_path, comm.rank());
+    let _guards = logging::init_logging(&config, comm.rank());
 
     info!(
         "Starting MPI Simulation with {} partitions",

@@ -53,7 +53,7 @@ where
     }
 
     pub fn rank_for_link(&self, link_id: &Id<Link>) -> u32 {
-        *self.link_mapping.get(&(link_id)).unwrap()
+        *self.link_mapping.get(link_id).unwrap()
     }
 
     pub fn add_veh(&mut self, vehicle: InternalVehicle, now: u32) {
@@ -158,6 +158,7 @@ mod tests {
     use std::sync::Arc;
     use std::thread;
 
+    use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
     use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
@@ -213,7 +214,7 @@ mod tests {
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec!["2", "6"]);
                 let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
-                broker.add_veh(vehicle.clone(), 0);
+                broker.add_veh(vehicle, 0);
             }
 
             // do sync step for all partitions
@@ -228,7 +229,7 @@ mod tests {
                 assert_eq!(0, msg.time());
                 assert_eq!(1, msg.vehicles().len());
                 let mut vehicle = msg.vehicles_mut().remove(0);
-                vehicle.register_moved_to_next_link();
+                vehicle.notify_event(&mut AgentEvent::MovedToNextLink(), 0);
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {
@@ -363,9 +364,7 @@ mod tests {
             assert_eq!(partition.get_link_ids().len(), 1);
         }
 
-        let broker =
-            NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false);
-        broker
+        NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false)
     }
 
     #[test]
@@ -453,8 +452,7 @@ mod tests {
     }
 
     fn create_node(id: u64, partition: u32) -> Node {
-        let node = Node::new(Id::create(&id.to_string()), 0., 0., partition, 1);
-        node
+        Node::new(Id::create(&id.to_string()), 0., 0., partition, 1)
     }
 
     fn create_link(id: u64, from: u64, to: u64, partition: u32) -> Link {

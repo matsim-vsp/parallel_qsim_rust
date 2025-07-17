@@ -1,155 +1,127 @@
+use derive_builder::Builder;
 use nohash_hasher::IntMap;
+use rust_q_sim::external_services::AdapterHandle;
+use rust_q_sim::generated::events::Event;
+use rust_q_sim::simulation::config::{CommandLineArgs, Config};
+use rust_q_sim::simulation::controller::ExternalServices;
+use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
+use rust_q_sim::simulation::messaging::events::EventsSubscriber;
+use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use std::any::Any;
-use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
-use std::rc::Rc;
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::thread;
 use std::thread::JoinHandle;
-use std::{fs, thread};
-use tracing::info;
 
-use rust_q_sim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
-use rust_q_sim::simulation::controller::{
-    create_output_filename, get_numbered_output_filename, partition_input,
-};
-use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::io::proto::events::Event;
-use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_q_sim::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
-use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
-use rust_q_sim::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
-use rust_q_sim::simulation::messaging::sim_communication::SimCommunicator;
-use rust_q_sim::simulation::network::sim_network::SimNetworkPartition;
-use rust_q_sim::simulation::network::Network;
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
-use rust_q_sim::simulation::scenario::Scenario;
-use rust_q_sim::simulation::simulation::SimulationBuilder;
-use rust_q_sim::simulation::vehicles::garage::Garage;
-
-// this function is used only in some tests. The compiler complains if the tests are compiled which do not use it.
-#[allow(dead_code)]
-pub fn execute_sim_with_channels(config_args: CommandLineArgs, expected_events: &str) {
-    let config = Config::from_file(&config_args);
-    let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
-    let mut receiver = ReceivingSubscriber::new_with_events_from_file(expected_events);
-
-    let mut handles: IntMap<u32, JoinHandle<()>> = comms
-        .into_iter()
-        .map(|comm| {
-            let config_args_clone = config_args.clone();
-            let subscr = SendingSubscriber {
-                rank: comm.rank(),
-                sender: receiver.channel.0.clone(),
-            };
-            (
-                comm.rank(),
-                thread::spawn(move || execute_sim(comm, Box::new(subscr), config_args_clone)),
-            )
-        })
-        .collect();
-
-    // create another thread for the receiver, so that the main thread doesn't block.
-    let receiver_handle = thread::spawn(move || receiver.start_listen());
-    handles.insert(handles.len() as u32, receiver_handle);
-
-    try_join(handles);
+#[derive(Debug, Builder)]
+#[builder(pattern = "owned")]
+pub struct TestExecutor<'s> {
+    config_args: CommandLineArgs,
+    #[builder(default)]
+    expected_events: Option<&'s str>,
+    #[builder(default)]
+    external_services: ExternalServices,
+    #[builder(default)]
+    additional_subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+    #[builder(default)]
+    adapter_handles: Vec<AdapterHandle>,
 }
 
-pub fn execute_sim<C: SimCommunicator + 'static>(
-    comm: C,
-    test_subscriber: Box<dyn EventsSubscriber + Send>,
-    config_args: CommandLineArgs,
-) {
-    let rank = comm.rank();
-
-    let config = Config::from_file(&config_args);
-
-    let output_path = PathBuf::from(&config.output().output_dir);
-    fs::create_dir_all(&output_path).expect("Failed to create output path");
-
-    let temp_network_file = match config.partitioning().method {
-        PartitionMethod::Metis(_) => get_numbered_output_filename(
-            &output_path,
-            &PathBuf::from(config.proto_files().network),
-            config.partitioning().num_parts,
-        ),
-        PartitionMethod::None => {
-            create_output_filename(&output_path, &PathBuf::from(config.proto_files().network))
-        }
-    };
-
-    id::load_from_file(&PathBuf::from(config.proto_files().ids));
-
-    if rank == 0 {
-        info!("#{rank} preparing to create input for partitions.");
-        //this call also loads the ids from the file.
-        partition_input(&config, &config_args.config_path);
-    } else {
-        //apply busy waiting until first process has created all files
-        while !all_temp_files_created(&temp_network_file) {
-            thread::sleep(std::time::Duration::from_millis(50));
-        }
+impl TestExecutor<'_> {
+    pub fn execute(self) {
+        self.execute_config_mutation(|_| {});
     }
 
-    let network = Network::from_file_as_is(&temp_network_file);
-    let mut garage = Garage::from_file(&PathBuf::from(config.proto_files().vehicles));
+    pub fn execute_config_mutation<F>(mut self, config_mutator: F)
+    where
+        F: Fn(&mut Config),
+    {
+        let mut config = Config::from(self.config_args.clone());
 
-    //let population: Population = Population::from_file(&temp_population_file, &mut garage);
-    let population: Population = Population::from_file_filtered_part(
-        &PathBuf::from(config.proto_files().population),
-        &network,
-        &mut garage,
-        comm.rank(),
-    );
-    let sim_net = SimNetworkPartition::from_network(&network, rank, config.simulation());
+        config_mutator(&mut config);
 
-    info!(
-        "Partitioning: Rank {rank}; Links {:?}; Nodes {:?}",
-        &sim_net.get_link_ids(),
-        &sim_net.get_node_ids()
-    );
+        let handles = if config.partitioning().num_parts > 1 {
+            self.execute_sim_with_channels(config)
+        } else {
+            self.execute_sim(config)
+        };
 
-    let events = Rc::new(RefCell::new(EventsPublisher::new()));
-    events.borrow_mut().add_subscriber(test_subscriber);
-    events
-        .borrow_mut()
-        .add_subscriber(Box::new(TravelTimeCollector::new()));
+        rust_q_sim::simulation::controller::try_join(handles, self.adapter_handles)
+    }
 
-    let rc = Rc::new(comm);
-    let broker = NetMessageBroker::new(rc.clone(), &network, &sim_net, false);
+    fn execute_sim_with_channels(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
+        let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
 
-    let scenario = Scenario {
-        network,
-        garage,
-        population,
-        network_partition: sim_net,
-    };
+        let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
 
-    let mut sim = SimulationBuilder::new(config, scenario, broker, events).build();
-    sim.run();
-}
+        let receiver = if let Some(expected_events) = self.expected_events {
+            Some(ReceivingSubscriber::new_with_events_from_file(
+                &expected_events,
+            ))
+        } else {
+            None
+        };
 
-fn all_temp_files_created(temp_network_file: &PathBuf) -> bool {
-    temp_network_file.exists()
-}
-
-/// Have this more complicated join logic, so that threads in the back of the handle vec can also
-/// cause the main thread to panic.
-fn try_join(mut handles: IntMap<u32, JoinHandle<()>>) {
-    while !handles.is_empty() {
-        let mut finished = Vec::new();
-        for (i, handle) in handles.iter() {
-            if handle.is_finished() {
-                finished.push(*i);
+        for c in comms {
+            if receiver.is_none() {
+                continue;
             }
+
+            let subscr = SendingSubscriber {
+                rank: c.rank(),
+                sender: receiver.as_ref().unwrap().channel.0.clone(),
+            };
+            let mut subscriber: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(subscr)];
+            subscriber.append(
+                self.additional_subscribers
+                    .get_mut(&c.rank())
+                    .unwrap_or(&mut vec![]),
+            );
+            subscribers.insert(c.rank(), subscriber);
         }
-        for i in finished {
-            let handle = handles.remove(&i).unwrap();
-            handle.join().expect("Error in a thread");
+
+        let mut handles = rust_q_sim::simulation::controller::local_controller::run_channel(
+            Config::from(self.config_args.clone()),
+            subscribers,
+            self.external_services.clone(),
+        );
+
+        if let Some(mut receiver) = receiver {
+            // create another thread for the receiver, so that the main thread doesn't block.
+            let receiver_handle = thread::spawn(move || receiver.start_listen());
+            handles.insert(handles.len() as u32, receiver_handle);
         }
+
+        handles
+    }
+
+    fn execute_sim(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
+        let mut subscribers = HashMap::new();
+
+        let mut subs: Vec<Box<dyn EventsSubscriber + Send>> =
+            if let Some(expected_events) = self.expected_events {
+                vec![Box::new(TestSubscriber::new_with_events_from_file(
+                    expected_events,
+                ))]
+            } else {
+                vec![]
+            };
+
+        subs.append(
+            self.additional_subscribers
+                .get_mut(&0)
+                .unwrap_or(&mut vec![]),
+        );
+
+        subscribers.insert(0, subs);
+
+        rust_q_sim::simulation::controller::local_controller::run_channel(
+            config,
+            subscribers,
+            self.external_services.clone(),
+        )
     }
 }
 

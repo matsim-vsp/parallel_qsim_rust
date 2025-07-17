@@ -1,7 +1,6 @@
-use crate::test_simulation::{execute_sim, execute_sim_with_channels, TestSubscriber};
+use crate::test_simulation::TestExecutorBuilder;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::sim_communication::local_communicator::DummySimCommunicator;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
@@ -26,18 +25,15 @@ fn execute_3_links_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/execute_3_links_single_part/");
     create_resources(&test_dir);
 
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/3-links/3-links-config-1.yml".to_string(),
-        num_parts: None,
-    };
+    let config_args =
+        CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-1.yml");
 
-    execute_sim(
-        DummySimCommunicator(),
-        Box::new(TestSubscriber::new_with_events_from_file(
-            "./tests/resources/3-links/expected_events.xml",
-        )),
-        config_args,
-    );
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
+        .build()
+        .unwrap()
+        .execute();
 }
 
 #[test]
@@ -45,10 +41,14 @@ fn execute_3_links_2_parts() {
     create_resources(&PathBuf::from(
         "./test_output/simulation/execute_3_links_2_parts/",
     ));
-    let config_args = CommandLineArgs {
-        config_path: "./tests/resources/3-links/3-links-config-2.yml".to_string(),
-        num_parts: None,
-    };
 
-    execute_sim_with_channels(config_args, "./tests/resources/3-links/expected_events.xml");
+    let config_args =
+        CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-2.yml");
+
+    TestExecutorBuilder::default()
+        .config_args(config_args)
+        .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
+        .build()
+        .unwrap()
+        .execute();
 }

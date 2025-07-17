@@ -1,6 +1,6 @@
 use std::io;
 use std::path::Path;
-
+use tracing::dispatcher::DefaultGuard;
 use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -14,24 +14,28 @@ use crate::simulation::config::{Config, Logging, Profiling};
 use crate::simulation::io::resolve_path;
 use crate::simulation::profiling::{SpanDurationToCSVLayer, WriterGuard};
 
-pub fn init_std_out_logging() {
+// This is a helper struct to store the logger guards. When they are dropped, logging can be reset.
+#[allow(dead_code)]
+pub(crate) struct LogGuards {
+    tracing_guard: Option<WriterGuard>,
+    log_guard: Option<WorkerGuard>,
+    default: DefaultGuard,
+}
+
+pub fn init_std_out_logging() -> DefaultGuard {
     let collector = tracing_subscriber::registry().with(
         fmt::Layer::new()
             .with_writer(io::stdout)
             .with_filter(LevelFilter::INFO),
     );
-    tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
+    tracing::subscriber::set_default(collector)
 }
 
-pub fn init_logging(
-    config: &Config,
-    config_path: &String,
-    part: u32,
-) -> (Option<WorkerGuard>, Option<WriterGuard>) {
+pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     let file_discriminant = part.to_string();
-    let dir = resolve_path(config_path, &config.output().output_dir);
+    let dir = resolve_path(config.context(), &config.output().output_dir);
 
-    let (csv_layer, guard) = init_tracing(config, part, &file_discriminant, &dir);
+    let (csv_layer, tracing_guard) = init_tracing(config, part, &file_discriminant, &dir);
     let (log_layer, log_guard) = if Logging::Info == config.output().logging {
         let log_file_name = format!("log_process_{file_discriminant}.txt");
         let log_file_appender = rolling::never(&dir, log_file_name);
@@ -57,8 +61,13 @@ pub fn init_logging(
                 .with_filter(LevelFilter::INFO)
         }));
 
-    tracing::subscriber::set_global_default(collector).expect("Unable to set a global collector");
-    (log_guard, guard)
+    let default = tracing::subscriber::set_default(collector);
+
+    LogGuards {
+        tracing_guard,
+        log_guard,
+        default,
+    }
 }
 
 fn init_tracing(

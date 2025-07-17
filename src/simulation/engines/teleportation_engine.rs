@@ -1,26 +1,25 @@
+use crate::generated::events::Event;
+use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::events::Event;
-use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::InternalRoute;
 use crate::simulation::simulation::Simulation;
-use crate::simulation::time_queue::TimeQueue;
+use crate::simulation::time_queue::{Identifiable, TimeQueue};
 use crate::simulation::vehicles::InternalVehicle;
-use crate::simulation::InternalSimulationAgent;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub struct TeleportationEngine {
     queue: TimeQueue<InternalVehicle, InternalVehicle>,
-    pub events: Rc<RefCell<EventsPublisher>>,
+    comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl TeleportationEngine {
-    pub fn new(events: Rc<RefCell<EventsPublisher>>) -> Self {
+    pub fn new(comp_env: ThreadLocalComputationalEnvironment) -> Self {
         TeleportationEngine {
             queue: TimeQueue::new(),
-            events,
+            comp_env,
         }
     }
 
@@ -30,11 +29,7 @@ impl TeleportationEngine {
         mut vehicle: InternalVehicle,
         net_message_broker: &mut NetMessageBroker<C>,
     ) {
-        // set the pointer of the route to the last element, so that the current link
-        // is the destination of this leg. Setting this to the last element makes this
-        // logic independent of whether the agent has a Generic-Route with only start
-        // and end link or a full Network-Route, which is often the case for ride modes.
-        vehicle.route_index_to_last();
+        vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), now);
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
             self.queue.add(vehicle, now);
@@ -49,18 +44,18 @@ impl TeleportationEngine {
             let agent = vehicle.driver.as_ref().unwrap();
 
             match agent.curr_leg().route.as_ref().unwrap() {
-                InternalRoute::Generic(_) => self.emit_travelled(now, &agent),
-                InternalRoute::Network(_) => self.emit_travelled(now, &agent),
-                InternalRoute::Pt(_) => self.emit_travelled_with_pt(now, &agent),
+                InternalRoute::Generic(_) => self.emit_travelled(now, agent),
+                InternalRoute::Network(_) => self.emit_travelled(now, agent),
+                InternalRoute::Pt(_) => self.emit_travelled_with_pt(now, agent),
             }
         }
         teleportation_vehicles
     }
 
-    fn emit_travelled(&mut self, now: u32, agent: &InternalSimulationAgent) {
+    fn emit_travelled(&mut self, now: u32, agent: &SimulationAgent) {
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
-        self.events.borrow_mut().publish_event(
+        self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
             &Event::new_travelled(
                 agent.id().internal(),
@@ -73,7 +68,7 @@ impl TeleportationEngine {
         );
     }
 
-    fn emit_travelled_with_pt(&mut self, now: u32, agent: &InternalSimulationAgent) {
+    fn emit_travelled_with_pt(&mut self, now: u32, agent: &SimulationAgent) {
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let transit_line_id =
@@ -83,7 +78,7 @@ impl TeleportationEngine {
             route.as_pt().unwrap().description.transit_route_id.as_str(),
         )
         .internal();
-        self.events.borrow_mut().publish_event(
+        self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
             &Event::new_travelled_with_pt(
                 agent.id().internal(),

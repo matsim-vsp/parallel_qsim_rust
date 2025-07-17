@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use clap::Parser;
 use tracing::info;
 
+use rust_q_sim::generated::events::Event;
 use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::io::proto::events::Event;
 use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::io::proto_events::EventsReader;
 use rust_q_sim::simulation::logging::init_std_out_logging;
@@ -29,7 +29,7 @@ impl<R: Read + Seek> StatefulReader<R> {
 }
 
 fn main() {
-    init_std_out_logging();
+    let _g = init_std_out_logging();
     let args = InputArgs::parse();
     info!("Proto2Xml with args: {args:?}");
 

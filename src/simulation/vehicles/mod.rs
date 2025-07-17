@@ -1,11 +1,13 @@
+use crate::generated::vehicles::{Vehicle, VehicleType};
+use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
-use crate::simulation::io::proto::vehicles::{Vehicle, VehicleType};
 use crate::simulation::io::xml::vehicles::{load_from_xml, write_to_xml, IOVehicle, IOVehicleType};
 use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::{InternalAttributes, InternalSimulationAgent};
+use crate::simulation::InternalAttributes;
 use std::fmt::Debug;
 use std::path::Path;
 
@@ -43,13 +45,13 @@ pub struct InternalVehicleType {
     pub attributes: InternalAttributes,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub struct InternalVehicle {
     pub id: Id<InternalVehicle>,
     pub max_v: f32,
     pub pce: f32,
-    pub driver: Option<InternalSimulationAgent>,
-    pub passengers: Vec<InternalSimulationAgent>,
+    pub driver: Option<SimulationAgent>,
+    pub passengers: Vec<SimulationAgent>,
     pub vehicle_type: Id<InternalVehicleType>,
     pub attributes: InternalAttributes,
 }
@@ -117,41 +119,33 @@ impl InternalVehicle {
         veh_type: u64,
         max_v: f32,
         pce: f32,
-        driver: Option<InternalSimulationAgent>,
+        driver: Option<SimulationAgent>,
     ) -> Self {
         InternalVehicle {
-            id: Id::create(&*id.to_string()),
-            max_v: max_v,
+            id: Id::create(&id.to_string()),
+            max_v,
             pce,
             driver,
             passengers: Vec::new(),
-            vehicle_type: Id::create(&*veh_type.to_string()),
+            vehicle_type: Id::create(&veh_type.to_string()),
             attributes: Default::default(),
         }
     }
 
-    fn driver_mut(&mut self) -> &mut InternalSimulationAgent {
+    fn driver_mut(&mut self) -> &mut SimulationAgent {
         self.driver.as_mut().unwrap()
     }
 
-    pub fn driver(&self) -> &InternalSimulationAgent {
+    pub fn driver(&self) -> &SimulationAgent {
         self.driver.as_ref().unwrap()
     }
 
-    pub fn passengers(&self) -> &Vec<InternalSimulationAgent> {
+    pub fn passengers(&self) -> &Vec<SimulationAgent> {
         &self.passengers
     }
 
     pub fn id(&self) -> &Id<InternalVehicle> {
         &self.id
-    }
-
-    pub fn register_moved_to_next_link(&mut self) {
-        self.driver_mut().register_moved_to_next_link();
-    }
-
-    pub fn route_index_to_last(&mut self) {
-        self.driver_mut().route_index_to_last();
     }
 
     pub fn curr_link_id(&self) -> Option<&Id<Link>> {
@@ -160,6 +154,15 @@ impl InternalVehicle {
 
     pub fn peek_next_route_element(&self) -> Option<&Id<Link>> {
         self.driver().peek_next_link_id()
+    }
+}
+
+impl EnvironmentalEventObserver for InternalVehicle {
+    fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
+        self.driver_mut().notify_event(event, now);
+        self.passengers.iter_mut().for_each(|p| {
+            p.notify_event(event, now);
+        });
     }
 }
 
