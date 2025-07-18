@@ -54,7 +54,7 @@ impl EnvironmentalEventObserver for PlanBasedSimulationLogic {
             AgentEvent::TeleportationStarted { .. } => {
                 self.set_curr_route_element_to_last();
             }
-            AgentEvent::MovedToNextLink { .. } => {
+            AgentEvent::LeftLink { .. } => {
                 self.curr_route_element += 1;
             }
             _ => {}
@@ -268,7 +268,7 @@ impl Identifiable<InternalPerson> for AdaptivePlanBasedSimulationLogic {
 impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
     fn notify_event(&mut self, mut event: &mut AgentEvent, now: u32) {
         match &mut event {
-            AgentEvent::Wakeup(w) => {
+            AgentEvent::WokeUp(w) => {
                 self.call_router(&mut w.comp_env, w.end_time, now);
             }
             AgentEvent::ActivityFinished() => self.replace_route(),
