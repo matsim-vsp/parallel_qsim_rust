@@ -1,7 +1,7 @@
 use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WakeupEvent,
+    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WokeUpEvent,
 };
 use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
@@ -120,7 +120,7 @@ impl ActivityEngine {
         now: u32,
     ) {
         agent.notify_event(
-            &mut AgentEvent::Wakeup(WakeupEvent { comp_env, end_time }),
+            &mut AgentEvent::WokeUp(WokeUpEvent { comp_env, end_time }),
             now,
         );
     }
