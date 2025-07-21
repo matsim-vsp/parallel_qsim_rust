@@ -5,4 +5,4 @@
 /test_output/
 /assets/routing_tests/*
 
-test.xml
+.DS_Store
