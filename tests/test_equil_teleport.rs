@@ -11,7 +11,6 @@ use std::path::PathBuf;
 fn create_resources(out_dir: &PathBuf, population: &str) {
     let input_dir = PathBuf::from("./assets/equil/");
     let population_input_dir = PathBuf::from("./tests/resources/equil/");
-    println!("{:?}", input_dir);
     let net = Network::from_file_as_is(&input_dir.join("equil-network.xml"));
     let mut garage = Garage::from_file(&input_dir.join("equil-vehicles.xml"));
     let pop = Population::from_file(&population_input_dir.join(population), &mut garage);
