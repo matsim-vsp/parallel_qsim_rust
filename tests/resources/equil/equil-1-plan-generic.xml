@@ -17,7 +17,7 @@
         <plan score="53.10347962692449" selected="yes">
             <activity type="h" link="1" x="-25000.0" y="0.0" end_time="06:00:00">
             </activity>
-            <leg mode="car" trav_time="00:01:00">
+            <leg mode="car" trav_time="00:10:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
@@ -25,7 +25,7 @@
             </leg>
             <activity type="w" link="20" x="3456.0" y="4242.0" max_dur="00:10:00">
             </activity>
-            <leg mode="car" trav_time="00:01:00">
+            <leg mode="car" trav_time="00:10:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
@@ -33,7 +33,7 @@
             </leg>
             <activity type="w" link="20" x="10000.0" y="0.0" max_dur="03:30:00">
             </activity>
-            <leg mode="car" trav_time="00:01:00">
+            <leg mode="car" trav_time="00:10:00">
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>

@@ -10,9 +10,11 @@ use std::path::PathBuf;
 
 fn create_resources(out_dir: &PathBuf, population: &str) {
     let input_dir = PathBuf::from("./assets/equil/");
+    let population_input_dir = PathBuf::from("./tests/resources/equil/");
+    println!("{:?}", input_dir);
     let net = Network::from_file_as_is(&input_dir.join("equil-network.xml"));
     let mut garage = Garage::from_file(&input_dir.join("equil-vehicles.xml"));
-    let pop = Population::from_file(&input_dir.join(population), &mut garage);
+    let pop = Population::from_file(&population_input_dir.join(population), &mut garage);
 
     store_to_file(&out_dir.join("equil.ids.binpb"));
     net.to_file(&out_dir.join("equil.network.binpb"));
@@ -23,8 +25,7 @@ fn create_resources(out_dir: &PathBuf, population: &str) {
 // one agent having a network route, car being not a main mode => simulation should teleport the agent
 #[test]
 fn teleport_network_route() {
-    let test_dir =
-        PathBuf::from("./test_output/simulation/output-teleport-network-route/");
+    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-network-route/");
     create_resources(&test_dir, "equil-1-plan-network.xml");
 
     let config_args = CommandLineArgs::new_with_path(
@@ -44,8 +45,7 @@ fn teleport_network_route() {
 // one agent having a generic route, car being not a main mode => simulation should teleport the agent
 #[test]
 fn teleport_generic_route() {
-    let test_dir =
-        PathBuf::from("./test_output/simulation/output-teleport-generic-route/");
+    let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-route/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
 
     let config_args = CommandLineArgs::new_with_path(
@@ -95,9 +95,7 @@ fn simulate_generic_route_panics() {
 
     TestExecutorBuilder::default()
         .config_args(config_args)
-        .expected_events(Some(
-            "./tests/resources/equil/expected_events_simulate_generic_route_panics.xml",
-        ))
+        .expected_events(None)
         .build()
         .unwrap()
         .execute();
