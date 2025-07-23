@@ -1,0 +1,19 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    network: ./test_output/simulation/execute_3_links_single_part/3-links-network.binpb
+    population: ./test_output/simulation/execute_3_links_single_part/1-agent-full-leg.binpb
+    vehicles: ./test_output/simulation/execute_3_links_single_part/vehicles.binpb
+    ids: ./test_output/simulation/execute_3_links_single_part/ids.binpb
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: !Metis
+      vertex_weight:
+        - Constant
+  output:
+    type: Output
+    output_dir: ./test_output/simulation/execute_3_links_single_part
+  routing:
+    type: Routing
+    mode: UsePlans
