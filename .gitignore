@@ -4,3 +4,5 @@
 .idea/
 /test_output/
 /assets/routing_tests/*
+
+.DS_Store
