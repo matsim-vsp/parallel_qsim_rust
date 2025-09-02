@@ -1,0 +1,25 @@
+modules:
+  protofiles:
+    type: ProtoFiles
+    ids: "./test_output/simulation/output-teleport-generic-route/equil.ids.binpb"
+    network: "./test_output/simulation/output-teleport-generic-route/equil.network.binpb"
+    population: "./test_output/simulation/output-teleport-generic-route/equil.population.binpb"
+    vehicles: "./test_output/simulation/output-teleport-generic-route/equil.vehicles.binpb"
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: !Metis
+  output:
+    type: Output
+    output_dir: ./test_output/simulation/output-teleport-generic-route
+    write_events: Proto
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 86400
+    sample_size: 1.0
+    stuck_threshold: 1000
+    main_modes:
