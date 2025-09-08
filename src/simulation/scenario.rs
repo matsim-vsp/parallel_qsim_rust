@@ -17,11 +17,6 @@ pub struct Scenario {
 
 impl Scenario {
     pub fn build(config: &Config, rank: u32, output_path: &Path) -> Self {
-        id::load_from_file(&io::resolve_path(
-            config.context(),
-            &config.proto_files().ids,
-        ));
-
         // mandatory content to create a scenario
         let network = Self::create_network(config, output_path);
         let mut garage = Self::create_garage(config);

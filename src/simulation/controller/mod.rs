@@ -150,6 +150,11 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
             "#{rank} loading ids from file: {}",
             config.proto_files().ids.display()
         );
+
+        id::load_from_file(&io::resolve_path(
+            config.context(),
+            &config.proto_files().ids,
+        ));
     }
 
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
