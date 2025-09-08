@@ -1,7 +1,6 @@
-use ahash::{AHashMap, RandomState};
 use bytes::{Buf, BufMut};
+use dashmap::DashMap;
 use lz4::BlockMode;
-use nohash_hasher::IntMap;
 use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
 use serde::Serialize;
@@ -38,7 +37,9 @@ fn serialize_to_file(store: &IdStore, file_path: &Path, compression: IdCompressi
 }
 
 fn serialize<W: Write>(store: &IdStore, writer: &mut W, compression: IdCompression) {
-    for (type_id, ids) in &store.ids {
+    for entry in &store.ids {
+        let type_id = entry.key();
+        let ids = entry.value();
         let data = serialize_ids(ids, compression);
         let ids = IdsWithType {
             type_id: *type_id,
@@ -54,7 +55,7 @@ fn serialize<W: Write>(store: &IdStore, writer: &mut W, compression: IdCompressi
         .expect("Failed to flush writer after serializing id store");
 }
 
-fn deserialize_from_file(store: &mut IdStore, file_path: &Path) {
+fn deserialize_from_file(store: &IdStore, file_path: &Path) {
     info!("Starting to load IdStore from file {file_path:?}");
     let file = File::open(file_path).unwrap();
     let mut file_reader = BufReader::new(file);
@@ -63,7 +64,7 @@ fn deserialize_from_file(store: &mut IdStore, file_path: &Path) {
 
 /// This method takes a BufReader instance as we are relying on 'seek_relative' which is not part of
 /// the Read trait. I think it is ok, to let callees wrap their bytes into a BufReader.
-fn deserialize<R: Read + Seek>(store: &mut IdStore, reader: R) {
+fn deserialize<R: Read + Seek>(store: &IdStore, reader: R) {
     info!("Starting to de-serialize Id store.");
     let delim_reader: MessageIter<IdsWithType, R> = MessageIter::new(reader);
     for message in delim_reader {
@@ -182,8 +183,8 @@ impl UntypedId {
 
 #[derive(Debug)]
 pub struct IdStore<'ext> {
-    ids: IntMap<u64, Vec<Arc<UntypedId>>>,
-    mapping: IntMap<u64, AHashMap<&'ext str, u64>>,
+    ids: DashMap<u64, Vec<Arc<UntypedId>>>,
+    mapping: DashMap<u64, DashMap<&'ext str, u64>>,
 }
 
 /// Cache for ids. All methods are public, so that they can be used from mod.rs. The module doesn't
@@ -191,19 +192,19 @@ pub struct IdStore<'ext> {
 impl IdStore<'_> {
     pub fn new() -> Self {
         Self {
-            ids: IntMap::default(),
-            mapping: IntMap::default(),
+            ids: DashMap::default(),
+            mapping: DashMap::default(),
         }
     }
 
-    fn create_id_with_type_id(&mut self, id: &str, type_id: u64) -> Arc<UntypedId> {
+    fn create_id_with_type_id(&self, id: &str, type_id: u64) -> Arc<UntypedId> {
         let type_mapping = self
             .mapping
             .entry(type_id)
-            .or_insert_with(|| AHashMap::with_hasher(RandomState::with_seed(42)));
+            .or_insert_with(|| DashMap::new());
 
-        if type_mapping.contains_key(id) {
-            let internal = type_mapping.get(id).unwrap();
+        // First check if the ID already exists
+        if let Some(internal) = type_mapping.get(id) {
             return self
                 .ids
                 .get(&type_id)
@@ -213,7 +214,8 @@ impl IdStore<'_> {
                 .clone();
         }
 
-        let type_ids = self.ids.entry(type_id).or_default();
+        // If not, create a new one
+        let mut type_ids = self.ids.entry(type_id).or_default();
         let next_internal = type_ids.len() as u64;
         let next_id = Arc::new(UntypedId::new(next_internal, String::from(id)));
         type_ids.push(next_id.clone());
@@ -232,11 +234,11 @@ impl IdStore<'_> {
         next_id
     }
 
-    fn replace_ids(&mut self, ids: &Vec<String>, type_id: u64) {
+    fn replace_ids(&self, ids: &Vec<String>, type_id: u64) {
         if let Some(type_mapping) = self.mapping.get_mut(&type_id) {
             type_mapping.clear();
         }
-        if let Some(type_ids) = self.ids.get_mut(&type_id) {
+        if let Some(mut type_ids) = self.ids.get_mut(&type_id) {
             type_ids.clear();
         }
 
@@ -245,7 +247,7 @@ impl IdStore<'_> {
         }
     }
 
-    pub(crate) fn create_id<T: StableTypeId + 'static>(&mut self, id: &str) -> Id<T> {
+    pub(crate) fn create_id<T: StableTypeId + 'static>(&self, id: &str) -> Id<T> {
         let type_id = T::stable_type_id();
         Id::new(self.create_id_with_type_id(id, type_id))
     }
@@ -292,7 +294,7 @@ impl IdStore<'_> {
         serialize_to_file(self, file_path, IdCompression::LZ4);
     }
 
-    pub(crate) fn load_from_file(&mut self, file_path: &Path) {
+    pub(crate) fn load_from_file(&self, file_path: &Path) {
         deserialize_from_file(self, file_path);
     }
 }
@@ -302,6 +304,7 @@ mod tests {
     use std::io::{BufReader, BufWriter, Cursor};
     use std::ops::Sub;
     use std::path::PathBuf;
+    use std::thread;
     use std::time::Instant;
 
     use crate::simulation::config::PartitionMethod;
@@ -323,7 +326,7 @@ mod tests {
             "./test_output/simulation/id/id_store/write_read_ids_store/",
         ));
         let file = folder.join("ids.pbf");
-        let mut store = IdStore::new();
+        let store = IdStore::new();
         store.create_id::<()>("test-1");
         store.create_id::<()>("test-2");
         store.create_id::<String>("string-id");
@@ -350,7 +353,7 @@ mod tests {
             "./test_output/simulation/id/id_store/write_read_ids_store_uncompressed/",
         ));
         let file = folder.join("ids.pbf");
-        let mut store = IdStore::new();
+        let store = IdStore::new();
         store.create_id::<()>("test-1");
         store.create_id::<()>("test-2");
         store.create_id::<String>("string-id");
@@ -373,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_serialize_ids() {
-        let mut store = IdStore::new();
+        let store = IdStore::new();
         store.create_id::<()>("test-1");
         store.create_id::<()>("test-2");
         store.create_id::<String>("string-id");
@@ -411,7 +414,7 @@ mod tests {
         let folder = create_folders(PathBuf::from(
             "./test_output/simulation/id/id_store/compare_compression/",
         ));
-        let mut store = IdStore::new();
+        let store = IdStore::new();
 
         let net = Network::from_file_path(
             &PathBuf::from("/Users/janek/Documents/rust_q_sim/input/rvr.network.xml.gz"),
@@ -481,6 +484,7 @@ mod tests {
         use std::time::Instant;
 
         const NUM_IDS: usize = 1_000_000;
+        const NUM_THREADS: usize = 10;
         let external_ids: Vec<String> = (0..NUM_IDS).map(|i| format!("test-id-{}", i)).collect();
 
         // Bulk creation phase
@@ -491,25 +495,61 @@ mod tests {
             internal_ids.push(id.internal());
         }
         let creation_time = start.elapsed();
-        println!("\n=== Bulk Creation/Lookup Test ===");
+        println!("\n=== Bulk Creation/Parallel Lookup Test ===");
         println!("Creating {NUM_IDS} IDs took: {:?}", creation_time);
         println!(
             "Average time per ID creation: {:?}",
             creation_time / NUM_IDS as u32
         );
 
-        // Bulk lookup phase
-        let start = Instant::now();
-        // Test both get_from_ext and get methods
-        for (i, ext_id) in external_ids.iter().enumerate() {
-            if i % 2 == 0 {
-                let _ = Id::<()>::get_from_ext(ext_id);
+        // Pre-split data into chunks for threads
+        let chunk_size = NUM_IDS / NUM_THREADS;
+        let mut ext_id_chunks = Vec::with_capacity(NUM_THREADS);
+        let mut int_id_chunks = Vec::with_capacity(NUM_THREADS);
+
+        for thread_idx in 0..NUM_THREADS {
+            let start_idx = thread_idx * chunk_size;
+            let end_idx = if thread_idx == NUM_THREADS - 1 {
+                NUM_IDS
             } else {
-                let _ = Id::<()>::get(internal_ids[i]);
-            }
+                (thread_idx + 1) * chunk_size
+            };
+
+            // Create owned chunks for each thread
+            ext_id_chunks.push(external_ids[start_idx..end_idx].to_vec());
+            int_id_chunks.push(internal_ids[start_idx..end_idx].to_vec());
         }
+
+        // Parallel bulk lookup phase
+        let start = Instant::now();
+        let mut handles = Vec::with_capacity(NUM_THREADS);
+
+        for _ in 0..NUM_THREADS {
+            let ext_chunk = ext_id_chunks.remove(0);
+            let int_chunk = int_id_chunks.remove(0);
+
+            let handle = thread::spawn(move || {
+                for i in 0..ext_chunk.len() {
+                    if i % 2 == 0 {
+                        let _ = Id::<()>::get_from_ext(&ext_chunk[i]);
+                    } else {
+                        let _ = Id::<()>::get(int_chunk[i]);
+                    }
+                }
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
         let lookup_time = start.elapsed();
-        println!("Looking up {NUM_IDS} IDs took: {:?}", lookup_time);
+        println!(
+            "Looking up {NUM_IDS} IDs with {NUM_THREADS} threads took: {:?}",
+            lookup_time
+        );
         println!(
             "Average time per ID lookup: {:?}",
             lookup_time / NUM_IDS as u32
@@ -518,17 +558,19 @@ mod tests {
 
     #[test]
     fn performance_test_interleaved_operations() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::time::Instant;
 
         const NUM_IDS: usize = 1_000_000;
         const INITIAL_BATCH_SIZE: usize = (NUM_IDS as f64 * 0.95) as usize;
         const REMAINING_IDS: usize = NUM_IDS - INITIAL_BATCH_SIZE;
+        const NUM_THREADS: usize = 10;
 
         let all_external_ids: Vec<String> =
             (0..NUM_IDS).map(|i| format!("test-id-{}", i)).collect();
 
         // Initial batch creation (95%)
-        println!("\n=== Interleaved Creation/Lookup Test ===");
+        println!("\n=== Interleaved Creation/Parallel Lookup Test ===");
         let start = Instant::now();
         let mut internal_ids = Vec::with_capacity(INITIAL_BATCH_SIZE);
         for ext_id in &all_external_ids[0..INITIAL_BATCH_SIZE] {
@@ -541,37 +583,94 @@ mod tests {
             initial_creation_time
         );
 
-        // Interleaved operations (remaining 5%)
-        let start = Instant::now();
-        let mut lookup_count = 0;
-        let mut create_count = 0;
+        // Pre-split data into chunks for threads
+        let chunk_size = INITIAL_BATCH_SIZE / NUM_THREADS;
+        let mut ext_id_chunks = Vec::with_capacity(NUM_THREADS);
+        let mut int_id_chunks = Vec::with_capacity(NUM_THREADS);
+        let mut remaining_chunks = Vec::with_capacity(NUM_THREADS);
 
-        // Do lookups on existing IDs with occasional creation of new ones
-        for (i, ext_id) in all_external_ids[0..INITIAL_BATCH_SIZE].iter().enumerate() {
-            // Alternate between get_from_ext and get for existing IDs
-            if i % 2 == 0 {
-                let _ = Id::<()>::get_from_ext(ext_id);
+        for thread_idx in 0..NUM_THREADS {
+            let start_idx = thread_idx * chunk_size;
+            let end_idx = if thread_idx == NUM_THREADS - 1 {
+                INITIAL_BATCH_SIZE
             } else {
-                let _ = Id::<()>::get(internal_ids[i]);
-            }
-            lookup_count += 1;
+                (thread_idx + 1) * chunk_size
+            };
 
-            // Every 20 lookups, create a new ID from the remaining 5%
-            if lookup_count % 20 == 0 && create_count < REMAINING_IDS {
-                Id::<()>::create(&all_external_ids[INITIAL_BATCH_SIZE + create_count]);
-                create_count += 1;
-            }
+            // Create owned chunks for each thread
+            ext_id_chunks.push(all_external_ids[start_idx..end_idx].to_vec());
+            int_id_chunks.push(internal_ids[start_idx..end_idx].to_vec());
+
+            // Pre-split remaining IDs for creation
+            let remaining_start = INITIAL_BATCH_SIZE + thread_idx * (REMAINING_IDS / NUM_THREADS);
+            let remaining_end = if thread_idx == NUM_THREADS - 1 {
+                NUM_IDS
+            } else {
+                INITIAL_BATCH_SIZE + (thread_idx + 1) * (REMAINING_IDS / NUM_THREADS)
+            };
+            remaining_chunks.push(all_external_ids[remaining_start..remaining_end].to_vec());
         }
 
+        let total_lookups = std::sync::Arc::new(AtomicUsize::new(0));
+        let total_creations = std::sync::Arc::new(AtomicUsize::new(0));
+
+        // Parallel interleaved operations
+        let start = Instant::now();
+        let mut handles = Vec::with_capacity(NUM_THREADS);
+
+        for _ in 0..NUM_THREADS {
+            let ext_chunk = ext_id_chunks.remove(0);
+            let int_chunk = int_id_chunks.remove(0);
+            let remaining_chunk = remaining_chunks.remove(0);
+            let total_lookups = total_lookups.clone();
+            let total_creations = total_creations.clone();
+
+            let handle = thread::spawn(move || {
+                let mut local_lookup_count = 0;
+                let mut local_creation_idx = 0;
+
+                // Process chunk of existing IDs
+                for i in 0..ext_chunk.len() {
+                    // Alternate between get_from_ext and get for existing IDs
+                    if i % 2 == 0 {
+                        let _ = Id::<()>::get_from_ext(&ext_chunk[i]);
+                    } else {
+                        let _ = Id::<()>::get(int_chunk[i]);
+                    }
+                    local_lookup_count += 1;
+
+                    // Create new IDs from the remaining chunk
+                    if local_lookup_count % 20 == 0 && local_creation_idx < remaining_chunk.len() {
+                        Id::<()>::create(&remaining_chunk[local_creation_idx]);
+                        local_creation_idx += 1;
+                    }
+                }
+                total_lookups.fetch_add(local_lookup_count, Ordering::Relaxed);
+                total_creations.fetch_add(local_creation_idx, Ordering::Relaxed);
+            });
+            handles.push(handle);
+        }
+
+        // Wait for all threads to complete
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        let lookups_performed = total_lookups.load(Ordering::Relaxed);
+        let creations_performed = total_creations.load(Ordering::Relaxed);
+
         let interleaved_time = start.elapsed();
-        println!("Interleaved operations took: {:?}", interleaved_time);
+        println!(
+            "Interleaved operations with {NUM_THREADS} threads took: {:?}",
+            interleaved_time
+        );
         println!(
             "Performed {} lookups and {} creations",
-            lookup_count, create_count
+            lookups_performed, creations_performed
         );
         println!(
             "Average time per operation: {:?}",
-            interleaved_time / (lookup_count + create_count) as u32
+            interleaved_time / (lookups_performed + creations_performed) as u32
         );
     }
 }

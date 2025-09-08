@@ -1,7 +1,7 @@
 use crate::simulation::id::id_store::IdStore;
 use crate::simulation::id::id_store::UntypedId;
 use crate::simulation::id::serializable_type::StableTypeId;
-use std::cell::RefCell;
+use once_cell::sync::Lazy;
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
@@ -55,28 +55,28 @@ impl<T: StableTypeId + 'static> Id<T> {
     }
 
     pub fn create(id: &str) -> Self {
-        ID_STORE.with(|store| store.borrow_mut().create_id(id))
+        ID_STORE.create_id(id)
     }
 
     pub fn get(internal: u64) -> Self {
-        ID_STORE.with(|store| store.borrow().get(internal))
+        ID_STORE.get(internal)
     }
 
     pub fn get_from_ext(external: &str) -> Self {
-        ID_STORE.with(|store| store.borrow().get_from_ext(external))
+        ID_STORE.get_from_ext(external)
     }
 
     pub fn try_get_from_ext(external: &str) -> Option<Self> {
-        ID_STORE.with(|store| store.borrow().try_get_from_ext(external))
+        ID_STORE.try_get_from_ext(external)
     }
 }
 
 pub fn store_to_file(file_path: &Path) {
-    ID_STORE.with(|store| store.borrow().to_file(file_path))
+    ID_STORE.to_file(file_path)
 }
 
 pub fn load_from_file(file_path: &Path) {
-    ID_STORE.with(|store| store.borrow_mut().load_from_file(file_path))
+    ID_STORE.load_from_file(file_path)
 }
 
 /// Mark Id as enabled for the nohash_hasher::NoHashHasher t
@@ -128,10 +128,8 @@ impl<T: StableTypeId> Clone for Id<T> {
     }
 }
 
-// Currently, every thread has its own id store.
-// This means that all IDs must be known in advance and loaded via protobuf.
-// Otherwise, there is an inconsistency between threads.
-thread_local! {static ID_STORE: RefCell<IdStore<'static>> = RefCell::new(IdStore::new())}
+// Replace the thread_local store with a static concurrent store
+static ID_STORE: Lazy<IdStore> = Lazy::new(|| IdStore::new());
 
 #[derive(Debug, Error)]
 pub enum IdError {
