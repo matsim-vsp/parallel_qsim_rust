@@ -220,60 +220,60 @@ fn handle(attr: Vec<OwnedAttribute>) -> Event {
 }
 
 fn handle_act_end(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
+    let act_type: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
     Event::new_act_end(person.internal(), link.internal(), act_type.internal())
 }
 
 fn handle_act_start(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
+    let act_type: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
     Event::new_act_start(person.internal(), link.internal(), act_type.internal())
 }
 
 fn handle_departure(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
+    let mode: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
     Event::new_departure(person.internal(), link.internal(), mode.internal())
 }
 
 fn handle_arrival(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
+    let mode: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
     Event::new_arrival(person.internal(), link.internal(), mode.internal())
 }
 
 fn travelled(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
     let dist: f64 = attr.get(3).unwrap().value.parse().unwrap();
-    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let mode: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
     Event::new_travelled(person.internal(), dist, mode.internal())
 }
 
 fn handle_person_enters_veh(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
     Event::new_person_enters_veh(person.internal(), vehicle.internal())
 }
 
 fn handle_person_leaves_veh(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
     Event::new_person_leaves_veh(person.internal(), vehicle.internal())
 }
 
 fn handle_link_enter(attr: Vec<OwnedAttribute>) -> Event {
-    let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let link: Id<Link> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
     Event::new_link_enter(link.internal(), vehicle.internal())
 }
 
 fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Event {
-    let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let link: Id<Link> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
     Event::new_link_leave(link.internal(), vehicle.internal())
 }

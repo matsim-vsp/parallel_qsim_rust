@@ -308,6 +308,7 @@ mod tests {
     use crate::simulation::id::id_store::{
         deserialize, deserialize_from_file, serialize, serialize_to_file, IdCompression, IdStore,
     };
+    use crate::simulation::id::Id;
     use crate::simulation::logging::init_std_out_logging;
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::population::InternalPerson;
@@ -473,5 +474,104 @@ mod tests {
         let end = Instant::now();
         let duration = end.sub(start).as_millis();
         println!("reading compressed took: {duration}ms");
+    }
+
+    #[test]
+    fn performance_test_bulk_operations() {
+        use std::time::Instant;
+
+        const NUM_IDS: usize = 1_000_000;
+        let external_ids: Vec<String> = (0..NUM_IDS).map(|i| format!("test-id-{}", i)).collect();
+
+        // Bulk creation phase
+        let start = Instant::now();
+        let mut internal_ids = Vec::with_capacity(NUM_IDS);
+        for ext_id in &external_ids {
+            let id = Id::<()>::create(ext_id);
+            internal_ids.push(id.internal());
+        }
+        let creation_time = start.elapsed();
+        println!("\n=== Bulk Creation/Lookup Test ===");
+        println!("Creating {NUM_IDS} IDs took: {:?}", creation_time);
+        println!(
+            "Average time per ID creation: {:?}",
+            creation_time / NUM_IDS as u32
+        );
+
+        // Bulk lookup phase
+        let start = Instant::now();
+        // Test both get_from_ext and get methods
+        for (i, ext_id) in external_ids.iter().enumerate() {
+            if i % 2 == 0 {
+                let _ = Id::<()>::get_from_ext(ext_id);
+            } else {
+                let _ = Id::<()>::get(internal_ids[i]);
+            }
+        }
+        let lookup_time = start.elapsed();
+        println!("Looking up {NUM_IDS} IDs took: {:?}", lookup_time);
+        println!(
+            "Average time per ID lookup: {:?}",
+            lookup_time / NUM_IDS as u32
+        );
+    }
+
+    #[test]
+    fn performance_test_interleaved_operations() {
+        use std::time::Instant;
+
+        const NUM_IDS: usize = 1_000_000;
+        const INITIAL_BATCH_SIZE: usize = (NUM_IDS as f64 * 0.95) as usize;
+        const REMAINING_IDS: usize = NUM_IDS - INITIAL_BATCH_SIZE;
+
+        let all_external_ids: Vec<String> =
+            (0..NUM_IDS).map(|i| format!("test-id-{}", i)).collect();
+
+        // Initial batch creation (95%)
+        println!("\n=== Interleaved Creation/Lookup Test ===");
+        let start = Instant::now();
+        let mut internal_ids = Vec::with_capacity(INITIAL_BATCH_SIZE);
+        for ext_id in &all_external_ids[0..INITIAL_BATCH_SIZE] {
+            let id = Id::<()>::create(ext_id);
+            internal_ids.push(id.internal());
+        }
+        let initial_creation_time = start.elapsed();
+        println!(
+            "Creating initial {INITIAL_BATCH_SIZE} IDs took: {:?}",
+            initial_creation_time
+        );
+
+        // Interleaved operations (remaining 5%)
+        let start = Instant::now();
+        let mut lookup_count = 0;
+        let mut create_count = 0;
+
+        // Do lookups on existing IDs with occasional creation of new ones
+        for (i, ext_id) in all_external_ids[0..INITIAL_BATCH_SIZE].iter().enumerate() {
+            // Alternate between get_from_ext and get for existing IDs
+            if i % 2 == 0 {
+                let _ = Id::<()>::get_from_ext(ext_id);
+            } else {
+                let _ = Id::<()>::get(internal_ids[i]);
+            }
+            lookup_count += 1;
+
+            // Every 20 lookups, create a new ID from the remaining 5%
+            if lookup_count % 20 == 0 && create_count < REMAINING_IDS {
+                Id::<()>::create(&all_external_ids[INITIAL_BATCH_SIZE + create_count]);
+                create_count += 1;
+            }
+        }
+
+        let interleaved_time = start.elapsed();
+        println!("Interleaved operations took: {:?}", interleaved_time);
+        println!(
+            "Performed {} lookups and {} creations",
+            lookup_count, create_count
+        );
+        println!(
+            "Average time per operation: {:?}",
+            interleaved_time / (lookup_count + create_count) as u32
+        );
     }
 }

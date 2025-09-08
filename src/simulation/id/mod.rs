@@ -8,6 +8,7 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::path::Path;
 use std::sync::Arc;
+use thiserror::Error;
 
 // keep this private, as we don't want to leak how we cache ids.
 mod id_store;
@@ -131,6 +132,14 @@ impl<T: StableTypeId> Clone for Id<T> {
 // This means that all IDs must be known in advance and loaded via protobuf.
 // Otherwise, there is an inconsistency between threads.
 thread_local! {static ID_STORE: RefCell<IdStore<'static>> = RefCell::new(IdStore::new())}
+
+#[derive(Debug, Error)]
+pub enum IdError {
+    #[error("Id with internal value {0} not found")]
+    NotFound(u64),
+    #[error("Id with external value {0} not found")]
+    NotFoundExt(String),
+}
 
 #[cfg(test)]
 mod tests {
