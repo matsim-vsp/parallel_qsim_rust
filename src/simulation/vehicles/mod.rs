@@ -16,7 +16,6 @@ pub mod garage;
 pub fn from_file(path: &Path) -> Garage {
     if path.extension().unwrap().eq("binpb") {
         load_from_proto(path)
-    // Check if the file is a url
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         load_from_xml(path)
     } else {

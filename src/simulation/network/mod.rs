@@ -333,7 +333,6 @@ impl Link {
 pub fn from_file(path: &Path) -> Network {
     if path.extension().unwrap().eq("binpb") {
         load_from_proto(path)
-        // Check if the path is a url
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         network::load_from_xml(path)
     } else {
