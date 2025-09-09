@@ -33,7 +33,7 @@ pub fn to_file(garage: &Garage, path: &Path) {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct InternalVehicleType {
     pub id: Id<InternalVehicleType>,
     pub length: f32,
@@ -54,6 +54,28 @@ pub struct InternalVehicle {
     pub passengers: Vec<SimulationAgent>,
     pub vehicle_type: Id<InternalVehicleType>,
     pub attributes: InternalAttributes,
+}
+
+impl Clone for InternalVehicle {
+    fn clone(&self) -> Self {
+        assert!(
+            self.driver.is_none(),
+            "Cloning vehicles with drivers is not supported."
+        );
+        assert!(
+            self.passengers.is_empty(),
+            "Cloning vehicles with passengers is not supported."
+        );
+        Self {
+            id: self.id.clone(),
+            max_v: self.max_v,
+            pce: self.pce,
+            driver: None,
+            passengers: Vec::new(),
+            vehicle_type: self.vehicle_type.clone(),
+            attributes: self.attributes.clone(),
+        }
+    }
 }
 
 impl From<IOVehicleType> for InternalVehicleType {

@@ -1,13 +1,12 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::SimulationAgentLogic;
-use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
-use crate::simulation::scenario::Scenario;
+use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::vehicles::InternalVehicle;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -94,21 +93,18 @@ impl<C: SimCommunicator + 'static> Debug for Simulation<C> {
 }
 
 pub struct SimulationBuilder<C: SimCommunicator> {
-    config: Config,
-    scenario: Scenario,
+    scenario: ScenarioPartition,
     net_message_broker: NetMessageBroker<C>,
     comp_env: ThreadLocalComputationalEnvironment,
 }
 
 impl<C: SimCommunicator> SimulationBuilder<C> {
     pub fn new(
-        config: Config,
-        scenario: Scenario,
+        scenario: ScenarioPartition,
         net_message_broker: NetMessageBroker<C>,
         comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
         SimulationBuilder {
-            config,
             scenario,
             net_message_broker,
             comp_env,
@@ -118,11 +114,11 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
     pub fn build(mut self) -> Simulation<C> {
         // this needs to be adapted if new agent sources are introduced
         let agent_source = PopulationAgentSource {};
-        let agents = agent_source.create_agents(&mut self.scenario, &self.config);
+        let agents = agent_source.create_agents(&mut self.scenario);
 
         let activity_engine = ActivityEngineBuilder::new(
             agents.into_values().collect(),
-            &self.config,
+            &self.scenario.config,
             self.comp_env.clone(),
         )
         .build();
@@ -131,7 +127,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             self.scenario.network_partition,
             self.scenario.garage,
             self.net_message_broker,
-            &self.config.simulation(),
+            &self.scenario.config.simulation(),
             self.comp_env.clone(),
         );
 
@@ -139,8 +135,8 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             activity_engine,
             leg_engine,
             comp_env: self.comp_env,
-            start_time: self.config.simulation().start_time,
-            end_time: self.config.simulation().end_time,
+            start_time: self.scenario.config.simulation().start_time,
+            end_time: self.scenario.config.simulation().end_time,
         }
     }
 }

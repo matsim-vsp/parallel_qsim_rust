@@ -2,14 +2,13 @@ use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::id::Id;
 use crate::simulation::population::InternalPerson;
-use crate::simulation::scenario::Scenario;
+use crate::simulation::scenario::ScenarioPartition;
 use std::collections::HashMap;
 
 pub trait AgentSource {
     fn create_agents(
         &self,
-        scenario: &mut Scenario,
-        config: &Config,
+        scenario: &mut ScenarioPartition,
     ) -> HashMap<Id<InternalPerson>, SimulationAgent>;
 }
 
@@ -18,8 +17,7 @@ pub struct PopulationAgentSource {}
 impl AgentSource for PopulationAgentSource {
     fn create_agents(
         &self,
-        scenario: &mut Scenario,
-        config: &Config,
+        scenario: &mut ScenarioPartition,
     ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         // take Persons and copy them into queues. This way we can keep the population around to translate
         // ids for events processing...
@@ -27,7 +25,7 @@ impl AgentSource for PopulationAgentSource {
         let mut agents = HashMap::with_capacity(persons.len());
 
         for (id, person) in persons {
-            Self::identify_logic_and_insert(&mut agents, id, person, config);
+            Self::identify_logic_and_insert(&mut agents, id, person, &scenario.config);
         }
         agents
     }

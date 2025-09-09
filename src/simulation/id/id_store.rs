@@ -308,7 +308,7 @@ mod tests {
     use crate::simulation::id::id_store::{
         deserialize, deserialize_from_file, serialize, serialize_to_file, IdCompression, IdStore,
     };
-    use crate::simulation::logging::init_std_out_logging;
+    use crate::simulation::logging::init_std_out_logging_thread_local;
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::population::InternalPerson;
     use crate::simulation::population::Population;
@@ -406,7 +406,7 @@ mod tests {
     #[test]
     #[ignore]
     fn compare_compression() {
-        let _g = init_std_out_logging();
+        let _g = init_std_out_logging_thread_local();
         let folder = create_folders(PathBuf::from(
             "./test_output/simulation/id/id_store/compare_compression/",
         ));
