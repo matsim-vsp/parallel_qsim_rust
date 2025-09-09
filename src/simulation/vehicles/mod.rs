@@ -3,9 +3,7 @@ use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
-use crate::simulation::io::xml::vehicles::{
-    load_from_xml, write_to_xml, IOVehicle, IOVehicleDefinitions, IOVehicleType,
-};
+use crate::simulation::io::xml::vehicles::{load_from_xml, write_to_xml, IOVehicle, IOVehicleType};
 use crate::simulation::network::Link;
 use crate::simulation::time_queue::EndTime;
 use crate::simulation::vehicles::garage::Garage;
@@ -16,18 +14,9 @@ use std::path::Path;
 pub mod garage;
 
 pub fn from_file(path: &Path) -> Garage {
-    let path_str = path.to_string_lossy();
     if path.extension().unwrap().eq("binpb") {
         load_from_proto(path)
-        // Check if the file is a url
-    } else if path_str.starts_with("http://") || path_str.starts_with("https://") {
-        // Make a blocking request to the url and read the response body
-        let resp = reqwest::blocking::get(path_str.as_ref()).expect("Could not get url");
-        let text = resp.text().expect("Could not read body");
-        // Try to parse the text into IOVehicleDefinitions
-        let io_defs: IOVehicleDefinitions =
-            quick_xml::de::from_str(&text).expect("Could not parse xml from url");
-        Garage::from(io_defs)
+    // Check if the file is a url
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         load_from_xml(path)
     } else {

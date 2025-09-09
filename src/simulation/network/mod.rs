@@ -331,19 +331,9 @@ impl Link {
 }
 
 pub fn from_file(path: &Path) -> Network {
-    let path_str = path.to_string_lossy();
     if path.extension().unwrap().eq("binpb") {
         load_from_proto(path)
         // Check if the path is a url
-    } else if path_str.starts_with("http://") || path_str.starts_with("https://") {
-        // Make a blocking request to get the config file and rest the response body
-        let resp = reqwest::blocking::get(path_str.as_ref())
-            .expect(&format!("Failed to fetch URL: {}", path.display()));
-        let text = resp.text().expect("Failed to read response body");
-        // Try to parse the text into IONetwork
-        let io_net: IONetwork =
-            quick_xml::de::from_str(&text).expect("Failed to parse XML from URL");
-        Network::from(io_net)
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         network::load_from_xml(path)
     } else {
