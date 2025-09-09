@@ -1,3 +1,5 @@
+use crate::test_simulation::TestExecutorBuilder;
+use rust_q_sim::simulation::config::Config;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
@@ -39,5 +41,28 @@ fn load_files_from_url_have_content() {
     assert!(
         !events.is_empty(),
         "Expected events loaded from URL should not be empty"
+    );
+
+    // Check if the config can be loaded from URL and matches local config.
+    // Note: Only the protofiles.ids, output.output_dir, and partitioning.num_parts are compared here.
+    let config_url = format!("{}/3-links-config-1.yml", BASE_URL);
+    let config_content: Config = PathBuf::from(config_url).into();
+    let config_local = "./tests/resources/3-links-url/3-links-config-1.yml";
+    let config_content_local: Config = PathBuf::from(config_local).into();
+
+    assert_eq!(
+        config_content.proto_files().ids,
+        config_content_local.proto_files().ids,
+        "Config loaded from URL should match local config"
+    );
+    assert_eq!(
+        config_content.output().output_dir,
+        config_content_local.output().output_dir,
+        "Config loaded from URL should match local config"
+    );
+    assert_eq!(
+        config_content.partitioning().num_parts,
+        config_content_local.partitioning().num_parts,
+        "Config loaded from URL should match local config"
     );
 }

@@ -25,7 +25,7 @@ where
     // Check if it's a URL or local file and if it's gzipped or not
     let is_url = file_path.starts_with("http://") || file_path.starts_with("https://");
     let is_gz = file_path.ends_with(".xml.gz");
-    
+
     // Build one `BufRead` reader for all cases
     let reader: Box<dyn std::io::BufRead> = if is_url {
         // URL path

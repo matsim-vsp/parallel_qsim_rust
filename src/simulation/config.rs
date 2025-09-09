@@ -64,20 +64,35 @@ impl From<CommandLineArgs> for Config {
 
 impl From<PathBuf> for Config {
     fn from(config_path: PathBuf) -> Self {
-        let reader = BufReader::new(File::open(&config_path).unwrap_or_else(|e| {
-            panic!(
-                "Failed to open config file at {:?}. Original error was {}",
-                config_path, e
-            );
-        }));
-        let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
-            panic!(
-                "Failed to parse config at {:?}. Original error was: {}",
-                config_path, e
-            )
-        });
-        config.set_context(Some(config_path.clone()));
-        config
+        let source = config_path.to_string_lossy();
+
+        // Check if the path is a URL
+        if source.starts_with("http://") || source.starts_with("https://") {
+            let url = source.as_ref();
+            // Make a blocking request to get the config file and rest the response body
+            let resp = reqwest::blocking::get(url).expect("Failed to fetch config URL");
+            let bytes = resp.bytes().expect("Failed to read response body").to_vec();
+            let reader = BufReader::new(std::io::Cursor::new(bytes));
+            let mut config: Config =
+                serde_yaml::from_reader(reader).expect("Failed to parse config from URL");
+            config.set_context(Some(config_path.clone()));
+            config
+        } else {
+            let reader = BufReader::new(File::open(&config_path).unwrap_or_else(|e| {
+                panic!(
+                    "Failed to open config file at {:?}. Original error was {}",
+                    config_path, e
+                );
+            }));
+            let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
+                panic!(
+                    "Failed to parse config at {:?}. Original error was: {}",
+                    config_path, e
+                )
+            });
+            config.set_context(Some(config_path.clone()));
+            config
+        }
     }
 }
 
