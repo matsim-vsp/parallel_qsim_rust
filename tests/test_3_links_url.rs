@@ -33,7 +33,7 @@ fn load_files_from_url_have_content() {
         "Population should contain at least one person"
     );
 
-    // Load expected events and check if its not empty
+    // Load expected events and check if it's not empty
     let events_url = format!("{}/expected_events.xml", BASE_URL);
     let events = test_simulation::TestSubscriber::expected_events_from_file(&events_url);
     assert!(
