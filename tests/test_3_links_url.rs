@@ -3,6 +3,8 @@ use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
 
+mod test_simulation;
+
 const BASE_URL: &str =
     "https://raw.githubusercontent.com/matsim-vsp/parallel_qsim_rust/refs/heads/43-load-files-via-url/tests/resources/3-links-url";
 
@@ -30,6 +32,12 @@ fn load_files_from_url_have_content() {
         !pop.persons.is_empty(),
         "Population should contain at least one person"
     );
-    
-    // TODO: Check if the expected events file can be loaded and has content
+
+    // Load expected events and check if its not empty
+    let events_url = format!("{}/expected_events.xml", BASE_URL);
+    let events = test_simulation::TestSubscriber::expected_events_from_file(&events_url);
+    assert!(
+        !events.is_empty(),
+        "Expected events loaded from URL should not be empty"
+    );
 }

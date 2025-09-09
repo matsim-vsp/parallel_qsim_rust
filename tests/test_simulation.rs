@@ -195,7 +195,7 @@ impl TestSubscriber {
     /// Load an external file with expected events. Instead of loading proto buf files this has two advantages:
     /// 1. The expected events are in a human readable format.
     /// 2. The expected events consist of the external ids.
-    fn expected_events_from_file(events_file: &str) -> Vec<String> {
+    pub fn expected_events_from_file(events_file: &str) -> Vec<String> {
         let reader: Box<dyn BufRead> = if events_file.starts_with("http://")
             || events_file.starts_with("https://")
         {
