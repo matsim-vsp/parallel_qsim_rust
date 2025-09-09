@@ -13,75 +13,54 @@ pub mod network;
 pub mod population;
 pub mod vehicles;
 
+use std::io::Cursor;
+
 pub fn read_from_file<T>(file_path: &str) -> T
 where
     T: DeserializeOwned,
 {
-    info!("xml_reader::read: Starting to read file at: {}", file_path);
+    use flate2::read::GzDecoder;
+    use quick_xml::de::Deserializer;
 
-    // Check if the path is a url
-    if file_path.starts_with("http://") || file_path.starts_with("https://") {
-        // Try to load the file
-        let resp = reqwest::blocking::get(file_path).expect("Could not fetch url");
+    // Check if it's a URL or local file and if it's gzipped or not
+    let is_url = file_path.starts_with("http://") || file_path.starts_with("https://");
+    let is_gz = file_path.ends_with(".xml.gz");
+    
+    // Build one `BufRead` reader for all cases
+    let reader: Box<dyn std::io::BufRead> = if is_url {
+        // URL path
+        let resp = reqwest::blocking::get(file_path).expect("Could not fetch URL");
+        let bytes = resp.bytes().expect("Could not read response body");
 
-        // check if the file is gzipped or not
-        if file_path.ends_with(".xml.gz") {
-            // Get the bytes from the response and unzip it
-            let bytes = resp.bytes().expect("Could not read response body");
-            let decoder = flate2::read::GzDecoder::new(&bytes[..]);
-            let buffered_decoder = BufReader::new(decoder);
-            let mut deserializer = quick_xml::de::Deserializer::from_reader(buffered_decoder);
-
-            // Try to parse it, panic if it fails
-            match serde_path_to_error::deserialize(&mut deserializer) {
-                Ok(parsed) => parsed,
-                Err(err) => {
-                    panic!("{err:#?}");
-                }
-            }
-        // if the file is not gezipped
-        } else if file_path.ends_with(".xml") {
-            // Read the response body as text
-            let text = resp.text().expect("Could not read response body");
-            let reader = BufReader::new(text.as_bytes());
-            let mut deserializer = quick_xml::de::Deserializer::from_reader(reader);
-
-            match serde_path_to_error::deserialize(&mut deserializer) {
-                Ok(parsed) => parsed,
-                Err(e) => {
-                    panic!("Problem reading file: {e:?}");
-                }
-            }
+        if is_gz {
+            // URL .xml.gz
+            let gz = GzDecoder::new(Cursor::new(bytes));
+            Box::new(BufReader::new(gz))
         } else {
-            panic!("Only .xml or .xml.gz files are supported from url");
+            // URL .xml
+            Box::new(BufReader::new(Cursor::new(bytes)))
         }
     } else {
+        // Local file path
         let file = File::open(file_path)
-            .unwrap_or_else(|_| panic!("xml_reader::read: Could not open file at {}", file_path));
-        let buffered_reader = BufReader::new(file);
+            .unwrap_or_else(|_| panic!("xml_reader::read: Could not open file at {file_path}"));
 
-        // I guess this could be prettier, but I don't know how to achieve this in Rust yet :-/
-        if file_path.ends_with(".xml.gz") {
-            // use full name, to avoid ambiguity
-            let decoder = flate2::read::GzDecoder::new(buffered_reader);
-            let buffered_decoder = BufReader::new(decoder);
-            let mut deserializer = quick_xml::de::Deserializer::from_reader(buffered_decoder);
-
-            match serde_path_to_error::deserialize(&mut deserializer) {
-                Ok(parsed) => parsed,
-                Err(_err) => {
-                    panic!("{_err:#?}");
-                }
-            }
-        } else if file_path.ends_with(".xml") {
-            let mut deserializer = quick_xml::de::Deserializer::from_reader(buffered_reader);
-            serde_path_to_error::deserialize(&mut deserializer)
-                .unwrap_or_else(|_e| panic!("Problem reading file: {_e:?}"))
+        if is_gz {
+            // Local .xml.gz
+            let gz = GzDecoder::new(file);
+            Box::new(BufReader::new(gz))
         } else {
-            panic!(
-                "xml_reader::read: Can't open file path: {}. Only files with endings '.xml' or '.xml.gz' are supported.",
-                file_path
-            );
+            // Local plain .xml
+            Box::new(BufReader::new(file))
+        }
+    };
+
+    // Parse the XML
+    let mut de = Deserializer::from_reader(reader);
+    match serde_path_to_error::deserialize(&mut de) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            panic!("Failed to deserialize XML:\n{err:#?}");
         }
     }
 }
