@@ -10,7 +10,7 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::ScenarioPartitionBuilder;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
-use crate::simulation::{id, io, logging};
+use crate::simulation::{io, logging};
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use std::any::Any;
@@ -125,10 +125,6 @@ pub struct PartitionArguments<C: SimCommunicator> {
 
 pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
     let config = &partition_arguments.scenario_partition.config;
-    id::load_from_file(&io::resolve_path(
-        config.context(),
-        &config.proto_files().ids,
-    ));
 
     let _guards = logging::init_logging(&config, partition_arguments.communicator.rank());
 

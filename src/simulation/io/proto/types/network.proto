@@ -9,7 +9,7 @@ message Network {
 }
 
 message Node {
-  uint64 id = 1;
+  string id = 1;
   double x = 2;
   double y = 3;
   uint32 partition = 4;
@@ -17,13 +17,13 @@ message Node {
 }
 
 message Link {
-  uint64 id = 1;
-  uint64 from = 2;
-  uint64 to = 3;
+  string id = 1;
+  string from = 2;
+  string to = 3;
   double length = 4;
   float capacity = 5;
   float freespeed = 6;
   float permlanes = 7;
-  repeated uint64 modes = 8;
+  repeated string modes = 8;
   uint32 partition = 9;
 }

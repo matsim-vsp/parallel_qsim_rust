@@ -20,7 +20,7 @@ impl crate::generated::network::Network {
             .nodes()
             .iter()
             .map(|n| Node {
-                id: n.id.internal(),
+                id: n.id.external().to_string(),
                 x: n.x,
                 y: n.y,
                 partition: n.partition,
@@ -31,14 +31,14 @@ impl crate::generated::network::Network {
             .links()
             .iter()
             .map(|l| Link {
-                id: l.id.internal(),
-                from: l.from.internal(),
-                to: l.to.internal(),
+                id: l.id.external().to_string(),
+                from: l.from.external().to_string(),
+                to: l.to.external().to_string(),
                 length: l.length,
                 capacity: l.capacity,
                 freespeed: l.freespeed,
                 permlanes: l.permlanes,
-                modes: l.modes.iter().map(|id| id.internal()).collect(),
+                modes: l.modes.iter().map(|id| id.external().to_string()).collect(),
                 partition: l.partition,
             })
             .collect();

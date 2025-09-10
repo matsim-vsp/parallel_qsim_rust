@@ -201,16 +201,23 @@ impl From<crate::generated::network::Network> for Network {
         let mut result = Network::new();
         result.set_effective_cell_size(value.effective_cell_size);
         for wn in &value.nodes {
-            let node = Node::new(Id::get(wn.id), wn.x, wn.y, wn.partition, wn.cmp_weight);
+            let node = Node::new(
+                Id::get_from_ext(&wn.id),
+                wn.x,
+                wn.y,
+                wn.partition,
+                wn.cmp_weight,
+            );
             result.add_node(node);
         }
         for wl in &value.links {
-            let modes: IntSet<Id<String>> = wl.modes.iter().map(|id| Id::get(*id)).collect();
+            let modes: IntSet<Id<String>> =
+                wl.modes.iter().map(|id| Id::get_from_ext(&id)).collect();
 
             let link = Link::new(
-                Id::get(wl.id),
-                Id::get(wl.from),
-                Id::get(wl.to),
+                Id::get_from_ext(&wl.id),
+                Id::get_from_ext(&wl.from),
+                Id::get_from_ext(&wl.to),
                 wl.length,
                 wl.capacity,
                 wl.freespeed,
