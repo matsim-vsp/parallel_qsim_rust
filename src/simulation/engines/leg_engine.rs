@@ -100,7 +100,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             if publish_leave_vehicle {
                 self.comp_env.events_publisher_borrow_mut().publish_event(
                     now,
-                    &Event::new_person_leaves_veh(veh.driver().id().internal(), veh.id.internal()),
+                    &Event::new_person_leaves_veh(veh.driver().id(), &veh.id),
                 );
             }
 
@@ -108,28 +108,23 @@ impl<C: SimCommunicator> LegEngine<C> {
                 self.comp_env.events_publisher_borrow_mut().publish_event(
                     now,
                     &Event::new_passenger_dropped_off(
-                        passenger.id().internal(),
-                        passenger.curr_leg().mode.internal(),
-                        0, //TODO
-                        veh.id.internal(),
+                        passenger.id(),
+                        &passenger.curr_leg().mode,
+                        &Id::create("0"), //TODO
+                        &veh.id,
                     ),
                 );
                 if publish_leave_vehicle {
-                    self.comp_env.events_publisher_borrow_mut().publish_event(
-                        now,
-                        &Event::new_person_leaves_veh(passenger.id().internal(), veh.id.internal()),
-                    );
+                    self.comp_env
+                        .events_publisher_borrow_mut()
+                        .publish_event(now, &Event::new_person_leaves_veh(passenger.id(), &veh.id));
                 }
             }
 
             let leg = veh.driver().curr_leg();
             self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
-                &Event::new_arrival(
-                    veh.driver().id().internal(),
-                    veh.curr_link_id().unwrap().internal(),
-                    leg.mode.internal(),
-                ),
+                &Event::new_arrival(veh.driver().id(), veh.curr_link_id().unwrap(), &leg.mode),
             );
 
             agents.extend(self.garage.park_veh(veh));
@@ -204,11 +199,7 @@ impl VehicularDepartureHandler {
 
         self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
-            &Event::new_departure(
-                agent.id().internal(),
-                route.start_link().internal(),
-                leg.mode.internal(),
-            ),
+            &Event::new_departure(agent.id(), route.start_link(), &leg.mode),
         );
 
         let veh_id = route
@@ -228,10 +219,9 @@ impl VehicularDepartureHandler {
                 "{} is set as main mode but route is not network route",
                 leg.mode
             );
-            self.comp_env.events_publisher_borrow_mut().publish_event(
-                now,
-                &Event::new_person_enters_veh(agent.id().internal(), veh_id.internal()),
-            );
+            self.comp_env
+                .events_publisher_borrow_mut()
+                .publish_event(now, &Event::new_person_enters_veh(agent.id(), &veh_id));
         }
 
         Some(garage.unpark_veh(agent, veh_id))

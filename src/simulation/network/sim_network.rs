@@ -235,10 +235,9 @@ impl SimNetworkPartition {
         });
 
         if let Some(publisher) = events_publisher {
-            publisher.borrow_mut().publish_event(
-                now,
-                &Event::new_link_enter(link.id().internal(), vehicle.id.internal()),
-            );
+            publisher
+                .borrow_mut()
+                .publish_event(now, &Event::new_link_enter(link.id(), &vehicle.id));
         }
 
         link.push_veh(vehicle, now);
@@ -499,10 +498,7 @@ impl SimNetworkPartition {
     ) {
         comp_env.events_publisher_borrow_mut().publish_event(
             now,
-            &Event::new_link_leave(
-                vehicle.curr_link_id().unwrap().internal(),
-                vehicle.id.internal(),
-            ),
+            &Event::new_link_leave(vehicle.curr_link_id().unwrap(), &vehicle.id),
         );
         vehicle.notify_event(&mut AgentEvent::MovedToNextLink(), now);
         let link_id = vehicle.curr_link_id().unwrap().clone();
@@ -510,10 +506,9 @@ impl SimNetworkPartition {
 
         // for out links, link enter event is published at receiving partition
         if let SimLink::Local(_) = link {
-            comp_env.events_publisher_borrow_mut().publish_event(
-                now,
-                &Event::new_link_enter(link.id().internal(), vehicle.id.internal()),
-            );
+            comp_env
+                .events_publisher_borrow_mut()
+                .publish_event(now, &Event::new_link_enter(&link.id(), &vehicle.id));
         }
 
         link.push_veh(vehicle, now);
