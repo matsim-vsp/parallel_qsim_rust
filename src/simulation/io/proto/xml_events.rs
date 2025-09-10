@@ -50,93 +50,91 @@ impl XmlEventsWriter {
             }
             Type::ActStart(e) => {
                 format!("<event time=\"{time}\" type=\"actstart\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<Link>::get(e.link).external(),
-                        Id::<String>::get(e.act_type).external())
+                        e.person,
+                        e.link,
+                        e.act_type)
             }
             Type::ActEnd(e) => {
                 format!("<event time=\"{time}\" type=\"actend\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<Link>::get(e.link).external(),
-                        Id::<String>::get(e.act_type).external())
+                        e.person,
+                        e.link,
+                        e.act_type)
             }
             Type::LinkEnter(e) => {
                 format!(
                     "<event time=\"{time}\" type=\"entered link\" link=\"{}\" vehicle=\"{}\"/>\n",
-                    Id::<Link>::get(e.link).external(),
-                    Id::<InternalVehicle>::get(e.vehicle).external()
+                    e.link, e.vehicle
                 )
             }
             Type::LinkLeave(e) => {
                 format!(
                     "<event time=\"{time}\" type=\"left link\" link=\"{}\" vehicle=\"{}\"/>\n",
-                    Id::<Link>::get(e.link).external(),
-                    Id::<InternalVehicle>::get(e.vehicle).external()
+                    e.link, e.vehicle
                 )
             }
             Type::PersonEntersVeh(e) => {
                 format!("<event time=\"{time}\" type=\"PersonEntersVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(), Id::<InternalVehicle>::get(e.vehicle).external())
+                        e.person, e.vehicle)
             }
             Type::PersonLeavesVeh(e) => {
                 format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(), Id::<InternalVehicle>::get(e.vehicle).external())
+                        e.person, e.vehicle)
             }
             Type::Departure(e) => {
                 format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<Link>::get(e.link).external(),
-                        Id::<String>::get(e.leg_mode).external())
+                        e.person,
+                        e.link,
+                        e.leg_mode)
             }
             Type::Arrival(e) => {
                 format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<Link>::get(e.link).external(),
-                        Id::<String>::get(e.leg_mode).external())
+                        e.person,
+                        e.link,
+                        e.leg_mode)
             }
             Type::Travelled(e) => {
                 format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
+                        e.person,
                         e.distance,
-                        Id::<String>::get(e.mode).external())
+                        e.mode)
             }
             Type::TravelledWithPt(e) => {
                 format!("<event time=\"{time}\" type=\"travelled with pt\" person=\"{}\" distance=\"{}\" mode=\"{}\" line=\"{}\" route=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
+                        e.person,
                         e.distance,
-                        Id::<String>::get(e.mode).external(),
-                        Id::<String>::get(e.line).external(),
-                        Id::<String>::get(e.route).external())
+                        e.mode,
+                        e.line,
+                        e.route)
             }
             Type::PassengerPickedUp(e) => {
                 format!("<event time=\"{time}\" type=\"passenger picked up\" person=\"{}\" mode=\"{}\" request=\"{}\" vehicle=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<String>::get(e.mode).external(),
-                        Id::<String>::get(e.request).external(),
-                        Id::<InternalVehicle>::get(e.vehicle).external())
+                        e.person,
+                        e.mode,
+                        e.request,
+                        e.vehicle)
             }
             Type::PassengerDroppedOff(e) => {
                 format!("<event time=\"{time}\" type=\"passenger dropped off\" person=\"{}\" mode=\"{}\" request=\"{}\" vehicle=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<String>::get(e.mode).external(),
-                        Id::<String>::get(e.request).external(),
-                        Id::<InternalVehicle>::get(e.vehicle).external())
+                        e.person,
+                        e.mode,
+                        e.request,
+                        e.vehicle)
             }
             Type::DvrpTaskStarted(e) => {
                 format!("<event time=\"{time}\" type=\"dvrp task started\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<InternalVehicle>::get(e.dvrp_vehicle).external(),
-                        Id::<String>::get(e.task_type).external(),
+                        e.person,
+                        e.dvrp_vehicle,
+                        e.task_type,
                         e.task_index,
-                        Id::<String>::get(e.dvrp_mode).external())
+                        e.dvrp_mode)
             }
             Type::DvrpTaskEnded(e) => {
                 format!("<event time=\"{time}\" type=\"dvrp task ended\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
-                        Id::<InternalPerson>::get(e.person).external(),
-                        Id::<InternalVehicle>::get(e.dvrp_vehicle).external(),
-                        Id::<String>::get(e.task_type).external(),
+                        e.person,
+                        e.dvrp_vehicle,
+                        e.task_type,
                         e.task_index,
-                        Id::<String>::get(e.dvrp_mode).external())
+                        e.dvrp_mode)
             }
         }
     }
@@ -220,60 +218,60 @@ fn handle(attr: Vec<OwnedAttribute>) -> Event {
 }
 
 fn handle_act_end(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    let act_type: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
-    Event::new_act_end(person.internal(), link.internal(), act_type.internal())
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    Event::new_act_end(&person, &link, &act_type)
 }
 
 fn handle_act_start(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    let act_type: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
-    Event::new_act_start(person.internal(), link.internal(), act_type.internal())
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    Event::new_act_start(&person, &link, &act_type)
 }
 
 fn handle_departure(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    let mode: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
-    Event::new_departure(person.internal(), link.internal(), mode.internal())
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    Event::new_departure(&person, &link, &mode)
 }
 
 fn handle_arrival(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    let mode: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
-    Event::new_arrival(person.internal(), link.internal(), mode.internal())
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    Event::new_arrival(&person, &link, &mode)
 }
 
 fn travelled(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let dist: f64 = attr.get(3).unwrap().value.parse().unwrap();
-    let mode: Id<String> = Id::get_from_ext(&attr.get(4).unwrap().value);
-    Event::new_travelled(person.internal(), dist, mode.internal())
+    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    Event::new_travelled(&person, dist, &mode)
 }
 
 fn handle_person_enters_veh(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    Event::new_person_enters_veh(person.internal(), vehicle.internal())
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    Event::new_person_enters_veh(&person, &vehicle)
 }
 
 fn handle_person_leaves_veh(attr: Vec<OwnedAttribute>) -> Event {
-    let person: Id<InternalPerson> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    Event::new_person_leaves_veh(person.internal(), vehicle.internal())
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    Event::new_person_leaves_veh(&person, &vehicle)
 }
 
 fn handle_link_enter(attr: Vec<OwnedAttribute>) -> Event {
-    let link: Id<Link> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    Event::new_link_enter(link.internal(), vehicle.internal())
+    let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    Event::new_link_enter(&link, &vehicle)
 }
 
 fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Event {
-    let link: Id<Link> = Id::get_from_ext(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::get_from_ext(&attr.get(3).unwrap().value);
-    Event::new_link_leave(link.internal(), vehicle.internal())
+    let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    Event::new_link_leave(&link, &vehicle)
 }

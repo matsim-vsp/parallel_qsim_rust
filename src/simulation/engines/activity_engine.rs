@@ -55,9 +55,9 @@ impl ActivityEngine {
             self.comp_env.events_publisher_borrow_mut().publish_event(
                 now,
                 &Event::new_act_end(
-                    agent.id().internal(),
-                    agent.curr_act().link_id.internal(),
-                    agent.curr_act().act_type.internal(),
+                    agent.id(),
+                    &agent.curr_act().link_id,
+                    &agent.curr_act().act_type,
                 ),
             );
             ActivityEngine::inform_act_end(&mut agent, now);
@@ -71,11 +71,7 @@ impl ActivityEngine {
         let act = agent.agent.curr_act();
         self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
-            &Event::new_act_start(
-                agent.agent.id().internal(),
-                act.link_id.internal(),
-                act.act_type.internal(),
-            ),
+            &Event::new_act_start(agent.agent.id(), &act.link_id, &act.act_type),
         );
         self.asleep_q.add(agent, now);
     }

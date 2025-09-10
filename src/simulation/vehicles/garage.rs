@@ -8,7 +8,7 @@ use crate::simulation::vehicles::{from_file, to_file, InternalVehicle, InternalV
 use nohash_hasher::IntMap;
 use tracing::info;
 
-//TODO rename to Vehicles
+#[derive(Debug, Clone)]
 pub struct Garage {
     pub vehicles: IntMap<Id<InternalVehicle>, InternalVehicle>,
     pub vehicle_types: IntMap<Id<InternalVehicleType>, InternalVehicleType>,

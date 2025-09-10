@@ -161,6 +161,7 @@ impl EventsReader<File> {
 mod tests {
     use crate::generated::events::event::Type;
     use crate::generated::events::Event;
+    use crate::simulation::id::Id;
     use crate::simulation::io::proto_events::{EventsReader, ProtoEventsWriter};
     use crate::simulation::messaging::events::EventsSubscriber;
     use std::collections::HashMap;
@@ -197,8 +198,8 @@ mod tests {
                 "some-event-type",
                 HashMap::from([(String::from("attr1"), String::from("value1"))]),
             ),
-            Event::new_act_start(1, 1, 1),
-            Event::new_act_end(1, 1, 1),
+            Event::new_act_start(&Id::create("1"), &Id::create("1"), &Id::create("1")),
+            Event::new_act_end(&Id::create("1"), &Id::create("1"), &Id::create("1")),
         ];
 
         for event in &issued_events {
@@ -229,8 +230,8 @@ mod tests {
                 "some-event-type",
                 HashMap::from([(String::from("attr1"), String::from("value1"))]),
             ),
-            Event::new_act_start(1, 1, 1),
-            Event::new_act_end(1, 1, 1),
+            Event::new_act_start(&Id::create("1"), &Id::create("1"), &Id::create("1")),
+            Event::new_act_end(&Id::create("1"), &Id::create("1"), &Id::create("1")),
         ];
 
         for time_step in 43..109 {

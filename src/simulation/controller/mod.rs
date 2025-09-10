@@ -3,13 +3,12 @@ pub mod local_controller;
 pub mod mpi_controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType};
-use crate::simulation::config::{Config, PartitionMethod, WriteEvents};
+use crate::simulation::config::{Config, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::network::Network;
-use crate::simulation::scenario::Scenario;
+use crate::simulation::scenario::ScenarioPartitionBuilder;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{id, io, logging};
 use derive_builder::Builder;
@@ -117,7 +116,7 @@ impl ThreadLocalComputationalEnvironment {
 #[builder(pattern = "owned")]
 pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
-    config: Config,
+    scenario_partition: ScenarioPartitionBuilder,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
@@ -125,16 +124,17 @@ pub struct PartitionArguments<C: SimCommunicator> {
 }
 
 pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
-    let _guards = logging::init_logging(
-        &partition_arguments.config,
-        partition_arguments.communicator.rank(),
-    );
+    let config = &partition_arguments.scenario_partition.config;
+    id::load_from_file(&io::resolve_path(
+        config.context(),
+        &config.proto_files().ids,
+    ));
+
+    let _guards = logging::init_logging(&config, partition_arguments.communicator.rank());
 
     let comm = partition_arguments.communicator;
     let external_services = partition_arguments.external_services;
     let subscribers = partition_arguments.events_subscriber;
-
-    let config = partition_arguments.config;
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
@@ -142,27 +142,12 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
     let output_path = io::resolve_path(config.context(), &config.output().output_dir);
     fs::create_dir_all(&output_path).expect("Failed to create output path");
 
-    if rank == 0 {
-        info!("#{rank} preparing to create input for partitions.");
-        partition_input(&config);
-
-        info!(
-            "#{rank} loading ids from file: {}",
-            config.proto_files().ids.display()
-        );
-
-        id::load_from_file(&io::resolve_path(
-            config.context(),
-            &config.proto_files().ids,
-        ));
-    }
-
     info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
     comm.barrier();
 
-    let scenario = Scenario::build(&config, rank, &output_path);
+    let scenario = partition_arguments.scenario_partition.build();
 
-    let events = create_events(&config, rank, &output_path, subscribers);
+    let events = create_events(&scenario.config, rank, &output_path, subscribers);
 
     let rc_comm = Rc::new(comm);
 
@@ -170,7 +155,7 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
         Rc::clone(&rc_comm),
         &scenario.network,
         &scenario.network_partition,
-        config.computational_setup().global_sync,
+        scenario.config.computational_setup().global_sync,
     );
 
     let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
@@ -180,7 +165,7 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
         .unwrap();
 
     let mut simulation: Simulation<C> =
-        SimulationBuilder::new(config, scenario, net_message_broker, comp_env).build();
+        SimulationBuilder::new(scenario, net_message_broker, comp_env).build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
@@ -243,40 +228,6 @@ pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterH
             .join()
             .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
     }
-}
-
-pub fn partition_input(config: &Config) {
-    // If we partition the network it is copied to the output folder.
-    // Otherwise, nothing is done, and we can load the network from the input folder directly.
-    // In this case, we assume that the #partitions is part of the filename as `network.4.binpb` instead of `network.binpb`.
-    id::load_from_file(&io::resolve_path(
-        config.context(),
-        &config.proto_files().ids,
-    ));
-    if let PartitionMethod::Metis(_) = config.partitioning().method {
-        info!("Config param Partition method was set to metis. Loading input network, running metis conversion and then store it into output folder");
-        partition_network(config);
-    }
-    // don't do anything. If the network is already partitioned, we'll load it from the input folder.
-    /*else {
-        info!("Config param Partition method was set to none. Loading network from input, assuming it has partitioning information");
-        copy_network_into_output(config, config_path)
-    };
-    */
-}
-
-fn partition_network(config: &Config) -> Network {
-    let net_in_path = io::resolve_path(config.context(), &config.proto_files().network);
-    let num_parts = config.partitioning().num_parts;
-    let network = Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
-
-    let mut net_out_path = create_output_filename(
-        &io::resolve_path(config.context(), &config.output().output_dir),
-        &net_in_path,
-    );
-    net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
-    network.to_file(&net_out_path);
-    network
 }
 
 pub fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: u32) -> PathBuf {

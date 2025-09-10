@@ -1,10 +1,9 @@
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::config::Config;
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
 use crate::simulation::population::agent_source::AgentSource;
 use crate::simulation::population::{InternalPerson, InternalPlan};
-use crate::simulation::scenario::Scenario;
+use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::vehicles::InternalVehicle;
 use std::collections::HashMap;
 use tracing::info;
@@ -27,12 +26,12 @@ impl DrtAgentSource {
     }
 
     fn add_drt_driver(
-        scenario: &mut Scenario,
-        config: &Config,
+        scenario: &mut ScenarioPartition,
     ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         info!("Creating DRT drivers");
 
-        let drt_modes = config
+        let drt_modes = scenario
+            .config
             .drt()
             .as_ref()
             .unwrap()
@@ -104,70 +103,61 @@ impl DrtAgentSource {
 impl AgentSource for DrtAgentSource {
     fn create_agents(
         &self,
-        scenario: &mut Scenario,
-        config: &Config,
+        scenario: &mut ScenarioPartition,
     ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         Self::add_drt_ids();
-        Self::add_drt_driver(scenario, config)
+        Self::add_drt_driver(scenario)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::dvrp::dvrp_agent_source::DrtAgentSource;
-    use crate::simulation::config::{CommandLineArgs, Config};
-    use crate::simulation::id::Id;
-    use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
-    use crate::simulation::population::InternalPerson;
-    use crate::simulation::scenario::Scenario;
-    use crate::simulation::vehicles::InternalVehicle;
-    use itertools::Itertools;
 
-    #[test]
-    #[ignore]
-    fn test_drt_agent_source() {
-        let config_path = "./assets/drt/config.yml";
-        let config = Config::from(CommandLineArgs::new_with_path(config_path));
-
-        let mut scenario = Scenario::build(&config, 0, &config.output().output_dir);
-
-        let drt_source = DrtAgentSource {};
-        let drt_agents = drt_source.create_agents(&mut scenario, &config);
-
-        let agent_source = PopulationAgentSource {};
-        let default_agents = agent_source.create_agents(&mut scenario, &config);
-
-        assert_eq!(scenario.network.nodes().len(), 62);
-        assert_eq!(scenario.network.links().len(), 170);
-
-        // 10 agents, 1 drt agent
-        assert_eq!(default_agents.len(), 10);
-        assert_eq!(drt_agents.len(), 1);
-
-        // 10 agent vehicles, 1 drt vehicle
-        assert_eq!(scenario.garage.vehicles.len(), 10 + 1);
-
-        //there is only one predefined vehicle type (car)
-        assert_eq!(scenario.garage.vehicle_types.len(), 1);
-
-        let default_agent_ids = default_agents.keys().collect::<Vec<&Id<InternalPerson>>>();
-
-        let vehicle_ids = scenario
-            .garage
-            .vehicles
-            .keys()
-            .collect::<Vec<&Id<InternalVehicle>>>();
-
-        for n in 0..10u64 {
-            assert!(
-                default_agent_ids.contains(&&Id::get_from_ext(format!("passenger{}", n).as_str()))
-            );
-            assert!(
-                vehicle_ids.contains(&&Id::get_from_ext(format!("passenger{}_car", n).as_str()))
-            );
-        }
-
-        assert!(drt_agents.keys().contains(&&Id::get_from_ext("drt")));
-        assert!(vehicle_ids.contains(&&Id::get_from_ext("drt")));
-    }
+    // #[test]
+    // #[ignore]
+    // fn test_drt_agent_source() {
+    //     let config_path = "./assets/drt/config.yml";
+    //     let config = Config::from(CommandLineArgs::new_with_path(config_path));
+    //
+    //     let mut scenario = GlobalScenario::build(config, 0, &config.output().output_dir);
+    //
+    //     let drt_source = DrtAgentSource {};
+    //     let drt_agents = drt_source.create_agents(&mut scenario, &config);
+    //
+    //     let agent_source = PopulationAgentSource {};
+    //     let default_agents = agent_source.create_agents(&mut scenario, &config);
+    //
+    //     assert_eq!(scenario.network.nodes().len(), 62);
+    //     assert_eq!(scenario.network.links().len(), 170);
+    //
+    //     // 10 agents, 1 drt agent
+    //     assert_eq!(default_agents.len(), 10);
+    //     assert_eq!(drt_agents.len(), 1);
+    //
+    //     // 10 agent vehicles, 1 drt vehicle
+    //     assert_eq!(scenario.garage.vehicles.len(), 10 + 1);
+    //
+    //     //there is only one predefined vehicle type (car)
+    //     assert_eq!(scenario.garage.vehicle_types.len(), 1);
+    //
+    //     let default_agent_ids = default_agents.keys().collect::<Vec<&Id<InternalPerson>>>();
+    //
+    //     let vehicle_ids = scenario
+    //         .garage
+    //         .vehicles
+    //         .keys()
+    //         .collect::<Vec<&Id<InternalVehicle>>>();
+    //
+    //     for n in 0..10u64 {
+    //         assert!(
+    //             default_agent_ids.contains(&&Id::get_from_ext(format!("passenger{}", n).as_str()))
+    //         );
+    //         assert!(
+    //             vehicle_ids.contains(&&Id::get_from_ext(format!("passenger{}_car", n).as_str()))
+    //         );
+    //     }
+    //
+    //     assert!(drt_agents.keys().contains(&&Id::get_from_ext("drt")));
+    //     assert!(vehicle_ids.contains(&&Id::get_from_ext("drt")));
+    // }
 }

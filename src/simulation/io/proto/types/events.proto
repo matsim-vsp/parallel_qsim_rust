@@ -34,89 +34,89 @@ message GenericEvent {
 // Having the actType as string will generate a lot of owned short lived strings for events handling
 // Maybe with quick-protobuf we could do something else.
 message ActivityStartEvent {
-  uint64 person = 1;
-  uint64 link = 2;
-  uint64 actType = 3;
+  string person = 1;
+  string link = 2;
+  string actType = 3;
 }
 
 message ActivityEndEvent {
-  uint64 person = 1;
-  uint64 link = 2;
-  uint64 actType = 3;
+  string person = 1;
+  string link = 2;
+  string actType = 3;
 }
 
 message LinkEnterEvent {
-  uint64 link = 1;
-  uint64 vehicle = 2;
+  string link = 1;
+  string vehicle = 2;
 }
 
 message LinkLeaveEvent {
-  uint64 link = 1;
-  uint64 vehicle = 2;
+  string link = 1;
+  string vehicle = 2;
 }
 
 message PersonEntersVehicleEvent {
-  uint64 person = 1;
-  uint64 vehicle = 2;
+  string person = 1;
+  string vehicle = 2;
 }
 
 message PersonLeavesVehicleEvent {
-  uint64 person = 1;
-  uint64 vehicle = 2;
+  string person = 1;
+  string vehicle = 2;
 }
 
 message DepartureEvent {
-  uint64 person = 1;
-  uint64 link = 2;
-  uint64 legMode = 3;
+  string person = 1;
+  string link = 2;
+  string legMode = 3;
 }
 
 message ArrivalEvent {
-  uint64 person = 1;
-  uint64 link = 2;
-  uint64 legMode = 3;
+  string person = 1;
+  string link = 2;
+  string legMode = 3;
 }
 
 message TravelledEvent {
-  uint64 person = 1;
-  uint64 mode = 3;
+  string person = 1;
+  string mode = 3;
   double distance = 2;
 }
 
 message TravelledWithPtEvent {
-  uint64 person = 1;
+  string person = 1;
   double distance = 2;
-  uint64 mode = 3;
-  uint64 route = 4;
-  uint64 line = 5;
+  string mode = 3;
+  string route = 4;
+  string line = 5;
 }
 
 message PassengerPickedUpEvent{
-  uint64 person = 1;
-  uint64 mode = 2;
-  uint64 request = 3;
-  uint64 vehicle = 4;
+  string person = 1;
+  string mode = 2;
+  string request = 3;
+  string vehicle = 4;
 }
 
 message PassengerDroppedOffEvent{
-  uint64 person = 1;
-  uint64 mode = 2;
-  uint64 request = 3;
-  uint64 vehicle = 4;
+  string person = 1;
+  string mode = 2;
+  string request = 3;
+  string vehicle = 4;
 }
 
 message DvrpTaskStartedEvent {
-  uint64 person = 1;
-  uint64 dvrpVehicle = 2;
-  uint64 taskType = 3;
+  string person = 1;
+  string dvrpVehicle = 2;
+  string taskType = 3;
   uint64 taskIndex = 4;
-  uint64 dvrpMode = 5;
+  string dvrpMode = 5;
 }
 
 message DvrpTaskEndedEvent {
-  uint64 person = 1;
-  uint64 dvrpVehicle = 2;
-  uint64 taskType = 3;
+  string person = 1;
+  string dvrpVehicle = 2;
+  string taskType = 3;
   uint64 taskIndex = 4;
-  uint64 dvrpMode = 5;
+  string dvrpMode = 5;
 }
