@@ -8,7 +8,7 @@ use rust_q_sim::generated::events::Event;
 use rust_q_sim::simulation::id;
 use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::io::proto_events::EventsReader;
-use rust_q_sim::simulation::logging::init_std_out_logging;
+use rust_q_sim::simulation::logging::init_std_out_logging_thread_local;
 use rust_q_sim::simulation::messaging::events::EventsPublisher;
 
 struct StatefulReader<R: Read + Seek> {
@@ -29,7 +29,7 @@ impl<R: Read + Seek> StatefulReader<R> {
 }
 
 fn main() {
-    let _g = init_std_out_logging();
+    let _g = init_std_out_logging_thread_local();
     let args = InputArgs::parse();
     info!("Proto2Xml with args: {args:?}");
 

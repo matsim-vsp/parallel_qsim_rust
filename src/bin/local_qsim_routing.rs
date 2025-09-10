@@ -3,9 +3,10 @@ use rust_q_sim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_q_sim::external_services::{AdapterHandleBuilder, ExternalServiceType};
 use rust_q_sim::simulation::config::Config;
 use rust_q_sim::simulation::controller;
-use rust_q_sim::simulation::controller::local_controller::run_channel;
+use rust_q_sim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_q_sim::simulation::controller::ExternalServices;
-use rust_q_sim::simulation::logging::init_std_out_logging;
+use rust_q_sim::simulation::logging::init_std_out_logging_thread_local;
+use rust_q_sim::simulation::scenario::GlobalScenario;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -17,7 +18,7 @@ struct RoutingCommandLineArgs {
 }
 
 fn main() {
-    let _guard = init_std_out_logging();
+    let _guard = init_std_out_logging_thread_local();
     let args = RoutingCommandLineArgs::parse();
     let config = Config::from(args.delegate);
 
@@ -27,7 +28,15 @@ fn main() {
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    let sim_handles = run_channel(config, Default::default(), services);
+    let scenario = GlobalScenario::build(config);
+
+    let controller = LocalControllerBuilder::default()
+        .global_scenario(scenario)
+        .external_services(services)
+        .build()
+        .unwrap();
+
+    let sim_handles = controller.run();
 
     controller::try_join(
         sim_handles,
