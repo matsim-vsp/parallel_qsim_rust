@@ -13,6 +13,10 @@ use crate::generated::events::{
     PassengerDroppedOffEvent, PassengerPickedUpEvent, PersonEntersVehicleEvent,
     PersonLeavesVehicleEvent, TravelledEvent, TravelledWithPtEvent,
 };
+use crate::simulation::id::Id;
+use crate::simulation::network::Link;
+use crate::simulation::population::InternalPerson;
+use crate::simulation::vehicles::InternalVehicle;
 use tracing::{info, instrument};
 
 pub trait EventsSubscriber {
@@ -125,158 +129,196 @@ impl Event {
     /// act_type as owned string. We only have a few act_types in our simulation
     /// but a lot of act events. This has to be done differently somehow.
     /// Quick-protobuf crate allows for Cow reference for example.
-    pub fn new_act_start(person: u64, link: u64, act_type: u64) -> Event {
+    pub fn new_act_start(
+        person: &Id<InternalPerson>,
+        link: &Id<Link>,
+        act_type: &Id<String>,
+    ) -> Event {
         Event {
             r#type: Some(ActStart(ActivityStartEvent {
-                person,
-                link,
-                act_type,
+                person: person.external().to_string(),
+                link: link.external().to_string(),
+                act_type: act_type.external().to_string(),
             })),
         }
     }
 
-    pub fn new_act_end(person: u64, link: u64, act_type: u64) -> Event {
+    pub fn new_act_end(
+        person: &Id<InternalPerson>,
+        link: &Id<Link>,
+        act_type: &Id<String>,
+    ) -> Event {
         Event {
             r#type: Some(ActEnd(ActivityEndEvent {
-                person,
-                link,
-                act_type,
+                person: person.external().to_string(),
+                link: link.external().to_string(),
+                act_type: act_type.external().to_string(),
             })),
         }
     }
 
-    pub fn new_link_enter(link: u64, vehicle: u64) -> Event {
+    pub fn new_link_enter(link: &Id<Link>, vehicle: &Id<InternalVehicle>) -> Event {
         Event {
-            r#type: Some(LinkEnter(LinkEnterEvent { link, vehicle })),
+            r#type: Some(LinkEnter(LinkEnterEvent {
+                link: link.external().to_string(),
+                vehicle: vehicle.external().to_string(),
+            })),
         }
     }
 
-    pub fn new_link_leave(link: u64, vehicle: u64) -> Event {
+    pub fn new_link_leave(link: &Id<Link>, vehicle: &Id<InternalVehicle>) -> Event {
         Event {
-            r#type: Some(LinkLeave(LinkLeaveEvent { link, vehicle })),
+            r#type: Some(LinkLeave(LinkLeaveEvent {
+                link: link.external().to_string(),
+                vehicle: vehicle.external().to_string(),
+            })),
         }
     }
 
-    pub fn new_person_enters_veh(person: u64, vehicle: u64) -> Event {
+    pub fn new_person_enters_veh(
+        person: &Id<InternalPerson>,
+        vehicle: &Id<InternalVehicle>,
+    ) -> Event {
         Event {
             r#type: Some(PersonEntersVeh(PersonEntersVehicleEvent {
-                person,
-                vehicle,
+                person: person.external().to_string(),
+                vehicle: vehicle.external().to_string(),
             })),
         }
     }
 
-    pub fn new_person_leaves_veh(person: u64, vehicle: u64) -> Event {
+    pub fn new_person_leaves_veh(
+        person: &Id<InternalPerson>,
+        vehicle: &Id<InternalVehicle>,
+    ) -> Event {
         Event {
             r#type: Some(PersonLeavesVeh(PersonLeavesVehicleEvent {
-                person,
-                vehicle,
+                person: person.external().to_string(),
+                vehicle: vehicle.external().to_string(),
             })),
         }
     }
 
-    pub fn new_departure(person: u64, link: u64, leg_mode: u64) -> Event {
+    pub fn new_departure(
+        person: &Id<InternalPerson>,
+        link: &Id<Link>,
+        leg_mode: &Id<String>,
+    ) -> Event {
         Event {
             r#type: Some(Departure(DepartureEvent {
-                person,
-                link,
-                leg_mode,
+                person: person.external().to_string(),
+                link: link.external().to_string(),
+                leg_mode: leg_mode.external().to_string(),
             })),
         }
     }
 
-    pub fn new_arrival(person: u64, link: u64, leg_mode: u64) -> Event {
+    pub fn new_arrival(
+        person: &Id<InternalPerson>,
+        link: &Id<Link>,
+        leg_mode: &Id<String>,
+    ) -> Event {
         Event {
             r#type: Some(Arrival(ArrivalEvent {
-                person,
-                link,
-                leg_mode,
+                person: person.external().to_string(),
+                link: link.external().to_string(),
+                leg_mode: leg_mode.external().to_string(),
             })),
         }
     }
 
-    pub fn new_travelled(person: u64, distance: f64, mode: u64) -> Event {
+    pub fn new_travelled(person: &Id<InternalPerson>, distance: f64, mode: &Id<String>) -> Event {
         Event {
             r#type: Some(Travelled(TravelledEvent {
-                person,
+                person: person.external().to_string(),
                 distance,
-                mode,
+                mode: mode.external().to_string(),
             })),
         }
     }
 
     pub fn new_travelled_with_pt(
-        person: u64,
+        person: &Id<InternalPerson>,
         distance: f64,
-        mode: u64,
-        line: u64,
-        route: u64,
+        mode: &Id<String>,
+        line: &Id<String>,
+        route: &Id<String>,
     ) -> Event {
         Event {
             r#type: Some(TravelledWithPt(TravelledWithPtEvent {
-                person,
+                person: person.external().to_string(),
                 distance,
-                mode,
-                route,
-                line,
+                mode: mode.external().to_string(),
+                route: route.external().to_string(),
+                line: line.external().to_string(),
             })),
         }
     }
 
-    pub fn new_passenger_picked_up(person: u64, mode: u64, request: u64, vehicle: u64) -> Event {
+    pub fn new_passenger_picked_up(
+        person: &Id<InternalPerson>,
+        mode: &Id<String>,
+        request: &Id<String>,
+        vehicle: &Id<InternalVehicle>,
+    ) -> Event {
         Event {
             r#type: Some(PassengerPickedUp(PassengerPickedUpEvent {
-                person,
-                mode,
-                request,
-                vehicle,
+                person: person.external().to_string(),
+                mode: mode.external().to_string(),
+                request: request.external().to_string(),
+                vehicle: vehicle.external().to_string(),
             })),
         }
     }
 
-    pub fn new_passenger_dropped_off(person: u64, mode: u64, request: u64, vehicle: u64) -> Event {
+    pub fn new_passenger_dropped_off(
+        person: &Id<InternalPerson>,
+        mode: &Id<String>,
+        request: &Id<String>,
+        vehicle: &Id<InternalVehicle>,
+    ) -> Event {
         Event {
             r#type: Some(PassengerDroppedOff(PassengerDroppedOffEvent {
-                person,
-                mode,
-                request,
-                vehicle,
+                person: person.external().to_string(),
+                mode: mode.external().to_string(),
+                request: request.external().to_string(),
+                vehicle: vehicle.external().to_string(),
             })),
         }
     }
 
     pub fn new_dvrp_task_started(
-        person: u64,
-        dvrp_vehicle: u64,
-        task_type: u64,
+        person: &Id<InternalPerson>,
+        dvrp_vehicle: &Id<InternalVehicle>,
+        task_type: &Id<String>,
         task_index: u64,
-        dvrp_mode: u64,
+        dvrp_mode: &Id<String>,
     ) -> Event {
         Event {
             r#type: Some(DvrpTaskStarted(DvrpTaskStartedEvent {
-                person,
-                dvrp_vehicle,
-                task_type,
+                person: person.external().to_string(),
+                dvrp_vehicle: dvrp_vehicle.external().to_string(),
+                task_type: task_type.external().to_string(),
                 task_index,
-                dvrp_mode,
+                dvrp_mode: dvrp_mode.external().to_string(),
             })),
         }
     }
 
     pub fn new_dvrp_task_ended(
-        person: u64,
-        dvrp_vehicle: u64,
-        task_type: u64,
+        person: &Id<InternalPerson>,
+        dvrp_vehicle: &Id<InternalVehicle>,
+        task_type: &Id<String>,
         task_index: u64,
-        dvrp_mode: u64,
+        dvrp_mode: &Id<String>,
     ) -> Event {
         Event {
             r#type: Some(DvrpTaskEnded(DvrpTaskEndedEvent {
-                person,
-                dvrp_vehicle,
-                task_type,
+                person: person.external().to_string(),
+                dvrp_vehicle: dvrp_vehicle.external().to_string(),
+                task_type: task_type.external().to_string(),
                 task_index,
-                dvrp_mode,
+                dvrp_mode: dvrp_mode.external().to_string(),
             })),
         }
     }

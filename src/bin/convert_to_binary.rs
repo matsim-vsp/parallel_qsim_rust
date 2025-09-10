@@ -29,7 +29,7 @@ struct InputArgs {
 }
 
 fn main() {
-    rust_q_sim::simulation::logging::init_std_out_logging();
+    rust_q_sim::simulation::logging::init_std_out_logging_thread_local();
     let args = InputArgs::parse();
 
     let mut veh = Garage::from_file(&args.vehicles);

@@ -22,7 +22,7 @@ pub(crate) struct LogGuards {
     default: DefaultGuard,
 }
 
-pub fn init_std_out_logging() -> DefaultGuard {
+pub fn init_std_out_logging_thread_local() -> DefaultGuard {
     let collector = tracing_subscriber::registry().with(
         fmt::Layer::new()
             .with_writer(io::stdout)

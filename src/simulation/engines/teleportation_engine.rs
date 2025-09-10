@@ -58,12 +58,12 @@ impl TeleportationEngine {
         self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
             &Event::new_travelled(
-                agent.id().internal(),
+                agent.id(),
                 route
                     .as_generic()
                     .distance()
                     .expect("Route distance needs to be set."),
-                leg.mode.internal(),
+                &leg.mode,
             ),
         );
     }
@@ -72,23 +72,21 @@ impl TeleportationEngine {
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let transit_line_id =
-            Id::<String>::get_from_ext(route.as_pt().unwrap().description.transit_line_id.as_str())
-                .internal();
+            Id::<String>::get_from_ext(route.as_pt().unwrap().description.transit_line_id.as_str());
         let transit_route_id = Id::<String>::get_from_ext(
             route.as_pt().unwrap().description.transit_route_id.as_str(),
-        )
-        .internal();
+        );
         self.comp_env.events_publisher_borrow_mut().publish_event(
             now,
             &Event::new_travelled_with_pt(
-                agent.id().internal(),
+                agent.id(),
                 route
                     .as_generic()
                     .distance()
                     .expect("Route distance needs to be set."),
-                leg.mode.internal(),
-                transit_line_id,
-                transit_route_id,
+                &leg.mode,
+                &transit_line_id,
+                &transit_route_id,
             ),
         );
     }

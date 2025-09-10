@@ -3,10 +3,12 @@ use nohash_hasher::IntMap;
 use rust_q_sim::external_services::AdapterHandle;
 use rust_q_sim::generated::events::Event;
 use rust_q_sim::simulation::config::{CommandLineArgs, Config};
+use rust_q_sim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_q_sim::simulation::controller::ExternalServices;
 use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_q_sim::simulation::messaging::events::EventsSubscriber;
 use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
+use rust_q_sim::simulation::scenario::GlobalScenario;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fs::File;
@@ -56,13 +58,9 @@ impl TestExecutor<'_> {
 
         let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
 
-        let receiver = if let Some(expected_events) = self.expected_events {
-            Some(ReceivingSubscriber::new_with_events_from_file(
-                &expected_events,
-            ))
-        } else {
-            None
-        };
+        let receiver = self
+            .expected_events
+            .map(ReceivingSubscriber::new_with_events_from_file);
 
         for c in comms {
             if receiver.is_none() {
@@ -82,11 +80,16 @@ impl TestExecutor<'_> {
             subscribers.insert(c.rank(), subscriber);
         }
 
-        let mut handles = rust_q_sim::simulation::controller::local_controller::run_channel(
-            Config::from(self.config_args.clone()),
-            subscribers,
-            self.external_services.clone(),
-        );
+        let scenario = GlobalScenario::build(config);
+
+        let controller = LocalControllerBuilder::default()
+            .global_scenario(scenario)
+            .events_subscriber_per_partition(subscribers)
+            .external_services(self.external_services.clone())
+            .build()
+            .unwrap();
+
+        let mut handles = controller.run();
 
         if let Some(mut receiver) = receiver {
             // create another thread for the receiver, so that the main thread doesn't block.
@@ -117,11 +120,16 @@ impl TestExecutor<'_> {
 
         subscribers.insert(0, subs);
 
-        rust_q_sim::simulation::controller::local_controller::run_channel(
-            config,
-            subscribers,
-            self.external_services.clone(),
-        )
+        let scenario = GlobalScenario::build(config);
+
+        let controller = LocalControllerBuilder::default()
+            .global_scenario(scenario)
+            .events_subscriber_per_partition(subscribers)
+            .external_services(self.external_services.clone())
+            .build()
+            .unwrap();
+
+        controller.run()
     }
 }
 
