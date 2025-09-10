@@ -201,14 +201,24 @@ impl TestSubscriber {
     }
 
     /// Load an external file with expected events. Instead of loading proto buf files this has two advantages:
-    /// 1. The expected events are in a human readable format.
+    /// 1. The expected events are in a human-readable format.
     /// 2. The expected events consist of the external ids.
-    fn expected_events_from_file(events_file: &str) -> Vec<String> {
-        let file = File::open(events_file).expect("Failed to open events file.");
-        let reader = BufReader::new(file);
+    pub fn expected_events_from_file(events_file: &str) -> Vec<String> {
+        let reader: Box<dyn BufRead> = if events_file.starts_with("http://")
+            || events_file.starts_with("https://")
+        {
+            let resp = reqwest::blocking::get(events_file)
+                .unwrap_or_else(|e| panic!("Failed to fetch events URL {}: {}", events_file, e));
+            let text = resp.text().unwrap_or_else(|e| {
+                panic!("Failed to read response body from {}: {}", events_file, e)
+            });
+            Box::new(BufReader::new(std::io::Cursor::new(text)))
+        } else {
+            let file = File::open(events_file)
+                .unwrap_or_else(|e| panic!("Failed to open events file at {}: {}", events_file, e));
+            Box::new(BufReader::new(file))
+        };
 
-        // Prepare the expected events. Since the file is an xml events file, we do not want to compare other lines than the
-        // event lines. Also, we need to append \n to each line since the reader strips it.
         reader
             .lines()
             .map(|l| l.unwrap().trim_start().to_string())

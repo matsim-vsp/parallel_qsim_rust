@@ -1,12 +1,13 @@
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use dyn_clone::DynClone;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
 use tracing::{info, Level};
 
@@ -64,12 +65,29 @@ impl From<CommandLineArgs> for Config {
 
 impl From<PathBuf> for Config {
     fn from(config_path: PathBuf) -> Self {
-        let reader = BufReader::new(File::open(&config_path).unwrap_or_else(|e| {
-            panic!(
-                "Failed to open config file at {:?}. Original error was {}",
-                config_path, e
-            );
-        }));
+        let source = config_path.to_string_lossy();
+        let reader: Box<dyn std::io::BufRead>;
+
+        // Check if the path is a URL
+        if let Ok(url) = Url::parse(&source) {
+            // Make a blocking request to get the config file and read the response body
+            let resp = reqwest::blocking::get(url).expect("Failed to fetch config URL");
+            let bytes = resp.bytes().expect("Failed to read response body").to_vec();
+            // Wrap the response bytes in a BufReader for YAML parsing
+            reader = Box::new(BufReader::new(Cursor::new(bytes)));
+        } else {
+            // Open the config file from the local file system
+            let file = File::open(&config_path).unwrap_or_else(|e| {
+                panic!(
+                    "Failed to open config file at {:?}. Original error was {}",
+                    config_path, e
+                );
+            });
+            // Wrap the file in a BufReader for YAML parsing
+            reader = Box::new(BufReader::new(file));
+        }
+
+        // Parse YAML into Config
         let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
             panic!(
                 "Failed to parse config at {:?}. Original error was: {}",

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<events version="1.0">
+    <event time="32400" type="actend" person="100" link="link1" actType="home"/>
+    <event time="32400" type="departure" person="100" link="link1" legMode="walk"/>
+    <event time="32408" type="travelled" person="100" distance="10" mode="walk"/>
+    <event time="32408" type="arrival" person="100" link="link1" legMode="walk"/>
+    <event time="32409" type="actstart" person="100" link="link1" actType="car interaction"/>
+    <event time="32409" type="actend" person="100" link="link1" actType="car interaction"/>
+    <event time="32409" type="departure" person="100" link="link1" legMode="car"/>
+    <event time="32409" type="PersonEntersVehicle" person="100" vehicle="100_car"/>
+    <event time="32419" type="left link" link="link1" vehicle="100_car"/>
+    <event time="32419" type="entered link" link="link2" vehicle="100_car"/>
+    <event time="32519" type="left link" link="link2" vehicle="100_car"/>
+    <event time="32519" type="entered link" link="link3" vehicle="100_car"/>
+    <event time="32529" type="PersonLeavesVehicle" person="100" vehicle="100_car"/>
+    <event time="32529" type="arrival" person="100" link="link3" legMode="car"/>
+    <event time="32530" type="actstart" person="100" link="link3" actType="car interaction"/>
+    <event time="32530" type="actend" person="100" link="link3" actType="car interaction"/>
+    <event time="32530" type="departure" person="100" link="link3" legMode="walk"/>
+    <event time="32546" type="travelled" person="100" distance="20" mode="walk"/>
+    <event time="32546" type="arrival" person="100" link="link3" legMode="walk"/>
+    <event time="32547" type="actstart" person="100" link="link3" actType="errands"/>
+</events>
