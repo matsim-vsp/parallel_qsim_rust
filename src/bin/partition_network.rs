@@ -13,7 +13,7 @@ use rust_q_sim::simulation::network::Network;
 /// The new file has the same name as the input file, but with the number of parts appended to the name.
 /// e.g. `network.binpb` -> `network.4.binpb`
 fn main() {
-    rust_q_sim::simulation::logging::init_std_out_logging();
+    rust_q_sim::simulation::logging::init_std_out_logging_thread_local();
     let args = InputArgs::parse();
 
     if let Some(id_path) = args.id_path {

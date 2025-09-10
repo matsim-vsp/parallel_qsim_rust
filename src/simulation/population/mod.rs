@@ -88,6 +88,36 @@ impl Population {
         })
     }
 
+    pub fn take_from_filter(&mut self, filter: impl Fn(&InternalPerson) -> bool) -> Self {
+        let mut persons = HashMap::new();
+        let to_move: Vec<_> = self
+            .persons
+            .iter()
+            .filter(|(_, v)| filter(v))
+            .map(|(k, _)| k.clone())
+            .collect();
+
+        for key in to_move {
+            if let Some(value) = self.persons.remove(&key) {
+                persons.insert(key, value);
+            }
+        }
+        Population { persons }
+    }
+
+    pub fn take_from_filtered_part(&mut self, net: &Network, part: u32) -> Self {
+        let x = Self::f(net, part);
+        self.take_from_filter(x)
+    }
+
+    fn f(net: &Network, part: u32) -> impl Fn(&InternalPerson) -> bool + use<'_> {
+        move |p: &InternalPerson| {
+            let act = p.plan_element_at(0).and_then(|p| p.as_activity()).unwrap();
+            let partition = net.get_link(&act.link_id).partition;
+            partition == part
+        }
+    }
+
     pub fn to_file(&self, file_path: &Path) {
         to_file(self, file_path);
     }
