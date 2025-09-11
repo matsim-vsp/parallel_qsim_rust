@@ -298,6 +298,7 @@ impl IdStore<'_> {
         deserialize_from_file(self, file_path);
     }
 
+    #[cfg(any(test, feature = "test_util"))]
     pub(crate) fn reset(&self) {
         self.ids.clear();
         self.mapping.clear();

@@ -130,6 +130,8 @@ impl<T: StableTypeId> Clone for Id<T> {
 
 static ID_STORE: Lazy<IdStore> = Lazy::new(IdStore::new);
 
+// This function should be visible only in test cases, so that we can reset the id store
+#[cfg(any(test, feature = "test_util"))]
 pub fn reset_store() {
     ID_STORE.reset();
 }

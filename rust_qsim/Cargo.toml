@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 mpi = ["dep:mpi"]
+test_util = []
 
 [[bin]]
 name = "mpi_qsim"
@@ -53,6 +54,8 @@ macros = { path = "../macros" }
 reqwest = { version = "0.12.23", features = ["blocking"] }
 
 [dev-dependencies]
+# For development, test_util feature is always activated so that functions like id store reset work
+rust_qsim = { path = ".", features = ["test_util"] }
 
 [build-dependencies]
 # generates types based on .proto files
