@@ -28,17 +28,22 @@ pub trait EnvironmentalEventObserver {
 
 #[non_exhaustive]
 pub enum AgentEvent<'a> {
+    // activity related events
     ActivityStarted(),
-    Wakeup(WakeupEvent<'a>),
+    WokeUp(WokeUpEvent<'a>),
     ActivityFinished(),
+
+    // teleportation related events
     TeleportationStarted(),
     TeleportationFinished(),
+
+    // leg related events
     NetworkLegStarted(),
-    MovedToNextLink(),
+    LeftLink(),
     NetworkLegFinished(),
 }
 
-pub struct WakeupEvent<'w> {
+pub struct WokeUpEvent<'w> {
     pub comp_env: &'w mut ThreadLocalComputationalEnvironment,
     pub end_time: u32,
 }
