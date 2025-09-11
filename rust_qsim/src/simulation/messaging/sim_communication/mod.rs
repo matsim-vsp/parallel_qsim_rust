@@ -4,9 +4,6 @@ use std::collections::{HashMap, HashSet};
 pub mod local_communicator;
 pub mod message_broker;
 
-#[cfg(feature = "mpi")]
-pub mod mpi_communicator;
-
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(
         &self,

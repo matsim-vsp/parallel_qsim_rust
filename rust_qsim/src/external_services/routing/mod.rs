@@ -106,6 +106,10 @@ impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFact
 
         RoutingServiceAdapter { client }
     }
+
+    fn thread_count(&self) -> usize {
+        self.config.routing().threads
+    }
 }
 
 impl RoutingServiceAdapterFactory {

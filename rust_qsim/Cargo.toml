@@ -4,13 +4,7 @@ version = "0.2.0"
 edition = "2021"
 
 [features]
-mpi = ["dep:mpi"]
 test_util = []
-
-[[bin]]
-name = "mpi_qsim"
-path = "src/bin/mpi_qsim.rs"
-required-features = ["mpi"]
 
 [dependencies]
 serde = { version = "1.0.137", features = ["derive"] }
@@ -20,7 +14,6 @@ flate2 = { version = "1.0.24" }
 rand = "0.9.0"
 metis = "0.2.2"
 clap = { version = "4.0.29", features = ["derive"] }
-mpi = { version = "0.8.0", optional = true }
 # dependencies for serialization with protobuf
 prost = "0.13.3"
 # bytes replaces the signature of std::io::Cursor to implemnt Buf somehow...
@@ -63,9 +56,3 @@ prost-build = "0.13.5"
 # provides the protoc compiler - this makes the build slow but one doesn't need to install the protoc compiler as prerequisite.
 protobuf-src = "2.1.1"
 tonic-build = "0.13.1"
-
-[profile.bench]
-debug = true
-
-[profile.release]
-debug = true

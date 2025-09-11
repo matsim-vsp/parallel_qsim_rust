@@ -34,6 +34,9 @@ pub trait RequestAdapterFactory<T: RequestToAdapter> {
     ) {
         tokio::sync::watch::channel(false)
     }
+    fn thread_count(&self) -> usize {
+        1
+    }
 }
 
 pub trait RequestAdapter<T: RequestToAdapter> {
@@ -49,7 +52,8 @@ pub fn execute_adapter<T: RequestToAdapter>(
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     info!("Starting adapter");
-    let rt = tokio::runtime::Builder::new_current_thread()
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(req_adapter_factory.thread_count())
         .enable_all()
         .build()
         .unwrap();

@@ -268,6 +268,7 @@ impl Config {
         } else {
             let default = Routing {
                 mode: RoutingMode::UsePlans,
+                threads: 1,
             };
             self.modules
                 .borrow_mut()
@@ -332,6 +333,8 @@ pub struct Output {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Routing {
     pub mode: RoutingMode,
+    #[serde(default)]
+    pub threads: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

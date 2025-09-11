@@ -1,3 +1,9 @@
 [workspace]
 members = ["rust_qsim", "macros"]
 resolver = "2"
+
+[profile.bench]
+debug = true
+
+[profile.release]
+debug = true

@@ -1,6 +1,4 @@
 pub mod local_controller;
-#[cfg(feature = "mpi")]
-pub mod mpi_controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType};
 use crate::simulation::config::{Config, WriteEvents};

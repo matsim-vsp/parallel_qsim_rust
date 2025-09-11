@@ -23,7 +23,7 @@
                     <attribute name="routingMode" class="java.lang.String">pt</attribute>
                     <attribute name="preplanningHorizon" class="java.lang.Integer">600</attribute>
                 </attributes>
-                <route type="default_pt" start_link="11" end_link="33" trav_time="00:15:53" distance="6100.0">{"transitRouteId":"1to3","boardingTime":"07:50:00","transitLineId":"Blue Line","accessFacilityId":"1","egressFacilityId":"3"}</route>
+                <route type="default_pt" start_link="11" end_link="33" trav_time="00:00:42" distance="6100.0">{"transitRouteId":"1to3","boardingTime":"07:50:00","transitLineId":"Blue Line","accessFacilityId":"1","egressFacilityId":"3"}</route>
             </leg>
             <activity type="w" link="3141" x="3619.0" y="1217.0" end_time="17:27:24" >
             </activity>
@@ -40,7 +40,7 @@
                     <attribute name="routingMode" class="java.lang.String">pt</attribute>
                     <attribute name="preplanningHorizon" class="java.lang.Integer">600</attribute>
                 </attributes>
-                <route type="default_pt" start_link="33" end_link="11" trav_time="00:18:53" distance="6100.0">{"transitRouteId":"3to1","boardingTime":"18:40:00","transitLineId":"Blue Line","accessFacilityId":"3","egressFacilityId":"1"}</route>
+                <route type="default_pt" start_link="33" end_link="11" trav_time="00:00:42" distance="6100.0">{"transitRouteId":"3to1","boardingTime":"18:40:00","transitLineId":"Blue Line","accessFacilityId":"3","egressFacilityId":"1"}</route>
             </leg>
             <activity type="h" link="1112" x="938.0" y="642.0" >
             </activity>
