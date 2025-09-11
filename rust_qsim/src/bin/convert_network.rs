@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use tracing::info;
 
-use rust_q_sim::simulation::config::PartitionMethod;
-use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::logging::init_std_out_logging_thread_local;
-use rust_q_sim::simulation::network::Network;
+use rust_qsim::simulation::config::PartitionMethod;
+use rust_qsim::simulation::id;
+use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::network::Network;
 
 fn main() {
     let _g = init_std_out_logging_thread_local();

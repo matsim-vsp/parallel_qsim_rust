@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use clap::{arg, Parser};
 use tracing::info;
 
-use rust_q_sim::simulation::config::{MetisOptions, PartitionMethod};
-use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::network::Network;
+use rust_qsim::simulation::config::{MetisOptions, PartitionMethod};
+use rust_qsim::simulation::id;
+use rust_qsim::simulation::network::Network;
 
 /// This binary partitions a network into a given number of parts.
 /// A new network file is written to the same folder as the input network file.
@@ -13,7 +13,7 @@ use rust_q_sim::simulation::network::Network;
 /// The new file has the same name as the input file, but with the number of parts appended to the name.
 /// e.g. `network.binpb` -> `network.4.binpb`
 fn main() {
-    rust_q_sim::simulation::logging::init_std_out_logging_thread_local();
+    rust_qsim::simulation::logging::init_std_out_logging_thread_local();
     let args = InputArgs::parse();
 
     if let Some(id_path) = args.id_path {

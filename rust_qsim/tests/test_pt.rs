@@ -1,15 +1,15 @@
 use crate::test_simulation::TestExecutorBuilder;
 use macros::integration_test;
-use rust_q_sim::external_services::routing::RoutingServiceAdapterFactory;
-use rust_q_sim::external_services::{AdapterHandleBuilder, ExternalServiceType};
-use rust_q_sim::simulation::config::{CommandLineArgs, Config};
-use rust_q_sim::simulation::controller::ExternalServices;
-use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::messaging::events::EventsSubscriber;
-use rust_q_sim::simulation::network::Network;
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::pt::TransitSchedule;
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
+use rust_qsim::external_services::{AdapterHandleBuilder, ExternalServiceType};
+use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::controller::ExternalServices;
+use rust_qsim::simulation::id::store_to_file;
+use rust_qsim::simulation::messaging::events::EventsSubscriber;
+use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::population::Population;
+use rust_qsim::simulation::pt::TransitSchedule;
+use rust_qsim::simulation::vehicles::garage::Garage;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -28,7 +28,7 @@ fn create_resources(out_dir: &PathBuf, pop: &PathBuf) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn test_pt_tutorial() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial/");
     create_resources(&test_dir, &PathBuf::from("plans_1.xml.gz"));
@@ -44,7 +44,7 @@ fn test_pt_tutorial() {
         .execute();
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 #[ignore]
 // to be tested with running routing service;
 // --config /Users/paulh/git/parallel_qsim_rust/assets/pt_tutorial/config.xml --output output/v6.4/test-router

@@ -422,7 +422,7 @@ mod tests {
         let store = IdStore::new();
 
         let net = Network::from_file_path(
-            &PathBuf::from("/Users/janek/Documents/rust_q_sim/input/rvr.network.xml.gz"),
+            &PathBuf::from("/Users/janek/Documents/rust_qsim/input/rvr.network.xml.gz"),
             1,
             PartitionMethod::None,
         );
@@ -434,10 +434,10 @@ mod tests {
         }
 
         let mut garage = Garage::from_file(&PathBuf::from(
-            "/Users/janek/Documents/rust_q_sim/input/rvr.vehicles.xml",
+            "/Users/janek/Documents/rust_qsim/input/rvr.vehicles.xml",
         ));
         let pop = Population::from_file(
-            &PathBuf::from("/Users/janek/Documents/rust_q_sim/input/rvr-10pct.plans.xml.gz"),
+            &PathBuf::from("/Users/janek/Documents/rust_qsim/input/rvr-10pct.plans.xml.gz"),
             &mut garage,
         );
 

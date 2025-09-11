@@ -2,11 +2,11 @@ mod test_simulation;
 
 use crate::test_simulation::TestExecutorBuilder;
 use macros::integration_test;
-use rust_q_sim::simulation::config::CommandLineArgs;
-use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::network::Network;
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::config::CommandLineArgs;
+use rust_qsim::simulation::id::store_to_file;
+use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::population::Population;
+use rust_qsim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
 
 fn create_resources(out_dir: &PathBuf, population: &str) {
@@ -23,7 +23,7 @@ fn create_resources(out_dir: &PathBuf, population: &str) {
 }
 
 // one agent having a network route, car being not a main mode => simulation should teleport the agent
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn teleport_network_route() {
     let test_dir = PathBuf::from("./test_output/simulation/output-teleport-network-route/");
     create_resources(&test_dir, "equil-1-plan-network.xml");
@@ -43,7 +43,7 @@ fn teleport_network_route() {
 }
 
 // one agent having a generic route, car being not a main mode => simulation should teleport the agent
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn teleport_generic_route() {
     let test_dir = PathBuf::from("./test_output/simulation/output-teleport-generic-route/");
     create_resources(&test_dir, "equil-1-plan-generic.xml");
@@ -63,7 +63,7 @@ fn teleport_generic_route() {
 }
 
 // one agent having a network route, car being a main mode => already implemented
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn simulate_network_route() {
     let test_dir = PathBuf::from("./test_output/simulation/output-simulate-network-route/");
     create_resources(&test_dir, "equil-1-plan-network.xml");
@@ -83,7 +83,7 @@ fn simulate_network_route() {
 }
 
 // one agent having a generic route, car being a main mode => simulation should crash
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 #[should_panic]
 fn simulate_generic_route_panics() {
     let test_dir = PathBuf::from("./test_output/simulation/output-simulate-generic-route-panics/");

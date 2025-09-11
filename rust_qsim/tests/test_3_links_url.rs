@@ -1,7 +1,7 @@
-use rust_q_sim::simulation::config::Config;
-use rust_q_sim::simulation::network::Network;
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::config::Config;
+use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::population::Population;
+use rust_qsim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
 
 mod test_simulation;

@@ -1,11 +1,11 @@
 use clap::Parser;
-use rust_q_sim::simulation::id;
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::id;
+use rust_qsim::simulation::population::Population;
+use rust_qsim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
 
 fn main() {
-    rust_q_sim::simulation::logging::init_std_out_logging_thread_local();
+    rust_qsim::simulation::logging::init_std_out_logging_thread_local();
     let args = InputArgs::parse();
 
     id::load_from_file(&args.id_path);

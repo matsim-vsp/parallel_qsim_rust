@@ -1,3 +1,3 @@
 [workspace]
-members = ["rust-qsim", "macros"]
+members = ["rust_qsim", "macros"]
 resolver = "2"

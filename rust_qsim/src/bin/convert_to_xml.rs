@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use clap::Parser;
 use tracing::info;
 
-use rust_q_sim::simulation::config::PartitionMethod;
-use rust_q_sim::simulation::network::Network;
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::config::PartitionMethod;
+use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::population::Population;
+use rust_qsim::simulation::vehicles::garage::Garage;
 
 #[derive(Parser, Debug)]
 struct InputArgs {
@@ -21,7 +21,7 @@ struct InputArgs {
 }
 
 fn main() {
-    rust_q_sim::simulation::logging::init_std_out_logging_thread_local();
+    rust_qsim::simulation::logging::init_std_out_logging_thread_local();
     let args = InputArgs::parse();
     let ids_path = PathBuf::from(&args.ids);
 
@@ -29,7 +29,7 @@ fn main() {
     let pop_path = args.population.map(|s| PathBuf::from(&s));
     let veh_path = args.vehicles.map(|s| PathBuf::from(&s));
 
-    rust_q_sim::simulation::id::load_from_file(&ids_path);
+    rust_qsim::simulation::id::load_from_file(&ids_path);
 
     if let Some(net_path) = net_path {
         info!("Loading network from {:?}", net_path);

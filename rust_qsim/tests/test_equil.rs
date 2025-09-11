@@ -1,8 +1,8 @@
 use macros::integration_test;
-use rust_q_sim::external_services::routing::{
+use rust_qsim::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
 };
-use rust_q_sim::external_services::{
+use rust_qsim::external_services::{
     execute_adapter, AdapterHandle, AdapterHandleBuilder, ExternalServiceType, RequestAdapter,
     RequestAdapterFactory,
 };
@@ -13,12 +13,12 @@ use std::thread;
 
 mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
-use rust_q_sim::simulation::config::CommandLineArgs;
-use rust_q_sim::simulation::controller::{ExternalServices, RequestSender};
-use rust_q_sim::simulation::id::{store_to_file, Id};
-use rust_q_sim::simulation::network::Network;
-use rust_q_sim::simulation::population::{InternalPlanElement, Population, PREPLANNING_HORIZON};
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::config::CommandLineArgs;
+use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
+use rust_qsim::simulation::id::{store_to_file, Id};
+use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::population::{InternalPlanElement, Population, PREPLANNING_HORIZON};
+use rust_qsim::simulation::vehicles::garage::Garage;
 
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
 where
@@ -37,7 +37,7 @@ where
     garage.to_file(&out_dir.join("equil-vehicles.binpb"));
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn execute_equil_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part/");
     create_resources(&test_dir, |_pop| {});
@@ -52,7 +52,7 @@ fn execute_equil_single_part() {
         .execute();
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn execute_equil_2_parts() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
     create_resources(&test_dir, |_| {});
@@ -67,7 +67,7 @@ fn execute_equil_2_parts() {
         .execute();
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 #[should_panic]
 fn execute_equil_adaptive_planning_single_part_panics() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
@@ -84,7 +84,7 @@ fn execute_equil_adaptive_planning_single_part_panics() {
     );
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn execute_equil_adaptive_planning_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
@@ -119,7 +119,7 @@ fn execute_equil_adaptive_planning_single_part() {
     );
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn execute_equil_adaptive_planning_two_parts() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels-adaptive/");
     let config_path = "./tests/resources/equil/equil-config-2-adaptive.yml".to_string();

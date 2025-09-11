@@ -1,14 +1,14 @@
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
-use rust_q_sim::external_services::AdapterHandle;
-use rust_q_sim::generated::events::Event;
-use rust_q_sim::simulation::config::{CommandLineArgs, Config};
-use rust_q_sim::simulation::controller::local_controller::LocalControllerBuilder;
-use rust_q_sim::simulation::controller::ExternalServices;
-use rust_q_sim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_q_sim::simulation::messaging::events::EventsSubscriber;
-use rust_q_sim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
-use rust_q_sim::simulation::scenario::GlobalScenario;
+use rust_qsim::external_services::AdapterHandle;
+use rust_qsim::generated::events::Event;
+use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
+use rust_qsim::simulation::controller::ExternalServices;
+use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
+use rust_qsim::simulation::messaging::events::EventsSubscriber;
+use rust_qsim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
+use rust_qsim::simulation::scenario::GlobalScenario;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fs::File;
@@ -54,7 +54,7 @@ impl TestExecutor<'_> {
             self.execute_sim(config)
         };
 
-        rust_q_sim::simulation::controller::try_join(handles, self.adapter_handles)
+        rust_qsim::simulation::controller::try_join(handles, self.adapter_handles)
     }
 
     fn execute_sim_with_channels(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {

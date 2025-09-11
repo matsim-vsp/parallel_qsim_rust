@@ -1,12 +1,12 @@
 use clap::Parser;
-use rust_q_sim::external_services::routing::RoutingServiceAdapterFactory;
-use rust_q_sim::external_services::{AdapterHandleBuilder, ExternalServiceType};
-use rust_q_sim::simulation::config::Config;
-use rust_q_sim::simulation::controller;
-use rust_q_sim::simulation::controller::local_controller::LocalControllerBuilder;
-use rust_q_sim::simulation::controller::ExternalServices;
-use rust_q_sim::simulation::logging::init_std_out_logging_thread_local;
-use rust_q_sim::simulation::scenario::GlobalScenario;
+use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
+use rust_qsim::external_services::{AdapterHandleBuilder, ExternalServiceType};
+use rust_qsim::simulation::config::Config;
+use rust_qsim::simulation::controller;
+use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
+use rust_qsim::simulation::controller::ExternalServices;
+use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::scenario::GlobalScenario;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -14,7 +14,7 @@ struct RoutingCommandLineArgs {
     #[arg(long, short)]
     router_ip: String,
     #[clap(flatten)]
-    delegate: rust_q_sim::simulation::config::CommandLineArgs,
+    delegate: rust_qsim::simulation::config::CommandLineArgs,
 }
 
 fn main() {

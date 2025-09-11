@@ -1,10 +1,10 @@
 use crate::test_simulation::TestExecutorBuilder;
 use macros::integration_test;
-use rust_q_sim::simulation::config::CommandLineArgs;
-use rust_q_sim::simulation::id::store_to_file;
-use rust_q_sim::simulation::network::Network;
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::config::CommandLineArgs;
+use rust_qsim::simulation::id::store_to_file;
+use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::population::Population;
+use rust_qsim::simulation::vehicles::garage::Garage;
 use std::path::{Path, PathBuf};
 
 mod test_simulation;
@@ -21,7 +21,7 @@ fn create_resources(out_dir: &Path) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn execute_3_links_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/execute_3_links_single_part/");
     create_resources(&test_dir);
@@ -37,7 +37,7 @@ fn execute_3_links_single_part() {
         .execute();
 }
 
-#[integration_test(rust_q_sim)]
+#[integration_test(rust_qsim)]
 fn execute_3_links_2_parts() {
     create_resources(&PathBuf::from(
         "./test_output/simulation/execute_3_links_2_parts/",

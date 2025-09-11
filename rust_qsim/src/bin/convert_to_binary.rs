@@ -5,12 +5,12 @@ use clap::Parser;
 use nohash_hasher::IntMap;
 use tracing::info;
 
-use rust_q_sim::simulation::config::PartitionMethod;
-use rust_q_sim::simulation::id::Id;
-use rust_q_sim::simulation::network::{Link, Network};
-use rust_q_sim::simulation::population::Population;
-use rust_q_sim::simulation::pt::TransitSchedule;
-use rust_q_sim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::config::PartitionMethod;
+use rust_qsim::simulation::id::Id;
+use rust_qsim::simulation::network::{Link, Network};
+use rust_qsim::simulation::population::Population;
+use rust_qsim::simulation::pt::TransitSchedule;
+use rust_qsim::simulation::vehicles::garage::Garage;
 
 #[derive(Parser, Debug)]
 struct InputArgs {
@@ -29,7 +29,7 @@ struct InputArgs {
 }
 
 fn main() {
-    rust_q_sim::simulation::logging::init_std_out_logging_thread_local();
+    rust_qsim::simulation::logging::init_std_out_logging_thread_local();
     let args = InputArgs::parse();
 
     let mut veh = Garage::from_file(&args.vehicles);
@@ -43,7 +43,7 @@ fn main() {
     let cmp_weights = compute_computational_weights(&pop);
     assign_computational_weights(&mut net, cmp_weights);
 
-    rust_q_sim::simulation::id::store_to_file(&create_file_path(&args, "ids"));
+    rust_qsim::simulation::id::store_to_file(&create_file_path(&args, "ids"));
     net.to_file(&create_file_path(&args, "network"));
     veh.to_file(&create_file_path(&args, "vehicles"));
     pop.to_file(&create_file_path(&args, "plans"));
