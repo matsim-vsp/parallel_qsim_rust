@@ -49,9 +49,9 @@ dyn-clone = "1.0.19"
 thiserror = "2.0.16"
 dashmap = "6.1.0"
 once_cell = "1.20.2"
+macros = { path = "../macros" }
 
 [dev-dependencies]
-macros = { path = "../macros" }
 
 [build-dependencies]
 # generates types based on .proto files

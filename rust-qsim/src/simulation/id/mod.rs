@@ -128,8 +128,11 @@ impl<T: StableTypeId> Clone for Id<T> {
     }
 }
 
-// Replace the thread_local store with a static concurrent store
 static ID_STORE: Lazy<IdStore> = Lazy::new(IdStore::new);
+
+pub fn reset_store() {
+    ID_STORE.reset();
+}
 
 #[derive(Debug, Error)]
 pub enum IdError {

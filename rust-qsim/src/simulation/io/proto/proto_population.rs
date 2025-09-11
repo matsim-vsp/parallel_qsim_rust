@@ -192,9 +192,10 @@ mod tests {
     use crate::simulation::population::InternalPerson;
     use crate::simulation::population::Population;
     use crate::simulation::vehicles::garage::Garage;
+    use macros::integration_test;
     use std::path::PathBuf;
 
-    #[test]
+    #[integration_test]
     fn test_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
@@ -216,7 +217,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn test_filtered_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));

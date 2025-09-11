@@ -1,4 +1,5 @@
 use crate::test_simulation::TestExecutorBuilder;
+use macros::integration_test;
 use rust_q_sim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_q_sim::external_services::{AdapterHandleBuilder, ExternalServiceType};
 use rust_q_sim::simulation::config::{CommandLineArgs, Config};
@@ -27,7 +28,7 @@ fn create_resources(out_dir: &PathBuf, pop: &PathBuf) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
-#[test]
+#[integration_test(rust_q_sim)]
 fn test_pt_tutorial() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial/");
     create_resources(&test_dir, &PathBuf::from("plans_1.xml.gz"));
@@ -43,7 +44,7 @@ fn test_pt_tutorial() {
         .execute();
 }
 
-#[test]
+#[integration_test(rust_q_sim)]
 #[ignore]
 // to be tested with running routing service;
 // --config /Users/paulh/git/parallel_qsim_rust/assets/pt_tutorial/config.xml --output output/v6.4/test-router

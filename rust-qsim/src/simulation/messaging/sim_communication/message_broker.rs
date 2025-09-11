@@ -1,9 +1,7 @@
 use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::network::sim_network::{
-    SimNetworkPartition, StorageUpdate,
-};
+use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
 use crate::simulation::network::{Link, Network};
 use crate::simulation::vehicles::InternalVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -155,11 +153,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
-    use std::thread;
-
     use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
     use crate::simulation::config;
     use crate::simulation::id::Id;
@@ -169,8 +162,13 @@ mod tests {
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent;
+    use macros::integration_test;
+    use std::rc::Rc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::thread;
 
-    #[test]
+    #[integration_test]
     fn send_recv_empty_msgs() {
         let sends = Arc::new(AtomicUsize::new(0));
 

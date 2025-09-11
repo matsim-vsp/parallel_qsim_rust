@@ -116,6 +116,7 @@ mod tests {
     use super::*;
     use crate::simulation::id::Id;
     use crate::simulation::population::{InternalLeg, InternalPlanElement};
+    use macros::integration_test;
 
     #[test]
     fn test_identify_main_mode_routing_mode() {
@@ -178,7 +179,7 @@ mod tests {
         })
     }
 
-    #[test]
+    #[integration_test]
     fn test_get_trips_basic() {
         // home --leg1--> work --leg2--> shop
         let plan = vec![
@@ -198,7 +199,7 @@ mod tests {
         assert_eq!(trips[1].legs.len(), 1);
     }
 
-    #[test]
+    #[integration_test]
     fn test_get_trips_with_stage_activity() {
         // home --leg1--> car interaction (stage) --leg2--> work
         let plan = vec![
@@ -216,7 +217,7 @@ mod tests {
         assert_eq!(trips[0].legs.len(), 3); // both legs and the stage activity are included
     }
 
-    #[test]
+    #[integration_test]
     fn test_get_trips_no_trips() {
         // Only activities, no legs
         let plan = vec![make_activity("home", "1"), make_activity("work", "2")];
@@ -224,14 +225,14 @@ mod tests {
         assert!(trips.is_empty());
     }
 
-    #[test]
+    #[integration_test]
     fn test_get_trips_empty() {
         let plan: Vec<InternalPlanElement> = vec![];
         let trips = get_trips_default(&plan);
         assert!(trips.is_empty());
     }
 
-    #[test]
+    #[integration_test]
     fn test_find_trip_starting_at_activity_default_basic() {
         // home --leg1--> work --leg2--> shop
         let plan = vec![
@@ -255,7 +256,7 @@ mod tests {
         assert!(find_trip_starting_at_activity_default(&plan, 4).is_none());
     }
 
-    #[test]
+    #[integration_test]
     fn test_find_trip_starting_at_activity_default_with_stage() {
         // home --leg1--> car interaction (stage) --leg2--> work
         let plan = vec![
@@ -275,7 +276,7 @@ mod tests {
         assert!(trip2.is_none());
     }
 
-    #[test]
+    #[integration_test]
     fn test_find_trip_starting_at_activity_default_empty() {
         let plan: Vec<InternalPlanElement> = vec![];
         assert!(find_trip_starting_at_activity_default(&plan, 0).is_none());

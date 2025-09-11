@@ -297,16 +297,15 @@ impl IdStore<'_> {
     pub(crate) fn load_from_file(&self, file_path: &Path) {
         deserialize_from_file(self, file_path);
     }
+
+    pub(crate) fn reset(&self) {
+        self.ids.clear();
+        self.mapping.clear();
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::io::{BufReader, BufWriter, Cursor};
-    use std::ops::Sub;
-    use std::path::PathBuf;
-    use std::thread;
-    use std::time::Instant;
-
     use crate::simulation::config::PartitionMethod;
     use crate::simulation::id::id_store::{
         deserialize, deserialize_from_file, serialize, serialize_to_file, IdCompression, IdStore,
@@ -319,6 +318,12 @@ mod tests {
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_folders;
+    use macros::integration_test;
+    use std::io::{BufReader, BufWriter, Cursor};
+    use std::ops::Sub;
+    use std::path::PathBuf;
+    use std::thread;
+    use std::time::Instant;
 
     #[test]
     fn write_read_ids_store() {
@@ -479,7 +484,7 @@ mod tests {
         println!("reading compressed took: {duration}ms");
     }
 
-    #[test]
+    #[integration_test]
     fn performance_test_bulk_operations() {
         use std::time::Instant;
 
@@ -556,7 +561,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn performance_test_interleaved_operations() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::time::Instant;

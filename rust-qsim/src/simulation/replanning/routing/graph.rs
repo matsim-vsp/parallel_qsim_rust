@@ -146,11 +146,11 @@ impl Graph {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
-    use std::collections::HashMap;
-
     use crate::simulation::network::Network;
     use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
+    use macros::integration_test;
+    use std::collections::HashMap;
 
     pub fn get_triangle_test_graph() -> ForwardBackwardGraph {
         let network = Network::from_file(
@@ -190,7 +190,7 @@ pub(crate) mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn clone_without_change() {
         let graph = get_triangle_test_graph();
         let new_graph = graph.clone_with_new_travel_times_by_link(HashMap::new());

@@ -22,7 +22,6 @@ pub fn integration_test(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[test]
         #[serial_test::serial]
         fn #fn_name() #fn_return_type {
-            #module_path::simulation::id::init_store();
             #module_path::simulation::id::reset_store();
             #fn_body
         }

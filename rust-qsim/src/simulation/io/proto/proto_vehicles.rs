@@ -1,7 +1,7 @@
+use crate::generated;
 use crate::generated::vehicles::{Vehicle, VehicleType, VehiclesContainer};
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
-use crate::generated;
 use std::path::Path;
 use tracing::info;
 
@@ -12,11 +12,7 @@ pub(crate) fn write_to_proto(garage: &Garage, path: &Path) {
         .values()
         .map(VehicleType::from)
         .collect();
-    let vehicles = garage
-        .vehicles
-        .values()
-        .map(Vehicle::from)
-        .collect();
+    let vehicles = garage.vehicles.values().map(Vehicle::from).collect();
 
     let wire_format = VehiclesContainer {
         vehicle_types,
@@ -78,9 +74,10 @@ mod tests {
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::{from_file, to_file, InternalVehicleType};
     use crate::simulation::InternalAttributes;
+    use macros::integration_test;
     use std::path::PathBuf;
 
-    #[test]
+    #[integration_test]
     fn test_to_from_file_proto() {
         let file = &PathBuf::from(
             "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.binpb",

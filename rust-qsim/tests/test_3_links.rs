@@ -1,4 +1,5 @@
 use crate::test_simulation::TestExecutorBuilder;
+use macros::integration_test;
 use rust_q_sim::simulation::config::CommandLineArgs;
 use rust_q_sim::simulation::id::store_to_file;
 use rust_q_sim::simulation::network::Network;
@@ -20,7 +21,7 @@ fn create_resources(out_dir: &PathBuf) {
     garage.to_file(&out_dir.join("vehicles.binpb"));
 }
 
-#[test]
+#[integration_test(rust_q_sim)]
 fn execute_3_links_single_part() {
     let test_dir = PathBuf::from("./test_output/simulation/execute_3_links_single_part/");
     create_resources(&test_dir);
@@ -36,7 +37,7 @@ fn execute_3_links_single_part() {
         .execute();
 }
 
-#[test]
+#[integration_test(rust_q_sim)]
 fn execute_3_links_2_parts() {
     create_resources(&PathBuf::from(
         "./test_output/simulation/execute_3_links_2_parts/",

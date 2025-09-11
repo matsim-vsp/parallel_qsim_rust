@@ -227,6 +227,7 @@ mod tests {
         InternalPlanElement, InternalRoute,
     };
     use crate::simulation::time_queue::Identifiable;
+    use macros::integration_test;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::JoinHandle;
@@ -282,7 +283,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn test_activity_engine_with_preplanning_horizon() {
         // The new mode id needs to be created before the test, so that it gets the correct internal id.
         Id::<String>::create("new_mode");

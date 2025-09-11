@@ -174,13 +174,13 @@ impl IOVehicleDefinitions {
 mod test {
     use std::path::PathBuf;
 
-    use quick_xml::de::from_str;
-
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::vehicles::IOVehicleDefinitions;
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::{from_file, to_file, InternalVehicleType};
     use crate::simulation::InternalAttributes;
+    use macros::integration_test;
+    use quick_xml::de::from_str;
 
     #[test]
     fn from_string_empty_type() {
@@ -267,7 +267,7 @@ mod test {
         assert_eq!("84000", attrs.find_or_else("serviceEndTime", || ""));
     }
 
-    #[test]
+    #[integration_test]
     fn test_to_from_file_xml() {
         let file = &PathBuf::from(
             "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.xml",

@@ -244,8 +244,6 @@ impl IOPopulation {
 mod tests {
     use std::path::PathBuf;
 
-    use quick_xml::de::from_str;
-
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::population::{
@@ -253,6 +251,8 @@ mod tests {
     };
     use crate::simulation::network::Network;
     use crate::simulation::vehicles::garage::Garage;
+    use macros::integration_test;
+    use quick_xml::de::from_str;
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(34, population.persons.len())
     }
 
-    #[test]
+    #[integration_test]
     fn test_conversion() {
         let _net = Network::from_file(
             "./assets/equil/equil-network.xml",
