@@ -7,7 +7,7 @@ use std::path::PathBuf;
 mod test_simulation;
 
 const BASE_URL: &str =
-    "https://raw.githubusercontent.com/matsim-vsp/parallel_qsim_rust/refs/heads/main/tests/resources/3-links-url";
+    "https://raw.githubusercontent.com/matsim-vsp/parallel_qsim_rust/refs/heads/main/rust_qsim/tests/resources/3-links-url";
 
 #[test]
 fn load_files_from_url_have_content() {
