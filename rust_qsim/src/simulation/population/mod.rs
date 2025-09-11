@@ -775,10 +775,11 @@ mod tests {
     use crate::simulation::population::{FromIOPerson, InternalLeg, InternalPerson, InternalRoute};
     use crate::simulation::vehicles::garage::Garage;
     use crate::simulation::vehicles::InternalVehicle;
+    use macros::integration_test;
     use std::collections::HashSet;
     use std::path::PathBuf;
 
-    #[test]
+    #[integration_test]
     fn from_io_1_plan() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
@@ -826,7 +827,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn from_io_multi_mode() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/3-links/3-links-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
@@ -870,7 +871,7 @@ mod tests {
         // todo test bookkeeping of garage person_2_vehicle
     }
 
-    #[test]
+    #[integration_test]
     fn from_io() {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
@@ -897,7 +898,7 @@ mod tests {
         assert!(pop1.persons.is_empty() || pop2.persons.is_empty());
     }
 
-    #[test]
+    #[integration_test]
     fn test_from_xml_to_binpb_same() {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
@@ -918,7 +919,7 @@ mod tests {
         assert_eq!(population, population2);
     }
 
-    #[test]
+    #[integration_test]
     fn test_from_io_generic_route() {
         Id::<Link>::create("1");
         Id::<Link>::create("2");
@@ -958,7 +959,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn test_from_io_pt_route() {
         Id::<Link>::create("1");
         Id::<Link>::create("2");
