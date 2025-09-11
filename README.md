@@ -1,7 +1,6 @@
 # Rust Q-Sim
 
-This is a port of Matsim's Q-Sim to Rust. My current notes on the project
-are [here](https://docs.google.com/document/d/1DkrSJ7KnKXfy2qg8wWyE7c9OPqOUB63px6wmkwuIS9M/edit?usp=sharing)
+This is a port of MATSim's Q-Sim to Rust.
 
 The most recent release can be cited with the following reference
 
@@ -16,18 +15,18 @@ And two conference papers, which were presented at ISPDC 24 in Chur, Switzerland
 - [High-Performance Simulations for Urban Planning: Implementing Parallel Distributed Multi-Agent Systems in MATSim](https://doi.org/10.1109/ISPDC62236.2024.10705395)
 - [Real-Time Routing in Traffic Simulations: A Distributed Event Processing Approach](https://doi.org/10.1109/ISPDC62236.2024.10705399)
 
-## Set Up Rust
+## How this project is organized
 
-Install Rust for your operating system as described [here](https://www.rust-lang.org/tools/install). For WSL this would
-be
+The project is organized as a cargo workspace with multiple crates. The main crates are:
 
-```shell
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+- `rust-qsim`: The core library containing the simulation logic
+- `macros`: The crate containing (test) macros used in the project
+
+Work with the `rust-qsim` crate for the simulation. The other crates are only for development purposes.
 
 ## Set Up Prerequisites
 
-The project relies on METIS and MPI as external dependencies. This means those dependencies are not
+The project relies on METIS as external dependency. This means this dependency is not
 compiled with the project, but need to be present on the operating system.
 
 ### METIS
@@ -37,22 +36,13 @@ is a wrapper for the [METIS C Library](https://github.com/KarypisLab/METIS). The
 expected to be present on the machine. Also, the `metis` crate requires `libclang` on the machine
 this project is built on.
 
-### MPI
+### MPI -- deprecated
 
-The project uses MPI for message passing between processes. The message passing is implemented using the
-[rsmpi](https://github.com/rsmpi/rsmpi) crate as an interface around a corresponding C-library on the system.
+Up to version 0.2.0, the project supported MPI as a feature for distributed execution. We decided to not support MPI
+anymore. The code is still present in the repository, but not maintained anymore. If you want to use MPI, please
+checkout version 0.2.0 or earlier.
 
-The actual implementation of the message passing library is up to the system the project is run on. A good candiate
-is [open-mpi](https://www.open-mpi.org/).
-
-Since MPI is a feature, which is installed most probably only on High Performance Infrastructure, it is also a feature
-in this crate, which must be turned on manually while compilation.
-
-```shell
-cargo build --features mpi
-```
-
-This compiles the MPI related code and provides the `mpi_qsim` binary.
+Currently, only Rust's multithreading capabilities are used for parallelism.
 
 ### Install dependencies
 
@@ -63,7 +53,7 @@ The dependencies named above need to be installed before the project can be buit
 Install dev versions of required packages because dev stuff is required during compilation
 
 ```shell
-sudo apt -y install libclang-dev llvm-dev libmetis-dev libopenmpi-dev
+sudo apt -y install libclang-dev llvm-dev libmetis-dev
 ```
 
 #### MacOs
@@ -71,7 +61,7 @@ sudo apt -y install libclang-dev llvm-dev libmetis-dev libopenmpi-dev
 The dependencies are available via [homebrew](https://brew.sh/) on macOS.
 
 ```shell
-brew install metis open-mpi cmake
+brew install metis cmake
 ```
 
 The project contains a `config.toml` which tries to set the `CPATH` and the `RUSTFLAGS` environment variable. In case
@@ -84,12 +74,12 @@ export RUSTFLAGS="-L$HOMEBREW_PREFIX/lib"
 
 Both variables are necessary to compile the METIS and MPI wrapper libraries.
 
-#### Math Cluster
+#### Math Cluster (TU Berlin)
 
 The math cluster has all dependencies installed. They need to be enabled via the module system:
 
 ```shell
-module load metis-5.1 ompi/gcc/4.1.2
+module load metis-5.1
 ```
 
 #### HLRN (CPU-CLX Partition)
@@ -119,7 +109,7 @@ conda install libclang llvmdev
 The HLRN cluster has **some** dependencies installed. They need to be enabled via the module system:
 
 ```shell
-module load intel/2024.2 openmpi/gcc/5.0.3
+module load intel/2024.2
 ```
 
 So, before you run the project, you need to activate the environment:
@@ -148,6 +138,7 @@ export RUSTFLAGS="-C linker=clang"
 ```
 
 Hint: You need to set these environment variables, otherwise there are compilation errors (paul, jan'25).
+Hint 2: These settings are probably not necessary anymore without MPI usage (paul, sep'25).
 
 ##### Execution
 
@@ -183,31 +174,6 @@ cargo --release --bin local_qsim -- --config-path /path/to/config.yml
 ```
 
 to run the simulation.
-
-### Run with MPI (distributed)
-
-Run
-
-```shell
-cargo build --release --features mpi
-```
-
-to compile and then
-
-```shell
-mpirun -np 2 ./target/release/mpi_qsim --config-path /path/to/config.yml
-```
-
-to run the simulation.
-
-It is also possible to execute a build before running by executing the following. This is way, one doesn't
-forget to re-compile before running.
-
-```shell
-cargo mpirun --np 2 --release --features mpi --bin mpi_qsim -- --config-path /path/to/config.yaml
-```
-
-We also have a
 
 ### Test
 

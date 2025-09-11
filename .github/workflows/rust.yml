@@ -22,4 +22,4 @@ jobs:
       - name: Run tests
         env:
           RUST_BACKTRACE: 1
-        run: cargo test --release --verbose -- --test-threads=1
+        run: cargo test --release --verbose
