@@ -16,11 +16,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Install other libraries
-        run: sudo apt -y install libclang-dev llvm-dev libmetis-dev libopenmpi-dev
+        run: sudo apt -y install libclang-dev llvm-dev libmetis-dev
       - name: Build
         run: cargo build --release
-      - name: Install mpirun
-        run: cargo install --force cargo-mpirun
       - name: Run tests
         env:
           RUST_BACKTRACE: 1
