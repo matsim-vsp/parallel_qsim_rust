@@ -1,6 +1,3 @@
-[env]
-RUST_Q_SIM_PERFORMANCE_TRACING_INTERVAL="900"
-
 # this mimmics 'export CPATH=$HOMEBREW_PREFIX/include' to link to the metis library if it was installed via homebrew on macOS
 CPATH = { value = "/opt/homebrew/include" }
 

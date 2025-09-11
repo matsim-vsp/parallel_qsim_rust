@@ -2,7 +2,7 @@
 /out
 *.iml
 .idea/
-/test_output/
+rust_qsim/test_output/
 /assets/routing_tests/*
 
 .DS_Store
