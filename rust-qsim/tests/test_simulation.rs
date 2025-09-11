@@ -19,6 +19,9 @@ use std::thread::JoinHandle;
 
 #[derive(Debug, Builder)]
 #[builder(pattern = "owned")]
+// needed because each integration test is build as separate create, thus not all fields are used in each test.
+// See https://zerotomastery.io/blog/complete-guide-to-testing-code-in-rust/#Integration-testing
+#[allow(dead_code)]
 pub struct TestExecutor<'s> {
     config_args: CommandLineArgs,
     #[builder(default)]
@@ -31,6 +34,7 @@ pub struct TestExecutor<'s> {
     adapter_handles: Vec<AdapterHandle>,
 }
 
+#[allow(dead_code)]
 impl TestExecutor<'_> {
     pub fn execute(self) {
         self.execute_config_mutation(|_| {});

@@ -5,11 +5,11 @@ use rust_q_sim::simulation::id::store_to_file;
 use rust_q_sim::simulation::network::Network;
 use rust_q_sim::simulation::population::Population;
 use rust_q_sim::simulation::vehicles::garage::Garage;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod test_simulation;
 
-fn create_resources(out_dir: &PathBuf) {
+fn create_resources(out_dir: &Path) {
     let input_dir = PathBuf::from("./assets/3-links/");
     let net = Network::from_file_as_is(&input_dir.join("3-links-network.xml"));
     let mut garage = Garage::from_file(&input_dir.join("vehicles.xml"));

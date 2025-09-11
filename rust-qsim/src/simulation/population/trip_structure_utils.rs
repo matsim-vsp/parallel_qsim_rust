@@ -118,7 +118,7 @@ mod tests {
     use crate::simulation::population::{InternalLeg, InternalPlanElement};
     use macros::integration_test;
 
-    #[test]
+    #[integration_test]
     fn test_identify_main_mode_routing_mode() {
         let leg = InternalLeg {
             mode: Id::create("car"),
@@ -133,7 +133,7 @@ mod tests {
         assert_eq!(mode, Some("car".to_string()));
     }
 
-    #[test]
+    #[integration_test]
     fn test_identify_main_mode_single_leg_mode() {
         let leg = InternalLeg {
             mode: Id::create("bike"),
@@ -148,7 +148,7 @@ mod tests {
         assert_eq!(mode, Some("bike".to_string()));
     }
 
-    #[test]
+    #[integration_test]
     fn test_identify_main_mode_no_mode() {
         // Not a leg, so should return None and log error
         let trip = vec![];
