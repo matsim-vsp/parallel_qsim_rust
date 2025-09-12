@@ -47,7 +47,7 @@ fn test_pt_tutorial() {
 #[integration_test(rust_qsim)]
 #[ignore]
 // to be tested with running routing service;
-// --config /Users/paulh/git/parallel_qsim_rust/assets/pt_tutorial/config.xml --output output/v6.4/test-router
+// --config /Users/paulh/git/parallel_qsim_rust/rust_qsim/assets/pt_tutorial/config.xml --output output/v6.4/test-router
 fn test_pt_adaptive() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial_adaptive/");
     create_resources(&test_dir, &PathBuf::from("plans_1-dummy.xml"));

@@ -7,6 +7,7 @@ use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, io};
 use tracing::info;
 
+/// The GlobalScenario contains the full scenario data.
 #[derive(Debug)]
 pub struct GlobalScenario {
     pub network: Network,
@@ -65,6 +66,7 @@ impl GlobalScenario {
     }
 }
 
+/// The ScenarioPartition contains the scenario data for a specific partition.
 #[derive(Debug)]
 pub struct ScenarioPartition {
     pub(crate) network: Network,
@@ -74,6 +76,7 @@ pub struct ScenarioPartition {
     pub(crate) config: Config,
 }
 
+/// This struct is needed as intermediate step to build a ScenarioPartition.
 #[derive(Debug)]
 pub struct ScenarioPartitionBuilder {
     network: Network,

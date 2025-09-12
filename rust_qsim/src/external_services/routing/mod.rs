@@ -81,6 +81,7 @@ impl From<Response> for InternalRoutingResponse {
     }
 }
 
+/// Factory for creating routing service adapters. Connects to the routing service at the given IP address.
 pub struct RoutingServiceAdapterFactory {
     ip: String,
     //TODO think about whether this should be an Arc<Config> or not
@@ -106,9 +107,14 @@ impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFact
 
         RoutingServiceAdapter { client }
     }
+
+    fn thread_count(&self) -> usize {
+        self.config.routing().threads
+    }
 }
 
 impl RoutingServiceAdapterFactory {
+    /// Spawns a thread running a routing service adapter.
     pub fn spawn_thread(
         self,
         name: &str,
@@ -131,15 +137,19 @@ impl RoutingServiceAdapterFactory {
 
 impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
     async fn on_request(&mut self, internal_req: InternalRoutingRequest) {
-        let request = Request::from(internal_req.payload);
-        let response = self
-            .client
-            .get_route(request)
-            .await
-            .expect("Error while calling routing service");
+        let mut client = self.client.clone();
 
-        let internal_res = InternalRoutingResponse::from(response.into_inner());
+        tokio::spawn(async move {
+            let request = Request::from(internal_req.payload);
 
-        let _ = internal_req.response_tx.send(internal_res);
+            let response = client
+                .get_route(request)
+                .await
+                .expect("Error while calling routing service");
+
+            let internal_res = InternalRoutingResponse::from(response.into_inner());
+
+            let _ = internal_req.response_tx.send(internal_res);
+        });
     }
 }

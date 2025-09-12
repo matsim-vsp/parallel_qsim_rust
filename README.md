@@ -1,6 +1,8 @@
 # Rust Q-Sim
 
-This is a port of MATSim's Q-Sim to Rust.
+This is a port of MATSim's Q-Sim to Rust. This project served
+as [reference implementation](https://github.com/matsim-org/matsim-libs/pull/4255) for a distributed version of the QSim
+in the MATSim-Java core.
 
 The most recent release can be cited with the following reference
 
