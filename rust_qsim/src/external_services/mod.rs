@@ -7,8 +7,11 @@ use tracing::info;
 
 pub mod routing;
 
-pub trait RequestToAdapter: Debug {}
+/// This trait is a marker trait for requests that can be sent to an adapter.
+pub trait RequestToAdapter: Debug + Send {}
 
+/// This struct is a wrapper around the JoinHandle of the adapter thread. Additionally, it holds a shutdown sender for the adapter.
+/// The purpose of this struct is to manage the lifecycle of the adapter thread, allowing for sending shutdown signals before waiting for the thread to finish.
 #[derive(Debug, Builder)]
 #[builder(pattern = "owned")]
 pub struct AdapterHandle {
@@ -16,16 +19,24 @@ pub struct AdapterHandle {
     pub(super) shutdown_sender: tokio::sync::watch::Sender<bool>,
 }
 
+/// This enum defines the types of external services that can be used in the simulation.
+/// It works as a key for different service adapters in the simulation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExternalServiceType {
     Routing(String),
 }
 
+/// This trait defines a factory for creating request adapters.
 pub trait RequestAdapterFactory<T: RequestToAdapter> {
+    /// This method builds the request adapter. It returns a future that resolves to the adapter instance.
     fn build(self) -> impl std::future::Future<Output = impl RequestAdapter<T>>;
+
+    /// This method creates a channel for sending requests to the adapter.
     fn request_channel(&self, buffer: usize) -> (Sender<T>, Receiver<T>) {
         mpsc::channel(buffer)
     }
+
+    /// This method creates a shutdown channel for the adapter.
     fn shutdown_channel(
         &self,
     ) -> (
@@ -34,11 +45,15 @@ pub trait RequestAdapterFactory<T: RequestToAdapter> {
     ) {
         tokio::sync::watch::channel(false)
     }
+
+    /// This method returns the number of *additional* threads to be used for the tokio runtime by the adapter.
     fn thread_count(&self) -> usize {
         1
     }
 }
 
+/// This trait defines the behavior of a request adapter. A request adapter processes incoming requests of type T.
+/// One request adapter instance is run in a separate thread with its own tokio runtime. It might use multiple threads internally for the tokio runtime.
 pub trait RequestAdapter<T: RequestToAdapter> {
     fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
     fn on_shutdown(&mut self) {
@@ -46,12 +61,19 @@ pub trait RequestAdapter<T: RequestToAdapter> {
     }
 }
 
+/// This function executes the adapter in a separate thread with its own tokio runtime.
 pub fn execute_adapter<T: RequestToAdapter>(
     mut receiver: Receiver<T>,
     req_adapter_factory: impl RequestAdapterFactory<T>,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     info!("Starting adapter");
+
+    assert!(
+        req_adapter_factory.thread_count() > 0,
+        "routing.thread_count must be greater than 0"
+    );
+
     let rt = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(req_adapter_factory.thread_count())
         .enable_all()

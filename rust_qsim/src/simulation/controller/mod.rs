@@ -1,6 +1,6 @@
 pub mod local_controller;
 
-use crate::external_services::{AdapterHandle, ExternalServiceType};
+use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
 use crate::simulation::io::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
@@ -34,7 +34,7 @@ pub struct RequestSender(Arc<dyn Any + Send + Sync>);
 // This comes with the requirement that the type T must 'static in particular -- but I think this is ok for now. Paul, jul'25
 impl<T> From<Arc<Sender<T>>> for RequestSender
 where
-    T: Send + 'static,
+    T: RequestToAdapter + 'static,
 {
     fn from(value: Arc<Sender<T>>) -> Self {
         RequestSender(value as Arc<dyn Any + Send + Sync>)
@@ -50,6 +50,7 @@ where
     }
 }
 
+/// Holds a map of external services that can be used in the simulation.
 #[derive(Debug, Default, Clone)]
 pub struct ExternalServices(HashMap<ExternalServiceType, RequestSender>);
 
@@ -74,6 +75,8 @@ impl ExternalServices {
     }
 }
 
+/// This struct holds objects that are local to a thread running a simulation partition.
+/// They function as a connector between the simulation partition and the "outside" computational context.
 #[derive(Clone, Debug, Builder)]
 #[builder(pattern = "owned")]
 pub struct ThreadLocalComputationalEnvironment {
@@ -114,6 +117,7 @@ impl ThreadLocalComputationalEnvironment {
 #[builder(pattern = "owned")]
 pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
+    // Holding the builder instead of the built struct, the final struct holds ThreadRng, which can only be built on the corresponding thread.
     scenario_partition: ScenarioPartitionBuilder,
     #[builder(default)]
     external_services: ExternalServices,

@@ -42,7 +42,7 @@ impl LocalController {
         let mut partitions: Vec<Option<ScenarioPartitionBuilder>> =
             ScenarioPartitionBuilder::from(global_scenario)
                 .into_iter()
-                .map(|p| Some(p))
+                .map(Some)
                 .collect();
 
         info!(
