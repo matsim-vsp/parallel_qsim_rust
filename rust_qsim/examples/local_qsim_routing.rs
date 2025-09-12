@@ -23,7 +23,8 @@ fn main() {
     let config = Config::from(args.delegate);
 
     let (router_handle, send, send_sd) =
-        RoutingServiceAdapterFactory::new(&args.router_ip, config.clone()).spawn_thread("router");
+        RoutingServiceAdapterFactory::new(vec![&args.router_ip], config.clone())
+            .spawn_thread("router");
 
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());

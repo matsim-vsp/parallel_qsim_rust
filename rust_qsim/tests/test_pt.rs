@@ -61,7 +61,7 @@ fn test_pt_adaptive() {
         .push((String::from("routing.mode"), String::from("ad-hoc")));
 
     let (handle, send, shutdown) = RoutingServiceAdapterFactory::new(
-        "http://localhost:50051",
+        vec!["http://localhost:50051"],
         Config::from(config_args.clone()),
     )
     .spawn_thread("routing_adapter");

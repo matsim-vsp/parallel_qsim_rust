@@ -333,8 +333,12 @@ pub struct Output {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Routing {
     pub mode: RoutingMode,
-    #[serde(default)]
+    #[serde(default = "default_to_one")]
     pub threads: usize,
+}
+
+fn default_to_one() -> usize {
+    1
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

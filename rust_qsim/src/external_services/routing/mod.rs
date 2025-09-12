@@ -9,9 +9,11 @@ use itertools::{EitherOrBoth, Itertools};
 use std::thread;
 use std::thread::JoinHandle;
 use tokio::sync::oneshot::Sender;
+use tracing::info;
 
 pub struct RoutingServiceAdapter {
-    client: RoutingServiceClient<tonic::transport::Channel>,
+    client: Vec<RoutingServiceClient<tonic::transport::Channel>>,
+    counter: usize,
 }
 
 #[derive(Debug)]
@@ -83,15 +85,15 @@ impl From<Response> for InternalRoutingResponse {
 
 /// Factory for creating routing service adapters. Connects to the routing service at the given IP address.
 pub struct RoutingServiceAdapterFactory {
-    ip: String,
+    ip: Vec<String>,
     //TODO think about whether this should be an Arc<Config> or not
     config: Config,
 }
 
 impl RoutingServiceAdapterFactory {
-    pub fn new(ip: &str, config: Config) -> Self {
+    pub fn new(ip: Vec<impl Into<String>>, config: Config) -> Self {
         Self {
-            ip: ip.to_string(),
+            ip: ip.into_iter().map(|s| s.into()).collect(),
             config,
         }
     }
@@ -99,13 +101,15 @@ impl RoutingServiceAdapterFactory {
 
 impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFactory {
     async fn build(self) -> impl RequestAdapter<InternalRoutingRequest> {
-        crate::simulation::id::load_from_file(&self.config.proto_files().ids);
-
-        let client = RoutingServiceClient::connect(self.ip)
-            .await
-            .expect("Failed to connect to routing service");
-
-        RoutingServiceAdapter { client }
+        let mut res = Vec::new();
+        for ip in self.ip {
+            info!("Connecting to routing service at {}", ip);
+            let client = RoutingServiceClient::connect(ip)
+                .await
+                .expect("Failed to connect to routing service");
+            res.push(client);
+        }
+        RoutingServiceAdapter::new(res)
     }
 
     fn thread_count(&self) -> usize {
@@ -137,7 +141,7 @@ impl RoutingServiceAdapterFactory {
 
 impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
     async fn on_request(&mut self, internal_req: InternalRoutingRequest) {
-        let mut client = self.client.clone();
+        let mut client = self.next_client();
 
         tokio::spawn(async move {
             let request = Request::from(internal_req.payload);
@@ -151,5 +155,18 @@ impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
 
             let _ = internal_req.response_tx.send(internal_res);
         });
+    }
+}
+
+impl RoutingServiceAdapter {
+    fn new(client: Vec<RoutingServiceClient<tonic::transport::Channel>>) -> Self {
+        Self { client, counter: 0 }
+    }
+
+    fn next_client(&mut self) -> RoutingServiceClient<tonic::transport::Channel> {
+        let len = self.client.len();
+        let client = &mut self.client[self.counter];
+        self.counter = (self.counter + 1) % len;
+        client.clone()
     }
 }
