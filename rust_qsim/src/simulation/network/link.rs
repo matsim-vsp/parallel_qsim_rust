@@ -114,6 +114,17 @@ impl SimLink {
         }
     }
 
+    /// This method pushes a vehicle directly into the buffer
+    pub fn push_veh_to_buffer(&mut self, vehicle: InternalVehicle, _now: u32) {
+        match self {
+            SimLink::Local(ll) => ll.push_veh_to_buffer(vehicle),
+            SimLink::In(il) => il.local_link.push_veh_to_buffer(vehicle),
+            SimLink::Out(_) => {
+                panic!("Can't push vehicle to buffer on out link")
+            }
+        }
+    }
+
     pub fn pop_veh(&mut self) -> InternalVehicle {
         match self {
             SimLink::Local(ll) => ll.pop_front(),
@@ -149,6 +160,7 @@ impl SimLink {
 pub struct LocalLink {
     pub id: Id<Link>,
     q: VecDeque<VehicleQEntry>,
+    buffer: VecDeque<InternalVehicle>,
     length: f64,
     free_speed: f32,
     storage_cap: StorageCap,
@@ -183,6 +195,7 @@ impl LocalLink {
         LocalLink {
             id,
             q: VecDeque::new(),
+            buffer: VecDeque::new(),
             length: 1.0,
             free_speed: 1.0,
             storage_cap: StorageCap::new(0., 1., 1., 1.0, 7.5),
@@ -215,6 +228,7 @@ impl LocalLink {
         LocalLink {
             id,
             q: VecDeque::new(),
+            buffer: VecDeque::new(),
             length,
             free_speed,
             storage_cap,
@@ -238,12 +252,32 @@ impl LocalLink {
         });
     }
 
+    pub fn push_veh_to_buffer(&mut self, vehicle: InternalVehicle) {
+        self.storage_cap.consume(vehicle.pce);
+        self.buffer.push_back(vehicle);
+    }
+
+    /// This method moves a vehicle from the q to the buffer if its earliest exit time is <= now.
+    pub fn fill_buffer(&mut self, now: u32) {
+        while let Some(front) = self.q.front() {
+            if front.earliest_exit_time <= now {
+                let veh = self.q.pop_front().unwrap().vehicle;
+                self.buffer.push_back(veh);
+            } else {
+                break;
+            }
+        }
+    }
+
+    /// This method returns the next/first vehicle from the buffer and removes it from the buffer.
     pub fn pop_front(&mut self) -> InternalVehicle {
-        let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
-        self.flow_cap.consume_capacity(veh.vehicle.pce);
-        self.storage_cap.release(veh.vehicle.pce);
-        self.stuck_timer.reset();
-        veh.vehicle
+        if let Some(veh) = self.buffer.pop_front() {
+            self.flow_cap.consume_capacity(veh.pce);
+            self.storage_cap.release(veh.pce);
+            self.stuck_timer.reset();
+            return veh;
+        }
+        panic!("There was no vehicle in the buffer.");
     }
 
     pub fn update_flow_cap(&mut self, now: u32) {
@@ -251,17 +285,13 @@ impl LocalLink {
         self.flow_cap.update_capacity(now);
     }
 
+    /// This method returns the next vehicle that is allowed to leave the connection and checks
+    /// whether flow capacity is available.
     pub fn q_front(&self, now: u32) -> Option<&InternalVehicle> {
-        // check if we have flow cap left for current time step, otherwise abort
-        if !self.flow_cap.has_capacity() {
-            return None;
-        }
-
-        // peek if fist vehicle in queue can leave
-        if let Some(entry) = self.q.front() {
-            if entry.earliest_exit_time <= now {
+        if let Some(entry) = self.buffer.front() {
+            if self.flow_cap.has_capacity() {
                 self.stuck_timer.start(now);
-                return Some(&entry.vehicle);
+                return Some(entry);
             }
         }
 

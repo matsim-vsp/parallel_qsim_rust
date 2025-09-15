@@ -234,13 +234,22 @@ impl SimNetworkPartition {
             );
         });
 
+        // If events_publisher is None, this is the start of the route and the vehicle drives
+        // directly into the buffer.
+        // TODO: Use Waiting List instead (next step)
+        let is_route_begin = events_publisher.is_none();
+
         if let Some(publisher) = events_publisher {
             publisher
                 .borrow_mut()
                 .publish_event(now, &Event::new_link_enter(link.id(), &vehicle.id));
         }
 
-        link.push_veh(vehicle, now);
+        if is_route_begin {
+            link.push_veh_to_buffer(vehicle, now);
+        } else {
+            link.push_veh(vehicle, now);
+        }
         self.veh_counter += 1;
 
         Self::activate_link(&mut self.active_links, link.id().clone());
@@ -294,6 +303,8 @@ impl SimNetworkPartition {
     ) -> bool {
         link.update_flow_cap(now);
         link.apply_storage_cap_updates();
+        // Move all vehicles that completed their link travel into the buffer.
+        link.fill_buffer(now);
         // the node will only look at the vehicle at the at the top of the queue in the next timestep
         // therefore, peek whether vehicles are available for the next timestep.
         if link.q_front(now + 1).is_some() {
