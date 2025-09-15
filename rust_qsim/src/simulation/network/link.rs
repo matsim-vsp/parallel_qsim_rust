@@ -267,13 +267,13 @@ impl LocalLink {
     }
 
     pub fn push_veh_to_buffer(&mut self, vehicle: InternalVehicle) {
-        self.storage_cap.consume(vehicle.pce);
+        // self.storage_cap.consume(vehicle.pce);
         self.buffer.push_back(vehicle);
     }
 
     /// Push a vehicle into the waiting list.
     pub fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
-        self.storage_cap.consume(vehicle.pce);
+        // self.storage_cap.consume(vehicle.pce);
         self.waiting_list.push_back(vehicle);
     }
 
@@ -281,13 +281,19 @@ impl LocalLink {
     /// 1) Check if there are vehicles in the waiting list and move them to the buffer.
     /// 2) Check if there are vehicles in the queue that have reached their earliest exit time and
     /// move them to the buffer.
-    pub fn fill_buffer(&mut self, now: u32) {
-        while let Some(veh) = self.waiting_list.pop_front() {
-            self.buffer.push_back(veh);
-        }
+    pub fn do_sim_step(&mut self, now: u32) {
+        self.update_flow_cap(now);
+        self.apply_storage_cap_updates();
+        self.add_waiting_to_buffer();
+        self.add_queue_to_buffer(now);
+    }
+
+    fn add_queue_to_buffer(&mut self, now: u32) {
         while let Some(front) = self.q.front() {
             if front.earliest_exit_time <= now {
+                //TODO check with self.flow_cap.has_capacity();
                 let veh = self.q.pop_front().unwrap().vehicle;
+                self.storage_cap.release(veh.pce);
                 self.buffer.push_back(veh);
             } else {
                 break;
@@ -295,11 +301,17 @@ impl LocalLink {
         }
     }
 
+    fn add_waiting_to_buffer(&mut self) {
+        while let Some(veh) = self.waiting_list.pop_front() {
+            self.buffer.push_back(veh);
+        }
+    }
+
     /// This method returns the next/first vehicle from the buffer and removes it from the buffer.
     pub fn pop_front(&mut self) -> InternalVehicle {
         if let Some(veh) = self.buffer.pop_front() {
+            // self.storage_cap.release(veh.pce);
             self.flow_cap.consume_capacity(veh.pce);
-            self.storage_cap.release(veh.pce);
             self.stuck_timer.reset();
             return veh;
         }

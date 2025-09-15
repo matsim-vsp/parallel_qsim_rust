@@ -300,10 +300,8 @@ impl SimNetworkPartition {
         active_nodes: &mut IntSet<Id<Node>>,
         now: u32,
     ) -> bool {
-        link.update_flow_cap(now);
-        link.apply_storage_cap_updates();
         // Move all vehicles that completed their link travel into the buffer.
-        link.fill_buffer(now);
+        link.do_sim_step(now);
         // the node will only look at the vehicle at the at the top of the queue in the next timestep
         // therefore, peek whether vehicles are available for the next timestep.
         if link.q_front(now + 1).is_some() {

@@ -18,6 +18,12 @@ impl Flowcap {
     /**
     Updates the accumulated capacity if the time has advanced.
      */
+    // TODO: Must know how many vehicles are in the buffer (see updateFastFlowAccumulation)
+
+    /// TODO:
+    /// The capacity of the buffer is the flowcapacityPerTimeStpe
+    /// Check if the accumalated flow capacity of the buffer is not exceeded.
+    /// Update flow capacity
     pub fn update_capacity(&mut self, now: u32) {
         if self.last_update_time < now {
             let time_steps: f32 = (now - self.last_update_time) as f32;
