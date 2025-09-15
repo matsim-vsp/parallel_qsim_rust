@@ -234,9 +234,8 @@ impl SimNetworkPartition {
             );
         });
 
-        // If events_publisher is None, this is the start of the route and the vehicle drives
-        // directly into the buffer.
-        // TODO: Use Waiting List instead (next step)
+        // If events_publisher is None, this is the start of the route and the vehicle goes
+        // into the waiting list. `fill_buffer` prioritizes draining waiting_list into buffer.
         let is_route_begin = events_publisher.is_none();
 
         if let Some(publisher) = events_publisher {
@@ -246,7 +245,7 @@ impl SimNetworkPartition {
         }
 
         if is_route_begin {
-            link.push_veh_to_buffer(vehicle, now);
+            link.push_veh_to_waiting_list(vehicle);
         } else {
             link.push_veh(vehicle, now);
         }

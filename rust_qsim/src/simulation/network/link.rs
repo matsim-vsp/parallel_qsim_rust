@@ -125,6 +125,17 @@ impl SimLink {
         }
     }
 
+    /// This method pushes a vehicle to the waiting list, which has priority over vehicles in q
+    pub fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
+        match self {
+            SimLink::Local(ll) => ll.push_veh_to_waiting_list(vehicle),
+            SimLink::In(il) => il.local_link.push_veh_to_waiting_list(vehicle),
+            SimLink::Out(_) => {
+                panic!("Can't push vehicle to waiting list on out link")
+            }
+        }
+    }
+
     pub fn pop_veh(&mut self) -> InternalVehicle {
         match self {
             SimLink::Local(ll) => ll.pop_front(),
@@ -260,8 +271,20 @@ impl LocalLink {
         self.buffer.push_back(vehicle);
     }
 
-    /// This method moves a vehicle from the q to the buffer if its earliest exit time is <= now.
+    /// Push a vehicle into the waiting list.
+    pub fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
+        self.storage_cap.consume(vehicle.pce);
+        self.waiting_list.push_back(vehicle);
+    }
+
+    /// This method fills the buffer from two sources with priority:
+    /// 1) Check if there are vehicles in the waiting list and move them to the buffer.
+    /// 2) Check if there are vehicles in the queue that have reached their earliest exit time and
+    /// move them to the buffer.
     pub fn fill_buffer(&mut self, now: u32) {
+        while let Some(veh) = self.waiting_list.pop_front() {
+            self.buffer.push_back(veh);
+        }
         while let Some(front) = self.q.front() {
             if front.earliest_exit_time <= now {
                 let veh = self.q.pop_front().unwrap().vehicle;
