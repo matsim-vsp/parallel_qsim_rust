@@ -58,7 +58,7 @@ Install dev versions of required packages because dev stuff is required during c
 sudo apt -y install libclang-dev llvm-dev libmetis-dev
 ```
 
-#### MacOs
+#### macOS
 
 The dependencies are available via [homebrew](https://brew.sh/) on macOS.
 
@@ -74,7 +74,13 @@ export CPATH=$HOMEBREW_PREFIX/include
 export RUSTFLAGS="-L$HOMEBREW_PREFIX/lib"
 ```
 
-Both variables are necessary to compile the METIS and MPI wrapper libraries.
+The variables are necessary to compile the METIS library.
+
+The `CXX` variable may also need to be set for compiling some included dependencies like `protobuf-src`.
+
+```shell
+export CXX=clang++
+```
 
 #### Math Cluster (TU Berlin)
 
@@ -151,35 +157,48 @@ in the job script):
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/sw/comm/openmpi/5.0.3/genoa.el9/aocc/lib
 ```
 
-## Run the project
+## Build
 
 The project is built using cargo.
-
-### Run locally (multithreaded)
-
-Run
 
 ```shell
 cargo build --release
 ```
 
-to compile and then
+## Test
+
+To execute all tests run:
+
+```
+cargo test -- --test-threads=1
+```
+
+To have immediate output add `--nocapture` to the command.
+
+Note (Sep 205): The `--test-threads=1` option is used currently to ensure that the global ID store does not get overwritten by multiple parallel test threads. This will eventually be refined to allow all read-only tests to run in parallel and forcing sequencial order only for read-write tests.
+
+## Run locally (multithreaded)
+
+Execute
 
 ```shell
-.target/release/local_qsim --config-path /path/to/config.yml
+./target/release/local_qsim --config-path /path/to/config.yml
 ```
 
 or
 
 ```shell
-cargo --release --bin local_qsim -- --config-path /path/to/config.yml
+cargo run --release --example local_qsim -- --config-path /path/to/config.yml
 ```
 
 to run the simulation.
 
-### Test
+For example, after successfully running the tests first, try
 
-Run `$ cargo test` to execute all tests. To have immediate output use `$ cargo test -- --nocapture`
+```
+cd rust_qsim
+cargo run --release --example local_qsim -- --config-path tests/resources/equil/equil-config-1.yml
+```
 
 ## Create input files
 
