@@ -2,18 +2,18 @@ use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use rust_qsim::external_services::AdapterHandle;
 use rust_qsim::generated::events::Event;
-use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_qsim::simulation::messaging::events::EventsSubscriber;
-use rust_qsim::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use rust_qsim::simulation::scenario::GlobalScenario;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
 
@@ -23,7 +23,7 @@ use std::thread::JoinHandle;
 // See https://zerotomastery.io/blog/complete-guide-to-testing-code-in-rust/#Integration-testing
 #[allow(dead_code)]
 pub struct TestExecutor<'s> {
-    config_args: CommandLineArgs,
+    config: Arc<Config>,
     #[builder(default)]
     expected_events: Option<&'s str>,
     #[builder(default)]
@@ -32,104 +32,75 @@ pub struct TestExecutor<'s> {
     additional_subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
     #[builder(default)]
     adapter_handles: Vec<AdapterHandle>,
+    #[builder(default = "Arc::new(Barrier::new(1))")]
+    global_barrier: Arc<Barrier>,
 }
 
 #[allow(dead_code)]
 impl TestExecutor<'_> {
-    pub fn execute(self) {
-        self.execute_config_mutation(|_| {});
+    pub fn execute(mut self) {
+        // create a test environment
+        let (subscribers, receiver) = self.create_test_sub_recv();
+
+        // start the simulation
+        let mut handles = self.run(subscribers);
+
+        // start listening for events
+        if let Some(mut receiver) = receiver {
+            // create another thread for the receiver so that the main thread doesn't block.
+            let receiver_handle = thread::spawn(move || receiver.start_listen());
+            handles.insert(handles.len() as u32, receiver_handle);
+        }
+
+        // wait for all threads to finish
+        rust_qsim::simulation::controller::try_join(handles, self.adapter_handles);
     }
 
-    pub fn execute_config_mutation<F>(mut self, config_mutator: F)
-    where
-        F: Fn(&mut Config),
-    {
-        let mut config = Config::from(self.config_args.clone());
-
-        config_mutator(&mut config);
-
-        let handles = if config.partitioning().num_parts > 1 {
-            self.execute_sim_with_channels(config)
-        } else {
-            self.execute_sim(config)
-        };
-
-        rust_qsim::simulation::controller::try_join(handles, self.adapter_handles)
-    }
-
-    fn execute_sim_with_channels(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
-        let comms = ChannelSimCommunicator::create_n_2_n(config.partitioning().num_parts);
-
+    /// Creates a test subscriber for each partition and a receiving subscriber for the events.
+    /// In particular, necessary if simulation is run with multiple threads.
+    fn create_test_sub_recv(
+        &mut self,
+    ) -> (
+        HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+        Option<ReceivingSubscriber>,
+    ) {
         let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
 
         let receiver = self
             .expected_events
             .map(ReceivingSubscriber::new_with_events_from_file);
 
-        for c in comms {
+        for c in 0..self.config.partitioning().num_parts {
             if receiver.is_none() {
                 continue;
             }
 
             let subscr = SendingSubscriber {
-                rank: c.rank(),
+                rank: c,
                 sender: receiver.as_ref().unwrap().channel.0.clone(),
             };
             let mut subscriber: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(subscr)];
             subscriber.append(
                 self.additional_subscribers
-                    .get_mut(&c.rank())
+                    .get_mut(&c)
                     .unwrap_or(&mut vec![]),
             );
-            subscribers.insert(c.rank(), subscriber);
+            subscribers.insert(c, subscriber);
         }
-
-        let scenario = GlobalScenario::build(config);
-
-        let controller = LocalControllerBuilder::default()
-            .global_scenario(scenario)
-            .events_subscriber_per_partition(subscribers)
-            .external_services(self.external_services.clone())
-            .build()
-            .unwrap();
-
-        let mut handles = controller.run();
-
-        if let Some(mut receiver) = receiver {
-            // create another thread for the receiver, so that the main thread doesn't block.
-            let receiver_handle = thread::spawn(move || receiver.start_listen());
-            handles.insert(handles.len() as u32, receiver_handle);
-        }
-
-        handles
+        (subscribers, receiver)
     }
 
-    fn execute_sim(&mut self, config: Config) -> IntMap<u32, JoinHandle<()>> {
-        let mut subscribers = HashMap::new();
-
-        let mut subs: Vec<Box<dyn EventsSubscriber + Send>> =
-            if let Some(expected_events) = self.expected_events {
-                vec![Box::new(TestSubscriber::new_with_events_from_file(
-                    expected_events,
-                ))]
-            } else {
-                vec![]
-            };
-
-        subs.append(
-            self.additional_subscribers
-                .get_mut(&0)
-                .unwrap_or(&mut vec![]),
-        );
-
-        subscribers.insert(0, subs);
-
-        let scenario = GlobalScenario::build(config);
+    fn run(
+        &mut self,
+        subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+    ) -> IntMap<u32, JoinHandle<()>> {
+        let scenario = GlobalScenario::build(self.config.clone());
 
         let controller = LocalControllerBuilder::default()
             .global_scenario(scenario)
             .events_subscriber_per_partition(subscribers)
             .external_services(self.external_services.clone())
+            .global_barrier(self.global_barrier.clone())
             .build()
             .unwrap();
 

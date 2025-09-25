@@ -5,6 +5,7 @@ use crate::simulation::network::Network;
 use crate::simulation::population::Population;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, io};
+use std::sync::Arc;
 use tracing::info;
 
 /// The GlobalScenario contains the full scenario data.
@@ -13,11 +14,12 @@ pub struct GlobalScenario {
     pub network: Network,
     pub garage: Garage,
     pub population: Population,
-    pub config: Config,
+    // this is deliberately an Arc, as it is shared between all partitions and other threads. Otherwise, cloning would be needed.
+    pub config: Arc<Config>,
 }
 
 impl GlobalScenario {
-    pub fn build(config: Config) -> Self {
+    pub fn build(config: Arc<Config>) -> Self {
         id::load_from_file(&io::resolve_path(
             config.context(),
             &config.proto_files().ids,
@@ -73,7 +75,7 @@ pub struct ScenarioPartition {
     pub(crate) garage: Garage,
     pub(crate) population: Population,
     pub(crate) network_partition: SimNetworkPartition,
-    pub(crate) config: Config,
+    pub(crate) config: Arc<Config>,
 }
 
 /// This struct is needed as intermediate step to build a ScenarioPartition.
@@ -83,7 +85,7 @@ pub struct ScenarioPartitionBuilder {
     garage: Garage,
     population: Population,
     network_partition: SimNetworkPartitionBuilder,
-    pub(crate) config: Config,
+    pub(crate) config: Arc<Config>,
 }
 
 impl ScenarioPartitionBuilder {

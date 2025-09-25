@@ -1,17 +1,16 @@
-use crate::external_services::{
-    execute_adapter, RequestAdapter, RequestAdapterFactory, RequestToAdapter,
-};
+use crate::external_services::{RequestAdapter, RequestAdapterFactory, RequestToAdapter};
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use itertools::{EitherOrBoth, Itertools};
-use std::thread;
-use std::thread::JoinHandle;
+use std::sync::Arc;
 use tokio::sync::oneshot::Sender;
+use tracing::info;
 
 pub struct RoutingServiceAdapter {
-    client: RoutingServiceClient<tonic::transport::Channel>,
+    client: Vec<RoutingServiceClient<tonic::transport::Channel>>,
+    counter: usize,
 }
 
 #[derive(Debug)]
@@ -83,15 +82,14 @@ impl From<Response> for InternalRoutingResponse {
 
 /// Factory for creating routing service adapters. Connects to the routing service at the given IP address.
 pub struct RoutingServiceAdapterFactory {
-    ip: String,
-    //TODO think about whether this should be an Arc<Config> or not
-    config: Config,
+    ip: Vec<String>,
+    config: Arc<Config>,
 }
 
 impl RoutingServiceAdapterFactory {
-    pub fn new(ip: &str, config: Config) -> Self {
+    pub fn new(ip: Vec<impl Into<String>>, config: Arc<Config>) -> Self {
         Self {
-            ip: ip.to_string(),
+            ip: ip.into_iter().map(|s| s.into()).collect(),
             config,
         }
     }
@@ -99,45 +97,39 @@ impl RoutingServiceAdapterFactory {
 
 impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFactory {
     async fn build(self) -> impl RequestAdapter<InternalRoutingRequest> {
-        crate::simulation::id::load_from_file(&self.config.proto_files().ids);
-
-        let client = RoutingServiceClient::connect(self.ip)
-            .await
-            .expect("Failed to connect to routing service");
-
-        RoutingServiceAdapter { client }
-    }
-
-    fn thread_count(&self) -> usize {
-        self.config.routing().threads
-    }
-}
-
-impl RoutingServiceAdapterFactory {
-    /// Spawns a thread running a routing service adapter.
-    pub fn spawn_thread(
-        self,
-        name: &str,
-    ) -> (
-        JoinHandle<()>,
-        tokio::sync::mpsc::Sender<InternalRoutingRequest>,
-        tokio::sync::watch::Sender<bool>,
-    ) {
-        let (send, recv) = self.request_channel(10000);
-        let (send_sd, recv_sd) = self.shutdown_channel();
-
-        let handle = thread::Builder::new()
-            .name(name.into())
-            .spawn(move || execute_adapter(recv, self, recv_sd))
-            .unwrap();
-
-        (handle, send, send_sd)
+        let mut res = Vec::new();
+        for ip in self.ip {
+            info!("Connecting to routing service at {}", ip);
+            let start = std::time::Instant::now();
+            let client;
+            loop {
+                match RoutingServiceClient::connect(ip.clone()).await {
+                    Ok(c) => {
+                        client = c;
+                        break;
+                    }
+                    Err(e) => {
+                        if start.elapsed().as_secs()
+                            >= self.config.computational_setup().retry_time_seconds
+                        {
+                            panic!(
+                                "Failed to connect to routing service at {} after configured retry maximum: {}",
+                                ip, e
+                            );
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                }
+            }
+            res.push(client);
+        }
+        RoutingServiceAdapter::new(res)
     }
 }
 
 impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
-    async fn on_request(&mut self, internal_req: InternalRoutingRequest) {
-        let mut client = self.client.clone();
+    fn on_request(&mut self, internal_req: InternalRoutingRequest) {
+        let mut client = self.next_client();
 
         tokio::spawn(async move {
             let request = Request::from(internal_req.payload);
@@ -151,5 +143,29 @@ impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
 
             let _ = internal_req.response_tx.send(internal_res);
         });
+    }
+
+    fn on_shutdown(&mut self) {
+        for client in &mut self.client {
+            let mut c = client.clone();
+            tokio::spawn(async move {
+                c.shutdown(())
+                    .await
+                    .expect("Error while shutting down routing service");
+            });
+        }
+    }
+}
+
+impl RoutingServiceAdapter {
+    fn new(client: Vec<RoutingServiceClient<tonic::transport::Channel>>) -> Self {
+        Self { client, counter: 0 }
+    }
+
+    fn next_client(&mut self) -> RoutingServiceClient<tonic::transport::Channel> {
+        let len = self.client.len();
+        let client = &mut self.client[self.counter];
+        self.counter = (self.counter + 1) % len;
+        client.clone()
     }
 }

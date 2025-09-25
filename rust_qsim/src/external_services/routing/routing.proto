@@ -2,9 +2,11 @@ syntax = "proto3";
 package routing;
 
 import "simulation/io/proto/types/population.proto";
+import "google/protobuf/empty.proto";
 
 service RoutingService {
   rpc GetRoute (Request) returns (Response);
+  rpc Shutdown (google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
 message Request {

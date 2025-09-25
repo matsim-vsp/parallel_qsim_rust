@@ -2,12 +2,13 @@ mod test_simulation;
 
 use crate::test_simulation::TestExecutorBuilder;
 use macros::integration_test;
-use rust_qsim::simulation::config::CommandLineArgs;
+use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::id::store_to_file;
 use rust_qsim::simulation::network::Network;
 use rust_qsim::simulation::population::Population;
 use rust_qsim::simulation::vehicles::garage::Garage;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 fn create_resources(out_dir: &PathBuf, population: &str) {
     let input_dir = PathBuf::from("./assets/equil/");
@@ -33,7 +34,7 @@ fn teleport_network_route() {
     );
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(Arc::new(Config::from(config_args)))
         .expected_events(Some(
             "./tests/resources/equil/expected_events_teleport_network_route.xml",
         ))
@@ -53,7 +54,7 @@ fn teleport_generic_route() {
     );
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(Arc::new(Config::from(config_args)))
         .expected_events(Some(
             "./tests/resources/equil/expected_events_teleport_generic_route.xml",
         ))
@@ -73,7 +74,7 @@ fn simulate_network_route() {
     );
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(Arc::new(Config::from(config_args)))
         .expected_events(Some(
             "./tests/resources/equil/expected_events_simulate_network_route.xml",
         ))
@@ -94,7 +95,7 @@ fn simulate_generic_route_panics() {
     );
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(Arc::new(Config::from(config_args)))
         .expected_events(None)
         .build()
         .unwrap()
