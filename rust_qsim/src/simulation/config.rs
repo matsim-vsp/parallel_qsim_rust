@@ -4,11 +4,11 @@ use dyn_clone::DynClone;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tracing::{info, Level};
 
 use crate::simulation::config::VertexWeight::InLinkCapacity;
@@ -39,9 +39,10 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    modules: RefCell<HashMap<String, Box<dyn ConfigModule>>>,
+    //this is deliberately a Mutex to allow for thread-safe sharing of the config
+    modules: Mutex<HashMap<String, Box<dyn ConfigModule>>>,
     #[serde(skip)]
     context: Option<PathBuf>,
 }
@@ -49,7 +50,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Config {
-            modules: RefCell::new(HashMap::default()),
+            modules: Mutex::new(HashMap::default()),
             context: None,
         }
     }
@@ -184,7 +185,8 @@ impl Config {
 
     pub fn set_proto_files(&mut self, proto_files: ProtoFiles) {
         self.modules
-            .get_mut()
+            .lock()
+            .unwrap()
             .insert("protofiles".to_string(), Box::new(proto_files));
     }
 
@@ -197,7 +199,8 @@ impl Config {
                 method: PartitionMethod::None,
             };
             self.modules
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .insert("partitioning".to_string(), Box::new(default.clone()));
             default
         }
@@ -205,19 +208,22 @@ impl Config {
 
     pub fn set_partitioning(&mut self, partitioning: Partitioning) {
         self.modules
-            .get_mut()
+            .lock()
+            .unwrap()
             .insert("partitioning".to_string(), Box::new(partitioning));
     }
 
     pub fn set_computational_setup(&mut self, setup: ComputationalSetup) {
         self.modules
-            .get_mut()
+            .lock()
+            .unwrap()
             .insert("computational_setup".to_string(), Box::new(setup));
     }
 
     pub fn set_simulation(&mut self, simulation: Simulation) {
         self.modules
-            .get_mut()
+            .lock()
+            .unwrap()
             .insert("simulation".to_string(), Box::new(simulation));
     }
 
@@ -232,7 +238,8 @@ impl Config {
                 write_events: WriteEvents::None,
             };
             self.modules
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .insert("output".to_string(), Box::new(default.clone()));
             default
         }
@@ -240,13 +247,15 @@ impl Config {
 
     pub fn set_output(&mut self, output: Output) {
         self.modules
-            .get_mut()
+            .lock()
+            .unwrap()
             .insert("output".to_string(), Box::new(output));
     }
 
     pub fn set_routing(&mut self, routing: Routing) {
         self.modules
-            .get_mut()
+            .lock()
+            .unwrap()
             .insert("routing".to_string(), Box::new(routing));
     }
 
@@ -256,7 +265,8 @@ impl Config {
         } else {
             let default = Simulation::default();
             self.modules
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .insert("simulation".to_string(), Box::new(default.clone()));
             default
         }
@@ -266,12 +276,10 @@ impl Config {
         if let Some(routing) = self.module::<Routing>("routing") {
             routing
         } else {
-            let default = Routing {
-                mode: RoutingMode::UsePlans,
-                threads: 1,
-            };
+            let default = Routing::default();
             self.modules
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .insert("routing".to_string(), Box::new(default.clone()));
             default
         }
@@ -287,7 +295,8 @@ impl Config {
         } else {
             let default = ComputationalSetup::default();
             self.modules
-                .borrow_mut()
+                .lock()
+                .unwrap()
                 .insert("computational_setup".to_string(), Box::new(default));
             default
         }
@@ -295,7 +304,8 @@ impl Config {
 
     fn module<T: Clone + 'static>(&self, key: &str) -> Option<T> {
         self.modules
-            .borrow()
+            .lock()
+            .unwrap()
             .get(key)
             .map(|boxed| boxed.as_ref().as_any().downcast_ref::<T>().unwrap().clone())
     }
@@ -333,12 +343,22 @@ pub struct Output {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Routing {
     pub mode: RoutingMode,
-    #[serde(default = "default_to_one")]
-    pub threads: usize,
 }
 
-fn default_to_one() -> usize {
+impl Default for Routing {
+    fn default() -> Self {
+        Routing {
+            mode: RoutingMode::UsePlans,
+        }
+    }
+}
+
+fn default_to_3() -> u32 {
     1
+}
+
+fn default_to_600() -> u64 {
+    600
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -377,9 +397,24 @@ pub struct Simulation {
     pub main_modes: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
+    #[serde(default = "default_to_3")]
+    /// The number of threads to be used for the tokio runtime by the adapter.
+    pub adapter_worker_threads: u32,
+    #[serde(default = "default_to_600")]
+    pub retry_time_seconds: u64,
+}
+
+impl Default for ComputationalSetup {
+    fn default() -> Self {
+        Self {
+            global_sync: false,
+            adapter_worker_threads: default_to_3(),
+            retry_time_seconds: default_to_600(),
+        }
+    }
 }
 
 #[typetag::serde(tag = "type")]
@@ -623,7 +658,11 @@ mod tests {
                 contiguous: true,
             }),
         };
-        let computational_setup = ComputationalSetup { global_sync: true };
+        let computational_setup = ComputationalSetup {
+            global_sync: true,
+            adapter_worker_threads: 42,
+            retry_time_seconds: 41,
+        };
 
         let simulation = Simulation {
             start_time: 0,
@@ -657,6 +696,11 @@ mod tests {
         );
 
         assert!(parsed_config.computational_setup().global_sync);
+        assert_eq!(
+            parsed_config.computational_setup().adapter_worker_threads,
+            42
+        );
+        assert_eq!(parsed_config.computational_setup().retry_time_seconds, 41);
 
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);
@@ -768,7 +812,8 @@ mod tests {
         };
         config
             .modules
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .insert("drt".to_string(), Box::new(drt));
 
         let parsed_config: Config = serde_yaml::from_str(serde).expect("failed to parse config");

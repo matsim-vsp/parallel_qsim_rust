@@ -1,11 +1,12 @@
 use crate::test_simulation::TestExecutorBuilder;
 use macros::integration_test;
-use rust_qsim::simulation::config::CommandLineArgs;
+use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::id::store_to_file;
 use rust_qsim::simulation::network::Network;
 use rust_qsim::simulation::population::Population;
 use rust_qsim::simulation::vehicles::garage::Garage;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 mod test_simulation;
 
@@ -30,7 +31,7 @@ fn execute_3_links_single_part() {
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-1.yml");
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(Arc::new(Config::from(config_args)))
         .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
         .build()
         .unwrap()
@@ -47,7 +48,7 @@ fn execute_3_links_2_parts() {
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-2.yml");
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(Arc::new(Config::from(config_args)))
         .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
         .build()
         .unwrap()

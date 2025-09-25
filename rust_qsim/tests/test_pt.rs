@@ -1,7 +1,7 @@
 use crate::test_simulation::TestExecutorBuilder;
 use macros::integration_test;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
-use rust_qsim::external_services::{AdapterHandleBuilder, ExternalServiceType};
+use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::id::store_to_file;
@@ -12,6 +12,7 @@ use rust_qsim::simulation::pt::TransitSchedule;
 use rust_qsim::simulation::vehicles::garage::Garage;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::{Arc, Barrier};
 
 mod test_simulation;
 
@@ -33,11 +34,12 @@ fn test_pt_tutorial() {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial/");
     create_resources(&test_dir, &PathBuf::from("plans_1.xml.gz"));
 
-    let config_args =
-        CommandLineArgs::new_with_path("./tests/resources/pt_tutorial/pt_tutorial_config.yml");
+    let config = Arc::new(Config::from(CommandLineArgs::new_with_path(
+        "./tests/resources/pt_tutorial/pt_tutorial_config.yml",
+    )));
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(config)
         .expected_events(Some("./tests/resources/pt_tutorial/expected_events.xml"))
         .build()
         .unwrap()
@@ -60,11 +62,17 @@ fn test_pt_adaptive() {
         .overrides
         .push((String::from("routing.mode"), String::from("ad-hoc")));
 
-    let (handle, send, shutdown) = RoutingServiceAdapterFactory::new(
-        vec!["http://localhost:50051"],
-        Config::from(config_args.clone()),
-    )
-    .spawn_thread("routing_adapter");
+    let config = Arc::new(Config::from(config_args));
+
+    let total_thread_count = config.partitioning().num_parts + 1;
+    let global_barrier = Arc::new(Barrier::new(total_thread_count as usize));
+
+    let executor = AsyncExecutor::from_config(&config, global_barrier.clone());
+
+    let routing_factory =
+        RoutingServiceAdapterFactory::new(vec!["http://localhost:50051"], config.clone());
+
+    let (handle, send, shutdown) = executor.spawn_thread("routing_adapter", routing_factory);
 
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
@@ -73,12 +81,13 @@ fn test_pt_adaptive() {
     // subs.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(config)
         .expected_events(Some(
             "./tests/resources/pt_tutorial/expected_events_adaptive.xml",
         ))
         .external_services(services)
         .additional_subscribers(subs)
+        .global_barrier(global_barrier)
         .adapter_handles(vec![AdapterHandleBuilder::default()
             .shutdown_sender(shutdown)
             .handle(handle)

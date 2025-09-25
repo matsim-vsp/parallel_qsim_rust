@@ -1,13 +1,10 @@
-use crate::external_services::{
-    execute_adapter, RequestAdapter, RequestAdapterFactory, RequestToAdapter,
-};
+use crate::external_services::{RequestAdapter, RequestAdapterFactory, RequestToAdapter};
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use itertools::{EitherOrBoth, Itertools};
-use std::thread;
-use std::thread::JoinHandle;
+use std::sync::Arc;
 use tokio::sync::oneshot::Sender;
 use tracing::info;
 
@@ -86,12 +83,11 @@ impl From<Response> for InternalRoutingResponse {
 /// Factory for creating routing service adapters. Connects to the routing service at the given IP address.
 pub struct RoutingServiceAdapterFactory {
     ip: Vec<String>,
-    //TODO think about whether this should be an Arc<Config> or not
-    config: Config,
+    config: Arc<Config>,
 }
 
 impl RoutingServiceAdapterFactory {
-    pub fn new(ip: Vec<impl Into<String>>, config: Config) -> Self {
+    pub fn new(ip: Vec<impl Into<String>>, config: Arc<Config>) -> Self {
         Self {
             ip: ip.into_iter().map(|s| s.into()).collect(),
             config,
@@ -104,38 +100,30 @@ impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFact
         let mut res = Vec::new();
         for ip in self.ip {
             info!("Connecting to routing service at {}", ip);
-            let client = RoutingServiceClient::connect(ip)
-                .await
-                .expect("Failed to connect to routing service");
+            let start = std::time::Instant::now();
+            let client;
+            loop {
+                match RoutingServiceClient::connect(ip.clone()).await {
+                    Ok(c) => {
+                        client = c;
+                        break;
+                    }
+                    Err(e) => {
+                        if start.elapsed().as_secs()
+                            >= self.config.computational_setup().retry_time_seconds
+                        {
+                            panic!(
+                                "Failed to connect to routing service at {} after configured retry maximum: {}",
+                                ip, e
+                            );
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                }
+            }
             res.push(client);
         }
         RoutingServiceAdapter::new(res)
-    }
-
-    fn thread_count(&self) -> usize {
-        self.config.routing().threads
-    }
-}
-
-impl RoutingServiceAdapterFactory {
-    /// Spawns a thread running a routing service adapter.
-    pub fn spawn_thread(
-        self,
-        name: &str,
-    ) -> (
-        JoinHandle<()>,
-        tokio::sync::mpsc::Sender<InternalRoutingRequest>,
-        tokio::sync::watch::Sender<bool>,
-    ) {
-        let (send, recv) = self.request_channel(10000);
-        let (send_sd, recv_sd) = self.shutdown_channel();
-
-        let handle = thread::Builder::new()
-            .name(name.into())
-            .spawn(move || execute_adapter(recv, self, recv_sd))
-            .unwrap();
-
-        (handle, send, send_sd)
     }
 }
 

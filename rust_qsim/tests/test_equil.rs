@@ -3,17 +3,16 @@ use rust_qsim::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
 };
 use rust_qsim::external_services::{
-    execute_adapter, AdapterHandle, AdapterHandleBuilder, ExternalServiceType, RequestAdapter,
+    AdapterHandle, AdapterHandleBuilder, AsyncExecutor, ExternalServiceType, RequestAdapter,
     RequestAdapterFactory,
 };
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::thread;
+use std::sync::{Arc, Barrier};
 
 mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
-use rust_qsim::simulation::config::CommandLineArgs;
+use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
 use rust_qsim::simulation::id::{store_to_file, Id};
 use rust_qsim::simulation::network::Network;
@@ -43,9 +42,10 @@ fn execute_equil_single_part() {
     create_resources(&test_dir, |_pop| {});
 
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
+    let config = Arc::new(Config::from(config_args));
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(config)
         .expected_events(Some("./tests/resources/equil/expected_events.xml"))
         .build()
         .unwrap()
@@ -58,9 +58,10 @@ fn execute_equil_2_parts() {
     create_resources(&test_dir, |_| {});
 
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
+    let config = Arc::new(Config::from(config_args));
 
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(config)
         .expected_events(Some("./tests/resources/equil/expected_events.xml"))
         .build()
         .unwrap()
@@ -77,10 +78,11 @@ fn execute_equil_adaptive_planning_single_part_panics() {
     // panics because no external service is provided
     execute_adaptive(
         test_dir,
-        config_path,
+        Config::from(CommandLineArgs::new_with_path(config_path)),
         expected_events,
         ExternalServices::default(),
         vec![],
+        Arc::new(Barrier::new(1)),
     );
 }
 
@@ -92,30 +94,31 @@ fn execute_equil_adaptive_planning_single_part() {
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let (tx, rx) = mock_routing_adapter.request_channel(10000);
-    let (shutdown_send, shutdown_recv) = mock_routing_adapter.shutdown_channel();
+    let config = Config::from(CommandLineArgs::new_with_path(config_path));
 
-    let routing_thread = thread::Builder::new()
-        .name("routing_adapter".to_string())
-        .spawn(move || execute_adapter(rx, mock_routing_adapter, shutdown_recv))
-        .unwrap();
+    let parts = config.partitioning().num_parts + 1;
+    let barrier = Arc::new(Barrier::new(parts as usize));
+    let executor = AsyncExecutor::from_config(&config, barrier.clone());
+
+    let (handle, send, shutdown) = executor.spawn_thread("routing_adapter", mock_routing_adapter);
 
     let mut map: HashMap<ExternalServiceType, RequestSender> = HashMap::new();
     map.insert(
         ExternalServiceType::Routing("car".to_string()),
-        Arc::new(tx).into(),
+        Arc::new(send).into(),
     );
 
     execute_adaptive(
         test_dir,
-        config_path,
+        config,
         expected_events,
         map.into(),
         vec![AdapterHandleBuilder::default()
-            .handle(routing_thread)
-            .shutdown_sender(shutdown_send)
+            .handle(handle)
+            .shutdown_sender(shutdown)
             .build()
             .unwrap()],
+        barrier,
     );
 }
 
@@ -127,30 +130,30 @@ fn execute_equil_adaptive_planning_two_parts() {
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let (tx, rx) = mock_routing_adapter.request_channel(10000);
-    let (shutdown_send, shutdown_recv) = mock_routing_adapter.shutdown_channel();
+    let config = Config::from(CommandLineArgs::new_with_path(config_path));
 
-    let routing_thread = thread::Builder::new()
-        .name("routing_adapter".to_string())
-        .spawn(move || execute_adapter(rx, mock_routing_adapter, shutdown_recv))
-        .unwrap();
+    let barrier = Arc::new(Barrier::new((config.partitioning().num_parts + 1) as usize));
+    let executor = AsyncExecutor::from_config(&config, barrier.clone());
+
+    let (handle, send, shutdown) = executor.spawn_thread("routing_adapter", mock_routing_adapter);
 
     let mut map: HashMap<ExternalServiceType, RequestSender> = HashMap::new();
     map.insert(
         ExternalServiceType::Routing("car".to_string()),
-        Arc::new(tx).into(),
+        Arc::new(send).into(),
     );
 
     execute_adaptive(
         test_dir,
-        config_path,
+        config,
         expected_events,
         map.into(),
         vec![AdapterHandleBuilder::default()
-            .handle(routing_thread)
-            .shutdown_sender(shutdown_send)
+            .handle(handle)
+            .shutdown_sender(shutdown)
             .build()
             .unwrap()],
+        barrier,
     );
 }
 
@@ -194,10 +197,11 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
 
 fn execute_adaptive(
     test_dir: PathBuf,
-    config_path: String,
+    config: Config,
     expected_events: &str,
     map: ExternalServices,
     adapter_handles: Vec<AdapterHandle>,
+    global_barrier: Arc<Barrier>,
 ) {
     let f = |pop: &mut Population| {
         let agent = pop.persons.get_mut(&Id::create("1")).unwrap();
@@ -215,13 +219,12 @@ fn execute_adaptive(
 
     create_resources(&test_dir, f);
 
-    let config_args = CommandLineArgs::new_with_path(config_path);
-
     TestExecutorBuilder::default()
-        .config_args(config_args)
+        .config(Arc::new(config))
         .expected_events(Some(expected_events))
         .external_services(map)
         .adapter_handles(adapter_handles)
+        .global_barrier(global_barrier)
         .build()
         .unwrap()
         .execute();

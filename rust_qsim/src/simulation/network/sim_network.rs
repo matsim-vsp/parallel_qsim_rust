@@ -518,8 +518,6 @@ impl SimNetworkPartition {
 
 #[cfg(test)]
 mod tests {
-    use assert_approx_eq::assert_approx_eq;
-
     use super::{SimNetworkPartition, SimNetworkPartitionBuilder};
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
@@ -527,6 +525,8 @@ mod tests {
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils;
+    use assert_approx_eq::assert_approx_eq;
+    use macros::integration_test;
 
     #[test]
     fn from_network() {
@@ -754,7 +754,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_transition_logic() {
         let mut net = Network::new();
         let node1 = Node {
@@ -863,7 +863,7 @@ mod tests {
         assert_approx_eq!(link1 * 2., link2, 100.);
     }
 
-    #[test]
+    #[integration_test]
     fn storage_cap_over_boundaries() {
         // use programmed network here, to avoid instabilities with metis algorithm for small
         // network graphs
@@ -905,7 +905,7 @@ mod tests {
         assert_approx_eq!(100., storage_cap.released, 0.00001);
     }
 
-    #[test]
+    #[integration_test]
     fn neighbors() {
         let mut net = Network::new();
         let node = Node::new(Id::create("node-1"), -0., 0., 0, 1);

@@ -1,9 +1,12 @@
+use crate::simulation::config::Config;
 use derive_builder::Builder;
 use std::fmt::Debug;
+use std::sync::{Arc, Barrier};
+use std::thread;
 use std::thread::JoinHandle;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tracing::info;
+use tracing::{info, warn};
 
 pub mod routing;
 
@@ -27,28 +30,13 @@ pub enum ExternalServiceType {
 }
 
 /// This trait defines a factory for creating request adapters.
-pub trait RequestAdapterFactory<T: RequestToAdapter> {
+pub trait RequestAdapterFactory<T: RequestToAdapter>: Send {
     /// This method builds the request adapter. It returns a future that resolves to the adapter instance.
     fn build(self) -> impl std::future::Future<Output = impl RequestAdapter<T>>;
 
     /// This method creates a channel for sending requests to the adapter.
     fn request_channel(&self, buffer: usize) -> (Sender<T>, Receiver<T>) {
         mpsc::channel(buffer)
-    }
-
-    /// This method creates a shutdown channel for the adapter.
-    fn shutdown_channel(
-        &self,
-    ) -> (
-        tokio::sync::watch::Sender<bool>,
-        tokio::sync::watch::Receiver<bool>,
-    ) {
-        tokio::sync::watch::channel(false)
-    }
-
-    /// This method returns the number of *additional* threads to be used for the tokio runtime by the adapter.
-    fn thread_count(&self) -> usize {
-        1
     }
 }
 
@@ -61,45 +49,96 @@ pub trait RequestAdapter<T: RequestToAdapter> {
     }
 }
 
-/// This function executes the adapter in a separate thread with its own tokio runtime.
-pub fn execute_adapter<T: RequestToAdapter>(
-    mut receiver: Receiver<T>,
-    req_adapter_factory: impl RequestAdapterFactory<T>,
-    mut shutdown: tokio::sync::watch::Receiver<bool>,
-) {
-    info!("Starting adapter");
+#[derive(Debug)]
+pub struct AsyncExecutor {
+    worker_threads: u32,
+    barrier: Arc<Barrier>,
+}
 
-    assert!(
-        req_adapter_factory.thread_count() > 0,
-        "routing.thread_count must be greater than 0"
-    );
+impl AsyncExecutor {
+    /// Spawns a thread running a routing service adapter.
+    pub fn spawn_thread<R: RequestToAdapter + 'static, F: RequestAdapterFactory<R> + 'static>(
+        self,
+        name: &str,
+        request_adapter_factory: F,
+    ) -> (JoinHandle<()>, Sender<R>, tokio::sync::watch::Sender<bool>) {
+        let (send, recv) = request_adapter_factory.request_channel(10000);
+        let (send_sd, recv_sd) = self.shutdown_channel();
 
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(req_adapter_factory.thread_count())
-        .enable_all()
-        .build()
-        .unwrap();
+        let handle = thread::Builder::new()
+            .name(name.into())
+            .spawn(move || self.execute_adapter(recv, request_adapter_factory, recv_sd))
+            .unwrap();
 
-    rt.block_on(async move {
-        let mut req_adapter = req_adapter_factory.build().await;
+        (handle, send, send_sd)
+    }
 
-        loop {
-            tokio::select! {
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
-                        info!("Shutdown signal received, exiting adapter.");
-                        req_adapter.on_shutdown();
-                        break;
+    /// This function executes the adapter in a separate thread with its own tokio runtime.
+    fn execute_adapter<T: RequestToAdapter>(
+        self,
+        mut receiver: Receiver<T>,
+        req_adapter_factory: impl RequestAdapterFactory<T>,
+        mut shutdown: tokio::sync::watch::Receiver<bool>,
+    ) {
+        info!("Starting adapter");
+
+        let mut builder = if self.worker_threads > 0 {
+            let mut b = tokio::runtime::Builder::new_multi_thread();
+            b.worker_threads(self.worker_threads as usize);
+            b
+        } else {
+            warn!("Starting adapter with current_thread runtime, this might lead to performance drops. Use carefully.");
+            tokio::runtime::Builder::new_current_thread()
+        };
+
+        let rt = builder.enable_all().build().unwrap();
+
+        rt.block_on(async move {
+            let mut req_adapter = req_adapter_factory.build().await;
+            self.barrier.wait();
+
+            loop {
+                tokio::select! {
+                    _ = shutdown.changed() => {
+                        if *shutdown.borrow() {
+                            info!("Shutdown signal received, exiting adapter.");
+                            // req_adapter.on_shutdown();
+                            break;
+                        }
                     }
-                }
-                maybe_req = receiver.recv() => {
-                    if let Some(req) = maybe_req {
-                        req_adapter.on_request(req).await;
+                    maybe_req = receiver.recv() => {
+                        if let Some(req) = maybe_req {
+                            req_adapter.on_request(req).await;
+                        }
                     }
                 }
             }
+        })
+    }
+
+    /// This method creates a shutdown channel for the adapter.
+    fn shutdown_channel(
+        &self,
+    ) -> (
+        tokio::sync::watch::Sender<bool>,
+        tokio::sync::watch::Receiver<bool>,
+    ) {
+        tokio::sync::watch::channel(false)
+    }
+
+    pub fn new(worker_threads: u32, barrier: Arc<Barrier>) -> Self {
+        Self {
+            worker_threads,
+            barrier,
         }
-    })
+    }
+
+    pub fn from_config(config: &Config, barrier: Arc<Barrier>) -> Self {
+        Self {
+            worker_threads: config.computational_setup().adapter_worker_threads,
+            barrier,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -118,7 +157,11 @@ mod tests {
 
         // Spawn the adapter in a separate task
         let handle = thread::spawn(move || {
-            execute_adapter(rx, handler, shutdown_recv);
+            AsyncExecutor::new(1, Arc::new(Barrier::new(1))).execute_adapter(
+                rx,
+                handler,
+                shutdown_recv,
+            );
         });
 
         // Send a request
