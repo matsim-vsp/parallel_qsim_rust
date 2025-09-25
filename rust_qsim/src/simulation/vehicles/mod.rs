@@ -117,7 +117,7 @@ impl From<Vehicle> for InternalVehicle {
             driver: None,
             passengers: vec![],
             vehicle_type: Id::get(value.r#type),
-            attributes: InternalAttributes::from(value.attributes),
+            attributes: InternalAttributes::from(&value.attributes),
         }
     }
 }

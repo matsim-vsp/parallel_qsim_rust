@@ -10,12 +10,11 @@ use super::{
     link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
     Link, Network, Node,
 };
-use crate::generated::events::Event;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::events::{EventsPublisher, LinkEnterEventBuilder, LinkLeaveEventBuilder};
 use crate::simulation::id::Id;
-use crate::simulation::messaging::events::EventsPublisher;
 use crate::simulation::vehicles::InternalVehicle;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -235,9 +234,14 @@ impl SimNetworkPartition {
         });
 
         if let Some(publisher) = events_publisher {
-            publisher
-                .borrow_mut()
-                .publish_event(now, &Event::new_link_enter(link.id(), &vehicle.id));
+            publisher.borrow_mut().publish_event(
+                &LinkEnterEventBuilder::default()
+                    .time(now)
+                    .link(link.id().clone())
+                    .vehicle(vehicle.id.clone())
+                    .build()
+                    .unwrap(),
+            );
         }
 
         link.push_veh(vehicle, now);
@@ -497,8 +501,12 @@ impl SimNetworkPartition {
         now: u32,
     ) {
         comp_env.events_publisher_borrow_mut().publish_event(
-            now,
-            &Event::new_link_leave(vehicle.curr_link_id().unwrap(), &vehicle.id),
+            &LinkLeaveEventBuilder::default()
+                .vehicle(vehicle.id.clone())
+                .link(vehicle.curr_link_id().unwrap().clone())
+                .time(now)
+                .build()
+                .unwrap(),
         );
         vehicle.notify_event(&mut AgentEvent::LeftLink(), now);
         let link_id = vehicle.curr_link_id().unwrap().clone();
@@ -506,9 +514,14 @@ impl SimNetworkPartition {
 
         // for out links, link enter event is published at receiving partition
         if let SimLink::Local(_) = link {
-            comp_env
-                .events_publisher_borrow_mut()
-                .publish_event(now, &Event::new_link_enter(&link.id(), &vehicle.id));
+            comp_env.events_publisher_borrow_mut().publish_event(
+                &LinkEnterEventBuilder::default()
+                    .time(now)
+                    .link(link.id().clone())
+                    .vehicle(vehicle.id.clone())
+                    .build()
+                    .unwrap(),
+            );
         }
 
         link.push_veh(vehicle, now);

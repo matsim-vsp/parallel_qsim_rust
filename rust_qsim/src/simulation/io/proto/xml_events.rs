@@ -1,19 +1,25 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use std::any::Any;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Mutex;
 use tracing::info;
 use xml::attribute::OwnedAttribute;
 use xml::reader::XmlEvent;
 use xml::EventReader;
 
-use crate::generated::events::event::Type;
-use crate::generated::events::Event;
+use crate::simulation::events::{
+    ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
+    EventTrait, EventsPublisher, GeneralEvent, LinkEnterEvent, LinkEnterEventBuilder,
+    LinkLeaveEvent, LinkLeaveEventBuilder, OnEventFnBuilder, PersonArrivalEvent,
+    PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
+    PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
+    PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
+    TeleportationArrivalEventBuilder,
+};
 use crate::simulation::id::Id;
-use crate::simulation::messaging::events::EventsSubscriber;
 use crate::simulation::network::Link;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::InternalVehicle;
@@ -23,9 +29,9 @@ pub struct XmlEventsWriter {
 }
 
 impl XmlEventsWriter {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path: PathBuf) -> Self {
         info!("Creating file: {path:?}");
-        let file = File::create(path).expect("Failed to create File.");
+        let file = File::create(&path).expect("Failed to create File.");
         let mut writer: Box<dyn Write + Send> = if path.extension().unwrap() == "gz" {
             Box::new(GzEncoder::new(file, Compression::fast()))
         } else {
@@ -40,120 +46,118 @@ impl XmlEventsWriter {
         }
     }
 
-    pub fn event_2_string(time: u32, event: &Event) -> String {
-        match event.r#type.as_ref().unwrap() {
-            Type::Generic(e) => {
-                format!(
-                    "<event time=\"{time}\" type=\"{}\" attrs is not yet implemented. Sorry/>\n",
-                    e.r#type
-                )
-            }
-            Type::ActStart(e) => {
-                format!("<event time=\"{time}\" type=\"actstart\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
-                        e.person,
-                        e.link,
-                        e.act_type)
-            }
-            Type::ActEnd(e) => {
-                format!("<event time=\"{time}\" type=\"actend\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
-                        e.person,
-                        e.link,
-                        e.act_type)
-            }
-            Type::LinkEnter(e) => {
-                format!(
-                    "<event time=\"{time}\" type=\"entered link\" link=\"{}\" vehicle=\"{}\"/>\n",
-                    e.link, e.vehicle
-                )
-            }
-            Type::LinkLeave(e) => {
-                format!(
-                    "<event time=\"{time}\" type=\"left link\" link=\"{}\" vehicle=\"{}\"/>\n",
-                    e.link, e.vehicle
-                )
-            }
-            Type::PersonEntersVeh(e) => {
-                format!("<event time=\"{time}\" type=\"PersonEntersVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
-                        e.person, e.vehicle)
-            }
-            Type::PersonLeavesVeh(e) => {
-                format!("<event time=\"{time}\" type=\"PersonLeavesVehicle\" person=\"{}\" vehicle=\"{}\"/>\n",
-                        e.person, e.vehicle)
-            }
-            Type::Departure(e) => {
-                format!("<event time=\"{time}\" type=\"departure\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
-                        e.person,
-                        e.link,
-                        e.leg_mode)
-            }
-            Type::Arrival(e) => {
-                format!("<event time=\"{time}\" type=\"arrival\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
-                        e.person,
-                        e.link,
-                        e.leg_mode)
-            }
-            Type::Travelled(e) => {
-                format!("<event time=\"{time}\" type=\"travelled\" person=\"{}\" distance=\"{}\" mode=\"{}\"/>\n",
-                        e.person,
-                        e.distance,
-                        e.mode)
-            }
-            Type::TravelledWithPt(e) => {
-                format!("<event time=\"{time}\" type=\"travelled with pt\" person=\"{}\" distance=\"{}\" mode=\"{}\" line=\"{}\" route=\"{}\"/>\n",
-                        e.person,
-                        e.distance,
-                        e.mode,
-                        e.line,
-                        e.route)
-            }
-            Type::PassengerPickedUp(e) => {
-                format!("<event time=\"{time}\" type=\"passenger picked up\" person=\"{}\" mode=\"{}\" request=\"{}\" vehicle=\"{}\"/>\n",
-                        e.person,
-                        e.mode,
-                        e.request,
-                        e.vehicle)
-            }
-            Type::PassengerDroppedOff(e) => {
-                format!("<event time=\"{time}\" type=\"passenger dropped off\" person=\"{}\" mode=\"{}\" request=\"{}\" vehicle=\"{}\"/>\n",
-                        e.person,
-                        e.mode,
-                        e.request,
-                        e.vehicle)
-            }
-            Type::DvrpTaskStarted(e) => {
-                format!("<event time=\"{time}\" type=\"dvrp task started\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
-                        e.person,
-                        e.dvrp_vehicle,
-                        e.task_type,
-                        e.task_index,
-                        e.dvrp_mode)
-            }
-            Type::DvrpTaskEnded(e) => {
-                format!("<event time=\"{time}\" type=\"dvrp task ended\" person=\"{}\" dvrpVehicle=\"{}\" taskType=\"{}\" taskIndex=\"{}\" dvrpMode=\"{}\"/>\n",
-                        e.person,
-                        e.dvrp_vehicle,
-                        e.task_type,
-                        e.task_index,
-                        e.dvrp_mode)
-            }
+    pub fn event_2_string(e: &dyn EventTrait) -> String {
+        if let Some(ev) = e.as_any().downcast_ref::<GeneralEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_()
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<ActivityStartEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.act_type
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<ActivityEndEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.act_type
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<LinkEnterEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.link,
+                ev.vehicle
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<LinkLeaveEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.link,
+                ev.vehicle
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.vehicle
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.vehicle
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<PersonDepartureEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.leg_mode
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<PersonArrivalEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.leg_mode
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<TeleportationArrivalEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" mode=\"{}\" distance=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.mode,
+                ev.distance
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" mode=\"{}\" distance=\"{}\" route=\"{}\" line=\"{}\" attributes=\"...\" />\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.mode,
+                ev.distance,
+                ev.route,
+                ev.line
+            )
+        } else {
+            panic!("Unknown event type");
         }
     }
 
-    fn write(&mut self, text: &str) {
+    pub fn on_any(&self, e: &dyn EventTrait) {
+        self.write(&Self::event_2_string(e));
+    }
+
+    fn write(&self, text: &str) {
         let mut writer = self.writer.lock().expect("Failed to lock writer");
         writer
             .write_all(text.as_bytes())
             .expect("Error while writing event");
     }
-}
 
-impl EventsSubscriber for XmlEventsWriter {
-    fn receive_event(&mut self, time: u32, event: &Event) {
-        let text = XmlEventsWriter::event_2_string(time, event);
-        self.write(&text);
-    }
-
-    fn finish(&mut self) {
+    fn finish(&self) {
         let closing_tag = "</events>";
         self.write(closing_tag);
         info!("Finishing Events File. Calling flush on Buffered Writer.");
@@ -161,8 +165,19 @@ impl EventsSubscriber for XmlEventsWriter {
         writer.flush().expect("Failed to flush events.");
     }
 
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
+    pub fn register(path: PathBuf) -> Box<OnEventFnBuilder> {
+        Box::new(move |events: &mut EventsPublisher| {
+            let xml = Rc::new(XmlEventsWriter::new(path));
+            let xml1 = xml.clone();
+            let xml2 = xml.clone();
+
+            events.on_any(move |e| {
+                xml1.on_any(e);
+            });
+            events.on_finish(move || {
+                xml2.finish();
+            })
+        })
     }
 }
 
@@ -178,7 +193,7 @@ impl XmlEventsReader {
         let parser = EventReader::new(buffered_reader);
         Self { parser }
     }
-    pub fn read_next(&mut self) -> Option<(u32, Event)> {
+    pub fn read_next(&mut self) -> Option<(u32, Box<dyn EventTrait>)> {
         loop {
             let result = self.parser.next();
             match result {
@@ -201,7 +216,7 @@ impl XmlEventsReader {
     }
 }
 
-fn handle(attr: Vec<OwnedAttribute>) -> Event {
+fn handle(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
     let ev_type = &attr.get(1).unwrap().value;
     match ev_type.as_str() {
         "actend" => handle_act_end(attr),
@@ -217,61 +232,138 @@ fn handle(attr: Vec<OwnedAttribute>) -> Event {
     }
 }
 
-fn handle_act_end(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_act_end(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
     let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
-    Event::new_act_end(&person, &link, &act_type)
+    Box::new(
+        ActivityEndEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .act_type(act_type)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn handle_act_start(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_act_start(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
     let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
-    Event::new_act_start(&person, &link, &act_type)
+    Box::new(
+        ActivityStartEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .act_type(act_type)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn handle_departure(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_departure(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
-    Event::new_departure(&person, &link, &mode)
+    let leg_mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    Box::new(
+        PersonDepartureEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .leg_mode(leg_mode)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn handle_arrival(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_arrival(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
-    Event::new_arrival(&person, &link, &mode)
+    let leg_mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    Box::new(
+        PersonArrivalEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .leg_mode(leg_mode)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn travelled(attr: Vec<OwnedAttribute>) -> Event {
+fn travelled(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let dist: f64 = attr.get(3).unwrap().value.parse().unwrap();
+    let distance: f64 = attr.get(3).unwrap().value.parse().unwrap();
     let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
-    Event::new_travelled(&person, dist, &mode)
+    Box::new(
+        TeleportationArrivalEventBuilder::default()
+            .time(time)
+            .person(person)
+            .mode(mode)
+            .distance(distance)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn handle_person_enters_veh(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_person_enters_veh(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
-    Event::new_person_enters_veh(&person, &vehicle)
+    Box::new(
+        PersonEntersVehicleEventBuilder::default()
+            .time(time)
+            .person(person)
+            .vehicle(vehicle)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn handle_person_leaves_veh(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_person_leaves_veh(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
-    Event::new_person_leaves_veh(&person, &vehicle)
+    Box::new(
+        PersonLeavesVehicleEventBuilder::default()
+            .time(time)
+            .person(person)
+            .vehicle(vehicle)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn handle_link_enter(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_link_enter(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
     let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
-    Event::new_link_enter(&link, &vehicle)
+    Box::new(
+        LinkEnterEventBuilder::default()
+            .time(time)
+            .link(link)
+            .vehicle(vehicle)
+            .build()
+            .unwrap(),
+    )
 }
 
-fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Event {
+fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
     let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
     let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
-    Event::new_link_leave(&link, &vehicle)
+    Box::new(
+        LinkLeaveEventBuilder::default()
+            .time(time)
+            .link(link)
+            .vehicle(vehicle)
+            .build()
+            .unwrap(),
+    )
 }

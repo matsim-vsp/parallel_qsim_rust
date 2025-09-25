@@ -2,14 +2,14 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use rust_qsim::generated::events::Event;
+use rust_qsim::simulation::events::EventsPublisher;
 use rust_qsim::simulation::io::proto::xml_events::{XmlEventsReader, XmlEventsWriter};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::messaging::events::EventsPublisher;
 use tracing::info;
 
 struct StatefulReader {
     reader: XmlEventsReader,
-    curr_time_step: (u32, Option<Event>),
+    curr_time_step: u32,
 }
 
 #[derive(Parser, Debug)]
@@ -31,18 +31,16 @@ fn main() {
         let reader = XmlEventsReader::new(&file_path);
         readers.push(StatefulReader {
             reader,
-            curr_time_step: (0, None),
+            curr_time_step: 0,
         });
     }
 
     let mut publisher = EventsPublisher::new();
-    publisher.add_subscriber(Box::new(XmlEventsWriter::new(
-        &PathBuf::from(&args.path).join("events.xml"),
-    )));
+    XmlEventsWriter::register(PathBuf::from(&args.path).join("events.xml"))(&mut publisher);
 
     info!("Starting to read events files.");
     while !readers.is_empty() {
-        readers.sort_by(|a, b| a.curr_time_step.0.cmp(&b.curr_time_step.0));
+        readers.sort_by(|a, b| a.curr_time_step.cmp(&b.curr_time_step));
         let reader = readers.first_mut().unwrap();
         match reader.reader.read_next() {
             None => {
@@ -52,8 +50,8 @@ fn main() {
                 if time % 3600 == 0 {
                     info!("Starting time step: {time}");
                 }
-                publisher.publish_event(time, &event);
-                reader.curr_time_step = (time, Some(event));
+                publisher.publish_event(event.as_ref());
+                reader.curr_time_step = event.time();
             }
         }
     }

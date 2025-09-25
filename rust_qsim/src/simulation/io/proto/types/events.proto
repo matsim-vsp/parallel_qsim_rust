@@ -1,9 +1,16 @@
 syntax = "proto3";
 package events;
 
+import "simulation/io/proto/types/general.proto";
+
 message TimeStep {
   uint32 time = 1;
   bytes data = 2;
+}
+
+message MyEvent {
+  string type = 1;
+  map<string, general.AttributeValue> attributes = 2;
 }
 
 message Event {
