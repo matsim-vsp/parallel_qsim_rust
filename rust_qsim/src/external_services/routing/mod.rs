@@ -128,7 +128,7 @@ impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFact
 }
 
 impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
-    async fn on_request(&mut self, internal_req: InternalRoutingRequest) {
+    fn on_request(&mut self, internal_req: InternalRoutingRequest) {
         let mut client = self.next_client();
 
         tokio::spawn(async move {
@@ -143,6 +143,17 @@ impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
 
             let _ = internal_req.response_tx.send(internal_res);
         });
+    }
+
+    fn on_shutdown(&mut self) {
+        for client in &mut self.client {
+            let mut c = client.clone();
+            tokio::spawn(async move {
+                c.shutdown(())
+                    .await
+                    .expect("Error while shutting down routing service");
+            });
+        }
     }
 }
 

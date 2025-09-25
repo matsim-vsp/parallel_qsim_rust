@@ -172,7 +172,7 @@ struct MockRoutingAdapter {
 }
 
 impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
-    async fn on_request(&mut self, req: InternalRoutingRequest) {
+    fn on_request(&mut self, req: InternalRoutingRequest) {
         self.requests.push(req.payload);
         req.response_tx
             .send(InternalRoutingResponse::default())

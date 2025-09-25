@@ -43,7 +43,7 @@ pub trait RequestAdapterFactory<T: RequestToAdapter>: Send {
 /// This trait defines the behavior of a request adapter. A request adapter processes incoming requests of type T.
 /// One request adapter instance is run in a separate thread with its own tokio runtime. It might use multiple threads internally for the tokio runtime.
 pub trait RequestAdapter<T: RequestToAdapter> {
-    fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
+    fn on_request(&mut self, req: T);
     fn on_shutdown(&mut self) {
         info!("Adapter is shutting down");
     }
@@ -102,13 +102,13 @@ impl AsyncExecutor {
                     _ = shutdown.changed() => {
                         if *shutdown.borrow() {
                             info!("Shutdown signal received, exiting adapter.");
-                            // req_adapter.on_shutdown();
+                            req_adapter.on_shutdown();
                             break;
                         }
                     }
                     maybe_req = receiver.recv() => {
                         if let Some(req) = maybe_req {
-                            req_adapter.on_request(req).await;
+                            req_adapter.on_request(req);
                         }
                     }
                 }
@@ -191,14 +191,17 @@ mod tests {
     struct MockRequestAdapter(Arc<Mutex<usize>>);
 
     impl RequestAdapter<MockRequest> for MockRequestAdapter {
-        async fn on_request(&mut self, req: MockRequest) {
-            println!("Mock handler received request: {}", req.payload);
-            {
-                let mut guard = self.0.lock().unwrap();
-                *guard += 1;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await; // Simulate some processing delay
-            req.response_tx.send(String::from("Ok")).unwrap();
+        fn on_request(&mut self, req: MockRequest) {
+            let arc = self.0.clone();
+            tokio::spawn(async move {
+                {
+                    let mut guard = arc.lock().unwrap();
+                    *guard += 1;
+                }
+                println!("Mock handler received request: {}", req.payload);
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await; // Simulate some processing delay
+                req.response_tx.send(String::from("Ok")).unwrap();
+            });
         }
     }
 
