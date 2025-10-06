@@ -128,14 +128,14 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" mode=\"{}\" distance=\"{}\" route=\"{}\" line=\"{}\"/>\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" distance=\"{}\" mode=\"{}\" line=\"{}\" route=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
-                ev.mode,
                 ev.distance,
-                ev.route,
-                ev.line
+                ev.mode,
+                ev.line,
+                ev.route
             )
         } else {
             panic!("Unknown event type");

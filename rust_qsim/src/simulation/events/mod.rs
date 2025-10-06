@@ -539,7 +539,7 @@ pub struct PtTeleportationArrivalEvent {
 }
 
 impl PtTeleportationArrivalEvent {
-    pub const TYPE: &'static str = "travelledWithPt";
+    pub const TYPE: &'static str = "travelled with pt";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.attributes["type"].as_string().eq(Self::TYPE));
@@ -548,7 +548,7 @@ impl PtTeleportationArrivalEvent {
             .person(Id::create(&event.attributes["person"].as_string()))
             .distance(event.attributes["distance"].as_string().parse().unwrap())
             .mode(Id::create(&event.attributes["mode"].as_string()))
-            .route(Id::create(&event.attributes["route"].as_string()))
+            .route(Id::create(&event.attributes["rout"].as_string()))
             .line(Id::create(&event.attributes["line"].as_string()))
             .attributes(attrs)
             .build()
