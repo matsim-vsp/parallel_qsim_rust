@@ -201,7 +201,7 @@ impl EndTime for PlanBasedSimulationLogic {
             .unwrap()
         {
             InternalPlanElement::Activity(a) => a.cmp_end_time(now),
-            InternalPlanElement::Leg(l) => l.trav_time.unwrap() + now,
+            InternalPlanElement::Leg(l) => l.travel_time() + now,
         }
     }
 }
