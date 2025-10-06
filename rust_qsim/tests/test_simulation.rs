@@ -207,9 +207,3 @@ impl TestSubscriber {
         assert_eq!(expected_value, &event);
     }
 }
-
-impl TestSubscriber {
-    fn on_event(&mut self, event: &dyn EventTrait) {
-        self.receive_event_string(XmlEventsWriter::event_2_string(event));
-    }
-}

@@ -641,7 +641,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = Default::default();
         let global_net = Network::from_file(
@@ -675,7 +675,7 @@ mod tests {
         assert_eq!(100, counter);
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = Default::default();
         let mut global_net = Network::from_file(
@@ -720,7 +720,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_stuck_threshold() {
         let mut publisher = Default::default();
         let mut global_net = Network::from_file(

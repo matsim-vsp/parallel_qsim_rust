@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use clap::Parser;
 use tracing::info;
 
-use rust_qsim::generated::events::{Event, MyEvent};
+use rust_qsim::generated::events::MyEvent;
 use rust_qsim::simulation::events::*;
 use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
 use rust_qsim::simulation::id;

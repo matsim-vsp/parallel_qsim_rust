@@ -48,14 +48,10 @@ impl XmlEventsWriter {
 
     pub fn event_2_string(e: &dyn EventTrait) -> String {
         if let Some(ev) = e.as_any().downcast_ref::<GeneralEvent>() {
-            format!(
-                "<event time=\"{}\" type=\"{}\" attributes=\"...\" />\n",
-                ev.time(),
-                ev.type_()
-            )
+            format!("<event time=\"{}\" type=\"{}\"/>\n", ev.time(), ev.type_())
         } else if let Some(ev) = e.as_any().downcast_ref::<ActivityStartEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
@@ -64,7 +60,7 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<ActivityEndEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
@@ -73,7 +69,7 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<LinkEnterEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.link,
@@ -81,7 +77,7 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<LinkLeaveEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.link,
@@ -89,7 +85,7 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
@@ -97,7 +93,7 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
@@ -105,7 +101,7 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonDepartureEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
@@ -114,7 +110,7 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonArrivalEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
@@ -123,16 +119,16 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<TeleportationArrivalEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" mode=\"{}\" distance=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" distance=\"{}\" mode=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
-                ev.mode,
-                ev.distance
+                ev.distance,
+                ev.mode
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" mode=\"{}\" distance=\"{}\" route=\"{}\" line=\"{}\" attributes=\"...\" />\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" mode=\"{}\" distance=\"{}\" route=\"{}\" line=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,

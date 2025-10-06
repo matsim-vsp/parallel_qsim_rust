@@ -3,7 +3,7 @@ pub mod local_controller;
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
 use crate::simulation::events::{EventsPublisher, OnEventFnBuilder};
-use crate::simulation::io::proto::proto_events::{ProtoEventsReader, ProtoEventsWriter};
+use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::ScenarioPartitionBuilder;

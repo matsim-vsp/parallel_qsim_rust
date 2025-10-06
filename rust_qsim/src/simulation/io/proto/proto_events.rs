@@ -49,7 +49,7 @@ impl From<&ActivityStartEvent> for MyEvent {
             AttributeValue::from(value.link.external()),
         );
         attributes.insert(
-            "type".to_string(),
+            "act_type".to_string(),
             AttributeValue::from(value.act_type.external()),
         );
         MyEvent {
@@ -563,10 +563,12 @@ mod tests {
                 ),
             ];
             issued_events.append(&mut v);
-            for event in &issued_events {
-                writer.on_any(event.as_ref());
-            }
         }
+
+        for event in &issued_events {
+            writer.on_any(event.as_ref());
+        }
+
         writer.finish();
 
         let reader = ProtoEventsReader::from_file(&path);
@@ -580,9 +582,10 @@ mod tests {
             assert!(time > last_time_step);
             last_time_step = time;
 
-            assert_eq!(issued_events.len(), events.len());
-            for (i, expected_event) in issued_events.iter().enumerate() {
-                match_events(expected_event, events.get(i).unwrap());
+            assert_eq!(3, events.len());
+            for (i, event) in events.iter().enumerate() {
+                let index = ((time - start_time) * 3) as usize + i;
+                match_events(issued_events.get(index).unwrap(), event);
             }
         }
     }
@@ -597,11 +600,11 @@ mod tests {
 
     fn match_events(event: &Box<dyn EventTrait>, other: &MyEvent) {
         let type_ = event.type_();
-        type_ == other.r#type;
+        assert_eq!(type_, other.r#type);
 
         match type_ {
             GeneralEvent::TYPE => {
-                let typed_event = event.as_any().downcast_ref::<GeneralEvent>().unwrap();
+                let _typed_event = event.as_any().downcast_ref::<GeneralEvent>().unwrap();
             }
             ActivityStartEvent::TYPE => {
                 let typed_event = event.as_any().downcast_ref::<ActivityStartEvent>().unwrap();
@@ -615,7 +618,7 @@ mod tests {
                 );
                 assert_eq!(
                     typed_event.act_type.external(),
-                    other.attributes["type"].as_string()
+                    other.attributes["act_type"].as_string()
                 );
             }
             ActivityEndEvent::TYPE => {
@@ -630,7 +633,7 @@ mod tests {
                 );
                 assert_eq!(
                     typed_event.act_type.external(),
-                    other.attributes["type"].as_string()
+                    other.attributes["act_type"].as_string()
                 );
             }
             _ => panic!("wrong type"),

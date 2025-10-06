@@ -9,7 +9,6 @@ use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
-use tracing::info;
 
 pub trait EventTrait: Debug + Any {
     //This can't be a const, because traits with const fields are not dyn compatible.
@@ -23,14 +22,9 @@ type OnEventFn = dyn Fn(&dyn EventTrait) + 'static;
 
 pub type OnEventFnBuilder = dyn FnOnce(&mut EventsPublisher) + Send;
 
-pub struct EventsLogger {}
-
-impl EventsLogger {
-    fn receive_event(&mut self, event: &dyn EventTrait) {
-        info!("{event:?}");
-    }
-}
-
+/// The EventsPublisher holds call-backs for event processing. This might seem a bit odd
+/// (in particular in comparison to the Java implementation). The reason is that Rust has no reflection, and this
+/// architecture allows compile-time checking of the event types.
 #[derive(Default)]
 pub struct EventsPublisher {
     per_type: HashMap<TypeId, Vec<Rc<OnEventFn>>>,
@@ -50,8 +44,6 @@ impl Debug for EventsPublisher {
     }
 }
 
-/// EventsManager owns event handlers. Handlers are Trait objects, hence they have to be passed in a
-/// Box. On handle_event all handler's handle_event methods are called.
 impl EventsPublisher {
     pub fn new() -> Self {
         EventsPublisher {
@@ -79,6 +71,7 @@ impl EventsPublisher {
         }
     }
 
+    /// This function is used to register callbacks for specific event types.
     pub fn on<E, F>(&mut self, f: F)
     where
         E: EventTrait,
@@ -93,6 +86,7 @@ impl EventsPublisher {
         }));
     }
 
+    /// This function is used to register callbacks for all event types.
     pub fn on_any<F>(&mut self, f: F)
     where
         F: Fn(&dyn EventTrait) + 'static,
@@ -139,6 +133,7 @@ impl Clone for Box<dyn EventsWriter> {
 #[derive(Builder, Debug)]
 pub struct GeneralEvent {
     pub time: u32,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -176,11 +171,12 @@ pub struct ActivityStartEvent {
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
     pub act_type: Id<String>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
 impl ActivityStartEvent {
-    pub const TYPE: &'static str = "actStart";
+    pub const TYPE: &'static str = "actstart";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.attributes["type"].as_string().eq(Self::TYPE));
@@ -216,6 +212,7 @@ pub struct ActivityEndEvent {
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
     pub act_type: Id<String>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -255,6 +252,7 @@ pub struct LinkEnterEvent {
     pub time: u32,
     pub link: Id<Link>,
     pub vehicle: Id<InternalVehicle>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -293,6 +291,7 @@ pub struct LinkLeaveEvent {
     pub time: u32,
     pub link: Id<Link>,
     pub vehicle: Id<InternalVehicle>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -331,6 +330,7 @@ pub struct PersonEntersVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
     pub vehicle: Id<InternalVehicle>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -369,6 +369,7 @@ pub struct PersonLeavesVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
     pub vehicle: Id<InternalVehicle>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -408,6 +409,7 @@ pub struct PersonDepartureEvent {
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
     pub leg_mode: Id<String>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -448,6 +450,7 @@ pub struct PersonArrivalEvent {
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
     pub leg_mode: Id<String>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -488,6 +491,7 @@ pub struct TeleportationArrivalEvent {
     pub person: Id<InternalPerson>,
     pub mode: Id<String>,
     pub distance: f64,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 
@@ -530,6 +534,7 @@ pub struct PtTeleportationArrivalEvent {
     pub mode: Id<String>,
     pub route: Id<String>,
     pub line: Id<String>,
+    #[builder(default)]
     pub attributes: InternalAttributes,
 }
 

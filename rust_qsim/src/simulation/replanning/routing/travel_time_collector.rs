@@ -20,6 +20,7 @@ impl Default for TravelTimeCollector {
     }
 }
 
+#[allow(dead_code)]
 impl TravelTimeCollector {
     pub fn new() -> Self {
         TravelTimeCollector {
