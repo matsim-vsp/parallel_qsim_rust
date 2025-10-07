@@ -1,10 +1,10 @@
-use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WokeUpEvent,
 };
 use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
 
@@ -53,12 +53,13 @@ impl ActivityEngine {
         let mut res = Vec::with_capacity(end_after_wake_up.len() + end.len());
         for mut agent in end_after_wake_up.into_iter().chain(end.into_iter()) {
             self.comp_env.events_publisher_borrow_mut().publish_event(
-                now,
-                &Event::new_act_end(
-                    agent.id(),
-                    &agent.curr_act().link_id,
-                    &agent.curr_act().act_type,
-                ),
+                &ActivityEndEventBuilder::default()
+                    .time(now)
+                    .person(agent.id().clone())
+                    .link(agent.curr_act().link_id.clone())
+                    .act_type(agent.curr_act().act_type.clone())
+                    .build()
+                    .unwrap(),
             );
             ActivityEngine::inform_act_end(&mut agent, now);
             res.push(agent);
@@ -70,8 +71,13 @@ impl ActivityEngine {
         // emmit act start event
         let act = agent.agent.curr_act();
         self.comp_env.events_publisher_borrow_mut().publish_event(
-            now,
-            &Event::new_act_start(agent.agent.id(), &act.link_id, &act.act_type),
+            &ActivityStartEventBuilder::default()
+                .time(now)
+                .person(agent.agent.id().clone())
+                .link(act.link_id.clone())
+                .act_type(act.act_type.clone())
+                .build()
+                .unwrap(),
         );
         self.asleep_q.add(agent, now);
     }

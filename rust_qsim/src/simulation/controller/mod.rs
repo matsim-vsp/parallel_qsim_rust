@@ -2,19 +2,19 @@ pub mod local_controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
-use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
+use crate::simulation::events::{EventsPublisher, OnEventFnBuilder};
+use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::ScenarioPartitionBuilder;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
 use derive_builder::Builder;
+use derive_more::Debug;
 use nohash_hasher::IntMap;
 use std::any::Any;
 use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Barrier};
@@ -121,7 +121,8 @@ pub struct PartitionArguments<C: SimCommunicator> {
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
-    events_subscriber: Vec<Box<dyn EventsSubscriber + Send>>,
+    #[debug(skip)]
+    events_subscriber: Vec<Box<OnEventFnBuilder>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -172,26 +173,25 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 fn create_events(
     config: &Config,
     rank: u32,
-    additional_subscribers: Vec<Box<dyn EventsSubscriber + Send>>,
+    additional_subscribers: Vec<Box<OnEventFnBuilder>>,
 ) -> Rc<RefCell<EventsPublisher>> {
     let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
-    let events = Rc::new(RefCell::new(EventsPublisher::new()));
+    let mut events = EventsPublisher::new();
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
         let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
         info!("adding events writer with path: {events_path:?}");
-        events
-            .borrow_mut()
-            .add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+        ProtoEventsWriter::register(events_path)(&mut events)
     }
 
     for subscriber in additional_subscribers {
-        events.borrow_mut().add_subscriber(subscriber);
+        // events.borrow_mut().add_subscriber(subscriber);
+        subscriber(&mut events);
     }
 
-    events
+    Rc::new(RefCell::new(events))
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also

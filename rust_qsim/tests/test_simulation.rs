@@ -1,14 +1,12 @@
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use rust_qsim::external_services::AdapterHandle;
-use rust_qsim::generated::events::Event;
 use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
+use rust_qsim::simulation::events::{EventTrait, EventsPublisher, OnEventFnBuilder};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_qsim::simulation::messaging::events::EventsSubscriber;
 use rust_qsim::simulation::scenario::GlobalScenario;
-use std::any::Any;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -16,6 +14,10 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::thread::JoinHandle;
+
+// If not set here, import gets optimized away.
+#[allow(unused_imports)]
+use derive_more::Debug;
 
 #[derive(Debug, Builder)]
 #[builder(pattern = "owned")]
@@ -29,7 +31,8 @@ pub struct TestExecutor<'s> {
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
-    additional_subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+    #[debug(skip)]
+    additional_subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
     #[builder(default)]
     adapter_handles: Vec<AdapterHandle>,
     #[builder(default = "Arc::new(Barrier::new(1))")]
@@ -61,10 +64,10 @@ impl TestExecutor<'_> {
     fn create_test_sub_recv(
         &mut self,
     ) -> (
-        HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+        HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
         Option<ReceivingSubscriber>,
     ) {
-        let mut subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
+        let mut subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>> = HashMap::new();
 
         let receiver = self
             .expected_events
@@ -75,11 +78,10 @@ impl TestExecutor<'_> {
                 continue;
             }
 
-            let subscr = SendingSubscriber {
-                rank: c,
-                sender: receiver.as_ref().unwrap().channel.0.clone(),
-            };
-            let mut subscriber: Vec<Box<dyn EventsSubscriber + Send>> = vec![Box::new(subscr)];
+            let subscr =
+                SendingSubscriber::register(c, receiver.as_ref().unwrap().channel.0.clone());
+
+            let mut subscriber: Vec<Box<OnEventFnBuilder>> = vec![Box::new(subscr)];
             subscriber.append(
                 self.additional_subscribers
                     .get_mut(&c)
@@ -92,7 +94,7 @@ impl TestExecutor<'_> {
 
     fn run(
         &mut self,
-        subscribers: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+        subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
     ) -> IntMap<u32, JoinHandle<()>> {
         let scenario = GlobalScenario::build(self.config.clone());
 
@@ -105,16 +107,6 @@ impl TestExecutor<'_> {
             .unwrap();
 
         controller.run()
-    }
-}
-
-pub struct DummySubscriber {}
-
-impl EventsSubscriber for DummySubscriber {
-    fn receive_event(&mut self, _: u32, _: &Event) {}
-
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
     }
 }
 
@@ -134,16 +126,21 @@ struct SendingSubscriber {
     sender: Sender<String>,
 }
 
-impl EventsSubscriber for SendingSubscriber {
-    fn receive_event(&mut self, time: u32, event: &Event) {
-        let event_string = XmlEventsWriter::event_2_string(time, event);
+impl SendingSubscriber {
+    fn on_event(&self, event: &dyn EventTrait) {
+        let event_string = XmlEventsWriter::event_2_string(event);
         self.sender
             .send(event_string)
             .expect("Failed on sending event message!");
     }
 
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
+    pub fn register(rank: u32, sender: Sender<String>) -> Box<OnEventFnBuilder> {
+        let subscriber = Self { rank, sender };
+        Box::new(move |events: &mut EventsPublisher| {
+            events.on_any(move |e| {
+                subscriber.on_event(e);
+            });
+        })
     }
 }
 
@@ -208,15 +205,5 @@ impl TestSubscriber {
         let expected_value = self.expected_events.get(self.next_index).unwrap();
         self.next_index += 1;
         assert_eq!(expected_value, &event);
-    }
-}
-
-impl EventsSubscriber for TestSubscriber {
-    fn receive_event(&mut self, time: u32, event: &Event) {
-        self.receive_event_string(XmlEventsWriter::event_2_string(time, event));
-    }
-
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
     }
 }

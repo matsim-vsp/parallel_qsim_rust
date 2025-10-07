@@ -12,6 +12,7 @@ pub mod agents;
 pub mod config;
 pub mod controller;
 pub mod engines;
+pub mod events;
 pub mod id;
 pub mod io;
 pub mod logging;
@@ -97,10 +98,20 @@ impl From<IOAttributes> for InternalAttributes {
     }
 }
 
-impl From<HashMap<String, AttributeValue>> for InternalAttributes {
-    fn from(map: HashMap<String, AttributeValue>) -> Self {
+impl<T: Serialize> From<HashMap<String, T>> for InternalAttributes {
+    fn from(value: HashMap<String, T>) -> Self {
         let mut res = InternalAttributes::default();
-        for (key, value) in map {
+        for (key, value) in value {
+            res.insert(key, value);
+        }
+        res
+    }
+}
+
+impl From<&HashMap<String, AttributeValue>> for InternalAttributes {
+    fn from(value: &HashMap<String, AttributeValue>) -> Self {
+        let mut res = InternalAttributes::default();
+        for (key, value) in value {
             match value.r#type.as_ref().unwrap() {
                 Type::IntValue(i) => {
                     res.insert(key, i);

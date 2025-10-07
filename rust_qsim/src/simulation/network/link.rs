@@ -374,27 +374,27 @@ impl SplitInLink {
 
 #[cfg(test)]
 mod sim_link_tests {
-    use assert_approx_eq::assert_approx_eq;
-
     use crate::simulation::config;
     use crate::simulation::id::Id;
     use crate::simulation::network::link::{LocalLink, SimLink};
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils;
     use crate::test_utils::create_agent_without_route;
+    use assert_approx_eq::assert_approx_eq;
+    use macros::integration_test;
 
-    #[test]
+    #[integration_test]
     fn storage_cap_consumed() {
         let mut link = SimLink::Local(LocalLink::new(
-            Id::new_internal(1),
+            Id::create("0"),
             3600.,
             10.,
             3.,
             100.,
             7.5,
             &test_utils::config(),
-            Id::new_internal(1),
-            Id::new_internal(2),
+            Id::create("0"),
+            Id::create("0"),
         ));
         let agent = create_agent_without_route(1);
         let vehicle = InternalVehicle::new(1, 0, 10., 1.5, Some(agent));
@@ -405,18 +405,18 @@ mod sim_link_tests {
         assert_eq!(1.5, link.used_storage())
     }
 
-    #[test]
+    #[integration_test]
     fn storage_cap_released() {
         let mut link = SimLink::Local(LocalLink::new(
-            Id::new_internal(1),
+            Id::create("0"),
             3600.,
             10.,
             3.,
             100.,
             7.5,
             &test_utils::config(),
-            Id::new_internal(1),
-            Id::new_internal(2),
+            Id::create("0"),
+            Id::create("0"),
         ));
         let agent = create_agent_without_route(1);
         let vehicle = InternalVehicle::new(1, 0, 10., 1.5, Some(agent));
@@ -436,18 +436,18 @@ mod sim_link_tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn flow_cap_accumulates() {
         let mut link = SimLink::Local(LocalLink::new(
-            Id::new_internal(1),
+            Id::create("0"),
             360.,
             10.,
             3.,
             100.,
             7.5,
             &test_utils::config(),
-            Id::new_internal(1),
-            Id::new_internal(2),
+            Id::create("0"),
+            Id::create("0"),
         ));
 
         let agent1 = create_agent_without_route(1);
@@ -476,18 +476,18 @@ mod sim_link_tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn calculates_exit_time() {
         let mut link = SimLink::Local(LocalLink::new(
-            Id::new_internal(1),
+            Id::create("0"),
             3600.,
             10.,
             3.,
             100.,
             7.5,
             &test_utils::config(),
-            Id::new_internal(1),
-            Id::new_internal(2),
+            Id::create("0"),
+            Id::create("0"),
         ));
 
         let agent1 = create_agent_without_route(1);
@@ -504,20 +504,20 @@ mod sim_link_tests {
         assert!(link.offers_veh(10).is_some())
     }
 
-    #[test]
+    #[integration_test]
     fn fifo_ordering() {
         let id1 = 42;
         let id2 = 43;
         let mut link = SimLink::Local(LocalLink::new(
-            Id::new_internal(1),
+            Id::create("1"),
             1.,
             1.,
             1.,
             15.0,
             10.0,
             &test_utils::config(),
-            Id::new_internal(0),
-            Id::new_internal(0),
+            Id::create("0"),
+            Id::create("0"),
         ));
 
         let agent1 = create_agent_without_route(1);
@@ -631,8 +631,9 @@ mod out_link_tests {
     use crate::simulation::network::storage_cap::StorageCap;
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent_without_route;
+    use macros::integration_test;
 
-    #[test]
+    #[integration_test]
     fn push_and_take() {
         let mut link = SimLink::Out(SplitOutLink {
             id: Id::new_internal(0),
@@ -670,7 +671,7 @@ mod out_link_tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn update_storage_caps() {
         // set up the link, so that we consume two units of storage.
         let mut cap = StorageCap::new(100., 1., 1., 1., 1.);

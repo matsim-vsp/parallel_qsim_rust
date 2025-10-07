@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 pub mod proto;
-pub mod proto_events;
 pub mod xml;
 
 pub fn resolve_path(config_path: &Option<PathBuf>, file_path: &PathBuf) -> PathBuf {

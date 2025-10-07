@@ -1,12 +1,13 @@
 use crate::simulation::config::{CommandLineArgs, Config};
 use crate::simulation::controller::{ExternalServices, PartitionArgumentsBuilder};
+use crate::simulation::events::OnEventFnBuilder;
 use crate::simulation::logging::init_std_out_logging_thread_local;
-use crate::simulation::messaging::events::EventsSubscriber;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::scenario::{GlobalScenario, ScenarioPartitionBuilder};
 use crate::simulation::{controller, io};
 use clap::Parser;
 use derive_builder::Builder;
+use derive_more::Debug;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::sync::{Arc, Barrier};
@@ -19,7 +20,8 @@ use tracing::info;
 pub struct LocalController {
     global_scenario: GlobalScenario,
     #[builder(default)]
-    events_subscriber_per_partition: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>>,
+    #[debug(skip)]
+    events_subscriber_per_partition: HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
     #[builder(default)]
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,

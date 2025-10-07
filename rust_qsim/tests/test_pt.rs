@@ -4,8 +4,8 @@ use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::ExternalServices;
+use rust_qsim::simulation::events::OnEventFnBuilder;
 use rust_qsim::simulation::id::store_to_file;
-use rust_qsim::simulation::messaging::events::EventsSubscriber;
 use rust_qsim::simulation::network::Network;
 use rust_qsim::simulation::population::Population;
 use rust_qsim::simulation::pt::TransitSchedule;
@@ -77,7 +77,7 @@ fn test_pt_adaptive() {
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    let subs: HashMap<u32, Vec<Box<dyn EventsSubscriber + Send>>> = HashMap::new();
+    let subs: HashMap<u32, Vec<Box<OnEventFnBuilder>>> = HashMap::new();
     // subs.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
 
     TestExecutorBuilder::default()

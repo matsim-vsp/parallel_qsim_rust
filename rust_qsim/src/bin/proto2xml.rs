@@ -4,16 +4,17 @@ use std::path::PathBuf;
 use clap::Parser;
 use tracing::info;
 
-use rust_qsim::generated::events::Event;
+use rust_qsim::generated::events::MyEvent;
+use rust_qsim::simulation::events::*;
+use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
 use rust_qsim::simulation::id;
+use rust_qsim::simulation::io::proto::proto_events::ProtoEventsReader;
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_qsim::simulation::io::proto_events::EventsReader;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::messaging::events::EventsPublisher;
 
 struct StatefulReader<R: Read + Seek> {
-    reader: EventsReader<R>,
-    curr_time_step: (u32, Vec<Event>),
+    reader: ProtoEventsReader<R>,
+    curr_time_step: (u32, Vec<MyEvent>),
 }
 
 impl<R: Read + Seek> StatefulReader<R> {
@@ -42,7 +43,7 @@ fn main() {
         let file_string = format!("{}events.{i}.binpb", args.path);
         info!("\t {}", file_string);
         let file_path = PathBuf::from(file_string);
-        let reader = EventsReader::from_file(&file_path);
+        let reader = ProtoEventsReader::from_file(&file_path);
         let wrapper = StatefulReader {
             reader,
             curr_time_step: (0, Vec::new()),
@@ -50,9 +51,12 @@ fn main() {
         readers.push(wrapper);
     }
     let output_file_string = format!("{}events.xml.gz", args.path);
+
     let output_file_path = PathBuf::from(output_file_string);
+    let register_xml_writer = XmlEventsWriter::register(output_file_path);
+
     let mut publisher = EventsPublisher::new();
-    publisher.add_subscriber(Box::new(XmlEventsWriter::new(&output_file_path)));
+    register_xml_writer(&mut publisher);
 
     while !readers.is_empty() {
         readers.sort_by(|a, b| a.curr_time_step.0.cmp(&b.curr_time_step.0));
@@ -75,9 +79,25 @@ fn main() {
     info!("Finished writing to xml-file.")
 }
 
-fn process_events(time: u32, events: &Vec<Event>, publisher: &mut EventsPublisher) {
-    for event in events {
-        publisher.publish_event(time, event);
+#[rustfmt::skip]
+fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
+    for proto_event in events {
+        let type_ = proto_event.attributes["type"].as_string();
+        let internal_event: Box<dyn EventTrait> = match type_.as_str() {
+            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(proto_event, time)),
+            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
+            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
+            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
+            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(proto_event, time)),
+            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(proto_event, time)),
+            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(proto_event, time)),
+            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(proto_event, time)),
+            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(proto_event, time)),
+            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(proto_event, time)),
+            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
+            _ => panic!("Unknown event type: {:?}", type_),
+        };
+        publisher.publish_event(internal_event.as_ref());
     }
 }
 
