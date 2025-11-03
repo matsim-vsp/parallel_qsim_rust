@@ -8,6 +8,7 @@ use std::io::Cursor;
 
 // Network and Events file paths
 const NETWORK_FILE: &str = include_str!("assets/equil-network.xml");
+const VEHICLES_FILE: &str = include_str!("assets/equil-vehicles.xml");
 const EVENTS_FILE: &[u8] = include_bytes!("assets/events.0.binpb");
 
 // Defines how much the network coordinates are scaled down for visualization
@@ -31,6 +32,8 @@ struct Link {
     id: i32, // link id
     from_id: i32, // start node id
     to_id: i32,   // end node id
+    #[allow(dead_code)]
+    freespeed: f32, // free flow speed on link
 }
 
 // defines all trips and the first start time of all trips
@@ -42,6 +45,7 @@ struct AllTrips {
 
 // Defines a trip
 // TODO: I think this shoulbe be renames. because a trip contains usually multiple links.
+// rename to TraversedLink?
 #[derive(Clone)]
 struct Trip {
     link_id: i32,    // link id
@@ -61,6 +65,22 @@ struct SimulationClock {
 struct NetworkData {
     node_positions: HashMap<i32, Vec2>,       // node id -> position
     link_endpoints: HashMap<i32, (i32, i32)>, // link id -> (from node id, to node id)
+    link_freespeed: HashMap<i32, f32>,        // link id -> freespeed
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+struct Vehicle {
+    #[allow(dead_code)]
+    id: String,
+    #[allow(dead_code)]
+    maximum_velocity: f32,
+}
+
+#[derive(Resource, Default)]
+struct VehiclesData {
+    #[allow(dead_code)]
+    vehicles: HashMap<String, Vehicle>,
 }
 
 // This method reads all events from the event file
@@ -137,6 +157,8 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
     clock.time += time.delta_secs() * TIME_SCALE;
 }
 
+// TODO: Check what happen if i use two clocks e.g. or to networks (two resources)
+// two ressources point tzo the same data and modify the data (+1 and -1) and check what happens
 fn main() {
     // read all events
     let events = read_events();
@@ -162,12 +184,16 @@ fn main() {
             }),
             PanCamPlugin::default(),
         ))
-        .add_systems(Startup, (read_and_parse_network, setup).chain())
+        .add_systems(
+            Startup,
+            (read_and_parse_network, read_and_parse_vehicles, setup).chain(),
+        )
         .add_systems(Update, (simulation_time, draw_network))
         .run();
 }
 
 // This method reads and parses the network XML file.
+// Reüplace with protobuf instwad of xml
 fn read_and_parse_network(mut commands: Commands) {
     let mut reader = Reader::from_str(NETWORK_FILE);
     reader.config_mut().trim_text(true);
@@ -205,20 +231,28 @@ fn read_and_parse_network(mut commands: Commands) {
                 let mut id: i32 = 0;
                 let mut from_id: i32 = 0;
                 let mut to_id: i32 = 0;
+                let mut freespeed: f32 = 0.0;
 
                 for a in e.attributes().flatten() {
                     match a.key.as_ref() {
                         b"id" => id = a.unescape_value().unwrap().parse().unwrap(),
                         b"from" => from_id = a.unescape_value().unwrap().parse().unwrap(),
                         b"to" => to_id = a.unescape_value().unwrap().parse().unwrap(),
+                        b"freespeed" => freespeed = a.unescape_value().unwrap().parse().unwrap(),
                         _ => {}
                     }
                 }
 
                 // create a new link entity for bevy
-                commands.spawn(Link { id, from_id, to_id });
+                commands.spawn(Link {
+                    id,
+                    from_id,
+                    to_id,
+                    freespeed,
+                });
                 // store the link endpoints in the network data
                 network.link_endpoints.insert(id, (from_id, to_id));
+                network.link_freespeed.insert(id, freespeed);
             }
 
             Ok(Event::Eof) => break,
@@ -229,6 +263,97 @@ fn read_and_parse_network(mut commands: Commands) {
     }
 
     commands.insert_resource(network);
+}
+
+fn read_and_parse_vehicles(mut commands: Commands) {
+    let mut reader = Reader::from_str(VEHICLES_FILE);
+    reader.config_mut().trim_text(true);
+    let mut buf = Vec::new();
+    let mut vehicles: HashMap<String, Vehicle> = HashMap::new();
+    let mut current_vehicle_id: Option<String> = None;
+    let mut pending_velocity_vehicle: Option<String> = None;
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(e)) if e.name().as_ref() == b"vehicleType" => {
+                let mut vehicle_id = None;
+                for a in e.attributes().flatten() {
+                    if a.key.as_ref() == b"id" {
+                        vehicle_id = Some(a.unescape_value().unwrap().into_owned());
+                    }
+                }
+                current_vehicle_id = vehicle_id;
+            }
+            Ok(Event::End(e)) if e.name().as_ref() == b"vehicleType" => {
+                current_vehicle_id = None;
+            }
+            Ok(Event::Empty(e)) if e.name().as_ref() == b"maximumVelocity" => {
+                if let Some(vehicle_id) = current_vehicle_id.as_ref() {
+                    let mut velocity: Option<f32> = None;
+                    for a in e.attributes().flatten() {
+                        if a.key.as_ref() == b"meterPerSecond" {
+                            velocity = Some(a.unescape_value().unwrap().parse().unwrap());
+                        }
+                    }
+                    if let Some(speed) = velocity {
+                        vehicles.insert(
+                            vehicle_id.clone(),
+                            Vehicle {
+                                id: vehicle_id.clone(),
+                                maximum_velocity: speed,
+                            },
+                        );
+                    }
+                }
+            }
+            Ok(Event::Start(e)) if e.name().as_ref() == b"maximumVelocity" => {
+                pending_velocity_vehicle = current_vehicle_id.clone();
+                if let Some(vehicle_id) = pending_velocity_vehicle.as_ref() {
+                    let mut velocity: Option<f32> = None;
+                    for a in e.attributes().flatten() {
+                        if a.key.as_ref() == b"meterPerSecond" {
+                            velocity = Some(a.unescape_value().unwrap().parse().unwrap());
+                        }
+                    }
+                    if let Some(speed) = velocity {
+                        vehicles.insert(
+                            vehicle_id.clone(),
+                            Vehicle {
+                                id: vehicle_id.clone(),
+                                maximum_velocity: speed,
+                            },
+                        );
+                        pending_velocity_vehicle = None;
+                    }
+                }
+            }
+            Ok(Event::Text(e)) => {
+                if let Some(vehicle_id) = pending_velocity_vehicle.as_ref() {
+                    if let Ok(value) = e.unescape() {
+                        if let Ok(speed) = value.parse::<f32>() {
+                            vehicles.insert(
+                                vehicle_id.clone(),
+                                Vehicle {
+                                    id: vehicle_id.clone(),
+                                    maximum_velocity: speed,
+                                },
+                            );
+                            pending_velocity_vehicle = None;
+                        }
+                    }
+                }
+            }
+            Ok(Event::End(e)) if e.name().as_ref() == b"maximumVelocity" => {
+                pending_velocity_vehicle = None;
+            }
+            Ok(Event::Eof) => break,
+            Err(e) => panic!("XML error while parsing vehicles: {e:?}"),
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    commands.insert_resource(VehiclesData { vehicles });
 }
 
 // creates the camera for visualization
@@ -303,3 +428,6 @@ fn draw_network(
         }
     }
 }
+
+// TODO: Next possiblöe steps
+//
