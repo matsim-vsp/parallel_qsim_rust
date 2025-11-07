@@ -268,7 +268,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn test_activity_engine_end() {
         let plan = create_plan();
 

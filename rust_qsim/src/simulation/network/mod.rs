@@ -212,7 +212,7 @@ impl From<crate::generated::network::Network> for Network {
         }
         for wl in &value.links {
             let modes: IntSet<Id<String>> =
-                wl.modes.iter().map(|id| Id::get_from_ext(&id)).collect();
+                wl.modes.iter().map(|id| Id::get_from_ext(id)).collect();
 
             let link = Link::new(
                 Id::get_from_ext(&wl.id),

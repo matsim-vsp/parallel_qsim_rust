@@ -1,7 +1,8 @@
 use crate::simulation::config::Config;
 use derive_builder::Builder;
+use futures::future::join_all;
 use std::fmt::Debug;
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
 use tokio::sync::mpsc;
@@ -42,8 +43,15 @@ pub trait RequestAdapterFactory<T: RequestToAdapter>: Send {
 
 /// This trait defines the behavior of a request adapter. A request adapter processes incoming requests of type T.
 /// One request adapter instance is run in a separate thread with its own tokio runtime. It might use multiple threads internally for the tokio runtime.
+///
+/// Design thoughts:
+/// - This trait does not depend on async/await directly to allow for more flexibility in implementations.
+///   I.e. it should allow sync implementations which should not have dependencies on async concepts.
+/// - The on_request/on_shutdown method can spawn async tasks internally if needed.
 pub trait RequestAdapter<T: RequestToAdapter> {
     fn on_request(&mut self, req: T);
+
+    // This doesn't have the return value Vec<tokio::task::JoinHandle<()>> on purpose. See above design thoughts.
     fn on_shutdown(&mut self) {
         info!("Adapter is shutting down");
     }
@@ -53,6 +61,8 @@ pub trait RequestAdapter<T: RequestToAdapter> {
 pub struct AsyncExecutor {
     worker_threads: u32,
     barrier: Arc<Barrier>,
+    // This field holds shutdown handles and will be filled if shutdown is called.
+    shutdown_handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 impl AsyncExecutor {
@@ -113,6 +123,22 @@ impl AsyncExecutor {
                     }
                 }
             }
+            // destroy the mutex lock and join all tasks spawned by the adapter
+            // Needing this block to drop the guard explicitly: https://rust-lang.github.io/rust-clippy/master/index.html#await_holding_lock
+            let vec;
+            {
+                let mut guard = self.shutdown_handles.lock().unwrap();
+                vec = std::mem::take(&mut *guard);
+            }
+
+            // If we don't wait here, the runtime will exit before the shutdown tasks are joined.
+            for r in join_all(vec).await {
+                if let Err(e) = r {
+                    eprintln!("task failed: {e}");
+                }
+            }
+
+            info!("All shutdown tasks finished, exiting adapter.");
         })
     }
 
@@ -130,6 +156,7 @@ impl AsyncExecutor {
         Self {
             worker_threads,
             barrier,
+            shutdown_handles: Arc::new(Mutex::new(vec![])),
         }
     }
 
@@ -137,7 +164,12 @@ impl AsyncExecutor {
         Self {
             worker_threads: config.computational_setup().adapter_worker_threads,
             barrier,
+            shutdown_handles: Arc::new(Mutex::new(vec![])),
         }
+    }
+
+    pub fn shutdown_handles(&self) -> Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>> {
+        self.shutdown_handles.clone()
     }
 }
 

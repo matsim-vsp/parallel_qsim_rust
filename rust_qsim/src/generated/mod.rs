@@ -234,7 +234,7 @@ impl Serialize for AttributeValue {
     {
         match self.r#type.as_ref().unwrap() {
             Type::IntValue(i) => serializer.serialize_i64(*i),
-            Type::StringValue(s) => serializer.serialize_str(&s),
+            Type::StringValue(s) => serializer.serialize_str(s),
             Type::DoubleValue(d) => serializer.serialize_f64(*d),
             Type::BoolValue(b) => serializer.serialize_bool(*b),
             _ => Err(S::Error::custom("Unsupported type")),

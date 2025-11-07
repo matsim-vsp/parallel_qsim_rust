@@ -69,8 +69,11 @@ fn test_pt_adaptive() {
 
     let executor = AsyncExecutor::from_config(&config, global_barrier.clone());
 
-    let routing_factory =
-        RoutingServiceAdapterFactory::new(vec!["http://localhost:50051"], config.clone());
+    let routing_factory = RoutingServiceAdapterFactory::new(
+        vec!["http://localhost:50051"],
+        config.clone(),
+        executor.shutdown_handles(),
+    );
 
     let (handle, send, shutdown) = executor.spawn_thread("routing_adapter", routing_factory);
 

@@ -53,7 +53,7 @@ impl TravelTimeCollector {
     }
 
     fn get_travel_time_of_link(&self, link: &Id<Link>) -> Option<u32> {
-        match self.travel_times_by_link.get(&link) {
+        match self.travel_times_by_link.get(link) {
             None => None,
             Some(travel_times) => {
                 let sum: u32 = travel_times.iter().sum();

@@ -15,6 +15,7 @@ message Request {
   string to_link_id = 3;
   string mode = 4;
   uint32 departure_time = 5;
+  uint32 now = 6;
 }
 
 message Response {

@@ -27,9 +27,12 @@ fn main() {
     let total_thread_count = config.partitioning().num_parts + 1;
     let barrier = Arc::new(Barrier::new(total_thread_count as usize));
 
-    let factory = RoutingServiceAdapterFactory::new(vec![&args.router_ip], config.clone());
-
     let executor = AsyncExecutor::from_config(&config, barrier.clone());
+    let factory = RoutingServiceAdapterFactory::new(
+        vec![&args.router_ip],
+        config.clone(),
+        executor.shutdown_handles(),
+    );
 
     let (router_handle, send, send_sd) = executor.spawn_thread("router", factory);
 

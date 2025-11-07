@@ -198,10 +198,7 @@ impl IdStore<'_> {
     }
 
     fn create_id_with_type_id(&self, id: &str, type_id: u64) -> Arc<UntypedId> {
-        let type_mapping = self
-            .mapping
-            .entry(type_id)
-            .or_insert_with(|| DashMap::new());
+        let type_mapping = self.mapping.entry(type_id).or_default();
 
         // First check if the ID already exists
         if let Some(internal) = type_mapping.get(id) {
