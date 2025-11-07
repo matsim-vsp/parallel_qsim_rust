@@ -112,6 +112,8 @@ conda activate your_env_name
 conda install libclang llvmdev
 ```
 
+Remember to pass the login at the beginning of SLURM scripts: `#!/bin/bash --login`.
+
 ##### Load dependencies
 
 The HLRN cluster has **some** dependencies installed. They need to be enabled via the module system:
@@ -175,7 +177,9 @@ cargo test -- --test-threads=1
 
 To have immediate output add `--nocapture` to the command.
 
-Note (Sep 205): The `--test-threads=1` option is used currently to ensure that the global ID store does not get overwritten by multiple parallel test threads. This will eventually be refined to allow all read-only tests to run in parallel and forcing sequencial order only for read-write tests.
+Note (Sep 205): The `--test-threads=1` option is used currently to ensure that the global ID store does not get
+overwritten by multiple parallel test threads. This will eventually be refined to allow all read-only tests to run in
+parallel and forcing sequencial order only for read-write tests.
 
 ## Run locally (multithreaded)
 

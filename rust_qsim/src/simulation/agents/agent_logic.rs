@@ -269,9 +269,9 @@ impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
     fn notify_event(&mut self, mut event: &mut AgentEvent, now: u32) {
         match &mut event {
             AgentEvent::WokeUp(w) => {
-                self.call_router(w.comp_env, w.end_time, now);
+                self.react_to_woke_up(w.comp_env, w.end_time, now);
             }
-            AgentEvent::ActivityFinished() => self.replace_route(),
+            AgentEvent::ActivityFinished() => self.replace_route(now),
             _ => {}
         }
         self.delegate.notify_event(event, now);
@@ -286,7 +286,7 @@ impl AdaptivePlanBasedSimulationLogic {
         }
     }
 
-    fn call_router(
+    fn react_to_woke_up(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
         departure_time: u32,
@@ -310,6 +310,16 @@ impl AdaptivePlanBasedSimulationLogic {
             return;
         }
 
+        self.call_router(comp_env, departure_time, now);
+    }
+
+    #[tracing::instrument(level = "trace", skip(comp_env), fields(sim_time=now))]
+    fn call_router(
+        &mut self,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        departure_time: u32,
+        now: u32,
+    ) {
         let (send, recv) = tokio::sync::oneshot::channel();
 
         let trip = find_trip_starting_at_activity_default(
@@ -359,21 +369,29 @@ impl AdaptivePlanBasedSimulationLogic {
         self.route_receiver = Some(recv);
     }
 
-    fn replace_route(&mut self) {
+    #[tracing::instrument(level = "trace", fields(sim_time = _now))]
+    fn replace_route(&mut self, _now: u32) {
         if self.route_receiver.is_none() {
             // No route request in progress, nothing to replace.
             return;
         }
 
+        let response = self.blocking_recv(_now);
+        self.replace_next_trip(response, _now);
+    }
+
+    #[tracing::instrument(level = "trace", fields(sim_time = _now))]
+    fn blocking_recv(&mut self, _now: u32) -> InternalRoutingResponse {
         let receiver = self.route_receiver.take().unwrap();
         let response = receiver
             .blocking_recv()
             .expect("InternalRoutingRequest channel closed unexpectedly");
-        self.replace_next_trip(response);
+        response
     }
 
     /// Replaces the next trip in the plan with the legs and activities from the given InternalRoutingResponse.
-    fn replace_next_trip(&mut self, response: InternalRoutingResponse) {
+    #[tracing::instrument(level = "trace", skip(response), fields(sim_time = _now))]
+    fn replace_next_trip(&mut self, response: InternalRoutingResponse, _now: u32) {
         if response.0.is_empty() {
             // If the response is empty, we do not replace anything.
             return;
@@ -458,7 +476,7 @@ mod tests {
         // Replace the first trip (home->work)
         let response = InternalRoutingResponse(vec![InternalPlanElement::Leg(make_leg("bike"))]);
 
-        logic.replace_next_trip(response.clone());
+        logic.replace_next_trip(response.clone(), 0);
         let elements = &logic
             .delegate
             .basic_agent_delegate
