@@ -1,51 +1,20 @@
 use std::fmt::Debug;
+use std::fs;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
-use std::{env, fs};
 
-use serde_json::{json, Value};
 use tracing::field::Field;
 use tracing::span::Attributes;
-use tracing::{trace, Id, Level, Subscriber};
+use tracing::{Id, Level, Subscriber};
 use tracing_subscriber::field::Visit;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
 const DEFAULT_PERFORMANCE_INTERVAL: u32 = 900;
-
-pub fn measure_duration<Out, F: FnOnce() -> Out>(
-    now: Option<u32>,
-    key: &str,
-    metadata: Option<Value>,
-    f: F,
-) -> Out {
-    let start = Instant::now();
-    let res = f();
-    let duration = start.elapsed();
-
-    let interval = match env::var("RUST_Q_SIM_PERFORMANCE_TRACING_INTERVAL") {
-        Ok(interval) => interval
-            .parse::<u32>()
-            .unwrap_or(DEFAULT_PERFORMANCE_INTERVAL),
-        Err(_) => DEFAULT_PERFORMANCE_INTERVAL,
-    };
-
-    if now.is_none_or(|time| time % interval == 0) {
-        let event = json!({
-            "now": now,
-            "key": key,
-            "duration": duration,
-            "metadata": metadata
-        });
-
-        trace!(event = event.to_string());
-    }
-    res
-}
 
 pub struct SpanDurationToCSVLayer {
     writer: Arc<Mutex<BufWriter<File>>>,
@@ -143,8 +112,15 @@ impl SpanDurationToCSVLayer {
     }
 }
 
-/// Simple Layer implementation, which records the time elapsed between a a span being opened and being
+/// Simple Layer implementation, which records the time elapsed between a span being opened and being
 /// closed again. Once a span is closed, it writes the elapsed time into a csv journal
+///
+/// `Context` is managed by the `tracing_subscriber` library. All functions implemented here are called by the
+/// `instrument` macro.
+///
+/// `Attributes` store all custom fields. The `MetadataVisitor` is used to extract the field values.
+///
+/// `Span` stores information about the scope of an instrumentation call.
 impl<S> Layer<S> for SpanDurationToCSVLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
