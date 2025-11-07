@@ -14,8 +14,6 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
-const DEFAULT_PERFORMANCE_INTERVAL: u32 = 900;
-
 pub struct SpanDurationToCSVLayer {
     writer: Arc<Mutex<BufWriter<File>>>,
     level: Level,
