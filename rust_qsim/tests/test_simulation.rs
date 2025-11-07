@@ -176,15 +176,21 @@ impl TestSubscriber {
     /// 1. The expected events are in a human-readable format.
     /// 2. The expected events consist of the external ids.
     pub fn expected_events_from_file(events_file: &str) -> Vec<String> {
-        let reader: Box<dyn BufRead> = if events_file.starts_with("http://")
-            || events_file.starts_with("https://")
-        {
-            let resp = reqwest::blocking::get(events_file)
-                .unwrap_or_else(|e| panic!("Failed to fetch events URL {}: {}", events_file, e));
-            let text = resp.text().unwrap_or_else(|e| {
-                panic!("Failed to read response body from {}: {}", events_file, e)
-            });
-            Box::new(BufReader::new(std::io::Cursor::new(text)))
+        let reader: Box<dyn BufRead> = if rust_qsim::simulation::io::is_url(events_file) {
+            #[cfg(feature = "http")]
+            {
+                let resp = reqwest::blocking::get(events_file).unwrap_or_else(|e| {
+                    panic!("Failed to fetch events URL {}: {}", events_file, e)
+                });
+                let text = resp.text().unwrap_or_else(|e| {
+                    panic!("Failed to read response body from {}: {}", events_file, e)
+                });
+                Box::new(BufReader::new(std::io::Cursor::new(text)))
+            }
+            #[cfg(not(feature = "http"))]
+            {
+                panic!("HTTP support is not enabled. Please recompile with the `http` feature enabled.");
+            }
         } else {
             let file = File::open(events_file)
                 .unwrap_or_else(|e| panic!("Failed to open events file at {}: {}", events_file, e));

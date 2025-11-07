@@ -1,17 +1,19 @@
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use dyn_clone::DynClone;
+#[cfg(feature = "http")]
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{BufReader, Cursor};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tracing::{info, Level};
 
 use crate::simulation::config::VertexWeight::InLinkCapacity;
+use crate::simulation::io::is_url;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -66,26 +68,21 @@ impl From<CommandLineArgs> for Config {
 
 impl From<PathBuf> for Config {
     fn from(config_path: PathBuf) -> Self {
-        let source = config_path.to_string_lossy();
-        let reader: Box<dyn std::io::BufRead>;
+        let reader: Box<dyn BufRead>;
 
         // Check if the path is a URL
-        if let Ok(url) = Url::parse(&source) {
-            // Make a blocking request to get the config file and read the response body
-            let resp = reqwest::blocking::get(url).expect("Failed to fetch config URL");
-            let bytes = resp.bytes().expect("Failed to read response body").to_vec();
-            // Wrap the response bytes in a BufReader for YAML parsing
-            reader = Box::new(BufReader::new(Cursor::new(bytes)));
+        let path = &config_path.to_string_lossy();
+        if is_url(path) {
+            #[cfg(feature = "http")]
+            {
+                reader = Self::url_file_reader(path.parse().unwrap());
+            }
+            #[cfg(not(feature = "http"))]
+            {
+                panic!("HTTP support is not enabled. Please recompile with the `http` feature enabled.");
+            }
         } else {
-            // Open the config file from the local file system
-            let file = File::open(&config_path).unwrap_or_else(|e| {
-                panic!(
-                    "Failed to open config file at {:?}. Original error was {}",
-                    config_path, e
-                );
-            });
-            // Wrap the file in a BufReader for YAML parsing
-            reader = Box::new(BufReader::new(file));
+            reader = Self::local_file_reader(&config_path);
         }
 
         // Parse YAML into Config
@@ -312,6 +309,27 @@ impl Config {
 
     pub fn context(&self) -> &Option<PathBuf> {
         &self.context
+    }
+
+    fn local_file_reader(config_path: &PathBuf) -> Box<dyn BufRead> {
+        // Open the config file from the local file system
+        let file = File::open(&config_path).unwrap_or_else(|e| {
+            panic!(
+                "Failed to open config file at {:?}. Original error was {}",
+                config_path, e
+            );
+        });
+        // Wrap the file in a BufReader for YAML parsing
+        Box::new(BufReader::new(file))
+    }
+
+    #[cfg(feature = "http")]
+    fn url_file_reader(url: Url) -> Box<dyn BufRead> {
+        // Make a blocking request to get the config file and read the response body
+        let resp = reqwest::blocking::get(url).expect("Failed to fetch config URL");
+        let bytes = resp.bytes().expect("Failed to read response body").to_vec();
+        // Wrap the response bytes in a BufReader for YAML parsing
+        Box::new(BufReader::new(std::io::Cursor::new(bytes)))
     }
 }
 

@@ -15,3 +15,7 @@ pub fn resolve_path(config_path: &Option<PathBuf>, file_path: &PathBuf) -> PathB
         file_path.clone()
     }
 }
+
+pub fn is_url(path: &str) -> bool {
+    path.starts_with("http://") || path.starts_with("https://")
+}
