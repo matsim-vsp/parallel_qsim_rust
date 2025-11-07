@@ -1,6 +1,6 @@
 use std::fs;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 use flate2::Compression;
@@ -13,46 +13,30 @@ pub mod network;
 pub mod population;
 pub mod vehicles;
 
-use std::io::Cursor;
+use crate::simulation::io::is_url;
+use flate2::read::GzDecoder;
 
 pub fn read_from_file<T>(file_path: &str) -> T
 where
     T: DeserializeOwned,
 {
-    use flate2::read::GzDecoder;
     use quick_xml::de::Deserializer;
 
     // Check if it's a URL or local file and if it's gzipped or not
-    let is_url = file_path.starts_with("http://") || file_path.starts_with("https://");
     let is_gz = file_path.ends_with(".xml.gz");
 
     // Build one `BufRead` reader for all cases
-    let reader: Box<dyn std::io::BufRead> = if is_url {
-        // URL path
-        let resp = reqwest::blocking::get(file_path).expect("Could not fetch URL");
-        let bytes = resp.bytes().expect("Could not read response body");
-
-        if is_gz {
-            // URL .xml.gz
-            let gz = GzDecoder::new(Cursor::new(bytes));
-            Box::new(BufReader::new(gz))
-        } else {
-            // URL .xml
-            Box::new(BufReader::new(Cursor::new(bytes)))
+    let reader: Box<dyn BufRead> = if is_url(file_path) {
+        #[cfg(feature = "http")]
+        {
+            url_file_reader(file_path, is_gz)
+        }
+        #[cfg(not(feature = "http"))]
+        {
+            panic!("Tried to read from URL, but feature http is not enabled");
         }
     } else {
-        // Local file path
-        let file = File::open(file_path)
-            .unwrap_or_else(|_| panic!("xml_reader::read: Could not open file at {file_path}"));
-
-        if is_gz {
-            // Local .xml.gz
-            let gz = GzDecoder::new(file);
-            Box::new(BufReader::new(gz))
-        } else {
-            // Local plain .xml
-            Box::new(BufReader::new(file))
-        }
+        local_file_reader(file_path, is_gz)
     };
 
     // Parse the XML
@@ -62,6 +46,37 @@ where
         Err(err) => {
             panic!("Failed to deserialize XML:\n{err:#?}");
         }
+    }
+}
+
+fn local_file_reader(file_path: &str, is_gz: bool) -> Box<dyn BufRead> {
+    // Local file path
+    let file = File::open(file_path)
+        .unwrap_or_else(|_| panic!("xml_reader::read: Could not open file at {file_path}"));
+
+    if is_gz {
+        // Local .xml.gz
+        let gz = GzDecoder::new(file);
+        Box::new(BufReader::new(gz))
+    } else {
+        // Local plain .xml
+        Box::new(BufReader::new(file))
+    }
+}
+
+#[cfg(feature = "http")]
+fn url_file_reader(file_path: &str, is_gz: bool) -> Box<dyn BufRead> {
+    // URL path
+    let resp = reqwest::blocking::get(file_path).expect("Could not fetch URL");
+    let bytes = resp.bytes().expect("Could not read response body");
+
+    if is_gz {
+        // URL .xml.gz
+        let gz = GzDecoder::new(std::io::Cursor::new(bytes));
+        Box::new(BufReader::new(gz))
+    } else {
+        // URL .xml
+        Box::new(BufReader::new(std::io::Cursor::new(bytes)))
     }
 }
 
