@@ -11,6 +11,7 @@ use tracing::warn;
 pub mod agents;
 pub mod config;
 pub mod controller;
+pub mod data_structures;
 pub mod engines;
 pub mod events;
 pub mod id;

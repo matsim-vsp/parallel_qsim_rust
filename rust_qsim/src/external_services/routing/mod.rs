@@ -2,15 +2,17 @@ use crate::external_services::{RequestAdapter, RequestAdapterFactory, RequestToA
 use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
+use crate::simulation::data_structures::RingIter;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use itertools::{EitherOrBoth, Itertools};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot::Sender;
+use tokio::task::JoinHandle;
 use tracing::info;
 
 pub struct RoutingServiceAdapter {
-    client: Vec<RoutingServiceClient<tonic::transport::Channel>>,
-    counter: usize,
+    clients: RingIter<RoutingServiceClient<tonic::transport::Channel>>,
+    shutdown_handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 #[derive(Debug)]
@@ -42,6 +44,7 @@ impl From<InternalRoutingRequestPayload> for Request {
             to_link_id: req.to_link,
             mode: req.mode,
             departure_time: req.departure_time,
+            now: req.now,
         }
     }
 }
@@ -84,13 +87,19 @@ impl From<Response> for InternalRoutingResponse {
 pub struct RoutingServiceAdapterFactory {
     ip: Vec<String>,
     config: Arc<Config>,
+    shutdown_handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 impl RoutingServiceAdapterFactory {
-    pub fn new(ip: Vec<impl Into<String>>, config: Arc<Config>) -> Self {
+    pub fn new(
+        ip: Vec<impl Into<String>>,
+        config: Arc<Config>,
+        shutdown_handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+    ) -> Self {
         Self {
             ip: ip.into_iter().map(|s| s.into()).collect(),
             config,
+            shutdown_handles,
         }
     }
 }
@@ -123,13 +132,13 @@ impl RequestAdapterFactory<InternalRoutingRequest> for RoutingServiceAdapterFact
             }
             res.push(client);
         }
-        RoutingServiceAdapter::new(res)
+        RoutingServiceAdapter::new(res, self.shutdown_handles)
     }
 }
 
 impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
     fn on_request(&mut self, internal_req: InternalRoutingRequest) {
-        let mut client = self.next_client();
+        let mut client = self.clients.next_cloned();
 
         tokio::spawn(async move {
             let request = Request::from(internal_req.payload);
@@ -146,26 +155,26 @@ impl RequestAdapter<InternalRoutingRequest> for RoutingServiceAdapter {
     }
 
     fn on_shutdown(&mut self) {
-        for client in &mut self.client {
+        for client in &mut self.clients {
             let mut c = client.clone();
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 c.shutdown(())
                     .await
                     .expect("Error while shutting down routing service");
             });
+            self.shutdown_handles.lock().unwrap().push(handle);
         }
     }
 }
 
 impl RoutingServiceAdapter {
-    fn new(client: Vec<RoutingServiceClient<tonic::transport::Channel>>) -> Self {
-        Self { client, counter: 0 }
-    }
-
-    fn next_client(&mut self) -> RoutingServiceClient<tonic::transport::Channel> {
-        let len = self.client.len();
-        let client = &mut self.client[self.counter];
-        self.counter = (self.counter + 1) % len;
-        client.clone()
+    fn new(
+        clients: Vec<RoutingServiceClient<tonic::transport::Channel>>,
+        shutdown_handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
+    ) -> Self {
+        Self {
+            clients: RingIter::new(clients),
+            shutdown_handles,
+        }
     }
 }

@@ -269,7 +269,7 @@ impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
     fn notify_event(&mut self, mut event: &mut AgentEvent, now: u32) {
         match &mut event {
             AgentEvent::WokeUp(w) => {
-                self.call_router(&mut w.comp_env, w.end_time, now);
+                self.call_router(w.comp_env, w.end_time, now);
             }
             AgentEvent::ActivityFinished() => self.replace_route(),
             _ => {}
