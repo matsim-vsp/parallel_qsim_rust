@@ -1,23 +1,28 @@
+use std::fs::File;
 use std::io;
 use std::path::Path;
 use tracing::dispatcher::DefaultGuard;
-use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
-use tracing_subscriber::fmt;
+use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Layer;
+use tracing_subscriber::{fmt, registry};
 
 use crate::simulation::config::{Config, Logging, Profiling};
 use crate::simulation::io::resolve_path;
-use crate::simulation::profiling::{SpanDurationToCSVLayer, WriterGuard};
+use crate::simulation::profiling::routing::RoutingSpanDurationToCSVLayer;
+use crate::simulation::profiling::{create_file, SpanDurationToCSVLayer, WriterGuard};
 
 // This is a helper struct to store the logger guards. When they are dropped, logging can be reset.
 #[allow(dead_code)]
 pub(crate) struct LogGuards {
-    tracing_guard: Option<WriterGuard>,
+    tracing_guards: (
+        Option<WriterGuard>,
+        Option<crate::simulation::profiling::routing::WriterGuard<File>>,
+    ),
     log_guard: Option<WorkerGuard>,
     default: DefaultGuard,
 }
@@ -35,7 +40,7 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     let file_discriminant = part.to_string();
     let dir = resolve_path(config.context(), &config.output().output_dir);
 
-    let (csv_layer, tracing_guard) = init_tracing(config, part, &file_discriminant, &dir);
+    let csv_layers = init_tracing(config, part, &file_discriminant, &dir);
     let (log_layer, log_guard) = if Logging::Info == config.output().logging {
         let log_file_name = format!("log_process_{file_discriminant}.txt");
         let log_file_appender = rolling::never(&dir, log_file_name);
@@ -50,21 +55,24 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
         (None, None)
     };
 
-    let collector = tracing_subscriber::registry()
-        .with(csv_layer)
+    let console_layer = (part == 0).then(|| {
+        fmt::layer()
+            .with_writer(io::stdout)
+            .with_span_events(FmtSpan::CLOSE)
+            .with_filter(LevelFilter::INFO)
+    });
+
+    // Add `Optional`s. If None, then the corresponding layer is not added.
+    let collector = registry()
         .with(log_layer)
-        // process 0 should log to console as well
-        .with((part == 0).then(|| {
-            fmt::layer()
-                .with_writer(io::stdout)
-                .with_span_events(FmtSpan::CLOSE)
-                .with_filter(LevelFilter::INFO)
-        }));
+        .with(console_layer)
+        .with(csv_layers.routing)
+        .with(csv_layers.general);
 
     let default = tracing::subscriber::set_default(collector);
 
     LogGuards {
-        tracing_guard,
+        tracing_guards: (csv_layers.general_guard, csv_layers.routing_guard),
         log_guard,
         default,
     }
@@ -75,23 +83,53 @@ fn init_tracing(
     part: u32,
     file_discriminant: &String,
     dir: &Path,
-) -> (Option<SpanDurationToCSVLayer>, Option<WriterGuard>) {
+) -> CsvLayers<File> {
     // if we set profiling at all and if profiling is set to level trace, then each process creates an instrumenting file
-    // if profiling level is set to INFO, only process 0 creates an instrument files. This is important if we run on a lot of
+    // if profiling level is set to INFO, only process 0 creates an instrument file. This is important if we run on a lot of
     // processes, because then we spent a lot of computing time on creating instrument files for each process.
-    let (csv_layer, guard) = if let Profiling::CSV(level_string) = config.output().profiling {
+    let layers = if let Profiling::CSV(level_string) = config.output().profiling {
         let level = level_string.create_tracing_level();
         if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
-            let duration_dir = dir.join("instrument");
+            let instrument_dir = dir.join("instrument");
             let duration_file_name = format!("instrument_process_{file_discriminant}.csv");
-            let duration_path = duration_dir.join(duration_file_name);
-            let (layer, writer_guard) = SpanDurationToCSVLayer::new(&duration_path, level);
-            (Some(layer), Some(writer_guard))
+            let duration_path = instrument_dir.join(duration_file_name);
+            let (general, general_guard) = SpanDurationToCSVLayer::new(&duration_path, level);
+
+            let routing_file_name = format!("routing_process_{file_discriminant}.csv");
+            let routing_path = instrument_dir.join(routing_file_name);
+            let (routing, routing_guard) =
+                RoutingSpanDurationToCSVLayer::new(create_file(&routing_path), level, "rust_qsim");
+
+            CsvLayers {
+                general: Some(general),
+                general_guard: Some(general_guard),
+                routing: Some(routing),
+                routing_guard: Some(routing_guard),
+            }
         } else {
-            (None, None)
+            CsvLayers::<File>::new()
         }
     } else {
-        (None, None)
+        CsvLayers::<File>::new()
     };
-    (csv_layer, guard)
+    layers
+}
+
+#[derive(Default)]
+struct CsvLayers<W: io::Write> {
+    general: Option<SpanDurationToCSVLayer>,
+    general_guard: Option<WriterGuard>,
+    routing: Option<RoutingSpanDurationToCSVLayer<W>>,
+    routing_guard: Option<crate::simulation::profiling::routing::WriterGuard<W>>,
+}
+
+impl<W: io::Write> CsvLayers<W> {
+    pub fn new() -> Self {
+        Self {
+            general: None,
+            general_guard: None,
+            routing: None,
+            routing_guard: None,
+        }
+    }
 }

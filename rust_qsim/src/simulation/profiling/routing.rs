@@ -11,7 +11,7 @@ use tracing::{Id, Level, Metadata};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
 
-struct RoutingSpanDurationToCSVLayer<W: std::io::Write> {
+pub struct RoutingSpanDurationToCSVLayer<W: std::io::Write> {
     writer: Arc<Mutex<csv::Writer<W>>>,
     /// Note: TRACE > DEBUG > INFO > WARN > ERROR
     min_level: Level,
@@ -20,7 +20,7 @@ struct RoutingSpanDurationToCSVLayer<W: std::io::Write> {
 
 /// WriterGuard is used to ensure that the writer is flushed at the end.
 /// Not 100% sure if this is really needed as the csv::Writer already implements Drop trait. Paul, nov '25.
-struct WriterGuard<W: std::io::Write> {
+pub struct WriterGuard<W: std::io::Write> {
     writer: Arc<Mutex<csv::Writer<W>>>,
 }
 
@@ -235,7 +235,6 @@ mod tests {
         pub(crate) mod bar {
             use crate::extend_span;
             use tracing::{instrument, trace};
-            use tracing_subscriber::registry::LookupSpan;
             use uuid::{NoContext, Timestamp, Uuid};
 
             #[instrument(level = "info")]

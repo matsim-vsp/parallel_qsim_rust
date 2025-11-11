@@ -1,4 +1,4 @@
-mod routing;
+pub mod routing;
 
 use std::fmt::Debug;
 use std::fs;
@@ -215,7 +215,7 @@ fn write_metadata(writer: &mut BufWriter<File>, m: &tracing::Metadata) {
     .unwrap();
 }
 
-fn create_file(path: &Path) -> File {
+pub fn create_file(path: &Path) -> File {
     let prefix = path.parent().unwrap();
     fs::create_dir_all(prefix).unwrap();
     File::create(path).unwrap_or_else(|_e| panic!("Failed to open file at: {path:?}"))
