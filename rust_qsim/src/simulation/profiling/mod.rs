@@ -31,6 +31,7 @@ struct SpanDuration {
 }
 
 // We need these type wrappers to get distinct types for the extensions
+#[derive(Debug)]
 pub struct UuidWrapper(pub u128);
 pub struct PersonIdWrapper(pub String);
 pub struct ModeWrapper(pub String);
@@ -235,29 +236,6 @@ impl SpanDuration {
             last: Instant::now(),
         }
     }
-}
-
-#[macro_export]
-macro_rules! extend_span {
-    // Accept one or many: extend_span!(uuid = x), extend_span!(uuid = x, user = y)
-    ($($field:ident = $value:expr),+ $(,)?) => {{
-        use tracing_subscriber::registry::LookupSpan;
-        ::tracing::Span::current().with_subscriber(|(id, dispatch)| {
-            if let Some(reg) = dispatch
-                .downcast_ref::<::tracing_subscriber::registry::Registry>()
-            {
-                if let Some(span_ref) = reg.span(id) {
-                    let mut exts = span_ref.extensions_mut();
-                    ::paste::paste! {
-                        $(
-                            // Expands to: exts.insert($crate::simulation::profiling::UuidWrapper($value));
-                            exts.insert($crate::simulation::profiling::[<$field:camel Wrapper>]($value));
-                        )+
-                    }
-                }
-            }
-        });
-    }};
 }
 
 #[cfg(test)]

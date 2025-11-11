@@ -1,4 +1,3 @@
-use std::fs::File;
 use std::io;
 use std::path::Path;
 use tracing::dispatcher::DefaultGuard;
@@ -14,14 +13,14 @@ use tracing_subscriber::{fmt, registry};
 use crate::simulation::config::{Config, Logging, Profiling};
 use crate::simulation::io::resolve_path;
 use crate::simulation::profiling::routing::RoutingSpanDurationToCSVLayer;
-use crate::simulation::profiling::{create_file, SpanDurationToCSVLayer, WriterGuard};
+use crate::simulation::profiling::{SpanDurationToCSVLayer, WriterGuard};
 
 // This is a helper struct to store the logger guards. When they are dropped, logging can be reset.
 #[allow(dead_code)]
 pub(crate) struct LogGuards {
     tracing_guards: (
         Option<WriterGuard>,
-        Option<crate::simulation::profiling::routing::WriterGuard<File>>,
+        Option<crate::simulation::profiling::routing::WriterGuard>,
     ),
     log_guard: Option<WorkerGuard>,
     default: DefaultGuard,
@@ -78,16 +77,11 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     }
 }
 
-fn init_tracing(
-    config: &Config,
-    part: u32,
-    file_discriminant: &String,
-    dir: &Path,
-) -> CsvLayers<File> {
+fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Path) -> CsvLayers {
     // if we set profiling at all and if profiling is set to level trace, then each process creates an instrumenting file
     // if profiling level is set to INFO, only process 0 creates an instrument file. This is important if we run on a lot of
     // processes, because then we spent a lot of computing time on creating instrument files for each process.
-    let layers = if let Profiling::CSV(level_string) = config.output().profiling {
+    if let Profiling::CSV(level_string) = config.output().profiling {
         let level = level_string.create_tracing_level();
         if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
             let instrument_dir = dir.join("instrument");
@@ -98,7 +92,7 @@ fn init_tracing(
             let routing_file_name = format!("routing_process_{file_discriminant}.csv");
             let routing_path = instrument_dir.join(routing_file_name);
             let (routing, routing_guard) =
-                RoutingSpanDurationToCSVLayer::new(create_file(&routing_path), level, "rust_qsim");
+                RoutingSpanDurationToCSVLayer::new(&routing_path, level, "rust_qsim");
 
             CsvLayers {
                 general: Some(general),
@@ -107,23 +101,22 @@ fn init_tracing(
                 routing_guard: Some(routing_guard),
             }
         } else {
-            CsvLayers::<File>::new()
+            CsvLayers::new()
         }
     } else {
-        CsvLayers::<File>::new()
-    };
-    layers
+        CsvLayers::new()
+    }
 }
 
 #[derive(Default)]
-struct CsvLayers<W: io::Write> {
+struct CsvLayers {
     general: Option<SpanDurationToCSVLayer>,
     general_guard: Option<WriterGuard>,
-    routing: Option<RoutingSpanDurationToCSVLayer<W>>,
-    routing_guard: Option<crate::simulation::profiling::routing::WriterGuard<W>>,
+    routing: Option<RoutingSpanDurationToCSVLayer>,
+    routing_guard: Option<crate::simulation::profiling::routing::WriterGuard>,
 }
 
-impl<W: io::Write> CsvLayers<W> {
+impl CsvLayers {
     pub fn new() -> Self {
         Self {
             general: None,

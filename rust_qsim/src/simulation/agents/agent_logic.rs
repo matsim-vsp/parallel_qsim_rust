@@ -1,4 +1,3 @@
-use crate::extend_span;
 use crate::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
@@ -19,6 +18,7 @@ use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::{Debug, Formatter};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot::Receiver;
+use tracing::trace;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PlanBasedSimulationLogic {
@@ -359,7 +359,7 @@ impl AdaptivePlanBasedSimulationLogic {
             .build()
             .unwrap();
 
-        extend_span!(uuid = payload.uuid.as_u128());
+        trace!(uuid = payload.uuid.as_u128());
 
         let request = InternalRoutingRequest {
             payload,
