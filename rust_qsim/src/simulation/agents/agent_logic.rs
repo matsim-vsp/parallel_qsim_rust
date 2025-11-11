@@ -1,5 +1,6 @@
+use crate::extend_span;
 use crate::external_services::routing::{
-    InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
+    InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
 use crate::external_services::ExternalServiceType;
 use crate::simulation::agents::{
@@ -313,7 +314,7 @@ impl AdaptivePlanBasedSimulationLogic {
         self.call_router(comp_env, departure_time, now);
     }
 
-    #[tracing::instrument(level = "trace", skip(comp_env), fields(sim_time=now))]
+    #[tracing::instrument(level = "trace", skip(comp_env), fields(sim_time=now, uuid = tracing::field::Empty))]
     fn call_router(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
@@ -348,15 +349,20 @@ impl AdaptivePlanBasedSimulationLogic {
             )
         });
 
+        let payload = InternalRoutingRequestPayloadBuilder::default()
+            .person_id(self.delegate.id().external().to_string())
+            .from_link(self.delegate.curr_act().link_id.external().to_string())
+            .to_link(self.delegate.next_act().link_id.external().to_string())
+            .mode(mode.clone())
+            .departure_time(departure_time)
+            .now(now)
+            .build()
+            .unwrap();
+
+        extend_span!(uuid = payload.uuid.as_u128());
+
         let request = InternalRoutingRequest {
-            payload: InternalRoutingRequestPayload {
-                person_id: self.delegate.id().external().to_string(),
-                from_link: self.delegate.curr_act().link_id.external().to_string(),
-                to_link: self.delegate.next_act().link_id.external().to_string(),
-                mode: mode.clone(),
-                departure_time,
-                now,
-            },
+            payload,
             response_tx: send,
         };
 

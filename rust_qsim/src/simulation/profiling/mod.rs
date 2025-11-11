@@ -1,3 +1,5 @@
+mod routing;
+
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
@@ -28,9 +30,12 @@ struct SpanDuration {
     last: Instant,
 }
 
-struct Rank(u64);
-
-struct SimTime(u64);
+// We need these type wrappers to get distinct types for the extensions
+pub struct UuidWrapper(pub u128);
+pub struct PersonIdWrapper(pub String);
+pub struct ModeWrapper(pub String);
+pub struct RankWrapper(pub u64);
+pub struct SimTimeWrapper(pub u64);
 
 struct MetadataVisitor {
     rank: Option<u64>,
@@ -67,10 +72,7 @@ impl Visit for MetadataVisitor {
 impl SpanDurationToCSVLayer {
     pub fn new(path: &Path, level: Level) -> (Self, WriterGuard) {
         // create necessary file path and corresponding file wrapped in buffered writer
-        let prefix = path.parent().unwrap();
-        fs::create_dir_all(prefix).unwrap();
-        let file =
-            File::create(path).unwrap_or_else(|_e| panic!("Failed to open file at: {path:?}"));
+        let file = create_file(path);
         let mut writer = BufWriter::new(file);
 
         // write header for csv file
@@ -90,23 +92,6 @@ impl SpanDurationToCSVLayer {
         };
         let guard = WriterGuard { writer_ref };
         (new_self, guard)
-    }
-
-    fn write_metadata(writer: &mut BufWriter<File>, m: &tracing::Metadata) {
-        // import Write here, to avoid conflicts with std::fmt::Write
-        use std::io::Write;
-
-        write!(
-            writer,
-            "{},{},{},",
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos(),
-            m.target(),
-            m.name(),
-        )
-        .unwrap();
     }
 }
 
@@ -135,11 +120,11 @@ where
         let mut visitor = MetadataVisitor::new();
         attrs.record(&mut visitor as &mut dyn Visit);
         if let Some(rank) = visitor.rank {
-            extensions.insert(Rank(rank));
+            extensions.insert(RankWrapper(rank));
         }
 
         if let Some(sim_time) = visitor.sim_time {
-            extensions.insert(SimTime(sim_time));
+            extensions.insert(SimTimeWrapper(sim_time));
         }
     }
 
@@ -148,12 +133,7 @@ where
             return;
         }
 
-        let span = ctx.span(id).expect("Should exist");
-        let mut extensions = span.extensions_mut();
-
-        if let Some(timing) = extensions.get_mut::<SpanDuration>() {
-            timing.last = Instant::now();
-        }
+        start_timing::<S>(id, ctx);
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
@@ -161,13 +141,7 @@ where
             return;
         }
 
-        let span = ctx.span(id).expect("Span should be there");
-        let mut extensions = span.extensions_mut();
-
-        if let Some(timing) = extensions.get_mut::<SpanDuration>() {
-            let now = Instant::now();
-            timing.elapsed += (now - timing.last).as_nanos() as u64;
-        }
+        end_timing::<S>(id, ctx);
     }
 
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
@@ -182,17 +156,19 @@ where
         let meta = span.metadata();
 
         let writer = &mut *self.writer.lock().unwrap();
-        Self::write_metadata(writer, meta);
+        write_metadata(writer, meta);
 
         let span_duration = extensions.get::<SpanDuration>().unwrap();
         write!(writer, "{},", span_duration.elapsed).unwrap();
 
         let sim_time = extensions
-            .get::<SimTime>()
+            .get::<SimTimeWrapper>()
             .map_or(-1, |sim_time| sim_time.0 as i64);
         write!(writer, "{sim_time},").unwrap();
 
-        let rank = extensions.get::<Rank>().map_or(-1, |rank| rank.0 as i64);
+        let rank = extensions
+            .get::<RankWrapper>()
+            .map_or(-1, |rank| rank.0 as i64);
         write!(writer, "{rank}").unwrap();
         writeln!(writer).unwrap();
 
@@ -200,6 +176,49 @@ where
         drop(extensions);
         drop(span);
     }
+}
+
+fn end_timing<S: Subscriber + for<'a> LookupSpan<'a>>(id: &Id, ctx: Context<S>) {
+    let span = ctx.span(id).expect("Span should be there");
+    let mut extensions = span.extensions_mut();
+
+    if let Some(timing) = extensions.get_mut::<SpanDuration>() {
+        let now = Instant::now();
+        timing.elapsed += (now - timing.last).as_nanos() as u64;
+    }
+}
+
+/// Start timing for span
+fn start_timing<S: Subscriber + for<'a> LookupSpan<'a>>(id: &Id, ctx: Context<S>) {
+    let span = ctx.span(id).expect("Should exist");
+    let mut extensions = span.extensions_mut();
+
+    if let Some(timing) = extensions.get_mut::<SpanDuration>() {
+        timing.last = Instant::now();
+    }
+}
+
+fn write_metadata(writer: &mut BufWriter<File>, m: &tracing::Metadata) {
+    // import Write here, to avoid conflicts with std::fmt::Write
+    use std::io::Write;
+
+    write!(
+        writer,
+        "{},{},{},",
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos(),
+        m.target(),
+        m.name(),
+    )
+    .unwrap();
+}
+
+fn create_file(path: &Path) -> File {
+    let prefix = path.parent().unwrap();
+    fs::create_dir_all(prefix).unwrap();
+    File::create(path).unwrap_or_else(|_e| panic!("Failed to open file at: {path:?}"))
 }
 
 impl Drop for WriterGuard {
@@ -216,6 +235,29 @@ impl SpanDuration {
             last: Instant::now(),
         }
     }
+}
+
+#[macro_export]
+macro_rules! extend_span {
+    // Accept one or many: extend_span!(uuid = x), extend_span!(uuid = x, user = y)
+    ($($field:ident = $value:expr),+ $(,)?) => {{
+        use tracing_subscriber::registry::LookupSpan;
+        ::tracing::Span::current().with_subscriber(|(id, dispatch)| {
+            if let Some(reg) = dispatch
+                .downcast_ref::<::tracing_subscriber::registry::Registry>()
+            {
+                if let Some(span_ref) = reg.span(id) {
+                    let mut exts = span_ref.extensions_mut();
+                    ::paste::paste! {
+                        $(
+                            // Expands to: exts.insert($crate::simulation::profiling::UuidWrapper($value));
+                            exts.insert($crate::simulation::profiling::[<$field:camel Wrapper>]($value));
+                        )+
+                    }
+                }
+            }
+        });
+    }};
 }
 
 #[cfg(test)]

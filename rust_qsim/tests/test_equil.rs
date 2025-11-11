@@ -190,6 +190,7 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
                 mode: "car".to_string(),
                 departure_time: 21600,
                 now: 21000,
+                uuid: Default::default(),
             }
         );
     }
