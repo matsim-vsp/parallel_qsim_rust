@@ -1,5 +1,5 @@
 use crate::external_services::routing::{
-    InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
+    InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
 use crate::external_services::ExternalServiceType;
 use crate::simulation::agents::{
@@ -18,6 +18,7 @@ use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::{Debug, Formatter};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot::Receiver;
+use tracing::trace;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PlanBasedSimulationLogic {
@@ -313,7 +314,7 @@ impl AdaptivePlanBasedSimulationLogic {
         self.call_router(comp_env, departure_time, now);
     }
 
-    #[tracing::instrument(level = "trace", skip(comp_env), fields(sim_time=now))]
+    #[tracing::instrument(level = "trace", skip(comp_env), fields(sim_time=now, uuid = tracing::field::Empty))]
     fn call_router(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
@@ -348,15 +349,20 @@ impl AdaptivePlanBasedSimulationLogic {
             )
         });
 
+        let payload = InternalRoutingRequestPayloadBuilder::default()
+            .person_id(self.delegate.id().external().to_string())
+            .from_link(self.delegate.curr_act().link_id.external().to_string())
+            .to_link(self.delegate.next_act().link_id.external().to_string())
+            .mode(mode.clone())
+            .departure_time(departure_time)
+            .now(now)
+            .build()
+            .unwrap();
+
+        trace!(uuid = payload.uuid.as_u128());
+
         let request = InternalRoutingRequest {
-            payload: InternalRoutingRequestPayload {
-                person_id: self.delegate.id().external().to_string(),
-                from_link: self.delegate.curr_act().link_id.external().to_string(),
-                to_link: self.delegate.next_act().link_id.external().to_string(),
-                mode: mode.clone(),
-                departure_time,
-                now,
-            },
+            payload,
             response_tx: send,
         };
 

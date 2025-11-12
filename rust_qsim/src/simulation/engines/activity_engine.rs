@@ -216,7 +216,7 @@ impl EndTime for AsleepSimulationAgent {
 #[cfg(test)]
 mod tests {
     use crate::external_services::routing::{
-        InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
+        InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
     };
     use crate::external_services::ExternalServiceType;
     use crate::simulation::agents::agent::SimulationAgent;
@@ -331,17 +331,21 @@ mod tests {
         std::thread::spawn(move || {
             let request = recv.blocking_recv();
             assert!(request.is_some());
-            assert_eq!(
-                request.as_ref().unwrap().payload,
-                InternalRoutingRequestPayload {
-                    person_id: "1".to_string(),
-                    from_link: "start".to_string(),
-                    to_link: "end".to_string(),
-                    mode: "mode".to_string(),
-                    departure_time: 10,
-                    now: 5,
-                }
-            );
+
+            let payload = InternalRoutingRequestPayloadBuilder::default()
+                .person_id("1".to_string())
+                .from_link("start".to_string())
+                .to_link("end".to_string())
+                .mode("mode".to_string())
+                .departure_time(10)
+                .now(5)
+                .build()
+                .unwrap();
+            assert!(request
+                .as_ref()
+                .unwrap()
+                .payload
+                .equals_ignoring_uuid(&payload));
             request
                 .unwrap()
                 .response_tx

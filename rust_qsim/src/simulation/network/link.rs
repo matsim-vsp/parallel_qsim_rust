@@ -579,7 +579,7 @@ mod sim_link_tests {
         assert!(link.is_veh_stuck(expected_timer_start + stuck_threshold));
     }
 
-    #[test]
+    #[integration_test]
     pub fn stuck_time_reset() {
         let stuck_threshold = 10;
         let earliest_exit: u32 = 10;

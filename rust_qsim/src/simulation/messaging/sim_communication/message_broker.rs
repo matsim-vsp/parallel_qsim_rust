@@ -368,7 +368,7 @@ mod tests {
         NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false)
     }
 
-    #[test]
+    #[integration_test]
     fn send_recv_storage_cap() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
