@@ -181,9 +181,8 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
 
     fn on_shutdown(&mut self) {
         assert_eq!(self.requests.len(), 1);
-        assert_eq!(
-            self.requests[0],
-            InternalRoutingRequestPayload {
+        assert!(
+            self.requests[0].equals_ignoring_uuid(&InternalRoutingRequestPayload {
                 person_id: "1".to_string(),
                 from_link: "1".to_string(),
                 to_link: "20".to_string(),
@@ -191,7 +190,7 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
                 departure_time: 21600,
                 now: 21000,
                 uuid: Default::default(),
-            }
+            })
         );
     }
 }

@@ -540,7 +540,7 @@ mod tests {
     use assert_approx_eq::assert_approx_eq;
     use macros::integration_test;
 
-    #[test]
+    #[integration_test]
     fn from_network() {
         let mut network = Network::new();
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
