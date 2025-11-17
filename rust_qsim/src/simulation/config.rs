@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tracing::{info, Level};
@@ -333,6 +333,13 @@ impl Config {
     }
 }
 
+pub fn write_config(config: &Config, output_path: PathBuf) {
+    let output_config = output_path.join("output_config.yml");
+    let file = File::create(&output_config).expect("Failed to create output config file");
+    let writer = BufWriter::new(file);
+    serde_yaml::to_writer(writer, config).expect("Failed to write output config file");
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ProtoFiles {
     pub network: PathBuf,
@@ -372,7 +379,7 @@ impl Default for Routing {
 }
 
 fn default_to_3() -> u32 {
-    1
+    3
 }
 
 fn default_to_600() -> u64 {
