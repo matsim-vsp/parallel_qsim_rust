@@ -1,4 +1,4 @@
-use crate::simulation::config::{CommandLineArgs, Config};
+use crate::simulation::config::{write_config, CommandLineArgs, Config};
 use crate::simulation::controller::{ExternalServices, PartitionArgumentsBuilder};
 use crate::simulation::events::OnEventFnBuilder;
 use crate::simulation::logging::init_std_out_logging_thread_local;
@@ -61,6 +61,8 @@ impl LocalController {
             &self.global_scenario.config.output().output_dir,
         );
         fs::create_dir_all(&output_path).expect("Failed to create output path");
+
+        write_config(self.global_scenario.config.as_ref(), output_path);
 
         let num_parts = self.global_scenario.config.partitioning().num_parts;
         let mut partitions: Vec<Option<ScenarioPartitionBuilder>> =
