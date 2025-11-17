@@ -1,15 +1,14 @@
 use crate::simulation::profiling::{
-    create_file, end_timing, start_timing, ModeWrapper, PersonIdWrapper, SimTimeWrapper,
-    SpanDuration, UuidWrapper,
+    create_file, end_timing, extract_entries, start_timing, ModeWrapper, PersonIdWrapper,
+    SimTimeWrapper, SpanDuration, UuidWrapper, WriterGuard,
 };
 use std::fmt::Debug;
 use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
 use tracing::field::{Field, Visit};
 use tracing::span::Attributes;
-use tracing::{Event, Id, Level, Metadata};
+use tracing::{Event, Id};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
 
@@ -26,26 +25,10 @@ const HEADER: [&str; 8] = [
 
 pub struct RoutingSpanDurationToCSVLayer {
     writer: Arc<Mutex<csv::Writer<File>>>,
-    /// Note: TRACE > DEBUG > INFO > WARN > ERROR
-    min_level: Level,
-    module: String,
-}
-
-/// WriterGuard is used to ensure that the writer is flushed at the end.
-/// Not 100% sure if this is really needed as the csv::Writer already implements Drop trait. Paul, nov '25.
-pub struct WriterGuard {
-    writer: Arc<Mutex<csv::Writer<File>>>,
-}
-
-impl Drop for WriterGuard {
-    fn drop(&mut self) {
-        let mut writer = self.writer.lock().unwrap();
-        writer.flush().unwrap();
-    }
 }
 
 impl RoutingSpanDurationToCSVLayer {
-    pub fn new(path: &Path, level: Level, module: &str) -> (Self, WriterGuard) {
+    pub fn new(path: &Path) -> (Self, WriterGuard) {
         let file = create_file(path);
         let mut raw_writer = csv::Writer::from_writer(file);
 
@@ -54,8 +37,6 @@ impl RoutingSpanDurationToCSVLayer {
 
         let s = Self {
             writer: writer.clone(),
-            min_level: level,
-            module: module.to_string(),
         };
 
         (s, WriterGuard { writer })
@@ -67,13 +48,6 @@ where
     // if not LookupSpan, cannot access span data like `span.extensions_mut()`
     S: tracing::Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
 {
-    /// Enables all events to be processed if they have the minimal level and are in the specified module.
-    fn enabled(&self, metadata: &Metadata<'_>, _ctx: Context<'_, S>) -> bool {
-        let target = self.in_module(metadata);
-        let level = metadata.level() >= &self.min_level;
-        target && level
-    }
-
     /// Sets the fields in the span extensions.
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let span = ctx.span(id).expect("should exist");
@@ -100,24 +74,23 @@ where
     /// This function registers events from the same module as the current span and sets the uuid
     /// of the span. This should only be used if the field is not initialized yet when the span is created.
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        let x = ctx.current_span().id().unwrap().clone();
-        let span = ctx.span(&x).expect("Span should be there!");
+        // We might have tracing events from other modules, which are not part of a span.
+        if let Some(id) = ctx.current_span().id() {
+            let span = ctx.span(id).expect("Span should be there!");
+            let span_target = span.metadata().target();
+            let module = span_target == event.metadata().target();
 
-        let span_target = span.metadata().module_path().unwrap();
-        let module = span_target == event.metadata().module_path().unwrap();
+            if !module {
+                return;
+            }
 
-        if !module {
-            return;
-        }
+            let mut visitor = RoutingMetadataVisitor::default();
+            event.record(&mut visitor);
 
-        let mut visitor = RoutingMetadataVisitor::default();
-        event.record(&mut visitor);
-
-        let mut exts = span.extensions_mut();
-        if let Some(uuid) = visitor.uuid {
-            let v = exts.replace(uuid);
-            if v.is_some() {
-                panic!("Uuid is already present in span. This can occur, if the current event is not registered \
+            let mut exts = span.extensions_mut();
+            if let Some(uuid) = visitor.uuid {
+                let v = exts.replace(uuid);
+                assert!(v.is_none(),"Uuid is already present in span. This can occur, if the current event is not registered \
                 by the span you think it is. Check module and level span and event! Also check your layer attributes, \
                 as these are used to filter events and spans. Event: {:?}", event);
             }
@@ -142,22 +115,7 @@ where
         let extensions = span.extensions();
         let meta = span.metadata();
 
-        let timestep = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-            .to_string();
-        let target = meta.target();
-        let func_name = meta.name();
-        let duration = extensions
-            .get::<SpanDuration>()
-            .unwrap()
-            .elapsed
-            .to_string();
-        let sim_time = extensions
-            .get::<SimTimeWrapper>()
-            .map_or(-1, |sim_time| sim_time.0 as i64)
-            .to_string();
+        let (timestep, target, func_name, duration, sim_time) = extract_entries(&extensions, meta);
         let request_uuid = extensions
             .get::<UuidWrapper>()
             .map_or("-1".to_string(), |uuid| uuid.0.to_string());
@@ -184,15 +142,6 @@ where
         // extensions and span must be dropped explicitly, says the tracing documentation
         drop(extensions);
         drop(span);
-    }
-}
-
-impl RoutingSpanDurationToCSVLayer {
-    fn in_module(&self, metadata: &Metadata) -> bool {
-        metadata
-            .module_path()
-            .map(|m| format!("{}::{}", m, metadata.name()).starts_with(self.module.as_str()))
-            .unwrap_or(false)
     }
 }
 
@@ -233,32 +182,35 @@ impl Visit for RoutingMetadataVisitor {
 }
 
 #[cfg(test)]
+/// all tests are marked with serial to avoid race conditions on the subscriber registry
 mod tests {
     use crate::simulation::profiling::routing::RoutingSpanDurationToCSVLayer;
+    use serial_test::serial;
     use std::path::Path;
     use std::str::FromStr;
     // needed for the `with` function on Registry
     use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::{EnvFilter, Layer, Registry};
     use uuid::{NoContext, Timestamp, Uuid};
 
     #[test]
+    #[serial]
     fn test_creation() {
         let path = Path::new("./test_output/simulation/profiling/routing/test_creation.csv");
-        let (_, guard) =
-            RoutingSpanDurationToCSVLayer::new(path, tracing::Level::INFO, "rust_qsim");
+        let (_, guard) = RoutingSpanDurationToCSVLayer::new(path);
         drop(guard);
     }
 
     #[test]
+    #[serial]
     fn test_all_events() {
         let path = Path::new("./test_output/simulation/profiling/routing/test_events.csv");
-        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(
-            path,
-            tracing::Level::INFO,
-            "rust_qsim::simulation::profiling::routing::tests",
-        );
+        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
 
-        run_test(layer);
+        let filtered = layer.with_filter(EnvFilter::new(
+            "rust_qsim::simulation::profiling::routing::tests=trace",
+        ));
+        run_test(filtered.boxed());
         drop(guard);
 
         let rows = read_csv_structs(path);
@@ -269,34 +221,37 @@ mod tests {
     }
 
     #[test]
-    fn test_trace_events() {
-        let path = Path::new("./test_output/simulation/profiling/routing/test_trace_events.csv");
-        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(
-            path,
-            tracing::Level::TRACE,
-            "rust_qsim::simulation::profiling::routing::tests",
-        );
+    #[serial]
+    fn test_info_events() {
+        let path = Path::new("./test_output/simulation/profiling/routing/test_info_events.csv");
+        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
 
-        run_test(layer);
+        let filtered = layer.with_filter(EnvFilter::new(
+            "rust_qsim::simulation::profiling::routing::tests=info",
+        ));
+        run_test(filtered.boxed());
         drop(guard);
 
         let rows = read_csv_structs(path);
         assert_eq!(rows.len(), 1);
-        // The second event is by the outer span, which has level trace.
-        assert_eq!(rows.first(), Some(&get_expected()[1]));
+        // The first event is by the inner span, which has level info.
+        assert_eq!(rows.first(), Some(&get_expected()[0]));
     }
 
     #[test]
+    #[serial]
     fn test_module_filtering() {
         let path =
             Path::new("./test_output/simulation/profiling/routing/test_module_filtering.csv");
-        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(
-            path,
-            tracing::Level::INFO,
-            "rust_qsim::simulation::profiling::routing::tests::foo::bar",
-        );
+        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
 
-        run_test(layer);
+        let filtered = layer
+            .with_filter(EnvFilter::new(
+                "rust_qsim::simulation::profiling::routing::tests::foo::bar=info",
+            ))
+            .boxed();
+        run_test(filtered);
+
         drop(guard);
 
         let rows = read_csv_structs(path);
@@ -306,25 +261,29 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_module_filtering_with_level() {
         let path = Path::new(
             "./test_output/simulation/profiling/routing/test_module_filtering_with_level.csv",
         );
-        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(
-            path,
-            tracing::Level::TRACE,
-            "rust_qsim::simulation::profiling::routing::tests::foo::bar",
-        );
+        let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
 
-        run_test(layer);
+        let filtered = layer
+            .with_filter(EnvFilter::new(
+                "rust_qsim::simulation::profiling::routing::tests::foo::bar=warn",
+            ))
+            .boxed();
+
+        run_test(filtered.boxed());
         drop(guard);
 
         let rows = read_csv_structs(path);
         assert_eq!(rows.len(), 0);
     }
 
-    fn run_test(layer: RoutingSpanDurationToCSVLayer) {
+    fn run_test(layer: Box<dyn Layer<Registry> + Send + Sync>) {
         let layered = tracing_subscriber::registry().with(layer);
+        // this default is set thread-wise, which is why serial tests are required
         let guard = tracing::subscriber::set_default(layered);
         let ts = Timestamp::from_unix(NoContext, 1, 1);
         let uuid = Uuid::new_v7(ts);
