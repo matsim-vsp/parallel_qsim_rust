@@ -71,7 +71,7 @@ where
         }
     }
 
-    /// This function registers events from the same module as the current span and sets the uuid
+    /// This function registers events from the same module as the current span and sets the uuid & mode
     /// of the span. This should only be used if the field is not initialized yet when the span is created.
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
         // We might have tracing events from other modules, which are not part of a span.
@@ -91,6 +91,13 @@ where
             if let Some(uuid) = visitor.uuid {
                 let v = exts.replace(uuid);
                 assert!(v.is_none(),"Uuid is already present in span. This can occur, if the current event is not registered \
+                by the span you think it is. Check module and level span and event! Also check your layer attributes, \
+                as these are used to filter events and spans. Event: {:?}", event);
+            }
+
+            if let Some(mode) = visitor.mode {
+                let v = exts.replace(mode);
+                assert!(v.is_none(),"Mode is already present in span. This can occur, if the current event is not registered \
                 by the span you think it is. Check module and level span and event! Also check your layer attributes, \
                 as these are used to filter events and spans. Event: {:?}", event);
             }
