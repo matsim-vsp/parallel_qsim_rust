@@ -4,11 +4,13 @@ use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
 use crate::simulation::data_structures::RingIter;
 use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
+use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot::Sender;
 use tokio::task::JoinHandle;
 use tracing::info;
+use uuid::Uuid;
 
 pub struct RoutingServiceAdapter {
     clients: RingIter<RoutingServiceClient<tonic::transport::Channel>>,
@@ -23,7 +25,7 @@ pub struct InternalRoutingRequest {
 
 impl RequestToAdapter for InternalRoutingRequest {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Builder)]
 pub struct InternalRoutingRequestPayload {
     pub person_id: String,
     pub from_link: String,
@@ -31,10 +33,26 @@ pub struct InternalRoutingRequestPayload {
     pub mode: String,
     pub departure_time: u32,
     pub now: u32,
+    #[builder(default = "Uuid::now_v7()")]
+    pub uuid: Uuid,
+}
+
+impl InternalRoutingRequestPayload {
+    pub fn equals_ignoring_uuid(&self, other: &Self) -> bool {
+        self.person_id == other.person_id
+            && self.from_link == other.from_link
+            && self.to_link == other.to_link
+            && self.mode == other.mode
+            && self.departure_time == other.departure_time
+            && self.now == other.now
+    }
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct InternalRoutingResponse(pub(crate) Vec<InternalPlanElement>);
+pub struct InternalRoutingResponse {
+    pub(crate) elements: Vec<InternalPlanElement>,
+    pub(crate) request_id: Uuid,
+}
 
 impl From<InternalRoutingRequestPayload> for Request {
     fn from(req: InternalRoutingRequestPayload) -> Self {
@@ -45,6 +63,7 @@ impl From<InternalRoutingRequestPayload> for Request {
             mode: req.mode,
             departure_time: req.departure_time,
             now: req.now,
+            request_id: req.uuid.as_bytes().to_vec(),
         }
     }
 }
@@ -79,7 +98,10 @@ impl From<Response> for InternalRoutingResponse {
             }
         }
 
-        Self(elements)
+        Self {
+            elements,
+            request_id: Uuid::from_bytes(value.request_id.try_into().unwrap()),
+        }
     }
 }
 

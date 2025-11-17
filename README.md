@@ -26,6 +26,8 @@ The project is organized as a cargo workspace with multiple crates. The main cra
 
 Work with the `rust-qsim` crate for the simulation. The other crates are only for development purposes.
 
+Check out further documentation in the `docs` folder.
+
 ## Set Up Prerequisites
 
 The project relies on METIS as external dependency. This means this dependency is not

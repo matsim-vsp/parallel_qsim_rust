@@ -114,6 +114,7 @@ mod test {
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::vehicles::InternalVehicle;
     use crate::simulation::InternalAttributes;
+    use macros::integration_test;
 
     fn link_enter_event(
         time: u32,
@@ -154,7 +155,7 @@ mod test {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn test_one_vehicle() {
         let link1 = Id::create("1");
         let link2 = Id::create("2");
@@ -172,7 +173,7 @@ mod test {
         assert_eq!(collector.cache_enter_time_by_vehicle.get(&vehicle1), None)
     }
 
-    #[test]
+    #[integration_test]
     /// Tests travel time collection with two vehicles passing link 2.
     /// Vehicle 1: 2s
     /// Vehicle 2: 4s
@@ -212,7 +213,7 @@ mod test {
         )
     }
 
-    #[test]
+    #[integration_test]
     /// Tests whether PersonLeavesVehicleEvent discards travel time
     fn test_with_person_leaves_vehicle() {
         let link1 = Id::create("1");
@@ -230,7 +231,7 @@ mod test {
         assert_eq!(collector.cache_enter_time_by_vehicle.get(&vehicle1), None);
     }
 
-    #[test]
+    #[integration_test]
     /// Tests whether PersonLeavesVehicleEvent discards travel time
     fn test_with_person_leaves_vehicle_complex() {
         let link1 = Id::create("1");

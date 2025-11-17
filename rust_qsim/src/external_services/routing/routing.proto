@@ -16,9 +16,11 @@ message Request {
   string mode = 4;
   uint32 departure_time = 5;
   uint32 now = 6;
+  bytes request_id = 7;
 }
 
 message Response {
   repeated population.Leg legs = 1;
   repeated population.Activity activities = 2;
+  bytes request_id = 3;
 }
