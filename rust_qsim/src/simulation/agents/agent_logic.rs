@@ -314,7 +314,7 @@ impl AdaptivePlanBasedSimulationLogic {
         self.call_router(comp_env, departure_time, now);
     }
 
-    #[tracing::instrument(level = "trace", skip(comp_env), fields(sim_time=now, uuid = tracing::field::Empty))]
+    #[tracing::instrument(level = "trace", skip(comp_env), fields(uuid = tracing::field::Empty, person_id = self.delegate.id().external(), mode = tracing::field::Empty))]
     fn call_router(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
@@ -359,7 +359,7 @@ impl AdaptivePlanBasedSimulationLogic {
             .build()
             .unwrap();
 
-        trace!(uuid = payload.uuid.as_u128());
+        trace!(uuid = payload.uuid.as_u128(), mode = mode.as_str());
 
         let request = InternalRoutingRequest {
             payload,
@@ -375,7 +375,7 @@ impl AdaptivePlanBasedSimulationLogic {
         self.route_receiver = Some(recv);
     }
 
-    #[tracing::instrument(level = "trace", fields(sim_time = _now))]
+    #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
     fn replace_route(&mut self, _now: u32) {
         if self.route_receiver.is_none() {
             // No route request in progress, nothing to replace.
@@ -383,22 +383,30 @@ impl AdaptivePlanBasedSimulationLogic {
         }
 
         let response = self.blocking_recv(_now);
+
+        trace!(uuid = response.request_id.as_u128());
+
         self.replace_next_trip(response, _now);
     }
 
-    #[tracing::instrument(level = "trace", fields(sim_time = _now))]
+    #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
     fn blocking_recv(&mut self, _now: u32) -> InternalRoutingResponse {
         let receiver = self.route_receiver.take().unwrap();
         let response = receiver
             .blocking_recv()
             .expect("InternalRoutingRequest channel closed unexpectedly");
+
+        trace!(uuid = response.request_id.as_u128());
+
         response
     }
 
     /// Replaces the next trip in the plan with the legs and activities from the given InternalRoutingResponse.
-    #[tracing::instrument(level = "trace", skip(response), fields(sim_time = _now))]
+    #[tracing::instrument(level = "trace", skip(response), fields(person_id = self.delegate.id().external()))]
     fn replace_next_trip(&mut self, response: InternalRoutingResponse, _now: u32) {
-        if response.0.is_empty() {
+        trace!(uuid = response.request_id.as_u128());
+
+        if response.elements.is_empty() {
             // If the response is empty, we do not replace anything.
             return;
         }
@@ -416,7 +424,8 @@ impl AdaptivePlanBasedSimulationLogic {
         let dest_idx = Self::get_index(plan, dest_ptr);
 
         // Replace the trip elements (legs and intermediate activities) with the new response
-        plan.elements.splice(origin_idx + 1..dest_idx, response.0);
+        plan.elements
+            .splice(origin_idx + 1..dest_idx, response.elements);
     }
 
     fn get_index(plan: &mut InternalPlan, origin_ptr: *const InternalActivity) -> usize {
@@ -435,6 +444,7 @@ mod tests {
     use crate::simulation::population::{
         InternalActivity, InternalLeg, InternalPlan, InternalRoute,
     };
+    use uuid::Uuid;
 
     fn make_activity(act_type: &str, link: &str) -> InternalActivity {
         InternalActivity {
@@ -480,7 +490,10 @@ mod tests {
         let mut logic = AdaptivePlanBasedSimulationLogic::new(person);
 
         // Replace the first trip (home->work)
-        let response = InternalRoutingResponse(vec![InternalPlanElement::Leg(make_leg("bike"))]);
+        let response = InternalRoutingResponse {
+            elements: vec![InternalPlanElement::Leg(make_leg("bike"))],
+            request_id: Uuid::now_v7(),
+        };
 
         logic.replace_next_trip(response.clone(), 0);
         let elements = &logic

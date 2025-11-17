@@ -49,7 +49,10 @@ impl InternalRoutingRequestPayload {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct InternalRoutingResponse(pub(crate) Vec<InternalPlanElement>);
+pub struct InternalRoutingResponse {
+    pub(crate) elements: Vec<InternalPlanElement>,
+    pub(crate) request_id: Uuid,
+}
 
 impl From<InternalRoutingRequestPayload> for Request {
     fn from(req: InternalRoutingRequestPayload) -> Self {
@@ -95,7 +98,10 @@ impl From<Response> for InternalRoutingResponse {
             }
         }
 
-        Self(elements)
+        Self {
+            elements,
+            request_id: Uuid::from_bytes(value.request_id.try_into().unwrap()),
+        }
     }
 }
 

@@ -349,9 +349,10 @@ mod tests {
             request
                 .unwrap()
                 .response_tx
-                .send(InternalRoutingResponse(vec![InternalPlanElement::Leg(
-                    new_leg(),
-                )]))
+                .send(InternalRoutingResponse {
+                    elements: vec![InternalPlanElement::Leg(new_leg())],
+                    request_id: payload.uuid,
+                })
                 .unwrap();
         })
     }

@@ -564,7 +564,7 @@ mod tests {
         assert!(matches!(in_link, SimLink::In(_)));
     }
 
-    #[test]
+    #[integration_test]
     fn vehicle_travels_local() {
         let mut publisher = Default::default();
         let global_net = Network::from_file(
@@ -609,7 +609,7 @@ mod tests {
         assert_eq!(0, network.veh_on_net());
     }
 
-    #[test]
+    #[integration_test]
     fn vehicle_reaches_boundary() {
         let mut publisher = Default::default();
         let global_net = Network::from_file(
