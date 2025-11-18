@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_pancam::{PanCam, PanCamPlugin};
@@ -25,26 +27,22 @@ struct Node {
 // Network link. The to and from id define the start and end nodes of the link.
 #[derive(Component, Debug)]
 struct Link {
-    #[allow(dead_code)]
-    id: i32, // link id
-    from_id: i32, // start node id
-    to_id: i32,   // end node id
-    #[allow(dead_code)]
-    freespeed: f32, // free flow speed on link
+    id: i32,        // link id
+    from_id: i32,   // start node id
+    to_id: i32,     // end node id
+    freespeed: f32, // free flow speed on link [m/s]
 }
 
 // defines all trips and the first start time of all trips
 #[derive(Resource)]
 struct AllTrips {
-    per_vehicle: HashMap<String, Vec<Trip>>, // vehicle id -> trips
-    first_start: f32,                        // first start time of all trips
+    per_vehicle: HashMap<String, Vec<TraversedLink>>, // vehicle id -> trips
+    first_start: f32,                                  // first start time of all trips
 }
 
-// Defines a trip
-// TODO: I think this shoulbe be renames. because a trip contains usually multiple links.
-// rename to TraversedLink?
+// Defines a traversed link: a vehicle moving along a single link during a time interval.
 #[derive(Clone)]
-struct Trip {
+struct TraversedLink {
     link_id: i32,    // link id
     start_time: f32, // start time
     end_time: f32,   // end time
@@ -71,18 +69,14 @@ struct ViewSettings {
     scale: f32,
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct Vehicle {
-    #[allow(dead_code)]
     id: String,
-    #[allow(dead_code)]
-    maximum_velocity: f32,
+    maximum_velocity: f32, // maximum vehicle speed [m/s]
 }
 
 #[derive(Resource, Default)]
 struct VehiclesData {
-    #[allow(dead_code)]
     vehicles: HashMap<String, Vehicle>,
 }
 
@@ -99,7 +93,7 @@ fn build_vehicle_trips(events: &[(u32, Vec<MyEvent>)]) -> AllTrips {
     // vehicle id -> (link id, start time)
     let mut active: HashMap<String, (i32, f32)> = HashMap::new();
     // stores all trips per vehicle
-    let mut per_vehicle: HashMap<String, Vec<Trip>> = HashMap::new();
+    let mut per_vehicle: HashMap<String, Vec<TraversedLink>> = HashMap::new();
     // saves the first start time of all trips
     let mut first_start = f32::MAX;
 
@@ -127,7 +121,7 @@ fn build_vehicle_trips(events: &[(u32, Vec<MyEvent>)]) -> AllTrips {
                                 if start_time < first_start {
                                     first_start = start_time;
                                 }
-                                per_vehicle.entry(vehicle).or_default().push(Trip {
+                                per_vehicle.entry(vehicle).or_default().push(TraversedLink {
                                     link_id,
                                     start_time,
                                     end_time: time_f,
