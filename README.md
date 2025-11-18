@@ -194,7 +194,7 @@ Execute
 or
 
 ```shell
-cargo run --release --example local_qsim -- --config-path /path/to/config.yml
+cargo run --release --bin local_qsim -- --config-path /path/to/config.yml
 ```
 
 to run the simulation.
@@ -203,7 +203,7 @@ For example, after successfully running the tests first, try
 
 ```
 cd rust_qsim
-cargo run --release --example local_qsim -- --config-path tests/resources/equil/equil-config-1.yml
+cargo run --release --bin local_qsim -- --config-path tests/resources/equil/equil-config-1.yml
 ```
 
 ## Create input files
