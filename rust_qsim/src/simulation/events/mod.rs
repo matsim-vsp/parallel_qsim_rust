@@ -141,7 +141,7 @@ impl GeneralEvent {
     pub const TYPE: &'static str = "generic";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         GeneralEventBuilder::default()
             .time(time)
             .attributes(attrs)
@@ -179,7 +179,7 @@ impl ActivityStartEvent {
     pub const TYPE: &'static str = "actstart";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         ActivityStartEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
@@ -220,7 +220,7 @@ impl ActivityEndEvent {
     pub const TYPE: &'static str = "actend";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         ActivityEndEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
@@ -260,7 +260,7 @@ impl LinkEnterEvent {
     pub const TYPE: &'static str = "entered link";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         LinkEnterEventBuilder::default()
             .time(time)
             .link(Id::create(&event.attributes["link"].as_string()))
@@ -299,7 +299,7 @@ impl LinkLeaveEvent {
     pub const TYPE: &'static str = "left link";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         LinkLeaveEventBuilder::default()
             .time(time)
             .link(Id::create(&event.attributes["link"].as_string()))
@@ -338,7 +338,7 @@ impl PersonEntersVehicleEvent {
     pub const TYPE: &'static str = "PersonEntersVehicle";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         PersonEntersVehicleEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
@@ -377,7 +377,7 @@ impl PersonLeavesVehicleEvent {
     pub const TYPE: &'static str = "PersonLeavesVehicle";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         PersonLeavesVehicleEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
@@ -417,7 +417,7 @@ impl PersonDepartureEvent {
     pub const TYPE: &'static str = "departure";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         PersonDepartureEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
@@ -458,7 +458,7 @@ impl PersonArrivalEvent {
     pub const TYPE: &'static str = "arrival";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         PersonArrivalEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
@@ -499,7 +499,7 @@ impl TeleportationArrivalEvent {
     pub const TYPE: &'static str = "travelled";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         TeleportationArrivalEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
@@ -542,13 +542,13 @@ impl PtTeleportationArrivalEvent {
     pub const TYPE: &'static str = "travelled with pt";
     pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
-        assert!(event.attributes["type"].as_string().eq(Self::TYPE));
+        assert!(event.r#type.eq(Self::TYPE));
         PtTeleportationArrivalEventBuilder::default()
             .time(time)
             .person(Id::create(&event.attributes["person"].as_string()))
             .distance(event.attributes["distance"].as_string().parse().unwrap())
             .mode(Id::create(&event.attributes["mode"].as_string()))
-            .route(Id::create(&event.attributes["rout"].as_string()))
+            .route(Id::create(&event.attributes["route"].as_string()))
             .line(Id::create(&event.attributes["line"].as_string()))
             .attributes(attrs)
             .build()

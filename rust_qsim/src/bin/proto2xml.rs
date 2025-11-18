@@ -82,8 +82,8 @@ fn main() {
 #[rustfmt::skip]
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
     for proto_event in events {
-        let type_ = proto_event.attributes["type"].as_string();
-        let internal_event: Box<dyn EventTrait> = match type_.as_str() {
+        let type_ = proto_event.r#type.as_str();
+        let internal_event: Box<dyn EventTrait> = match type_ {
             GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(proto_event, time)),
             ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
             ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
