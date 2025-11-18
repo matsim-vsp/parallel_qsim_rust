@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use bevy_pancam::{PanCam, PanCamPlugin};
 use quick_xml::{events::Event, Reader};
 use rust_qsim::generated::events::MyEvent;
@@ -10,10 +11,6 @@ use std::io::Cursor;
 const NETWORK_FILE: &str = include_str!("assets/equil-network.xml");
 const VEHICLES_FILE: &str = include_str!("assets/equil-vehicles.xml");
 const EVENTS_FILE: &[u8] = include_bytes!("assets/events.0.binpb");
-
-// Defines how much the network coordinates are scaled down for visualization
-// TODO: This should be removed and replaced with a correct camera zoom level.
-const SCALE_FACTOR: f32 = 1.;
 
 // Defines how much faster the simulation runs compared to the real time
 const TIME_SCALE: f32 = 50.0;
@@ -66,6 +63,12 @@ struct NetworkData {
     node_positions: HashMap<i32, Vec2>,       // node id -> position
     link_endpoints: HashMap<i32, (i32, i32)>, // link id -> (from node id, to node id)
     link_freespeed: HashMap<i32, f32>,        // link id -> freespeed
+}
+
+#[derive(Resource)]
+struct ViewSettings {
+    center: Vec2,
+    scale: f32,
 }
 
 #[allow(dead_code)]
@@ -186,7 +189,13 @@ fn main() {
         ))
         .add_systems(
             Startup,
-            (read_and_parse_network, read_and_parse_vehicles, setup).chain(),
+            (
+                read_and_parse_network,
+                read_and_parse_vehicles,
+                fit_camera_to_network,
+                setup,
+            )
+                .chain(),
         )
         .add_systems(Update, (simulation_time, draw_network))
         .run();
@@ -362,14 +371,87 @@ fn setup(mut commands: Commands) {
     // commands.spawn((Camera2d));
 }
 
+// This method inspects the loaded network and window size
+// and computes a view center and zoom level so that the whole network is visible.
+fn fit_camera_to_network(
+    mut commands: Commands,
+    network: Option<Res<NetworkData>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    // If the network resource does not exist yet, we cannot compute a view.
+    let Some(network) = network else {
+        return;
+    };
+
+    // If there are no nodes, there is nothing to fit.
+    if network.node_positions.is_empty() {
+        return;
+    }
+
+    // Use the primary window to know how much space we have on screen.
+    let Some(window) = window_query.iter().next() else {
+        return;
+    };
+
+    // Determine the bounding box of all node positions.
+    let mut min_x = f32::INFINITY;
+    let mut max_x = f32::NEG_INFINITY;
+    let mut min_y = f32::INFINITY;
+    let mut max_y = f32::NEG_INFINITY;
+
+    for position in network.node_positions.values() {
+        min_x = min_x.min(position.x);
+        max_x = max_x.max(position.x);
+        min_y = min_y.min(position.y);
+        max_y = max_y.max(position.y);
+    }
+
+    if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
+        return;
+    }
+
+    // Compute network width, height and geometric center.
+    let width = (max_x - min_x).max(f32::EPSILON);
+    let height = (max_y - min_y).max(f32::EPSILON);
+
+    let center_x = (min_x + max_x) * 0.5;
+    let center_y = (min_y + max_y) * 0.5;
+
+    // Relate network extent to the current window size to derive a zoom level.
+    let window_width = window.width().max(1.0);
+    let window_height = window.height().max(1.0);
+
+    let required_scale_x = width / window_width;
+    let required_scale_y = height / window_height;
+
+    // Add a small margin so the network is not exactly at the border.
+    let margin = 1.1;
+    let mut scale = required_scale_x.max(required_scale_y) * margin;
+    if !scale.is_finite() || scale <= 0.0 {
+        scale = 1.0;
+    }
+
+    commands.insert_resource(ViewSettings {
+        center: Vec2::new(center_x, center_y),
+        scale,
+    });
+}
+
 fn draw_network(
     mut gizmos: Gizmos,
     nodes: Query<&Node>,
     links: Query<&Link>,
     trips: Res<AllTrips>,
     network: Res<NetworkData>,
+    view: Option<Res<ViewSettings>>,
     clock: Res<SimulationClock>,
 ) {
+    let (center, scale) = if let Some(view) = view {
+        (view.center, view.scale.max(f32::EPSILON))
+    } else {
+        (Vec2::ZERO, 1.0)
+    };
+
     // draw the links
     for link in &links {
         let from_node = nodes.iter().find(|n| n.id == link.from_id);
@@ -377,8 +459,8 @@ fn draw_network(
 
         if let (Some(from), Some(to)) = (from_node, to_node) {
             gizmos.line_2d(
-                from.position / SCALE_FACTOR,
-                to.position / SCALE_FACTOR,
+                (from.position - center) / scale,
+                (to.position - center) / scale,
                 Color::srgb(1.0, 1.0, 1.0),
             );
         }
@@ -387,8 +469,8 @@ fn draw_network(
     // draw the nodes
     for node in &nodes {
         gizmos.circle_2d(
-            node.position / SCALE_FACTOR,
-            500.0,
+            (node.position - center) / scale,
+            4.0,
             Color::srgb(1.0, 0.0, 0.0),
         );
     }
@@ -419,10 +501,10 @@ fn draw_network(
                         ((sim_time - current_trip.start_time) / duration).clamp(0.0, 1.0);
 
                     // Interpolate the position of the vehicle (linear)
-                    let position = (from_pos + (to_pos - from_pos) * progress) / SCALE_FACTOR;
+                    let position = (from_pos + (to_pos - from_pos) * progress - center) / scale;
 
                     // Draw the vehicle as a green circle at its current position.
-                    gizmos.circle_2d(position, 400.0, Color::srgb(0.0, 1.0, 0.0));
+                    gizmos.circle_2d(position, 4.0, Color::srgb(0.0, 1.0, 0.0));
                 }
             }
         }
