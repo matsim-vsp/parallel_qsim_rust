@@ -1,13 +1,16 @@
-#![allow(dead_code)]
-
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_pancam::{PanCam, PanCamPlugin};
 use quick_xml::{events::Event, Reader};
 use rust_qsim::generated::events::MyEvent;
+use rust_qsim::generated::general::AttributeValue;
+use rust_qsim::simulation::events::*;
+use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
 use rust_qsim::simulation::io::proto::proto_events::ProtoEventsReader;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::rc::Rc;
 
 // Network and Events file paths
 const NETWORK_FILE: &str = include_str!("assets/equil-network.xml");
@@ -80,73 +83,112 @@ struct VehiclesData {
     vehicles: HashMap<String, Vehicle>,
 }
 
-// This method reads all events from the event file
-fn read_events() -> Vec<(u32, Vec<MyEvent>)> {
-    ProtoEventsReader::new(Cursor::new(EVENTS_FILE)).collect::<Vec<(u32, Vec<MyEvent>)>>()
-}
-
-// This method reads all events and filters them by link enter and leave events
-// A trip is then saved from a link enter and the corresponding link leave event.
-fn build_vehicle_trips(events: &[(u32, Vec<MyEvent>)]) -> AllTrips {
+// This struct collects all traversed links per vehicle by listening to events.
+#[derive(Default)]
+struct TripsBuilder {
     // stores on which link a vehicle has been and since when,
     // until the corresponding leave event was found
     // vehicle id -> (link id, start time)
-    let mut active: HashMap<String, (i32, f32)> = HashMap::new();
-    // stores all trips per vehicle
-    let mut per_vehicle: HashMap<String, Vec<TraversedLink>> = HashMap::new();
-    // saves the first start time of all trips
-    let mut first_start = f32::MAX;
+    active: HashMap<String, (i32, f32)>,
+    // stores all traversed links per vehicle
+    per_vehicle: HashMap<String, Vec<TraversedLink>>,
+    // saves the first start time of all traversed links
+    first_start: f32,
+}
 
-    for (time, events_at_time) in events {
-        let time_f = *time as f32;
-        for event in events_at_time {
-            match event.r#type.as_str() {
-                "entered link" => {
-                    let link = event.attributes.get("link").map(|v| v.as_string());
-                    let vehicle = event.attributes.get("vehicle").map(|v| v.as_string());
-                    if let (Some(link), Some(vehicle)) = (link, vehicle) {
-                        if let Ok(link_id) = link.parse::<i32>() {
-                            active.insert(vehicle, (link_id, time_f));
-                        }
+impl TripsBuilder {
+    fn new() -> Self {
+        Self {
+            active: HashMap::new(),
+            per_vehicle: HashMap::new(),
+            first_start: f32::MAX,
+        }
+    }
+
+    // Handle a single event and update internal state if it is a link enter or link leave event.
+    fn handle_event(&mut self, event: &dyn EventTrait) {
+        if let Some(enter) = event.as_any().downcast_ref::<LinkEnterEvent>() {
+            self.handle_link_enter(enter);
+        } else if let Some(leave) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
+            self.handle_link_leave(leave);
+        } else {
+            // All other event types are ignored.
+        }
+    }
+
+    fn handle_link_enter(&mut self, event: &LinkEnterEvent) {
+        if let Ok(link_id) = event.link.external().parse::<i32>() {
+            let vehicle_id = event.vehicle.external().to_string();
+            self.active.insert(vehicle_id, (link_id, event.time as f32));
+        }
+    }
+
+    fn handle_link_leave(&mut self, event: &LinkLeaveEvent) {
+        if let Ok(link_id) = event.link.external().parse::<i32>() {
+            let vehicle_id = event.vehicle.external().to_string();
+            if let Some((entered_link, start_time)) = self.active.remove(&vehicle_id) {
+                let end_time = event.time as f32;
+                if entered_link == link_id && end_time >= start_time {
+                    if start_time < self.first_start {
+                        self.first_start = start_time;
                     }
-                }
-                "left link" => {
-                    let link = event.attributes.get("link").map(|v| v.as_string());
-                    let vehicle = event.attributes.get("vehicle").map(|v| v.as_string());
-                    if let (Some(link), Some(vehicle)) = (link, vehicle) {
-                        if let (Ok(link_id), Some((entered_link, start_time))) =
-                            (link.parse::<i32>(), active.remove(&vehicle))
-                        {
-                            if entered_link == link_id && time_f >= start_time {
-                                if start_time < first_start {
-                                    first_start = start_time;
-                                }
-                                per_vehicle.entry(vehicle).or_default().push(TraversedLink {
-                                    link_id,
-                                    start_time,
-                                    end_time: time_f,
-                                });
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    // All other event types are ignored.
+                    self.per_vehicle
+                        .entry(vehicle_id)
+                        .or_default()
+                        .push(TraversedLink {
+                            link_id,
+                            start_time,
+                            end_time,
+                        });
                 }
             }
         }
     }
 
-    //set first start to 0 if no trips were found
-    if first_start == f32::MAX {
-        first_start = 0.0;
+    // Build the AllTrips resource from the collected traversed links.
+    fn build_all_trips(&self) -> AllTrips {
+        let mut first_start = self.first_start;
+        // set first start to 0 if no traversed links were found
+        if first_start == f32::MAX {
+            first_start = 0.0;
+        }
+        AllTrips {
+            per_vehicle: self.per_vehicle.clone(),
+            first_start,
+        }
+    }
+}
+
+// This function registers a handler on the publisher which forwards all events to the TripsBuilder.
+fn register_trips_handler(builder: Rc<RefCell<TripsBuilder>>) -> impl FnOnce(&mut EventsPublisher) {
+    move |events: &mut EventsPublisher| {
+        let builder_for_events = builder.clone();
+        events.on_any(move |e| {
+            builder_for_events.borrow_mut().handle_event(e);
+        });
+    }
+}
+
+// This method reads all proto events, sends them through the EventsPublisher,
+// and collects all traversed links per vehicle.
+fn build_vehicle_trips() -> AllTrips {
+    let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
+
+    let builder = Rc::new(RefCell::new(TripsBuilder::new()));
+    let register_trips = register_trips_handler(builder.clone());
+
+    let mut publisher = EventsPublisher::new();
+    register_trips(&mut publisher);
+
+    for (time, events_at_time) in reader {
+        process_events(time, &events_at_time, &mut publisher);
     }
 
-    // return all trips
-    AllTrips {
-        per_vehicle,
-        first_start,
-    }
+    // Respect possible finish callbacks registered on the publisher.
+    publisher.finish();
+
+    let trips = builder.borrow().build_all_trips();
+    trips
 }
 
 // This method updates the simulation time based on the real time delta and the timescale.
@@ -154,13 +196,41 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
     clock.time += time.delta_secs() * TIME_SCALE;
 }
 
+#[rustfmt::skip]
+fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
+    for proto_event in events {
+        // ensure that the event has a "type" attribute, which is required by the from_proto_event helpers
+        let mut proto_event = proto_event.clone();
+        if !proto_event.attributes.contains_key("type") {
+            proto_event
+                .attributes
+                .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
+        }
+
+        let type_ = proto_event.attributes["type"].as_string();
+        let internal_event: Box<dyn EventTrait> = match type_.as_str() {
+            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
+            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(&proto_event, time)),
+            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(&proto_event, time)),
+            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(&proto_event, time)),
+            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(&proto_event, time)),
+            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(&proto_event, time)),
+            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(&proto_event, time)),
+            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(&proto_event, time)),
+            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(&proto_event, time)),
+            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(&proto_event, time)),
+            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
+            _ => panic!("Unknown event type: {:?}", type_),
+        };
+        publisher.publish_event(internal_event.as_ref());
+    }
+}
+
 // TODO: Check what happen if i use two clocks e.g. or to networks (two resources)
 // two ressources point tzo the same data and modify the data (+1 and -1) and check what happens
 fn main() {
-    // read all events
-    let events = read_events();
-    //reate all trips
-    let trips = build_vehicle_trips(&events);
+    // read all events and build traversed links per vehicle
+    let trips = build_vehicle_trips();
     let sim_clock = SimulationClock {
         time: trips.first_start,
     };
