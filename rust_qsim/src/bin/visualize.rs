@@ -2,9 +2,9 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_pancam::{PanCam, PanCamPlugin};
 use prost::Message;
-use quick_xml::{events::Event, Reader};
 use rust_qsim::generated::events::MyEvent;
 use rust_qsim::generated::general::AttributeValue;
+use rust_qsim::generated::vehicles as wire_vehicles;
 use rust_qsim::generated::network as wire_network;
 use rust_qsim::simulation::events::*;
 use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
@@ -16,7 +16,7 @@ use std::rc::Rc;
 
 // Network and Events file paths
 const NETWORK_FILE: &[u8] = include_bytes!("assets/equil-network.binpb");
-const VEHICLES_FILE: &str = include_str!("assets/equil-vehicles.xml");
+const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil-vehicles.binpb");
 const EVENTS_FILE: &[u8] = include_bytes!("assets/events.0.binpb");
 
 // Defines how much faster the simulation runs compared to the real time
@@ -312,91 +312,25 @@ fn read_and_parse_network(mut commands: Commands) {
 }
 
 fn read_and_parse_vehicles(mut commands: Commands) {
-    let mut reader = Reader::from_str(VEHICLES_FILE);
-    reader.config_mut().trim_text(true);
-    let mut buf = Vec::new();
-    let mut vehicles: HashMap<String, Vehicle> = HashMap::new();
-    let mut current_vehicle_id: Option<String> = None;
-    let mut pending_velocity_vehicle: Option<String> = None;
+    // decode the protobuf vehicles container from the embedded bytes
+    let wire: wire_vehicles::VehiclesContainer =
+        wire_vehicles::VehiclesContainer::decode(VEHICLES_FILE)
+            .expect("Failed to decode vehicles protobuf");
 
-    loop {
-        match reader.read_event_into(&mut buf) {
-            Ok(Event::Start(e)) if e.name().as_ref() == b"vehicleType" => {
-                let mut vehicle_id = None;
-                for a in e.attributes().flatten() {
-                    if a.key.as_ref() == b"id" {
-                        vehicle_id = Some(a.unescape_value().unwrap().into_owned());
-                    }
-                }
-                current_vehicle_id = vehicle_id;
-            }
-            Ok(Event::End(e)) if e.name().as_ref() == b"vehicleType" => {
-                current_vehicle_id = None;
-            }
-            Ok(Event::Empty(e)) if e.name().as_ref() == b"maximumVelocity" => {
-                if let Some(vehicle_id) = current_vehicle_id.as_ref() {
-                    let mut velocity: Option<f32> = None;
-                    for a in e.attributes().flatten() {
-                        if a.key.as_ref() == b"meterPerSecond" {
-                            velocity = Some(a.unescape_value().unwrap().parse().unwrap());
-                        }
-                    }
-                    if let Some(speed) = velocity {
-                        vehicles.insert(
-                            vehicle_id.clone(),
-                            Vehicle {
-                                id: vehicle_id.clone(),
-                                maximum_velocity: speed,
-                            },
-                        );
-                    }
-                }
-            }
-            Ok(Event::Start(e)) if e.name().as_ref() == b"maximumVelocity" => {
-                pending_velocity_vehicle = current_vehicle_id.clone();
-                if let Some(vehicle_id) = pending_velocity_vehicle.as_ref() {
-                    let mut velocity: Option<f32> = None;
-                    for a in e.attributes().flatten() {
-                        if a.key.as_ref() == b"meterPerSecond" {
-                            velocity = Some(a.unescape_value().unwrap().parse().unwrap());
-                        }
-                    }
-                    if let Some(speed) = velocity {
-                        vehicles.insert(
-                            vehicle_id.clone(),
-                            Vehicle {
-                                id: vehicle_id.clone(),
-                                maximum_velocity: speed,
-                            },
-                        );
-                        pending_velocity_vehicle = None;
-                    }
-                }
-            }
-            Ok(Event::Text(e)) => {
-                if let Some(vehicle_id) = pending_velocity_vehicle.as_ref() {
-                    if let Ok(value) = e.unescape() {
-                        if let Ok(speed) = value.parse::<f32>() {
-                            vehicles.insert(
-                                vehicle_id.clone(),
-                                Vehicle {
-                                    id: vehicle_id.clone(),
-                                    maximum_velocity: speed,
-                                },
-                            );
-                            pending_velocity_vehicle = None;
-                        }
-                    }
-                }
-            }
-            Ok(Event::End(e)) if e.name().as_ref() == b"maximumVelocity" => {
-                pending_velocity_vehicle = None;
-            }
-            Ok(Event::Eof) => break,
-            Err(e) => panic!("XML error while parsing vehicles: {e:?}"),
-            _ => {}
-        }
-        buf.clear();
+    let mut vehicles: HashMap<String, Vehicle> = HashMap::new();
+
+    // each protobuf vehicle provides id and maximum velocity.
+    for wv in &wire.vehicles {
+        let id = wv.id.to_string();
+        let maximum_velocity = wv.max_v as f32;
+
+        vehicles.insert(
+            id.clone(),
+            Vehicle {
+                id,
+                maximum_velocity,
+            },
+        );
     }
 
     commands.insert_resource(VehiclesData { vehicles });
