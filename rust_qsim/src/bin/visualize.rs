@@ -1,9 +1,11 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_pancam::{PanCam, PanCamPlugin};
+use prost::Message;
 use quick_xml::{events::Event, Reader};
 use rust_qsim::generated::events::MyEvent;
 use rust_qsim::generated::general::AttributeValue;
+use rust_qsim::generated::network as wire_network;
 use rust_qsim::simulation::events::*;
 use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
 use rust_qsim::simulation::io::proto::proto_events::ProtoEventsReader;
@@ -13,7 +15,7 @@ use std::io::Cursor;
 use std::rc::Rc;
 
 // Network and Events file paths
-const NETWORK_FILE: &str = include_str!("assets/equil-network.xml");
+const NETWORK_FILE: &[u8] = include_bytes!("assets/equil-network.binpb");
 const VEHICLES_FILE: &str = include_str!("assets/equil-vehicles.xml");
 const EVENTS_FILE: &[u8] = include_bytes!("assets/events.0.binpb");
 
@@ -40,7 +42,7 @@ struct Link {
 #[derive(Resource)]
 struct AllTrips {
     per_vehicle: HashMap<String, Vec<TraversedLink>>, // vehicle id -> trips
-    first_start: f32,                                  // first start time of all trips
+    first_start: f32,                                 // first start time of all trips
 }
 
 // Defines a traversed link: a vehicle moving along a single link during a time interval.
@@ -265,74 +267,45 @@ fn main() {
         .run();
 }
 
-// This method reads and parses the network XML file.
-// Reüplace with protobuf instwad of xml
+// This method reads and parses the network protobuf file.
 fn read_and_parse_network(mut commands: Commands) {
-    let mut reader = Reader::from_str(NETWORK_FILE);
-    reader.config_mut().trim_text(true);
-    let mut buf = Vec::new();
+    // decode the protobuf network from the embedded bytes
+    let wire: wire_network::Network =
+        wire_network::Network::decode(NETWORK_FILE).expect("Failed to decode network protobuf");
     let mut network = NetworkData::default();
 
-    loop {
-        match reader.read_event_into(&mut buf) {
-            // each node element provides id and coordinates of a node.
-            Ok(Event::Empty(e)) if e.name().as_ref() == b"node" => {
-                let mut id: i32 = 0;
-                let mut x: f32 = 0.0;
-                let mut y: f32 = 0.0;
+    // each protobuf node provides id and coordinates of a node.
+    for wn in &wire.nodes {
+        let id: i32 = wn.id.parse().unwrap();
+        let x: f32 = wn.x as f32;
+        let y: f32 = wn.y as f32;
 
-                for a in e.attributes().flatten() {
-                    match a.key.as_ref() {
-                        b"id" => id = a.unescape_value().unwrap().parse().unwrap(),
-                        b"x" => x = a.unescape_value().unwrap().parse().unwrap(),
-                        b"y" => y = a.unescape_value().unwrap().parse().unwrap(),
-                        _ => {}
-                    }
-                }
+        // create a new node entity for bevy
+        commands.spawn(Node {
+            id,
+            position: Vec2::new(x, y),
+        });
+        // store the node position in the network data
+        network.node_positions.insert(id, Vec2::new(x, y));
+    }
 
-                // create a new node entity for bevy
-                commands.spawn(Node {
-                    id,
-                    position: Vec2::new(x, y),
-                });
-                // store the node position in the network data
-                network.node_positions.insert(id, Vec2::new(x, y));
-            }
+    // each protobuf link provides the connection between two nodes.
+    for wl in &wire.links {
+        let id: i32 = wl.id.parse().unwrap();
+        let from_id: i32 = wl.from.parse().unwrap();
+        let to_id: i32 = wl.to.parse().unwrap();
+        let freespeed: f32 = wl.freespeed;
 
-            // each link element provides the connection between two nodes.
-            Ok(Event::Empty(e)) if e.name().as_ref() == b"link" => {
-                let mut id: i32 = 0;
-                let mut from_id: i32 = 0;
-                let mut to_id: i32 = 0;
-                let mut freespeed: f32 = 0.0;
-
-                for a in e.attributes().flatten() {
-                    match a.key.as_ref() {
-                        b"id" => id = a.unescape_value().unwrap().parse().unwrap(),
-                        b"from" => from_id = a.unescape_value().unwrap().parse().unwrap(),
-                        b"to" => to_id = a.unescape_value().unwrap().parse().unwrap(),
-                        b"freespeed" => freespeed = a.unescape_value().unwrap().parse().unwrap(),
-                        _ => {}
-                    }
-                }
-
-                // create a new link entity for bevy
-                commands.spawn(Link {
-                    id,
-                    from_id,
-                    to_id,
-                    freespeed,
-                });
-                // store the link endpoints in the network data
-                network.link_endpoints.insert(id, (from_id, to_id));
-                network.link_freespeed.insert(id, freespeed);
-            }
-
-            Ok(Event::Eof) => break,
-            Err(e) => panic!("XML error: {e:?}"),
-            _ => {}
-        }
-        buf.clear();
+        // create a new link entity for bevy
+        commands.spawn(Link {
+            id,
+            from_id,
+            to_id,
+            freespeed,
+        });
+        // store the link endpoints in the network data
+        network.link_endpoints.insert(id, (from_id, to_id));
+        network.link_freespeed.insert(id, freespeed);
     }
 
     commands.insert_resource(network);
