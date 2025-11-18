@@ -4,8 +4,8 @@ use bevy_pancam::{PanCam, PanCamPlugin};
 use prost::Message;
 use rust_qsim::generated::events::MyEvent;
 use rust_qsim::generated::general::AttributeValue;
-use rust_qsim::generated::vehicles as wire_vehicles;
 use rust_qsim::generated::network as wire_network;
+use rust_qsim::generated::vehicles as wire_vehicles;
 use rust_qsim::simulation::events::*;
 use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
 use rust_qsim::simulation::io::proto::proto_events::ProtoEventsReader;
@@ -99,6 +99,7 @@ struct TripsBuilder {
 }
 
 impl TripsBuilder {
+    // Creates a new TripsBuilder.
     fn new() -> Self {
         Self {
             active: HashMap::new(),
@@ -107,7 +108,7 @@ impl TripsBuilder {
         }
     }
 
-    // Handle a single event and update internal state if it is a link enter or link leave event.
+    // Handles a single event and updates the internal state if it is a link enter or link leave event.
     fn handle_event(&mut self, event: &dyn EventTrait) {
         if let Some(enter) = event.as_any().downcast_ref::<LinkEnterEvent>() {
             self.handle_link_enter(enter);
@@ -118,6 +119,7 @@ impl TripsBuilder {
         }
     }
 
+    // Handles a link enter event by remembering on which link the vehicle entered and at what time.
     fn handle_link_enter(&mut self, event: &LinkEnterEvent) {
         if let Ok(link_id) = event.link.external().parse::<i32>() {
             let vehicle_id = event.vehicle.external().to_string();
@@ -125,6 +127,7 @@ impl TripsBuilder {
         }
     }
 
+    // Handles a link leave event by closing the currently active traversed link for the vehicle.
     fn handle_link_leave(&mut self, event: &LinkLeaveEvent) {
         if let Ok(link_id) = event.link.external().parse::<i32>() {
             let vehicle_id = event.vehicle.external().to_string();
@@ -147,7 +150,7 @@ impl TripsBuilder {
         }
     }
 
-    // Build the AllTrips resource from the collected traversed links.
+    // Builds the AllTrips resource from the collected traversed links.
     fn build_all_trips(&self) -> AllTrips {
         let mut first_start = self.first_start;
         // set first start to 0 if no traversed links were found
@@ -164,7 +167,9 @@ impl TripsBuilder {
 // This function registers a handler on the publisher which forwards all events to the TripsBuilder.
 fn register_trips_handler(builder: Rc<RefCell<TripsBuilder>>) -> impl FnOnce(&mut EventsPublisher) {
     move |events: &mut EventsPublisher| {
+        // clone the builder handle into the closure used by the publisher
         let builder_for_events = builder.clone();
+        // register a catch-all callback which forwards each event to the TripsBuilder
         events.on_any(move |e| {
             builder_for_events.borrow_mut().handle_event(e);
         });
@@ -174,14 +179,18 @@ fn register_trips_handler(builder: Rc<RefCell<TripsBuilder>>) -> impl FnOnce(&mu
 // This method reads all proto events, sends them through the EventsPublisher,
 // and collects all traversed links per vehicle.
 fn build_vehicle_trips() -> AllTrips {
+    // create a reader over the embedded events file
     let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
+    // create a TripsBuilder which will collect traversed links while events are published
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
     let register_trips = register_trips_handler(builder.clone());
 
+    // create a publisher and register the TripsBuilder as an event listener
     let mut publisher = EventsPublisher::new();
     register_trips(&mut publisher);
 
+    // iterate time step wise over all proto events and convert them into internal events
     for (time, events_at_time) in reader {
         process_events(time, &events_at_time, &mut publisher);
     }
@@ -200,6 +209,7 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
 
 #[rustfmt::skip]
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
+    // loop over all proto events in this time step
     for proto_event in events {
         // ensure that the event has a "type" attribute, which is required by the from_proto_event helpers
         let mut proto_event = proto_event.clone();
@@ -209,6 +219,7 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
                 .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
         }
 
+        // map the string based event type to the corresponding internal Rust event type
         let type_ = proto_event.attributes["type"].as_string();
         let internal_event: Box<dyn EventTrait> = match type_.as_str() {
             GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
@@ -224,6 +235,7 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
             PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
+        // publish the internal event so that all registered handlers (like TripsBuilder) can see it
         publisher.publish_event(internal_event.as_ref());
     }
 }
@@ -481,6 +493,3 @@ fn draw_network(
         }
     }
 }
-
-// TODO: Next possiblöe steps
-//
