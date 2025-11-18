@@ -15,9 +15,10 @@ use std::io::Cursor;
 use std::rc::Rc;
 
 // Network and Events file paths
-const NETWORK_FILE: &[u8] = include_bytes!("assets/equil-network.binpb");
-const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil-vehicles.binpb");
-const EVENTS_FILE: &[u8] = include_bytes!("assets/events.0.binpb");
+// Equil scenario
+const NETWORK_FILE: &[u8] = include_bytes!("assets/equil/equil-network.binpb");
+const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil/equil-vehicles.binpb");
+const EVENTS_FILE: &[u8] = include_bytes!("assets/equil/events.0.binpb");
 
 // Defines how much faster the simulation runs compared to the real time
 const TIME_SCALE: f32 = 50.0;
@@ -25,17 +26,15 @@ const TIME_SCALE: f32 = 50.0;
 // Network node
 #[derive(Component, Debug)]
 struct Node {
-    id: i32,        // node id
+    id: String,     // node id
     position: Vec2, // node position (x, y)
 }
 
 // Network link. The to and from id define the start and end nodes of the link.
 #[derive(Component, Debug)]
 struct Link {
-    id: i32,        // link id
-    from_id: i32,   // start node id
-    to_id: i32,     // end node id
-    freespeed: f32, // free flow speed on link [m/s]
+    from_id: String, // start node id
+    to_id: String,   // end node id
 }
 
 // defines all trips and the first start time of all trips
@@ -48,9 +47,8 @@ struct AllTrips {
 // Defines a traversed link: a vehicle moving along a single link during a time interval.
 #[derive(Clone)]
 struct TraversedLink {
-    link_id: i32,    // link id
+    link_id: String, // link id
     start_time: f32, // start time
-    end_time: f32,   // end time
 }
 
 // Clock for the simulation time.
@@ -63,9 +61,9 @@ struct SimulationClock {
 // network
 #[derive(Resource, Default)]
 struct NetworkData {
-    node_positions: HashMap<i32, Vec2>,       // node id -> position
-    link_endpoints: HashMap<i32, (i32, i32)>, // link id -> (from node id, to node id)
-    link_freespeed: HashMap<i32, f32>,        // link id -> freespeed
+    node_positions: HashMap<String, Vec2>, // node id -> position
+    link_endpoints: HashMap<String, (String, String)>, // link id -> (from node id, to node id)
+    link_freespeed: HashMap<String, f32>,  // link id -> freespeed
 }
 
 #[derive(Resource)]
@@ -76,7 +74,6 @@ struct ViewSettings {
 
 #[derive(Debug, Clone)]
 struct Vehicle {
-    id: String,
     maximum_velocity: f32, // maximum vehicle speed [m/s]
 }
 
@@ -91,7 +88,7 @@ struct TripsBuilder {
     // stores on which link a vehicle has been and since when,
     // until the corresponding leave event was found
     // vehicle id -> (link id, start time)
-    active: HashMap<String, (i32, f32)>,
+    active: HashMap<String, (String, f32)>,
     // stores all traversed links per vehicle
     per_vehicle: HashMap<String, Vec<TraversedLink>>,
     // saves the first start time of all traversed links
@@ -121,44 +118,51 @@ impl TripsBuilder {
 
     // Handles a link enter event by remembering on which link the vehicle entered and at what time.
     fn handle_link_enter(&mut self, event: &LinkEnterEvent) {
-        if let Ok(link_id) = event.link.external().parse::<i32>() {
-            let vehicle_id = event.vehicle.external().to_string();
-            self.active.insert(vehicle_id, (link_id, event.time as f32));
-        }
+        let link_id = event.link.external().to_string();
+        let vehicle_id = event.vehicle.external().to_string();
+        self.active.insert(vehicle_id, (link_id, event.time as f32));
     }
 
     // Handles a link leave event by closing the currently active traversed link for the vehicle.
     fn handle_link_leave(&mut self, event: &LinkLeaveEvent) {
-        if let Ok(link_id) = event.link.external().parse::<i32>() {
-            let vehicle_id = event.vehicle.external().to_string();
-            if let Some((entered_link, start_time)) = self.active.remove(&vehicle_id) {
-                let end_time = event.time as f32;
-                if entered_link == link_id && end_time >= start_time {
-                    if start_time < self.first_start {
-                        self.first_start = start_time;
-                    }
-                    self.per_vehicle
-                        .entry(vehicle_id)
-                        .or_default()
-                        .push(TraversedLink {
-                            link_id,
-                            start_time,
-                            end_time,
-                        });
+        let link_id = event.link.external().to_string();
+        let vehicle_id = event.vehicle.external().to_string();
+        if let Some((entered_link, start_time)) = self.active.remove(&vehicle_id) {
+            let end_time = event.time as f32;
+            if entered_link == link_id && end_time >= start_time {
+                if start_time < self.first_start {
+                    self.first_start = start_time;
                 }
+                self.per_vehicle
+                    .entry(vehicle_id)
+                    .or_default()
+                    .push(TraversedLink {
+                        link_id,
+                        start_time,
+                    });
             }
         }
     }
 
     // Builds the AllTrips resource from the collected traversed links.
     fn build_all_trips(&self) -> AllTrips {
+        // clone trips so we can sort them per vehicle by start time
+        let mut per_vehicle = self.per_vehicle.clone();
+        for trips in per_vehicle.values_mut() {
+            trips.sort_by(|a, b| {
+                a.start_time
+                    .partial_cmp(&b.start_time)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+
         let mut first_start = self.first_start;
         // set first start to 0 if no traversed links were found
         if first_start == f32::MAX {
             first_start = 0.0;
         }
         AllTrips {
-            per_vehicle: self.per_vehicle.clone(),
+            per_vehicle,
             first_start,
         }
     }
@@ -288,13 +292,13 @@ fn read_and_parse_network(mut commands: Commands) {
 
     // each protobuf node provides id and coordinates of a node.
     for wn in &wire.nodes {
-        let id: i32 = wn.id.parse().unwrap();
+        let id = wn.id.clone();
         let x: f32 = wn.x as f32;
         let y: f32 = wn.y as f32;
 
         // create a new node entity for bevy
         commands.spawn(Node {
-            id,
+            id: id.clone(),
             position: Vec2::new(x, y),
         });
         // store the node position in the network data
@@ -303,21 +307,19 @@ fn read_and_parse_network(mut commands: Commands) {
 
     // each protobuf link provides the connection between two nodes.
     for wl in &wire.links {
-        let id: i32 = wl.id.parse().unwrap();
-        let from_id: i32 = wl.from.parse().unwrap();
-        let to_id: i32 = wl.to.parse().unwrap();
+        let id = wl.id.clone();
+        let from_id = wl.from.clone();
+        let to_id = wl.to.clone();
         let freespeed: f32 = wl.freespeed;
 
         // create a new link entity for bevy
         commands.spawn(Link {
-            id,
-            from_id,
-            to_id,
-            freespeed,
+            from_id: from_id.clone(),
+            to_id: to_id.clone(),
         });
         // store the link endpoints in the network data
         network.link_endpoints.insert(id, (from_id, to_id));
-        network.link_freespeed.insert(id, freespeed);
+        network.link_freespeed.insert(wl.id.clone(), freespeed);
     }
 
     commands.insert_resource(network);
@@ -334,15 +336,9 @@ fn read_and_parse_vehicles(mut commands: Commands) {
     // each protobuf vehicle provides id and maximum velocity.
     for wv in &wire.vehicles {
         let id = wv.id.to_string();
-        let maximum_velocity = wv.max_v as f32;
+        let maximum_velocity = wv.max_v;
 
-        vehicles.insert(
-            id.clone(),
-            Vehicle {
-                id,
-                maximum_velocity,
-            },
-        );
+        vehicles.insert(id.clone(), Vehicle { maximum_velocity });
     }
 
     commands.insert_resource(VehiclesData { vehicles });
@@ -426,6 +422,7 @@ fn draw_network(
     links: Query<&Link>,
     trips: Res<AllTrips>,
     network: Res<NetworkData>,
+    vehicles: Res<VehiclesData>,
     view: Option<Res<ViewSettings>>,
     clock: Res<SimulationClock>,
 ) {
@@ -462,34 +459,104 @@ fn draw_network(
     let sim_time = clock.time;
 
     // loop over all vehicles and draw their current position
-    for (_vehicle, trips_for_vehicle) in trips.per_vehicle.iter() {
-        // get the current trip for the vehicle at the current simulation time
-        if let Some(current_trip) = trips_for_vehicle
-            .iter()
-            .find(|trip| sim_time >= trip.start_time && sim_time <= trip.end_time)
-        {
-            // gets the start und end node for the current link
-            if let Some(&(from_id, to_id)) = network.link_endpoints.get(&current_trip.link_id) {
-                // Get the positions of the from and to nodes.
-                if let (Some(&from_pos), Some(&to_pos)) = (
-                    network.node_positions.get(&from_id),
-                    network.node_positions.get(&to_id),
-                ) {
-                    // Calculate how long the vehicle is on this link.
-                    let duration =
-                        (current_trip.end_time - current_trip.start_time).max(f32::EPSILON);
+    for (vehicle_id, trips_for_vehicle) in trips.per_vehicle.iter() {
+        if trips_for_vehicle.is_empty() {
+            continue;
+        }
 
-                    // Calculate how far the vehicle has progressed on this link (0 = start, 1 = end).
-                    let progress =
-                        ((sim_time - current_trip.start_time) / duration).clamp(0.0, 1.0);
+        // maximum vehicle speed; if unknown, assume no additional limit
+        let vehicle_v_max = vehicles
+            .vehicles
+            .get(vehicle_id)
+            .map(|v| v.maximum_velocity)
+            .unwrap_or(f32::INFINITY);
 
-                    // Interpolate the position of the vehicle (linear)
-                    let position = (from_pos + (to_pos - from_pos) * progress - center) / scale;
+        let mut position_to_draw: Option<Vec2> = None;
+        let mut prev_arrival_time: Option<f32> = None;
+        let mut prev_arrival_pos: Option<Vec2> = None;
 
-                    // Draw the vehicle as a green circle at its current position.
-                    gizmos.circle_2d(position, 4.0, Color::srgb(0.0, 1.0, 0.0));
+        for trip in trips_for_vehicle {
+            // get link endpoints
+            let (from_id, to_id) = match network.link_endpoints.get(&trip.link_id) {
+                Some(v) => v.clone(),
+                None => continue,
+            };
+
+            // Get the positions of the from and to nodes.
+            let (from_pos, to_pos) = match (
+                network.node_positions.get(&from_id),
+                network.node_positions.get(&to_id),
+            ) {
+                (Some(&from), Some(&to)) => (from, to),
+                _ => continue,
+            };
+
+            // length of the link (in meters)
+            let link_vector = to_pos - from_pos;
+            let link_length = link_vector.length().max(f32::EPSILON);
+
+            // maximum allowed speed on this link
+            let link_v_max = *network
+                .link_freespeed
+                .get(&trip.link_id)
+                .unwrap_or(&f32::INFINITY);
+
+            // effective driving speed: limited by link and vehicle
+            let v_eff = vehicle_v_max.min(link_v_max);
+            if v_eff <= 0.0 {
+                // cannot move with non-positive speed
+                continue;
+            }
+
+            // travel time on this link with the effective speed
+            let travel_duration = link_length / v_eff;
+
+            let scheduled_start = trip.start_time;
+
+            // actual departure time: not before scheduled_start and not before previous arrival
+            let depart_time = match prev_arrival_time {
+                Some(arrival_prev) => {
+                    // if we arrived earlier than the scheduled start of this link,
+                    // the vehicle waits at the previous node until scheduled_start
+                    let depart = scheduled_start.max(arrival_prev);
+                    if sim_time >= arrival_prev && sim_time < depart {
+                        if let Some(wait_pos) = prev_arrival_pos {
+                            position_to_draw = Some(wait_pos);
+                            break;
+                        }
+                    }
+                    depart
+                }
+                None => scheduled_start,
+            };
+
+            let arrival_time = depart_time + travel_duration;
+
+            // if the vehicle is currently on this link, interpolate position
+            if sim_time >= depart_time && sim_time < arrival_time {
+                let progress = ((sim_time - depart_time) / travel_duration).clamp(0.0, 1.0);
+                let position = from_pos + link_vector * progress;
+                position_to_draw = Some(position);
+                break;
+            }
+
+            // prepare for the next link: remember where and when we arrived
+            prev_arrival_time = Some(arrival_time);
+            prev_arrival_pos = Some(to_pos);
+        }
+
+        // If we have already finished the last link, keep the vehicle waiting at the last node.
+        if position_to_draw.is_none() {
+            if let (Some(arrival_time), Some(arrival_pos)) = (prev_arrival_time, prev_arrival_pos) {
+                if sim_time >= arrival_time {
+                    position_to_draw = Some(arrival_pos);
                 }
             }
+        }
+
+        if let Some(position_world) = position_to_draw {
+            let position_view = (position_world - center) / scale;
+            gizmos.circle_2d(position_view, 4.0, Color::srgb(0.0, 1.0, 0.0));
         }
     }
 }
