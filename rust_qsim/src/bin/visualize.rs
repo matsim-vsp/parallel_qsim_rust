@@ -16,12 +16,18 @@ use std::io::Cursor;
 use std::rc::Rc;
 
 // equil scenario
-const NETWORK_FILE: &[u8] = include_bytes!("assets/equil/equil-network.binpb");
-const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil/equil-vehicles.binpb");
-const EVENTS_FILE: &[u8] = include_bytes!("assets/equil/events.0.binpb");
+// const NETWORK_FILE: &[u8] = include_bytes!("assets/equil/equil-network.binpb");
+// const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil/equil-vehicles.binpb");
+// const EVENTS_FILE: &[u8] = include_bytes!("assets/equil/events.0.binpb");
+
+const NETWORK_FILE: &[u8] = include_bytes!("assets/equil-100/equil-100-network.binpb");
+const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil-100/equil-100-vehicles.binpb");
+const EVENTS_FILE: &[u8] = include_bytes!("assets/equil-100/events.0.binpb");
 
 // Defines how much faster the simulation runs compared to the real time
 const TIME_SCALE: f32 = 50.0;
+
+const WAIT_STACK_OFFSET: f32 = 8.0;
 
 // defines how often the time and the fps value should be updated.
 // if the value is to small the fps value is not readable
@@ -196,12 +202,9 @@ impl TripsBuilder {
 
         for (veh_id, current_links) in &self.current_trip_per_vehicle {
             if !current_links.is_empty() {
-                per_vehicle
-                    .entry(veh_id.clone())
-                    .or_default()
-                    .push(Trip {
-                        links: current_links.clone(),
-                    });
+                per_vehicle.entry(veh_id.clone()).or_default().push(Trip {
+                    links: current_links.clone(),
+                });
             }
         }
 
@@ -215,16 +218,8 @@ impl TripsBuilder {
                 });
             }
             trips.sort_by(|a, b| {
-                let a_start = a
-                    .links
-                    .first()
-                    .map(|t| t.start_time)
-                    .unwrap_or(f32::MAX);
-                let b_start = b
-                    .links
-                    .first()
-                    .map(|t| t.start_time)
-                    .unwrap_or(f32::MAX);
+                let a_start = a.links.first().map(|t| t.start_time).unwrap_or(f32::MAX);
+                let b_start = b.links.first().map(|t| t.start_time).unwrap_or(f32::MAX);
                 a_start
                     .partial_cmp(&b_start)
                     .unwrap_or(std::cmp::Ordering::Equal)
@@ -317,19 +312,19 @@ fn main() {
     // read all events and build traversed links per vehicle
     let trips = build_vehicle_trips();
 
-    // debug output: print all trips with start times of all links per trip
-    println!("--- Trips overview ---");
-    for (vehicle_id, trips_for_vehicle) in &trips.per_vehicle {
-        println!("Vehicle {vehicle_id}:");
-        for (idx, trip) in trips_for_vehicle.iter().enumerate() {
-            let links: Vec<String> = trip
-                .links
-                .iter()
-                .map(|l| format!("{} {}", format_sim_time(l.start_time), l.link_id))
-                .collect();
-            println!("  Trip {idx}: [{}]", links.join(", "));
-        }
-    }
+    // print all trips with time and link id for debugging
+    // println!("--- Trips overview ---");
+    // for (vehicle_id, trips_for_vehicle) in &trips.per_vehicle {
+    //     println!("Vehicle {vehicle_id}:");
+    //     for (idx, trip) in trips_for_vehicle.iter().enumerate() {
+    //         let links: Vec<String> = trip
+    //             .links
+    //             .iter()
+    //             .map(|l| format!("{} {}", format_sim_time(l.start_time), l.link_id))
+    //             .collect();
+    //         println!("  Trip {idx}: [{}]", links.join(", "));
+    //     }
+    // }
 
     let sim_clock = SimulationClock {
         time: trips.first_start,
@@ -427,7 +422,7 @@ fn read_and_parse_vehicles(mut commands: Commands) {
     // Each protobuf vehicle provides id and maximum velocity.
     for wv in &wire.vehicles {
         let id = wv.id.to_string();
-        let maximum_velocity = wv.max_v as f32;
+        let maximum_velocity = wv.max_v;
 
         // Store the vehicle by its id together with its maximum speed.
         vehicles.insert(id.clone(), Vehicle { maximum_velocity });
@@ -495,12 +490,12 @@ fn update_time_and_fps(
     }
 }
 
-fn format_sim_time(seconds: f32) -> String {
-    let total_seconds = seconds.max(0.0) as i32;
-    let hours = (total_seconds / 3600) % 24;
-    let minutes = (total_seconds / 60) % 60;
-    format!("{:02}:{:02}", hours, minutes)
-}
+// fn format_sim_time(seconds: f32) -> String {
+//     let total_seconds = seconds.max(0.0) as i32;
+//     let hours = (total_seconds / 3600) % 24;
+//     let minutes = (total_seconds / 60) % 60;
+//     format!("{:02}:{:02}", hours, minutes)
+// }
 
 // set the camera position and zoom to fit the network
 fn fit_camera_to_network(
@@ -594,15 +589,6 @@ fn draw_network(
             );
         }
     }
-
-    // draw the nodes
-    for node in &nodes {
-        gizmos.circle_2d(
-            (node.position - center) / scale,
-            4.0,
-            Color::srgb(1.0, 0.0, 0.0),
-        );
-    }
 }
 
 fn draw_vehicles(
@@ -620,6 +606,8 @@ fn draw_vehicles(
         (Vec2::ZERO, 1.0)
     };
 
+    let mut waiting_stacks: HashMap<String, u32> = HashMap::new();
+
     // get the current simulation time.
     let sim_time = clock.time;
 
@@ -636,12 +624,18 @@ fn draw_vehicles(
             .map(|v| v.maximum_velocity)
             .unwrap_or(f32::INFINITY);
 
-        let mut position_to_draw: Option<Vec2> = None;
+        struct VehiclePosition {
+            world: Vec2,
+            waiting_node: Option<String>,
+        }
+
+        let mut position_to_draw: Option<VehiclePosition> = None;
         struct ScheduledLink {
             from_pos: Vec2,
             to_pos: Vec2,
             depart_time: f32,
             arrival_time: f32,
+            to_node_id: String,
         }
 
         'trips: for trip in trips_for_vehicle {
@@ -701,6 +695,7 @@ fn draw_vehicles(
                     to_pos,
                     depart_time,
                     arrival_time,
+                    to_node_id: to_id.clone(),
                 });
 
                 prev_arrival_time_schedule = Some(arrival_time);
@@ -718,31 +713,47 @@ fn draw_vehicles(
 
             let mut prev_arrival_time: Option<f32> = None;
             let mut prev_arrival_pos: Option<Vec2> = None;
+            let mut prev_arrival_node_id: Option<String> = None;
 
             for entry in &schedule {
-                if let (Some(arrival_prev), Some(wait_pos)) = (prev_arrival_time, prev_arrival_pos) {
+                if let (Some(arrival_prev), Some(wait_pos)) = (prev_arrival_time, prev_arrival_pos)
+                {
                     if sim_time >= arrival_prev && sim_time < entry.depart_time {
-                        position_to_draw = Some(wait_pos);
+                        position_to_draw = Some(VehiclePosition {
+                            world: wait_pos,
+                            waiting_node: prev_arrival_node_id.clone(),
+                        });
                         break 'trips;
                     }
                 }
 
                 if sim_time >= entry.depart_time && sim_time < entry.arrival_time {
-                    let travel_duration = (entry.arrival_time - entry.depart_time).max(f32::EPSILON);
-                    let progress = ((sim_time - entry.depart_time) / travel_duration).clamp(0.0, 1.0);
+                    let travel_duration =
+                        (entry.arrival_time - entry.depart_time).max(f32::EPSILON);
+                    let progress =
+                        ((sim_time - entry.depart_time) / travel_duration).clamp(0.0, 1.0);
                     let link_vector = entry.to_pos - entry.from_pos;
                     let position = entry.from_pos + link_vector * progress;
-                    position_to_draw = Some(position);
+                    position_to_draw = Some(VehiclePosition {
+                        world: position,
+                        waiting_node: None,
+                    });
                     break 'trips;
                 }
 
                 prev_arrival_time = Some(entry.arrival_time);
                 prev_arrival_pos = Some(entry.to_pos);
+                prev_arrival_node_id = Some(entry.to_node_id.clone());
             }
         }
 
-        if let Some(position_world) = position_to_draw {
-            let position_view = (position_world - center) / scale;
+        if let Some(position_info) = position_to_draw {
+            let mut position_view = (position_info.world - center) / scale;
+            if let Some(node_id) = &position_info.waiting_node {
+                let stack_index = waiting_stacks.entry(node_id.clone()).or_insert(0);
+                position_view += Vec2::new(0.0, WAIT_STACK_OFFSET * (*stack_index as f32));
+                *stack_index += 1;
+            }
             gizmos.circle_2d(position_view, 4.0, Color::srgb(0.0, 1.0, 0.0));
         }
     }
