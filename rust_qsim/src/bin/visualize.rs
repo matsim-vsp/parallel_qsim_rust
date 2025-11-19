@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::rc::Rc;
 
-// Equil scenario
+// equil scenario
 const NETWORK_FILE: &[u8] = include_bytes!("assets/equil/equil-network.binpb");
 const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil/equil-vehicles.binpb");
 const EVENTS_FILE: &[u8] = include_bytes!("assets/equil/events.0.binpb");
@@ -29,7 +29,7 @@ struct Node {
     position: Vec2, // node position (x, y)
 }
 
-// Network link. The to and from id define the start and end nodes of the link.
+// Network link
 #[derive(Component, Debug)]
 struct Link {
     from_id: String, // start node id
@@ -65,14 +65,14 @@ struct NetworkData {
     link_freespeed: HashMap<String, f32>,  // link id -> freespeed
 }
 
+// view settings
 #[derive(Resource)]
 struct ViewSettings {
     center: Vec2,
     scale: f32,
 }
 
-// Simple vehicle description.
-// We only need the maximum allowed velocity for visualisation.
+// vehicle
 #[derive(Debug, Clone)]
 struct Vehicle {
     maximum_velocity: f32, // maximum vehicle speed [m/s]
@@ -83,15 +83,13 @@ struct VehiclesData {
     vehicles: HashMap<String, Vehicle>,
 }
 
-// This struct collects all traversed links per vehicle
 #[derive(Default)]
 struct TripsBuilder {
-    // For each vehicle, remember on which link it currently is and since when.
-    // vehicle id -> (link id, enter time)
+    // stores the current link of a vehicle
     current_link_per_vehicle: HashMap<String, (String, f32)>,
-    // For each vehicle, store all links it has traversed.
+    // stores all traversed links per vehicle
     per_vehicle: HashMap<String, Vec<TraversedLink>>,
-    // Earliest start time among all traversed links.
+    // Earliest start time of all vehicles
     first_start: f32,
 }
 
@@ -105,8 +103,7 @@ impl TripsBuilder {
         }
     }
 
-    // Handles a single event and updates the internal state if it is a link enter or link leave event.
-    // All other event types are ignored.
+    // check if an event is a LinkEnter or a LinkLeaveEvent and calls the corresponding methode
     fn handle_event(&mut self, event: &dyn EventTrait) {
         if let Some(enter) = event.as_any().downcast_ref::<LinkEnterEvent>() {
             self.handle_link_enter(enter);
@@ -145,7 +142,7 @@ impl TripsBuilder {
         }
     }
 
-    // Builds the AllTrips resource from the collected traversed links.
+    // Builds the AllTrips from the collected traversed links.
     fn build_all_trips(&self) -> AllTrips {
         // Clone trips so we can sort them per vehicle by start time
         let mut per_vehicle = self.per_vehicle.clone();
@@ -211,8 +208,6 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
 }
 
 #[rustfmt::skip]
-// Converts proto events at a given simulation time into internal event types
-// and publishes them so that all registered handlers can react.
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
     for proto_event in events {
         let mut proto_event = proto_event.clone();
@@ -237,7 +232,6 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
             PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
-        // Publish the internal event so that all registered handlers (like TripsBuilder) can see it.
         publisher.publish_event(internal_event.as_ref());
     }
 }
