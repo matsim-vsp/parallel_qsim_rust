@@ -1,10 +1,3 @@
-use nohash_hasher::{IntMap, IntSet};
-use rand::rngs::ThreadRng;
-use rand::{rng, Rng};
-use std::cell::RefCell;
-use std::collections::HashSet;
-use std::rc::Rc;
-
 use super::{
     link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
     Link, Network, Node,
@@ -15,6 +8,13 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{EventsPublisher, LinkEnterEventBuilder, LinkLeaveEventBuilder};
 use crate::simulation::id::Id;
 use crate::simulation::vehicles::InternalVehicle;
+use nohash_hasher::{IntMap, IntSet};
+use rand::rngs::ThreadRng;
+use rand::{rng, Rng};
+use std::cell::RefCell;
+use std::collections::HashSet;
+use std::rc::Rc;
+use tracing::instrument;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StorageUpdate {
@@ -259,7 +259,7 @@ impl SimNetworkPartition {
         }
     }
 
-    // #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
+    #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
     pub fn move_links(&mut self, now: u32) -> (Vec<InternalVehicle>, Vec<StorageUpdate>) {
         let mut storage_cap_updates: Vec<_> = Vec::new();
         let mut vehicles: Vec<_> = Vec::new();
@@ -331,7 +331,7 @@ impl SimNetworkPartition {
         false
     }
 
-    // #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
+    #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
     pub fn move_nodes(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,

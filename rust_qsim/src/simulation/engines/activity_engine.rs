@@ -7,6 +7,7 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
+use tracing::instrument;
 
 pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
@@ -27,6 +28,7 @@ impl ActivityEngine {
         }
     }
 
+    #[instrument(level = "trace", skip(self, agents))]
     pub(crate) fn do_step(
         &mut self,
         now: u32,
@@ -37,21 +39,24 @@ impl ActivityEngine {
         }
 
         let mut end_after_wake_up = self.wake_up(now);
-        // inform agents about wakeup
-        end_after_wake_up.iter_mut().for_each(|agent| {
-            ActivityEngine::inform_wakeup(&mut self.comp_env, agent, now, now);
-        });
+        self.notify_wakeup_all(now, &mut end_after_wake_up);
 
-        // inform all awake agents about wakeup
-        for agent in &mut self.awake_q {
-            let end_time = agent.end_time(now);
-            ActivityEngine::inform_wakeup(&mut self.comp_env, &mut agent.agent, end_time, now);
-        }
+        let end_from_awake = self.end(now);
+        self.notify_end_all(now, end_after_wake_up, end_from_awake)
+    }
 
-        let end = self.end(now);
-
-        let mut res = Vec::with_capacity(end_after_wake_up.len() + end.len());
-        for mut agent in end_after_wake_up.into_iter().chain(end.into_iter()) {
+    #[instrument(level = "trace", skip(self, end_after_wake_up, end_from_awake))]
+    fn notify_end_all(
+        &mut self,
+        now: u32,
+        end_after_wake_up: Vec<SimulationAgent>,
+        end_from_awake: Vec<SimulationAgent>,
+    ) -> Vec<SimulationAgent> {
+        let mut res = Vec::with_capacity(end_after_wake_up.len() + end_from_awake.len());
+        for mut agent in end_after_wake_up
+            .into_iter()
+            .chain(end_from_awake.into_iter())
+        {
             self.comp_env.events_publisher_borrow_mut().publish_event(
                 &ActivityEndEventBuilder::default()
                     .time(now)
@@ -61,10 +66,25 @@ impl ActivityEngine {
                     .build()
                     .unwrap(),
             );
-            ActivityEngine::inform_act_end(&mut agent, now);
+            ActivityEngine::notify_act_end(&mut agent, now);
             res.push(agent);
         }
         res
+    }
+
+    #[instrument(level = "trace", skip(self, end_after_wake_up))]
+    fn notify_wakeup_all(&mut self, now: u32, end_after_wake_up: &mut Vec<SimulationAgent>) {
+        // inform agents about wakeup
+        // those are the agents that are woken up and directly end their activity
+        end_after_wake_up.iter_mut().for_each(|agent| {
+            ActivityEngine::notify_wakeup(&mut self.comp_env, agent, now, now);
+        });
+
+        // inform all awake agents about wakeup
+        for agent in &mut self.awake_q {
+            let end_time = agent.end_time(now);
+            ActivityEngine::notify_wakeup(&mut self.comp_env, &mut agent.agent, end_time, now);
+        }
     }
 
     fn receive_agent(&mut self, now: u32, agent: AsleepSimulationAgent) {
@@ -115,7 +135,7 @@ impl ActivityEngine {
         agents
     }
 
-    fn inform_wakeup(
+    fn notify_wakeup(
         comp_env: &mut ThreadLocalComputationalEnvironment,
         agent: &mut SimulationAgent,
         end_time: u32,
@@ -127,7 +147,7 @@ impl ActivityEngine {
         );
     }
 
-    fn inform_act_end(agent: &mut SimulationAgent, now: u32) {
+    fn notify_act_end(agent: &mut SimulationAgent, now: u32) {
         agent.notify_event(&mut AgentEvent::ActivityFinished(), now);
     }
 

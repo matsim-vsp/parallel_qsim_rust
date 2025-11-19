@@ -17,6 +17,7 @@ use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::IntSet;
+use tracing::instrument;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
@@ -58,6 +59,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, agents), fields(rank=self.net_message_broker.rank()))]
     pub(crate) fn do_step(
         &mut self,
         now: u32,
@@ -112,15 +114,6 @@ impl<C: SimCommunicator> LegEngine<C> {
             }
 
             for passenger in veh.passengers() {
-                // self.comp_env.events_publisher_borrow_mut().publish_event(
-                //     now,
-                //     &Event::new_passenger_dropped_off(
-                //         passenger.id(),
-                //         &passenger.curr_leg().mode,
-                //         &Id::create("0"), //TODO
-                //         &veh.id,
-                //     ),
-                // );
                 if publish_leave_vehicle {
                     self.comp_env.events_publisher_borrow_mut().publish_event(
                         &PersonLeavesVehicleEventBuilder::default()
