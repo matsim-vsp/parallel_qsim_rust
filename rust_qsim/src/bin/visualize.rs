@@ -155,7 +155,7 @@ impl TripsBuilder {
         }
 
         let mut first_start = self.first_start;
-        // Set first start to 0 if no traversed links were found
+        // set first start to 0 if no traversed link was found
         if first_start == f32::MAX {
             first_start = 0.0;
         }
@@ -178,8 +178,7 @@ fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut E
     });
 }
 
-// This method reads all proto events, sends them through the EventsPublisher,
-// and collects all traversed links per vehicle.
+// this method reads all proto events and sends them through the EventsPublisher
 fn build_vehicle_trips() -> AllTrips {
     // Reader for all ProtoEvents
     let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
@@ -416,6 +415,7 @@ fn draw_network(
     links: Query<&Link>,
     view: Option<Res<ViewSettings>>,
 ) {
+    // use current view settings (if not defined use default values as fallback)
     let (center, scale) = if let Some(view) = view {
         (view.center, view.scale.max(f32::EPSILON))
     } else {
@@ -454,23 +454,23 @@ fn draw_vehicles(
     view: Option<Res<ViewSettings>>,
     clock: Res<SimulationClock>,
 ) {
-    // Use current view settings (center/scale) or fall back to defaults.
+    // use current view settings (if not defined use default values as fallback)
     let (center, scale) = if let Some(view) = view {
         (view.center, view.scale.max(f32::EPSILON))
     } else {
         (Vec2::ZERO, 1.0)
     };
 
-    // Get the current simulation time.
+    // get the current simulation time.
     let sim_time = clock.time;
 
-    // Loop over all vehicles and draw their current position.
+    // loop over all vehicles and draw their current position.
     for (vehicle_id, trips_for_vehicle) in trips.per_vehicle.iter() {
         if trips_for_vehicle.is_empty() {
             continue;
         }
 
-        // Maximum vehicle speed; if unknown, assume no additional limit.
+        // get the max vehicle speed
         let vehicle_v_max = vehicles
             .vehicles
             .get(vehicle_id)
@@ -482,13 +482,13 @@ fn draw_vehicles(
         let mut prev_arrival_pos: Option<Vec2> = None;
 
         for trip in trips_for_vehicle {
-            // Get link endpoints (from and to node ids) from the NetworkData resource.
+            // Get link endpoints from the network
             let (from_id, to_id) = match network.link_endpoints.get(&trip.link_id) {
                 Some(v) => v.clone(),
                 None => continue,
             };
 
-            // Get the positions of the from and to nodes.
+            // get the positions of the from and to nodes.
             let (from_pos, to_pos) = match (
                 network.node_positions.get(&from_id),
                 network.node_positions.get(&to_id),
@@ -497,48 +497,51 @@ fn draw_vehicles(
                 _ => continue,
             };
 
-            // Length of the link (in meters) based on node coordinates.
+            // calc the link length based on the coordinates
             let link_vector = to_pos - from_pos;
             let link_length = link_vector.length().max(f32::EPSILON);
 
-            // Maximum allowed speed on this link from the network.
+            // get the max speed for the link
             let link_v_max = *network
                 .link_freespeed
                 .get(&trip.link_id)
                 .unwrap_or(&f32::INFINITY);
 
-            // Effective driving speed: limited by both link and vehicle.
+            // calc the max speed based on min(link_v_max, vehicle_v_max)
             let v_eff = vehicle_v_max.min(link_v_max);
             if v_eff <= 0.0 {
-                // cannot move with non-positive speed
                 continue;
             }
 
-            // Travel time on this link with the effective speed.
+            // calc the travel time based on the speed and the length
             let travel_duration = link_length / v_eff;
 
+            // start time of the vehicle on this link
             let scheduled_start = trip.start_time;
 
-            // Actual departure time: not before scheduled_start and not before previous arrival.
+            // calculate the departure time
             let depart_time = match prev_arrival_time {
+                // check if the vehicle already arrived at node and the current time is bigger than the start time
                 Some(arrival_prev) => {
-                    // If we arrived earlier than the scheduled start of this link,
-                    // the vehicle waits at the previous node until scheduled_start.
                     let depart = scheduled_start.max(arrival_prev);
+                    // if the current simulation time is between arrival and depart,
+                    // the vehicle is waiting at the previous node.
                     if sim_time >= arrival_prev && sim_time < depart {
                         if let Some(wait_pos) = prev_arrival_pos {
+                            // draw the vehicle at the previous node position,
                             position_to_draw = Some(wait_pos);
                             break;
                         }
                     }
                     depart
                 }
+                // use the scheduled start time if this is the first link of the vehicle
                 None => scheduled_start,
             };
 
             let arrival_time = depart_time + travel_duration;
 
-            // If the vehicle is currently on this link, interpolate position.
+            // if the vehicle is currently on this link, interpolate position.
             if sim_time >= depart_time && sim_time < arrival_time {
                 let progress = ((sim_time - depart_time) / travel_duration).clamp(0.0, 1.0);
                 let position = from_pos + link_vector * progress;
@@ -546,12 +549,12 @@ fn draw_vehicles(
                 break;
             }
 
-            // Prepare for the next link: remember where and when we arrived.
+            // store the previous arrical time and position
             prev_arrival_time = Some(arrival_time);
             prev_arrival_pos = Some(to_pos);
         }
 
-        // If we have already finished the last link, keep the vehicle waiting at the last node.
+        // if the vehicle is already at the end of the link -> wait
         if position_to_draw.is_none() {
             if let (Some(arrival_time), Some(arrival_pos)) = (prev_arrival_time, prev_arrival_pos) {
                 if sim_time >= arrival_time {
