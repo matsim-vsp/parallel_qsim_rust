@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::ui::Node as UiNode;
 use bevy::window::PrimaryWindow;
 use bevy_pancam::{PanCam, PanCamPlugin};
 use prost::Message;
@@ -21,6 +22,10 @@ const EVENTS_FILE: &[u8] = include_bytes!("assets/equil/events.0.binpb");
 
 // Defines how much faster the simulation runs compared to the real time
 const TIME_SCALE: f32 = 50.0;
+
+// defines how often the time and the fps value should be updated.
+// if the value is to small the fps value is not readable
+const TIME_FPS_UPDATE_EVERY_N_FRAMES: u32 = 50;
 
 // Network node
 #[derive(Component, Debug)]
@@ -77,6 +82,10 @@ struct ViewSettings {
 struct Vehicle {
     maximum_velocity: f32, // maximum vehicle speed [m/s]
 }
+
+// ui
+#[derive(Component)]
+struct TimeFpsText;
 
 #[derive(Resource, Default)]
 struct VehiclesData {
@@ -167,12 +176,12 @@ impl TripsBuilder {
     }
 }
 
-// Registers a listener on the EventsPublisher that dends all events to the TripsBuilder
+// registers a listener on the EventsPublisher that dends all events to the TripsBuilder
 fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut EventsPublisher) {
-    // Create a clone of the TripsBuilder
+    // create a clone of the TripsBuilder
     let builder_for_events = builder.clone();
 
-    // Send every published event to ther TripsBuilder
+    // send every published event to ther TripsBuilder
     publisher.on_any(move |event| {
         builder_for_events.borrow_mut().handle_event(event);
     });
@@ -180,24 +189,24 @@ fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut E
 
 // this method reads all proto events and sends them through the EventsPublisher
 fn build_vehicle_trips() -> AllTrips {
-    // Reader for all ProtoEvents
+    // reader for all ProtoEvents
     let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
-    // Create a new TripsBuilder to collect all traversed links
+    // create a new TripsBuilder to collect all traversed links
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
 
-    // Create a new EventsPublisher and connect it to the TripsBuilder
+    // create a new EventsPublisher and connect it to the TripsBuilder
     let mut publisher = EventsPublisher::new();
     register_trips_listener(builder.clone(), &mut publisher);
 
-    // Iterate over all events
+    // iterate over all events
     for (time, events_at_time) in reader {
         process_events(time, &events_at_time, &mut publisher);
     }
 
     publisher.finish();
 
-    // Build the AllTrips from the collected events
+    // build the AllTrips from the collected events
     let trips = builder.borrow().build_all_trips();
     trips
 }
@@ -267,10 +276,19 @@ fn main() {
                 read_and_parse_vehicles,
                 fit_camera_to_network,
                 setup,
+                setup_ui,
             )
                 .chain(),
         )
-        .add_systems(Update, (simulation_time, draw_network, draw_vehicles))
+        .add_systems(
+            Update,
+            (
+                simulation_time,
+                draw_network,
+                draw_vehicles,
+                update_time_and_fps,
+            ),
+        )
         .run();
 }
 
@@ -343,13 +361,65 @@ fn setup(mut commands: Commands) {
     // commands.spawn((Camera2d));
 }
 
+// creates a simple ui text in the top-right corner showing simulation time and fps
+fn setup_ui(mut commands: Commands) {
+    commands.spawn((
+        UiNode {
+            position_type: PositionType::Absolute,
+            top: Val::Px(10.0),
+            right: Val::Px(10.0),
+            ..Default::default()
+        },
+        Text::new("Sim Time: 00:00  FPS:     "),
+        TextFont {
+            font_size: 18.0,
+            ..Default::default()
+        },
+        TextColor(Color::srgb(1.0, 1.0, 1.0)),
+        TimeFpsText,
+    ));
+}
+
+// updates the ui text every frame with the current simulation time and an approximate fps value
+fn update_time_and_fps(
+    mut frame_counter: Local<u32>,
+    time: Res<Time>,
+    clock: Res<SimulationClock>,
+    mut query: Query<&mut Text, With<TimeFpsText>>,
+) {
+    *frame_counter += 1;
+    if *frame_counter % TIME_FPS_UPDATE_EVERY_N_FRAMES != 0 {
+        return;
+    }
+
+    let sim_time = clock.time;
+    let delta = time.delta_secs();
+    let fps = if delta > 0.0 {
+        (1.0 / delta).round() as i32
+    } else {
+        0
+    };
+
+    // the simulation time is defined in seconds since 0:00
+    let total_seconds = sim_time.max(0.0) as i32;
+    let hours = (total_seconds / 3600) % 24;
+    let minutes = (total_seconds / 60) % 60;
+
+    let content = format!("Sim Time: {:02}:{:02}  FPS: {:>4}", hours, minutes, fps);
+
+    for mut text in &mut query {
+        text.0.clear();
+        text.0.push_str(&content);
+    }
+}
+
 // set the camera position and zoom to fit the network
 fn fit_camera_to_network(
     mut commands: Commands,
     network: Option<Res<NetworkData>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    // If the network resource does not exist yet, we cannot compute a view.
+    // return if no network exists
     let Some(network) = network else {
         return;
     };
