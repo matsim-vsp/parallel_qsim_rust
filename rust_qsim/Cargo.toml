@@ -28,7 +28,6 @@ itertools = "0.14.0"
 assert_approx_eq = "1.1.0"
 nohash-hasher = "0.2.0"
 serde_path_to_error = "0.1.14"
-geo = "0.29.1"
 ahash = "0.8.11"
 keyed_priority_queue = "0.4.2"
 xml = "0.8.20"
@@ -38,7 +37,6 @@ serde_yaml = "0.9.34"
 tonic = "0.13.1"
 tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
 lz4 = "1.28.1"
-bincode = { version = "2.0.1", features = ["serde"] }
 derive_builder = "0.20.2"
 tempfile = "3.20.0"
 dyn-clone = "1.0.19"
@@ -51,6 +49,7 @@ derive_more = { version = "2.0.1", features = ["debug"] }
 futures = "0.3.31"
 uuid = { version = "1.18.1", features = ["v7"] }
 csv = "1.4.0"
+inventory = "0.3.21"
 
 [dev-dependencies]
 # For development, test_util feature is always activated so that functions like id store reset work
