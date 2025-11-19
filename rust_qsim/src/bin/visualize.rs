@@ -86,12 +86,12 @@ struct VehiclesData {
 // This struct collects all traversed links per vehicle
 #[derive(Default)]
 struct TripsBuilder {
-    // stores on which link a vehicle has been and since when
-    // vehicle id -> (link id, start time)
-    active: HashMap<String, (String, f32)>,
-    // stores all traversed links per vehicle
+    // For each vehicle, remember on which link it currently is and since when.
+    // vehicle id -> (link id, enter time)
+    current_link_per_vehicle: HashMap<String, (String, f32)>,
+    // For each vehicle, store all links it has traversed.
     per_vehicle: HashMap<String, Vec<TraversedLink>>,
-    // saves the first start time of all traversed links
+    // Earliest start time among all traversed links.
     first_start: f32,
 }
 
@@ -99,35 +99,36 @@ impl TripsBuilder {
     // Creates a new TripsBuilder
     fn new() -> Self {
         Self {
-            active: HashMap::new(),
+            current_link_per_vehicle: HashMap::new(),
             per_vehicle: HashMap::new(),
             first_start: f32::MAX,
         }
     }
 
     // Handles a single event and updates the internal state if it is a link enter or link leave event.
+    // All other event types are ignored.
     fn handle_event(&mut self, event: &dyn EventTrait) {
         if let Some(enter) = event.as_any().downcast_ref::<LinkEnterEvent>() {
             self.handle_link_enter(enter);
         } else if let Some(leave) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
             self.handle_link_leave(leave);
-        } else {
-            // All other event types are ignored.
         }
     }
 
-    // Handles a link enter event
+    // Handles a link enter event and remembers which vehicle entered which link at what time.
     fn handle_link_enter(&mut self, event: &LinkEnterEvent) {
         let link_id = event.link.external().to_string();
         let vehicle_id = event.vehicle.external().to_string();
-        self.active.insert(vehicle_id, (link_id, event.time as f32));
+        self.current_link_per_vehicle
+            .insert(vehicle_id, (link_id, event.time as f32));
     }
 
     // Handles a link leave event by closing the currently active traversed link for the vehicle.
     fn handle_link_leave(&mut self, event: &LinkLeaveEvent) {
         let link_id = event.link.external().to_string();
         let vehicle_id = event.vehicle.external().to_string();
-        if let Some((entered_link, start_time)) = self.active.remove(&vehicle_id) {
+        if let Some((entered_link, start_time)) = self.current_link_per_vehicle.remove(&vehicle_id)
+        {
             let end_time = event.time as f32;
             if entered_link == link_id && end_time >= start_time {
                 if start_time < self.first_start {
@@ -146,7 +147,7 @@ impl TripsBuilder {
 
     // Builds the AllTrips resource from the collected traversed links.
     fn build_all_trips(&self) -> AllTrips {
-        // clone trips so we can sort them per vehicle by start time
+        // Clone trips so we can sort them per vehicle by start time
         let mut per_vehicle = self.per_vehicle.clone();
         for trips in per_vehicle.values_mut() {
             trips.sort_by(|a, b| {
@@ -157,7 +158,7 @@ impl TripsBuilder {
         }
 
         let mut first_start = self.first_start;
-        // set first start to 0 if no traversed links were found
+        // Set first start to 0 if no traversed links were found
         if first_start == f32::MAX {
             first_start = 0.0;
         }
@@ -168,38 +169,38 @@ impl TripsBuilder {
     }
 }
 
-// This function registers a handler on the publisher which forwards all events to the TripsBuilder.
-fn register_trips_handler(builder: Rc<RefCell<TripsBuilder>>) -> impl FnOnce(&mut EventsPublisher) {
-    move |events: &mut EventsPublisher| {
-        // clone the builder handle into the closure used by the publisher
-        let builder_for_events = builder.clone();
-        // register a catch-all callback which forwards each event to the TripsBuilder
-        events.on_any(move |e| {
-            builder_for_events.borrow_mut().handle_event(e);
-        });
-    }
+// Registers a listener on the EventsPublisher that dends all events to the TripsBuilder
+fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut EventsPublisher) {
+    // Create a clone of the TripsBuilder
+    let builder_for_events = builder.clone();
+
+    // Send every published event to ther TripsBuilder
+    publisher.on_any(move |event| {
+        builder_for_events.borrow_mut().handle_event(event);
+    });
 }
 
 // This method reads all proto events, sends them through the EventsPublisher,
 // and collects all traversed links per vehicle.
 fn build_vehicle_trips() -> AllTrips {
-    // read events
+    // Reader for all ProtoEvents
     let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
-    // create a TripsBuilder to store all trips
+    // Create a new TripsBuilder to collect all traversed links
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
-    let register_trips = register_trips_handler(builder.clone());
 
+    // Create a new EventsPublisher and connect it to the TripsBuilder
     let mut publisher = EventsPublisher::new();
-    register_trips(&mut publisher);
+    register_trips_listener(builder.clone(), &mut publisher);
 
-    // Iterate over all proto events
+    // Iterate over all events
     for (time, events_at_time) in reader {
         process_events(time, &events_at_time, &mut publisher);
     }
 
     publisher.finish();
 
+    // Build the AllTrips from the collected events
     let trips = builder.borrow().build_all_trips();
     trips
 }
@@ -210,6 +211,8 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
 }
 
 #[rustfmt::skip]
+// Converts proto events at a given simulation time into internal event types
+// and publishes them so that all registered handlers can react.
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
     for proto_event in events {
         let mut proto_event = proto_event.clone();
@@ -239,8 +242,6 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
     }
 }
 
-// TODO: Check what happen if i use two clocks e.g. or to networks (two resources)
-// two ressources point tzo the same data and modify the data (+1 and -1) and check what happens
 fn main() {
     // read all events and build traversed links per vehicle
     let trips = build_vehicle_trips();
