@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::rc::Rc;
 
-// Network and Events file paths
 // Equil scenario
 const NETWORK_FILE: &[u8] = include_bytes!("assets/equil/equil-network.binpb");
 const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil/equil-vehicles.binpb");
@@ -44,7 +43,7 @@ struct AllTrips {
     first_start: f32,                                 // first start time of all trips
 }
 
-// Defines a traversed link: a vehicle moving along a single link during a time interval.
+// Defines a traversed link
 #[derive(Clone)]
 struct TraversedLink {
     link_id: String, // link id
@@ -72,6 +71,8 @@ struct ViewSettings {
     scale: f32,
 }
 
+// Simple vehicle description.
+// We only need the maximum allowed velocity for visualisation.
 #[derive(Debug, Clone)]
 struct Vehicle {
     maximum_velocity: f32, // maximum vehicle speed [m/s]
@@ -82,11 +83,10 @@ struct VehiclesData {
     vehicles: HashMap<String, Vehicle>,
 }
 
-// This struct collects all traversed links per vehicle by listening to events.
+// This struct collects all traversed links per vehicle
 #[derive(Default)]
 struct TripsBuilder {
-    // stores on which link a vehicle has been and since when,
-    // until the corresponding leave event was found
+    // stores on which link a vehicle has been and since when
     // vehicle id -> (link id, start time)
     active: HashMap<String, (String, f32)>,
     // stores all traversed links per vehicle
@@ -96,7 +96,7 @@ struct TripsBuilder {
 }
 
 impl TripsBuilder {
-    // Creates a new TripsBuilder.
+    // Creates a new TripsBuilder
     fn new() -> Self {
         Self {
             active: HashMap::new(),
@@ -116,7 +116,7 @@ impl TripsBuilder {
         }
     }
 
-    // Handles a link enter event by remembering on which link the vehicle entered and at what time.
+    // Handles a link enter event
     fn handle_link_enter(&mut self, event: &LinkEnterEvent) {
         let link_id = event.link.external().to_string();
         let vehicle_id = event.vehicle.external().to_string();
@@ -183,23 +183,21 @@ fn register_trips_handler(builder: Rc<RefCell<TripsBuilder>>) -> impl FnOnce(&mu
 // This method reads all proto events, sends them through the EventsPublisher,
 // and collects all traversed links per vehicle.
 fn build_vehicle_trips() -> AllTrips {
-    // create a reader over the embedded events file
+    // read events
     let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
-    // create a TripsBuilder which will collect traversed links while events are published
+    // create a TripsBuilder to store all trips
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
     let register_trips = register_trips_handler(builder.clone());
 
-    // create a publisher and register the TripsBuilder as an event listener
     let mut publisher = EventsPublisher::new();
     register_trips(&mut publisher);
 
-    // iterate time step wise over all proto events and convert them into internal events
+    // Iterate over all proto events
     for (time, events_at_time) in reader {
         process_events(time, &events_at_time, &mut publisher);
     }
 
-    // Respect possible finish callbacks registered on the publisher.
     publisher.finish();
 
     let trips = builder.borrow().build_all_trips();
@@ -213,9 +211,7 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
 
 #[rustfmt::skip]
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
-    // loop over all proto events in this time step
     for proto_event in events {
-        // ensure that the event has a "type" attribute, which is required by the from_proto_event helpers
         let mut proto_event = proto_event.clone();
         if !proto_event.attributes.contains_key("type") {
             proto_event
@@ -223,7 +219,6 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
                 .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
         }
 
-        // map the string based event type to the corresponding internal Rust event type
         let type_ = proto_event.attributes["type"].as_string();
         let internal_event: Box<dyn EventTrait> = match type_.as_str() {
             GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
@@ -239,7 +234,7 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
             PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
-        // publish the internal event so that all registered handlers (like TripsBuilder) can see it
+        // Publish the internal event so that all registered handlers (like TripsBuilder) can see it.
         publisher.publish_event(internal_event.as_ref());
     }
 }
@@ -249,6 +244,7 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
 fn main() {
     // read all events and build traversed links per vehicle
     let trips = build_vehicle_trips();
+
     let sim_clock = SimulationClock {
         time: trips.first_start,
     };
@@ -279,7 +275,7 @@ fn main() {
             )
                 .chain(),
         )
-        .add_systems(Update, (simulation_time, draw_network))
+        .add_systems(Update, (simulation_time, draw_network, draw_vehicles))
         .run();
 }
 
@@ -333,11 +329,12 @@ fn read_and_parse_vehicles(mut commands: Commands) {
 
     let mut vehicles: HashMap<String, Vehicle> = HashMap::new();
 
-    // each protobuf vehicle provides id and maximum velocity.
+    // Each protobuf vehicle provides id and maximum velocity.
     for wv in &wire.vehicles {
         let id = wv.id.to_string();
-        let maximum_velocity = wv.max_v;
+        let maximum_velocity = wv.max_v as f32;
 
+        // Store the vehicle by its id together with its maximum speed.
         vehicles.insert(id.clone(), Vehicle { maximum_velocity });
     }
 
@@ -346,6 +343,7 @@ fn read_and_parse_vehicles(mut commands: Commands) {
 
 // creates the camera for visualization
 fn setup(mut commands: Commands) {
+    // Spawn a simple 2D camera that supports panning and zooming via PanCam.
     commands.spawn((Camera2d, PanCam::default()));
     // commands.spawn((Camera2d));
 }
@@ -420,11 +418,7 @@ fn draw_network(
     mut gizmos: Gizmos,
     nodes: Query<&Node>,
     links: Query<&Link>,
-    trips: Res<AllTrips>,
-    network: Res<NetworkData>,
-    vehicles: Res<VehiclesData>,
     view: Option<Res<ViewSettings>>,
-    clock: Res<SimulationClock>,
 ) {
     let (center, scale) = if let Some(view) = view {
         (view.center, view.scale.max(f32::EPSILON))
@@ -454,17 +448,33 @@ fn draw_network(
             Color::srgb(1.0, 0.0, 0.0),
         );
     }
+}
 
-    // get the current simulation time
+fn draw_vehicles(
+    mut gizmos: Gizmos,
+    trips: Res<AllTrips>,
+    network: Res<NetworkData>,
+    vehicles: Res<VehiclesData>,
+    view: Option<Res<ViewSettings>>,
+    clock: Res<SimulationClock>,
+) {
+    // Use current view settings (center/scale) or fall back to defaults.
+    let (center, scale) = if let Some(view) = view {
+        (view.center, view.scale.max(f32::EPSILON))
+    } else {
+        (Vec2::ZERO, 1.0)
+    };
+
+    // Get the current simulation time.
     let sim_time = clock.time;
 
-    // loop over all vehicles and draw their current position
+    // Loop over all vehicles and draw their current position.
     for (vehicle_id, trips_for_vehicle) in trips.per_vehicle.iter() {
         if trips_for_vehicle.is_empty() {
             continue;
         }
 
-        // maximum vehicle speed; if unknown, assume no additional limit
+        // Maximum vehicle speed; if unknown, assume no additional limit.
         let vehicle_v_max = vehicles
             .vehicles
             .get(vehicle_id)
@@ -476,7 +486,7 @@ fn draw_network(
         let mut prev_arrival_pos: Option<Vec2> = None;
 
         for trip in trips_for_vehicle {
-            // get link endpoints
+            // Get link endpoints (from and to node ids) from the NetworkData resource.
             let (from_id, to_id) = match network.link_endpoints.get(&trip.link_id) {
                 Some(v) => v.clone(),
                 None => continue,
@@ -491,33 +501,33 @@ fn draw_network(
                 _ => continue,
             };
 
-            // length of the link (in meters)
+            // Length of the link (in meters) based on node coordinates.
             let link_vector = to_pos - from_pos;
             let link_length = link_vector.length().max(f32::EPSILON);
 
-            // maximum allowed speed on this link
+            // Maximum allowed speed on this link from the network.
             let link_v_max = *network
                 .link_freespeed
                 .get(&trip.link_id)
                 .unwrap_or(&f32::INFINITY);
 
-            // effective driving speed: limited by link and vehicle
+            // Effective driving speed: limited by both link and vehicle.
             let v_eff = vehicle_v_max.min(link_v_max);
             if v_eff <= 0.0 {
                 // cannot move with non-positive speed
                 continue;
             }
 
-            // travel time on this link with the effective speed
+            // Travel time on this link with the effective speed.
             let travel_duration = link_length / v_eff;
 
             let scheduled_start = trip.start_time;
 
-            // actual departure time: not before scheduled_start and not before previous arrival
+            // Actual departure time: not before scheduled_start and not before previous arrival.
             let depart_time = match prev_arrival_time {
                 Some(arrival_prev) => {
-                    // if we arrived earlier than the scheduled start of this link,
-                    // the vehicle waits at the previous node until scheduled_start
+                    // If we arrived earlier than the scheduled start of this link,
+                    // the vehicle waits at the previous node until scheduled_start.
                     let depart = scheduled_start.max(arrival_prev);
                     if sim_time >= arrival_prev && sim_time < depart {
                         if let Some(wait_pos) = prev_arrival_pos {
@@ -532,7 +542,7 @@ fn draw_network(
 
             let arrival_time = depart_time + travel_duration;
 
-            // if the vehicle is currently on this link, interpolate position
+            // If the vehicle is currently on this link, interpolate position.
             if sim_time >= depart_time && sim_time < arrival_time {
                 let progress = ((sim_time - depart_time) / travel_duration).clamp(0.0, 1.0);
                 let position = from_pos + link_vector * progress;
@@ -540,7 +550,7 @@ fn draw_network(
                 break;
             }
 
-            // prepare for the next link: remember where and when we arrived
+            // Prepare for the next link: remember where and when we arrived.
             prev_arrival_time = Some(arrival_time);
             prev_arrival_pos = Some(to_pos);
         }
