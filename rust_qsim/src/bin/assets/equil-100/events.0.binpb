@@ -1,0 +1,11237 @@
+°Ü®ö<
+actend
+person3
+act_type
+-25000.0
+link16
+	departure
+link1
+modecar
+person34
+PersonEntersVehicle
+person3
+vehicle3p
+generic
+person"3"
+networkMode"car"
+vehicle"3"
+relativePosition"1.0"
+link"1"[á®U(
+	left link
+vehicle3
+link1+
+entered link
+vehicle3
+link6°§®ö<
+actend
+person2
+act_type
+-25000.0
+link16
+	departure
+modecar
+person2
+link14
+PersonEntersVehicle
+person2
+vehicle2p
+generic
+networkMode"car"
+link"1"
+person"2"
+vehicle"2"
+relativePosition"1.0"[•®U(
+	left link
+vehicle2
+link1+
+entered link
+link6
+vehicle2°¬®ö<
+actend
+act_type
+-25000.0
+link1
+person46
+	departure
+link1
+person4
+modecar4
+PersonEntersVehicle
+vehicle4
+person4p
+generic
+link"1"
+relativePosition"1.0"
+networkMode"car"
+vehicle"4"
+person"4"[√®U(
+	left link
+vehicle4
+link1+
+entered link
+link6
+vehicle4ˇã‡®˜ã=
+actend
+act_type
+-25000.0
+person99
+link17
+	departure
+person99
+link1
+modecar6
+PersonEntersVehicle
+person99
+vehicle99=
+actend
+person98
+act_type
+-25000.0
+link17
+	departure
+person98
+modecar
+link16
+PersonEntersVehicle
+vehicle98
+person98=
+actend
+link1
+person97
+act_type
+-25000.07
+	departure
+person97
+modecar
+link16
+PersonEntersVehicle
+person97
+vehicle97=
+actend
+act_type
+-25000.0
+link1
+person967
+	departure
+link1
+modecar
+person966
+PersonEntersVehicle
+person96
+vehicle96=
+actend
+person95
+act_type
+-25000.0
+link17
+	departure
+link1
+modecar
+person956
+PersonEntersVehicle
+person95
+vehicle95=
+actend
+act_type
+-25000.0
+person94
+link17
+	departure
+link1
+person94
+modecar6
+PersonEntersVehicle
+vehicle94
+person94=
+actend
+act_type
+-25000.0
+person93
+link17
+	departure
+modecar
+person93
+link16
+PersonEntersVehicle
+vehicle93
+person93=
+actend
+link1
+act_type
+-25000.0
+person927
+	departure
+link1
+modecar
+person926
+PersonEntersVehicle
+person92
+vehicle92=
+actend
+act_type
+-25000.0
+person91
+link17
+	departure
+person91
+link1
+modecar6
+PersonEntersVehicle
+vehicle91
+person91=
+actend
+act_type
+-25000.0
+person90
+link17
+	departure
+link1
+modecar
+person906
+PersonEntersVehicle
+person90
+vehicle90<
+actend
+person9
+link1
+act_type
+-25000.06
+	departure
+modecar
+person9
+link14
+PersonEntersVehicle
+person9
+vehicle9=
+actend
+person89
+act_type
+-25000.0
+link17
+	departure
+link1
+person89
+modecar6
+PersonEntersVehicle
+person89
+vehicle89=
+actend
+person88
+link1
+act_type
+-25000.07
+	departure
+person88
+link1
+modecar6
+PersonEntersVehicle
+person88
+vehicle88=
+actend
+person87
+link1
+act_type
+-25000.07
+	departure
+link1
+modecar
+person876
+PersonEntersVehicle
+person87
+vehicle87=
+actend
+act_type
+-25000.0
+person86
+link17
+	departure
+person86
+link1
+modecar6
+PersonEntersVehicle
+vehicle86
+person86=
+actend
+link1
+act_type
+-25000.0
+person857
+	departure
+modecar
+link1
+person856
+PersonEntersVehicle
+person85
+vehicle85=
+actend
+link1
+act_type
+-25000.0
+person847
+	departure
+person84
+link1
+modecar6
+PersonEntersVehicle
+person84
+vehicle84=
+actend
+link1
+act_type
+-25000.0
+person837
+	departure
+person83
+link1
+modecar6
+PersonEntersVehicle
+person83
+vehicle83=
+actend
+person82
+link1
+act_type
+-25000.07
+	departure
+person82
+link1
+modecar6
+PersonEntersVehicle
+vehicle82
+person82=
+actend
+person81
+link1
+act_type
+-25000.07
+	departure
+modecar
+person81
+link16
+PersonEntersVehicle
+vehicle81
+person81=
+actend
+person80
+link1
+act_type
+-25000.07
+	departure
+link1
+modecar
+person806
+PersonEntersVehicle
+person80
+vehicle80<
+actend
+link1
+act_type
+-25000.0
+person86
+	departure
+link1
+modecar
+person84
+PersonEntersVehicle
+person8
+vehicle8=
+actend
+link1
+act_type
+-25000.0
+person797
+	departure
+link1
+modecar
+person796
+PersonEntersVehicle
+person79
+vehicle79=
+actend
+act_type
+-25000.0
+link1
+person787
+	departure
+person78
+modecar
+link16
+PersonEntersVehicle
+person78
+vehicle78=
+actend
+link1
+act_type
+-25000.0
+person777
+	departure
+link1
+person77
+modecar6
+PersonEntersVehicle
+vehicle77
+person77=
+actend
+act_type
+-25000.0
+person76
+link17
+	departure
+link1
+modecar
+person766
+PersonEntersVehicle
+person76
+vehicle76=
+actend
+link1
+person75
+act_type
+-25000.07
+	departure
+modecar
+person75
+link16
+PersonEntersVehicle
+vehicle75
+person75=
+actend
+link1
+act_type
+-25000.0
+person747
+	departure
+modecar
+person74
+link16
+PersonEntersVehicle
+person74
+vehicle74=
+actend
+link1
+act_type
+-25000.0
+person737
+	departure
+link1
+modecar
+person736
+PersonEntersVehicle
+vehicle73
+person73=
+actend
+person72
+act_type
+-25000.0
+link17
+	departure
+person72
+link1
+modecar6
+PersonEntersVehicle
+vehicle72
+person72=
+actend
+person71
+link1
+act_type
+-25000.07
+	departure
+modecar
+person71
+link16
+PersonEntersVehicle
+person71
+vehicle71=
+actend
+link1
+person70
+act_type
+-25000.07
+	departure
+link1
+person70
+modecar6
+PersonEntersVehicle
+vehicle70
+person70<
+actend
+person7
+link1
+act_type
+-25000.06
+	departure
+modecar
+link1
+person74
+PersonEntersVehicle
+person7
+vehicle7=
+actend
+person69
+act_type
+-25000.0
+link17
+	departure
+link1
+modecar
+person696
+PersonEntersVehicle
+person69
+vehicle69=
+actend
+link1
+act_type
+-25000.0
+person687
+	departure
+link1
+modecar
+person686
+PersonEntersVehicle
+vehicle68
+person68=
+actend
+person67
+link1
+act_type
+-25000.07
+	departure
+person67
+link1
+modecar6
+PersonEntersVehicle
+person67
+vehicle67=
+actend
+act_type
+-25000.0
+link1
+person667
+	departure
+link1
+modecar
+person666
+PersonEntersVehicle
+vehicle66
+person66=
+actend
+act_type
+-25000.0
+person65
+link17
+	departure
+modecar
+link1
+person656
+PersonEntersVehicle
+vehicle65
+person65=
+actend
+person64
+link1
+act_type
+-25000.07
+	departure
+person64
+link1
+modecar6
+PersonEntersVehicle
+person64
+vehicle64=
+actend
+person63
+link1
+act_type
+-25000.07
+	departure
+person63
+link1
+modecar6
+PersonEntersVehicle
+vehicle63
+person63=
+actend
+person62
+act_type
+-25000.0
+link17
+	departure
+link1
+person62
+modecar6
+PersonEntersVehicle
+person62
+vehicle62=
+actend
+link1
+act_type
+-25000.0
+person617
+	departure
+person61
+link1
+modecar6
+PersonEntersVehicle
+person61
+vehicle61=
+actend
+act_type
+-25000.0
+person60
+link17
+	departure
+modecar
+person60
+link16
+PersonEntersVehicle
+person60
+vehicle60<
+actend
+link1
+act_type
+-25000.0
+person66
+	departure
+link1
+modecar
+person64
+PersonEntersVehicle
+vehicle6
+person6=
+actend
+act_type
+-25000.0
+person59
+link17
+	departure
+modecar
+link1
+person596
+PersonEntersVehicle
+person59
+vehicle59=
+actend
+act_type
+-25000.0
+person58
+link17
+	departure
+person58
+modecar
+link16
+PersonEntersVehicle
+person58
+vehicle58=
+actend
+person57
+link1
+act_type
+-25000.07
+	departure
+link1
+person57
+modecar6
+PersonEntersVehicle
+person57
+vehicle57=
+actend
+link1
+act_type
+-25000.0
+person567
+	departure
+person56
+link1
+modecar6
+PersonEntersVehicle
+vehicle56
+person56=
+actend
+person55
+link1
+act_type
+-25000.07
+	departure
+modecar
+link1
+person556
+PersonEntersVehicle
+person55
+vehicle55=
+actend
+act_type
+-25000.0
+person54
+link17
+	departure
+link1
+modecar
+person546
+PersonEntersVehicle
+vehicle54
+person54=
+actend
+person53
+link1
+act_type
+-25000.07
+	departure
+person53
+modecar
+link16
+PersonEntersVehicle
+vehicle53
+person53=
+actend
+person52
+act_type
+-25000.0
+link17
+	departure
+link1
+person52
+modecar6
+PersonEntersVehicle
+person52
+vehicle52=
+actend
+act_type
+-25000.0
+link1
+person517
+	departure
+person51
+modecar
+link16
+PersonEntersVehicle
+person51
+vehicle51=
+actend
+link1
+person50
+act_type
+-25000.07
+	departure
+modecar
+person50
+link16
+PersonEntersVehicle
+vehicle50
+person50<
+actend
+act_type
+-25000.0
+link1
+person56
+	departure
+modecar
+link1
+person54
+PersonEntersVehicle
+vehicle5
+person5=
+actend
+person49
+link1
+act_type
+-25000.07
+	departure
+person49
+link1
+modecar6
+PersonEntersVehicle
+vehicle49
+person49=
+actend
+person48
+act_type
+-25000.0
+link17
+	departure
+person48
+link1
+modecar6
+PersonEntersVehicle
+vehicle48
+person48=
+actend
+act_type
+-25000.0
+link1
+person477
+	departure
+modecar
+link1
+person476
+PersonEntersVehicle
+vehicle47
+person47=
+actend
+act_type
+-25000.0
+link1
+person467
+	departure
+modecar
+link1
+person466
+PersonEntersVehicle
+person46
+vehicle46=
+actend
+link1
+person45
+act_type
+-25000.07
+	departure
+person45
+modecar
+link16
+PersonEntersVehicle
+vehicle45
+person45=
+actend
+person44
+link1
+act_type
+-25000.07
+	departure
+person44
+modecar
+link16
+PersonEntersVehicle
+vehicle44
+person44=
+actend
+person43
+act_type
+-25000.0
+link17
+	departure
+link1
+person43
+modecar6
+PersonEntersVehicle
+person43
+vehicle43=
+actend
+act_type
+-25000.0
+person42
+link17
+	departure
+person42
+link1
+modecar6
+PersonEntersVehicle
+person42
+vehicle42=
+actend
+act_type
+-25000.0
+person41
+link17
+	departure
+link1
+modecar
+person416
+PersonEntersVehicle
+vehicle41
+person41=
+actend
+person40
+act_type
+-25000.0
+link17
+	departure
+link1
+person40
+modecar6
+PersonEntersVehicle
+person40
+vehicle40=
+actend
+act_type
+-25000.0
+link1
+person397
+	departure
+modecar
+person39
+link16
+PersonEntersVehicle
+person39
+vehicle39=
+actend
+link1
+act_type
+-25000.0
+person387
+	departure
+link1
+person38
+modecar6
+PersonEntersVehicle
+person38
+vehicle38=
+actend
+link1
+person37
+act_type
+-25000.07
+	departure
+modecar
+person37
+link16
+PersonEntersVehicle
+person37
+vehicle37=
+actend
+link1
+act_type
+-25000.0
+person367
+	departure
+link1
+modecar
+person366
+PersonEntersVehicle
+person36
+vehicle36=
+actend
+link1
+act_type
+-25000.0
+person357
+	departure
+modecar
+person35
+link16
+PersonEntersVehicle
+vehicle35
+person35=
+actend
+act_type
+-25000.0
+person34
+link17
+	departure
+modecar
+person34
+link16
+PersonEntersVehicle
+person34
+vehicle34=
+actend
+person33
+act_type
+-25000.0
+link17
+	departure
+modecar
+link1
+person336
+PersonEntersVehicle
+person33
+vehicle33=
+actend
+link1
+act_type
+-25000.0
+person327
+	departure
+link1
+person32
+modecar6
+PersonEntersVehicle
+vehicle32
+person32=
+actend
+person31
+link1
+act_type
+-25000.07
+	departure
+person31
+modecar
+link16
+PersonEntersVehicle
+person31
+vehicle31=
+actend
+link1
+person30
+act_type
+-25000.07
+	departure
+link1
+modecar
+person306
+PersonEntersVehicle
+vehicle30
+person30=
+actend
+act_type
+-25000.0
+person29
+link17
+	departure
+person29
+link1
+modecar6
+PersonEntersVehicle
+person29
+vehicle29=
+actend
+link1
+act_type
+-25000.0
+person287
+	departure
+link1
+person28
+modecar6
+PersonEntersVehicle
+vehicle28
+person28=
+actend
+person27
+link1
+act_type
+-25000.07
+	departure
+person27
+modecar
+link16
+PersonEntersVehicle
+person27
+vehicle27=
+actend
+link1
+person26
+act_type
+-25000.07
+	departure
+link1
+modecar
+person266
+PersonEntersVehicle
+person26
+vehicle26=
+actend
+person25
+act_type
+-25000.0
+link17
+	departure
+modecar
+person25
+link16
+PersonEntersVehicle
+person25
+vehicle25=
+actend
+link1
+act_type
+-25000.0
+person247
+	departure
+modecar
+person24
+link16
+PersonEntersVehicle
+vehicle24
+person24=
+actend
+link1
+person23
+act_type
+-25000.07
+	departure
+modecar
+link1
+person236
+PersonEntersVehicle
+person23
+vehicle23=
+actend
+act_type
+-25000.0
+person22
+link17
+	departure
+link1
+modecar
+person226
+PersonEntersVehicle
+person22
+vehicle22=
+actend
+link1
+person21
+act_type
+-25000.07
+	departure
+link1
+person21
+modecar6
+PersonEntersVehicle
+vehicle21
+person21=
+actend
+act_type
+-25000.0
+link1
+person207
+	departure
+link1
+person20
+modecar6
+PersonEntersVehicle
+person20
+vehicle20=
+actend
+act_type
+-25000.0
+link1
+person197
+	departure
+modecar
+link1
+person196
+PersonEntersVehicle
+person19
+vehicle19=
+actend
+person18
+link1
+act_type
+-25000.07
+	departure
+person18
+modecar
+link16
+PersonEntersVehicle
+person18
+vehicle18=
+actend
+act_type
+-25000.0
+person17
+link17
+	departure
+link1
+modecar
+person176
+PersonEntersVehicle
+person17
+vehicle17=
+actend
+link1
+person16
+act_type
+-25000.07
+	departure
+link1
+modecar
+person166
+PersonEntersVehicle
+vehicle16
+person16=
+actend
+person15
+act_type
+-25000.0
+link17
+	departure
+person15
+modecar
+link16
+PersonEntersVehicle
+person15
+vehicle15=
+actend
+act_type
+-25000.0
+person14
+link17
+	departure
+person14
+link1
+modecar6
+PersonEntersVehicle
+person14
+vehicle14=
+actend
+person13
+act_type
+-25000.0
+link17
+	departure
+person13
+link1
+modecar6
+PersonEntersVehicle
+person13
+vehicle13=
+actend
+person12
+act_type
+-25000.0
+link17
+	departure
+link1
+modecar
+person126
+PersonEntersVehicle
+person12
+vehicle12=
+actend
+person11
+act_type
+-25000.0
+link17
+	departure
+link1
+modecar
+person116
+PersonEntersVehicle
+vehicle11
+person11>
+actend
+link1
+act_type
+-25000.0
+person1008
+	departure
+link1
+person100
+modecar8
+PersonEntersVehicle
+person100
+vehicle100=
+actend
+link1
+act_type
+-25000.0
+person107
+	departure
+modecar
+link1
+person106
+PersonEntersVehicle
+person10
+vehicle10<
+actend
+link1
+person1
+act_type
+-25000.06
+	departure
+link1
+modecar
+person14
+PersonEntersVehicle
+vehicle1
+person1r
+generic
+person"99"
+networkMode"car"
+vehicle"99"
+relativePosition"1.0"
+link"1"r
+generic
+person"98"
+link"1"
+vehicle"98"
+relativePosition"1.0"
+networkMode"car"r
+generic
+vehicle"97"
+relativePosition"1.0"
+networkMode"car"
+link"1"
+person"97"r
+generic
+person"96"
+relativePosition"1.0"
+networkMode"car"
+link"1"
+vehicle"96"r
+generic
+networkMode"car"
+relativePosition"1.0"
+link"1"
+person"95"
+vehicle"95"r
+generic
+link"1"
+person"94"
+networkMode"car"
+vehicle"94"
+relativePosition"1.0"r
+generic
+vehicle"93"
+networkMode"car"
+person"93"
+link"1"
+relativePosition"1.0"r
+generic
+networkMode"car"
+relativePosition"1.0"
+person"92"
+link"1"
+vehicle"92"r
+generic
+person"91"
+link"1"
+vehicle"91"
+relativePosition"1.0"
+networkMode"car"r
+generic
+relativePosition"1.0"
+networkMode"car"
+person"90"
+link"1"
+vehicle"90"Í·®„)
+	left link
+vehicle99
+link1,
+entered link
+link6
+vehicle99)
+	left link
+vehicle98
+link1,
+entered link
+vehicle98
+link8)
+	left link
+link1
+vehicle97-
+entered link
+link10
+vehicle97)
+	left link
+link1
+vehicle96,
+entered link
+vehicle96
+link8)
+	left link
+link1
+vehicle95,
+entered link
+vehicle95
+link2)
+	left link
+link1
+vehicle94,
+entered link
+link6
+vehicle94)
+	left link
+link1
+vehicle93,
+entered link
+link6
+vehicle93)
+	left link
+link1
+vehicle92,
+entered link
+link8
+vehicle92)
+	left link
+link1
+vehicle91,
+entered link
+link5
+vehicle91)
+	left link
+link1
+vehicle90,
+entered link
+link5
+vehicle90p
+generic
+vehicle"9"
+relativePosition"1.0"
+link"1"
+networkMode"car"
+person"9"r
+generic
+vehicle"89"
+networkMode"car"
+person"89"
+relativePosition"1.0"
+link"1"r
+generic
+vehicle"88"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+person"88"r
+generic
+link"1"
+networkMode"car"
+vehicle"87"
+relativePosition"1.0"
+person"87"r
+generic
+networkMode"car"
+vehicle"86"
+relativePosition"1.0"
+person"86"
+link"1"r
+generic
+link"1"
+vehicle"85"
+person"85"
+networkMode"car"
+relativePosition"1.0"r
+generic
+vehicle"84"
+networkMode"car"
+person"84"
+relativePosition"1.0"
+link"1"r
+generic
+vehicle"83"
+person"83"
+link"1"
+relativePosition"1.0"
+networkMode"car"r
+generic
+person"82"
+relativePosition"1.0"
+link"1"
+networkMode"car"
+vehicle"82"r
+generic
+vehicle"81"
+networkMode"car"
+person"81"
+link"1"
+relativePosition"1.0"Ë‚®·(
+	left link
+link1
+vehicle9+
+entered link
+link6
+vehicle9)
+	left link
+vehicle89
+link1,
+entered link
+link6
+vehicle89)
+	left link
+vehicle88
+link1,
+entered link
+vehicle88
+link5)
+	left link
+link1
+vehicle87,
+entered link
+link3
+vehicle87)
+	left link
+vehicle86
+link1,
+entered link
+vehicle86
+link9)
+	left link
+link1
+vehicle85,
+entered link
+vehicle85
+link6)
+	left link
+link1
+vehicle84,
+entered link
+link2
+vehicle84)
+	left link
+link1
+vehicle83,
+entered link
+vehicle83
+link6)
+	left link
+link1
+vehicle82,
+entered link
+link6
+vehicle82)
+	left link
+link1
+vehicle81-
+entered link
+link10
+vehicle81r
+generic
+networkMode"car"
+person"80"
+vehicle"80"
+link"1"
+relativePosition"1.0"p
+generic
+relativePosition"1.0"
+person"8"
+link"1"
+networkMode"car"
+vehicle"8"r
+generic
+vehicle"79"
+relativePosition"1.0"
+networkMode"car"
+person"79"
+link"1"r
+generic
+vehicle"78"
+networkMode"car"
+person"78"
+link"1"
+relativePosition"1.0"r
+generic
+person"77"
+link"1"
+relativePosition"1.0"
+vehicle"77"
+networkMode"car"r
+generic
+networkMode"car"
+link"1"
+vehicle"76"
+person"76"
+relativePosition"1.0"r
+generic
+vehicle"75"
+person"75"
+link"1"
+relativePosition"1.0"
+networkMode"car"r
+generic
+networkMode"car"
+person"74"
+relativePosition"1.0"
+link"1"
+vehicle"74"r
+generic
+person"73"
+link"1"
+relativePosition"1.0"
+networkMode"car"
+vehicle"73"r
+generic
+link"1"
+relativePosition"1.0"
+person"72"
+networkMode"car"
+vehicle"72"Á„®‡)
+	left link
+vehicle80
+link1,
+entered link
+link8
+vehicle80(
+	left link
+vehicle8
+link1+
+entered link
+vehicle8
+link6)
+	left link
+link1
+vehicle79,
+entered link
+link6
+vehicle79)
+	left link
+link1
+vehicle78,
+entered link
+link6
+vehicle78)
+	left link
+link1
+vehicle77,
+entered link
+vehicle77
+link5)
+	left link
+vehicle76
+link1,
+entered link
+vehicle76
+link4)
+	left link
+vehicle75
+link1,
+entered link
+link5
+vehicle75)
+	left link
+vehicle74
+link1,
+entered link
+link4
+vehicle74)
+	left link
+link1
+vehicle73,
+entered link
+link6
+vehicle73)
+	left link
+vehicle72
+link1,
+entered link
+vehicle72
+link8r
+generic
+vehicle"71"
+person"71"
+networkMode"car"
+relativePosition"1.0"
+link"1"r
+generic
+vehicle"70"
+person"70"
+networkMode"car"
+relativePosition"1.0"
+link"1"p
+generic
+relativePosition"1.0"
+link"1"
+vehicle"7"
+networkMode"car"
+person"7"r
+generic
+person"69"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+vehicle"69"r
+generic
+person"68"
+networkMode"car"
+relativePosition"1.0"
+vehicle"68"
+link"1"r
+generic
+person"67"
+relativePosition"1.0"
+link"1"
+networkMode"car"
+vehicle"67"r
+generic
+relativePosition"1.0"
+link"1"
+person"66"
+networkMode"car"
+vehicle"66"r
+generic
+link"1"
+relativePosition"1.0"
+vehicle"65"
+networkMode"car"
+person"65"r
+generic
+person"64"
+vehicle"64"
+link"1"
+networkMode"car"
+relativePosition"1.0"r
+generic
+link"1"
+relativePosition"1.0"
+vehicle"63"
+person"63"
+networkMode"car"Ë‰®·)
+	left link
+link1
+vehicle71-
+entered link
+link10
+vehicle71)
+	left link
+link1
+vehicle70,
+entered link
+link7
+vehicle70(
+	left link
+vehicle7
+link1+
+entered link
+link6
+vehicle7)
+	left link
+link1
+vehicle69,
+entered link
+link5
+vehicle69)
+	left link
+vehicle68
+link1,
+entered link
+link5
+vehicle68)
+	left link
+vehicle67
+link1,
+entered link
+vehicle67
+link6)
+	left link
+vehicle66
+link1,
+entered link
+link2
+vehicle66)
+	left link
+link1
+vehicle65,
+entered link
+link6
+vehicle65)
+	left link
+vehicle64
+link1,
+entered link
+vehicle64
+link2)
+	left link
+link1
+vehicle63,
+entered link
+vehicle63
+link8r
+generic
+networkMode"car"
+vehicle"62"
+person"62"
+relativePosition"1.0"
+link"1"r
+generic
+link"1"
+vehicle"61"
+relativePosition"1.0"
+person"61"
+networkMode"car"r
+generic
+networkMode"car"
+relativePosition"1.0"
+vehicle"60"
+person"60"
+link"1"p
+generic
+vehicle"6"
+networkMode"car"
+person"6"
+link"1"
+relativePosition"1.0"r
+generic
+vehicle"59"
+link"1"
+person"59"
+networkMode"car"
+relativePosition"1.0"r
+generic
+relativePosition"1.0"
+link"1"
+person"58"
+vehicle"58"
+networkMode"car"r
+generic
+relativePosition"1.0"
+person"57"
+networkMode"car"
+link"1"
+vehicle"57"r
+generic
+relativePosition"1.0"
+person"56"
+networkMode"car"
+link"1"
+vehicle"56"r
+generic
+relativePosition"1.0"
+link"1"
+person"55"
+vehicle"55"
+networkMode"car"r
+generic
+link"1"
+networkMode"car"
+relativePosition"1.0"
+person"54"
+vehicle"54"ÁÂ®‡)
+	left link
+link1
+vehicle62,
+entered link
+vehicle62
+link3)
+	left link
+vehicle61
+link1,
+entered link
+link6
+vehicle61)
+	left link
+link1
+vehicle60,
+entered link
+vehicle60
+link5(
+	left link
+vehicle6
+link1+
+entered link
+link3
+vehicle6)
+	left link
+link1
+vehicle59,
+entered link
+vehicle59
+link3)
+	left link
+vehicle58
+link1,
+entered link
+vehicle58
+link6)
+	left link
+link1
+vehicle57,
+entered link
+vehicle57
+link6)
+	left link
+link1
+vehicle56,
+entered link
+link5
+vehicle56)
+	left link
+vehicle55
+link1,
+entered link
+link3
+vehicle55)
+	left link
+vehicle54
+link1,
+entered link
+vehicle54
+link6r
+generic
+relativePosition"1.0"
+link"1"
+vehicle"53"
+networkMode"car"
+person"53"r
+generic
+networkMode"car"
+link"1"
+vehicle"52"
+person"52"
+relativePosition"1.0"r
+generic
+link"1"
+networkMode"car"
+person"51"
+relativePosition"1.0"
+vehicle"51"r
+generic
+person"50"
+link"1"
+vehicle"50"
+relativePosition"1.0"
+networkMode"car"p
+generic
+link"1"
+networkMode"car"
+relativePosition"1.0"
+person"5"
+vehicle"5"r
+generic
+link"1"
+relativePosition"1.0"
+networkMode"car"
+person"49"
+vehicle"49"r
+generic
+networkMode"car"
+person"48"
+vehicle"48"
+relativePosition"1.0"
+link"1"r
+generic
+vehicle"47"
+networkMode"car"
+link"1"
+person"47"
+relativePosition"1.0"r
+generic
+relativePosition"1.0"
+link"1"
+person"46"
+networkMode"car"
+vehicle"46"r
+generic
+vehicle"45"
+networkMode"car"
+link"1"
+person"45"
+relativePosition"1.0"ÍÊ®„)
+	left link
+vehicle53
+link1,
+entered link
+link5
+vehicle53)
+	left link
+link1
+vehicle52,
+entered link
+vehicle52
+link8)
+	left link
+link1
+vehicle51,
+entered link
+vehicle51
+link6)
+	left link
+vehicle50
+link1-
+entered link
+link10
+vehicle50(
+	left link
+link1
+vehicle5+
+entered link
+link4
+vehicle5)
+	left link
+link1
+vehicle49,
+entered link
+link9
+vehicle49)
+	left link
+link1
+vehicle48,
+entered link
+link6
+vehicle48)
+	left link
+vehicle47
+link1,
+entered link
+link3
+vehicle47)
+	left link
+vehicle46
+link1,
+entered link
+vehicle46
+link9)
+	left link
+link1
+vehicle45,
+entered link
+link4
+vehicle45r
+generic
+person"44"
+vehicle"44"
+networkMode"car"
+link"1"
+relativePosition"1.0"r
+generic
+networkMode"car"
+vehicle"43"
+person"43"
+relativePosition"1.0"
+link"1"r
+generic
+relativePosition"1.0"
+networkMode"car"
+person"42"
+vehicle"42"
+link"1"r
+generic
+link"1"
+networkMode"car"
+person"41"
+vehicle"41"
+relativePosition"1.0"r
+generic
+link"1"
+relativePosition"1.0"
+networkMode"car"
+vehicle"40"
+person"40"r
+generic
+networkMode"car"
+relativePosition"1.0"
+person"39"
+vehicle"39"
+link"1"r
+generic
+relativePosition"1.0"
+networkMode"car"
+person"38"
+link"1"
+vehicle"38"r
+generic
+relativePosition"1.0"
+link"1"
+person"37"
+networkMode"car"
+vehicle"37"r
+generic
+relativePosition"1.0"
+vehicle"36"
+networkMode"car"
+person"36"
+link"1"r
+generic
+relativePosition"1.0"
+vehicle"35"
+person"35"
+link"1"
+networkMode"car"ÎÁ®‰)
+	left link
+vehicle44
+link1,
+entered link
+vehicle44
+link9)
+	left link
+vehicle43
+link1,
+entered link
+vehicle43
+link6)
+	left link
+link1
+vehicle42,
+entered link
+vehicle42
+link9)
+	left link
+link1
+vehicle41,
+entered link
+link5
+vehicle41)
+	left link
+link1
+vehicle40,
+entered link
+link6
+vehicle40)
+	left link
+vehicle39
+link1,
+entered link
+vehicle39
+link6)
+	left link
+link1
+vehicle38,
+entered link
+vehicle38
+link5)
+	left link
+link1
+vehicle37,
+entered link
+vehicle37
+link9)
+	left link
+vehicle36
+link1,
+entered link
+link6
+vehicle36)
+	left link
+link1
+vehicle35,
+entered link
+link8
+vehicle35r
+generic
+person"34"
+link"1"
+networkMode"car"
+vehicle"34"
+relativePosition"1.0"r
+generic
+vehicle"33"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+person"33"r
+generic
+vehicle"32"
+link"1"
+networkMode"car"
+person"32"
+relativePosition"1.0"r
+generic
+person"31"
+relativePosition"1.0"
+networkMode"car"
+vehicle"31"
+link"1"r
+generic
+relativePosition"1.0"
+person"30"
+link"1"
+vehicle"30"
+networkMode"car"r
+generic
+vehicle"29"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+person"29"r
+generic
+vehicle"28"
+person"28"
+networkMode"car"
+relativePosition"1.0"
+link"1"r
+generic
+relativePosition"1.0"
+vehicle"27"
+networkMode"car"
+link"1"
+person"27"r
+generic
+vehicle"26"
+networkMode"car"
+link"1"
+relativePosition"1.0"
+person"26"r
+generic
+link"1"
+networkMode"car"
+person"25"
+vehicle"25"
+relativePosition"1.0"ÌË®Ê)
+	left link
+vehicle34
+link1,
+entered link
+link3
+vehicle34)
+	left link
+link1
+vehicle33,
+entered link
+vehicle33
+link3)
+	left link
+vehicle32
+link1,
+entered link
+vehicle32
+link6)
+	left link
+link1
+vehicle31,
+entered link
+vehicle31
+link6)
+	left link
+link1
+vehicle30-
+entered link
+vehicle30
+link10)
+	left link
+vehicle29
+link1-
+entered link
+link10
+vehicle29)
+	left link
+link1
+vehicle28,
+entered link
+link6
+vehicle28)
+	left link
+vehicle27
+link1,
+entered link
+vehicle27
+link4)
+	left link
+vehicle26
+link1,
+entered link
+link6
+vehicle26)
+	left link
+link1
+vehicle25,
+entered link
+link5
+vehicle25r
+generic
+person"24"
+relativePosition"1.0"
+networkMode"car"
+link"1"
+vehicle"24"r
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"23"
+link"1"
+person"23"r
+generic
+person"22"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+vehicle"22"r
+generic
+person"21"
+relativePosition"1.0"
+link"1"
+vehicle"21"
+networkMode"car"r
+generic
+relativePosition"1.0"
+vehicle"20"
+networkMode"car"
+person"20"
+link"1"r
+generic
+networkMode"car"
+relativePosition"1.0"
+vehicle"19"
+link"1"
+person"19"r
+generic
+relativePosition"1.0"
+person"18"
+vehicle"18"
+networkMode"car"
+link"1"r
+generic
+link"1"
+relativePosition"1.0"
+vehicle"17"
+person"17"
+networkMode"car"r
+generic
+relativePosition"1.0"
+person"16"
+link"1"
+vehicle"16"
+networkMode"car"r
+generic
+networkMode"car"
+person"15"
+relativePosition"1.0"
+vehicle"15"
+link"1"ïÈ®é)
+	left link
+vehicle24
+link1-
+entered link
+vehicle24
+link10)
+	left link
+vehicle23
+link1,
+entered link
+vehicle23
+link6)
+	left link
+link1
+vehicle22,
+entered link
+vehicle22
+link6)
+	left link
+vehicle21
+link1-
+entered link
+vehicle21
+link10)
+	left link
+link1
+vehicle20,
+entered link
+link9
+vehicle20)
+	left link
+vehicle19
+link1,
+entered link
+link2
+vehicle19)
+	left link
+link1
+vehicle18,
+entered link
+link6
+vehicle18)
+	left link
+link1
+vehicle17-
+entered link
+vehicle17
+link10)
+	left link
+link1
+vehicle16,
+entered link
+vehicle16
+link6)
+	left link
+vehicle15
+link1,
+entered link
+vehicle15
+link7r
+generic
+vehicle"14"
+link"1"
+relativePosition"1.0"
+person"14"
+networkMode"car"r
+generic
+person"13"
+networkMode"car"
+vehicle"13"
+link"1"
+relativePosition"1.0"r
+generic
+vehicle"12"
+networkMode"car"
+relativePosition"1.0"
+link"1"
+person"12"r
+generic
+networkMode"car"
+person"11"
+relativePosition"1.0"
+link"1"
+vehicle"11"t
+generic
+link"1"
+vehicle"100"
+networkMode"car"
+relativePosition"1.0"
+person"100"r
+generic
+person"10"
+networkMode"car"
+relativePosition"1.0"
+vehicle"10"
+link"1"p
+generic
+networkMode"car"
+relativePosition"1.0"
+person"1"
+link"1"
+vehicle"1"ÍÍ®„)
+	left link
+link1
+vehicle14-
+entered link
+vehicle14
+link10)
+	left link
+vehicle13
+link1,
+entered link
+link5
+vehicle13)
+	left link
+link1
+vehicle12,
+entered link
+vehicle12
+link6)
+	left link
+link1
+vehicle11,
+entered link
+vehicle11
+link9*
+	left link
+link1
+vehicle100-
+entered link
+vehicle100
+link6)
+	left link
+vehicle10
+link1-
+entered link
+link10
+vehicle10(
+	left link
+vehicle1
+link1+
+entered link
+vehicle1
+link6\Ô™V(
+	left link
+link6
+vehicle3,
+entered link
+link15
+vehicle3\ç´V(
+	left link
+vehicle2
+link6,
+entered link
+vehicle2
+link15\´´V(
+	left link
+vehicle4
+link6,
+entered link
+link15
+vehicle4¿…´π)
+	left link
+vehicle99
+link6-
+entered link
+vehicle99
+link15)
+	left link
+link8
+vehicle98-
+entered link
+link17
+vehicle98*
+	left link
+link10
+vehicle97-
+entered link
+link19
+vehicle97)
+	left link
+vehicle95
+link2-
+entered link
+link11
+vehicle95)
+	left link
+link5
+vehicle91-
+entered link
+vehicle91
+link14 ´È)
+	left link
+vehicle94
+link6-
+entered link
+vehicle94
+link15)
+	left link
+link8
+vehicle96-
+entered link
+vehicle96
+link17*
+	left link
+vehicle81
+link10-
+entered link
+link19
+vehicle81)
+	left link
+link2
+vehicle84-
+entered link
+vehicle84
+link11)
+	left link
+link5
+vehicle90-
+entered link
+link14
+vehicle90)
+	left link
+vehicle87
+link3-
+entered link
+link12
+vehicle87)
+	left link
+vehicle86
+link9-
+entered link
+link18
+vehicle86ÁÀ´‡)
+	left link
+link6
+vehicle93-
+entered link
+vehicle93
+link15)
+	left link
+vehicle92
+link8-
+entered link
+link17
+vehicle92)
+	left link
+vehicle88
+link5-
+entered link
+vehicle88
+link14)
+	left link
+link4
+vehicle76-
+entered link
+vehicle76
+link13ÓÃ´Á(
+	left link
+vehicle9
+link6,
+entered link
+vehicle9
+link15)
+	left link
+link8
+vehicle80-
+entered link
+link17
+vehicle80)
+	left link
+vehicle77
+link5-
+entered link
+link14
+vehicle77)
+	left link
+vehicle74
+link4-
+entered link
+link13
+vehicle74*
+	left link
+vehicle71
+link10-
+entered link
+vehicle71
+link19)
+	left link
+link2
+vehicle66-
+entered link
+link11
+vehicle66)
+	left link
+vehicle70
+link7-
+entered link
+link16
+vehicle70øÕ´∏)
+	left link
+vehicle89
+link6-
+entered link
+vehicle89
+link15)
+	left link
+link8
+vehicle72-
+entered link
+link17
+vehicle72)
+	left link
+vehicle75
+link5-
+entered link
+link14
+vehicle75)
+	left link
+link2
+vehicle64-
+entered link
+vehicle64
+link11)
+	left link
+link3
+vehicle62-
+entered link
+vehicle62
+link12ÏŒ´Â)
+	left link
+link6
+vehicle85-
+entered link
+link15
+vehicle85)
+	left link
+link8
+vehicle63-
+entered link
+link17
+vehicle63)
+	left link
+vehicle69
+link5-
+entered link
+vehicle69
+link14(
+	left link
+vehicle6
+link3,
+entered link
+vehicle6
+link12*
+	left link
+link10
+vehicle50-
+entered link
+vehicle50
+link19)
+	left link
+vehicle49
+link9-
+entered link
+link18
+vehicle49(
+	left link
+vehicle5
+link4,
+entered link
+vehicle5
+link13óœ´ê)
+	left link
+vehicle83
+link6-
+entered link
+link15
+vehicle83)
+	left link
+link8
+vehicle52-
+entered link
+link17
+vehicle52)
+	left link
+vehicle68
+link5-
+entered link
+vehicle68
+link14)
+	left link
+link3
+vehicle59-
+entered link
+vehicle59
+link12)
+	left link
+link9
+vehicle46-
+entered link
+link18
+vehicle46)
+	left link
+link4
+vehicle45-
+entered link
+link13
+vehicle45–´È)
+	left link
+link6
+vehicle82-
+entered link
+vehicle82
+link15)
+	left link
+vehicle35
+link8-
+entered link
+link17
+vehicle35)
+	left link
+link5
+vehicle60-
+entered link
+vehicle60
+link14)
+	left link
+link3
+vehicle55-
+entered link
+link12
+vehicle55)
+	left link
+link9
+vehicle44-
+entered link
+vehicle44
+link18)
+	left link
+link4
+vehicle27-
+entered link
+link13
+vehicle27*
+	left link
+link10
+vehicle30-
+entered link
+link19
+vehicle30Ó—´Á(
+	left link
+vehicle8
+link6,
+entered link
+link15
+vehicle8)
+	left link
+link5
+vehicle56-
+entered link
+link14
+vehicle56)
+	left link
+link3
+vehicle47-
+entered link
+vehicle47
+link12)
+	left link
+link9
+vehicle42-
+entered link
+link18
+vehicle42*
+	left link
+link10
+vehicle29-
+entered link
+link19
+vehicle29)
+	left link
+link2
+vehicle19-
+entered link
+vehicle19
+link11)
+	left link
+vehicle15
+link7-
+entered link
+link16
+vehicle15¿“´π)
+	left link
+vehicle79
+link6-
+entered link
+link15
+vehicle79)
+	left link
+link5
+vehicle53-
+entered link
+vehicle53
+link14)
+	left link
+vehicle34
+link3-
+entered link
+link12
+vehicle34)
+	left link
+vehicle37
+link9-
+entered link
+vehicle37
+link18*
+	left link
+vehicle24
+link10-
+entered link
+vehicle24
+link19¿”´π)
+	left link
+link6
+vehicle78-
+entered link
+vehicle78
+link15)
+	left link
+vehicle41
+link5-
+entered link
+link14
+vehicle41)
+	left link
+vehicle33
+link3-
+entered link
+vehicle33
+link12)
+	left link
+link9
+vehicle20-
+entered link
+vehicle20
+link18*
+	left link
+link10
+vehicle21-
+entered link
+link19
+vehicle21Ë‘´·)
+	left link
+vehicle73
+link6-
+entered link
+vehicle73
+link15)
+	left link
+link5
+vehicle38-
+entered link
+vehicle38
+link14)
+	left link
+vehicle11
+link9-
+entered link
+link18
+vehicle11*
+	left link
+link10
+vehicle17-
+entered link
+link19
+vehicle17é’´á(
+	left link
+vehicle7
+link6,
+entered link
+link15
+vehicle7)
+	left link
+link5
+vehicle25-
+entered link
+link14
+vehicle25*
+	left link
+vehicle14
+link10-
+entered link
+vehicle14
+link19ê÷´â)
+	left link
+vehicle67
+link6-
+entered link
+link15
+vehicle67)
+	left link
+link5
+vehicle13-
+entered link
+link14
+vehicle13*
+	left link
+vehicle10
+link10-
+entered link
+link19
+vehicle10^◊´X)
+	left link
+link6
+vehicle65-
+entered link
+link15
+vehicle65^ÿ´X)
+	left link
+vehicle61
+link6-
+entered link
+vehicle61
+link15^Ÿ´X)
+	left link
+vehicle58
+link6-
+entered link
+vehicle58
+link15^⁄´X)
+	left link
+vehicle57
+link6-
+entered link
+vehicle57
+link15^€´X)
+	left link
+link6
+vehicle54-
+entered link
+link15
+vehicle54^‹´X)
+	left link
+link6
+vehicle51-
+entered link
+link15
+vehicle51^›´X)
+	left link
+vehicle48
+link6-
+entered link
+vehicle48
+link15^ﬁ´X)
+	left link
+vehicle43
+link6-
+entered link
+vehicle43
+link15^ﬂ´X)
+	left link
+vehicle40
+link6-
+entered link
+vehicle40
+link15^‡´X)
+	left link
+link6
+vehicle39-
+entered link
+vehicle39
+link15^·´X)
+	left link
+link6
+vehicle36-
+entered link
+vehicle36
+link15^‚´X)
+	left link
+link6
+vehicle32-
+entered link
+vehicle32
+link15^„´X)
+	left link
+link6
+vehicle31-
+entered link
+vehicle31
+link15^‰´X)
+	left link
+link6
+vehicle28-
+entered link
+vehicle28
+link15^Â´X)
+	left link
+link6
+vehicle26-
+entered link
+vehicle26
+link15^Ê´X)
+	left link
+link6
+vehicle23-
+entered link
+link15
+vehicle23^Á´X)
+	left link
+vehicle22
+link6-
+entered link
+link15
+vehicle22^Ë´X)
+	left link
+vehicle18
+link6-
+entered link
+link15
+vehicle18^È´X)
+	left link
+link6
+vehicle16-
+entered link
+link15
+vehicle16^Í´X)
+	left link
+link6
+vehicle12-
+entered link
+vehicle12
+link15`Î´Z*
+	left link
+link6
+vehicle100.
+entered link
+vehicle100
+link15\Ï´V(
+	left link
+link6
+vehicle1,
+entered link
+vehicle1
+link15]£¨W)
+	left link
+link15
+vehicle3,
+entered link
+link20
+vehicle3]¡¨W)
+	left link
+vehicle2
+link15,
+entered link
+link20
+vehicle2]ﬂ¨W)
+	left link
+link15
+vehicle4,
+entered link
+vehicle4
+link20ƒ˝¨Ω*
+	left link
+vehicle98
+link17-
+entered link
+link20
+vehicle98*
+	left link
+vehicle91
+link14-
+entered link
+vehicle91
+link20*
+	left link
+link15
+vehicle99-
+entered link
+link20
+vehicle99*
+	left link
+vehicle97
+link19-
+entered link
+link20
+vehicle97*
+	left link
+vehicle95
+link11-
+entered link
+link20
+vehicle95π˛¨≤*
+	left link
+vehicle87
+link12-
+entered link
+vehicle87
+link20*
+	left link
+link18
+vehicle86-
+entered link
+link20
+vehicle86_ˇ¨Y*
+	left link
+link13
+vehicle76-
+entered link
+link20
+vehicle76ùÄ≠ñ*
+	left link
+vehicle84
+link11-
+entered link
+vehicle84
+link20*
+	left link
+link17
+vehicle96-
+entered link
+link20
+vehicle96*
+	left link
+link15
+vehicle94-
+entered link
+vehicle94
+link20*
+	left link
+vehicle81
+link19-
+entered link
+vehicle81
+link20*
+	left link
+link14
+vehicle90-
+entered link
+link20
+vehicle90*
+	left link
+vehicle70
+link16-
+entered link
+vehicle70
+link20_Å≠Y*
+	left link
+vehicle62
+link12-
+entered link
+link20
+vehicle62πÇ≠≤*
+	left link
+vehicle49
+link18-
+entered link
+link20
+vehicle49*
+	left link
+link13
+vehicle74-
+entered link
+link20
+vehicle74ƒÑ≠Ω*
+	left link
+vehicle92
+link17-
+entered link
+vehicle92
+link20*
+	left link
+vehicle88
+link14-
+entered link
+link20
+vehicle88*
+	left link
+link15
+vehicle93-
+entered link
+vehicle93
+link20*
+	left link
+vehicle71
+link19-
+entered link
+vehicle71
+link20*
+	left link
+link11
+vehicle66-
+entered link
+vehicle66
+link20êÖ≠â*
+	left link
+link18
+vehicle46-
+entered link
+link20
+vehicle46)
+	left link
+link12
+vehicle6,
+entered link
+link20
+vehicle6*
+	left link
+link16
+vehicle15-
+entered link
+link20
+vehicle15]Ü≠W)
+	left link
+link13
+vehicle5,
+entered link
+link20
+vehicle5¬á≠ª*
+	left link
+vehicle64
+link11-
+entered link
+link20
+vehicle64*
+	left link
+link19
+vehicle50-
+entered link
+vehicle50
+link20*
+	left link
+link14
+vehicle77-
+entered link
+vehicle77
+link20)
+	left link
+link15
+vehicle9,
+entered link
+vehicle9
+link20*
+	left link
+vehicle80
+link17-
+entered link
+vehicle80
+link20_à≠Y*
+	left link
+vehicle59
+link12-
+entered link
+link20
+vehicle59πâ≠≤*
+	left link
+link18
+vehicle44-
+entered link
+link20
+vehicle44*
+	left link
+link13
+vehicle45-
+entered link
+link20
+vehicle45ƒã≠Ω*
+	left link
+vehicle30
+link19-
+entered link
+vehicle30
+link20*
+	left link
+link15
+vehicle89-
+entered link
+link20
+vehicle89*
+	left link
+vehicle75
+link14-
+entered link
+link20
+vehicle75*
+	left link
+vehicle19
+link11-
+entered link
+vehicle19
+link20*
+	left link
+link17
+vehicle72-
+entered link
+vehicle72
+link20πå≠≤*
+	left link
+link12
+vehicle55-
+entered link
+vehicle55
+link20*
+	left link
+link18
+vehicle42-
+entered link
+link20
+vehicle42_ç≠Y*
+	left link
+vehicle27
+link13-
+entered link
+link20
+vehicle27Îé≠‰*
+	left link
+vehicle29
+link19-
+entered link
+vehicle29
+link20*
+	left link
+vehicle85
+link15-
+entered link
+link20
+vehicle85*
+	left link
+link17
+vehicle63-
+entered link
+link20
+vehicle63*
+	left link
+link14
+vehicle69-
+entered link
+vehicle69
+link20_è≠Y*
+	left link
+vehicle47
+link12-
+entered link
+vehicle47
+link20_ê≠Y*
+	left link
+link18
+vehicle37-
+entered link
+vehicle37
+link20Îí≠‰*
+	left link
+vehicle83
+link15-
+entered link
+link20
+vehicle83*
+	left link
+link19
+vehicle24-
+entered link
+link20
+vehicle24*
+	left link
+link14
+vehicle68-
+entered link
+link20
+vehicle68*
+	left link
+vehicle52
+link17-
+entered link
+link20
+vehicle52πì≠≤*
+	left link
+link18
+vehicle20-
+entered link
+link20
+vehicle20*
+	left link
+vehicle34
+link12-
+entered link
+vehicle34
+link20Îñ≠‰*
+	left link
+vehicle21
+link19-
+entered link
+link20
+vehicle21*
+	left link
+vehicle60
+link14-
+entered link
+link20
+vehicle60*
+	left link
+link17
+vehicle35-
+entered link
+link20
+vehicle35*
+	left link
+link15
+vehicle82-
+entered link
+link20
+vehicle82πó≠≤*
+	left link
+vehicle11
+link18-
+entered link
+vehicle11
+link20*
+	left link
+link12
+vehicle33-
+entered link
+link20
+vehicle33êô≠â*
+	left link
+vehicle17
+link19-
+entered link
+link20
+vehicle17*
+	left link
+link14
+vehicle56-
+entered link
+link20
+vehicle56)
+	left link
+link15
+vehicle8,
+entered link
+link20
+vehicle8íù≠ã*
+	left link
+link14
+vehicle53-
+entered link
+vehicle53
+link20*
+	left link
+link19
+vehicle14-
+entered link
+vehicle14
+link20*
+	left link
+link15
+vehicle79-
+entered link
+link20
+vehicle79í†≠ã*
+	left link
+link15
+vehicle78-
+entered link
+vehicle78
+link20*
+	left link
+link19
+vehicle10-
+entered link
+link20
+vehicle10*
+	left link
+vehicle41
+link14-
+entered link
+vehicle41
+link20π§≠≤*
+	left link
+link14
+vehicle38-
+entered link
+link20
+vehicle38*
+	left link
+link15
+vehicle73-
+entered link
+link20
+vehicle73∑®≠∞)
+	left link
+vehicle7
+link15,
+entered link
+link20
+vehicle7*
+	left link
+link14
+vehicle25-
+entered link
+vehicle25
+link20π´≠≤*
+	left link
+link15
+vehicle67-
+entered link
+vehicle67
+link20*
+	left link
+vehicle13
+link14-
+entered link
+vehicle13
+link20_Ø≠Y*
+	left link
+link15
+vehicle65-
+entered link
+link20
+vehicle65_≤≠Y*
+	left link
+vehicle61
+link15-
+entered link
+vehicle61
+link20_∂≠Y*
+	left link
+link15
+vehicle58-
+entered link
+link20
+vehicle58_∫≠Y*
+	left link
+vehicle57
+link15-
+entered link
+link20
+vehicle57_Ω≠Y*
+	left link
+link15
+vehicle54-
+entered link
+vehicle54
+link20_¡≠Y*
+	left link
+vehicle51
+link15-
+entered link
+vehicle51
+link20_ƒ≠Y*
+	left link
+link15
+vehicle48-
+entered link
+vehicle48
+link20_»≠Y*
+	left link
+link15
+vehicle43-
+entered link
+link20
+vehicle43_Ã≠Y*
+	left link
+vehicle40
+link15-
+entered link
+vehicle40
+link20_œ≠Y*
+	left link
+vehicle39
+link15-
+entered link
+link20
+vehicle39_”≠Y*
+	left link
+vehicle36
+link15-
+entered link
+vehicle36
+link20_÷≠Y*
+	left link
+link15
+vehicle32-
+entered link
+link20
+vehicle32_⁄≠Y*
+	left link
+vehicle31
+link15-
+entered link
+vehicle31
+link20_ﬁ≠Y*
+	left link
+vehicle28
+link15-
+entered link
+link20
+vehicle28_·≠Y*
+	left link
+vehicle26
+link15-
+entered link
+link20
+vehicle26_Â≠Y*
+	left link
+vehicle23
+link15-
+entered link
+vehicle23
+link20_Ë≠Y*
+	left link
+vehicle22
+link15-
+entered link
+link20
+vehicle22_Ï≠Y*
+	left link
+vehicle18
+link15-
+entered link
+link20
+vehicle18_≠Y*
+	left link
+link15
+vehicle16-
+entered link
+vehicle16
+link20_Û≠Y*
+	left link
+link15
+vehicle12-
+entered link
+link20
+vehicle12a˜≠[+
+	left link
+vehicle100
+link15.
+entered link
+vehicle100
+link20]˙≠W)
+	left link
+vehicle1
+link15,
+entered link
+link20
+vehicle1£äØúq
+generic
+vehicle"3"
+link"20"
+person"3"
+relativePosition"1.0"
+networkMode"car"4
+PersonLeavesVehicle
+vehicle3
+person35
+arrival
+modecar
+link20
+person3>
+actstart
+person3
+link20
+act_type	10000.0£®Øúq
+generic
+networkMode"car"
+person"2"
+link"20"
+vehicle"2"
+relativePosition"1.0"4
+PersonLeavesVehicle
+person2
+vehicle25
+arrival
+modecar
+person2
+link20>
+actstart
+link20
+person2
+act_type	10000.0£∆Øúq
+generic
+relativePosition"1.0"
+link"20"
+vehicle"4"
+networkMode"car"
+person"4"4
+PersonLeavesVehicle
+person4
+vehicle45
+arrival
+link20
+modecar
+person4>
+actstart
+person4
+act_type	10000.0
+link20±‰Ø™s
+generic
+networkMode"car"
+vehicle"98"
+link"20"
+person"98"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle98
+person986
+arrival
+modecar
+link20
+person98?
+actstart
+link20
+act_type	10000.0
+person98s
+generic
+vehicle"91"
+person"91"
+networkMode"car"
+relativePosition"1.0"
+link"20"6
+PersonLeavesVehicle
+vehicle91
+person916
+arrival
+link20
+person91
+modecar?
+actstart
+act_type	10000.0
+person91
+link20s
+generic
+vehicle"99"
+link"20"
+networkMode"car"
+person"99"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person99
+vehicle996
+arrival
+person99
+modecar
+link20?
+actstart
+act_type	10000.0
+person99
+link20s
+generic
+relativePosition"1.0"
+vehicle"97"
+networkMode"car"
+person"97"
+link"20"6
+PersonLeavesVehicle
+person97
+vehicle976
+arrival
+person97
+modecar
+link20?
+actstart
+link20
+act_type	10000.0
+person97s
+generic
+vehicle"95"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+person"95"6
+PersonLeavesVehicle
+vehicle95
+person956
+arrival
+modecar
+person95
+link20?
+actstart
+link20
+person95
+act_type	10000.0ÀÂØƒs
+generic
+link"20"
+networkMode"car"
+vehicle"87"
+relativePosition"1.0"
+person"87"6
+PersonLeavesVehicle
+person87
+vehicle876
+arrival
+link20
+modecar
+person87?
+actstart
+link20
+act_type	10000.0
+person87s
+generic
+networkMode"car"
+person"86"
+vehicle"86"
+relativePosition"1.0"
+link"20"6
+PersonLeavesVehicle
+vehicle86
+person866
+arrival
+person86
+link20
+modecar?
+actstart
+link20
+act_type	10000.0
+person86©ÊØ¢s
+generic
+networkMode"car"
+person"76"
+vehicle"76"
+relativePosition"1.0"
+link"20"6
+PersonLeavesVehicle
+vehicle76
+person766
+arrival
+modecar
+person76
+link20?
+actstart
+link20
+act_type	10000.0
+person76”ÁØÃs
+generic
+link"20"
+person"84"
+networkMode"car"
+vehicle"84"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person84
+vehicle846
+arrival
+person84
+link20
+modecar?
+actstart
+act_type	10000.0
+person84
+link20s
+generic
+vehicle"96"
+relativePosition"1.0"
+networkMode"car"
+link"20"
+person"96"6
+PersonLeavesVehicle
+vehicle96
+person966
+arrival
+person96
+link20
+modecar?
+actstart
+person96
+act_type	10000.0
+link20s
+generic
+vehicle"94"
+person"94"
+link"20"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle94
+person946
+arrival
+person94
+link20
+modecar?
+actstart
+act_type	10000.0
+person94
+link20s
+generic
+relativePosition"1.0"
+link"20"
+networkMode"car"
+vehicle"81"
+person"81"6
+PersonLeavesVehicle
+vehicle81
+person816
+arrival
+link20
+person81
+modecar?
+actstart
+link20
+person81
+act_type	10000.0s
+generic
+person"90"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+vehicle"90"6
+PersonLeavesVehicle
+person90
+vehicle906
+arrival
+person90
+link20
+modecar?
+actstart
+act_type	10000.0
+person90
+link20s
+generic
+link"20"
+networkMode"car"
+person"70"
+relativePosition"1.0"
+vehicle"70"6
+PersonLeavesVehicle
+vehicle70
+person706
+arrival
+modecar
+person70
+link20?
+actstart
+act_type	10000.0
+person70
+link20©ËØ¢s
+generic
+link"20"
+networkMode"car"
+person"62"
+vehicle"62"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person62
+vehicle626
+arrival
+person62
+modecar
+link20?
+actstart
+act_type	10000.0
+person62
+link20ÀÈØƒs
+generic
+networkMode"car"
+relativePosition"1.0"
+vehicle"49"
+link"20"
+person"49"6
+PersonLeavesVehicle
+person49
+vehicle496
+arrival
+person49
+link20
+modecar?
+actstart
+act_type	10000.0
+person49
+link20s
+generic
+relativePosition"1.0"
+networkMode"car"
+link"20"
+vehicle"74"
+person"74"6
+PersonLeavesVehicle
+person74
+vehicle746
+arrival
+person74
+link20
+modecar?
+actstart
+link20
+act_type	10000.0
+person74±ÎØ™s
+generic
+person"92"
+vehicle"92"
+link"20"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle92
+person926
+arrival
+person92
+link20
+modecar?
+actstart
+person92
+act_type	10000.0
+link20s
+generic
+relativePosition"1.0"
+link"20"
+vehicle"88"
+networkMode"car"
+person"88"6
+PersonLeavesVehicle
+vehicle88
+person886
+arrival
+modecar
+person88
+link20?
+actstart
+link20
+act_type	10000.0
+person88s
+generic
+person"93"
+vehicle"93"
+relativePosition"1.0"
+networkMode"car"
+link"20"6
+PersonLeavesVehicle
+person93
+vehicle936
+arrival
+person93
+link20
+modecar?
+actstart
+link20
+person93
+act_type	10000.0s
+generic
+vehicle"71"
+relativePosition"1.0"
+networkMode"car"
+person"71"
+link"20"6
+PersonLeavesVehicle
+person71
+vehicle716
+arrival
+person71
+link20
+modecar?
+actstart
+link20
+act_type	10000.0
+person71s
+generic
+link"20"
+vehicle"66"
+networkMode"car"
+relativePosition"1.0"
+person"66"6
+PersonLeavesVehicle
+vehicle66
+person666
+arrival
+person66
+link20
+modecar?
+actstart
+act_type	10000.0
+link20
+person66ÁÏØ‡s
+generic
+link"20"
+person"46"
+vehicle"46"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+person46
+vehicle466
+arrival
+person46
+modecar
+link20?
+actstart
+person46
+link20
+act_type	10000.0q
+generic
+vehicle"6"
+relativePosition"1.0"
+link"20"
+networkMode"car"
+person"6"4
+PersonLeavesVehicle
+vehicle6
+person65
+arrival
+link20
+person6
+modecar>
+actstart
+act_type	10000.0
+link20
+person6s
+generic
+relativePosition"1.0"
+vehicle"15"
+link"20"
+person"15"
+networkMode"car"6
+PersonLeavesVehicle
+person15
+vehicle156
+arrival
+link20
+modecar
+person15?
+actstart
+link20
+act_type	10000.0
+person15£ÌØúq
+generic
+networkMode"car"
+link"20"
+person"5"
+vehicle"5"
+relativePosition"1.0"4
+PersonLeavesVehicle
+vehicle5
+person55
+arrival
+modecar
+person5
+link20>
+actstart
+person5
+link20
+act_type	10000.0´ÓØ§s
+generic
+person"64"
+link"20"
+networkMode"car"
+vehicle"64"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle64
+person646
+arrival
+modecar
+person64
+link20?
+actstart
+person64
+act_type	10000.0
+link20s
+generic
+link"20"
+person"50"
+vehicle"50"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle50
+person506
+arrival
+modecar
+person50
+link20?
+actstart
+act_type	10000.0
+person50
+link20s
+generic
+vehicle"77"
+link"20"
+person"77"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+person77
+vehicle776
+arrival
+modecar
+link20
+person77?
+actstart
+person77
+link20
+act_type	10000.0q
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"9"
+person"9"
+link"20"4
+PersonLeavesVehicle
+vehicle9
+person95
+arrival
+person9
+link20
+modecar>
+actstart
+act_type	10000.0
+person9
+link20s
+generic
+networkMode"car"
+vehicle"80"
+relativePosition"1.0"
+person"80"
+link"20"6
+PersonLeavesVehicle
+vehicle80
+person806
+arrival
+person80
+modecar
+link20?
+actstart
+link20
+act_type	10000.0
+person80©ÔØ¢s
+generic
+person"59"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+vehicle"59"6
+PersonLeavesVehicle
+person59
+vehicle596
+arrival
+person59
+modecar
+link20?
+actstart
+person59
+act_type	10000.0
+link20ÀØƒs
+generic
+link"20"
+person"44"
+vehicle"44"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person44
+vehicle446
+arrival
+modecar
+person44
+link20?
+actstart
+person44
+act_type	10000.0
+link20s
+generic
+relativePosition"1.0"
+link"20"
+person"45"
+vehicle"45"
+networkMode"car"6
+PersonLeavesVehicle
+person45
+vehicle456
+arrival
+person45
+link20
+modecar?
+actstart
+link20
+act_type	10000.0
+person45±ÚØ™s
+generic
+person"30"
+networkMode"car"
+vehicle"30"
+relativePosition"1.0"
+link"20"6
+PersonLeavesVehicle
+person30
+vehicle306
+arrival
+person30
+link20
+modecar?
+actstart
+link20
+act_type	10000.0
+person30s
+generic
+relativePosition"1.0"
+person"89"
+vehicle"89"
+networkMode"car"
+link"20"6
+PersonLeavesVehicle
+person89
+vehicle896
+arrival
+link20
+modecar
+person89?
+actstart
+link20
+person89
+act_type	10000.0s
+generic
+person"75"
+link"20"
+vehicle"75"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle75
+person756
+arrival
+modecar
+link20
+person75?
+actstart
+link20
+person75
+act_type	10000.0s
+generic
+link"20"
+relativePosition"1.0"
+networkMode"car"
+vehicle"19"
+person"19"6
+PersonLeavesVehicle
+person19
+vehicle196
+arrival
+link20
+modecar
+person19?
+actstart
+link20
+act_type	10000.0
+person19s
+generic
+vehicle"72"
+relativePosition"1.0"
+person"72"
+networkMode"car"
+link"20"6
+PersonLeavesVehicle
+vehicle72
+person726
+arrival
+link20
+modecar
+person72?
+actstart
+act_type	10000.0
+person72
+link20ÀÛØƒs
+generic
+vehicle"55"
+relativePosition"1.0"
+person"55"
+link"20"
+networkMode"car"6
+PersonLeavesVehicle
+person55
+vehicle556
+arrival
+modecar
+person55
+link20?
+actstart
+link20
+act_type	10000.0
+person55s
+generic
+vehicle"42"
+networkMode"car"
+person"42"
+link"20"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person42
+vehicle426
+arrival
+modecar
+link20
+person42?
+actstart
+link20
+act_type	10000.0
+person42©ÙØ¢s
+generic
+person"27"
+link"20"
+vehicle"27"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle27
+person276
+arrival
+person27
+link20
+modecar?
+actstart
+person27
+link20
+act_type	10000.0è	ıØà	s
+generic
+person"29"
+relativePosition"1.0"
+vehicle"29"
+link"20"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle29
+person296
+arrival
+person29
+link20
+modecar?
+actstart
+link20
+act_type	10000.0
+person29s
+generic
+link"20"
+networkMode"car"
+person"85"
+relativePosition"1.0"
+vehicle"85"6
+PersonLeavesVehicle
+vehicle85
+person856
+arrival
+modecar
+person85
+link20?
+actstart
+link20
+act_type	10000.0
+person85s
+generic
+networkMode"car"
+person"63"
+relativePosition"1.0"
+vehicle"63"
+link"20"6
+PersonLeavesVehicle
+vehicle63
+person636
+arrival
+modecar
+person63
+link20?
+actstart
+link20
+act_type	10000.0
+person63s
+generic
+relativePosition"1.0"
+vehicle"69"
+networkMode"car"
+person"69"
+link"20"6
+PersonLeavesVehicle
+vehicle69
+person696
+arrival
+person69
+modecar
+link20?
+actstart
+person69
+link20
+act_type	10000.0©ˆØ¢s
+generic
+vehicle"47"
+link"20"
+person"47"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle47
+person476
+arrival
+person47
+link20
+modecar?
+actstart
+link20
+person47
+act_type	10000.0©˜Ø¢s
+generic
+vehicle"37"
+person"37"
+relativePosition"1.0"
+link"20"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle37
+person376
+arrival
+modecar
+person37
+link20?
+actstart
+person37
+link20
+act_type	10000.0è	˘Øà	s
+generic
+relativePosition"1.0"
+vehicle"83"
+networkMode"car"
+link"20"
+person"83"6
+PersonLeavesVehicle
+vehicle83
+person836
+arrival
+link20
+person83
+modecar?
+actstart
+link20
+person83
+act_type	10000.0s
+generic
+link"20"
+relativePosition"1.0"
+vehicle"24"
+person"24"
+networkMode"car"6
+PersonLeavesVehicle
+person24
+vehicle246
+arrival
+person24
+modecar
+link20?
+actstart
+act_type	10000.0
+person24
+link20s
+generic
+person"68"
+link"20"
+networkMode"car"
+vehicle"68"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person68
+vehicle686
+arrival
+link20
+modecar
+person68?
+actstart
+link20
+act_type	10000.0
+person68s
+generic
+link"20"
+networkMode"car"
+vehicle"52"
+relativePosition"1.0"
+person"52"6
+PersonLeavesVehicle
+person52
+vehicle526
+arrival
+modecar
+link20
+person52?
+actstart
+act_type	10000.0
+link20
+person52À˙Øƒs
+generic
+vehicle"20"
+link"20"
+networkMode"car"
+person"20"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle20
+person206
+arrival
+person20
+link20
+modecar?
+actstart
+link20
+person20
+act_type	10000.0s
+generic
+networkMode"car"
+person"34"
+relativePosition"1.0"
+link"20"
+vehicle"34"6
+PersonLeavesVehicle
+vehicle34
+person346
+arrival
+link20
+modecar
+person34?
+actstart
+person34
+act_type	10000.0
+link20è	˝Øà	s
+generic
+relativePosition"1.0"
+link"20"
+vehicle"21"
+networkMode"car"
+person"21"6
+PersonLeavesVehicle
+person21
+vehicle216
+arrival
+person21
+link20
+modecar?
+actstart
+link20
+act_type	10000.0
+person21s
+generic
+networkMode"car"
+person"60"
+relativePosition"1.0"
+vehicle"60"
+link"20"6
+PersonLeavesVehicle
+vehicle60
+person606
+arrival
+modecar
+person60
+link20?
+actstart
+link20
+act_type	10000.0
+person60s
+generic
+person"35"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+vehicle"35"6
+PersonLeavesVehicle
+person35
+vehicle356
+arrival
+modecar
+person35
+link20?
+actstart
+act_type	10000.0
+person35
+link20s
+generic
+networkMode"car"
+link"20"
+person"82"
+vehicle"82"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle82
+person826
+arrival
+person82
+modecar
+link20?
+actstart
+act_type	10000.0
+link20
+person82À˛Øƒs
+generic
+vehicle"11"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+person"11"6
+PersonLeavesVehicle
+person11
+vehicle116
+arrival
+modecar
+person11
+link20?
+actstart
+person11
+link20
+act_type	10000.0s
+generic
+relativePosition"1.0"
+person"33"
+link"20"
+networkMode"car"
+vehicle"33"6
+PersonLeavesVehicle
+person33
+vehicle336
+arrival
+modecar
+link20
+person33?
+actstart
+person33
+link20
+act_type	10000.0ÁÄ∞‡s
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"17"
+person"17"
+link"20"6
+PersonLeavesVehicle
+person17
+vehicle176
+arrival
+person17
+link20
+modecar?
+actstart
+act_type	10000.0
+link20
+person17s
+generic
+relativePosition"1.0"
+networkMode"car"
+person"56"
+vehicle"56"
+link"20"6
+PersonLeavesVehicle
+person56
+vehicle566
+arrival
+link20
+modecar
+person56?
+actstart
+act_type	10000.0
+person56
+link20q
+generic
+link"20"
+vehicle"8"
+relativePosition"1.0"
+person"8"
+networkMode"car"4
+PersonLeavesVehicle
+vehicle8
+person85
+arrival
+modecar
+person8
+link20>
+actstart
+person8
+link20
+act_type	10000.0ÌÑ∞Ês
+generic
+networkMode"car"
+person"53"
+link"20"
+vehicle"53"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle53
+person536
+arrival
+person53
+modecar
+link20?
+actstart
+act_type	10000.0
+link20
+person53s
+generic
+link"20"
+networkMode"car"
+vehicle"14"
+person"14"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person14
+vehicle146
+arrival
+person14
+modecar
+link20?
+actstart
+person14
+link20
+act_type	10000.0s
+generic
+link"20"
+person"79"
+relativePosition"1.0"
+vehicle"79"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle79
+person796
+arrival
+person79
+modecar
+link20?
+actstart
+act_type	10000.0
+person79
+link20Ìá∞Ês
+generic
+link"20"
+networkMode"car"
+vehicle"78"
+person"78"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle78
+person786
+arrival
+link20
+person78
+modecar?
+actstart
+act_type	10000.0
+link20
+person78s
+generic
+networkMode"car"
+link"20"
+relativePosition"1.0"
+person"10"
+vehicle"10"6
+PersonLeavesVehicle
+person10
+vehicle106
+arrival
+person10
+modecar
+link20?
+actstart
+act_type	10000.0
+link20
+person10s
+generic
+relativePosition"1.0"
+person"41"
+vehicle"41"
+networkMode"car"
+link"20"6
+PersonLeavesVehicle
+person41
+vehicle416
+arrival
+person41
+link20
+modecar?
+actstart
+person41
+link20
+act_type	10000.0Àã∞ƒs
+generic
+relativePosition"1.0"
+vehicle"38"
+networkMode"car"
+person"38"
+link"20"6
+PersonLeavesVehicle
+vehicle38
+person386
+arrival
+modecar
+person38
+link20?
+actstart
+link20
+act_type	10000.0
+person38s
+generic
+person"73"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+vehicle"73"6
+PersonLeavesVehicle
+vehicle73
+person736
+arrival
+person73
+modecar
+link20?
+actstart
+link20
+person73
+act_type	10000.0≈è∞æq
+generic
+person"7"
+link"20"
+relativePosition"1.0"
+networkMode"car"
+vehicle"7"4
+PersonLeavesVehicle
+vehicle7
+person75
+arrival
+person7
+modecar
+link20>
+actstart
+person7
+link20
+act_type	10000.0s
+generic
+relativePosition"1.0"
+link"20"
+vehicle"25"
+person"25"
+networkMode"car"6
+PersonLeavesVehicle
+person25
+vehicle256
+arrival
+person25
+link20
+modecar?
+actstart
+act_type	10000.0
+person25
+link20Àí∞ƒs
+generic
+networkMode"car"
+person"67"
+vehicle"67"
+link"20"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person67
+vehicle676
+arrival
+modecar
+person67
+link20?
+actstart
+person67
+act_type	10000.0
+link20s
+generic
+person"13"
+relativePosition"1.0"
+networkMode"car"
+vehicle"13"
+link"20"6
+PersonLeavesVehicle
+person13
+vehicle136
+arrival
+link20
+modecar
+person13?
+actstart
+act_type	10000.0
+person13
+link20©ñ∞¢s
+generic
+vehicle"65"
+link"20"
+person"65"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle65
+person656
+arrival
+link20
+person65
+modecar?
+actstart
+act_type	10000.0
+link20
+person65©ô∞¢s
+generic
+link"20"
+relativePosition"1.0"
+vehicle"61"
+person"61"
+networkMode"car"6
+PersonLeavesVehicle
+person61
+vehicle616
+arrival
+person61
+link20
+modecar?
+actstart
+act_type	10000.0
+link20
+person61©ù∞¢s
+generic
+person"58"
+link"20"
+networkMode"car"
+relativePosition"1.0"
+vehicle"58"6
+PersonLeavesVehicle
+vehicle58
+person586
+arrival
+person58
+link20
+modecar?
+actstart
+person58
+act_type	10000.0
+link20©°∞¢s
+generic
+vehicle"57"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+person"57"6
+PersonLeavesVehicle
+person57
+vehicle576
+arrival
+link20
+person57
+modecar?
+actstart
+person57
+link20
+act_type	10000.0©§∞¢s
+generic
+person"54"
+link"20"
+vehicle"54"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person54
+vehicle546
+arrival
+modecar
+link20
+person54?
+actstart
+link20
+person54
+act_type	10000.0©®∞¢s
+generic
+person"51"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+vehicle"51"6
+PersonLeavesVehicle
+person51
+vehicle516
+arrival
+person51
+link20
+modecar?
+actstart
+act_type	10000.0
+person51
+link20©´∞¢s
+generic
+relativePosition"1.0"
+person"48"
+networkMode"car"
+vehicle"48"
+link"20"6
+PersonLeavesVehicle
+person48
+vehicle486
+arrival
+link20
+person48
+modecar?
+actstart
+act_type	10000.0
+link20
+person48©Ø∞¢s
+generic
+networkMode"car"
+relativePosition"1.0"
+link"20"
+vehicle"43"
+person"43"6
+PersonLeavesVehicle
+vehicle43
+person436
+arrival
+person43
+link20
+modecar?
+actstart
+person43
+link20
+act_type	10000.0©≥∞¢s
+generic
+networkMode"car"
+person"40"
+relativePosition"1.0"
+link"20"
+vehicle"40"6
+PersonLeavesVehicle
+vehicle40
+person406
+arrival
+link20
+modecar
+person40?
+actstart
+link20
+act_type	10000.0
+person40©∂∞¢s
+generic
+relativePosition"1.0"
+networkMode"car"
+person"39"
+link"20"
+vehicle"39"6
+PersonLeavesVehicle
+vehicle39
+person396
+arrival
+modecar
+link20
+person39?
+actstart
+link20
+person39
+act_type	10000.0©∫∞¢s
+generic
+person"36"
+link"20"
+relativePosition"1.0"
+networkMode"car"
+vehicle"36"6
+PersonLeavesVehicle
+person36
+vehicle366
+arrival
+modecar
+person36
+link20?
+actstart
+person36
+link20
+act_type	10000.0©Ω∞¢s
+generic
+relativePosition"1.0"
+person"32"
+vehicle"32"
+networkMode"car"
+link"20"6
+PersonLeavesVehicle
+person32
+vehicle326
+arrival
+link20
+modecar
+person32?
+actstart
+person32
+link20
+act_type	10000.0©¡∞¢s
+generic
+networkMode"car"
+person"31"
+relativePosition"1.0"
+vehicle"31"
+link"20"6
+PersonLeavesVehicle
+person31
+vehicle316
+arrival
+person31
+modecar
+link20?
+actstart
+person31
+link20
+act_type	10000.0©≈∞¢s
+generic
+link"20"
+vehicle"28"
+person"28"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle28
+person286
+arrival
+modecar
+link20
+person28?
+actstart
+act_type	10000.0
+link20
+person28©»∞¢s
+generic
+person"26"
+relativePosition"1.0"
+vehicle"26"
+link"20"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle26
+person266
+arrival
+modecar
+link20
+person26?
+actstart
+person26
+link20
+act_type	10000.0©Ã∞¢s
+generic
+vehicle"23"
+person"23"
+link"20"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle23
+person236
+arrival
+link20
+modecar
+person23?
+actstart
+person23
+link20
+act_type	10000.0©œ∞¢s
+generic
+link"20"
+networkMode"car"
+vehicle"22"
+relativePosition"1.0"
+person"22"6
+PersonLeavesVehicle
+person22
+vehicle226
+arrival
+link20
+modecar
+person22?
+actstart
+link20
+person22
+act_type	10000.0©”∞¢s
+generic
+vehicle"18"
+person"18"
+relativePosition"1.0"
+networkMode"car"
+link"20"6
+PersonLeavesVehicle
+person18
+vehicle186
+arrival
+modecar
+link20
+person18?
+actstart
+act_type	10000.0
+person18
+link20©◊∞¢s
+generic
+vehicle"16"
+person"16"
+relativePosition"1.0"
+link"20"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle16
+person166
+arrival
+modecar
+person16
+link20?
+actstart
+person16
+act_type	10000.0
+link20©⁄∞¢s
+generic
+vehicle"12"
+person"12"
+link"20"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle12
+person126
+arrival
+modecar
+person12
+link20?
+actstart
+person12
+act_type	10000.0
+link20Øﬁ∞®u
+generic
+person"100"
+link"20"
+vehicle"100"
+networkMode"car"
+relativePosition"1.0"8
+PersonLeavesVehicle
+vehicle100
+person1007
+arrival
+modecar
+person100
+link20@
+actstart
+person100
+link20
+act_type	10000.0£·∞úq
+generic
+vehicle"1"
+networkMode"car"
+person"1"
+relativePosition"1.0"
+link"20"4
+PersonLeavesVehicle
+vehicle1
+person15
+arrival
+modecar
+person1
+link20>
+actstart
+link20
+act_type	10000.0
+person1øπµ∏<
+actend
+person1
+link20
+act_type	10000.07
+	departure
+modecar
+person1
+link204
+PersonEntersVehicle
+person1
+vehicle1q
+generic
+networkMode"car"
+relativePosition"1.0"
+link"20"
+person"1"
+vehicle"1"q
+generic
+link"20"
+vehicle"1"
+person"1"
+networkMode"car"
+relativePosition"1.0"4
+PersonLeavesVehicle
+vehicle1
+person15
+arrival
+link20
+person1
+modecar>
+actstart
+act_type	10000.0
+person1
+link20±ÏΩ™=
+actend
+person99
+link20
+act_type	10000.08
+	departure
+person99
+modecar
+link206
+PersonEntersVehicle
+vehicle99
+person99=
+actend
+person98
+link20
+act_type	10000.08
+	departure
+link20
+person98
+modecar6
+PersonEntersVehicle
+person98
+vehicle98=
+actend
+person97
+link20
+act_type	10000.08
+	departure
+modecar
+person97
+link206
+PersonEntersVehicle
+vehicle97
+person97=
+actend
+link20
+act_type	10000.0
+person958
+	departure
+link20
+modecar
+person956
+PersonEntersVehicle
+person95
+vehicle95=
+actend
+act_type	10000.0
+person91
+link208
+	departure
+person91
+link20
+modecar6
+PersonEntersVehicle
+vehicle91
+person91s
+generic
+networkMode"car"
+link"20"
+vehicle"99"
+person"99"
+relativePosition"1.0"s
+generic
+vehicle"98"
+relativePosition"1.0"
+person"98"
+networkMode"car"
+link"20"s
+generic
+relativePosition"1.0"
+networkMode"car"
+person"97"
+link"20"
+vehicle"97"s
+generic
+relativePosition"1.0"
+link"20"
+vehicle"95"
+networkMode"car"
+person"95"s
+generic
+networkMode"car"
+relativePosition"1.0"
+person"91"
+link"20"
+vehicle"91"àÌΩÅ=
+actend
+person87
+link20
+act_type	10000.08
+	departure
+link20
+person87
+modecar6
+PersonEntersVehicle
+vehicle87
+person87=
+actend
+person86
+act_type	10000.0
+link208
+	departure
+person86
+modecar
+link206
+PersonEntersVehicle
+vehicle86
+person86*
+	left link
+link20
+vehicle99-
+entered link
+link21
+vehicle99*
+	left link
+link20
+vehicle98-
+entered link
+link21
+vehicle98*
+	left link
+vehicle97
+link20-
+entered link
+link21
+vehicle97*
+	left link
+vehicle95
+link20-
+entered link
+vehicle95
+link21*
+	left link
+vehicle91
+link20-
+entered link
+link21
+vehicle91s
+generic
+networkMode"car"
+relativePosition"1.0"
+vehicle"87"
+person"87"
+link"20"s
+generic
+person"86"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+vehicle"86"€ÓΩ‘=
+actend
+act_type	10000.0
+person76
+link208
+	departure
+person76
+link20
+modecar6
+PersonEntersVehicle
+vehicle76
+person76*
+	left link
+link20
+vehicle87-
+entered link
+link21
+vehicle87*
+	left link
+link20
+vehicle86-
+entered link
+vehicle86
+link21s
+generic
+person"76"
+relativePosition"1.0"
+vehicle"76"
+networkMode"car"
+link"20"¨ÔΩ•=
+actend
+link20
+act_type	10000.0
+person968
+	departure
+link20
+modecar
+person966
+PersonEntersVehicle
+vehicle96
+person96=
+actend
+act_type	10000.0
+person94
+link208
+	departure
+person94
+modecar
+link206
+PersonEntersVehicle
+vehicle94
+person94=
+actend
+link20
+act_type	10000.0
+person908
+	departure
+modecar
+person90
+link206
+PersonEntersVehicle
+person90
+vehicle90=
+actend
+act_type	10000.0
+person84
+link208
+	departure
+modecar
+person84
+link206
+PersonEntersVehicle
+person84
+vehicle84=
+actend
+person81
+act_type	10000.0
+link208
+	departure
+modecar
+link20
+person816
+PersonEntersVehicle
+person81
+vehicle81=
+actend
+person70
+link20
+act_type	10000.08
+	departure
+modecar
+person70
+link206
+PersonEntersVehicle
+vehicle70
+person70*
+	left link
+vehicle76
+link20-
+entered link
+link21
+vehicle76s
+generic
+networkMode"car"
+relativePosition"1.0"
+person"96"
+vehicle"96"
+link"20"s
+generic
+vehicle"94"
+link"20"
+networkMode"car"
+relativePosition"1.0"
+person"94"s
+generic
+vehicle"90"
+person"90"
+networkMode"car"
+link"20"
+relativePosition"1.0"s
+generic
+link"20"
+vehicle"84"
+relativePosition"1.0"
+networkMode"car"
+person"84"s
+generic
+person"81"
+relativePosition"1.0"
+link"20"
+networkMode"car"
+vehicle"81"s
+generic
+vehicle"70"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+person"70"øΩ∏=
+actend
+act_type	10000.0
+person62
+link208
+	departure
+person62
+link20
+modecar6
+PersonEntersVehicle
+vehicle62
+person62*
+	left link
+link20
+vehicle96-
+entered link
+link21
+vehicle96*
+	left link
+link20
+vehicle94-
+entered link
+link21
+vehicle94*
+	left link
+vehicle90
+link20-
+entered link
+link21
+vehicle90*
+	left link
+vehicle84
+link20-
+entered link
+vehicle84
+link21*
+	left link
+link20
+vehicle81-
+entered link
+link21
+vehicle81*
+	left link
+link20
+vehicle70-
+entered link
+link21
+vehicle70s
+generic
+vehicle"62"
+networkMode"car"
+person"62"
+link"20"
+relativePosition"1.0"§ÒΩù=
+actend
+act_type	10000.0
+link20
+person748
+	departure
+modecar
+person74
+link206
+PersonEntersVehicle
+person74
+vehicle74=
+actend
+person49
+link20
+act_type	10000.08
+	departure
+person49
+modecar
+link206
+PersonEntersVehicle
+person49
+vehicle49*
+	left link
+vehicle62
+link20-
+entered link
+link21
+vehicle62s
+generic
+person"74"
+relativePosition"1.0"
+link"20"
+networkMode"car"
+vehicle"74"s
+generic
+vehicle"49"
+link"20"
+relativePosition"1.0"
+networkMode"car"
+person"49"πÚΩ≤*
+	left link
+link20
+vehicle74-
+entered link
+vehicle74
+link21*
+	left link
+vehicle49
+link20-
+entered link
+vehicle49
+link21±ÛΩ™=
+actend
+link20
+act_type	10000.0
+person938
+	departure
+person93
+link20
+modecar6
+PersonEntersVehicle
+person93
+vehicle93=
+actend
+person92
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person926
+PersonEntersVehicle
+vehicle92
+person92=
+actend
+act_type	10000.0
+link20
+person888
+	departure
+person88
+link20
+modecar6
+PersonEntersVehicle
+vehicle88
+person88=
+actend
+act_type	10000.0
+link20
+person718
+	departure
+person71
+link20
+modecar6
+PersonEntersVehicle
+person71
+vehicle71=
+actend
+person66
+act_type	10000.0
+link208
+	departure
+modecar
+person66
+link206
+PersonEntersVehicle
+person66
+vehicle66s
+generic
+person"93"
+relativePosition"1.0"
+networkMode"car"
+link"20"
+vehicle"93"s
+generic
+vehicle"92"
+person"92"
+link"20"
+relativePosition"1.0"
+networkMode"car"s
+generic
+networkMode"car"
+person"88"
+relativePosition"1.0"
+link"20"
+vehicle"88"s
+generic
+vehicle"71"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+person"71"s
+generic
+vehicle"66"
+relativePosition"1.0"
+person"66"
+link"20"
+networkMode"car"§
+ÙΩù
+<
+actend
+person6
+act_type	10000.0
+link207
+	departure
+person6
+link20
+modecar4
+PersonEntersVehicle
+person6
+vehicle6=
+actend
+link20
+act_type	10000.0
+person468
+	departure
+person46
+modecar
+link206
+PersonEntersVehicle
+person46
+vehicle46=
+actend
+link20
+act_type	10000.0
+person158
+	departure
+person15
+link20
+modecar6
+PersonEntersVehicle
+person15
+vehicle15*
+	left link
+link20
+vehicle93-
+entered link
+link21
+vehicle93*
+	left link
+vehicle92
+link20-
+entered link
+vehicle92
+link21*
+	left link
+vehicle88
+link20-
+entered link
+link21
+vehicle88*
+	left link
+vehicle71
+link20-
+entered link
+link21
+vehicle71*
+	left link
+link20
+vehicle66-
+entered link
+vehicle66
+link21q
+generic
+person"6"
+relativePosition"1.0"
+link"20"
+vehicle"6"
+networkMode"car"s
+generic
+networkMode"car"
+relativePosition"1.0"
+vehicle"46"
+person"46"
+link"20"s
+generic
+networkMode"car"
+person"15"
+relativePosition"1.0"
+vehicle"15"
+link"20"êıΩâ)
+	left link
+vehicle6
+link20,
+entered link
+vehicle6
+link21*
+	left link
+vehicle46
+link20-
+entered link
+link21
+vehicle46*
+	left link
+link20
+vehicle15-
+entered link
+vehicle15
+link21´ˆΩ§<
+actend
+act_type	10000.0
+person9
+link207
+	departure
+person9
+link20
+modecar4
+PersonEntersVehicle
+person9
+vehicle9=
+actend
+person80
+act_type	10000.0
+link208
+	departure
+link20
+modecar
+person806
+PersonEntersVehicle
+person80
+vehicle80=
+actend
+link20
+act_type	10000.0
+person778
+	departure
+modecar
+person77
+link206
+PersonEntersVehicle
+person77
+vehicle77=
+actend
+act_type	10000.0
+link20
+person648
+	departure
+person64
+link20
+modecar6
+PersonEntersVehicle
+person64
+vehicle64=
+actend
+person50
+link20
+act_type	10000.08
+	departure
+modecar
+link20
+person506
+PersonEntersVehicle
+person50
+vehicle50q
+generic
+link"20"
+person"9"
+networkMode"car"
+relativePosition"1.0"
+vehicle"9"s
+generic
+networkMode"car"
+link"20"
+relativePosition"1.0"
+person"80"
+vehicle"80"s
+generic
+link"20"
+person"77"
+relativePosition"1.0"
+networkMode"car"
+vehicle"77"s
+generic
+vehicle"64"
+link"20"
+person"64"
+networkMode"car"
+relativePosition"1.0"s
+generic
+link"20"
+relativePosition"1.0"
+vehicle"50"
+networkMode"car"
+person"50"‰˜Ω›=
+actend
+link20
+act_type	10000.0
+person598
+	departure
+link20
+person59
+modecar6
+PersonEntersVehicle
+person59
+vehicle59)
+	left link
+vehicle9
+link20,
+entered link
+link21
+vehicle9*
+	left link
+vehicle80
+link20-
+entered link
+link21
+vehicle80*
+	left link
+vehicle77
+link20-
+entered link
+link21
+vehicle77*
+	left link
+link20
+vehicle64-
+entered link
+link21
+vehicle64*
+	left link
+vehicle50
+link20-
+entered link
+vehicle50
+link21s
+generic
+relativePosition"1.0"
+link"20"
+networkMode"car"
+vehicle"59"
+person"59"§¯Ωù=
+actend
+link20
+act_type	10000.0
+person458
+	departure
+person45
+modecar
+link206
+PersonEntersVehicle
+person45
+vehicle45=
+actend
+link20
+person44
+act_type	10000.08
+	departure
+person44
+link20
+modecar6
+PersonEntersVehicle
+person44
+vehicle44*
+	left link
+vehicle59
+link20-
+entered link
+vehicle59
+link21s
+generic
+link"20"
+relativePosition"1.0"
+vehicle"45"
+person"45"
+networkMode"car"s
+generic
+networkMode"car"
+person"44"
+vehicle"44"
+link"20"
+relativePosition"1.0"π˘Ω≤*
+	left link
+link20
+vehicle45-
+entered link
+vehicle45
+link21*
+	left link
+link20
+vehicle44-
+entered link
+vehicle44
+link21±˙Ω™=
+actend
+link20
+act_type	10000.0
+person898
+	departure
+link20
+person89
+modecar6
+PersonEntersVehicle
+vehicle89
+person89=
+actend
+person75
+link20
+act_type	10000.08
+	departure
+person75
+link20
+modecar6
+PersonEntersVehicle
+person75
+vehicle75=
+actend
+link20
+act_type	10000.0
+person728
+	departure
+person72
+modecar
+link206
+PersonEntersVehicle
+vehicle72
+person72=
+actend
+link20
+act_type	10000.0
+person308
+	departure
+link20
+modecar
+person306
+PersonEntersVehicle
+person30
+vehicle30=
+actend
+person19
+act_type	10000.0
+link208
+	departure
+link20
+person19
+modecar6
+PersonEntersVehicle
+vehicle19
+person19s
+generic
+vehicle"89"
+link"20"
+person"89"
+relativePosition"1.0"
+networkMode"car"s
+generic
+person"75"
+link"20"
+relativePosition"1.0"
+vehicle"75"
+networkMode"car"s
+generic
+vehicle"72"
+link"20"
+relativePosition"1.0"
+networkMode"car"
+person"72"s
+generic
+person"30"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+vehicle"30"s
+generic
+networkMode"car"
+person"19"
+vehicle"19"
+link"20"
+relativePosition"1.0"à˚ΩÅ=
+actend
+act_type	10000.0
+person55
+link208
+	departure
+person55
+link20
+modecar6
+PersonEntersVehicle
+person55
+vehicle55=
+actend
+person42
+link20
+act_type	10000.08
+	departure
+person42
+modecar
+link206
+PersonEntersVehicle
+person42
+vehicle42*
+	left link
+link20
+vehicle89-
+entered link
+link21
+vehicle89*
+	left link
+link20
+vehicle75-
+entered link
+vehicle75
+link21*
+	left link
+vehicle72
+link20-
+entered link
+vehicle72
+link21*
+	left link
+link20
+vehicle30-
+entered link
+vehicle30
+link21*
+	left link
+link20
+vehicle19-
+entered link
+link21
+vehicle19s
+generic
+relativePosition"1.0"
+vehicle"55"
+person"55"
+link"20"
+networkMode"car"s
+generic
+link"20"
+vehicle"42"
+person"42"
+networkMode"car"
+relativePosition"1.0"€¸Ω‘=
+actend
+act_type	10000.0
+person27
+link208
+	departure
+link20
+person27
+modecar6
+PersonEntersVehicle
+person27
+vehicle27*
+	left link
+link20
+vehicle55-
+entered link
+link21
+vehicle55*
+	left link
+link20
+vehicle42-
+entered link
+link21
+vehicle42s
+generic
+networkMode"car"
+relativePosition"1.0"
+person"27"
+vehicle"27"
+link"20"Ë	˝Ω·	=
+actend
+act_type	10000.0
+person85
+link208
+	departure
+modecar
+person85
+link206
+PersonEntersVehicle
+person85
+vehicle85=
+actend
+act_type	10000.0
+link20
+person698
+	departure
+link20
+modecar
+person696
+PersonEntersVehicle
+person69
+vehicle69=
+actend
+act_type	10000.0
+person63
+link208
+	departure
+person63
+link20
+modecar6
+PersonEntersVehicle
+person63
+vehicle63=
+actend
+person29
+link20
+act_type	10000.08
+	departure
+modecar
+person29
+link206
+PersonEntersVehicle
+vehicle29
+person29*
+	left link
+link20
+vehicle27-
+entered link
+link21
+vehicle27s
+generic
+vehicle"85"
+relativePosition"1.0"
+link"20"
+person"85"
+networkMode"car"s
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"69"
+link"20"
+person"69"s
+generic
+person"63"
+link"20"
+relativePosition"1.0"
+networkMode"car"
+vehicle"63"s
+generic
+vehicle"29"
+person"29"
+link"20"
+networkMode"car"
+relativePosition"1.0"ç˛ΩÜ=
+actend
+person47
+link20
+act_type	10000.08
+	departure
+modecar
+link20
+person476
+PersonEntersVehicle
+vehicle47
+person47*
+	left link
+vehicle85
+link20-
+entered link
+link21
+vehicle85*
+	left link
+link20
+vehicle69-
+entered link
+vehicle69
+link21*
+	left link
+link20
+vehicle63-
+entered link
+link21
+vehicle63*
+	left link
+vehicle29
+link20-
+entered link
+vehicle29
+link21s
+generic
+relativePosition"1.0"
+person"47"
+networkMode"car"
+vehicle"47"
+link"20"ÇˇΩ˚=
+actend
+act_type	10000.0
+person37
+link208
+	departure
+link20
+modecar
+person376
+PersonEntersVehicle
+person37
+vehicle37*
+	left link
+vehicle47
+link20-
+entered link
+vehicle47
+link21s
+generic
+link"20"
+person"37"
+relativePosition"1.0"
+vehicle"37"
+networkMode"car"_ÄæY*
+	left link
+link20
+vehicle37-
+entered link
+link21
+vehicle37è	Åæà	=
+actend
+act_type	10000.0
+link20
+person838
+	departure
+person83
+link20
+modecar6
+PersonEntersVehicle
+person83
+vehicle83=
+actend
+person68
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person686
+PersonEntersVehicle
+person68
+vehicle68=
+actend
+act_type	10000.0
+person52
+link208
+	departure
+person52
+link20
+modecar6
+PersonEntersVehicle
+vehicle52
+person52=
+actend
+link20
+person24
+act_type	10000.08
+	departure
+modecar
+link20
+person246
+PersonEntersVehicle
+vehicle24
+person24s
+generic
+person"83"
+networkMode"car"
+vehicle"83"
+relativePosition"1.0"
+link"20"s
+generic
+person"68"
+relativePosition"1.0"
+networkMode"car"
+vehicle"68"
+link"20"s
+generic
+networkMode"car"
+person"52"
+vehicle"52"
+relativePosition"1.0"
+link"20"s
+generic
+vehicle"24"
+link"20"
+person"24"
+relativePosition"1.0"
+networkMode"car"ØÇæ®=
+actend
+person34
+act_type	10000.0
+link208
+	departure
+person34
+link20
+modecar6
+PersonEntersVehicle
+person34
+vehicle34=
+actend
+link20
+person20
+act_type	10000.08
+	departure
+person20
+link20
+modecar6
+PersonEntersVehicle
+person20
+vehicle20*
+	left link
+vehicle83
+link20-
+entered link
+link21
+vehicle83*
+	left link
+link20
+vehicle68-
+entered link
+link21
+vehicle68*
+	left link
+link20
+vehicle52-
+entered link
+link21
+vehicle52*
+	left link
+vehicle24
+link20-
+entered link
+link21
+vehicle24s
+generic
+person"34"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+vehicle"34"s
+generic
+person"20"
+networkMode"car"
+link"20"
+relativePosition"1.0"
+vehicle"20"πÉæ≤*
+	left link
+vehicle34
+link20-
+entered link
+link21
+vehicle34*
+	left link
+link20
+vehicle20-
+entered link
+link21
+vehicle20è	Öæà	=
+actend
+act_type	10000.0
+person82
+link208
+	departure
+person82
+modecar
+link206
+PersonEntersVehicle
+person82
+vehicle82=
+actend
+person60
+link20
+act_type	10000.08
+	departure
+modecar
+person60
+link206
+PersonEntersVehicle
+vehicle60
+person60=
+actend
+act_type	10000.0
+person35
+link208
+	departure
+person35
+modecar
+link206
+PersonEntersVehicle
+person35
+vehicle35=
+actend
+person21
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person216
+PersonEntersVehicle
+person21
+vehicle21s
+generic
+person"82"
+link"20"
+relativePosition"1.0"
+vehicle"82"
+networkMode"car"s
+generic
+networkMode"car"
+person"60"
+link"20"
+vehicle"60"
+relativePosition"1.0"s
+generic
+link"20"
+vehicle"35"
+relativePosition"1.0"
+person"35"
+networkMode"car"s
+generic
+link"20"
+vehicle"21"
+person"21"
+relativePosition"1.0"
+networkMode"car"ØÜæ®=
+actend
+act_type	10000.0
+link20
+person338
+	departure
+link20
+person33
+modecar6
+PersonEntersVehicle
+vehicle33
+person33=
+actend
+person11
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person116
+PersonEntersVehicle
+person11
+vehicle11*
+	left link
+vehicle82
+link20-
+entered link
+vehicle82
+link21*
+	left link
+link20
+vehicle60-
+entered link
+link21
+vehicle60*
+	left link
+link20
+vehicle35-
+entered link
+vehicle35
+link21*
+	left link
+vehicle21
+link20-
+entered link
+link21
+vehicle21s
+generic
+person"33"
+vehicle"33"
+relativePosition"1.0"
+link"20"
+networkMode"car"s
+generic
+relativePosition"1.0"
+person"11"
+networkMode"car"
+link"20"
+vehicle"11"πáæ≤*
+	left link
+vehicle33
+link20-
+entered link
+link21
+vehicle33*
+	left link
+vehicle11
+link20-
+entered link
+vehicle11
+link21Áàæ‡<
+actend
+link20
+act_type	10000.0
+person87
+	departure
+person8
+link20
+modecar4
+PersonEntersVehicle
+person8
+vehicle8=
+actend
+person56
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person566
+PersonEntersVehicle
+vehicle56
+person56=
+actend
+link20
+person17
+act_type	10000.08
+	departure
+link20
+modecar
+person176
+PersonEntersVehicle
+person17
+vehicle17q
+generic
+relativePosition"1.0"
+link"20"
+networkMode"car"
+person"8"
+vehicle"8"s
+generic
+link"20"
+person"56"
+vehicle"56"
+relativePosition"1.0"
+networkMode"car"s
+generic
+person"17"
+networkMode"car"
+vehicle"17"
+relativePosition"1.0"
+link"20"êâæâ)
+	left link
+link20
+vehicle8,
+entered link
+link21
+vehicle8*
+	left link
+link20
+vehicle56-
+entered link
+link21
+vehicle56*
+	left link
+link20
+vehicle17-
+entered link
+vehicle17
+link21ÌåæÊ=
+actend
+act_type	10000.0
+person79
+link208
+	departure
+link20
+person79
+modecar6
+PersonEntersVehicle
+vehicle79
+person79=
+actend
+act_type	10000.0
+person53
+link208
+	departure
+modecar
+person53
+link206
+PersonEntersVehicle
+person53
+vehicle53=
+actend
+person14
+act_type	10000.0
+link208
+	departure
+link20
+person14
+modecar6
+PersonEntersVehicle
+vehicle14
+person14s
+generic
+link"20"
+vehicle"79"
+networkMode"car"
+relativePosition"1.0"
+person"79"s
+generic
+vehicle"53"
+networkMode"car"
+person"53"
+relativePosition"1.0"
+link"20"s
+generic
+relativePosition"1.0"
+link"20"
+person"14"
+vehicle"14"
+networkMode"car"íçæã*
+	left link
+vehicle79
+link20-
+entered link
+link21
+vehicle79*
+	left link
+link20
+vehicle53-
+entered link
+link21
+vehicle53*
+	left link
+link20
+vehicle14-
+entered link
+link21
+vehicle14ÌèæÊ=
+actend
+link20
+person78
+act_type	10000.08
+	departure
+person78
+link20
+modecar6
+PersonEntersVehicle
+vehicle78
+person78=
+actend
+person41
+act_type	10000.0
+link208
+	departure
+person41
+link20
+modecar6
+PersonEntersVehicle
+person41
+vehicle41=
+actend
+link20
+person10
+act_type	10000.08
+	departure
+modecar
+person10
+link206
+PersonEntersVehicle
+person10
+vehicle10s
+generic
+relativePosition"1.0"
+link"20"
+person"78"
+networkMode"car"
+vehicle"78"s
+generic
+relativePosition"1.0"
+link"20"
+person"41"
+networkMode"car"
+vehicle"41"s
+generic
+person"10"
+vehicle"10"
+networkMode"car"
+relativePosition"1.0"
+link"20"íêæã*
+	left link
+link20
+vehicle78-
+entered link
+vehicle78
+link21*
+	left link
+vehicle41
+link20-
+entered link
+vehicle41
+link21*
+	left link
+link20
+vehicle10-
+entered link
+vehicle10
+link21Àìæƒ=
+actend
+act_type	10000.0
+person73
+link208
+	departure
+modecar
+person73
+link206
+PersonEntersVehicle
+person73
+vehicle73=
+actend
+person38
+link20
+act_type	10000.08
+	departure
+link20
+person38
+modecar6
+PersonEntersVehicle
+vehicle38
+person38s
+generic
+networkMode"car"
+vehicle"73"
+relativePosition"1.0"
+link"20"
+person"73"s
+generic
+person"38"
+link"20"
+vehicle"38"
+networkMode"car"
+relativePosition"1.0"πîæ≤*
+	left link
+link20
+vehicle73-
+entered link
+link21
+vehicle73*
+	left link
+vehicle38
+link20-
+entered link
+link21
+vehicle38≈óææ<
+actend
+person7
+link20
+act_type	10000.07
+	departure
+modecar
+person7
+link204
+PersonEntersVehicle
+person7
+vehicle7=
+actend
+person25
+act_type	10000.0
+link208
+	departure
+link20
+person25
+modecar6
+PersonEntersVehicle
+person25
+vehicle25q
+generic
+networkMode"car"
+vehicle"7"
+link"20"
+person"7"
+relativePosition"1.0"s
+generic
+relativePosition"1.0"
+person"25"
+vehicle"25"
+networkMode"car"
+link"20"∑òæ∞)
+	left link
+link20
+vehicle7,
+entered link
+vehicle7
+link21*
+	left link
+link20
+vehicle25-
+entered link
+link21
+vehicle25Àöæƒ=
+actend
+person67
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person676
+PersonEntersVehicle
+person67
+vehicle67=
+actend
+link20
+act_type	10000.0
+person138
+	departure
+modecar
+link20
+person136
+PersonEntersVehicle
+vehicle13
+person13s
+generic
+networkMode"car"
+relativePosition"1.0"
+person"67"
+vehicle"67"
+link"20"s
+generic
+link"20"
+networkMode"car"
+relativePosition"1.0"
+person"13"
+vehicle"13"πõæ≤*
+	left link
+vehicle67
+link20-
+entered link
+vehicle67
+link21*
+	left link
+link20
+vehicle13-
+entered link
+link21
+vehicle13©ûæ¢=
+actend
+act_type	10000.0
+person65
+link208
+	departure
+link20
+person65
+modecar6
+PersonEntersVehicle
+vehicle65
+person65s
+generic
+link"20"
+vehicle"65"
+relativePosition"1.0"
+networkMode"car"
+person"65"_üæY*
+	left link
+link20
+vehicle65-
+entered link
+link21
+vehicle65©°æ¢=
+actend
+person61
+link20
+act_type	10000.08
+	departure
+person61
+modecar
+link206
+PersonEntersVehicle
+person61
+vehicle61s
+generic
+vehicle"61"
+person"61"
+relativePosition"1.0"
+networkMode"car"
+link"20"_¢æY*
+	left link
+link20
+vehicle61-
+entered link
+link21
+vehicle61©•æ¢=
+actend
+link20
+person58
+act_type	10000.08
+	departure
+person58
+modecar
+link206
+PersonEntersVehicle
+person58
+vehicle58s
+generic
+relativePosition"1.0"
+link"20"
+networkMode"car"
+vehicle"58"
+person"58"_¶æY*
+	left link
+vehicle58
+link20-
+entered link
+vehicle58
+link21©©æ¢=
+actend
+link20
+person57
+act_type	10000.08
+	departure
+link20
+modecar
+person576
+PersonEntersVehicle
+vehicle57
+person57s
+generic
+vehicle"57"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+person"57"_™æY*
+	left link
+vehicle57
+link20-
+entered link
+vehicle57
+link21©¨æ¢=
+actend
+link20
+person54
+act_type	10000.08
+	departure
+person54
+link20
+modecar6
+PersonEntersVehicle
+vehicle54
+person54s
+generic
+networkMode"car"
+relativePosition"1.0"
+link"20"
+person"54"
+vehicle"54"_≠æY*
+	left link
+vehicle54
+link20-
+entered link
+vehicle54
+link21©∞æ¢=
+actend
+person51
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person516
+PersonEntersVehicle
+person51
+vehicle51s
+generic
+relativePosition"1.0"
+link"20"
+networkMode"car"
+person"51"
+vehicle"51"_±æY*
+	left link
+link20
+vehicle51-
+entered link
+vehicle51
+link21©≥æ¢=
+actend
+person48
+link20
+act_type	10000.08
+	departure
+modecar
+link20
+person486
+PersonEntersVehicle
+person48
+vehicle48s
+generic
+link"20"
+vehicle"48"
+person"48"
+relativePosition"1.0"
+networkMode"car"_¥æY*
+	left link
+vehicle48
+link20-
+entered link
+link21
+vehicle48©∑æ¢=
+actend
+person43
+link20
+act_type	10000.08
+	departure
+link20
+modecar
+person436
+PersonEntersVehicle
+vehicle43
+person43s
+generic
+vehicle"43"
+person"43"
+relativePosition"1.0"
+link"20"
+networkMode"car"_∏æY*
+	left link
+link20
+vehicle43-
+entered link
+vehicle43
+link21©ªæ¢=
+actend
+link20
+act_type	10000.0
+person408
+	departure
+person40
+modecar
+link206
+PersonEntersVehicle
+vehicle40
+person40s
+generic
+person"40"
+vehicle"40"
+relativePosition"1.0"
+networkMode"car"
+link"20"_ºæY*
+	left link
+link20
+vehicle40-
+entered link
+link21
+vehicle40©ææ¢=
+actend
+person39
+link20
+act_type	10000.08
+	departure
+person39
+link20
+modecar6
+PersonEntersVehicle
+vehicle39
+person39s
+generic
+networkMode"car"
+link"20"
+person"39"
+vehicle"39"
+relativePosition"1.0"_øæY*
+	left link
+link20
+vehicle39-
+entered link
+vehicle39
+link21©¬æ¢=
+actend
+act_type	10000.0
+person36
+link208
+	departure
+modecar
+link20
+person366
+PersonEntersVehicle
+vehicle36
+person36s
+generic
+person"36"
+networkMode"car"
+relativePosition"1.0"
+link"20"
+vehicle"36"_√æY*
+	left link
+vehicle36
+link20-
+entered link
+link21
+vehicle36©≈æ¢=
+actend
+link20
+act_type	10000.0
+person328
+	departure
+person32
+link20
+modecar6
+PersonEntersVehicle
+person32
+vehicle32s
+generic
+networkMode"car"
+relativePosition"1.0"
+person"32"
+link"20"
+vehicle"32"_∆æY*
+	left link
+link20
+vehicle32-
+entered link
+vehicle32
+link21©…æ¢=
+actend
+person31
+act_type	10000.0
+link208
+	departure
+link20
+modecar
+person316
+PersonEntersVehicle
+person31
+vehicle31s
+generic
+person"31"
+link"20"
+vehicle"31"
+networkMode"car"
+relativePosition"1.0"_ æY*
+	left link
+link20
+vehicle31-
+entered link
+link21
+vehicle31©Õæ¢=
+actend
+link20
+person28
+act_type	10000.08
+	departure
+person28
+link20
+modecar6
+PersonEntersVehicle
+person28
+vehicle28s
+generic
+person"28"
+vehicle"28"
+networkMode"car"
+link"20"
+relativePosition"1.0"_ŒæY*
+	left link
+link20
+vehicle28-
+entered link
+vehicle28
+link21©–æ¢=
+actend
+person26
+link20
+act_type	10000.08
+	departure
+person26
+link20
+modecar6
+PersonEntersVehicle
+person26
+vehicle26s
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"26"
+person"26"
+link"20"_—æY*
+	left link
+vehicle26
+link20-
+entered link
+link21
+vehicle26©‘æ¢=
+actend
+link20
+act_type	10000.0
+person238
+	departure
+person23
+link20
+modecar6
+PersonEntersVehicle
+person23
+vehicle23s
+generic
+link"20"
+relativePosition"1.0"
+person"23"
+vehicle"23"
+networkMode"car"_’æY*
+	left link
+vehicle23
+link20-
+entered link
+vehicle23
+link21©◊æ¢=
+actend
+act_type	10000.0
+person22
+link208
+	departure
+person22
+link20
+modecar6
+PersonEntersVehicle
+person22
+vehicle22s
+generic
+vehicle"22"
+link"20"
+networkMode"car"
+relativePosition"1.0"
+person"22"_ÿæY*
+	left link
+link20
+vehicle22-
+entered link
+link21
+vehicle22©€æ¢=
+actend
+act_type	10000.0
+person18
+link208
+	departure
+modecar
+link20
+person186
+PersonEntersVehicle
+person18
+vehicle18s
+generic
+person"18"
+vehicle"18"
+networkMode"car"
+link"20"
+relativePosition"1.0"_‹æY*
+	left link
+link20
+vehicle18-
+entered link
+link21
+vehicle18©ﬂæ¢=
+actend
+act_type	10000.0
+person16
+link208
+	departure
+person16
+link20
+modecar6
+PersonEntersVehicle
+vehicle16
+person16s
+generic
+vehicle"16"
+person"16"
+link"20"
+networkMode"car"
+relativePosition"1.0"_‡æY*
+	left link
+link20
+vehicle16-
+entered link
+link21
+vehicle16©‚æ¢=
+actend
+person12
+act_type	10000.0
+link208
+	departure
+link20
+person12
+modecar6
+PersonEntersVehicle
+vehicle12
+person12s
+generic
+relativePosition"1.0"
+vehicle"12"
+link"20"
+networkMode"car"
+person"12"_„æY*
+	left link
+vehicle12
+link20-
+entered link
+vehicle12
+link21ØÊæ®>
+actend
+act_type	10000.0
+link20
+person1009
+	departure
+link20
+person100
+modecar8
+PersonEntersVehicle
+vehicle100
+person100u
+generic
+link"20"
+person"100"
+vehicle"100"
+networkMode"car"
+relativePosition"1.0"aÁæ[+
+	left link
+vehicle100
+link20.
+entered link
+link21
+vehicle100ƒ’¿Ω*
+	left link
+link21
+vehicle99-
+entered link
+link22
+vehicle99*
+	left link
+vehicle98
+link21-
+entered link
+link22
+vehicle98*
+	left link
+link21
+vehicle97-
+entered link
+link22
+vehicle97*
+	left link
+link21
+vehicle95-
+entered link
+link22
+vehicle95*
+	left link
+link21
+vehicle91-
+entered link
+vehicle91
+link22π÷¿≤*
+	left link
+vehicle87
+link21-
+entered link
+link22
+vehicle87*
+	left link
+link21
+vehicle86-
+entered link
+link22
+vehicle86_◊¿Y*
+	left link
+link21
+vehicle76-
+entered link
+vehicle76
+link22ùÿ¿ñ*
+	left link
+vehicle96
+link21-
+entered link
+vehicle96
+link22*
+	left link
+link21
+vehicle94-
+entered link
+vehicle94
+link22*
+	left link
+vehicle90
+link21-
+entered link
+vehicle90
+link22*
+	left link
+link21
+vehicle84-
+entered link
+vehicle84
+link22*
+	left link
+link21
+vehicle81-
+entered link
+link22
+vehicle81*
+	left link
+vehicle70
+link21-
+entered link
+vehicle70
+link22_Ÿ¿Y*
+	left link
+link21
+vehicle62-
+entered link
+link22
+vehicle62π⁄¿≤*
+	left link
+link21
+vehicle74-
+entered link
+link22
+vehicle74*
+	left link
+link21
+vehicle49-
+entered link
+link22
+vehicle49ƒ‹¿Ω*
+	left link
+link21
+vehicle93-
+entered link
+link22
+vehicle93*
+	left link
+link21
+vehicle92-
+entered link
+link22
+vehicle92*
+	left link
+vehicle88
+link21-
+entered link
+vehicle88
+link22*
+	left link
+vehicle71
+link21-
+entered link
+vehicle71
+link22*
+	left link
+vehicle66
+link21-
+entered link
+vehicle66
+link22ê›¿â)
+	left link
+link21
+vehicle6,
+entered link
+link22
+vehicle6*
+	left link
+link21
+vehicle46-
+entered link
+link22
+vehicle46*
+	left link
+link21
+vehicle15-
+entered link
+vehicle15
+link22¬ﬂ¿ª)
+	left link
+link21
+vehicle9,
+entered link
+vehicle9
+link22*
+	left link
+vehicle80
+link21-
+entered link
+link22
+vehicle80*
+	left link
+vehicle77
+link21-
+entered link
+vehicle77
+link22*
+	left link
+link21
+vehicle64-
+entered link
+link22
+vehicle64*
+	left link
+link21
+vehicle50-
+entered link
+vehicle50
+link22_‡¿Y*
+	left link
+vehicle59
+link21-
+entered link
+link22
+vehicle59π·¿≤*
+	left link
+link21
+vehicle45-
+entered link
+vehicle45
+link22*
+	left link
+vehicle44
+link21-
+entered link
+link22
+vehicle44ƒ„¿Ω*
+	left link
+vehicle89
+link21-
+entered link
+link22
+vehicle89*
+	left link
+link21
+vehicle75-
+entered link
+vehicle75
+link22*
+	left link
+link21
+vehicle72-
+entered link
+vehicle72
+link22*
+	left link
+link21
+vehicle30-
+entered link
+link22
+vehicle30*
+	left link
+link21
+vehicle19-
+entered link
+vehicle19
+link22π‰¿≤*
+	left link
+vehicle55
+link21-
+entered link
+link22
+vehicle55*
+	left link
+vehicle42
+link21-
+entered link
+link22
+vehicle42_Â¿Y*
+	left link
+link21
+vehicle27-
+entered link
+link22
+vehicle27ÎÊ¿‰*
+	left link
+link21
+vehicle85-
+entered link
+vehicle85
+link22*
+	left link
+link21
+vehicle69-
+entered link
+link22
+vehicle69*
+	left link
+vehicle63
+link21-
+entered link
+link22
+vehicle63*
+	left link
+vehicle29
+link21-
+entered link
+link22
+vehicle29_Á¿Y*
+	left link
+vehicle47
+link21-
+entered link
+vehicle47
+link22_Ë¿Y*
+	left link
+vehicle37
+link21-
+entered link
+vehicle37
+link22ÎÍ¿‰*
+	left link
+vehicle83
+link21-
+entered link
+vehicle83
+link22*
+	left link
+vehicle68
+link21-
+entered link
+link22
+vehicle68*
+	left link
+link21
+vehicle52-
+entered link
+vehicle52
+link22*
+	left link
+vehicle24
+link21-
+entered link
+vehicle24
+link22πÎ¿≤*
+	left link
+link21
+vehicle34-
+entered link
+link22
+vehicle34*
+	left link
+link21
+vehicle20-
+entered link
+link22
+vehicle20ÎÓ¿‰*
+	left link
+vehicle82
+link21-
+entered link
+vehicle82
+link22*
+	left link
+link21
+vehicle60-
+entered link
+link22
+vehicle60*
+	left link
+link21
+vehicle35-
+entered link
+vehicle35
+link22*
+	left link
+vehicle21
+link21-
+entered link
+link22
+vehicle21πÔ¿≤*
+	left link
+link21
+vehicle33-
+entered link
+link22
+vehicle33*
+	left link
+link21
+vehicle11-
+entered link
+vehicle11
+link22êÒ¿â)
+	left link
+vehicle8
+link21,
+entered link
+link22
+vehicle8*
+	left link
+vehicle56
+link21-
+entered link
+vehicle56
+link22*
+	left link
+link21
+vehicle17-
+entered link
+vehicle17
+link22íı¿ã*
+	left link
+link21
+vehicle79-
+entered link
+vehicle79
+link22*
+	left link
+vehicle53
+link21-
+entered link
+vehicle53
+link22*
+	left link
+link21
+vehicle14-
+entered link
+vehicle14
+link22í¯¿ã*
+	left link
+link21
+vehicle78-
+entered link
+vehicle78
+link22*
+	left link
+link21
+vehicle41-
+entered link
+link22
+vehicle41*
+	left link
+link21
+vehicle10-
+entered link
+link22
+vehicle10π¸¿≤*
+	left link
+link21
+vehicle73-
+entered link
+link22
+vehicle73*
+	left link
+vehicle38
+link21-
+entered link
+vehicle38
+link22∑Ä¡∞)
+	left link
+vehicle7
+link21,
+entered link
+link22
+vehicle7*
+	left link
+vehicle25
+link21-
+entered link
+vehicle25
+link22πÉ¡≤*
+	left link
+link21
+vehicle67-
+entered link
+link22
+vehicle67*
+	left link
+vehicle13
+link21-
+entered link
+link22
+vehicle13_á¡Y*
+	left link
+vehicle65
+link21-
+entered link
+vehicle65
+link22_ä¡Y*
+	left link
+link21
+vehicle61-
+entered link
+vehicle61
+link22_é¡Y*
+	left link
+vehicle58
+link21-
+entered link
+vehicle58
+link22_í¡Y*
+	left link
+vehicle57
+link21-
+entered link
+link22
+vehicle57_ï¡Y*
+	left link
+link21
+vehicle54-
+entered link
+link22
+vehicle54_ô¡Y*
+	left link
+link21
+vehicle51-
+entered link
+vehicle51
+link22_ú¡Y*
+	left link
+link21
+vehicle48-
+entered link
+vehicle48
+link22_†¡Y*
+	left link
+link21
+vehicle43-
+entered link
+link22
+vehicle43_§¡Y*
+	left link
+link21
+vehicle40-
+entered link
+link22
+vehicle40_ß¡Y*
+	left link
+link21
+vehicle39-
+entered link
+link22
+vehicle39_´¡Y*
+	left link
+vehicle36
+link21-
+entered link
+link22
+vehicle36_Æ¡Y*
+	left link
+vehicle32
+link21-
+entered link
+vehicle32
+link22_≤¡Y*
+	left link
+vehicle31
+link21-
+entered link
+vehicle31
+link22_∂¡Y*
+	left link
+link21
+vehicle28-
+entered link
+vehicle28
+link22_π¡Y*
+	left link
+link21
+vehicle26-
+entered link
+vehicle26
+link22_Ω¡Y*
+	left link
+link21
+vehicle23-
+entered link
+vehicle23
+link22_¿¡Y*
+	left link
+link21
+vehicle22-
+entered link
+vehicle22
+link22_ƒ¡Y*
+	left link
+vehicle18
+link21-
+entered link
+vehicle18
+link22_»¡Y*
+	left link
+vehicle16
+link21-
+entered link
+vehicle16
+link22_À¡Y*
+	left link
+vehicle12
+link21-
+entered link
+link22
+vehicle12aœ¡[+
+	left link
+link21
+vehicle100.
+entered link
+link22
+vehicle100ƒ¡ Ω*
+	left link
+vehicle99
+link22-
+entered link
+link23
+vehicle99*
+	left link
+vehicle98
+link22-
+entered link
+link23
+vehicle98*
+	left link
+link22
+vehicle97-
+entered link
+link23
+vehicle97*
+	left link
+vehicle95
+link22-
+entered link
+link23
+vehicle95*
+	left link
+link22
+vehicle91-
+entered link
+link23
+vehicle91π¬ ≤*
+	left link
+vehicle87
+link22-
+entered link
+link23
+vehicle87*
+	left link
+link22
+vehicle86-
+entered link
+link23
+vehicle86_√ Y*
+	left link
+vehicle76
+link22-
+entered link
+link23
+vehicle76ùƒ ñ*
+	left link
+link22
+vehicle96-
+entered link
+vehicle96
+link23*
+	left link
+link22
+vehicle94-
+entered link
+vehicle94
+link23*
+	left link
+vehicle90
+link22-
+entered link
+link23
+vehicle90*
+	left link
+link22
+vehicle84-
+entered link
+link23
+vehicle84*
+	left link
+vehicle81
+link22-
+entered link
+link23
+vehicle81*
+	left link
+link22
+vehicle70-
+entered link
+link23
+vehicle70_≈ Y*
+	left link
+vehicle62
+link22-
+entered link
+vehicle62
+link23π∆ ≤*
+	left link
+link22
+vehicle74-
+entered link
+link23
+vehicle74*
+	left link
+link22
+vehicle49-
+entered link
+link23
+vehicle49ƒ» Ω*
+	left link
+vehicle93
+link22-
+entered link
+link23
+vehicle93*
+	left link
+link22
+vehicle92-
+entered link
+vehicle92
+link23*
+	left link
+link22
+vehicle88-
+entered link
+vehicle88
+link23*
+	left link
+vehicle71
+link22-
+entered link
+link23
+vehicle71*
+	left link
+link22
+vehicle66-
+entered link
+vehicle66
+link23ê… â)
+	left link
+link22
+vehicle6,
+entered link
+link23
+vehicle6*
+	left link
+vehicle46
+link22-
+entered link
+link23
+vehicle46*
+	left link
+vehicle15
+link22-
+entered link
+vehicle15
+link23¬À ª)
+	left link
+vehicle9
+link22,
+entered link
+link23
+vehicle9*
+	left link
+vehicle80
+link22-
+entered link
+vehicle80
+link23*
+	left link
+link22
+vehicle77-
+entered link
+vehicle77
+link23*
+	left link
+vehicle64
+link22-
+entered link
+link23
+vehicle64*
+	left link
+link22
+vehicle50-
+entered link
+vehicle50
+link23_Ã Y*
+	left link
+vehicle59
+link22-
+entered link
+link23
+vehicle59πÕ ≤*
+	left link
+vehicle45
+link22-
+entered link
+vehicle45
+link23*
+	left link
+vehicle44
+link22-
+entered link
+link23
+vehicle44ƒœ Ω*
+	left link
+vehicle89
+link22-
+entered link
+link23
+vehicle89*
+	left link
+link22
+vehicle75-
+entered link
+link23
+vehicle75*
+	left link
+link22
+vehicle72-
+entered link
+vehicle72
+link23*
+	left link
+link22
+vehicle30-
+entered link
+vehicle30
+link23*
+	left link
+link22
+vehicle19-
+entered link
+link23
+vehicle19π– ≤*
+	left link
+link22
+vehicle55-
+entered link
+link23
+vehicle55*
+	left link
+link22
+vehicle42-
+entered link
+link23
+vehicle42_— Y*
+	left link
+link22
+vehicle27-
+entered link
+link23
+vehicle27Î“ ‰*
+	left link
+vehicle85
+link22-
+entered link
+link23
+vehicle85*
+	left link
+link22
+vehicle69-
+entered link
+link23
+vehicle69*
+	left link
+link22
+vehicle63-
+entered link
+vehicle63
+link23*
+	left link
+link22
+vehicle29-
+entered link
+link23
+vehicle29_” Y*
+	left link
+link22
+vehicle47-
+entered link
+link23
+vehicle47_‘ Y*
+	left link
+link22
+vehicle37-
+entered link
+link23
+vehicle37Î÷ ‰*
+	left link
+link22
+vehicle83-
+entered link
+vehicle83
+link23*
+	left link
+link22
+vehicle68-
+entered link
+link23
+vehicle68*
+	left link
+vehicle52
+link22-
+entered link
+vehicle52
+link23*
+	left link
+link22
+vehicle24-
+entered link
+link23
+vehicle24π◊ ≤*
+	left link
+vehicle34
+link22-
+entered link
+link23
+vehicle34*
+	left link
+link22
+vehicle20-
+entered link
+link23
+vehicle20Î⁄ ‰*
+	left link
+link22
+vehicle82-
+entered link
+vehicle82
+link23*
+	left link
+link22
+vehicle60-
+entered link
+vehicle60
+link23*
+	left link
+link22
+vehicle35-
+entered link
+link23
+vehicle35*
+	left link
+link22
+vehicle21-
+entered link
+link23
+vehicle21π€ ≤*
+	left link
+link22
+vehicle33-
+entered link
+link23
+vehicle33*
+	left link
+vehicle11
+link22-
+entered link
+vehicle11
+link23ê› â)
+	left link
+vehicle8
+link22,
+entered link
+vehicle8
+link23*
+	left link
+link22
+vehicle56-
+entered link
+vehicle56
+link23*
+	left link
+link22
+vehicle17-
+entered link
+link23
+vehicle17í· ã*
+	left link
+link22
+vehicle79-
+entered link
+link23
+vehicle79*
+	left link
+vehicle53
+link22-
+entered link
+link23
+vehicle53*
+	left link
+link22
+vehicle14-
+entered link
+vehicle14
+link23í‰ ã*
+	left link
+vehicle78
+link22-
+entered link
+vehicle78
+link23*
+	left link
+vehicle41
+link22-
+entered link
+link23
+vehicle41*
+	left link
+vehicle10
+link22-
+entered link
+vehicle10
+link23πË ≤*
+	left link
+vehicle73
+link22-
+entered link
+vehicle73
+link23*
+	left link
+vehicle38
+link22-
+entered link
+link23
+vehicle38∑Ï ∞)
+	left link
+vehicle7
+link22,
+entered link
+vehicle7
+link23*
+	left link
+vehicle25
+link22-
+entered link
+link23
+vehicle25πÔ ≤*
+	left link
+vehicle67
+link22-
+entered link
+vehicle67
+link23*
+	left link
+link22
+vehicle13-
+entered link
+link23
+vehicle13_Û Y*
+	left link
+link22
+vehicle65-
+entered link
+link23
+vehicle65_ˆ Y*
+	left link
+link22
+vehicle61-
+entered link
+vehicle61
+link23_˙ Y*
+	left link
+vehicle58
+link22-
+entered link
+vehicle58
+link23_˛ Y*
+	left link
+vehicle57
+link22-
+entered link
+vehicle57
+link23_ÅÀY*
+	left link
+link22
+vehicle54-
+entered link
+link23
+vehicle54_ÖÀY*
+	left link
+vehicle51
+link22-
+entered link
+link23
+vehicle51_àÀY*
+	left link
+vehicle48
+link22-
+entered link
+link23
+vehicle48_åÀY*
+	left link
+link22
+vehicle43-
+entered link
+link23
+vehicle43_êÀY*
+	left link
+vehicle40
+link22-
+entered link
+link23
+vehicle40_ìÀY*
+	left link
+link22
+vehicle39-
+entered link
+link23
+vehicle39_óÀY*
+	left link
+link22
+vehicle36-
+entered link
+vehicle36
+link23_öÀY*
+	left link
+vehicle32
+link22-
+entered link
+link23
+vehicle32_ûÀY*
+	left link
+link22
+vehicle31-
+entered link
+link23
+vehicle31_¢ÀY*
+	left link
+vehicle28
+link22-
+entered link
+vehicle28
+link23_•ÀY*
+	left link
+link22
+vehicle26-
+entered link
+vehicle26
+link23_©ÀY*
+	left link
+vehicle23
+link22-
+entered link
+vehicle23
+link23_¨ÀY*
+	left link
+link22
+vehicle22-
+entered link
+link23
+vehicle22_∞ÀY*
+	left link
+vehicle18
+link22-
+entered link
+link23
+vehicle18_¥ÀY*
+	left link
+vehicle16
+link22-
+entered link
+link23
+vehicle16_∑ÀY*
+	left link
+vehicle12
+link22-
+entered link
+link23
+vehicle12aªÀ[+
+	left link
+vehicle100
+link22.
+entered link
+link23
+vehicle100ø©Õ∏*
+	left link
+vehicle99
+link23,
+entered link
+vehicle99
+link1*
+	left link
+vehicle98
+link23,
+entered link
+vehicle98
+link1*
+	left link
+link23
+vehicle97,
+entered link
+vehicle97
+link1*
+	left link
+link23
+vehicle95,
+entered link
+link1
+vehicle95*
+	left link
+vehicle91
+link23,
+entered link
+link1
+vehicle91∑™Õ∞*
+	left link
+link23
+vehicle87,
+entered link
+vehicle87
+link1*
+	left link
+vehicle86
+link23,
+entered link
+vehicle86
+link1^´ÕX*
+	left link
+vehicle76
+link23,
+entered link
+link1
+vehicle76ó¨Õê*
+	left link
+link23
+vehicle96,
+entered link
+link1
+vehicle96*
+	left link
+link23
+vehicle94,
+entered link
+vehicle94
+link1*
+	left link
+link23
+vehicle90,
+entered link
+link1
+vehicle90*
+	left link
+link23
+vehicle84,
+entered link
+link1
+vehicle84*
+	left link
+link23
+vehicle81,
+entered link
+vehicle81
+link1*
+	left link
+link23
+vehicle70,
+entered link
+vehicle70
+link1^≠ÕX*
+	left link
+vehicle62
+link23,
+entered link
+link1
+vehicle62∑ÆÕ∞*
+	left link
+link23
+vehicle74,
+entered link
+link1
+vehicle74*
+	left link
+link23
+vehicle49,
+entered link
+link1
+vehicle49ø∞Õ∏*
+	left link
+link23
+vehicle93,
+entered link
+vehicle93
+link1*
+	left link
+vehicle92
+link23,
+entered link
+link1
+vehicle92*
+	left link
+link23
+vehicle88,
+entered link
+link1
+vehicle88*
+	left link
+vehicle71
+link23,
+entered link
+vehicle71
+link1*
+	left link
+vehicle66
+link23,
+entered link
+link1
+vehicle66ç±ÕÜ)
+	left link
+link23
+vehicle6+
+entered link
+vehicle6
+link1*
+	left link
+vehicle46
+link23,
+entered link
+link1
+vehicle46*
+	left link
+link23
+vehicle15,
+entered link
+link1
+vehicle15Ω≥Õ∂)
+	left link
+link23
+vehicle9+
+entered link
+vehicle9
+link1*
+	left link
+vehicle80
+link23,
+entered link
+vehicle80
+link1*
+	left link
+link23
+vehicle77,
+entered link
+vehicle77
+link1*
+	left link
+link23
+vehicle64,
+entered link
+vehicle64
+link1*
+	left link
+link23
+vehicle50,
+entered link
+link1
+vehicle50^¥ÕX*
+	left link
+vehicle59
+link23,
+entered link
+link1
+vehicle59∑µÕ∞*
+	left link
+vehicle45
+link23,
+entered link
+link1
+vehicle45*
+	left link
+vehicle44
+link23,
+entered link
+link1
+vehicle44ø∑Õ∏*
+	left link
+vehicle89
+link23,
+entered link
+vehicle89
+link1*
+	left link
+vehicle75
+link23,
+entered link
+link1
+vehicle75*
+	left link
+vehicle72
+link23,
+entered link
+link1
+vehicle72*
+	left link
+vehicle30
+link23,
+entered link
+link1
+vehicle30*
+	left link
+vehicle19
+link23,
+entered link
+link1
+vehicle19∑∏Õ∞*
+	left link
+vehicle55
+link23,
+entered link
+link1
+vehicle55*
+	left link
+link23
+vehicle42,
+entered link
+vehicle42
+link1^πÕX*
+	left link
+link23
+vehicle27,
+entered link
+link1
+vehicle27Á∫Õ‡*
+	left link
+vehicle85
+link23,
+entered link
+vehicle85
+link1*
+	left link
+link23
+vehicle69,
+entered link
+link1
+vehicle69*
+	left link
+vehicle63
+link23,
+entered link
+link1
+vehicle63*
+	left link
+vehicle29
+link23,
+entered link
+link1
+vehicle29^ªÕX*
+	left link
+vehicle47
+link23,
+entered link
+vehicle47
+link1^ºÕX*
+	left link
+link23
+vehicle37,
+entered link
+vehicle37
+link1ÁæÕ‡*
+	left link
+link23
+vehicle83,
+entered link
+link1
+vehicle83*
+	left link
+link23
+vehicle68,
+entered link
+link1
+vehicle68*
+	left link
+link23
+vehicle52,
+entered link
+link1
+vehicle52*
+	left link
+link23
+vehicle24,
+entered link
+link1
+vehicle24∑øÕ∞*
+	left link
+link23
+vehicle34,
+entered link
+vehicle34
+link1*
+	left link
+link23
+vehicle20,
+entered link
+link1
+vehicle20Á¬Õ‡*
+	left link
+vehicle82
+link23,
+entered link
+link1
+vehicle82*
+	left link
+link23
+vehicle60,
+entered link
+vehicle60
+link1*
+	left link
+link23
+vehicle35,
+entered link
+vehicle35
+link1*
+	left link
+vehicle21
+link23,
+entered link
+vehicle21
+link1∑√Õ∞*
+	left link
+link23
+vehicle33,
+entered link
+link1
+vehicle33*
+	left link
+vehicle11
+link23,
+entered link
+link1
+vehicle11ç≈ÕÜ)
+	left link
+vehicle8
+link23+
+entered link
+link1
+vehicle8*
+	left link
+link23
+vehicle56,
+entered link
+vehicle56
+link1*
+	left link
+link23
+vehicle17,
+entered link
+link1
+vehicle17è…Õà*
+	left link
+vehicle79
+link23,
+entered link
+link1
+vehicle79*
+	left link
+link23
+vehicle53,
+entered link
+link1
+vehicle53*
+	left link
+vehicle14
+link23,
+entered link
+link1
+vehicle14èÃÕà*
+	left link
+link23
+vehicle78,
+entered link
+link1
+vehicle78*
+	left link
+vehicle41
+link23,
+entered link
+link1
+vehicle41*
+	left link
+link23
+vehicle10,
+entered link
+link1
+vehicle10∑–Õ∞*
+	left link
+link23
+vehicle73,
+entered link
+vehicle73
+link1*
+	left link
+vehicle38
+link23,
+entered link
+link1
+vehicle38µ‘ÕÆ)
+	left link
+link23
+vehicle7+
+entered link
+vehicle7
+link1*
+	left link
+vehicle25
+link23,
+entered link
+vehicle25
+link1∑◊Õ∞*
+	left link
+link23
+vehicle67,
+entered link
+vehicle67
+link1*
+	left link
+link23
+vehicle13,
+entered link
+vehicle13
+link1^€ÕX*
+	left link
+link23
+vehicle65,
+entered link
+vehicle65
+link1^ﬁÕX*
+	left link
+link23
+vehicle61,
+entered link
+link1
+vehicle61^‚ÕX*
+	left link
+link23
+vehicle58,
+entered link
+link1
+vehicle58^ÊÕX*
+	left link
+vehicle57
+link23,
+entered link
+link1
+vehicle57^ÈÕX*
+	left link
+link23
+vehicle54,
+entered link
+vehicle54
+link1^ÌÕX*
+	left link
+vehicle51
+link23,
+entered link
+vehicle51
+link1^ÕX*
+	left link
+link23
+vehicle48,
+entered link
+link1
+vehicle48^ÙÕX*
+	left link
+link23
+vehicle43,
+entered link
+vehicle43
+link1^¯ÕX*
+	left link
+vehicle40
+link23,
+entered link
+link1
+vehicle40^˚ÕX*
+	left link
+vehicle39
+link23,
+entered link
+vehicle39
+link1^ˇÕX*
+	left link
+link23
+vehicle36,
+entered link
+link1
+vehicle36^ÇŒX*
+	left link
+link23
+vehicle32,
+entered link
+link1
+vehicle32^ÜŒX*
+	left link
+link23
+vehicle31,
+entered link
+link1
+vehicle31^äŒX*
+	left link
+link23
+vehicle28,
+entered link
+vehicle28
+link1^çŒX*
+	left link
+vehicle26
+link23,
+entered link
+link1
+vehicle26^ëŒX*
+	left link
+link23
+vehicle23,
+entered link
+link1
+vehicle23^îŒX*
+	left link
+vehicle22
+link23,
+entered link
+vehicle22
+link1^òŒX*
+	left link
+link23
+vehicle18,
+entered link
+vehicle18
+link1^úŒX*
+	left link
+link23
+vehicle16,
+entered link
+link1
+vehicle16^üŒX*
+	left link
+link23
+vehicle12,
+entered link
+link1
+vehicle12`£ŒZ+
+	left link
+link23
+vehicle100-
+entered link
+vehicle100
+link1ßê–†r
+generic
+person"99"
+link"1"
+relativePosition"1.0"
+networkMode"car"
+vehicle"99"6
+PersonLeavesVehicle
+person99
+vehicle995
+arrival
+modecar
+link1
+person99?
+actstart
+act_type
+-25000.0
+person99
+link1r
+generic
+person"98"
+networkMode"car"
+relativePosition"1.0"
+link"1"
+vehicle"98"6
+PersonLeavesVehicle
+person98
+vehicle985
+arrival
+modecar
+person98
+link1?
+actstart
+person98
+act_type
+-25000.0
+link1r
+generic
+networkMode"car"
+relativePosition"1.0"
+link"1"
+person"97"
+vehicle"97"6
+PersonLeavesVehicle
+person97
+vehicle975
+arrival
+person97
+modecar
+link1?
+actstart
+link1
+act_type
+-25000.0
+person97r
+generic
+relativePosition"1.0"
+vehicle"95"
+person"95"
+networkMode"car"
+link"1"6
+PersonLeavesVehicle
+person95
+vehicle955
+arrival
+link1
+modecar
+person95?
+actstart
+person95
+link1
+act_type
+-25000.0r
+generic
+networkMode"car"
+link"1"
+relativePosition"1.0"
+vehicle"91"
+person"91"6
+PersonLeavesVehicle
+person91
+vehicle915
+arrival
+link1
+person91
+modecar?
+actstart
+link1
+act_type
+-25000.0
+person91«ë–¿r
+generic
+person"87"
+link"1"
+vehicle"87"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle87
+person875
+arrival
+modecar
+person87
+link1?
+actstart
+act_type
+-25000.0
+person87
+link1r
+generic
+person"86"
+vehicle"86"
+link"1"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person86
+vehicle865
+arrival
+person86
+link1
+modecar?
+actstart
+person86
+link1
+act_type
+-25000.0ßí–†r
+generic
+relativePosition"1.0"
+vehicle"76"
+networkMode"car"
+link"1"
+person"76"6
+PersonLeavesVehicle
+person76
+vehicle765
+arrival
+link1
+person76
+modecar?
+actstart
+person76
+link1
+act_type
+-25000.0«ì–¿r
+generic
+person"96"
+vehicle"96"
+networkMode"car"
+relativePosition"1.0"
+link"1"6
+PersonLeavesVehicle
+person96
+vehicle965
+arrival
+modecar
+link1
+person96?
+actstart
+link1
+act_type
+-25000.0
+person96r
+generic
+person"94"
+relativePosition"1.0"
+vehicle"94"
+networkMode"car"
+link"1"6
+PersonLeavesVehicle
+person94
+vehicle945
+arrival
+link1
+modecar
+person94?
+actstart
+link1
+act_type
+-25000.0
+person94r
+generic
+relativePosition"1.0"
+vehicle"90"
+networkMode"car"
+person"90"
+link"1"6
+PersonLeavesVehicle
+person90
+vehicle905
+arrival
+person90
+link1
+modecar?
+actstart
+link1
+act_type
+-25000.0
+person90r
+generic
+networkMode"car"
+vehicle"84"
+person"84"
+relativePosition"1.0"
+link"1"6
+PersonLeavesVehicle
+person84
+vehicle845
+arrival
+modecar
+person84
+link1?
+actstart
+link1
+act_type
+-25000.0
+person84r
+generic
+relativePosition"1.0"
+link"1"
+vehicle"81"
+networkMode"car"
+person"81"6
+PersonLeavesVehicle
+vehicle81
+person815
+arrival
+modecar
+link1
+person81?
+actstart
+act_type
+-25000.0
+person81
+link1r
+generic
+vehicle"70"
+person"70"
+networkMode"car"
+relativePosition"1.0"
+link"1"6
+PersonLeavesVehicle
+person70
+vehicle705
+arrival
+modecar
+person70
+link1?
+actstart
+link1
+act_type
+-25000.0
+person70ßî–†r
+generic
+networkMode"car"
+link"1"
+vehicle"62"
+relativePosition"1.0"
+person"62"6
+PersonLeavesVehicle
+person62
+vehicle625
+arrival
+person62
+link1
+modecar?
+actstart
+person62
+link1
+act_type
+-25000.0«ï–¿r
+generic
+person"74"
+relativePosition"1.0"
+vehicle"74"
+networkMode"car"
+link"1"6
+PersonLeavesVehicle
+person74
+vehicle745
+arrival
+person74
+link1
+modecar?
+actstart
+link1
+act_type
+-25000.0
+person74r
+generic
+person"49"
+networkMode"car"
+relativePosition"1.0"
+link"1"
+vehicle"49"6
+PersonLeavesVehicle
+person49
+vehicle495
+arrival
+person49
+modecar
+link1?
+actstart
+person49
+act_type
+-25000.0
+link1ßó–†r
+generic
+link"1"
+relativePosition"1.0"
+vehicle"93"
+person"93"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle93
+person935
+arrival
+link1
+modecar
+person93?
+actstart
+act_type
+-25000.0
+person93
+link1r
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"92"
+link"1"
+person"92"6
+PersonLeavesVehicle
+person92
+vehicle925
+arrival
+person92
+modecar
+link1?
+actstart
+act_type
+-25000.0
+person92
+link1r
+generic
+vehicle"88"
+relativePosition"1.0"
+networkMode"car"
+link"1"
+person"88"6
+PersonLeavesVehicle
+vehicle88
+person885
+arrival
+person88
+link1
+modecar?
+actstart
+act_type
+-25000.0
+person88
+link1r
+generic
+relativePosition"1.0"
+person"71"
+networkMode"car"
+link"1"
+vehicle"71"6
+PersonLeavesVehicle
+person71
+vehicle715
+arrival
+person71
+link1
+modecar?
+actstart
+act_type
+-25000.0
+person71
+link1r
+generic
+networkMode"car"
+relativePosition"1.0"
+vehicle"66"
+person"66"
+link"1"6
+PersonLeavesVehicle
+person66
+vehicle665
+arrival
+person66
+link1
+modecar?
+actstart
+act_type
+-25000.0
+person66
+link1·ò–⁄p
+generic
+link"1"
+person"6"
+networkMode"car"
+vehicle"6"
+relativePosition"1.0"4
+PersonLeavesVehicle
+person6
+vehicle64
+arrival
+link1
+modecar
+person6>
+actstart
+act_type
+-25000.0
+person6
+link1r
+generic
+vehicle"46"
+person"46"
+relativePosition"1.0"
+networkMode"car"
+link"1"6
+PersonLeavesVehicle
+person46
+vehicle465
+arrival
+link1
+person46
+modecar?
+actstart
+act_type
+-25000.0
+person46
+link1r
+generic
+vehicle"15"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+person"15"6
+PersonLeavesVehicle
+person15
+vehicle155
+arrival
+link1
+modecar
+person15?
+actstart
+person15
+act_type
+-25000.0
+link1°ö–öp
+generic
+link"1"
+networkMode"car"
+vehicle"9"
+relativePosition"1.0"
+person"9"4
+PersonLeavesVehicle
+person9
+vehicle94
+arrival
+modecar
+person9
+link1>
+actstart
+act_type
+-25000.0
+link1
+person9r
+generic
+person"80"
+relativePosition"1.0"
+link"1"
+networkMode"car"
+vehicle"80"6
+PersonLeavesVehicle
+person80
+vehicle805
+arrival
+modecar
+person80
+link1?
+actstart
+person80
+link1
+act_type
+-25000.0r
+generic
+networkMode"car"
+person"77"
+vehicle"77"
+relativePosition"1.0"
+link"1"6
+PersonLeavesVehicle
+person77
+vehicle775
+arrival
+modecar
+person77
+link1?
+actstart
+link1
+person77
+act_type
+-25000.0r
+generic
+relativePosition"1.0"
+networkMode"car"
+person"64"
+vehicle"64"
+link"1"6
+PersonLeavesVehicle
+person64
+vehicle645
+arrival
+person64
+link1
+modecar?
+actstart
+link1
+person64
+act_type
+-25000.0r
+generic
+link"1"
+vehicle"50"
+relativePosition"1.0"
+networkMode"car"
+person"50"6
+PersonLeavesVehicle
+vehicle50
+person505
+arrival
+person50
+modecar
+link1?
+actstart
+act_type
+-25000.0
+person50
+link1ßõ–†r
+generic
+person"59"
+networkMode"car"
+vehicle"59"
+link"1"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle59
+person595
+arrival
+link1
+modecar
+person59?
+actstart
+person59
+link1
+act_type
+-25000.0«ú–¿r
+generic
+relativePosition"1.0"
+person"45"
+link"1"
+vehicle"45"
+networkMode"car"6
+PersonLeavesVehicle
+person45
+vehicle455
+arrival
+person45
+link1
+modecar?
+actstart
+act_type
+-25000.0
+link1
+person45r
+generic
+relativePosition"1.0"
+link"1"
+networkMode"car"
+person"44"
+vehicle"44"6
+PersonLeavesVehicle
+person44
+vehicle445
+arrival
+modecar
+person44
+link1?
+actstart
+act_type
+-25000.0
+person44
+link1ßû–†r
+generic
+vehicle"89"
+link"1"
+relativePosition"1.0"
+person"89"
+networkMode"car"6
+PersonLeavesVehicle
+person89
+vehicle895
+arrival
+link1
+modecar
+person89?
+actstart
+person89
+link1
+act_type
+-25000.0r
+generic
+link"1"
+vehicle"75"
+person"75"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person75
+vehicle755
+arrival
+modecar
+link1
+person75?
+actstart
+person75
+link1
+act_type
+-25000.0r
+generic
+link"1"
+relativePosition"1.0"
+vehicle"72"
+networkMode"car"
+person"72"6
+PersonLeavesVehicle
+person72
+vehicle725
+arrival
+person72
+modecar
+link1?
+actstart
+act_type
+-25000.0
+person72
+link1r
+generic
+relativePosition"1.0"
+link"1"
+person"30"
+vehicle"30"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle30
+person305
+arrival
+modecar
+link1
+person30?
+actstart
+link1
+person30
+act_type
+-25000.0r
+generic
+vehicle"19"
+networkMode"car"
+link"1"
+person"19"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle19
+person195
+arrival
+link1
+modecar
+person19?
+actstart
+person19
+link1
+act_type
+-25000.0«ü–¿r
+generic
+vehicle"55"
+relativePosition"1.0"
+networkMode"car"
+person"55"
+link"1"6
+PersonLeavesVehicle
+person55
+vehicle555
+arrival
+person55
+modecar
+link1?
+actstart
+person55
+link1
+act_type
+-25000.0r
+generic
+person"42"
+link"1"
+relativePosition"1.0"
+networkMode"car"
+vehicle"42"6
+PersonLeavesVehicle
+vehicle42
+person425
+arrival
+modecar
+person42
+link1?
+actstart
+person42
+link1
+act_type
+-25000.0ß†–†r
+generic
+person"27"
+networkMode"car"
+vehicle"27"
+link"1"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person27
+vehicle275
+arrival
+link1
+modecar
+person27?
+actstart
+act_type
+-25000.0
+person27
+link1á	°–Ä	r
+generic
+relativePosition"1.0"
+link"1"
+vehicle"85"
+person"85"
+networkMode"car"6
+PersonLeavesVehicle
+person85
+vehicle855
+arrival
+modecar
+person85
+link1?
+actstart
+link1
+act_type
+-25000.0
+person85r
+generic
+relativePosition"1.0"
+networkMode"car"
+person"69"
+link"1"
+vehicle"69"6
+PersonLeavesVehicle
+vehicle69
+person695
+arrival
+person69
+link1
+modecar?
+actstart
+act_type
+-25000.0
+person69
+link1r
+generic
+link"1"
+person"63"
+networkMode"car"
+vehicle"63"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle63
+person635
+arrival
+person63
+modecar
+link1?
+actstart
+person63
+link1
+act_type
+-25000.0r
+generic
+person"29"
+vehicle"29"
+link"1"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle29
+person295
+arrival
+link1
+modecar
+person29?
+actstart
+act_type
+-25000.0
+person29
+link1ß¢–†r
+generic
+person"47"
+relativePosition"1.0"
+networkMode"car"
+vehicle"47"
+link"1"6
+PersonLeavesVehicle
+person47
+vehicle475
+arrival
+modecar
+person47
+link1?
+actstart
+act_type
+-25000.0
+person47
+link1ß£–†r
+generic
+person"37"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+vehicle"37"6
+PersonLeavesVehicle
+vehicle37
+person375
+arrival
+link1
+person37
+modecar?
+actstart
+person37
+act_type
+-25000.0
+link1á	•–Ä	r
+generic
+person"83"
+vehicle"83"
+relativePosition"1.0"
+link"1"
+networkMode"car"6
+PersonLeavesVehicle
+person83
+vehicle835
+arrival
+link1
+person83
+modecar?
+actstart
+act_type
+-25000.0
+link1
+person83r
+generic
+relativePosition"1.0"
+vehicle"68"
+link"1"
+person"68"
+networkMode"car"6
+PersonLeavesVehicle
+person68
+vehicle685
+arrival
+link1
+modecar
+person68?
+actstart
+person68
+act_type
+-25000.0
+link1r
+generic
+person"52"
+relativePosition"1.0"
+vehicle"52"
+networkMode"car"
+link"1"6
+PersonLeavesVehicle
+vehicle52
+person525
+arrival
+person52
+link1
+modecar?
+actstart
+act_type
+-25000.0
+person52
+link1r
+generic
+networkMode"car"
+link"1"
+vehicle"24"
+relativePosition"1.0"
+person"24"6
+PersonLeavesVehicle
+vehicle24
+person245
+arrival
+modecar
+person24
+link1?
+actstart
+link1
+person24
+act_type
+-25000.0«¶–¿r
+generic
+link"1"
+relativePosition"1.0"
+networkMode"car"
+person"34"
+vehicle"34"6
+PersonLeavesVehicle
+person34
+vehicle345
+arrival
+link1
+person34
+modecar?
+actstart
+person34
+act_type
+-25000.0
+link1r
+generic
+person"20"
+networkMode"car"
+relativePosition"1.0"
+link"1"
+vehicle"20"6
+PersonLeavesVehicle
+person20
+vehicle205
+arrival
+link1
+modecar
+person20?
+actstart
+act_type
+-25000.0
+person20
+link1á	©–Ä	r
+generic
+person"82"
+vehicle"82"
+relativePosition"1.0"
+link"1"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle82
+person825
+arrival
+link1
+person82
+modecar?
+actstart
+act_type
+-25000.0
+link1
+person82r
+generic
+link"1"
+vehicle"60"
+networkMode"car"
+relativePosition"1.0"
+person"60"6
+PersonLeavesVehicle
+person60
+vehicle605
+arrival
+person60
+link1
+modecar?
+actstart
+link1
+person60
+act_type
+-25000.0r
+generic
+networkMode"car"
+vehicle"35"
+person"35"
+relativePosition"1.0"
+link"1"6
+PersonLeavesVehicle
+person35
+vehicle355
+arrival
+person35
+modecar
+link1?
+actstart
+person35
+link1
+act_type
+-25000.0r
+generic
+link"1"
+vehicle"21"
+networkMode"car"
+relativePosition"1.0"
+person"21"6
+PersonLeavesVehicle
+person21
+vehicle215
+arrival
+modecar
+link1
+person21?
+actstart
+person21
+link1
+act_type
+-25000.0«™–¿r
+generic
+person"33"
+link"1"
+networkMode"car"
+relativePosition"1.0"
+vehicle"33"6
+PersonLeavesVehicle
+vehicle33
+person335
+arrival
+modecar
+person33
+link1?
+actstart
+person33
+link1
+act_type
+-25000.0r
+generic
+networkMode"car"
+link"1"
+vehicle"11"
+relativePosition"1.0"
+person"11"6
+PersonLeavesVehicle
+vehicle11
+person115
+arrival
+link1
+person11
+modecar?
+actstart
+link1
+person11
+act_type
+-25000.0·¨–⁄p
+generic
+relativePosition"1.0"
+person"8"
+link"1"
+networkMode"car"
+vehicle"8"4
+PersonLeavesVehicle
+vehicle8
+person84
+arrival
+person8
+modecar
+link1>
+actstart
+person8
+link1
+act_type
+-25000.0r
+generic
+networkMode"car"
+person"56"
+relativePosition"1.0"
+link"1"
+vehicle"56"6
+PersonLeavesVehicle
+person56
+vehicle565
+arrival
+person56
+modecar
+link1?
+actstart
+act_type
+-25000.0
+person56
+link1r
+generic
+link"1"
+relativePosition"1.0"
+networkMode"car"
+person"17"
+vehicle"17"6
+PersonLeavesVehicle
+person17
+vehicle175
+arrival
+link1
+person17
+modecar?
+actstart
+person17
+link1
+act_type
+-25000.0Á∞–‡r
+generic
+person"79"
+networkMode"car"
+link"1"
+vehicle"79"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle79
+person795
+arrival
+person79
+modecar
+link1?
+actstart
+link1
+person79
+act_type
+-25000.0r
+generic
+vehicle"53"
+networkMode"car"
+link"1"
+relativePosition"1.0"
+person"53"6
+PersonLeavesVehicle
+vehicle53
+person535
+arrival
+modecar
+link1
+person53?
+actstart
+act_type
+-25000.0
+person53
+link1r
+generic
+vehicle"14"
+person"14"
+networkMode"car"
+link"1"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person14
+vehicle145
+arrival
+link1
+person14
+modecar?
+actstart
+link1
+person14
+act_type
+-25000.0Á≥–‡r
+generic
+link"1"
+vehicle"78"
+relativePosition"1.0"
+networkMode"car"
+person"78"6
+PersonLeavesVehicle
+person78
+vehicle785
+arrival
+modecar
+link1
+person78?
+actstart
+link1
+act_type
+-25000.0
+person78r
+generic
+link"1"
+networkMode"car"
+relativePosition"1.0"
+vehicle"41"
+person"41"6
+PersonLeavesVehicle
+person41
+vehicle415
+arrival
+link1
+modecar
+person41?
+actstart
+link1
+act_type
+-25000.0
+person41r
+generic
+person"10"
+vehicle"10"
+networkMode"car"
+relativePosition"1.0"
+link"1"6
+PersonLeavesVehicle
+person10
+vehicle105
+arrival
+modecar
+link1
+person10?
+actstart
+link1
+act_type
+-25000.0
+person10«∑–¿r
+generic
+vehicle"73"
+person"73"
+relativePosition"1.0"
+link"1"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle73
+person735
+arrival
+person73
+link1
+modecar?
+actstart
+person73
+link1
+act_type
+-25000.0r
+generic
+networkMode"car"
+relativePosition"1.0"
+person"38"
+vehicle"38"
+link"1"6
+PersonLeavesVehicle
+person38
+vehicle385
+arrival
+link1
+modecar
+person38?
+actstart
+person38
+link1
+act_type
+-25000.0¡ª–∫p
+generic
+vehicle"7"
+networkMode"car"
+link"1"
+relativePosition"1.0"
+person"7"4
+PersonLeavesVehicle
+vehicle7
+person74
+arrival
+modecar
+person7
+link1>
+actstart
+link1
+person7
+act_type
+-25000.0r
+generic
+networkMode"car"
+vehicle"25"
+link"1"
+relativePosition"1.0"
+person"25"6
+PersonLeavesVehicle
+vehicle25
+person255
+arrival
+person25
+modecar
+link1?
+actstart
+link1
+act_type
+-25000.0
+person25«æ–¿r
+generic
+link"1"
+person"67"
+vehicle"67"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle67
+person675
+arrival
+modecar
+person67
+link1?
+actstart
+act_type
+-25000.0
+person67
+link1r
+generic
+networkMode"car"
+person"13"
+relativePosition"1.0"
+link"1"
+vehicle"13"6
+PersonLeavesVehicle
+vehicle13
+person135
+arrival
+modecar
+person13
+link1?
+actstart
+act_type
+-25000.0
+person13
+link1ß¬–†r
+generic
+link"1"
+vehicle"65"
+networkMode"car"
+person"65"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle65
+person655
+arrival
+link1
+modecar
+person65?
+actstart
+person65
+link1
+act_type
+-25000.0ß≈–†r
+generic
+vehicle"61"
+networkMode"car"
+person"61"
+link"1"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person61
+vehicle615
+arrival
+link1
+person61
+modecar?
+actstart
+person61
+act_type
+-25000.0
+link1ß…–†r
+generic
+link"1"
+networkMode"car"
+vehicle"58"
+person"58"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle58
+person585
+arrival
+modecar
+person58
+link1?
+actstart
+link1
+person58
+act_type
+-25000.0ßÕ–†r
+generic
+relativePosition"1.0"
+link"1"
+vehicle"57"
+person"57"
+networkMode"car"6
+PersonLeavesVehicle
+person57
+vehicle575
+arrival
+modecar
+person57
+link1?
+actstart
+link1
+act_type
+-25000.0
+person57ß––†r
+generic
+networkMode"car"
+person"54"
+vehicle"54"
+relativePosition"1.0"
+link"1"6
+PersonLeavesVehicle
+person54
+vehicle545
+arrival
+modecar
+link1
+person54?
+actstart
+link1
+act_type
+-25000.0
+person54ß‘–†r
+generic
+networkMode"car"
+link"1"
+vehicle"51"
+person"51"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person51
+vehicle515
+arrival
+person51
+link1
+modecar?
+actstart
+act_type
+-25000.0
+link1
+person51ß◊–†r
+generic
+person"48"
+networkMode"car"
+link"1"
+relativePosition"1.0"
+vehicle"48"6
+PersonLeavesVehicle
+vehicle48
+person485
+arrival
+link1
+person48
+modecar?
+actstart
+act_type
+-25000.0
+link1
+person48ß€–†r
+generic
+person"43"
+relativePosition"1.0"
+vehicle"43"
+networkMode"car"
+link"1"6
+PersonLeavesVehicle
+person43
+vehicle435
+arrival
+person43
+link1
+modecar?
+actstart
+link1
+person43
+act_type
+-25000.0ßﬂ–†r
+generic
+networkMode"car"
+link"1"
+person"40"
+relativePosition"1.0"
+vehicle"40"6
+PersonLeavesVehicle
+vehicle40
+person405
+arrival
+person40
+link1
+modecar?
+actstart
+act_type
+-25000.0
+link1
+person40ß‚–†r
+generic
+person"39"
+relativePosition"1.0"
+vehicle"39"
+networkMode"car"
+link"1"6
+PersonLeavesVehicle
+vehicle39
+person395
+arrival
+link1
+person39
+modecar?
+actstart
+act_type
+-25000.0
+person39
+link1ßÊ–†r
+generic
+person"36"
+link"1"
+networkMode"car"
+vehicle"36"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person36
+vehicle365
+arrival
+person36
+modecar
+link1?
+actstart
+link1
+person36
+act_type
+-25000.0ßÈ–†r
+generic
+vehicle"32"
+person"32"
+link"1"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle32
+person325
+arrival
+link1
+person32
+modecar?
+actstart
+person32
+link1
+act_type
+-25000.0ßÌ–†r
+generic
+link"1"
+person"31"
+relativePosition"1.0"
+networkMode"car"
+vehicle"31"6
+PersonLeavesVehicle
+person31
+vehicle315
+arrival
+modecar
+person31
+link1?
+actstart
+act_type
+-25000.0
+link1
+person31ßÒ–†r
+generic
+networkMode"car"
+person"28"
+relativePosition"1.0"
+vehicle"28"
+link"1"6
+PersonLeavesVehicle
+vehicle28
+person285
+arrival
+person28
+modecar
+link1?
+actstart
+act_type
+-25000.0
+person28
+link1ßÙ–†r
+generic
+networkMode"car"
+vehicle"26"
+link"1"
+person"26"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person26
+vehicle265
+arrival
+person26
+link1
+modecar?
+actstart
+person26
+act_type
+-25000.0
+link1ß¯–†r
+generic
+link"1"
+person"23"
+vehicle"23"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+person23
+vehicle235
+arrival
+person23
+link1
+modecar?
+actstart
+act_type
+-25000.0
+link1
+person23ß˚–†r
+generic
+person"22"
+link"1"
+vehicle"22"
+relativePosition"1.0"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle22
+person225
+arrival
+modecar
+link1
+person22?
+actstart
+link1
+act_type
+-25000.0
+person22ßˇ–†r
+generic
+vehicle"18"
+relativePosition"1.0"
+person"18"
+link"1"
+networkMode"car"6
+PersonLeavesVehicle
+vehicle18
+person185
+arrival
+person18
+link1
+modecar?
+actstart
+link1
+act_type
+-25000.0
+person18ßÉ—†r
+generic
+link"1"
+vehicle"16"
+person"16"
+networkMode"car"
+relativePosition"1.0"6
+PersonLeavesVehicle
+vehicle16
+person165
+arrival
+person16
+modecar
+link1?
+actstart
+link1
+act_type
+-25000.0
+person16ßÜ—†r
+generic
+vehicle"12"
+relativePosition"1.0"
+networkMode"car"
+person"12"
+link"1"6
+PersonLeavesVehicle
+vehicle12
+person125
+arrival
+person12
+modecar
+link1?
+actstart
+person12
+act_type
+-25000.0
+link1≠ä—¶t
+generic
+relativePosition"1.0"
+vehicle"100"
+person"100"
+link"1"
+networkMode"car"8
+PersonLeavesVehicle
+person100
+vehicle1006
+arrival
+modecar
+link1
+person100@
+actstart
+link1
+person100
+act_type
+-25000.0£¢Ÿú<
+actend
+person3
+act_type	10000.0
+link207
+	departure
+modecar
+link20
+person34
+PersonEntersVehicle
+vehicle3
+person3q
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"3"
+link"20"
+person"3"]£ŸW)
+	left link
+link20
+vehicle3,
+entered link
+link21
+vehicle3]ã‹W)
+	left link
+link21
+vehicle3,
+entered link
+vehicle3
+link22]˜ÂW)
+	left link
+link22
+vehicle3,
+entered link
+vehicle3
+link23\ﬂËV)
+	left link
+link23
+vehicle3+
+entered link
+link1
+vehicle3°∆Îöp
+generic
+networkMode"car"
+vehicle"3"
+person"3"
+relativePosition"1.0"
+link"1"4
+PersonLeavesVehicle
+person3
+vehicle34
+arrival
+link1
+person3
+modecar>
+actstart
+link1
+act_type
+-25000.0
+person3£–ıú<
+actend
+person2
+act_type	10000.0
+link207
+	departure
+modecar
+person2
+link204
+PersonEntersVehicle
+person2
+vehicle2q
+generic
+link"20"
+vehicle"2"
+networkMode"car"
+person"2"
+relativePosition"1.0"]—ıW)
+	left link
+link20
+vehicle2,
+entered link
+link21
+vehicle2£Óıú<
+actend
+person4
+act_type	10000.0
+link207
+	departure
+link20
+person4
+modecar4
+PersonEntersVehicle
+vehicle4
+person4q
+generic
+person"4"
+networkMode"car"
+relativePosition"1.0"
+vehicle"4"
+link"20"]ÔıW)
+	left link
+vehicle4
+link20,
+entered link
+vehicle4
+link21]π¯W)
+	left link
+vehicle2
+link21,
+entered link
+vehicle2
+link22]◊¯W)
+	left link
+link21
+vehicle4,
+entered link
+link22
+vehicle4]•ÇW)
+	left link
+link22
+vehicle2,
+entered link
+link23
+vehicle2]√ÇW)
+	left link
+vehicle4
+link22,
+entered link
+vehicle4
+link23\çÖV)
+	left link
+vehicle2
+link23+
+entered link
+vehicle2
+link1\´ÖV)
+	left link
+vehicle4
+link23+
+entered link
+link1
+vehicle4°Ùáöp
+generic
+link"1"
+relativePosition"1.0"
+vehicle"2"
+person"2"
+networkMode"car"4
+PersonLeavesVehicle
+vehicle2
+person24
+arrival
+person2
+modecar
+link1>
+actstart
+link1
+act_type
+-25000.0
+person2°íàöp
+generic
+relativePosition"1.0"
+link"1"
+networkMode"car"
+person"4"
+vehicle"4"4
+PersonLeavesVehicle
+person4
+vehicle44
+arrival
+link1
+person4
+modecar>
+actstart
+link1
+person4
+act_type
+-25000.0£Òóú<
+actend
+link20
+act_type	10000.0
+person17
+	departure
+person1
+link20
+modecar4
+PersonEntersVehicle
+person1
+vehicle1q
+generic
+person"1"
+link"20"
+networkMode"car"
+vehicle"1"
+relativePosition"1.0"]ÚóW)
+	left link
+link20
+vehicle1,
+entered link
+link21
+vehicle1]⁄öW)
+	left link
+link21
+vehicle1,
+entered link
+link22
+vehicle1]∆§W)
+	left link
+vehicle1
+link22,
+entered link
+link23
+vehicle1\ÆßV)
+	left link
+link23
+vehicle1+
+entered link
+vehicle1
+link1°ï™öp
+generic
+relativePosition"1.0"
+person"1"
+vehicle"1"
+link"1"
+networkMode"car"4
+PersonLeavesVehicle
+vehicle1
+person14
+arrival
+link1
+modecar
+person1>
+actstart
+person1
+link1
+act_type
+-25000.0£’Êú<
+actend
+person5
+act_type	10000.0
+link207
+	departure
+link20
+modecar
+person54
+PersonEntersVehicle
+person5
+vehicle5q
+generic
+vehicle"5"
+link"20"
+relativePosition"1.0"
+networkMode"car"
+person"5"]÷ÊW)
+	left link
+link20
+vehicle5,
+entered link
+vehicle5
+link21]æÈW)
+	left link
+link21
+vehicle5,
+entered link
+vehicle5
+link22]™ÛW)
+	left link
+link22
+vehicle5,
+entered link
+vehicle5
+link23\íˆV)
+	left link
+vehicle5
+link23+
+entered link
+vehicle5
+link1°˘¯öp
+generic
+relativePosition"1.0"
+networkMode"car"
+vehicle"5"
+link"1"
+person"5"4
+PersonLeavesVehicle
+person5
+vehicle54
+arrival
+person5
+link1
+modecar>
+actstart
+act_type
+-25000.0
+person5
+link1
