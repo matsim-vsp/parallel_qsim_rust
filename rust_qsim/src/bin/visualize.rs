@@ -94,7 +94,7 @@ struct TripsBuilder {
 }
 
 impl TripsBuilder {
-    // Creates a new TripsBuilder
+    // create a new TripsBuilder
     fn new() -> Self {
         Self {
             current_link_per_vehicle: HashMap::new(),
@@ -112,7 +112,7 @@ impl TripsBuilder {
         }
     }
 
-    // Handles a link enter event and remembers which vehicle entered which link at what time.
+    // handles a link enter event and remembers which vehicle entered which link at what time
     fn handle_link_enter(&mut self, event: &LinkEnterEvent) {
         let link_id = event.link.external().to_string();
         let vehicle_id = event.vehicle.external().to_string();
@@ -120,7 +120,7 @@ impl TripsBuilder {
             .insert(vehicle_id, (link_id, event.time as f32));
     }
 
-    // Handles a link leave event by closing the currently active traversed link for the vehicle.
+    // handles a link leave event by closing the currently active traversed link for the vehicle
     fn handle_link_leave(&mut self, event: &LinkLeaveEvent) {
         let link_id = event.link.external().to_string();
         let vehicle_id = event.vehicle.external().to_string();
@@ -142,7 +142,7 @@ impl TripsBuilder {
         }
     }
 
-    // Builds the AllTrips from the collected traversed links.
+    // build AllTrips from the traversed links
     fn build_all_trips(&self) -> AllTrips {
         // clone and sort trips
         let mut per_vehicle = self.per_vehicle.clone();
@@ -202,7 +202,7 @@ fn build_vehicle_trips() -> AllTrips {
     trips
 }
 
-// This method updates the simulation time based on the real time delta and the timescale.
+// this method updates the simulation time based on the real time delta and the timescale.
 fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
     clock.time += time.delta_secs() * TIME_SCALE;
 }
@@ -343,8 +343,7 @@ fn setup(mut commands: Commands) {
     // commands.spawn((Camera2d));
 }
 
-// This method inspects the loaded network and window size
-// and computes a view center and zoom level so that the whole network is visible.
+// set the camera position and zoom to fit the network
 fn fit_camera_to_network(
     mut commands: Commands,
     network: Option<Res<NetworkData>>,
@@ -355,17 +354,17 @@ fn fit_camera_to_network(
         return;
     };
 
-    // If there are no nodes, there is nothing to fit.
+    // return if the network is empty
     if network.node_positions.is_empty() {
         return;
     }
 
-    // Use the primary window to know how much space we have on screen.
+    // get the window to calc the size of the window
     let Some(window) = window_query.iter().next() else {
         return;
     };
 
-    // Determine the bounding box of all node positions.
+    // calc the bounding box of all nodes
     let mut min_x = f32::INFINITY;
     let mut max_x = f32::NEG_INFINITY;
     let mut min_y = f32::INFINITY;
@@ -382,27 +381,28 @@ fn fit_camera_to_network(
         return;
     }
 
-    // Compute network width, height and geometric center.
+    // calc the network width, height and center
     let width = (max_x - min_x).max(f32::EPSILON);
     let height = (max_y - min_y).max(f32::EPSILON);
-
     let center_x = (min_x + max_x) * 0.5;
     let center_y = (min_y + max_y) * 0.5;
 
-    // Relate network extent to the current window size to derive a zoom level.
+    // get the window dimensions
     let window_width = window.width().max(1.0);
     let window_height = window.height().max(1.0);
 
-    let required_scale_x = width / window_width;
-    let required_scale_y = height / window_height;
+    // calc the scale factor in x- and y-direction
+    let scale_x = width / window_width;
+    let scale_y = height / window_height;
 
-    // Add a small margin so the network is not exactly at the border.
+    // add some margin and use the bigger scale factor
     let margin = 1.1;
-    let mut scale = required_scale_x.max(required_scale_y) * margin;
+    let mut scale = scale_x.max(scale_y) * margin;
     if !scale.is_finite() || scale <= 0.0 {
         scale = 1.0;
     }
 
+    // set the view settings
     commands.insert_resource(ViewSettings {
         center: Vec2::new(center_x, center_y),
         scale,
