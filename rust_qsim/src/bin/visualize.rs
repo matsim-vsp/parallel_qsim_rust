@@ -144,7 +144,7 @@ impl TripsBuilder {
 
     // Builds the AllTrips from the collected traversed links.
     fn build_all_trips(&self) -> AllTrips {
-        // Clone trips so we can sort them per vehicle by start time
+        // clone and sort trips
         let mut per_vehicle = self.per_vehicle.clone();
         for trips in per_vehicle.values_mut() {
             trips.sort_by(|a, b| {
@@ -159,6 +159,7 @@ impl TripsBuilder {
         if first_start == f32::MAX {
             first_start = 0.0;
         }
+        // save all trips in AllTrips
         AllTrips {
             per_vehicle,
             first_start,
