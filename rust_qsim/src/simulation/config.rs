@@ -662,11 +662,17 @@ fn default_profiling_level() -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::Output;
+    use crate::simulation::config::PathBuf;
+    use crate::simulation::config::Profiling;
+    use crate::simulation::config::ProtoFiles;
+    use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
         parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType,
         DrtService, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation,
         VertexWeight,
     };
+    use crate::simulation::config::{Logging, RoutingMode};
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -951,5 +957,64 @@ modules:
         let input = "protofiles.population_some_path";
         let parsed = parse_key_val(input);
         assert!(parsed.is_err());
+    }
+
+    fn base_config() -> Config {
+        let mut config = Config::default();
+        config.set_proto_files(ProtoFiles {
+            network: "net".into(),
+            population: "pop".into(),
+            vehicles: "veh".into(),
+            ids: "ids".into(),
+        });
+        config.set_output(Output {
+            output_dir: "out".into(),
+            profiling: Profiling::None,
+            logging: Logging::Info,
+            write_events: WriteEvents::None,
+        });
+        config.set_partitioning(Partitioning {
+            num_parts: 1,
+            method: PartitionMethod::None,
+        });
+        config.set_routing(crate::simulation::config::Routing {
+            mode: RoutingMode::UsePlans,
+        });
+        config
+    }
+
+    #[test]
+    fn override_protofiles_network() {
+        let mut config = base_config();
+        config.apply_overrides(&[("protofiles.network".to_string(), "new_net".to_string())]);
+        assert_eq!(config.proto_files().network, PathBuf::from("new_net"));
+    }
+
+    #[test]
+    fn override_output_dir() {
+        let mut config = base_config();
+        config.apply_overrides(&[("output.output_dir".to_string(), "new_out".to_string())]);
+        assert_eq!(config.output().output_dir, PathBuf::from("new_out"));
+    }
+
+    #[test]
+    fn override_partitioning_num_parts() {
+        let mut config = base_config();
+        config.apply_overrides(&[("partitioning.num_parts".to_string(), "7".to_string())]);
+        assert_eq!(config.partitioning().num_parts, 7);
+    }
+
+    #[test]
+    fn override_routing_mode() {
+        let mut config = base_config();
+        config.apply_overrides(&[("routing.mode".to_string(), "ad-hoc".to_string())]);
+        assert_eq!(config.routing().mode, RoutingMode::AdHoc);
+    }
+
+    #[test]
+    #[should_panic]
+    fn override_routing_mode_invalid() {
+        let mut config = base_config();
+        config.apply_overrides(&[("routing.mode".to_string(), "InvalidMode".to_string())]);
     }
 }
