@@ -41,18 +41,24 @@ struct Link {
     to_id: String,   // end node id
 }
 
-// defines all trips and the first start time of all trips
-#[derive(Resource)]
-struct AllTrips {
-    per_vehicle: HashMap<String, Vec<TraversedLink>>, // vehicle id -> trips
-    first_start: f32,                                 // first start time of all trips
-}
-
 // Defines a traversed link
 #[derive(Clone)]
 struct TraversedLink {
     link_id: String, // link id
     start_time: f32, // start time
+}
+
+// Defines a single trip of a vehicle (sequence of traversed links)
+#[derive(Clone)]
+struct Trip {
+    links: Vec<TraversedLink>,
+}
+
+// defines all trips and the first start time of all trips
+#[derive(Resource)]
+struct AllTrips {
+    per_vehicle: HashMap<String, Vec<Trip>>, // vehicle id -> trips
+    first_start: f32,                        // first start time of all trips
 }
 
 // Clock for the simulation time.
@@ -96,8 +102,10 @@ struct VehiclesData {
 struct TripsBuilder {
     // stores the current link of a vehicle
     current_link_per_vehicle: HashMap<String, (String, f32)>,
-    // stores all traversed links per vehicle
-    per_vehicle: HashMap<String, Vec<TraversedLink>>,
+    // stores the currently active trip per vehicle (sequence of traversed links)
+    current_trip_per_vehicle: HashMap<String, Vec<TraversedLink>>,
+    // stores all finished trips per vehicle
+    per_vehicle: HashMap<String, Vec<Trip>>,
     // Earliest start time of all vehicles
     first_start: f32,
 }
@@ -107,6 +115,7 @@ impl TripsBuilder {
     fn new() -> Self {
         Self {
             current_link_per_vehicle: HashMap::new(),
+            current_trip_per_vehicle: HashMap::new(),
             per_vehicle: HashMap::new(),
             first_start: f32::MAX,
         }
@@ -118,6 +127,10 @@ impl TripsBuilder {
             self.handle_link_enter(enter);
         } else if let Some(leave) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
             self.handle_link_leave(leave);
+        } else if let Some(enter) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
+            self.handle_person_enters(enter);
+        } else if let Some(leave) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+            self.handle_person_leaves(leave);
         }
     }
 
@@ -140,25 +153,80 @@ impl TripsBuilder {
                 if start_time < self.first_start {
                     self.first_start = start_time;
                 }
-                self.per_vehicle
-                    .entry(vehicle_id)
-                    .or_default()
-                    .push(TraversedLink {
+                // only record links that belong to an active trip
+                if let Some(current_trip) = self.current_trip_per_vehicle.get_mut(&vehicle_id) {
+                    current_trip.push(TraversedLink {
                         link_id,
                         start_time,
                     });
+                }
+            }
+        }
+    }
+
+    // handles a person enters vehicle event and starts a new trip (if not already active)
+    fn handle_person_enters(&mut self, event: &PersonEntersVehicleEvent) {
+        let vehicle_id = event.vehicle.external().to_string();
+        self.current_trip_per_vehicle
+            .entry(vehicle_id)
+            .or_insert_with(Vec::new);
+    }
+
+    // handles a person leaves vehicle event and finishes the current trip
+    fn handle_person_leaves(&mut self, event: &PersonLeavesVehicleEvent) {
+        let vehicle_id = event.vehicle.external().to_string();
+        if let Some(trip_links) = self.current_trip_per_vehicle.remove(&vehicle_id) {
+            if !trip_links.is_empty() {
+                self.per_vehicle
+                    .entry(vehicle_id)
+                    .or_default()
+                    .push(Trip { links: trip_links });
             }
         }
     }
 
     // build AllTrips from the traversed links
     fn build_all_trips(&self) -> AllTrips {
-        // clone and sort trips
-        let mut per_vehicle = self.per_vehicle.clone();
+        // clone finished trips and also include currently active (but not yet closed) trips
+        let mut per_vehicle: HashMap<String, Vec<Trip>> = HashMap::new();
+
+        for (veh_id, trips) in &self.per_vehicle {
+            per_vehicle.insert(veh_id.clone(), trips.clone());
+        }
+
+        for (veh_id, current_links) in &self.current_trip_per_vehicle {
+            if !current_links.is_empty() {
+                per_vehicle
+                    .entry(veh_id.clone())
+                    .or_default()
+                    .push(Trip {
+                        links: current_links.clone(),
+                    });
+            }
+        }
+
+        // sort links inside each trip and the trips themselves by start time
         for trips in per_vehicle.values_mut() {
+            for trip in trips.iter_mut() {
+                trip.links.sort_by(|a, b| {
+                    a.start_time
+                        .partial_cmp(&b.start_time)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+            }
             trips.sort_by(|a, b| {
-                a.start_time
-                    .partial_cmp(&b.start_time)
+                let a_start = a
+                    .links
+                    .first()
+                    .map(|t| t.start_time)
+                    .unwrap_or(f32::MAX);
+                let b_start = b
+                    .links
+                    .first()
+                    .map(|t| t.start_time)
+                    .unwrap_or(f32::MAX);
+                a_start
+                    .partial_cmp(&b_start)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
         }
@@ -248,6 +316,20 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
 fn main() {
     // read all events and build traversed links per vehicle
     let trips = build_vehicle_trips();
+
+    // debug output: print all trips with start times of all links per trip
+    println!("--- Trips overview ---");
+    for (vehicle_id, trips_for_vehicle) in &trips.per_vehicle {
+        println!("Vehicle {vehicle_id}:");
+        for (idx, trip) in trips_for_vehicle.iter().enumerate() {
+            let links: Vec<String> = trip
+                .links
+                .iter()
+                .map(|l| format!("{} {}", format_sim_time(l.start_time), l.link_id))
+                .collect();
+            println!("  Trip {idx}: [{}]", links.join(", "));
+        }
+    }
 
     let sim_clock = SimulationClock {
         time: trips.first_start,
@@ -413,6 +495,13 @@ fn update_time_and_fps(
     }
 }
 
+fn format_sim_time(seconds: f32) -> String {
+    let total_seconds = seconds.max(0.0) as i32;
+    let hours = (total_seconds / 3600) % 24;
+    let minutes = (total_seconds / 60) % 60;
+    format!("{:02}:{:02}", hours, minutes)
+}
+
 // set the camera position and zoom to fit the network
 fn fit_camera_to_network(
     mut commands: Commands,
@@ -548,88 +637,107 @@ fn draw_vehicles(
             .unwrap_or(f32::INFINITY);
 
         let mut position_to_draw: Option<Vec2> = None;
-        let mut prev_arrival_time: Option<f32> = None;
-        let mut prev_arrival_pos: Option<Vec2> = None;
+        struct ScheduledLink {
+            from_pos: Vec2,
+            to_pos: Vec2,
+            depart_time: f32,
+            arrival_time: f32,
+        }
 
-        for trip in trips_for_vehicle {
-            // Get link endpoints from the network
-            let (from_id, to_id) = match network.link_endpoints.get(&trip.link_id) {
-                Some(v) => v.clone(),
-                None => continue,
-            };
-
-            // get the positions of the from and to nodes.
-            let (from_pos, to_pos) = match (
-                network.node_positions.get(&from_id),
-                network.node_positions.get(&to_id),
-            ) {
-                (Some(&from), Some(&to)) => (from, to),
-                _ => continue,
-            };
-
-            // calc the link length based on the coordinates
-            let link_vector = to_pos - from_pos;
-            let link_length = link_vector.length().max(f32::EPSILON);
-
-            // get the max speed for the link
-            let link_v_max = *network
-                .link_freespeed
-                .get(&trip.link_id)
-                .unwrap_or(&f32::INFINITY);
-
-            // calc the max speed based on min(link_v_max, vehicle_v_max)
-            let v_eff = vehicle_v_max.min(link_v_max);
-            if v_eff <= 0.0 {
+        'trips: for trip in trips_for_vehicle {
+            if trip.links.is_empty() {
                 continue;
             }
 
-            // calc the travel time based on the speed and the length
-            let travel_duration = link_length / v_eff;
+            let mut schedule: Vec<ScheduledLink> = Vec::with_capacity(trip.links.len());
+            let mut prev_arrival_time_schedule: Option<f32> = None;
 
-            // start time of the vehicle on this link
-            let scheduled_start = trip.start_time;
+            for traversed_link in &trip.links {
+                // Get link endpoints from the network
+                let (from_id, to_id) = match network.link_endpoints.get(&traversed_link.link_id) {
+                    Some(v) => v.clone(),
+                    None => continue,
+                };
 
-            // calculate the departure time
-            let depart_time = match prev_arrival_time {
-                // check if the vehicle already arrived at node and the current time is bigger than the start time
-                Some(arrival_prev) => {
-                    let depart = scheduled_start.max(arrival_prev);
-                    // if the current simulation time is between arrival and depart,
-                    // the vehicle is waiting at the previous node.
-                    if sim_time >= arrival_prev && sim_time < depart {
-                        if let Some(wait_pos) = prev_arrival_pos {
-                            // draw the vehicle at the previous node position,
-                            position_to_draw = Some(wait_pos);
-                            break;
-                        }
-                    }
-                    depart
+                // get the positions of the from and to nodes.
+                let (from_pos, to_pos) = match (
+                    network.node_positions.get(&from_id),
+                    network.node_positions.get(&to_id),
+                ) {
+                    (Some(&from), Some(&to)) => (from, to),
+                    _ => continue,
+                };
+
+                // calc the link length based on the coordinates
+                let link_vector = to_pos - from_pos;
+                let link_length = link_vector.length().max(f32::EPSILON);
+
+                // get the max speed for the link
+                let link_v_max = *network
+                    .link_freespeed
+                    .get(&traversed_link.link_id)
+                    .unwrap_or(&f32::INFINITY);
+
+                // calc the max speed based on min(link_v_max, vehicle_v_max)
+                let v_eff = vehicle_v_max.min(link_v_max);
+                if v_eff <= 0.0 {
+                    continue;
                 }
-                // use the scheduled start time if this is the first link of the vehicle
-                None => scheduled_start,
-            };
 
-            let arrival_time = depart_time + travel_duration;
+                // calc the travel time based on the speed and the length
+                let travel_duration = link_length / v_eff;
+                let scheduled_start = traversed_link.start_time;
 
-            // if the vehicle is currently on this link, interpolate position.
-            if sim_time >= depart_time && sim_time < arrival_time {
-                let progress = ((sim_time - depart_time) / travel_duration).clamp(0.0, 1.0);
-                let position = from_pos + link_vector * progress;
-                position_to_draw = Some(position);
-                break;
+                // calc the departure time for this link
+                let depart_time = match prev_arrival_time_schedule {
+                    Some(arrival_prev) => scheduled_start.max(arrival_prev),
+                    None => scheduled_start,
+                };
+
+                let arrival_time = depart_time + travel_duration;
+
+                schedule.push(ScheduledLink {
+                    from_pos,
+                    to_pos,
+                    depart_time,
+                    arrival_time,
+                });
+
+                prev_arrival_time_schedule = Some(arrival_time);
             }
 
-            // store the previous arrical time and position
-            prev_arrival_time = Some(arrival_time);
-            prev_arrival_pos = Some(to_pos);
-        }
+            if schedule.is_empty() {
+                continue;
+            }
 
-        // if the vehicle is already at the end of the link -> wait
-        if position_to_draw.is_none() {
-            if let (Some(arrival_time), Some(arrival_pos)) = (prev_arrival_time, prev_arrival_pos) {
-                if sim_time >= arrival_time {
-                    position_to_draw = Some(arrival_pos);
+            let trip_start = schedule.first().unwrap().depart_time;
+            let trip_end = schedule.last().unwrap().arrival_time;
+            if sim_time < trip_start || sim_time >= trip_end {
+                continue;
+            }
+
+            let mut prev_arrival_time: Option<f32> = None;
+            let mut prev_arrival_pos: Option<Vec2> = None;
+
+            for entry in &schedule {
+                if let (Some(arrival_prev), Some(wait_pos)) = (prev_arrival_time, prev_arrival_pos) {
+                    if sim_time >= arrival_prev && sim_time < entry.depart_time {
+                        position_to_draw = Some(wait_pos);
+                        break 'trips;
+                    }
                 }
+
+                if sim_time >= entry.depart_time && sim_time < entry.arrival_time {
+                    let travel_duration = (entry.arrival_time - entry.depart_time).max(f32::EPSILON);
+                    let progress = ((sim_time - entry.depart_time) / travel_duration).clamp(0.0, 1.0);
+                    let link_vector = entry.to_pos - entry.from_pos;
+                    let position = entry.from_pos + link_vector * progress;
+                    position_to_draw = Some(position);
+                    break 'trips;
+                }
+
+                prev_arrival_time = Some(entry.arrival_time);
+                prev_arrival_pos = Some(entry.to_pos);
             }
         }
 
