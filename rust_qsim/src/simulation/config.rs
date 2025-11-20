@@ -450,6 +450,20 @@ pub struct ComputationalSetup {
     pub retry_time_seconds: u64,
 }
 
+register_override!(
+    "computational_setup.adapter_worker_threads",
+    |config, value| {
+        let mut setup = config.computational_setup();
+        setup.adapter_worker_threads = value.parse().unwrap();
+        config.set_computational_setup(setup);
+    }
+);
+
+register_override!("computational_setup.global_sync", |config, value| {
+    let mut setup = config.computational_setup();
+    setup.global_sync = value.parse().unwrap();
+});
+
 impl Default for ComputationalSetup {
     fn default() -> Self {
         Self {
