@@ -1,3 +1,5 @@
+use crate::simulation::config::VertexWeight::InLinkCapacity;
+use crate::simulation::io::is_url;
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use dyn_clone::DynClone;
@@ -10,10 +12,28 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tracing::{info, Level};
+use tracing::{info, warn, Level};
 
-use crate::simulation::config::VertexWeight::InLinkCapacity;
-use crate::simulation::io::is_url;
+/// Macro to register an override handler for a specific config key
+#[macro_export]
+macro_rules! register_override {
+    ($key:literal, $func:expr) => {
+        inventory::submit! {
+            $crate::simulation::config::OverrideHandler {
+                key: $key,
+                apply: $func,
+            }
+        }
+    };
+}
+
+struct OverrideHandler {
+    key: &'static str,
+    apply: fn(config: &mut Config, value: &str),
+}
+
+// Collect all OverrideHandler submitted from anywhere in the crate
+inventory::collect!(OverrideHandler);
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -107,67 +127,12 @@ impl Config {
         info!("Applying overrides: {:?}", overrides);
 
         for (key, value) in overrides {
-            let mut parts = key.splitn(2, '.');
-            let module = parts.next();
-            let field = parts.next();
-            if let (Some(module), Some(field)) = (module, field) {
-                match module {
-                    "protofiles" => {
-                        let mut pf = self.proto_files();
-                        match field {
-                            "network" => pf.network = value.into(),
-                            "population" => pf.population = value.into(),
-                            "vehicles" => pf.vehicles = value.into(),
-                            "ids" => pf.ids = value.into(),
-                            _ => continue,
-                        }
-                        self.set_proto_files(pf);
-                    }
-                    "output" => {
-                        let mut out = self.output();
-                        match field {
-                            "output_dir" => out.output_dir = value.into(),
-                            _ => continue,
-                        }
-                        self.set_output(out);
-                    }
-                    "partitioning" => {
-                        let mut part = self.partitioning();
-                        match field {
-                            "num_parts" => {
-                                if let Ok(v) = value.parse() {
-                                    part.num_parts = v;
-                                    // replace some configuration if we get a partition from the outside. This is interesting for testing
-                                    let out_dir = format!(
-                                        "{}-{v}",
-                                        self.output().output_dir.to_str().unwrap()
-                                    );
-                                    let mut output = self.output().clone();
-                                    output.output_dir = out_dir.into();
-                                    self.set_output(output);
-                                }
-                            }
-                            _ => continue,
-                        }
-                        self.set_partitioning(part);
-                    }
-                    "routing" => {
-                        let mut routing = self.routing();
-                        match field {
-                            "mode" => {
-                                if let Ok(r) = RoutingMode::from_str(value, true) {
-                                    routing.mode = r;
-                                    self.set_routing(routing);
-                                } else {
-                                    panic!("invalid routing mode {:?}, expected mode", value);
-                                }
-                            }
-                            _ => continue,
-                        }
-                    }
-                    // Add more modules/fields as needed
-                    _ => continue,
-                }
+            let key_str = key.as_str();
+
+            if let Some(handler) = inventory::iter::<OverrideHandler>().find(|h| h.key == key_str) {
+                (handler.apply)(self, value);
+            } else {
+                warn!("No override handler found for key: {}", key);
             }
         }
     }
@@ -348,11 +313,48 @@ pub struct ProtoFiles {
     pub ids: PathBuf,
 }
 
+register_override!("protofiles.network", |config, value| {
+    let mut proto_files = config.proto_files();
+    proto_files.network = PathBuf::from(value);
+    config.set_proto_files(proto_files);
+});
+
+register_override!("protofiles.population", |config, value| {
+    let mut proto_files = config.proto_files();
+    proto_files.population = PathBuf::from(value);
+    config.set_proto_files(proto_files);
+});
+
+register_override!("protofiles.vehicles", |config, value| {
+    let mut proto_files = config.proto_files();
+    proto_files.vehicles = PathBuf::from(value);
+    config.set_proto_files(proto_files);
+});
+
+register_override!("protofiles.ids", |config, value| {
+    let mut proto_files = config.proto_files();
+    proto_files.ids = PathBuf::from(value);
+    config.set_proto_files(proto_files);
+});
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Partitioning {
     pub num_parts: u32,
     pub method: PartitionMethod,
 }
+
+register_override!("partitioning.num_parts", |config, value| {
+    let mut part = config.partitioning();
+    if let Ok(v) = value.parse() {
+        part.num_parts = v;
+        config.set_partitioning(part);
+        // replace some configuration if we get a partition from the outside. This is interesting for testing
+        let out_dir = format!("{}-{v}", config.output().output_dir.to_str().unwrap());
+        let mut output = config.output().clone();
+        output.output_dir = out_dir.into();
+        config.set_output(output);
+    }
+});
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Output {
@@ -365,10 +367,26 @@ pub struct Output {
     pub write_events: WriteEvents,
 }
 
+register_override!("output.output_dir", |config, value| {
+    let mut output = config.output();
+    output.output_dir = PathBuf::from(value);
+    config.set_output(output);
+});
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Routing {
     pub mode: RoutingMode,
 }
+
+register_override!("routing.mode", |config, value| {
+    let mut routing = config.routing();
+    routing.mode = match value.to_lowercase().as_str() {
+        "ad-hoc" | "adhoc" => RoutingMode::AdHoc,
+        "use-plans" | "useplans" => RoutingMode::UsePlans,
+        _ => panic!("Invalid routing mode: {}", value),
+    };
+    config.set_routing(routing);
+});
 
 impl Default for Routing {
     fn default() -> Self {
@@ -431,6 +449,20 @@ pub struct ComputationalSetup {
     #[serde(default = "default_to_600")]
     pub retry_time_seconds: u64,
 }
+
+register_override!(
+    "computational_setup.adapter_worker_threads",
+    |config, value| {
+        let mut setup = config.computational_setup();
+        setup.adapter_worker_threads = value.parse().unwrap();
+        config.set_computational_setup(setup);
+    }
+);
+
+register_override!("computational_setup.global_sync", |config, value| {
+    let mut setup = config.computational_setup();
+    setup.global_sync = value.parse().unwrap();
+});
 
 impl Default for ComputationalSetup {
     fn default() -> Self {
@@ -662,11 +694,17 @@ fn default_profiling_level() -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config::Output;
+    use crate::simulation::config::PathBuf;
+    use crate::simulation::config::Profiling;
+    use crate::simulation::config::ProtoFiles;
+    use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
         parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType,
         DrtService, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation,
         VertexWeight,
     };
+    use crate::simulation::config::{Logging, RoutingMode};
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -951,5 +989,57 @@ modules:
         let input = "protofiles.population_some_path";
         let parsed = parse_key_val(input);
         assert!(parsed.is_err());
+    }
+
+    fn base_config() -> Config {
+        let mut config = Config::default();
+        config.set_proto_files(ProtoFiles {
+            network: "net".into(),
+            population: "pop".into(),
+            vehicles: "veh".into(),
+            ids: "ids".into(),
+        });
+        config.set_output(Output {
+            output_dir: "out".into(),
+            profiling: Profiling::None,
+            logging: Logging::Info,
+            write_events: WriteEvents::None,
+        });
+        config.set_partitioning(Partitioning {
+            num_parts: 1,
+            method: PartitionMethod::None,
+        });
+        config.set_routing(crate::simulation::config::Routing {
+            mode: RoutingMode::UsePlans,
+        });
+        config
+    }
+
+    #[test]
+    fn override_protofiles_network() {
+        let mut config = base_config();
+        config.apply_overrides(&[("protofiles.network".to_string(), "new_net".to_string())]);
+        assert_eq!(config.proto_files().network, PathBuf::from("new_net"));
+    }
+
+    #[test]
+    fn override_partitioning_num_parts() {
+        let mut config = base_config();
+        config.apply_overrides(&[("partitioning.num_parts".to_string(), "7".to_string())]);
+        assert_eq!(config.partitioning().num_parts, 7);
+    }
+
+    #[test]
+    fn override_routing_mode() {
+        let mut config = base_config();
+        config.apply_overrides(&[("routing.mode".to_string(), "ad-hoc".to_string())]);
+        assert_eq!(config.routing().mode, RoutingMode::AdHoc);
+    }
+
+    #[test]
+    #[should_panic]
+    fn override_routing_mode_invalid() {
+        let mut config = base_config();
+        config.apply_overrides(&[("routing.mode".to_string(), "InvalidMode".to_string())]);
     }
 }
