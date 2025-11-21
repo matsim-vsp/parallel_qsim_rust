@@ -1,7 +1,9 @@
-use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::events::{
+    PtTeleportationArrivalEventBuilder, TeleportationArrivalEventBuilder,
+};
 use crate::simulation::id::Id;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -56,15 +58,18 @@ impl TeleportationEngine {
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         self.comp_env.events_publisher_borrow_mut().publish_event(
-            now,
-            &Event::new_travelled(
-                agent.id(),
-                route
-                    .as_generic()
-                    .distance()
-                    .expect("Route distance needs to be set."),
-                &leg.mode,
-            ),
+            &TeleportationArrivalEventBuilder::default()
+                .time(now)
+                .person(agent.id().clone())
+                .mode(leg.mode.clone())
+                .distance(
+                    route
+                        .as_generic()
+                        .distance()
+                        .expect("Route distance needs to be set."),
+                )
+                .build()
+                .unwrap(),
         );
     }
 
@@ -77,17 +82,20 @@ impl TeleportationEngine {
             route.as_pt().unwrap().description.transit_route_id.as_str(),
         );
         self.comp_env.events_publisher_borrow_mut().publish_event(
-            now,
-            &Event::new_travelled_with_pt(
-                agent.id(),
-                route
-                    .as_generic()
-                    .distance()
-                    .expect("Route distance needs to be set."),
-                &leg.mode,
-                &transit_line_id,
-                &transit_route_id,
-            ),
+            &PtTeleportationArrivalEventBuilder::default()
+                .time(now)
+                .person(agent.id().clone())
+                .mode(leg.mode.clone())
+                .distance(
+                    route
+                        .as_generic()
+                        .distance()
+                        .expect("Route distance needs to be set."),
+                )
+                .line(transit_line_id)
+                .route(transit_route_id)
+                .build()
+                .unwrap(),
         );
     }
 }

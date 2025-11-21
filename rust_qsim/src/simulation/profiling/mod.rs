@@ -1,59 +1,29 @@
+pub mod routing;
+
 use std::fmt::Debug;
+use std::fs;
 use std::fs::File;
-use std::io::BufWriter;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
-use std::{env, fs};
 
-use serde_json::{json, Value};
 use tracing::field::Field;
 use tracing::span::Attributes;
-use tracing::{trace, Id, Level, Subscriber};
+use tracing::{Id, Level, Metadata, Subscriber};
 use tracing_subscriber::field::Visit;
 use tracing_subscriber::layer::Context;
-use tracing_subscriber::registry::LookupSpan;
+use tracing_subscriber::registry::{Extensions, LookupSpan};
 use tracing_subscriber::Layer;
 
-const DEFAULT_PERFORMANCE_INTERVAL: u32 = 900;
-
-pub fn measure_duration<Out, F: FnOnce() -> Out>(
-    now: Option<u32>,
-    key: &str,
-    metadata: Option<Value>,
-    f: F,
-) -> Out {
-    let start = Instant::now();
-    let res = f();
-    let duration = start.elapsed();
-
-    let interval = match env::var("RUST_Q_SIM_PERFORMANCE_TRACING_INTERVAL") {
-        Ok(interval) => interval
-            .parse::<u32>()
-            .unwrap_or(DEFAULT_PERFORMANCE_INTERVAL),
-        Err(_) => DEFAULT_PERFORMANCE_INTERVAL,
-    };
-
-    if now.is_none_or(|time| time % interval == 0) {
-        let event = json!({
-            "now": now,
-            "key": key,
-            "duration": duration,
-            "metadata": metadata
-        });
-
-        trace!(event = event.to_string());
-    }
-    res
-}
-
 pub struct SpanDurationToCSVLayer {
-    writer: Arc<Mutex<BufWriter<File>>>,
+    writer: Arc<Mutex<csv::Writer<File>>>,
     level: Level,
 }
 
+/// WriterGuard is used to ensure that the writer is flushed at the end.
+/// Not 100% sure if this is really needed as the csv::Writer already implements Drop trait. Paul, nov '25.
 pub struct WriterGuard {
-    writer_ref: Arc<Mutex<BufWriter<File>>>,
+    writer: Arc<Mutex<csv::Writer<File>>>,
 }
 
 struct SpanDuration {
@@ -61,9 +31,13 @@ struct SpanDuration {
     last: Instant,
 }
 
-struct Rank(u64);
-
-struct SimTime(u64);
+// We need these type wrappers to get distinct types for the extensions
+#[derive(Debug)]
+pub struct UuidWrapper(pub u128);
+pub struct PersonIdWrapper(pub String);
+pub struct ModeWrapper(pub String);
+pub struct RankWrapper(pub u64);
+pub struct SimTimeWrapper(pub u64);
 
 struct MetadataVisitor {
     rank: Option<u64>,
@@ -100,18 +74,19 @@ impl Visit for MetadataVisitor {
 impl SpanDurationToCSVLayer {
     pub fn new(path: &Path, level: Level) -> (Self, WriterGuard) {
         // create necessary file path and corresponding file wrapped in buffered writer
-        let prefix = path.parent().unwrap();
-        fs::create_dir_all(prefix).unwrap();
-        let file =
-            File::create(path).unwrap_or_else(|_e| panic!("Failed to open file at: {path:?}"));
-        let mut writer = BufWriter::new(file);
+        let file = create_file(path);
+        let mut writer = csv::Writer::from_writer(file);
 
-        // write header for csv file
-        std::io::Write::write(
-            &mut writer,
-            "timestamp,target,func_name,duration,sim_time,rank\n".as_bytes(),
-        )
-        .unwrap_or_else(|_e| panic!("Failed to write header."));
+        writer
+            .write_record(vec![
+                "timestamp",
+                "target",
+                "func_name",
+                "duration",
+                "sim_time",
+                "rank",
+            ])
+            .unwrap();
 
         // wrap the writer into an arc<mutex<...>> so that we can keep a reference which gets dropped
         // at the end of the scope calling this method. The mutex is necessary, because the Layer
@@ -121,30 +96,20 @@ impl SpanDurationToCSVLayer {
             writer: writer_ref.clone(),
             level,
         };
-        let guard = WriterGuard { writer_ref };
+        let guard = WriterGuard { writer: writer_ref };
         (new_self, guard)
-    }
-
-    fn write_metadata(writer: &mut BufWriter<File>, m: &tracing::Metadata) {
-        // import Write here, to avoid conflicts with std::fmt::Write
-        use std::io::Write;
-
-        write!(
-            writer,
-            "{},{},{},",
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos(),
-            m.target(),
-            m.name(),
-        )
-        .unwrap();
     }
 }
 
-/// Simple Layer implementation, which records the time elapsed between a a span being opened and being
+/// Simple Layer implementation, which records the time elapsed between a span being opened and being
 /// closed again. Once a span is closed, it writes the elapsed time into a csv journal
+///
+/// `Context` is managed by the `tracing_subscriber` library. All functions implemented here are called by the
+/// `instrument` macro.
+///
+/// `Attributes` store all custom fields. The `MetadataVisitor` is used to extract the field values.
+///
+/// `Span` stores information about the scope of an instrumentation call.
 impl<S> Layer<S> for SpanDurationToCSVLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
@@ -156,16 +121,22 @@ where
 
         let span = ctx.span(id).expect("should exist");
         let mut extensions = span.extensions_mut();
-        extensions.insert(SpanDuration::new());
+
+        println!("{:?}", extensions);
+
+        let option = extensions.replace(SpanDuration::new());
+        assert!(option.is_none(), "Trying to initialize Span, but it already exists. This should not happen. \
+        It might happen, if multiple Layers are trying to insert the same type into the extensions. \
+        Check the configuration of the Layers with respect to their including/excluding module path.");
 
         let mut visitor = MetadataVisitor::new();
         attrs.record(&mut visitor as &mut dyn Visit);
         if let Some(rank) = visitor.rank {
-            extensions.insert(Rank(rank));
+            extensions.insert(RankWrapper(rank));
         }
 
         if let Some(sim_time) = visitor.sim_time {
-            extensions.insert(SimTime(sim_time));
+            extensions.insert(SimTimeWrapper(sim_time));
         }
     }
 
@@ -174,12 +145,7 @@ where
             return;
         }
 
-        let span = ctx.span(id).expect("Should exist");
-        let mut extensions = span.extensions_mut();
-
-        if let Some(timing) = extensions.get_mut::<SpanDuration>() {
-            timing.last = Instant::now();
-        }
+        start_timing::<S>(id, ctx);
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
@@ -187,18 +153,10 @@ where
             return;
         }
 
-        let span = ctx.span(id).expect("Span should be there");
-        let mut extensions = span.extensions_mut();
-
-        if let Some(timing) = extensions.get_mut::<SpanDuration>() {
-            let now = Instant::now();
-            timing.elapsed += (now - timing.last).as_nanos() as u64;
-        }
+        end_timing::<S>(id, ctx);
     }
 
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
-        use std::io::Write;
-
         if ctx.metadata(&id).unwrap().level() > &self.level {
             return;
         }
@@ -208,19 +166,15 @@ where
         let meta = span.metadata();
 
         let writer = &mut *self.writer.lock().unwrap();
-        Self::write_metadata(writer, meta);
+        let (timestep, target, func_name, duration, sim_time) = extract_entries(&extensions, meta);
+        let rank = extensions
+            .get::<RankWrapper>()
+            .map_or(-1, |rank| rank.0 as i64)
+            .to_string();
 
-        let span_duration = extensions.get::<SpanDuration>().unwrap();
-        write!(writer, "{},", span_duration.elapsed).unwrap();
-
-        let sim_time = extensions
-            .get::<SimTime>()
-            .map_or(-1, |sim_time| sim_time.0 as i64);
-        write!(writer, "{sim_time},").unwrap();
-
-        let rank = extensions.get::<Rank>().map_or(-1, |rank| rank.0 as i64);
-        write!(writer, "{rank}").unwrap();
-        writeln!(writer).unwrap();
+        writer
+            .write_record([&timestep, target, func_name, &duration, &sim_time, &rank])
+            .unwrap();
 
         // extensions and span must be dropped explicitly, says the tracing documentation
         drop(extensions);
@@ -228,10 +182,59 @@ where
     }
 }
 
+fn extract_entries<'a>(
+    extensions: &Extensions,
+    meta: &Metadata<'a>,
+) -> (String, &'a str, &'a str, String, String) {
+    let timestep = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
+        .to_string();
+    let target = meta.target();
+    let func_name = meta.name();
+    let span_duration = extensions
+        .get::<SpanDuration>()
+        .unwrap()
+        .elapsed
+        .to_string();
+    let sim_time = extensions
+        .get::<SimTimeWrapper>()
+        .map_or(-1, |sim_time| sim_time.0 as i64)
+        .to_string();
+    (timestep, target, func_name, span_duration, sim_time)
+}
+
+fn end_timing<S: Subscriber + for<'a> LookupSpan<'a>>(id: &Id, ctx: Context<S>) {
+    let span = ctx.span(id).expect("Span should be there");
+    let mut extensions = span.extensions_mut();
+
+    if let Some(timing) = extensions.get_mut::<SpanDuration>() {
+        let now = Instant::now();
+        timing.elapsed += (now - timing.last).as_nanos() as u64;
+    }
+}
+
+/// Start timing for span
+fn start_timing<S: Subscriber + for<'a> LookupSpan<'a>>(id: &Id, ctx: Context<S>) {
+    let span = ctx.span(id).expect("Should exist");
+    let mut extensions = span.extensions_mut();
+
+    if let Some(timing) = extensions.get_mut::<SpanDuration>() {
+        timing.last = Instant::now();
+    }
+}
+
+pub fn create_file(path: &Path) -> File {
+    let prefix = path.parent().unwrap();
+    fs::create_dir_all(prefix).unwrap();
+    File::create(path).unwrap_or_else(|_e| panic!("Failed to open file at: {path:?}"))
+}
+
 impl Drop for WriterGuard {
     fn drop(&mut self) {
-        let mut writer = self.writer_ref.lock().unwrap();
-        std::io::Write::flush(&mut *writer).expect("TODO: panic message");
+        let mut writer = self.writer.lock().unwrap();
+        writer.flush().expect("Problem flushing writer");
     }
 }
 

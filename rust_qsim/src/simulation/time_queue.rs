@@ -97,6 +97,7 @@ where
         result
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.q.len()
     }
@@ -135,7 +136,7 @@ impl<T, I> Default for MutTimeQueue<T, I>
 where
     T: EndTime + Identifiable<I>,
     I: StableTypeId + 'static,
- {
+{
     fn default() -> Self {
         Self::new()
     }

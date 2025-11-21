@@ -1,12 +1,13 @@
-use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WokeUpEvent,
 };
 use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
 use crate::simulation::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
+use tracing::instrument;
 
 pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
@@ -27,6 +28,7 @@ impl ActivityEngine {
         }
     }
 
+    #[instrument(level = "trace", skip(self, agents))]
     pub(crate) fn do_step(
         &mut self,
         now: u32,
@@ -37,41 +39,65 @@ impl ActivityEngine {
         }
 
         let mut end_after_wake_up = self.wake_up(now);
+        self.notify_wakeup_all(now, &mut end_after_wake_up);
+
+        let end_from_awake = self.end(now);
+        self.notify_end_all(now, end_after_wake_up, end_from_awake)
+    }
+
+    #[instrument(level = "trace", skip(self, end_after_wake_up, end_from_awake))]
+    fn notify_end_all(
+        &mut self,
+        now: u32,
+        end_after_wake_up: Vec<SimulationAgent>,
+        end_from_awake: Vec<SimulationAgent>,
+    ) -> Vec<SimulationAgent> {
+        let mut res = Vec::with_capacity(end_after_wake_up.len() + end_from_awake.len());
+        for mut agent in end_after_wake_up
+            .into_iter()
+            .chain(end_from_awake.into_iter())
+        {
+            self.comp_env.events_publisher_borrow_mut().publish_event(
+                &ActivityEndEventBuilder::default()
+                    .time(now)
+                    .person(agent.id().clone())
+                    .link(agent.curr_act().link_id.clone())
+                    .act_type(agent.curr_act().act_type.clone())
+                    .build()
+                    .unwrap(),
+            );
+            ActivityEngine::notify_act_end(&mut agent, now);
+            res.push(agent);
+        }
+        res
+    }
+
+    #[instrument(level = "trace", skip(self, end_after_wake_up))]
+    fn notify_wakeup_all(&mut self, now: u32, end_after_wake_up: &mut Vec<SimulationAgent>) {
         // inform agents about wakeup
+        // those are the agents that are woken up and directly end their activity
         end_after_wake_up.iter_mut().for_each(|agent| {
-            ActivityEngine::inform_wakeup(&mut self.comp_env, agent, now, now);
+            ActivityEngine::notify_wakeup(&mut self.comp_env, agent, now, now);
         });
 
         // inform all awake agents about wakeup
         for agent in &mut self.awake_q {
             let end_time = agent.end_time(now);
-            ActivityEngine::inform_wakeup(&mut self.comp_env, &mut agent.agent, end_time, now);
+            ActivityEngine::notify_wakeup(&mut self.comp_env, &mut agent.agent, end_time, now);
         }
-
-        let end = self.end(now);
-
-        let mut res = Vec::with_capacity(end_after_wake_up.len() + end.len());
-        for mut agent in end_after_wake_up.into_iter().chain(end.into_iter()) {
-            self.comp_env.events_publisher_borrow_mut().publish_event(
-                now,
-                &Event::new_act_end(
-                    agent.id(),
-                    &agent.curr_act().link_id,
-                    &agent.curr_act().act_type,
-                ),
-            );
-            ActivityEngine::inform_act_end(&mut agent, now);
-            res.push(agent);
-        }
-        res
     }
 
     fn receive_agent(&mut self, now: u32, agent: AsleepSimulationAgent) {
         // emmit act start event
         let act = agent.agent.curr_act();
         self.comp_env.events_publisher_borrow_mut().publish_event(
-            now,
-            &Event::new_act_start(agent.agent.id(), &act.link_id, &act.act_type),
+            &ActivityStartEventBuilder::default()
+                .time(now)
+                .person(agent.agent.id().clone())
+                .link(act.link_id.clone())
+                .act_type(act.act_type.clone())
+                .build()
+                .unwrap(),
         );
         self.asleep_q.add(agent, now);
     }
@@ -109,7 +135,7 @@ impl ActivityEngine {
         agents
     }
 
-    fn inform_wakeup(
+    fn notify_wakeup(
         comp_env: &mut ThreadLocalComputationalEnvironment,
         agent: &mut SimulationAgent,
         end_time: u32,
@@ -121,7 +147,7 @@ impl ActivityEngine {
         );
     }
 
-    fn inform_act_end(agent: &mut SimulationAgent, now: u32) {
+    fn notify_act_end(agent: &mut SimulationAgent, now: u32) {
         agent.notify_event(&mut AgentEvent::ActivityFinished(), now);
     }
 
@@ -210,7 +236,7 @@ impl EndTime for AsleepSimulationAgent {
 #[cfg(test)]
 mod tests {
     use crate::external_services::routing::{
-        InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
+        InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
     };
     use crate::external_services::ExternalServiceType;
     use crate::simulation::agents::agent::SimulationAgent;
@@ -262,7 +288,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn test_activity_engine_end() {
         let plan = create_plan();
 
@@ -325,23 +351,28 @@ mod tests {
         std::thread::spawn(move || {
             let request = recv.blocking_recv();
             assert!(request.is_some());
-            assert_eq!(
-                request.as_ref().unwrap().payload,
-                InternalRoutingRequestPayload {
-                    person_id: "1".to_string(),
-                    from_link: "start".to_string(),
-                    to_link: "end".to_string(),
-                    mode: "mode".to_string(),
-                    departure_time: 10,
-                    now: 5,
-                }
-            );
+
+            let payload = InternalRoutingRequestPayloadBuilder::default()
+                .person_id("1".to_string())
+                .from_link("start".to_string())
+                .to_link("end".to_string())
+                .mode("mode".to_string())
+                .departure_time(10)
+                .now(5)
+                .build()
+                .unwrap();
+            assert!(request
+                .as_ref()
+                .unwrap()
+                .payload
+                .equals_ignoring_uuid(&payload));
             request
                 .unwrap()
                 .response_tx
-                .send(InternalRoutingResponse(vec![InternalPlanElement::Leg(
-                    new_leg(),
-                )]))
+                .send(InternalRoutingResponse {
+                    elements: vec![InternalPlanElement::Leg(new_leg())],
+                    request_id: payload.uuid,
+                })
                 .unwrap();
         })
     }

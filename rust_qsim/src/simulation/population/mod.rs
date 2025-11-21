@@ -589,7 +589,7 @@ impl From<Leg> for InternalLeg {
             dep_time: io.dep_time,
             trav_time: io.trav_time,
             route: io.route.map(InternalRoute::from),
-            attributes: InternalAttributes::from(io.attributes),
+            attributes: InternalAttributes::from(&io.attributes),
         }
     }
 }
@@ -682,7 +682,7 @@ impl From<Person> for InternalPerson {
         InternalPerson {
             id: id.clone(),
             plans: value.plan.into_iter().map(InternalPlan::from).collect(),
-            attributes: InternalAttributes::from(value.attributes),
+            attributes: InternalAttributes::from(&value.attributes),
         }
     }
 }

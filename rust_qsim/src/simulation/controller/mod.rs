@@ -2,23 +2,22 @@ pub mod local_controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
-use crate::simulation::io::proto_events::ProtoEventsWriter;
-use crate::simulation::messaging::events::{EventsPublisher, EventsSubscriber};
+use crate::simulation::events::{EventsPublisher, OnEventFnBuilder};
+use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::ScenarioPartitionBuilder;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
 use derive_builder::Builder;
+use derive_more::Debug;
 use nohash_hasher::IntMap;
 use std::any::Any;
 use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
-use std::fmt::Debug;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Barrier};
 use std::thread::{sleep, JoinHandle};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
@@ -122,13 +121,14 @@ pub struct PartitionArguments<C: SimCommunicator> {
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
-    events_subscriber: Vec<Box<dyn EventsSubscriber + Send>>,
+    #[debug(skip)]
+    events_subscriber: Vec<Box<OnEventFnBuilder>>,
+    global_barrier: Arc<Barrier>,
 }
 
-pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
+fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
     let config = &partition_arguments.scenario_partition.config;
-
-    let _guards = logging::init_logging(&config, partition_arguments.communicator.rank());
+    let _guards = logging::init_logging(config, partition_arguments.communicator.rank());
 
     let comm = partition_arguments.communicator;
     let external_services = partition_arguments.external_services;
@@ -137,20 +137,12 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
 
-    let output_path = io::resolve_path(config.context(), &config.output().output_dir);
-    fs::create_dir_all(&output_path).expect("Failed to create output path");
-
-    info!("Process #{rank} of {size} has started. Waiting for other processes to arrive at initial barrier. ");
-    comm.barrier();
-
     let scenario = partition_arguments.scenario_partition.build();
 
-    let events = create_events(&scenario.config, rank, &output_path, subscribers);
-
-    let rc_comm = Rc::new(comm);
+    let events = create_events(&scenario.config, rank, subscribers);
 
     let net_message_broker = NetMessageBroker::new(
-        Rc::clone(&rc_comm),
+        Rc::new(comm),
         &scenario.network,
         &scenario.network_partition,
         scenario.config.computational_setup().global_sync,
@@ -168,7 +160,8 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
-    rc_comm.barrier();
+    info!("Process #{rank} of {size} has arrived at initial barrier. Waiting for other processes and potentially external services to arrive at global barrier.");
+    partition_arguments.global_barrier.wait();
     simulation.run();
 
     // Drop guards here to make sure that the logging is flushed before we exit.
@@ -180,25 +173,25 @@ pub fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArgum
 fn create_events(
     config: &Config,
     rank: u32,
-    output_path: &Path,
-    additional_subscribers: Vec<Box<dyn EventsSubscriber + Send>>,
+    additional_subscribers: Vec<Box<OnEventFnBuilder>>,
 ) -> Rc<RefCell<EventsPublisher>> {
-    let events = Rc::new(RefCell::new(EventsPublisher::new()));
+    let output_path = io::resolve_path(config.context(), &config.output().output_dir);
+
+    let mut events = EventsPublisher::new();
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
         let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
         info!("adding events writer with path: {events_path:?}");
-        events
-            .borrow_mut()
-            .add_subscriber(Box::new(ProtoEventsWriter::new(&events_path)));
+        ProtoEventsWriter::register(events_path)(&mut events)
     }
 
     for subscriber in additional_subscribers {
-        events.borrow_mut().add_subscriber(subscriber);
+        // events.borrow_mut().add_subscriber(subscriber);
+        subscriber(&mut events);
     }
 
-    events
+    Rc::new(RefCell::new(events))
 }
 
 /// Have this more complicated join logic, so that threads in the back of the handle vec can also

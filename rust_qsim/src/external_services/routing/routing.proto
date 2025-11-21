@@ -2,9 +2,11 @@ syntax = "proto3";
 package routing;
 
 import "simulation/io/proto/types/population.proto";
+import "google/protobuf/empty.proto";
 
 service RoutingService {
   rpc GetRoute (Request) returns (Response);
+  rpc Shutdown (google.protobuf.Empty) returns (google.protobuf.Empty);
 }
 
 message Request {
@@ -13,9 +15,12 @@ message Request {
   string to_link_id = 3;
   string mode = 4;
   uint32 departure_time = 5;
+  uint32 now = 6;
+  bytes request_id = 7;
 }
 
 message Response {
   repeated population.Leg legs = 1;
   repeated population.Activity activities = 2;
+  bytes request_id = 3;
 }

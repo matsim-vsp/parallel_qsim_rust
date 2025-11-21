@@ -1,9 +1,13 @@
+use crate::simulation::config::Config;
 use derive_builder::Builder;
+use futures::future::join_all;
 use std::fmt::Debug;
+use std::sync::{Arc, Barrier, Mutex};
+use std::thread;
 use std::thread::JoinHandle;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tracing::info;
+use tracing::{info, warn};
 
 pub mod routing;
 
@@ -27,13 +31,115 @@ pub enum ExternalServiceType {
 }
 
 /// This trait defines a factory for creating request adapters.
-pub trait RequestAdapterFactory<T: RequestToAdapter> {
+pub trait RequestAdapterFactory<T: RequestToAdapter>: Send {
     /// This method builds the request adapter. It returns a future that resolves to the adapter instance.
     fn build(self) -> impl std::future::Future<Output = impl RequestAdapter<T>>;
 
     /// This method creates a channel for sending requests to the adapter.
     fn request_channel(&self, buffer: usize) -> (Sender<T>, Receiver<T>) {
         mpsc::channel(buffer)
+    }
+}
+
+/// This trait defines the behavior of a request adapter. A request adapter processes incoming requests of type T.
+/// One request adapter instance is run in a separate thread with its own tokio runtime. It might use multiple threads internally for the tokio runtime.
+///
+/// Design thoughts:
+/// - This trait does not depend on async/await directly to allow for more flexibility in implementations.
+///   I.e. it should allow sync implementations which should not have dependencies on async concepts.
+/// - The on_request/on_shutdown method can spawn async tasks internally if needed.
+pub trait RequestAdapter<T: RequestToAdapter> {
+    fn on_request(&mut self, req: T);
+
+    // This doesn't have the return value Vec<tokio::task::JoinHandle<()>> on purpose. See above design thoughts.
+    fn on_shutdown(&mut self) {
+        info!("Adapter is shutting down");
+    }
+}
+
+#[derive(Debug)]
+pub struct AsyncExecutor {
+    worker_threads: u32,
+    barrier: Arc<Barrier>,
+    // This field holds shutdown handles and will be filled if shutdown is called.
+    shutdown_handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+}
+
+impl AsyncExecutor {
+    /// Spawns a thread running a routing service adapter.
+    pub fn spawn_thread<R: RequestToAdapter + 'static, F: RequestAdapterFactory<R> + 'static>(
+        self,
+        name: &str,
+        request_adapter_factory: F,
+    ) -> (JoinHandle<()>, Sender<R>, tokio::sync::watch::Sender<bool>) {
+        let (send, recv) = request_adapter_factory.request_channel(10000);
+        let (send_sd, recv_sd) = self.shutdown_channel();
+
+        let handle = thread::Builder::new()
+            .name(name.into())
+            .spawn(move || self.execute_adapter(recv, request_adapter_factory, recv_sd))
+            .unwrap();
+
+        (handle, send, send_sd)
+    }
+
+    /// This function executes the adapter in a separate thread with its own tokio runtime.
+    fn execute_adapter<T: RequestToAdapter>(
+        self,
+        mut receiver: Receiver<T>,
+        req_adapter_factory: impl RequestAdapterFactory<T>,
+        mut shutdown: tokio::sync::watch::Receiver<bool>,
+    ) {
+        info!("Starting adapter");
+
+        let mut builder = if self.worker_threads > 0 {
+            let mut b = tokio::runtime::Builder::new_multi_thread();
+            b.worker_threads(self.worker_threads as usize);
+            b
+        } else {
+            warn!("Starting adapter with current_thread runtime, this might lead to performance drops. Use carefully.");
+            tokio::runtime::Builder::new_current_thread()
+        };
+
+        let rt = builder.enable_all().build().unwrap();
+
+        rt.block_on(async move {
+            let mut req_adapter = req_adapter_factory.build().await;
+            self.barrier.wait();
+
+            loop {
+                tokio::select! {
+                    _ = shutdown.changed() => {
+                        if *shutdown.borrow() {
+                            info!("Shutdown signal received, exiting adapter.");
+                            req_adapter.on_shutdown();
+                            break;
+                        }
+                    }
+                    maybe_req = receiver.recv() => {
+                        if let Some(req) = maybe_req {
+                            req_adapter.on_request(req);
+                        }
+                    }
+                }
+            }
+            // destroy the mutex lock and join all tasks spawned by the adapter
+            // Needing this block to drop the guard explicitly: https://rust-lang.github.io/rust-clippy/master/index.html#await_holding_lock
+            let vec;
+            {
+                let mut guard = self.shutdown_handles.lock().unwrap();
+                vec = std::mem::take(&mut *guard);
+            }
+
+            // If we don't wait here, the runtime will exit before the shutdown tasks are joined.
+            for r in join_all(vec).await {
+                if let Err(e) = r {
+                    eprintln!("task failed: {e}");
+                }
+            }
+
+            info!("All shutdown tasks finished, exiting adapter.");
+        })
     }
 
     /// This method creates a shutdown channel for the adapter.
@@ -46,60 +152,25 @@ pub trait RequestAdapterFactory<T: RequestToAdapter> {
         tokio::sync::watch::channel(false)
     }
 
-    /// This method returns the number of *additional* threads to be used for the tokio runtime by the adapter.
-    fn thread_count(&self) -> usize {
-        1
-    }
-}
-
-/// This trait defines the behavior of a request adapter. A request adapter processes incoming requests of type T.
-/// One request adapter instance is run in a separate thread with its own tokio runtime. It might use multiple threads internally for the tokio runtime.
-pub trait RequestAdapter<T: RequestToAdapter> {
-    fn on_request(&mut self, req: T) -> impl std::future::Future<Output = ()>;
-    fn on_shutdown(&mut self) {
-        info!("Adapter is shutting down");
-    }
-}
-
-/// This function executes the adapter in a separate thread with its own tokio runtime.
-pub fn execute_adapter<T: RequestToAdapter>(
-    mut receiver: Receiver<T>,
-    req_adapter_factory: impl RequestAdapterFactory<T>,
-    mut shutdown: tokio::sync::watch::Receiver<bool>,
-) {
-    info!("Starting adapter");
-
-    assert!(
-        req_adapter_factory.thread_count() > 0,
-        "routing.thread_count must be greater than 0"
-    );
-
-    let rt = tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(req_adapter_factory.thread_count())
-        .enable_all()
-        .build()
-        .unwrap();
-
-    rt.block_on(async move {
-        let mut req_adapter = req_adapter_factory.build().await;
-
-        loop {
-            tokio::select! {
-                _ = shutdown.changed() => {
-                    if *shutdown.borrow() {
-                        info!("Shutdown signal received, exiting adapter.");
-                        req_adapter.on_shutdown();
-                        break;
-                    }
-                }
-                maybe_req = receiver.recv() => {
-                    if let Some(req) = maybe_req {
-                        req_adapter.on_request(req).await;
-                    }
-                }
-            }
+    pub fn new(worker_threads: u32, barrier: Arc<Barrier>) -> Self {
+        Self {
+            worker_threads,
+            barrier,
+            shutdown_handles: Arc::new(Mutex::new(vec![])),
         }
-    })
+    }
+
+    pub fn from_config(config: &Config, barrier: Arc<Barrier>) -> Self {
+        Self {
+            worker_threads: config.computational_setup().adapter_worker_threads,
+            barrier,
+            shutdown_handles: Arc::new(Mutex::new(vec![])),
+        }
+    }
+
+    pub fn shutdown_handles(&self) -> Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>> {
+        self.shutdown_handles.clone()
+    }
 }
 
 #[cfg(test)]
@@ -118,7 +189,11 @@ mod tests {
 
         // Spawn the adapter in a separate task
         let handle = thread::spawn(move || {
-            execute_adapter(rx, handler, shutdown_recv);
+            AsyncExecutor::new(1, Arc::new(Barrier::new(1))).execute_adapter(
+                rx,
+                handler,
+                shutdown_recv,
+            );
         });
 
         // Send a request
@@ -148,14 +223,17 @@ mod tests {
     struct MockRequestAdapter(Arc<Mutex<usize>>);
 
     impl RequestAdapter<MockRequest> for MockRequestAdapter {
-        async fn on_request(&mut self, req: MockRequest) {
-            println!("Mock handler received request: {}", req.payload);
-            {
-                let mut guard = self.0.lock().unwrap();
-                *guard += 1;
-            }
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await; // Simulate some processing delay
-            req.response_tx.send(String::from("Ok")).unwrap();
+        fn on_request(&mut self, req: MockRequest) {
+            let arc = self.0.clone();
+            tokio::spawn(async move {
+                {
+                    let mut guard = arc.lock().unwrap();
+                    *guard += 1;
+                }
+                println!("Mock handler received request: {}", req.payload);
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await; // Simulate some processing delay
+                req.response_tx.send(String::from("Ok")).unwrap();
+            });
         }
     }
 

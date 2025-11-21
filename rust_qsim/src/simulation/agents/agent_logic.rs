@@ -1,5 +1,5 @@
 use crate::external_services::routing::{
-    InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
+    InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
 use crate::external_services::ExternalServiceType;
 use crate::simulation::agents::{
@@ -18,6 +18,7 @@ use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::{Debug, Formatter};
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot::Receiver;
+use tracing::trace;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct PlanBasedSimulationLogic {
@@ -201,7 +202,7 @@ impl EndTime for PlanBasedSimulationLogic {
             .unwrap()
         {
             InternalPlanElement::Activity(a) => a.cmp_end_time(now),
-            InternalPlanElement::Leg(l) => l.trav_time.unwrap() + now,
+            InternalPlanElement::Leg(l) => l.travel_time() + now,
         }
     }
 }
@@ -269,9 +270,9 @@ impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
     fn notify_event(&mut self, mut event: &mut AgentEvent, now: u32) {
         match &mut event {
             AgentEvent::WokeUp(w) => {
-                self.call_router(&mut w.comp_env, w.end_time, now);
+                self.react_to_woke_up(w.comp_env, w.end_time, now);
             }
-            AgentEvent::ActivityFinished() => self.replace_route(),
+            AgentEvent::ActivityFinished() => self.replace_route(now),
             _ => {}
         }
         self.delegate.notify_event(event, now);
@@ -286,7 +287,7 @@ impl AdaptivePlanBasedSimulationLogic {
         }
     }
 
-    fn call_router(
+    fn react_to_woke_up(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
         departure_time: u32,
@@ -310,6 +311,16 @@ impl AdaptivePlanBasedSimulationLogic {
             return;
         }
 
+        self.call_router(comp_env, departure_time, now);
+    }
+
+    #[tracing::instrument(level = "trace", skip(comp_env), fields(uuid = tracing::field::Empty, person_id = self.delegate.id().external(), mode = tracing::field::Empty))]
+    fn call_router(
+        &mut self,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        departure_time: u32,
+        now: u32,
+    ) {
         let (send, recv) = tokio::sync::oneshot::channel();
 
         let trip = find_trip_starting_at_activity_default(
@@ -338,15 +349,20 @@ impl AdaptivePlanBasedSimulationLogic {
             )
         });
 
+        let payload = InternalRoutingRequestPayloadBuilder::default()
+            .person_id(self.delegate.id().external().to_string())
+            .from_link(self.delegate.curr_act().link_id.external().to_string())
+            .to_link(self.delegate.next_act().link_id.external().to_string())
+            .mode(mode.clone())
+            .departure_time(departure_time)
+            .now(now)
+            .build()
+            .unwrap();
+
+        trace!(uuid = payload.uuid.as_u128(), mode = mode.as_str());
+
         let request = InternalRoutingRequest {
-            payload: InternalRoutingRequestPayload {
-                person_id: self.delegate.id().external().to_string(),
-                from_link: self.delegate.curr_act().link_id.external().to_string(),
-                to_link: self.delegate.next_act().link_id.external().to_string(),
-                mode: mode.clone(),
-                departure_time,
-                now,
-            },
+            payload,
             response_tx: send,
         };
 
@@ -359,22 +375,38 @@ impl AdaptivePlanBasedSimulationLogic {
         self.route_receiver = Some(recv);
     }
 
-    fn replace_route(&mut self) {
+    #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
+    fn replace_route(&mut self, _now: u32) {
         if self.route_receiver.is_none() {
             // No route request in progress, nothing to replace.
             return;
         }
 
+        let response = self.blocking_recv(_now);
+
+        trace!(uuid = response.request_id.as_u128());
+
+        self.replace_next_trip(response, _now);
+    }
+
+    #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
+    fn blocking_recv(&mut self, _now: u32) -> InternalRoutingResponse {
         let receiver = self.route_receiver.take().unwrap();
         let response = receiver
             .blocking_recv()
             .expect("InternalRoutingRequest channel closed unexpectedly");
-        self.replace_next_trip(response);
+
+        trace!(uuid = response.request_id.as_u128());
+
+        response
     }
 
     /// Replaces the next trip in the plan with the legs and activities from the given InternalRoutingResponse.
-    fn replace_next_trip(&mut self, response: InternalRoutingResponse) {
-        if response.0.is_empty() {
+    #[tracing::instrument(level = "trace", skip(response), fields(person_id = self.delegate.id().external()))]
+    fn replace_next_trip(&mut self, response: InternalRoutingResponse, _now: u32) {
+        trace!(uuid = response.request_id.as_u128());
+
+        if response.elements.is_empty() {
             // If the response is empty, we do not replace anything.
             return;
         }
@@ -392,7 +424,8 @@ impl AdaptivePlanBasedSimulationLogic {
         let dest_idx = Self::get_index(plan, dest_ptr);
 
         // Replace the trip elements (legs and intermediate activities) with the new response
-        plan.elements.splice(origin_idx + 1..dest_idx, response.0);
+        plan.elements
+            .splice(origin_idx + 1..dest_idx, response.elements);
     }
 
     fn get_index(plan: &mut InternalPlan, origin_ptr: *const InternalActivity) -> usize {
@@ -411,6 +444,7 @@ mod tests {
     use crate::simulation::population::{
         InternalActivity, InternalLeg, InternalPlan, InternalRoute,
     };
+    use uuid::Uuid;
 
     fn make_activity(act_type: &str, link: &str) -> InternalActivity {
         InternalActivity {
@@ -456,9 +490,12 @@ mod tests {
         let mut logic = AdaptivePlanBasedSimulationLogic::new(person);
 
         // Replace the first trip (home->work)
-        let response = InternalRoutingResponse(vec![InternalPlanElement::Leg(make_leg("bike"))]);
+        let response = InternalRoutingResponse {
+            elements: vec![InternalPlanElement::Leg(make_leg("bike"))],
+            request_id: Uuid::now_v7(),
+        };
 
-        logic.replace_next_trip(response.clone());
+        logic.replace_next_trip(response.clone(), 0);
         let elements = &logic
             .delegate
             .basic_agent_delegate

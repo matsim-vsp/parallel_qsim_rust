@@ -1,10 +1,13 @@
-use crate::generated::events::Event;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
 use crate::simulation::config::Simulation;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
+use crate::simulation::events::{
+    PersonArrivalEventBuilder, PersonDepartureEventBuilder, PersonEntersVehicleEventBuilder,
+    PersonLeavesVehicleEventBuilder,
+};
 use crate::simulation::id::Id;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -14,6 +17,7 @@ use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::IntSet;
+use tracing::instrument;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
@@ -55,6 +59,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
+    #[instrument(level = "trace", skip(self, agents), fields(rank=self.net_message_broker.rank()))]
     pub(crate) fn do_step(
         &mut self,
         now: u32,
@@ -99,32 +104,37 @@ impl<C: SimCommunicator> LegEngine<C> {
             //in case of teleportation, do not publish leave vehicle events
             if publish_leave_vehicle {
                 self.comp_env.events_publisher_borrow_mut().publish_event(
-                    now,
-                    &Event::new_person_leaves_veh(veh.driver().id(), &veh.id),
+                    &PersonLeavesVehicleEventBuilder::default()
+                        .time(now)
+                        .vehicle(veh.id.clone())
+                        .person(veh.driver().id().clone())
+                        .build()
+                        .unwrap(),
                 );
             }
 
             for passenger in veh.passengers() {
-                self.comp_env.events_publisher_borrow_mut().publish_event(
-                    now,
-                    &Event::new_passenger_dropped_off(
-                        passenger.id(),
-                        &passenger.curr_leg().mode,
-                        &Id::create("0"), //TODO
-                        &veh.id,
-                    ),
-                );
                 if publish_leave_vehicle {
-                    self.comp_env
-                        .events_publisher_borrow_mut()
-                        .publish_event(now, &Event::new_person_leaves_veh(passenger.id(), &veh.id));
+                    self.comp_env.events_publisher_borrow_mut().publish_event(
+                        &PersonLeavesVehicleEventBuilder::default()
+                            .time(now)
+                            .vehicle(veh.id.clone())
+                            .person(passenger.id().clone())
+                            .build()
+                            .unwrap(),
+                    );
                 }
             }
 
             let leg = veh.driver().curr_leg();
             self.comp_env.events_publisher_borrow_mut().publish_event(
-                now,
-                &Event::new_arrival(veh.driver().id(), veh.curr_link_id().unwrap(), &leg.mode),
+                &PersonArrivalEventBuilder::default()
+                    .time(now)
+                    .person(veh.driver().id().clone())
+                    .link(veh.curr_link_id().unwrap().clone())
+                    .leg_mode(leg.mode.clone())
+                    .build()
+                    .unwrap(),
             );
 
             agents.extend(self.garage.park_veh(veh));
@@ -198,8 +208,13 @@ impl VehicularDepartureHandler {
             .unwrap_or_else(|| panic!("Missing route for agent {} at leg {:?}", agent.id(), leg));
 
         self.comp_env.events_publisher_borrow_mut().publish_event(
-            now,
-            &Event::new_departure(agent.id(), route.start_link(), &leg.mode),
+            &PersonDepartureEventBuilder::default()
+                .time(now)
+                .person(agent.id().clone())
+                .link(route.start_link().clone())
+                .leg_mode(leg.mode.clone())
+                .build()
+                .unwrap(),
         );
 
         let veh_id = route
@@ -219,9 +234,14 @@ impl VehicularDepartureHandler {
                 "{} is set as main mode but route is not network route",
                 leg.mode
             );
-            self.comp_env
-                .events_publisher_borrow_mut()
-                .publish_event(now, &Event::new_person_enters_veh(agent.id(), &veh_id));
+            self.comp_env.events_publisher_borrow_mut().publish_event(
+                &PersonEntersVehicleEventBuilder::default()
+                    .time(now)
+                    .person(agent.id().clone())
+                    .vehicle(veh_id.clone())
+                    .build()
+                    .unwrap(),
+            );
         }
 
         Some(garage.unpark_veh(agent, veh_id))

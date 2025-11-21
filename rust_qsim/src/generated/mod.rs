@@ -2,6 +2,8 @@ use crate::generated::general::attribute_value::Type;
 use crate::generated::general::AttributeValue;
 use crate::simulation::io::xml::attributes::IOAttribute;
 use prost::Message;
+use serde::ser::Error;
+use serde::{Serialize, Serializer};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read, Seek, Write};
@@ -201,6 +203,41 @@ impl AttributeValue {
             "java.lang.Integer" => AttributeValue::new_int(attr.value.parse().unwrap()),
             "java.lang.Boolean" => AttributeValue::new_bool(attr.value.parse().unwrap()),
             _ => panic!("Unsupported attribute class: {}", attr.class),
+        }
+    }
+}
+
+impl From<bool> for AttributeValue {
+    fn from(value: bool) -> Self {
+        AttributeValue::new_bool(value)
+    }
+}
+
+impl From<String> for AttributeValue {
+    fn from(value: String) -> Self {
+        AttributeValue::new_string(value)
+    }
+}
+
+impl From<&str> for AttributeValue {
+    fn from(value: &str) -> Self {
+        AttributeValue::new_string(value.to_string())
+    }
+}
+
+// we can't tag the enum as non-exhaustive because prost generates it. This is why the warning is manually disabled.
+#[allow(unreachable_patterns)]
+impl Serialize for AttributeValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self.r#type.as_ref().unwrap() {
+            Type::IntValue(i) => serializer.serialize_i64(*i),
+            Type::StringValue(s) => serializer.serialize_str(s),
+            Type::DoubleValue(d) => serializer.serialize_f64(*d),
+            Type::BoolValue(b) => serializer.serialize_bool(*b),
+            _ => Err(S::Error::custom("Unsupported type")),
         }
     }
 }

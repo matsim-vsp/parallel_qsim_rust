@@ -1,122 +1,14 @@
 syntax = "proto3";
 package events;
 
+import "simulation/io/proto/types/general.proto";
+
 message TimeStep {
   uint32 time = 1;
   bytes data = 2;
 }
 
-message Event {
-  oneof type {
-    GenericEvent generic = 1;
-    ActivityStartEvent actStart = 2;
-    ActivityEndEvent actEnd = 3;
-    LinkEnterEvent linkEnter = 4;
-    LinkLeaveEvent linkLeave = 5;
-    PersonEntersVehicleEvent personEntersVeh = 6;
-    PersonLeavesVehicleEvent personLeavesVeh = 7;
-    DepartureEvent departure = 8;
-    ArrivalEvent arrival = 9;
-    TravelledEvent travelled = 10;
-    PassengerPickedUpEvent passengerPickedUp = 11;
-    PassengerDroppedOffEvent passengerDroppedOff = 12;
-    DvrpTaskStartedEvent dvrpTaskStarted = 13;
-    DvrpTaskEndedEvent dvrpTaskEnded = 14;
-    TravelledWithPtEvent travelledWithPt = 15;
-  }
-}
-
-message GenericEvent {
+message MyEvent {
   string type = 1;
-  map<string, string> attrs = 2;
-}
-
-// Having the actType as string will generate a lot of owned short lived strings for events handling
-// Maybe with quick-protobuf we could do something else.
-message ActivityStartEvent {
-  string person = 1;
-  string link = 2;
-  string actType = 3;
-}
-
-message ActivityEndEvent {
-  string person = 1;
-  string link = 2;
-  string actType = 3;
-}
-
-message LinkEnterEvent {
-  string link = 1;
-  string vehicle = 2;
-}
-
-message LinkLeaveEvent {
-  string link = 1;
-  string vehicle = 2;
-}
-
-message PersonEntersVehicleEvent {
-  string person = 1;
-  string vehicle = 2;
-}
-
-message PersonLeavesVehicleEvent {
-  string person = 1;
-  string vehicle = 2;
-}
-
-message DepartureEvent {
-  string person = 1;
-  string link = 2;
-  string legMode = 3;
-}
-
-message ArrivalEvent {
-  string person = 1;
-  string link = 2;
-  string legMode = 3;
-}
-
-message TravelledEvent {
-  string person = 1;
-  string mode = 3;
-  double distance = 2;
-}
-
-message TravelledWithPtEvent {
-  string person = 1;
-  double distance = 2;
-  string mode = 3;
-  string route = 4;
-  string line = 5;
-}
-
-message PassengerPickedUpEvent{
-  string person = 1;
-  string mode = 2;
-  string request = 3;
-  string vehicle = 4;
-}
-
-message PassengerDroppedOffEvent{
-  string person = 1;
-  string mode = 2;
-  string request = 3;
-  string vehicle = 4;
-}
-
-message DvrpTaskStartedEvent {
-  string person = 1;
-  string dvrpVehicle = 2;
-  string taskType = 3;
-  uint64 taskIndex = 4;
-  string dvrpMode = 5;
-}
-
-message DvrpTaskEndedEvent {
-  string person = 1;
-  string dvrpVehicle = 2;
-  string taskType = 3;
-  uint64 taskIndex = 4;
-  string dvrpMode = 5;
+  map<string, general.AttributeValue> attributes = 2;
 }

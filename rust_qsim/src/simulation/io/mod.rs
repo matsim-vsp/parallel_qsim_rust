@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 pub mod proto;
-pub mod proto_events;
 pub mod xml;
 
 pub fn resolve_path(config_path: &Option<PathBuf>, file_path: &PathBuf) -> PathBuf {
@@ -15,4 +14,8 @@ pub fn resolve_path(config_path: &Option<PathBuf>, file_path: &PathBuf) -> PathB
     } else {
         file_path.clone()
     }
+}
+
+pub fn is_url(path: &str) -> bool {
+    path.starts_with("http://") || path.starts_with("https://")
 }

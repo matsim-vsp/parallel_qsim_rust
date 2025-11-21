@@ -1,3 +1,13 @@
+use super::{
+    link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
+    Link, Network, Node,
+};
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
+use crate::simulation::config;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::events::{EventsPublisher, LinkEnterEventBuilder, LinkLeaveEventBuilder};
+use crate::simulation::id::Id;
+use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
 use rand::{rng, Rng};
@@ -5,18 +15,6 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 use tracing::instrument;
-
-use super::{
-    link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
-    Link, Network, Node,
-};
-use crate::generated::events::Event;
-use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
-use crate::simulation::config;
-use crate::simulation::controller::ThreadLocalComputationalEnvironment;
-use crate::simulation::id::Id;
-use crate::simulation::messaging::events::EventsPublisher;
-use crate::simulation::vehicles::InternalVehicle;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StorageUpdate {
@@ -239,9 +237,14 @@ impl SimNetworkPartition {
         let is_route_begin = events_publisher.is_none();
 
         if let Some(publisher) = events_publisher {
-            publisher
-                .borrow_mut()
-                .publish_event(now, &Event::new_link_enter(link.id(), &vehicle.id));
+            publisher.borrow_mut().publish_event(
+                &LinkEnterEventBuilder::default()
+                    .time(now)
+                    .link(link.id().clone())
+                    .vehicle(vehicle.id.clone())
+                    .build()
+                    .unwrap(),
+            );
         }
 
         if is_route_begin {
@@ -505,8 +508,12 @@ impl SimNetworkPartition {
         now: u32,
     ) {
         comp_env.events_publisher_borrow_mut().publish_event(
-            now,
-            &Event::new_link_leave(vehicle.curr_link_id().unwrap(), &vehicle.id),
+            &LinkLeaveEventBuilder::default()
+                .vehicle(vehicle.id.clone())
+                .link(vehicle.curr_link_id().unwrap().clone())
+                .time(now)
+                .build()
+                .unwrap(),
         );
         vehicle.notify_event(&mut AgentEvent::LeftLink(), now);
         let link_id = vehicle.curr_link_id().unwrap().clone();
@@ -514,9 +521,14 @@ impl SimNetworkPartition {
 
         // for out links, link enter event is published at receiving partition
         if let SimLink::Local(_) = link {
-            comp_env
-                .events_publisher_borrow_mut()
-                .publish_event(now, &Event::new_link_enter(&link.id(), &vehicle.id));
+            comp_env.events_publisher_borrow_mut().publish_event(
+                &LinkEnterEventBuilder::default()
+                    .time(now)
+                    .link(link.id().clone())
+                    .vehicle(vehicle.id.clone())
+                    .build()
+                    .unwrap(),
+            );
         }
 
         link.push_veh(vehicle, now);
@@ -526,8 +538,6 @@ impl SimNetworkPartition {
 
 #[cfg(test)]
 mod tests {
-    use assert_approx_eq::assert_approx_eq;
-
     use super::{SimNetworkPartition, SimNetworkPartitionBuilder};
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
@@ -535,8 +545,10 @@ mod tests {
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils;
+    use assert_approx_eq::assert_approx_eq;
+    use macros::integration_test;
 
-    #[test]
+    #[integration_test]
     fn from_network() {
         let mut network = Network::new();
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
@@ -560,7 +572,7 @@ mod tests {
         assert!(matches!(in_link, SimLink::In(_)));
     }
 
-    #[test]
+    #[integration_test]
     fn vehicle_travels_local() {
         let mut publisher = Default::default();
         let global_net = Network::from_file(
@@ -605,7 +617,7 @@ mod tests {
         assert_eq!(0, network.veh_on_net());
     }
 
-    #[test]
+    #[integration_test]
     fn vehicle_reaches_boundary() {
         let mut publisher = Default::default();
         let global_net = Network::from_file(
@@ -636,7 +648,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_flow_cap_constraint() {
         let mut publisher = Default::default();
         let global_net = Network::from_file(
@@ -670,7 +682,7 @@ mod tests {
         assert_eq!(100, counter);
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = Default::default();
         let mut global_net = Network::from_file(
@@ -715,7 +727,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_stuck_threshold() {
         let mut publisher = Default::default();
         let mut global_net = Network::from_file(
@@ -762,7 +774,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn move_nodes_transition_logic() {
         let mut net = Network::new();
         let node1 = Node {
@@ -871,7 +883,7 @@ mod tests {
         assert_approx_eq!(link1 * 2., link2, 100.);
     }
 
-    #[test]
+    #[integration_test]
     fn storage_cap_over_boundaries() {
         // use programmed network here, to avoid instabilities with metis algorithm for small
         // network graphs
@@ -913,7 +925,7 @@ mod tests {
         assert_approx_eq!(100., storage_cap.released, 0.00001);
     }
 
-    #[test]
+    #[integration_test]
     fn neighbors() {
         let mut net = Network::new();
         let node = Node::new(Id::create("node-1"), -0., 0., 0, 1);

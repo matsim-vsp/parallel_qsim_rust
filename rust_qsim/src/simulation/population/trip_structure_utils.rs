@@ -1,5 +1,5 @@
 use crate::simulation::population::{InternalActivity, InternalPlanElement};
-use tracing::{error, info};
+use tracing::error;
 
 pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<String> {
     // Try to get the routing mode from the first leg
@@ -23,10 +23,6 @@ pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<Strin
 
     if mode.is_none() {
         error!("Could not find routing mode for trip {:?}", trip_elements);
-    }
-
-    if mode == Some("walk".to_string()) {
-        info!("walk here")
     }
 
     mode

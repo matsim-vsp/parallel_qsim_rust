@@ -205,7 +205,7 @@ mod tests {
 
     /// This test moves a vehicle from partition 0 to 2 and then to partition 3. The test involves
     /// Two send_recv steps.
-    #[test]
+    #[integration_test]
     fn send_recv_local_vehicle_msg() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -260,7 +260,7 @@ mod tests {
         });
     }
 
-    #[test]
+    #[integration_test]
     fn send_recv_remote_message() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -293,7 +293,7 @@ mod tests {
         });
     }
 
-    #[test]
+    #[integration_test]
     fn send_recv_local_and_remote_msg() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -368,7 +368,7 @@ mod tests {
         NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false)
     }
 
-    #[test]
+    #[integration_test]
     fn send_recv_storage_cap() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);

@@ -5,6 +5,8 @@ edition = "2021"
 
 [features]
 test_util = []
+# Feature for activating remote file download. Might cause problems on hardware with no OpenSSL installed.
+http = ["dep:reqwest"]
 
 [dependencies]
 serde = { version = "1.0.137", features = ["derive"] }
@@ -20,13 +22,12 @@ prost = "0.13.3"
 bytes = "1.3.0"
 serial_test = "3.2.0"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3.0", features = ["json", "fmt", "std", "registry"] }
+tracing-subscriber = { version = "0.3.0", features = ["json", "fmt", "std", "registry", "env-filter"] }
 tracing-appender = "0.2"
 itertools = "0.14.0"
 assert_approx_eq = "1.1.0"
 nohash-hasher = "0.2.0"
 serde_path_to_error = "0.1.14"
-geo = "0.29.1"
 ahash = "0.8.11"
 keyed_priority_queue = "0.4.2"
 xml = "0.8.20"
@@ -36,7 +37,6 @@ serde_yaml = "0.9.34"
 tonic = "0.13.1"
 tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
 lz4 = "1.28.1"
-bincode = { version = "2.0.1", features = ["serde"] }
 derive_builder = "0.20.2"
 tempfile = "3.20.0"
 dyn-clone = "1.0.19"
@@ -44,7 +44,12 @@ thiserror = "2.0.16"
 dashmap = "6.1.0"
 once_cell = "1.20.2"
 macros = { path = "../macros" }
-reqwest = { version = "0.12.23", features = ["blocking"] }
+reqwest = { version = "0.12.23", features = ["blocking"], optional = true }
+derive_more = { version = "2.0.1", features = ["debug"] }
+futures = "0.3.31"
+uuid = { version = "1.18.1", features = ["v7"] }
+csv = "1.4.0"
+inventory = "0.3.21"
 
 [dev-dependencies]
 # For development, test_util feature is always activated so that functions like id store reset work
@@ -56,3 +61,8 @@ prost-build = "0.13.5"
 # provides the protoc compiler - this makes the build slow but one doesn't need to install the protoc compiler as prerequisite.
 protobuf-src = "2.1.1"
 tonic-build = "0.13.1"
+
+[[test]]
+name = "test_3_links_url"
+path = "tests/test_3_links_url.rs"
+required-features = ["http"]
