@@ -70,14 +70,16 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
 
         let teleported_vehicles = self.teleportation_engine.do_step(now);
-        let network_vehicles = self.network_engine.move_nodes(now);
+
+        self.network_engine.move_nodes(now);
+        let network_vehicles = self
+            .network_engine
+            .move_links(now, &mut self.net_message_broker);
 
         let mut agents = vec![];
         agents.extend(self.publish_end_events(now, network_vehicles, true));
         agents.extend(self.publish_end_events(now, teleported_vehicles, false));
 
-        self.network_engine
-            .move_links(now, &mut self.net_message_broker);
         let sync_messages = self.net_message_broker.send_recv(now);
 
         for mut msg in sync_messages {

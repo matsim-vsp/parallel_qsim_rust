@@ -268,24 +268,27 @@ impl SimNetworkPartition {
     }
 
     #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
-    pub fn move_links(&mut self, now: u32) -> (Vec<InternalVehicle>, Vec<StorageUpdate>) {
+    pub fn move_links(&mut self, now: u32) -> MoveAllLinksResult {
         let mut storage_cap_updates: Vec<_> = Vec::new();
-        let mut vehicles: Vec<_> = Vec::new();
+        let mut vehicles_exit_partition: Vec<_> = Vec::new();
         let mut deactivate: IntSet<_> = IntSet::default();
 
+        let mut vehicles_end_leg = vec![];
         for id in &self.active_links {
             let link = self.links.get_mut(id).unwrap();
-            let is_active = match link {
+            let mut res = match link {
                 SimLink::Local(ll) => Self::move_local_link(ll, &mut self.active_nodes, now),
                 SimLink::In(il) => {
                     Self::move_in_link(il, &mut self.active_nodes, &mut storage_cap_updates, now)
                 }
-                SimLink::Out(ol) => Self::move_out_link(ol, &mut vehicles),
+                SimLink::Out(ol) => Self::move_out_link(ol, &mut vehicles_exit_partition),
             };
 
-            if !is_active {
+            if res.is_active {
                 deactivate.insert(link.id().clone());
             }
+
+            vehicles_end_leg.append(&mut res.vehicles_end_leg);
         }
 
         // bookkeeping. Empty links are no longer active.
@@ -293,26 +296,33 @@ impl SimNetworkPartition {
             self.active_links.remove(&id);
         }
         // vehicles leaving this partition are no longer part of the veh count
-        self.veh_counter -= vehicles.len();
+        self.veh_counter -= vehicles_exit_partition.len();
+        self.veh_counter -= vehicles_end_leg.len();
 
-        (vehicles, storage_cap_updates)
+        MoveAllLinksResult {
+            vehicles_exit_partition,
+            vehicles_end_leg,
+            storage_cap_updates,
+        }
     }
 
     fn move_local_link(
         link: &mut LocalLink,
         active_nodes: &mut IntSet<Id<Node>>,
         now: u32,
-    ) -> bool {
-        // Move all vehicles that completed their link travel into the buffer.
-        link.do_sim_step(now);
-        // the node will only look at the vehicle at the at the top of the queue in the next timestep
-        // therefore, peek whether vehicles are available for the next timestep.
-        if link.q_front(now + 1).is_some() {
+    ) -> MoveSingleLinkResult {
+        let vehicles_end_leg = link.do_sim_step(now);
+        if link.to_nodes_active(now) {
             Self::activate_node(active_nodes, link.to.clone());
         }
 
         // indicate whether link is active. The link is active if it has vehicles on it.
-        link.used_storage() > 0.
+        let is_active = link.used_storage() > 0.;
+
+        MoveSingleLinkResult {
+            vehicles_end_leg,
+            is_active,
+        }
     }
 
     fn move_in_link(
@@ -320,7 +330,7 @@ impl SimNetworkPartition {
         active_nodes: &mut IntSet<Id<Node>>,
         storage_cap_updates: &mut Vec<StorageUpdate>,
         now: u32,
-    ) -> bool {
+    ) -> MoveSingleLinkResult {
         // if anything has changed on the link, we want to report the updated storage capacity to the
         // upstream partition. This must be done before we call 'move_local' link which erases the book
         // keeping of what was released and consumed during the current simulation time step.
@@ -331,21 +341,19 @@ impl SimNetworkPartition {
         Self::move_local_link(&mut link.local_link, active_nodes, now)
     }
 
-    fn move_out_link(link: &mut SplitOutLink, vehicles: &mut Vec<InternalVehicle>) -> bool {
+    fn move_out_link(
+        link: &mut SplitOutLink,
+        vehicles: &mut Vec<InternalVehicle>,
+    ) -> MoveSingleLinkResult {
         let out_q = link.take_veh();
         for veh in out_q {
             vehicles.push(veh);
         }
-        false
+        MoveSingleLinkResult::default()
     }
 
     #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
-    pub fn move_nodes(
-        &mut self,
-        comp_env: &mut ThreadLocalComputationalEnvironment,
-        now: u32,
-    ) -> Vec<InternalVehicle> {
-        let mut exited_vehicles = Vec::new();
+    pub fn move_nodes(&mut self, comp_env: &mut ThreadLocalComputationalEnvironment, now: u32) {
         let new_active_nodes: IntSet<_> = self
             .active_nodes
             .iter()
@@ -358,7 +366,6 @@ impl SimNetworkPartition {
                     node,
                     &mut self.links,
                     &mut self.active_links,
-                    &mut exited_vehicles,
                     comp_env,
                     &mut self.rnd,
                     now,
@@ -370,15 +377,12 @@ impl SimNetworkPartition {
             .collect();
 
         self.active_nodes = new_active_nodes;
-        self.veh_counter -= exited_vehicles.len();
-        exited_vehicles
     }
 
     fn move_node_capacity_priority(
         node: &SimNode,
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut IntSet<Id<Link>>,
-        exited_vehicles: &mut Vec<InternalVehicle>,
         comp_env: &mut ThreadLocalComputationalEnvironment,
         rnd: &mut ThreadRng,
         now: u32,
@@ -416,11 +420,7 @@ impl SimNetworkPartition {
 
                     if sel_cap >= rnd_num {
                         let veh = in_link.pop_veh();
-                        if veh.peek_next_route_element().is_some() {
-                            Self::move_vehicle(veh, links, active_links, comp_env, now);
-                        } else {
-                            exited_vehicles.push(veh);
-                        }
+                        Self::move_vehicle(veh, links, active_links, comp_env, now);
                     }
                 } else {
                     // in case the vehicle on the link can't move, we add the link to the exhausted
@@ -534,6 +534,18 @@ impl SimNetworkPartition {
         link.push_veh(vehicle, now);
         Self::activate_link(active_links, link_id.clone());
     }
+}
+
+pub struct MoveAllLinksResult {
+    pub vehicles_exit_partition: Vec<InternalVehicle>,
+    pub vehicles_end_leg: Vec<InternalVehicle>,
+    pub storage_cap_updates: Vec<StorageUpdate>,
+}
+
+#[derive(Default)]
+struct MoveSingleLinkResult {
+    vehicles_end_leg: Vec<InternalVehicle>,
+    is_active: bool,
 }
 
 #[cfg(test)]
