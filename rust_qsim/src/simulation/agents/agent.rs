@@ -68,16 +68,19 @@ impl SimulationAgentLogic for SimulationAgent {
     fn advance_plan(&mut self) {
         self.logic.advance_plan();
     }
-    fn wakeup_time(&self, now: u32) -> u32 {
-        self.logic.wakeup_time(now)
-    }
     fn state(&self) -> SimulationAgentState {
         self.logic.state()
+    }
+    fn is_wanting_to_arrive_on_current_link(&self) -> bool {
+        self.logic.is_wanting_to_arrive_on_current_link()
     }
     fn curr_link_id(&self) -> Option<&Id<Link>> {
         self.logic.curr_link_id()
     }
     fn peek_next_link_id(&self) -> Option<&Id<Link>> {
         self.logic.peek_next_link_id()
+    }
+    fn wakeup_time(&self, now: u32) -> u32 {
+        self.logic.wakeup_time(now)
     }
 }

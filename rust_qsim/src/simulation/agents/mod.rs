@@ -16,10 +16,13 @@ pub trait SimulationAgentLogic:
     fn curr_leg(&self) -> &InternalLeg;
     fn next_leg(&self) -> Option<&InternalLeg>;
     fn advance_plan(&mut self);
-    fn wakeup_time(&self, now: u32) -> u32;
     fn state(&self) -> SimulationAgentState;
+
+    // Having these functions here is not ideal. See https://github.com/matsim-vsp/parallel_qsim_rust/issues/203 for more details.
+    fn is_wanting_to_arrive_on_current_link(&self) -> bool;
     fn curr_link_id(&self) -> Option<&Id<Link>>;
     fn peek_next_link_id(&self) -> Option<&Id<Link>>;
+    fn wakeup_time(&self, now: u32) -> u32;
 }
 
 pub trait EnvironmentalEventObserver {
@@ -28,12 +31,12 @@ pub trait EnvironmentalEventObserver {
 
 #[non_exhaustive]
 pub enum AgentEvent<'a> {
-    // activity related events
+    // activity-related events
     ActivityStarted(),
     WokeUp(WokeUpEvent<'a>),
     ActivityFinished(),
 
-    // teleportation related events
+    // teleportation-related events
     TeleportationStarted(),
     TeleportationFinished(),
 

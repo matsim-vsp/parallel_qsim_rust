@@ -29,7 +29,7 @@ impl NetworkEngine {
         self.network.send_veh_en_route(vehicle, events, now)
     }
 
-    pub(super) fn move_nodes(&mut self, now: u32) -> Vec<InternalVehicle> {
+    pub(super) fn move_nodes(&mut self, now: u32) {
         self.network.move_nodes(&mut self.comp_env, now)
     }
 
@@ -37,15 +37,17 @@ impl NetworkEngine {
         &mut self,
         now: u32,
         net_message_broker: &mut NetMessageBroker<C>,
-    ) {
-        let (vehicles, storage_cap_updates) = self.network.move_links(now);
+    ) -> Vec<InternalVehicle> {
+        let move_links_result = self.network.move_links(now);
 
-        for veh in vehicles {
+        for veh in move_links_result.vehicles_exit_partition {
             net_message_broker.add_veh(veh, now);
         }
 
-        for cap in storage_cap_updates {
+        for cap in move_links_result.storage_cap_updates {
             net_message_broker.add_cap_update(cap, now);
         }
+
+        move_links_result.vehicles_end_leg
     }
 }

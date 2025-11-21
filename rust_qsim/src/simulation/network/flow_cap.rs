@@ -6,7 +6,7 @@ pub struct Flowcap {
 }
 
 impl Flowcap {
-    pub fn new(capacity_h: f32, sample_size: f32) -> Flowcap {
+    pub(super) fn new(capacity_h: f32, sample_size: f32) -> Flowcap {
         let capacity_s = capacity_h * sample_size / 3600.;
         Flowcap {
             last_update_time: 0,
@@ -15,10 +15,8 @@ impl Flowcap {
         }
     }
 
-    /**
-    Updates the accumulated capacity if the time has advanced.
-     */
-    pub fn update_capacity(&mut self, now: u32) {
+    /// Updates the accumulated capacity if the time has advanced.
+    pub(super) fn update_capacity(&mut self, now: u32) {
         if self.last_update_time < now {
             let time_steps: f32 = (now - self.last_update_time) as f32;
             let acc_flow_cap = time_steps * self.capacity_s + self.accumulated_capacity;
@@ -27,15 +25,15 @@ impl Flowcap {
         }
     }
 
-    pub fn has_capacity(&self) -> bool {
+    pub(super) fn has_capacity(&self) -> bool {
         self.accumulated_capacity > 1e-10
     }
 
-    pub fn consume_capacity(&mut self, by: f32) {
+    pub(super) fn consume_capacity(&mut self, by: f32) {
         self.accumulated_capacity -= by;
     }
 
-    pub fn capacity(&self) -> f32 {
+    pub(super) fn capacity(&self) -> f32 {
         self.capacity_s
     }
 }

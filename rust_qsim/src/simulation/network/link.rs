@@ -1,6 +1,4 @@
-use std::collections::VecDeque;
-use std::fmt::Debug;
-
+use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
@@ -9,6 +7,8 @@ use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::network::Node;
 use crate::simulation::vehicles::InternalVehicle;
+use std::collections::VecDeque;
+use std::fmt::Debug;
 
 use crate::simulation::network::Link;
 
@@ -70,8 +70,8 @@ impl SimLink {
 
     pub fn offers_veh(&self, now: u32) -> Option<&InternalVehicle> {
         match self {
-            SimLink::Local(ll) => ll.q_front(now),
-            SimLink::In(il) => il.local_link.q_front(now),
+            SimLink::Local(ll) => ll.offers_vehicle(now),
+            SimLink::In(il) => il.local_link.offers_vehicle(now),
             SimLink::Out(_) => {
                 panic!("can't query out links to offer vehicles.")
             }
@@ -114,6 +114,28 @@ impl SimLink {
         }
     }
 
+    /// This method pushes a vehicle directly into the buffer
+    pub fn push_veh_to_buffer(&mut self, vehicle: InternalVehicle, _now: u32) {
+        match self {
+            SimLink::Local(ll) => ll.push_veh_to_buffer(vehicle),
+            SimLink::In(il) => il.local_link.push_veh_to_buffer(vehicle),
+            SimLink::Out(_) => {
+                panic!("Can't push vehicle to buffer on out link")
+            }
+        }
+    }
+
+    /// This method pushes a vehicle to the waiting list, which has priority over vehicles in q
+    pub fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
+        match self {
+            SimLink::Local(ll) => ll.push_veh_to_waiting_list(vehicle),
+            SimLink::In(il) => il.local_link.push_veh_to_waiting_list(vehicle),
+            SimLink::Out(_) => {
+                panic!("Can't push vehicle to waiting list on out link")
+            }
+        }
+    }
+
     pub fn pop_veh(&mut self) -> InternalVehicle {
         match self {
             SimLink::Local(ll) => ll.pop_front(),
@@ -149,6 +171,8 @@ impl SimLink {
 pub struct LocalLink {
     pub id: Id<Link>,
     q: VecDeque<VehicleQEntry>,
+    buffer: VecDeque<InternalVehicle>,
+    waiting_list: VecDeque<InternalVehicle>,
     length: f64,
     free_speed: f32,
     storage_cap: StorageCap,
@@ -183,6 +207,8 @@ impl LocalLink {
         LocalLink {
             id,
             q: VecDeque::new(),
+            buffer: VecDeque::new(),
+            waiting_list: VecDeque::new(),
             length: 1.0,
             free_speed: 1.0,
             storage_cap: StorageCap::new(0., 1., 1., 1.0, 7.5),
@@ -215,6 +241,8 @@ impl LocalLink {
         LocalLink {
             id,
             q: VecDeque::new(),
+            buffer: VecDeque::new(),
+            waiting_list: VecDeque::new(),
             length,
             free_speed,
             storage_cap,
@@ -238,30 +266,125 @@ impl LocalLink {
         });
     }
 
-    pub fn pop_front(&mut self) -> InternalVehicle {
-        let veh = self.q.pop_front().unwrap_or_else(|| panic!("There was no vehicle in the queue. Use 'offers_veh' to test if a vehicle is present first."));
-        self.flow_cap.consume_capacity(veh.vehicle.pce);
-        self.storage_cap.release(veh.vehicle.pce);
-        self.stuck_timer.reset();
-        veh.vehicle
+    pub fn push_veh_to_buffer(&mut self, vehicle: InternalVehicle) {
+        // self.storage_cap.consume(vehicle.pce);
+        self.buffer.push_back(vehicle);
     }
 
-    pub fn update_flow_cap(&mut self, now: u32) {
+    /// Push a vehicle into the waiting list.
+    pub fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
+        // self.storage_cap.consume(vehicle.pce);
+        self.waiting_list.push_back(vehicle);
+    }
+
+    /// This method fills the buffer from two sources with priority:
+    /// 1. Check if there are vehicles in the waiting list and move them to the buffer.
+    /// 2. Check if there are vehicles in the queue that have reached their earliest exit time and move them to the buffer.
+    ///
+    /// Both is done only if the flow capacity allows this.
+    pub fn do_sim_step(&mut self, now: u32) -> Vec<InternalVehicle> {
+        self.update_flow_cap(now);
+        self.apply_storage_cap_updates();
+        self.add_waiting_to_buffer();
+        self.add_queue_to_buffer(now)
+    }
+
+    fn add_queue_to_buffer(&mut self, now: u32) -> Vec<InternalVehicle> {
+        let mut released_vehicles = vec![];
+
+        loop {
+            let option = self.q.front();
+
+            // If queue is empty, break the loop.
+            if option.is_none() {
+                break;
+            }
+
+            let veh = option.unwrap();
+
+            let arrive = veh
+                .vehicle
+                .driver
+                .as_ref()
+                .unwrap()
+                .is_wanting_to_arrive_on_current_link();
+            let capacity_left = self.has_flow_capacity_left(&veh.vehicle);
+            let exit = veh.earliest_exit_time <= now;
+
+            if arrive {
+                released_vehicles.push(self.q.pop_front().unwrap().vehicle);
+                continue;
+            }
+
+            if capacity_left {
+                if exit {
+                    let veh = self.q.pop_front().unwrap().vehicle;
+                    self.storage_cap.release(veh.pce);
+                    self.buffer.push_back(veh);
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        released_vehicles
+    }
+
+    fn add_waiting_to_buffer(&mut self) {
+        loop {
+            let option = self.waiting_list.get(0);
+
+            // If waiting list is empty, break the loop.
+            if option.is_none() {
+                break;
+            }
+
+            if self.is_accepting_from_wait(option.unwrap()) {
+                self.buffer
+                    .push_back(self.waiting_list.pop_front().unwrap());
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn is_accepting_from_wait(&self, veh: &InternalVehicle) -> bool {
+        self.has_flow_capacity_left(veh)
+    }
+
+    fn has_flow_capacity_left(&self, _veh: &InternalVehicle) -> bool {
+        let buffer_cap = self.buffer.iter().map(|v| v.pce).sum::<f32>();
+
+        // yyyyy not sure, why the vehicle pce is not considered here. But in the java reference, it is the same. Paul, nov'25
+        // TODO
+        self.flow_cap.capacity() - buffer_cap > 0.0
+    }
+
+    /// This method returns the next/first vehicle from the buffer and removes it from the buffer.
+    fn pop_front(&mut self) -> InternalVehicle {
+        if let Some(veh) = self.buffer.pop_front() {
+            // self.storage_cap.release(veh.pce);
+            self.flow_cap.consume_capacity(veh.pce);
+            self.stuck_timer.reset();
+            return veh;
+        }
+        panic!("There was no vehicle in the buffer.");
+    }
+
+    fn update_flow_cap(&mut self, now: u32) {
         // increase flow cap if new time step
         self.flow_cap.update_capacity(now);
     }
 
-    pub fn q_front(&self, now: u32) -> Option<&InternalVehicle> {
-        // check if we have flow cap left for current time step, otherwise abort
-        if !self.flow_cap.has_capacity() {
-            return None;
-        }
-
-        // peek if fist vehicle in queue can leave
-        if let Some(entry) = self.q.front() {
-            if entry.earliest_exit_time <= now {
+    /// This method returns the next vehicle that is allowed to leave the connection and checks
+    /// whether flow capacity is available.
+    fn offers_vehicle(&self, now: u32) -> Option<&InternalVehicle> {
+        if let Some(entry) = self.buffer.front() {
+            if self.flow_cap.has_capacity() {
                 self.stuck_timer.start(now);
-                return Some(&entry.vehicle);
+                return Some(entry);
             }
         }
 
@@ -276,7 +399,7 @@ impl LocalLink {
         self.storage_cap.is_available()
     }
 
-    pub fn apply_storage_cap_updates(&mut self) {
+    fn apply_storage_cap_updates(&mut self) {
         self.storage_cap.apply_updates();
     }
 
@@ -284,12 +407,18 @@ impl LocalLink {
         self.storage_cap.currently_used()
     }
 
-    pub fn from(&self) -> &Id<Node> {
+    fn from(&self) -> &Id<Node> {
         &self.from
     }
 
-    pub fn to(&self) -> &Id<Node> {
+    fn to(&self) -> &Id<Node> {
         &self.to
+    }
+
+    pub fn to_nodes_active(&self, now: u32) -> bool {
+        // the node will only look at the vehicle at the at the top of the queue in the next timestep
+        // therefore, peek whether vehicles are available for the next timestep.
+        self.offers_vehicle(now + 1).is_some()
     }
 }
 

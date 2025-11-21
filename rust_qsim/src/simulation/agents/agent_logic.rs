@@ -139,23 +139,16 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
         );
     }
 
-    fn wakeup_time(&self, now: u32) -> u32 {
-        match self
-            .basic_agent_delegate
-            .plan_element_at(self.curr_plan_element)
-            .unwrap()
-        {
-            InternalPlanElement::Activity(a) => a.cmp_end_time(now),
-            InternalPlanElement::Leg(_) => panic!("Cannot wake up on a leg!"),
-        }
-    }
-
     fn state(&self) -> SimulationAgentState {
         match self.curr_plan_element % 2 {
             0 => SimulationAgentState::ACTIVITY,
             1 => SimulationAgentState::LEG,
             _ => unreachable!(),
         }
+    }
+
+    fn is_wanting_to_arrive_on_current_link(&self) -> bool {
+        self.peek_next_link_id().is_none()
     }
 
     fn curr_link_id(&self) -> Option<&Id<Link>> {
@@ -191,6 +184,17 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             .as_network()
             .unwrap()
             .route_element_at(next_i)
+    }
+
+    fn wakeup_time(&self, now: u32) -> u32 {
+        match self
+            .basic_agent_delegate
+            .plan_element_at(self.curr_plan_element)
+            .unwrap()
+        {
+            InternalPlanElement::Activity(a) => a.cmp_end_time(now),
+            InternalPlanElement::Leg(_) => panic!("Cannot wake up on a leg!"),
+        }
     }
 }
 
@@ -228,6 +232,22 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         self.delegate.advance_plan();
     }
 
+    fn state(&self) -> SimulationAgentState {
+        self.delegate.state()
+    }
+
+    fn is_wanting_to_arrive_on_current_link(&self) -> bool {
+        self.delegate.is_wanting_to_arrive_on_current_link()
+    }
+
+    fn curr_link_id(&self) -> Option<&Id<Link>> {
+        self.delegate.curr_link_id()
+    }
+
+    fn peek_next_link_id(&self) -> Option<&Id<Link>> {
+        self.delegate.peek_next_link_id()
+    }
+
     fn wakeup_time(&self, now: u32) -> u32 {
         let mut end = self.delegate.curr_act().cmp_end_time(now);
         if let Some(l) = self.delegate.next_leg() {
@@ -239,18 +259,6 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
             }
         }
         end
-    }
-
-    fn state(&self) -> SimulationAgentState {
-        self.delegate.state()
-    }
-
-    fn curr_link_id(&self) -> Option<&Id<Link>> {
-        self.delegate.curr_link_id()
-    }
-
-    fn peek_next_link_id(&self) -> Option<&Id<Link>> {
-        self.delegate.peek_next_link_id()
     }
 }
 
