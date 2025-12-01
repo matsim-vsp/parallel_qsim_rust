@@ -14,6 +14,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::rc::Rc;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
 
 // equil scenario
 // const NETWORK_FILE: &[u8] = include_bytes!("assets/equil/equil-network.binpb");
@@ -72,6 +74,12 @@ struct AllTrips {
 #[derive(Resource)]
 struct SimulationClock {
     time: f32,
+}
+
+// Resource that contains the receiver side of the event channel.
+#[derive(Resource, Clone)]
+struct EventsChannel {
+    receiver: Arc<Mutex<mpsc::Receiver<Vec<MyEvent>>>>,
 }
 
 // network
@@ -274,6 +282,31 @@ fn build_vehicle_trips() -> AllTrips {
     trips
 }
 
+// This method starts a new thread that reads all events from the proto events file and
+// sends them through a channel to the visualization (main thread).
+fn start_events_thread() -> EventsChannel {
+    // create a channel for sending events between threads
+    let (tx, rx) = mpsc::channel::<Vec<MyEvent>>();
+
+    // create a new thread for reading events
+    thread::spawn(move || {
+        // reader for all proto events
+        let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
+
+        // iterate over all events and send them through the channel
+        // if there is an error, the thread will stop
+        for (_time, events_at_time) in reader {
+            if tx.send(events_at_time).is_err() {
+                break;
+            }
+        }
+    });
+
+    EventsChannel {
+        receiver: Arc::new(Mutex::new(rx)),
+    }
+}
+
 // this method updates the simulation time based on the real time delta and the timescale.
 fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
     clock.time += time.delta_secs() * TIME_SCALE;
@@ -312,19 +345,8 @@ fn main() {
     // read all events and build traversed links per vehicle
     let trips = build_vehicle_trips();
 
-    // print all trips with time and link id for debugging
-    // println!("--- Trips overview ---");
-    // for (vehicle_id, trips_for_vehicle) in &trips.per_vehicle {
-    //     println!("Vehicle {vehicle_id}:");
-    //     for (idx, trip) in trips_for_vehicle.iter().enumerate() {
-    //         let links: Vec<String> = trip
-    //             .links
-    //             .iter()
-    //             .map(|l| format!("{} {}", format_sim_time(l.start_time), l.link_id))
-    //             .collect();
-    //         println!("  Trip {idx}: [{}]", links.join(", "));
-    //     }
-    // }
+    // create the event channel between the simulation thread and the visualization.
+    let events_channel = start_events_thread();
 
     let sim_clock = SimulationClock {
         time: trips.first_start,
@@ -334,6 +356,7 @@ fn main() {
     App::new()
         .insert_resource(trips)
         .insert_resource(sim_clock)
+        .insert_resource(events_channel)
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
@@ -361,6 +384,7 @@ fn main() {
             Update,
             (
                 simulation_time,
+                receive_events_from_channel,
                 draw_network,
                 draw_vehicles,
                 update_time_and_fps,
@@ -490,12 +514,12 @@ fn update_time_and_fps(
     }
 }
 
-// fn format_sim_time(seconds: f32) -> String {
-//     let total_seconds = seconds.max(0.0) as i32;
-//     let hours = (total_seconds / 3600) % 24;
-//     let minutes = (total_seconds / 60) % 60;
-//     format!("{:02}:{:02}", hours, minutes)
-// }
+// This method receives all events from the event channel
+fn receive_events_from_channel(events_channel: Res<EventsChannel>) {
+    if let Ok(receiver) = events_channel.receiver.lock() {
+        while let Ok(_timed_events) = receiver.try_recv() {}
+    }
+}
 
 // set the camera position and zoom to fit the network
 fn fit_camera_to_network(
