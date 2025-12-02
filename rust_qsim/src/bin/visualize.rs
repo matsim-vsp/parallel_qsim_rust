@@ -258,11 +258,8 @@ fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut E
     });
 }
 
-// this method reads all proto events and sends them through the EventsPublisher
-fn build_vehicle_trips() -> AllTrips {
-    // reader for all ProtoEvents
-    let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
-
+// this method receives proto events from a channel and sends them through the EventsPublisher
+fn build_vehicle_trips(receiver: mpsc::Receiver<(u32, Vec<MyEvent>)>) -> AllTrips {
     // create a new TripsBuilder to collect all traversed links
     let builder = Rc::new(RefCell::new(TripsBuilder::default()));
 
@@ -270,8 +267,8 @@ fn build_vehicle_trips() -> AllTrips {
     let mut publisher = EventsPublisher::new();
     register_trips_listener(builder.clone(), &mut publisher);
 
-    // iterate over all events
-    for (time, events_at_time) in reader {
+    // receive all events from the channel
+    while let Ok((time, events_at_time)) = receiver.recv() {
         process_events(time, &events_at_time, &mut publisher);
     }
 
@@ -283,28 +280,36 @@ fn build_vehicle_trips() -> AllTrips {
 }
 
 // This method starts a new thread that reads all events from the proto events file and
-// sends them through a channel to the visualization (main thread).
-fn start_events_thread() -> EventsChannel {
-    // create a channel for sending events between threads
-    let (tx, rx) = mpsc::channel::<Vec<MyEvent>>();
+// sends them through two channels: one for building trips and one for visualization.
+fn start_events_thread() -> (mpsc::Receiver<(u32, Vec<MyEvent>)>, EventsChannel) {
+    // create channels for sending events between threads
+    let (tx_trips, rx_trips) = mpsc::channel::<(u32, Vec<MyEvent>)>();
+    let (tx_viz, rx_viz) = mpsc::channel::<Vec<MyEvent>>();
 
     // create a new thread for reading events
     thread::spawn(move || {
         // reader for all proto events
         let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
-        // iterate over all events and send them through the channel
-        // if there is an error, the thread will stop
-        for (_time, events_at_time) in reader {
-            if tx.send(events_at_time).is_err() {
+        // iterate over all events and send them through both channels
+        // if there is an error on any channel, the thread will stop
+        for (time, events_at_time) in reader {
+            // send to trips builder channel
+            if tx_trips.send((time, events_at_time.clone())).is_err() {
+                break;
+            }
+            // send to visualization channel
+            if tx_viz.send(events_at_time).is_err() {
                 break;
             }
         }
     });
 
-    EventsChannel {
-        receiver: Mutex::new(rx),
-    }
+    let events_channel = EventsChannel {
+        receiver: Mutex::new(rx_viz),
+    };
+
+    (rx_trips, events_channel)
 }
 
 // this method updates the simulation time based on the real time delta and the timescale.
@@ -342,8 +347,12 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
 }
 
 fn main() {
-    // read all events and build traversed links per vehicle
-    let trips = build_vehicle_trips();
+    // start the event reading thread which reads the events file once
+    // and sends events to both the trips builder and the visualization
+    let (trips_receiver, events_channel) = start_events_thread();
+
+    // receive all events from the channel and build traversed links per vehicle
+    let trips = build_vehicle_trips(trips_receiver);
 
     // println!("All Trips:");
     // for (vehicle_id, trips_for_vehicle) in &trips.per_vehicle {
@@ -367,9 +376,6 @@ fn main() {
     //     }
     //     println!("");
     // }
-
-    // create the event channel between the simulation thread and the visualization.
-    let events_channel = start_events_thread();
 
     let sim_clock = SimulationClock {
         time: trips.first_start,
