@@ -17,6 +17,10 @@ use std::rc::Rc;
 use std::sync::{mpsc, Mutex};
 use std::thread;
 
+// ============================================================================
+// CONSTANTS & CONFIGURATION
+// ============================================================================
+
 // equil scenario
 // const NETWORK_FILE: &[u8] = include_bytes!("assets/equil/equil-network.binpb");
 // const VEHICLES_FILE: &[u8] = include_bytes!("assets/equil/equil-vehicles.binpb");
@@ -35,19 +39,9 @@ const WAIT_STACK_OFFSET: f32 = 8.0;
 // if the value is to small the fps value is not readable
 const TIME_FPS_UPDATE_EVERY_N_FRAMES: u32 = 50;
 
-// Network node
-// #[derive(Component, Debug)]
-// struct Node {
-//     id: String,     // node id
-//     position: Vec2, // node position (x, y)
-// }
-
-// Network link
-// #[derive(Component, Debug)]
-// struct Link {
-//     from_id: String, // start node id
-//     to_id: String,   // end node id
-// }
+// ============================================================================
+// DATA STRUCTURES & RESOURCES
+// ============================================================================
 
 // Defines a traversed link
 #[derive(Clone)]
@@ -111,6 +105,10 @@ struct TimeFpsText;
 struct VehiclesData {
     vehicles: HashMap<String, Vehicle>,
 }
+
+// ============================================================================
+// TRIPS BUILDER (Event Processing in Thread)
+// ============================================================================
 
 #[derive(Default)]
 struct TripsBuilder {
@@ -247,15 +245,48 @@ impl TripsBuilder {
     }
 }
 
-// registers a listener on the EventsPublisher that dends all events to the TripsBuilder
+// ============================================================================
+// EVENT PROCESSING & THREADING
+// ============================================================================
+
+// registers a listener on the EventsPublisher that sends all events to the TripsBuilder
 fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut EventsPublisher) {
     // create a clone of the TripsBuilder
     let builder_for_events = builder.clone();
 
-    // send every published event to ther TripsBuilder
+    // send every published event to the TripsBuilder
     publisher.on_any(move |event| {
         builder_for_events.borrow_mut().handle_event(event);
     });
+}
+
+#[rustfmt::skip]
+fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
+    for proto_event in events {
+        let mut proto_event = proto_event.clone();
+        if !proto_event.attributes.contains_key("type") {
+            proto_event
+                .attributes
+                .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
+        }
+
+        let type_ = proto_event.attributes["type"].as_string();
+        let internal_event: Box<dyn EventTrait> = match type_.as_str() {
+            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
+            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(&proto_event, time)),
+            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(&proto_event, time)),
+            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(&proto_event, time)),
+            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(&proto_event, time)),
+            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(&proto_event, time)),
+            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(&proto_event, time)),
+            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(&proto_event, time)),
+            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(&proto_event, time)),
+            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(&proto_event, time)),
+            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
+            _ => panic!("Unknown event type: {:?}", type_),
+        };
+        publisher.publish_event(internal_event.as_ref());
+    }
 }
 
 // this method receives proto events from a channel and sends them through the EventsPublisher
@@ -312,115 +343,16 @@ fn start_events_thread() -> (mpsc::Receiver<(u32, Vec<MyEvent>)>, EventsChannel)
     (rx_trips, events_channel)
 }
 
-// this method updates the simulation time based on the real time delta and the timescale.
-fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
-    clock.time += time.delta_secs() * TIME_SCALE;
-}
-
-#[rustfmt::skip]
-fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
-    for proto_event in events {
-        let mut proto_event = proto_event.clone();
-        if !proto_event.attributes.contains_key("type") {
-            proto_event
-                .attributes
-                .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
-        }
-
-        let type_ = proto_event.attributes["type"].as_string();
-        let internal_event: Box<dyn EventTrait> = match type_.as_str() {
-            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
-            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(&proto_event, time)),
-            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(&proto_event, time)),
-            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(&proto_event, time)),
-            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(&proto_event, time)),
-            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(&proto_event, time)),
-            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(&proto_event, time)),
-            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(&proto_event, time)),
-            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(&proto_event, time)),
-            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(&proto_event, time)),
-            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
-            _ => panic!("Unknown event type: {:?}", type_),
-        };
-        publisher.publish_event(internal_event.as_ref());
+// This method receives all events from the event channel
+fn receive_events_from_channel(events_channel: Res<EventsChannel>) {
+    if let Ok(receiver) = events_channel.receiver.lock() {
+        while let Ok(_timed_events) = receiver.try_recv() {}
     }
 }
 
-fn main() {
-    // start the event reading thread which reads the events file once
-    // and sends events to both the trips builder and the visualization
-    let (trips_receiver, events_channel) = start_events_thread();
-
-    // receive all events from the channel and build traversed links per vehicle
-    let trips = build_vehicle_trips(trips_receiver);
-
-    // println!("All Trips:");
-    // for (vehicle_id, trips_for_vehicle) in &trips.per_vehicle {
-    //     println!("Vehicle ID: {}", vehicle_id);
-    //     if trips_for_vehicle.is_empty() {
-    //         continue;
-    //     }
-    //     for (i, trip) in trips_for_vehicle.iter().enumerate() {
-    //         println!("  Trip {}:", i + 1);
-    //         if trip.links.is_empty() {
-    //             continue;
-    //         }
-    //         for (j, link) in trip.links.iter().enumerate() {
-    //             println!(
-    //                 "    {}. Link ID: {}, Start Time: {}",
-    //                 j + 1,
-    //                 link.link_id,
-    //                 link.start_time
-    //             );
-    //         }
-    //     }
-    //     println!("");
-    // }
-
-    let sim_clock = SimulationClock {
-        time: trips.first_start,
-    };
-
-    // init bevy app
-    App::new()
-        .insert_resource(trips)
-        .insert_resource(sim_clock)
-        .insert_resource(events_channel)
-        .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "Network Viewer".into(),
-                    resolution: (1200, 800).into(),
-                    resizable: true,
-                    ..default()
-                }),
-                ..default()
-            }),
-            PanCamPlugin::default(),
-        ))
-        .add_systems(
-            Startup,
-            (
-                read_and_parse_network,
-                read_and_parse_vehicles,
-                fit_camera_to_network,
-                setup,
-                setup_ui,
-            )
-                .chain(),
-        )
-        .add_systems(
-            Update,
-            (
-                simulation_time,
-                receive_events_from_channel,
-                draw_network,
-                draw_vehicles,
-                update_time_and_fps,
-            ),
-        )
-        .run();
-}
+// ============================================================================
+// DATA LOADING (Network & Vehicles)
+// ============================================================================
 
 // This method reads and parses the network protobuf file.
 fn read_and_parse_network(mut commands: Commands) {
@@ -474,70 +406,24 @@ fn read_and_parse_vehicles(mut commands: Commands) {
     commands.insert_resource(VehiclesData { vehicles });
 }
 
+// ============================================================================
+// SIMULATION TIME
+// ============================================================================
+
+// this method updates the simulation time based on the real time delta and the timescale.
+fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
+    clock.time += time.delta_secs() * TIME_SCALE;
+}
+
+// ============================================================================
+// CAMERA & VIEW SETUP
+// ============================================================================
+
 // creates the camera for visualization
 fn setup(mut commands: Commands) {
     // Spawn a simple 2D camera that supports panning and zooming via PanCam.
     commands.spawn((Camera2d, PanCam::default()));
     // commands.spawn((Camera2d));
-}
-
-// creates a simple ui text in the top-right corner showing simulation time and fps
-fn setup_ui(mut commands: Commands) {
-    commands.spawn((
-        UiNode {
-            position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            right: Val::Px(10.0),
-            ..Default::default()
-        },
-        Text::new("Sim Time: 00:00  FPS:     "),
-        TextFont {
-            font_size: 18.0,
-            ..Default::default()
-        },
-        TextColor(Color::srgb(1.0, 1.0, 1.0)),
-        TimeFpsText,
-    ));
-}
-
-// updates the ui text every frame with the current simulation time and an approximate fps value
-fn update_time_and_fps(
-    mut frame_counter: Local<u32>,
-    time: Res<Time>,
-    clock: Res<SimulationClock>,
-    mut query: Query<&mut Text, With<TimeFpsText>>,
-) {
-    *frame_counter += 1;
-    if *frame_counter % TIME_FPS_UPDATE_EVERY_N_FRAMES != 0 {
-        return;
-    }
-
-    let sim_time = clock.time;
-    let delta = time.delta_secs();
-    let fps = if delta > 0.0 {
-        (1.0 / delta).round() as i32
-    } else {
-        0
-    };
-
-    // the simulation time is defined in seconds since 0:00
-    let total_seconds = sim_time.max(0.0) as i32;
-    let hours = (total_seconds / 3600) % 24;
-    let minutes = (total_seconds / 60) % 60;
-
-    let content = format!("Sim Time: {:02}:{:02}  FPS: {:>4}", hours, minutes, fps);
-
-    for mut text in &mut query {
-        text.0.clear();
-        text.0.push_str(&content);
-    }
-}
-
-// This method receives all events from the event channel
-fn receive_events_from_channel(events_channel: Res<EventsChannel>) {
-    if let Ok(receiver) = events_channel.receiver.lock() {
-        while let Ok(_timed_events) = receiver.try_recv() {}
-    }
 }
 
 // set the camera position and zoom to fit the network
@@ -605,6 +491,66 @@ fn fit_camera_to_network(
         scale,
     });
 }
+
+// ============================================================================
+// UI SETUP & UPDATE
+// ============================================================================
+
+// creates a simple ui text in the top-right corner showing simulation time and fps
+fn setup_ui(mut commands: Commands) {
+    commands.spawn((
+        UiNode {
+            position_type: PositionType::Absolute,
+            top: Val::Px(10.0),
+            right: Val::Px(10.0),
+            ..Default::default()
+        },
+        Text::new("Sim Time: 00:00  FPS:     "),
+        TextFont {
+            font_size: 18.0,
+            ..Default::default()
+        },
+        TextColor(Color::srgb(1.0, 1.0, 1.0)),
+        TimeFpsText,
+    ));
+}
+
+// updates the ui text every frame with the current simulation time and an approximate fps value
+fn update_time_and_fps(
+    mut frame_counter: Local<u32>,
+    time: Res<Time>,
+    clock: Res<SimulationClock>,
+    mut query: Query<&mut Text, With<TimeFpsText>>,
+) {
+    *frame_counter += 1;
+    if *frame_counter % TIME_FPS_UPDATE_EVERY_N_FRAMES != 0 {
+        return;
+    }
+
+    let sim_time = clock.time;
+    let delta = time.delta_secs();
+    let fps = if delta > 0.0 {
+        (1.0 / delta).round() as i32
+    } else {
+        0
+    };
+
+    // the simulation time is defined in seconds since 0:00
+    let total_seconds = sim_time.max(0.0) as i32;
+    let hours = (total_seconds / 3600) % 24;
+    let minutes = (total_seconds / 60) % 60;
+
+    let content = format!("Sim Time: {:02}:{:02}  FPS: {:>4}", hours, minutes, fps);
+
+    for mut text in &mut query {
+        text.0.clear();
+        text.0.push_str(&content);
+    }
+}
+
+// ============================================================================
+// RENDERING (Network & Vehicles)
+// ============================================================================
 
 fn draw_network(mut gizmos: Gizmos, network: Res<NetworkData>, view: Option<Res<ViewSettings>>) {
     // use current view settings (if not defined use default values as fallback)
@@ -795,4 +741,61 @@ fn draw_vehicles(
             gizmos.circle_2d(position_view, 4.0, Color::srgb(0.0, 1.0, 0.0));
         }
     }
+}
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+fn main() {
+    // start the event reading thread which reads the events file once
+    // and sends events to both the trips builder and the visualization
+    let (trips_receiver, events_channel) = start_events_thread();
+
+    // receive all events from the channel and build traversed links per vehicle
+    let trips = build_vehicle_trips(trips_receiver);
+
+    let sim_clock = SimulationClock {
+        time: trips.first_start,
+    };
+
+    // init bevy app
+    App::new()
+        .insert_resource(trips)
+        .insert_resource(sim_clock)
+        .insert_resource(events_channel)
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "MATSim Rust OTF Viz".into(),
+                    resolution: (1200, 800).into(),
+                    resizable: true,
+                    ..default()
+                }),
+                ..default()
+            }),
+            PanCamPlugin::default(),
+        ))
+        .add_systems(
+            Startup,
+            (
+                read_and_parse_network,
+                read_and_parse_vehicles,
+                fit_camera_to_network,
+                setup,
+                setup_ui,
+            )
+                .chain(),
+        )
+        .add_systems(
+            Update,
+            (
+                simulation_time,
+                receive_events_from_channel,
+                draw_network,
+                draw_vehicles,
+                update_time_and_fps,
+            ),
+        )
+        .run();
 }
