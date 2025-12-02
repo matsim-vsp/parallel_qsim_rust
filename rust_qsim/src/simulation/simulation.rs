@@ -59,6 +59,8 @@ where
         self.comp_env.events_publisher_borrow_mut().finish();
     }
 
+    /// Performs a sim step for the activity engine and the leg engine.
+    /// If an agent switches from leg engine to activity engine (i.e., ends a leg), the activity starts in the next time step.
     fn do_sim_step(&mut self, now: u32, agents: Vec<SimulationAgent>) -> Vec<SimulationAgent> {
         let mut agents_act_to_leg = self.activity_engine.do_step(now, agents);
         for agent in &mut agents_act_to_leg {

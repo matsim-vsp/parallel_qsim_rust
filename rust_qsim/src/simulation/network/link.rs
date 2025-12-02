@@ -2,7 +2,6 @@ use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
-use crate::simulation::network::sim_network::StorageUpdate;
 use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::network::Node;
@@ -98,15 +97,28 @@ impl SimLink {
         }
     }
 
-    pub fn used_storage(&self) -> f32 {
+    pub(super) fn is_active(&self) -> bool {
         match self {
-            SimLink::Local(ll) => ll.storage_cap.currently_used(),
-            SimLink::In(il) => il.local_link.storage_cap.currently_used(),
-            SimLink::Out(ol) => ol.storage_cap.currently_used(),
+            SimLink::Local(ll) => ll.is_active(),
+            SimLink::In(il) => il.local_link.is_active(),
+            SimLink::Out(o) => {
+                panic!(
+                    "Trying to check whether out link {} is active. This is not possible.",
+                    o.id
+                )
+            }
         }
     }
 
-    pub fn push_veh(&mut self, vehicle: InternalVehicle, now: u32) {
+    pub(super) fn used_storage(&self) -> f32 {
+        match self {
+            SimLink::Local(ll) => ll.storage_cap.used(),
+            SimLink::In(il) => il.local_link.storage_cap.used(),
+            SimLink::Out(ol) => ol.storage_cap.used(),
+        }
+    }
+
+    pub(super) fn push_veh(&mut self, vehicle: InternalVehicle, now: u32) {
         match self {
             SimLink::Local(l) => l.push_veh(vehicle, now),
             SimLink::In(il) => il.local_link.push_veh(vehicle, now),
@@ -114,19 +126,8 @@ impl SimLink {
         }
     }
 
-    /// This method pushes a vehicle directly into the buffer
-    pub fn push_veh_to_buffer(&mut self, vehicle: InternalVehicle, _now: u32) {
-        match self {
-            SimLink::Local(ll) => ll.push_veh_to_buffer(vehicle),
-            SimLink::In(il) => il.local_link.push_veh_to_buffer(vehicle),
-            SimLink::Out(_) => {
-                panic!("Can't push vehicle to buffer on out link")
-            }
-        }
-    }
-
     /// This method pushes a vehicle to the waiting list, which has priority over vehicles in q
-    pub fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
+    pub(super) fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
         match self {
             SimLink::Local(ll) => ll.push_veh_to_waiting_list(vehicle),
             SimLink::In(il) => il.local_link.push_veh_to_waiting_list(vehicle),
@@ -146,22 +147,13 @@ impl SimLink {
         }
     }
 
-    pub fn update_flow_cap(&mut self, now: u32) {
+    #[cfg(test)]
+    fn update_flow_cap(&mut self, now: u32) {
         match self {
             SimLink::Local(ll) => ll.update_flow_cap(now),
             SimLink::In(il) => il.local_link.update_flow_cap(now),
             SimLink::Out(_) => {
                 panic!("can't update flow cap on out links.")
-            }
-        }
-    }
-
-    pub fn update_released_storage_cap(&mut self) {
-        match self {
-            SimLink::Local(l) => l.apply_storage_cap_updates(),
-            SimLink::In(l) => l.local_link.apply_storage_cap_updates(),
-            SimLink::Out(_) => {
-                panic!("Can't update storage capapcity on out link.")
             }
         }
     }
@@ -211,7 +203,7 @@ impl LocalLink {
             waiting_list: VecDeque::new(),
             length: 1.0,
             free_speed: 1.0,
-            storage_cap: StorageCap::new(0., 1., 1., 1.0, 7.5),
+            storage_cap: StorageCap::build(0., 1., 1., 1.0, 7.5),
             flow_cap: Flowcap::new(3600., 1.0),
             stuck_timer: StuckTimer::new(u32::MAX),
             from,
@@ -230,7 +222,7 @@ impl LocalLink {
         from: Id<Node>,
         to: Id<Node>,
     ) -> Self {
-        let storage_cap = StorageCap::new(
+        let storage_cap = StorageCap::build(
             length,
             perm_lanes,
             capacity_h,
@@ -273,7 +265,6 @@ impl LocalLink {
 
     /// Push a vehicle into the waiting list.
     pub fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
-        // self.storage_cap.consume(vehicle.pce);
         self.waiting_list.push_back(vehicle);
     }
 
@@ -282,11 +273,13 @@ impl LocalLink {
     /// 2. Check if there are vehicles in the queue that have reached their earliest exit time and move them to the buffer.
     ///
     /// Both is done only if the flow capacity allows this.
+    ///
+    /// Returns the vehicles that end their leg on the link
     pub fn do_sim_step(&mut self, now: u32) -> Vec<InternalVehicle> {
         self.update_flow_cap(now);
-        self.apply_storage_cap_updates();
-        self.add_waiting_to_buffer();
-        self.add_queue_to_buffer(now)
+        let mut ending_vehicles = self.add_waiting_to_buffer();
+        ending_vehicles.append(&mut self.add_queue_to_buffer(now));
+        ending_vehicles
     }
 
     fn add_queue_to_buffer(&mut self, now: u32) -> Vec<InternalVehicle> {
@@ -311,19 +304,24 @@ impl LocalLink {
             let capacity_left = self.has_flow_capacity_left(&veh.vehicle);
             let exit = veh.earliest_exit_time <= now;
 
+            // If the earliest exit time has not passed, nothing to do
+            if !exit {
+                break;
+            }
+
+            // If the vehicle wants to arrive, remove it from the queue
             if arrive {
-                released_vehicles.push(self.q.pop_front().unwrap().vehicle);
+                let veh = self.q.pop_front().unwrap().vehicle;
+                self.storage_cap.release(veh.pce);
+                released_vehicles.push(veh);
                 continue;
             }
 
+            // If the vehicle wants to move to another link, put it into buffer
             if capacity_left {
-                if exit {
-                    let veh = self.q.pop_front().unwrap().vehicle;
-                    self.storage_cap.release(veh.pce);
-                    self.buffer.push_back(veh);
-                } else {
-                    break;
-                }
+                let veh = self.q.pop_front().unwrap().vehicle;
+                self.storage_cap.release(veh.pce);
+                self.buffer.push_back(veh);
             } else {
                 break;
             }
@@ -332,13 +330,26 @@ impl LocalLink {
         released_vehicles
     }
 
-    fn add_waiting_to_buffer(&mut self) {
+    fn add_waiting_to_buffer(&mut self) -> Vec<InternalVehicle> {
+        let mut released_vehicles = vec![];
+
         loop {
-            let option = self.waiting_list.get(0);
+            let option = self.waiting_list.front();
 
             // If waiting list is empty, break the loop.
             if option.is_none() {
                 break;
+            }
+
+            if option
+                .unwrap()
+                .driver
+                .as_ref()
+                .unwrap()
+                .is_wanting_to_arrive_on_current_link()
+            {
+                released_vehicles.push(self.waiting_list.pop_front().unwrap());
+                continue;
             }
 
             if self.is_accepting_from_wait(option.unwrap()) {
@@ -348,6 +359,8 @@ impl LocalLink {
                 break;
             }
         }
+
+        released_vehicles
     }
 
     fn is_accepting_from_wait(&self, veh: &InternalVehicle) -> bool {
@@ -378,7 +391,7 @@ impl LocalLink {
         self.flow_cap.update_capacity(now);
     }
 
-    /// This method returns the next vehicle that is allowed to leave the connection and checks
+    /// This method returns the next vehicle allowed to leave the connection and checks
     /// whether flow capacity is available.
     fn offers_vehicle(&self, now: u32) -> Option<&InternalVehicle> {
         if let Some(entry) = self.buffer.front() {
@@ -399,12 +412,9 @@ impl LocalLink {
         self.storage_cap.is_available()
     }
 
-    fn apply_storage_cap_updates(&mut self) {
-        self.storage_cap.apply_updates();
-    }
-
-    pub fn used_storage(&self) -> f32 {
-        self.storage_cap.currently_used()
+    /// A link is active, if either the queue, waiting_list or buffer is not empty.
+    pub(super) fn is_active(&self) -> bool {
+        !self.q.is_empty() || !self.waiting_list.is_empty() || !self.buffer.is_empty()
     }
 
     fn from(&self) -> &Id<Node> {
@@ -437,7 +447,7 @@ impl SplitOutLink {
         sample_size: f32,
         to_part: u32,
     ) -> SplitOutLink {
-        let storage_cap = StorageCap::new(
+        let storage_cap = StorageCap::build(
             link.length,
             link.permlanes,
             link.capacity,
@@ -455,11 +465,9 @@ impl SplitOutLink {
 
     pub fn apply_storage_cap_update(&mut self, released: f32) {
         self.storage_cap.consume(-released);
-        self.storage_cap.apply_updates();
     }
 
     pub fn take_veh(&mut self) -> VecDeque<InternalVehicle> {
-        self.storage_cap.apply_updates();
         std::mem::take(&mut self.q)
     }
 
@@ -476,28 +484,15 @@ pub struct SplitInLink {
 }
 
 impl SplitInLink {
-    pub fn new(from_part: u32, local_link: LocalLink) -> Self {
+    pub(super) fn new(from_part: u32, local_link: LocalLink) -> Self {
         SplitInLink {
             from_part,
             local_link,
         }
     }
 
-    pub fn storage_cap_updates(&self) -> Option<StorageUpdate> {
-        if self.has_released() {
-            let released = self.local_link.storage_cap.released();
-            Some(StorageUpdate {
-                link_id: self.local_link.id.clone(),
-                released,
-                from_part: self.from_part,
-            })
-        } else {
-            None
-        }
-    }
-
-    pub fn has_released(&self) -> bool {
-        self.local_link.storage_cap.released() > 0.
+    pub(super) fn occupied_storage(&self) -> f32 {
+        self.local_link.storage_cap.used()
     }
 }
 
@@ -557,11 +552,10 @@ mod sim_link_tests {
         // immediately
         assert_eq!(1.5, link.used_storage());
 
-        // by calling release, the accumulated released storage cap, should be freed.
-        link.update_released_storage_cap();
         assert_eq!(0., link.used_storage());
         if let SimLink::Local(ll) = link {
-            assert_eq!(0., ll.storage_cap.released()); // test internal prop here, because I am too lazy for a more complex test
+            // assert_eq!(0., ll.storage_cap.released()); // test internal prop here, because I am too lazy for a more complex test
+            unimplemented!()
         }
     }
 
@@ -768,7 +762,7 @@ mod out_link_tests {
             id: Id::new_internal(0),
             to_part: 1,
             q: Default::default(),
-            storage_cap: StorageCap::new(100., 1., 1., 1., 1.),
+            storage_cap: StorageCap::build(100., 1., 1., 1., 1.),
         });
         let id1 = 42;
         let id2 = 43;
@@ -803,9 +797,8 @@ mod out_link_tests {
     #[integration_test]
     fn update_storage_caps() {
         // set up the link, so that we consume two units of storage.
-        let mut cap = StorageCap::new(100., 1., 1., 1., 1.);
+        let mut cap = StorageCap::build(100., 1., 1., 1., 1.);
         cap.consume(2.);
-        cap.apply_updates();
         let mut out_link = SplitOutLink {
             id: Id::new_internal(0),
             to_part: 1,
@@ -813,9 +806,9 @@ mod out_link_tests {
             storage_cap: cap,
         };
 
-        assert_eq!(2., out_link.storage_cap.currently_used());
+        assert_eq!(2., out_link.storage_cap.used());
         out_link.apply_storage_cap_update(2.);
 
-        assert_eq!(0., out_link.storage_cap.currently_used());
+        assert_eq!(0., out_link.storage_cap.used());
     }
 }

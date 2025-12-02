@@ -59,6 +59,15 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
+    /// Performs a sim step for the leg engine. Note that vehicles that leave a link and move to another link are always processed one time step later.
+    /// This is in line with the Java reference implementation. The reason is that the order is:
+    ///
+    /// 1. `move_nodes`
+    /// 2. `move_links`
+    ///
+    /// Let's say, a vehicle's earliest exit time is `x`. The `move_links` call puts it into the buffer
+    /// at time step `x` (assuming it is free), and the `move_nodes` call at time step `x+1` puts it onto the next link.
+    /// The corresponding LinkEnter and LinkLeave events have time step `x+1`
     #[instrument(level = "trace", skip(self, agents), fields(rank=self.net_message_broker.rank()))]
     pub(crate) fn do_step(
         &mut self,

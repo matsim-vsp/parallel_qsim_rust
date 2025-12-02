@@ -16,13 +16,11 @@
 #[derive(Debug, Clone)]
 pub struct StorageCap {
     max: f32,
-    released: f32,
-    consumed: f32,
     used: f32,
 }
 
 impl StorageCap {
-    pub fn new(
+    pub fn build(
         length: f64,
         perm_lanes: f32,
         capacity_h: f32,
@@ -39,18 +37,12 @@ impl StorageCap {
 
         Self {
             max: max_storage_cap,
-            released: 0.0,
-            consumed: 0.0,
             used: 0.0,
         }
     }
 
-    pub fn currently_used(&self) -> f32 {
-        self.used + self.consumed
-    }
-
-    pub fn released(&self) -> f32 {
-        self.released
+    pub fn used(&self) -> f32 {
+        self.used
     }
 
     /// Consumes storage capacity on a link
@@ -60,27 +52,19 @@ impl StorageCap {
     /// # Parameters
     /// * 'value' storage capacity to be consumed
     pub fn consume(&mut self, value: f32) {
-        self.consumed += value;
+        self.used += value;
     }
 
     /// Releases storage capacity on a link
     ///
     /// This method should be called when a vehicle leaves a link
     pub fn release(&mut self, value: f32) {
-        self.released += value;
-    }
-
-    /// Applies consumed and released capacity during a simulated time step to the state of the storage capacity.
-    /// Resets the released and consumed variables.
-    pub fn apply_updates(&mut self) {
-        self.used = 0f32.max(self.currently_used() - self.released);
-        self.released = 0.0;
-        self.consumed = 0.0;
+        self.used -= value;
     }
 
     /// Tests whether there is storage capacity available on the link.
     pub fn is_available(&self) -> bool {
-        let available_cap = self.max - self.currently_used();
+        let available_cap = self.max - self.used();
         available_cap > 0.0
     }
 }
@@ -91,13 +75,13 @@ mod test {
 
     #[test]
     fn init_default() {
-        let cap = StorageCap::new(100., 3., 1., 0.2, 7.5);
+        let cap = StorageCap::build(100., 3., 1., 0.2, 7.5);
         assert_eq!(8., cap.max);
     }
 
     #[test]
     fn init_large_capacity() {
-        let cap = StorageCap::new(100., 3., 360000., 0.2, 7.5);
+        let cap = StorageCap::build(100., 3., 360000., 0.2, 7.5);
         // we expect a storage size of 20. because it the flow cap/s is 20 (36000 * 0.2 / 3600)
         assert_eq!(20., cap.max);
     }
