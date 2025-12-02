@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::rc::Rc;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Mutex};
 use std::thread;
 
 // equil scenario
@@ -36,18 +36,18 @@ const WAIT_STACK_OFFSET: f32 = 8.0;
 const TIME_FPS_UPDATE_EVERY_N_FRAMES: u32 = 50;
 
 // Network node
-#[derive(Component, Debug)]
-struct Node {
-    id: String,     // node id
-    position: Vec2, // node position (x, y)
-}
+// #[derive(Component, Debug)]
+// struct Node {
+//     id: String,     // node id
+//     position: Vec2, // node position (x, y)
+// }
 
 // Network link
-#[derive(Component, Debug)]
-struct Link {
-    from_id: String, // start node id
-    to_id: String,   // end node id
-}
+// #[derive(Component, Debug)]
+// struct Link {
+//     from_id: String, // start node id
+//     to_id: String,   // end node id
+// }
 
 // Defines a traversed link
 #[derive(Clone)]
@@ -77,9 +77,9 @@ struct SimulationClock {
 }
 
 // Resource that contains the receiver side of the event channel.
-#[derive(Resource, Clone)]
+#[derive(Resource)]
 struct EventsChannel {
-    receiver: Arc<Mutex<mpsc::Receiver<Vec<MyEvent>>>>,
+    receiver: Mutex<mpsc::Receiver<Vec<MyEvent>>>,
 }
 
 // network
@@ -126,7 +126,7 @@ struct TripsBuilder {
 
 impl TripsBuilder {
     // create a new TripsBuilder
-    fn new() -> Self {
+    fn default() -> Self {
         Self {
             current_link_per_vehicle: HashMap::new(),
             current_trip_per_vehicle: HashMap::new(),
@@ -264,7 +264,7 @@ fn build_vehicle_trips() -> AllTrips {
     let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
     // create a new TripsBuilder to collect all traversed links
-    let builder = Rc::new(RefCell::new(TripsBuilder::new()));
+    let builder = Rc::new(RefCell::new(TripsBuilder::default()));
 
     // create a new EventsPublisher and connect it to the TripsBuilder
     let mut publisher = EventsPublisher::new();
@@ -303,7 +303,7 @@ fn start_events_thread() -> EventsChannel {
     });
 
     EventsChannel {
-        receiver: Arc::new(Mutex::new(rx)),
+        receiver: Mutex::new(rx),
     }
 }
 
@@ -344,6 +344,29 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
 fn main() {
     // read all events and build traversed links per vehicle
     let trips = build_vehicle_trips();
+
+    // println!("All Trips:");
+    // for (vehicle_id, trips_for_vehicle) in &trips.per_vehicle {
+    //     println!("Vehicle ID: {}", vehicle_id);
+    //     if trips_for_vehicle.is_empty() {
+    //         continue;
+    //     }
+    //     for (i, trip) in trips_for_vehicle.iter().enumerate() {
+    //         println!("  Trip {}:", i + 1);
+    //         if trip.links.is_empty() {
+    //             continue;
+    //         }
+    //         for (j, link) in trip.links.iter().enumerate() {
+    //             println!(
+    //                 "    {}. Link ID: {}, Start Time: {}",
+    //                 j + 1,
+    //                 link.link_id,
+    //                 link.start_time
+    //             );
+    //         }
+    //     }
+    //     println!("");
+    // }
 
     // create the event channel between the simulation thread and the visualization.
     let events_channel = start_events_thread();
@@ -406,11 +429,6 @@ fn read_and_parse_network(mut commands: Commands) {
         let x: f32 = wn.x as f32;
         let y: f32 = wn.y as f32;
 
-        // create a new node entity for bevy
-        commands.spawn(Node {
-            id: id.clone(),
-            position: Vec2::new(x, y),
-        });
         // store the node position in the network data
         network.node_positions.insert(id, Vec2::new(x, y));
     }
@@ -422,11 +440,6 @@ fn read_and_parse_network(mut commands: Commands) {
         let to_id = wl.to.clone();
         let freespeed: f32 = wl.freespeed;
 
-        // create a new link entity for bevy
-        commands.spawn(Link {
-            from_id: from_id.clone(),
-            to_id: to_id.clone(),
-        });
         // store the link endpoints in the network data
         network.link_endpoints.insert(id, (from_id, to_id));
         network.link_freespeed.insert(wl.id.clone(), freespeed);
@@ -587,12 +600,7 @@ fn fit_camera_to_network(
     });
 }
 
-fn draw_network(
-    mut gizmos: Gizmos,
-    nodes: Query<&Node>,
-    links: Query<&Link>,
-    view: Option<Res<ViewSettings>>,
-) {
+fn draw_network(mut gizmos: Gizmos, network: Res<NetworkData>, view: Option<Res<ViewSettings>>) {
     // use current view settings (if not defined use default values as fallback)
     let (center, scale) = if let Some(view) = view {
         (view.center, view.scale.max(f32::EPSILON))
@@ -601,14 +609,14 @@ fn draw_network(
     };
 
     // draw the links
-    for link in &links {
-        let from_node = nodes.iter().find(|n| n.id == link.from_id);
-        let to_node = nodes.iter().find(|n| n.id == link.to_id);
-
-        if let (Some(from), Some(to)) = (from_node, to_node) {
+    for (_link_id, (from_id, to_id)) in &network.link_endpoints {
+        if let (Some(from), Some(to)) = (
+            network.node_positions.get(from_id),
+            network.node_positions.get(to_id),
+        ) {
             gizmos.line_2d(
-                (from.position - center) / scale,
-                (to.position - center) / scale,
+                (*from - center) / scale,
+                (*to - center) / scale,
                 Color::srgb(1.0, 1.0, 1.0),
             );
         }
