@@ -8,6 +8,7 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{EventsPublisher, LinkEnterEventBuilder, LinkLeaveEventBuilder};
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
+use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
 use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::{IntMap, IntSet};
 use rand::rngs::ThreadRng;
@@ -61,12 +62,6 @@ impl<C: StableTypeId + 'static> ActiveCache<C> {
     }
 }
 
-impl<C: StableTypeId + 'static> ActiveCache<C> {
-    fn iter(&self) -> impl Iterator<Item = &Id<C>> {
-        self.active.iter()
-    }
-}
-
 impl<'a, C: StableTypeId + 'static> IntoIterator for &'a ActiveCache<C> {
     type Item = &'a Id<C>;
     type IntoIter = <&'a IntSet<Id<C>> as IntoIterator>::IntoIter;
@@ -89,6 +84,7 @@ pub struct SimNetworkPartition {
 }
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct SimNode {
     id: Id<Node>,
     in_links: Vec<Id<Link>>,
@@ -300,11 +296,9 @@ impl SimNetworkPartition {
             );
         }
 
-        if is_route_begin {
-            link.push_veh_to_waiting_list(vehicle);
-        } else {
-            link.push_veh(vehicle, now);
-        }
+        let pos = if is_route_begin { Waiting } else { QStart };
+        link.push_veh(vehicle, pos, now);
+
         self.veh_counter += 1;
 
         self.active_links.activate(link.id().clone());
@@ -321,7 +315,11 @@ impl SimNetworkPartition {
     }
 
     #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
-    pub fn move_links(&mut self, now: u32) -> MoveAllLinksResult {
+    pub fn move_links(
+        &mut self,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        now: u32,
+    ) -> MoveAllLinksResult {
         let mut storage_cap_updates: Vec<_> = Vec::new();
         let mut vehicles_exit_partition: Vec<_> = Vec::new();
         let mut deactivate: IntSet<_> = IntSet::default();
@@ -330,10 +328,16 @@ impl SimNetworkPartition {
         for id in &self.active_links {
             let link = self.links.get_mut(id).unwrap();
             let mut res = match link {
-                SimLink::Local(ll) => Self::move_local_link(ll, &mut self.active_nodes, now),
-                SimLink::In(il) => {
-                    Self::move_in_link(il, &mut self.active_nodes, &mut storage_cap_updates, now)
+                SimLink::Local(ll) => {
+                    Self::move_local_link(ll, &mut self.active_nodes, now, comp_env)
                 }
+                SimLink::In(il) => Self::move_in_link(
+                    il,
+                    &mut self.active_nodes,
+                    &mut storage_cap_updates,
+                    now,
+                    comp_env,
+                ),
                 SimLink::Out(ol) => Self::move_out_link(ol, &mut vehicles_exit_partition),
             };
 
@@ -363,8 +367,9 @@ impl SimNetworkPartition {
         link: &mut LocalLink,
         active_nodes: &mut ActiveCache<Node>,
         now: u32,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
     ) -> MoveSingleLinkResult {
-        let vehicles_end_leg = link.do_sim_step(now);
+        let vehicles_end_leg = link.do_sim_step(now, comp_env);
         if link.to_nodes_active(now) {
             active_nodes.activate(link.to.clone());
         }
@@ -383,11 +388,12 @@ impl SimNetworkPartition {
         active_nodes: &mut ActiveCache<Node>,
         storage_cap_updates: &mut Vec<StorageUpdate>,
         now: u32,
+        events: &mut ThreadLocalComputationalEnvironment,
     ) -> MoveSingleLinkResult {
         // if anything has changed on the link, we want to report the updated storage capacity to the
         // upstream partition.
         let before = link.occupied_storage();
-        let result = Self::move_local_link(&mut link.local_link, active_nodes, now);
+        let result = Self::move_local_link(&mut link.local_link, active_nodes, now, events);
         let diff = before - link.occupied_storage();
 
         assert!(
@@ -544,9 +550,7 @@ impl SimNetworkPartition {
                 });
                 in_link.is_veh_stuck(now) || out_link.is_available()
             } else {
-                // if there is no next link, the vehicle is done with its route and we can take it out
-                // of the network
-                true
+                panic!("Vehicle {:?} is offered by link {:?} but has no next link. This should not happen. Leg ends are handled in move_links, not move_nodes.", veh_ref.id(), in_link.id())
             };
         }
         // if the link doesn't have a vehicle to offer, we don't have to do anything.
@@ -587,7 +591,7 @@ impl SimNetworkPartition {
             );
         }
 
-        new_link.push_veh(vehicle, now);
+        new_link.push_veh(vehicle, QStart, now);
 
         // activate new link
         active_links.activate(new_link_id.clone());
@@ -668,7 +672,7 @@ mod tests {
 
         for i in 0..113 {
             network.move_nodes(&mut publisher, i);
-            let result = network.move_links(i);
+            let result = network.move_links(&mut Default::default(), i);
 
             // only in the timestep before the vehicle switches links, we should see one active node. Otherwise not.
             // leaves link1 at timestep 0 and enters link1; leaves link1 and enters link2 at timestep 101
@@ -716,7 +720,7 @@ mod tests {
         for now in 0..20 {
             network.move_nodes(&mut publisher, now);
 
-            let res = network.move_links(now);
+            let res = network.move_links(&mut publisher, now);
             assert_eq!(0, res.storage_cap_updates.len()); // we expect no out links here
 
             assert_eq!(0, res.vehicles_end_leg.len());
@@ -752,7 +756,7 @@ mod tests {
         // all vehicles only have to traverse link1. they enter and directly exit
         for now in 0..2 {
             network.move_nodes(&mut publisher, now);
-            let res = network.move_links(now);
+            let res = network.move_links(&mut publisher, now);
             if now == 0 {
                 assert_eq!(100, res.vehicles_end_leg.len());
             } else {
@@ -764,9 +768,6 @@ mod tests {
     #[integration_test]
     fn move_nodes_storage_cap_constraint() {
         let mut publisher = ThreadLocalComputationalEnvironment::default();
-        XmlEventsWriter::register("test_output/test.xml".into())(
-            &mut publisher.events_publisher_borrow_mut(),
-        );
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -776,11 +777,14 @@ mod tests {
 
         let id_1: Id<Link> = Id::get_from_ext("link1");
         let id_2: Id<Link> = Id::get_from_ext("link2");
+        let id_3: Id<Link> = Id::get_from_ext("link3");
         let mut network =
             SimNetworkPartitionBuilder::from_network(&global_net, 0, test_utils::config()).build();
 
-        // place 10 vehicles on link2 so that it is jammed
-        // vehicles are very slow, so that the first vehicle should leave link2 at t=1000
+        // Place 10 vehicles on link1. They will be released every 10s because PCE is 10 and flow_cap is 1.
+        // Since they are super slow, they will leave link2 after 1000s.
+        // They will traverse link3 in 100 s, after that they will leave link3. Since link3 has a storage cap of 10 and
+        // PCE of the vehicle is 10 only one vehicle per time can be present on link3.
         for i in 0..10 {
             let agent =
                 test_utils::create_agent(i, vec![id_1.external(), id_2.external(), "link3"]);
@@ -788,33 +792,81 @@ mod tests {
             network.send_veh_en_route(vehicle, None, 0);
         }
 
-        // place 1 vehicle onto link1 which has to wait until link2 has free storage cap
-        // as the first vehicle leaves link2 at t=1000 this vehicle can leave link1 and enter link2 at
-        // the next timestep at t=1001
-        let agent = test_utils::create_agent(11, vec![id_1.external(), id_2.external(), "link3"]);
-        let vehicle = InternalVehicle::new(11, 0, 10., 1., Some(agent));
-        network.send_veh_en_route(vehicle, None, 0);
-
-        for now in 0..10100 {
+        for now in 0..2012 {
             network.move_nodes(&mut publisher, now);
-            network.move_links(now);
-            //
-            //     let link1 = network.links.get(&id_1).unwrap();
-            //     if (10..1001).contains(&now) {
-            //         // while the vehicle waits, link1 is ready to move the vehicle
-            //         assert!(link1.offers_veh(now).is_some());
-            //     } else {
-            //         // once the vehicle has move, link1 has nothing to offer.
-            //         assert!(link1.offers_veh(now).is_none());
-            //     }
-        }
+            network.move_links(&mut publisher, now);
 
-        publisher.events_publisher_borrow_mut().finish();
+            let link1 = network.links.get(&id_1).unwrap();
+            let link2 = network.links.get(&id_2).unwrap();
+            let link3 = network.links.get(&id_3).unwrap();
+
+            // at 10, 20, 30, ... link1 offers a vehicle
+            if now < 91 && (0..91).step_by(10).collect::<Vec<u32>>().contains(&now) {
+                assert!(
+                    link1.offers_veh(now).is_some(),
+                    "No vehicle offered at timestep {now}"
+                );
+            } else {
+                assert!(
+                    link1.offers_veh(now).is_none(),
+                    "Vehicle offered at timestep {now}"
+                );
+            }
+
+            // From 1002, no vehicle if offered by link1
+            if (1002..1911).contains(&now) {
+                // once the last vehicle has moved, link1 has nothing to offer.
+                assert!(link1.offers_veh(now).is_none());
+
+                // veh0 reaches buffer at 1001 and is released immediately.
+                // veh1 reaches buffer at 1011 and is released at 1102; flow cap is refilled after 10
+                // veh2 reaches q end at 1021 and buffer at 1112 (because of flow cap refill from before) and is released at 1203; flow cap is refilled after 10
+                // ...
+                if (1011..=1102).contains(&now)
+                    || (1112..=1203).contains(&now)
+                    || (1213..=1304).contains(&now)
+                    || (1314..=1405).contains(&now)
+                    || (1415..=1506).contains(&now)
+                    || (1516..=1607).contains(&now)
+                    || (1617..=1708).contains(&now)
+                    || (1718..=1809).contains(&now)
+                    || (1819..=1910).contains(&now)
+                {
+                    assert!(
+                        link2.offers_veh(now).is_some(),
+                        "No vehicle offered at timestep {now}"
+                    );
+                    if !(now == 1102
+                        || now == 1203
+                        || now == 1304
+                        || now == 1405
+                        || now == 1506
+                        || now == 1607
+                        || now == 1708
+                        || now == 1809
+                        || now == 1910)
+                    {
+                        assert!(
+                            !link3.is_available(),
+                            "Storage cap reached at timestep {now}"
+                        );
+                    }
+                } else {
+                    assert!(
+                        link2.offers_veh(now).is_none(),
+                        "Vehicle offered at timestep {now}"
+                    );
+                }
+            }
+        }
     }
 
     #[integration_test]
     fn move_nodes_stuck_threshold() {
-        let mut publisher = Default::default();
+        let mut publisher = ThreadLocalComputationalEnvironment::default();
+        XmlEventsWriter::register("test_output/test.xml".into())(
+            &mut publisher.events_publisher_borrow_mut(),
+        );
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -845,7 +897,7 @@ mod tests {
 
         for now in 0..20 {
             network.move_nodes(&mut publisher, now);
-            network.move_links(now);
+            network.move_links(&mut publisher, now);
 
             let link1 = network.links.get(&id_1).unwrap();
             // the veh is ready to leave at t=10, but the downstream link is jammed
@@ -857,6 +909,7 @@ mod tests {
                 assert!(link1.offers_veh(now).is_none());
             }
         }
+        publisher.events_publisher_borrow_mut().finish();
     }
 
     #[integration_test]
@@ -951,21 +1004,22 @@ mod tests {
         let mut publisher = Default::default();
         for now in 0..1000 {
             sim_net.move_nodes(&mut publisher, now);
-            sim_net.move_links(now);
+            sim_net.move_links(&mut publisher, now);
         }
 
-        let link1 = sim_net
-            .links
-            .get(&Id::create("link1"))
-            .unwrap()
-            .used_storage();
-        let link2 = sim_net
-            .links
-            .get(&Id::create("link2"))
-            .unwrap()
-            .used_storage();
-
-        assert_approx_eq!(link1 * 2., link2, 100.);
+        unimplemented!()
+        // let link1 = sim_net
+        //     .links
+        //     .get(&Id::create("link1"))
+        //     .unwrap()
+        //     .used_storage();
+        // let link2 = sim_net
+        //     .links
+        //     .get(&Id::create("link2"))
+        //     .unwrap()
+        //     .used_storage();
+        //
+        // assert_approx_eq!(link1 * 2., link2, 100.);
     }
 
     #[integration_test]
@@ -982,7 +1036,7 @@ mod tests {
         let vehicle = InternalVehicle::new(1, 0, 10., 100., Some(agent));
 
         // collect empty storage caps
-        let res = net2.move_links(0);
+        let res = net2.move_links(&mut Default::default(), 0);
         assert!(res.storage_cap_updates.is_empty());
 
         // now place vehicle on network and collect storage caps again.
@@ -993,16 +1047,16 @@ mod tests {
         // now, in the next time step, nothing has changed on the link. It should therefore not
         // report any storage capacities
         net2.move_nodes(&mut publisher, 0);
-        let res = net2.move_links(0);
+        let res = net2.move_links(&mut Default::default(), 0);
         assert!(res.storage_cap_updates.is_empty());
 
         // Now, test whether storage caps are emitted to upstream partitions as well
         // first activate node
-        net2.move_links(199);
+        net2.move_links(&mut Default::default(), 199);
         // now, move vehicle out of link
         net2.move_nodes(&mut publisher, 200);
         // this should have the updated storage_caps for the link
-        let res = net2.move_links(200);
+        let res = net2.move_links(&mut Default::default(), 200);
 
         assert_eq!(1, res.storage_cap_updates.len());
         let storage_cap = res.storage_cap_updates.first().unwrap();

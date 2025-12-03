@@ -1,15 +1,24 @@
 use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::config;
+use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::events::{
+    VehicleEntersTrafficEventBuilder, VehicleLeavesTrafficEventBuilder,
+};
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
+use crate::simulation::network::Link;
 use crate::simulation::network::Node;
+use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::InternalVehicle;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
-use crate::simulation::network::Link;
+pub enum LinkPosition {
+    QStart,
+    Waiting,
+}
 
 #[derive(Debug)]
 pub enum SimLink {
@@ -59,8 +68,8 @@ impl SimLink {
 
     pub fn flow_cap(&self) -> f32 {
         match self {
-            SimLink::Local(l) => l.flow_cap.capacity(),
-            SimLink::In(il) => il.local_link.flow_cap.capacity(),
+            SimLink::Local(l) => l.flow_cap.capacity_per_time_step(),
+            SimLink::In(il) => il.local_link.flow_cap.capacity_per_time_step(),
             SimLink::Out(_) => {
                 panic!("no flow cap for out links")
             }
@@ -110,7 +119,8 @@ impl SimLink {
         }
     }
 
-    pub(super) fn used_storage(&self) -> f32 {
+    #[cfg(test)]
+    fn used_storage(&self) -> f32 {
         match self {
             SimLink::Local(ll) => ll.storage_cap.used(),
             SimLink::In(il) => il.local_link.storage_cap.used(),
@@ -118,22 +128,11 @@ impl SimLink {
         }
     }
 
-    pub(super) fn push_veh(&mut self, vehicle: InternalVehicle, now: u32) {
+    pub(super) fn push_veh(&mut self, vehicle: InternalVehicle, position: LinkPosition, now: u32) {
         match self {
-            SimLink::Local(l) => l.push_veh(vehicle, now),
-            SimLink::In(il) => il.local_link.push_veh(vehicle, now),
-            SimLink::Out(ol) => ol.push_veh(vehicle),
-        }
-    }
-
-    /// This method pushes a vehicle to the waiting list, which has priority over vehicles in q
-    pub(super) fn push_veh_to_waiting_list(&mut self, vehicle: InternalVehicle) {
-        match self {
-            SimLink::Local(ll) => ll.push_veh_to_waiting_list(vehicle),
-            SimLink::In(il) => il.local_link.push_veh_to_waiting_list(vehicle),
-            SimLink::Out(_) => {
-                panic!("Can't push vehicle to waiting list on out link")
-            }
+            SimLink::Local(l) => l.push_veh(vehicle, now, position),
+            SimLink::In(il) => il.local_link.push_veh(vehicle, now, position),
+            SimLink::Out(ol) => ol.push_veh(vehicle, position),
         }
     }
 
@@ -245,7 +244,14 @@ impl LocalLink {
         }
     }
 
-    pub fn push_veh(&mut self, vehicle: InternalVehicle, now: u32) {
+    pub fn push_veh(&mut self, vehicle: InternalVehicle, now: u32, position: LinkPosition) {
+        match position {
+            LinkPosition::QStart => self.push_veh_to_queue(vehicle, now),
+            LinkPosition::Waiting => self.push_veh_to_waiting_list(vehicle),
+        }
+    }
+
+    fn push_veh_to_queue(&mut self, vehicle: InternalVehicle, now: u32) {
         let speed = self.free_speed.min(vehicle.max_v);
         let duration = 1.max((self.length / speed as f64) as u32); // at least 1 second per link
         let earliest_exit_time = now + duration;
@@ -256,11 +262,6 @@ impl LocalLink {
             vehicle,
             earliest_exit_time,
         });
-    }
-
-    pub fn push_veh_to_buffer(&mut self, vehicle: InternalVehicle) {
-        // self.storage_cap.consume(vehicle.pce);
-        self.buffer.push_back(vehicle);
     }
 
     /// Push a vehicle into the waiting list.
@@ -275,10 +276,28 @@ impl LocalLink {
     /// Both is done only if the flow capacity allows this.
     ///
     /// Returns the vehicles that end their leg on the link
-    pub fn do_sim_step(&mut self, now: u32) -> Vec<InternalVehicle> {
+    pub fn do_sim_step(
+        &mut self,
+        now: u32,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+    ) -> Vec<InternalVehicle> {
         self.update_flow_cap(now);
-        let mut ending_vehicles = self.add_waiting_to_buffer();
+        let mut ending_vehicles = self.add_waiting_to_buffer(comp_env, now);
         ending_vehicles.append(&mut self.add_queue_to_buffer(now));
+
+        for v in &ending_vehicles {
+            comp_env.events_publisher_borrow_mut().publish_event(
+                &VehicleLeavesTrafficEventBuilder::default()
+                    .vehicle(v.id.clone())
+                    .link(self.id.clone())
+                    .driver(v.driver().id().clone())
+                    .time(now)
+                    .mode(v.driver().curr_leg().mode.clone())
+                    .build()
+                    .unwrap(),
+            );
+        }
+
         ending_vehicles
     }
 
@@ -330,7 +349,11 @@ impl LocalLink {
         released_vehicles
     }
 
-    fn add_waiting_to_buffer(&mut self) -> Vec<InternalVehicle> {
+    fn add_waiting_to_buffer(
+        &mut self,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        now: u32,
+    ) -> Vec<InternalVehicle> {
         let mut released_vehicles = vec![];
 
         loop {
@@ -341,6 +364,7 @@ impl LocalLink {
                 break;
             }
 
+            // If arrival on link, remove from waiting list and put into buffer
             if option
                 .unwrap()
                 .driver
@@ -348,13 +372,14 @@ impl LocalLink {
                 .unwrap()
                 .is_wanting_to_arrive_on_current_link()
             {
-                released_vehicles.push(self.waiting_list.pop_front().unwrap());
+                released_vehicles.push(self.pop_from_waiting(comp_env, now));
                 continue;
             }
 
+            // If not arriving on link, check if flow capacity allows to move vehicle to buffer
             if self.is_accepting_from_wait(option.unwrap()) {
-                self.buffer
-                    .push_back(self.waiting_list.pop_front().unwrap());
+                let vehicle = self.pop_from_waiting(comp_env, now);
+                self.buffer.push_back(vehicle);
             } else {
                 break;
             }
@@ -363,23 +388,39 @@ impl LocalLink {
         released_vehicles
     }
 
+    fn pop_from_waiting(
+        &mut self,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        now: u32,
+    ) -> InternalVehicle {
+        let vehicle = self.waiting_list.pop_front().unwrap();
+        comp_env.events_publisher_borrow_mut().publish_event(
+            &VehicleEntersTrafficEventBuilder::default()
+                .vehicle(vehicle.id.clone())
+                .link(self.id.clone())
+                .driver(vehicle.driver().id().clone())
+                .time(now)
+                .mode(vehicle.driver().curr_leg().mode.clone())
+                .build()
+                .unwrap(),
+        );
+        vehicle
+    }
+
     fn is_accepting_from_wait(&self, veh: &InternalVehicle) -> bool {
         self.has_flow_capacity_left(veh)
     }
 
     fn has_flow_capacity_left(&self, _veh: &InternalVehicle) -> bool {
         let buffer_cap = self.buffer.iter().map(|v| v.pce).sum::<f32>();
-
-        // yyyyy not sure, why the vehicle pce is not considered here. But in the java reference, it is the same. Paul, nov'25
-        // TODO
-        self.flow_cap.capacity() - buffer_cap > 0.0
+        self.flow_cap.value() - buffer_cap > 0.0
     }
 
     /// This method returns the next/first vehicle from the buffer and removes it from the buffer.
     fn pop_front(&mut self) -> InternalVehicle {
         if let Some(veh) = self.buffer.pop_front() {
             // self.storage_cap.release(veh.pce);
-            self.flow_cap.consume_capacity(veh.pce);
+            self.flow_cap.consume(veh.pce);
             self.stuck_timer.reset();
             return veh;
         }
@@ -395,7 +436,7 @@ impl LocalLink {
     /// whether flow capacity is available.
     fn offers_vehicle(&self, now: u32) -> Option<&InternalVehicle> {
         if let Some(entry) = self.buffer.front() {
-            if self.flow_cap.has_capacity() {
+            if self.flow_cap.has_capacity_left() {
                 self.stuck_timer.start(now);
                 return Some(entry);
             }
@@ -471,7 +512,13 @@ impl SplitOutLink {
         std::mem::take(&mut self.q)
     }
 
-    pub fn push_veh(&mut self, veh: InternalVehicle) {
+    pub fn push_veh(&mut self, veh: InternalVehicle, position: LinkPosition) {
+        match position {
+            LinkPosition::QStart => {}
+            LinkPosition::Waiting => {
+                panic!("SplitOutLink cannot push vehicles into the buffer.")
+            }
+        }
         self.storage_cap.consume(veh.pce);
         self.q.push_back(veh);
     }
@@ -500,6 +547,7 @@ impl SplitInLink {
 mod sim_link_tests {
     use crate::simulation::config;
     use crate::simulation::id::Id;
+    use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::{LocalLink, SimLink};
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils;
@@ -523,7 +571,7 @@ mod sim_link_tests {
         let agent = create_agent_without_route(1);
         let vehicle = InternalVehicle::new(1, 0, 10., 1.5, Some(agent));
 
-        link.push_veh(vehicle, 0);
+        link.push_veh(vehicle, QStart, 0);
 
         // storage capacity should be consumed immediately. The expected value is max_storage_cap - pce of the vehicle
         assert_eq!(1.5, link.used_storage())
@@ -545,7 +593,7 @@ mod sim_link_tests {
         let agent = create_agent_without_route(1);
         let vehicle = InternalVehicle::new(1, 0, 10., 1.5, Some(agent));
 
-        link.push_veh(vehicle, 0);
+        link.push_veh(vehicle, QStart, 0);
         let _vehicle = link.pop_veh();
 
         // after the vehicle is removed from the link, the available storage_cap should NOT be updated
@@ -553,7 +601,7 @@ mod sim_link_tests {
         assert_eq!(1.5, link.used_storage());
 
         assert_eq!(0., link.used_storage());
-        if let SimLink::Local(ll) = link {
+        if let SimLink::Local(_) = link {
             // assert_eq!(0., ll.storage_cap.released()); // test internal prop here, because I am too lazy for a more complex test
             unimplemented!()
         }
@@ -578,8 +626,8 @@ mod sim_link_tests {
         let agent2 = create_agent_without_route(2);
         let vehicle2 = InternalVehicle::new(2, 0, 10., 1.5, Some(agent2));
 
-        link.push_veh(vehicle1, 0);
-        link.push_veh(vehicle2, 0);
+        link.push_veh(vehicle1, QStart, 0);
+        link.push_veh(vehicle2, QStart, 0);
         link.update_flow_cap(10);
         // this should reduce the flow capacity, so that no other vehicle can leave during this time step
         let popped1 = link.pop_veh();
@@ -616,7 +664,7 @@ mod sim_link_tests {
         let agent1 = create_agent_without_route(1);
         let vehicle1 = InternalVehicle::new(1, 0, 10., 1.5, Some(agent1));
 
-        link.push_veh(vehicle1, 0);
+        link.push_veh(vehicle1, QStart, 0);
 
         // this is also implicitly tested above, but we'll do it here again, so that we have descriptive
         // test naming
@@ -648,11 +696,11 @@ mod sim_link_tests {
         let agent2 = create_agent_without_route(1);
         let vehicle2 = InternalVehicle::new(id2, 0, 10., 1., Some(agent2));
 
-        link.push_veh(vehicle1, 0);
+        link.push_veh(vehicle1, QStart, 0);
         assert_approx_eq!(1., link.used_storage());
         assert!(link.is_available());
 
-        link.push_veh(vehicle2, 0);
+        link.push_veh(vehicle2, QStart, 0);
         assert_approx_eq!(2.0, link.used_storage());
         assert!(!link.is_available());
 
@@ -687,7 +735,7 @@ mod sim_link_tests {
         ));
 
         let vehicle = InternalVehicle::new(1, 0, 10., 1., None);
-        link.push_veh(vehicle, 0);
+        link.push_veh(vehicle, QStart, 0);
 
         // earliest exit is at 10. Therefore this call should not trigger the stuck timer
         let offers = link.offers_veh(9);
@@ -727,8 +775,8 @@ mod sim_link_tests {
 
         let vehicle1 = InternalVehicle::new(1, 0, earliest_exit as f32, 1., None);
         let vehicle2 = InternalVehicle::new(2, 0, earliest_exit as f32, 1., None);
-        link.push_veh(vehicle1, 0);
-        link.push_veh(vehicle2, 0);
+        link.push_veh(vehicle1, QStart, 0);
+        link.push_veh(vehicle2, QStart, 0);
 
         // trigger stuck timer
         assert!(link.offers_veh(earliest_exit).is_some());
@@ -750,6 +798,7 @@ mod sim_link_tests {
 #[cfg(test)]
 mod out_link_tests {
     use crate::simulation::id::Id;
+    use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::{SimLink, SplitOutLink};
     use crate::simulation::network::storage_cap::StorageCap;
     use crate::simulation::vehicles::InternalVehicle;
@@ -771,8 +820,8 @@ mod out_link_tests {
         let agent2 = create_agent_without_route(1);
         let vehicle2 = InternalVehicle::new(id2, 0, 10., 1., Some(agent2));
 
-        link.push_veh(vehicle1, 0);
-        link.push_veh(vehicle2, 0);
+        link.push_veh(vehicle1, QStart, 0);
+        link.push_veh(vehicle2, QStart, 0);
 
         // storage should be consumed
         assert_eq!(2., link.used_storage());

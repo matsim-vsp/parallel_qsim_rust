@@ -64,7 +64,7 @@ impl StorageCap {
 
     /// Tests whether there is storage capacity available on the link.
     pub fn is_available(&self) -> bool {
-        let available_cap = self.max - self.used();
+        let available_cap = self.max - self.used;
         available_cap > 0.0
     }
 }

@@ -38,7 +38,7 @@ impl NetworkEngine {
         now: u32,
         net_message_broker: &mut NetMessageBroker<C>,
     ) -> Vec<InternalVehicle> {
-        let move_links_result = self.network.move_links(now);
+        let move_links_result = self.network.move_links(&mut self.comp_env, now);
 
         for veh in move_links_result.vehicles_exit_partition {
             net_message_broker.add_veh(veh, now);
