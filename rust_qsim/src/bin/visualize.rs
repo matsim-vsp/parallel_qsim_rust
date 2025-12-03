@@ -35,10 +35,6 @@ const TIME_SCALE: f32 = 50.0;
 
 const WAIT_STACK_OFFSET: f32 = 8.0;
 
-// defines how often the time and the fps value should be updated.
-// if the value is to small the fps value is not readable
-const TIME_FPS_UPDATE_EVERY_N_FRAMES: u32 = 50;
-
 // ============================================================================
 // DATA STRUCTURES & RESOURCES
 // ============================================================================
@@ -107,7 +103,6 @@ struct VehiclesData {
 }
 
 // Resource that holds the TripsBuilder and EventsPublisher for the main thread
-// This is NOT Send/Sync because it uses Rc/RefCell, but that's fine since it only lives in the main thread
 struct TripsBuilderResource {
     builder: Rc<RefCell<TripsBuilder>>,
     publisher: EventsPublisher,
@@ -120,8 +115,9 @@ struct TripsBuilderResource {
 #[derive(Default)]
 struct TripsBuilder {
     // stores the current link of a vehicle
+    // key -> vehicle ID; value -> (link ID, start time)
     current_link_per_vehicle: HashMap<String, (String, f32)>,
-    // stores the currently active trip per vehicle (sequence of traversed links)
+    // stores the currently active trip per vehicle (Vec of TraversedLink)
     current_trip_per_vehicle: HashMap<String, Vec<TraversedLink>>,
     // stores all finished trips per vehicle
     per_vehicle: HashMap<String, Vec<Trip>>,
@@ -140,39 +136,49 @@ impl TripsBuilder {
         }
     }
 
-    // check if an event is a LinkEnter or a LinkLeaveEvent and calls the corresponding methode
+    // Check the event type from the incoming event and use the correct handler
     fn handle_event(&mut self, event: &dyn EventTrait) {
+        // Try to downcast to LinkEnterEvent
         if let Some(enter) = event.as_any().downcast_ref::<LinkEnterEvent>() {
             self.handle_link_enter(enter);
+        // Try to downcast to LinkLeaveEvent
         } else if let Some(leave) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
             self.handle_link_leave(leave);
+        // Try to downcast to PersonEntersVehicleEvent
         } else if let Some(enter) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
             self.handle_person_enters(enter);
+        // Try to downcast to PersonLeavesVehicleEvent
         } else if let Some(leave) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
             self.handle_person_leaves(leave);
         }
     }
 
-    // handles a link enter event and remembers which vehicle entered which link at what time
+    // When a vehicle enters a link, the link ID and start time are stored in current_link_per_vehicle
     fn handle_link_enter(&mut self, event: &LinkEnterEvent) {
+        // Extract link and vehicle IDs as strings
         let link_id = event.link.external().to_string();
         let vehicle_id = event.vehicle.external().to_string();
+        // Store: vehicle_id -> (link_id, start_time)
         self.current_link_per_vehicle
             .insert(vehicle_id, (link_id, event.time as f32));
     }
 
-    // handles a link leave event by closing the currently active traversed link for the vehicle
+    // When a vehicle leaves a link, a TraversedLink is created and added to the current trip
     fn handle_link_leave(&mut self, event: &LinkLeaveEvent) {
+        // Extract link and vehicle IDs
         let link_id = event.link.external().to_string();
         let vehicle_id = event.vehicle.external().to_string();
+        // Get the start time and link id when the vehicle entered the link
         if let Some((entered_link, start_time)) = self.current_link_per_vehicle.remove(&vehicle_id)
         {
             let end_time = event.time as f32;
+            // Check if the link id is the same and the start time is earlier than end time
             if entered_link == link_id && end_time >= start_time {
+                // Update earliest start time if this is earlier
                 if start_time < self.first_start {
                     self.first_start = start_time;
                 }
-                // only record links that belong to an active trip
+                // Add the link only if there is an active trip
                 if let Some(current_trip) = self.current_trip_per_vehicle.get_mut(&vehicle_id) {
                     current_trip.push(TraversedLink {
                         link_id,
@@ -183,19 +189,23 @@ impl TripsBuilder {
         }
     }
 
-    // handles a person enters vehicle event and starts a new trip (if not already active)
+    // Start a new trip when a person enters a vehicle
     fn handle_person_enters(&mut self, event: &PersonEntersVehicleEvent) {
         let vehicle_id = event.vehicle.external().to_string();
+        // Create an empty Vec for collecting TraversedLinks (if not exists)
         self.current_trip_per_vehicle
             .entry(vehicle_id)
             .or_insert_with(Vec::new);
     }
 
-    // handles a person leaves vehicle event and finishes the current trip
+    // Finish the current trip when a person leaves a vehicle
     fn handle_person_leaves(&mut self, event: &PersonLeavesVehicleEvent) {
         let vehicle_id = event.vehicle.external().to_string();
+        // Remove the active trip from current_trip_per_vehicle
         if let Some(trip_links) = self.current_trip_per_vehicle.remove(&vehicle_id) {
+            // Save only trips that are not empty
             if !trip_links.is_empty() {
+                // Move the trip to finished trips (per_vehicle)
                 self.per_vehicle
                     .entry(vehicle_id)
                     .or_default()
@@ -204,25 +214,31 @@ impl TripsBuilder {
         }
     }
 
-    // build AllTrips from the traversed links
+    // Build AllTrips object from current builder state (includes both finished and ongoing trips)
     fn build_all_trips(&self) -> AllTrips {
-        // clone finished trips and also include currently active (but not yet closed) trips
+        // Create a new HashMap to collect all trips
+        // key -> vehicle ID; value -> Vec of Trips
         let mut per_vehicle: HashMap<String, Vec<Trip>> = HashMap::new();
 
+        // Copy all finished trips from per_vehicle
         for (veh_id, trips) in &self.per_vehicle {
             per_vehicle.insert(veh_id.clone(), trips.clone());
         }
 
+        // Store also the current trips that are still ongoing
         for (veh_id, current_links) in &self.current_trip_per_vehicle {
+            // Only include if the trip has at least one link
             if !current_links.is_empty() {
+                // Add the ongoing trip to the vehicle's trips
                 per_vehicle.entry(veh_id.clone()).or_default().push(Trip {
                     links: current_links.clone(),
                 });
             }
         }
 
-        // sort links inside each trip and the trips themselves by start time
+        // Sort all trips per vehicle
         for trips in per_vehicle.values_mut() {
+            // Sort links within each trip by start time
             for trip in trips.iter_mut() {
                 trip.links.sort_by(|a, b| {
                     a.start_time
@@ -230,6 +246,7 @@ impl TripsBuilder {
                         .unwrap_or(std::cmp::Ordering::Equal)
                 });
             }
+            // Sort trips by their start time
             trips.sort_by(|a, b| {
                 let a_start = a.links.first().map(|t| t.start_time).unwrap_or(f32::MAX);
                 let b_start = b.links.first().map(|t| t.start_time).unwrap_or(f32::MAX);
@@ -239,12 +256,12 @@ impl TripsBuilder {
             });
         }
 
+        // Set first_start to 0 if no events were processed yet
         let mut first_start = self.first_start;
-        // set first start to 0 if no traversed link was found
         if first_start == f32::MAX {
             first_start = 0.0;
         }
-        // save all trips in AllTrips
+        // Return the AllTrips object
         AllTrips {
             per_vehicle,
             first_start,
@@ -256,28 +273,35 @@ impl TripsBuilder {
 // EVENT PROCESSING & THREADING
 // ============================================================================
 
-// registers a listener on the EventsPublisher that sends all events to the TripsBuilder
+// Register a callback that forwards all published events to the TripsBuilder
 fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut EventsPublisher) {
-    // create a clone of the TripsBuilder
+    // Clone the builder to use it inside the closure
     let builder_for_events = builder.clone();
 
-    // send every published event to the TripsBuilder
+    // Register a closure that will be called for every published event
     publisher.on_any(move |event| {
+        // Get mutable access to the builder and handle the event
         builder_for_events.borrow_mut().handle_event(event);
     });
 }
 
+// Convert proto events to internal event objects and publish them
 #[rustfmt::skip]
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
+    // Process each proto event in the bundle
     for proto_event in events {
+        // Clone because we need to modify it
         let mut proto_event = proto_event.clone();
+        // Ensure the "type" attribute exists (some events don't have it)
         if !proto_event.attributes.contains_key("type") {
             proto_event
                 .attributes
                 .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
         }
 
+        // Get the event type as a string
         let type_ = proto_event.attributes["type"].as_string();
+        // Match the type and create the corresponding internal event object
         let internal_event: Box<dyn EventTrait> = match type_.as_str() {
             GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
             ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(&proto_event, time)),
@@ -292,64 +316,73 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
             PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
+        // Publish the event (this triggers all registered listeners)
         publisher.publish_event(internal_event.as_ref());
     }
 }
 
-// This method starts a new thread that reads all events from the proto events file and
-// sends them through a channel (WITHOUT processing them - that happens in the main thread)
+// Start a background thread that reads events from the file and sends them through a channel
+// The thread ONLY reads, does NOT process events (processing happens in main thread)
 fn start_events_thread() -> EventsChannel {
-    // create channel for sending events to visualization
+    // Create a channel for sending events from background thread to main thread
     let (tx, rx) = mpsc::channel::<(u32, Vec<MyEvent>)>();
 
-    // create a new thread for reading events
+    // Spawn a new background thread
     thread::spawn(move || {
-        // reader for all proto events
+        // Create reader for the embedded events file
         let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
-        // iterate over all events and send them to the main thread
+        // Read all events from the file and send them to the main thread
         for (time, events_at_time) in reader {
-            // send to main thread for processing
+            // Try to send the events through the channel
             if tx.send((time, events_at_time)).is_err() {
-                break; // main thread closed the channel, stop reading
+                // If send fails, main thread has closed the channel -> stop reading
+                break;
             }
         }
+        // Thread ends here when all events are read or channel is closed
     });
 
+    // Return the receiver wrapped in an EventsChannel resource
     EventsChannel {
         receiver: Mutex::new(rx),
     }
 }
 
-// This system receives and processes events from the event channel
+// Read the events from the channel and process them
 fn process_events_from_channel(
     events_channel: Res<EventsChannel>,
     mut builder_resource: NonSendMut<TripsBuilderResource>,
 ) {
+    // Try to lock the channel to get exclusive access
     if let Ok(receiver) = events_channel.receiver.lock() {
-        // process all available events (non-blocking)
+        // Read all events which are currently in the channel
+        // try_recv() also removes the event from the channel
         while let Ok((time, events_at_time)) = receiver.try_recv() {
+            // Process the evennt
             process_events(time, &events_at_time, &mut builder_resource.publisher);
         }
     }
 }
 
-// This system updates the AllTrips resource from the builder
+// Updates AllTrips from the builder
 fn update_trips_from_builder(
     mut clock_initialized: Local<bool>,
     builder_resource: NonSend<TripsBuilderResource>,
     mut trips: ResMut<AllTrips>,
     mut clock: ResMut<SimulationClock>,
 ) {
-    // build trips from the current builder state
+    // Build AllTrips from the current builder state
     let new_trips = builder_resource.builder.borrow().build_all_trips();
 
-    // on first update: set clock to the first event time
+    // On first update: Initialize the simulation clock to start at the first event time
     if !*clock_initialized && new_trips.first_start > 0.0 && new_trips.first_start != f32::MAX {
+        // Set clock to the time of the first event
         clock.time = new_trips.first_start;
         *clock_initialized = true;
     }
 
+    // Overwrite the AllTrips resource with the new data
     *trips = new_trips;
 }
 
@@ -357,55 +390,62 @@ fn update_trips_from_builder(
 // DATA LOADING (Network & Vehicles)
 // ============================================================================
 
-// This method reads and parses the network protobuf file.
+// Bevy startup system: Read and parse the network protobuf file and create NetworkData resource
 fn read_and_parse_network(mut commands: Commands) {
-    // decode the protobuf network from the embedded bytes
+    // Decode the protobuf network from the embedded bytes
     let wire: wire_network::Network =
         wire_network::Network::decode(NETWORK_FILE).expect("Failed to decode network protobuf");
     let mut network = NetworkData::default();
 
-    // each protobuf node provides id and coordinates of a node.
+    // Loop through all nodes in the protobuf file
     for wn in &wire.nodes {
+        // Extract node ID and coordinates
         let id = wn.id.clone();
         let x: f32 = wn.x as f32;
         let y: f32 = wn.y as f32;
 
-        // store the node position in the network data
+        // Store the node position (ID -> Vec2) in the HashMap
         network.node_positions.insert(id, Vec2::new(x, y));
     }
 
-    // each protobuf link provides the connection between two nodes.
+    // Loop through all links in the protobuf file
     for wl in &wire.links {
+        // Extract link ID, from/to node IDs, and freespeed
         let id = wl.id.clone();
         let from_id = wl.from.clone();
         let to_id = wl.to.clone();
         let freespeed: f32 = wl.freespeed;
 
-        // store the link endpoints in the network data
+        // Store the link endpoints (link_id -> (from_node, to_node))
         network.link_endpoints.insert(id, (from_id, to_id));
+        // Store the link freespeed (link_id -> max_speed)
         network.link_freespeed.insert(wl.id.clone(), freespeed);
     }
 
+    // Insert the NetworkData as a Bevy resource
     commands.insert_resource(network);
 }
 
+// Bevy startup system: Read and parse the vehicles protobuf file and create VehiclesData resource
 fn read_and_parse_vehicles(mut commands: Commands) {
-    // decode the protobuf vehicles container from the embedded bytes
+    // Decode the protobuf vehicles container from the embedded bytes
     let wire: wire_vehicles::VehiclesContainer =
         wire_vehicles::VehiclesContainer::decode(VEHICLES_FILE)
             .expect("Failed to decode vehicles protobuf");
 
     let mut vehicles: HashMap<String, Vehicle> = HashMap::new();
 
-    // Each protobuf vehicle provides id and maximum velocity.
+    // Loop through all vehicles in the protobuf file
     for wv in &wire.vehicles {
+        // Extract vehicle ID and maximum velocity
         let id = wv.id.to_string();
         let maximum_velocity = wv.max_v;
 
-        // Store the vehicle by its id together with its maximum speed.
+        // Store the vehicle (ID -> Vehicle) in the HashMap
         vehicles.insert(id.clone(), Vehicle { maximum_velocity });
     }
 
+    // Insert the VehiclesData as a Bevy resource
     commands.insert_resource(VehiclesData { vehicles });
 }
 
@@ -413,8 +453,10 @@ fn read_and_parse_vehicles(mut commands: Commands) {
 // SIMULATION TIME
 // ============================================================================
 
-// this method updates the simulation time based on the real time delta and the timescale.
+// Bevy system: Update the simulation time based on real time delta and TIME_SCALE (runs every frame)
 fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
+    // Increment simulation time: real_delta * scale_factor
+    // Example: TIME_SCALE=50 means simulation runs 50x faster than real time
     clock.time += time.delta_secs() * TIME_SCALE;
 }
 
@@ -422,40 +464,41 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
 // CAMERA & VIEW SETUP
 // ============================================================================
 
-// creates the camera for visualization
+// Bevy startup system: Create the 2D camera for visualization
 fn setup(mut commands: Commands) {
-    // Spawn a simple 2D camera that supports panning and zooming via PanCam.
+    // Spawn a 2D camera with PanCam plugin (enables mouse panning and zooming)
     commands.spawn((Camera2d, PanCam::default()));
     // commands.spawn((Camera2d));
 }
 
-// set the camera position and zoom to fit the network
+// Bevy startup system: Calculate camera position and zoom to fit the entire network
 fn fit_camera_to_network(
     mut commands: Commands,
     network: Option<Res<NetworkData>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    // return if no network exists
+    // Early return if no network resource exists yet
     let Some(network) = network else {
         return;
     };
 
-    // return if the network is empty
+    // Early return if the network has no nodes
     if network.node_positions.is_empty() {
         return;
     }
 
-    // get the window to calc the size of the window
+    // Get the primary window to determine viewport size
     let Some(window) = window_query.iter().next() else {
         return;
     };
 
-    // calc the bounding box of all nodes
+    // Calculate the bounding box of all nodes (find min/max x and y)
     let mut min_x = f32::INFINITY;
     let mut max_x = f32::NEG_INFINITY;
     let mut min_y = f32::INFINITY;
     let mut max_y = f32::NEG_INFINITY;
 
+    // Loop through all node positions to find the bounds
     for position in network.node_positions.values() {
         min_x = min_x.min(position.x);
         max_x = max_x.max(position.x);
@@ -463,32 +506,35 @@ fn fit_camera_to_network(
         max_y = max_y.max(position.y);
     }
 
+    // Safety check: ensure all bounds are valid numbers
     if !min_x.is_finite() || !max_x.is_finite() || !min_y.is_finite() || !max_y.is_finite() {
         return;
     }
 
-    // calc the network width, height and center
-    let width = (max_x - min_x).max(f32::EPSILON);
+    // Calculate network dimensions and center point
+    let width = (max_x - min_x).max(f32::EPSILON); // Avoid division by zero
     let height = (max_y - min_y).max(f32::EPSILON);
     let center_x = (min_x + max_x) * 0.5;
     let center_y = (min_y + max_y) * 0.5;
 
-    // get the window dimensions
+    // Get window dimensions (with minimum value to avoid division by zero)
     let window_width = window.width().max(1.0);
     let window_height = window.height().max(1.0);
 
-    // calc the scale factor in x- and y-direction
+    // Calculate scale factors for x and y directions
+    // scale = world_units / screen_pixels
     let scale_x = width / window_width;
     let scale_y = height / window_height;
 
-    // add some margin and use the bigger scale factor
+    // Use the larger scale factor (ensures entire network fits) and add 10% margin
     let margin = 1.1;
     let mut scale = scale_x.max(scale_y) * margin;
+    // Safety check: ensure scale is valid and positive
     if !scale.is_finite() || scale <= 0.0 {
         scale = 1.0;
     }
 
-    // set the view settings
+    // Create and insert ViewSettings resource with calculated center and scale
     commands.insert_resource(ViewSettings {
         center: Vec2::new(center_x, center_y),
         scale,
@@ -499,55 +545,60 @@ fn fit_camera_to_network(
 // UI SETUP & UPDATE
 // ============================================================================
 
-// creates a simple ui text in the top-right corner showing simulation time and fps
+// Bevy startup system: Create UI text element in the top-right corner showing simulation time and FPS
 fn setup_ui(mut commands: Commands) {
+    // Spawn a text UI entity with position and styling
     commands.spawn((
+        // Position the text absolutely in the top-right corner
         UiNode {
             position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            right: Val::Px(10.0),
+            top: Val::Px(10.0),   // 10 pixels from top
+            right: Val::Px(10.0), // 10 pixels from right
             ..Default::default()
         },
+        // Initial placeholder text (will be updated every frame)
         Text::new("Sim Time: 00:00  FPS:     "),
+        // Set font size to 18px
         TextFont {
             font_size: 18.0,
             ..Default::default()
         },
+        // Set text color to white
         TextColor(Color::srgb(1.0, 1.0, 1.0)),
+        // Mark this entity with TimeFpsText component for querying
         TimeFpsText,
     ));
 }
 
-// updates the ui text every frame with the current simulation time and an approximate fps value
+// Bevy system: Update the UI text every frame with current simulation time and FPS
 fn update_time_and_fps(
-    mut frame_counter: Local<u32>,
     time: Res<Time>,
     clock: Res<SimulationClock>,
     mut query: Query<&mut Text, With<TimeFpsText>>,
 ) {
-    *frame_counter += 1;
-    if *frame_counter % TIME_FPS_UPDATE_EVERY_N_FRAMES != 0 {
-        return;
-    }
-
+    // Get current simulation time in seconds
     let sim_time = clock.time;
+    // Get the time elapsed since last frame (in seconds)
     let delta = time.delta_secs();
+    // Calculate FPS: frames per second = 1 / time_per_frame
     let fps = if delta > 0.0 {
-        (1.0 / delta).round() as i32
+        (1.0 / delta).round() as i32 // Convert to integer
     } else {
-        0
+        0 // Avoid division by zero
     };
 
-    // the simulation time is defined in seconds since 0:00
+    // Convert simulation time to hours and minutes
     let total_seconds = sim_time.max(0.0) as i32;
     let hours = (total_seconds / 3600) % 24;
     let minutes = (total_seconds / 60) % 60;
 
+    // Format the text string
     let content = format!("Sim Time: {:02}:{:02}  FPS: {:>4}", hours, minutes, fps);
 
+    // Update the TimeFpsText
     for mut text in &mut query {
-        text.0.clear();
-        text.0.push_str(&content);
+        text.0.clear(); // Clear old text
+        text.0.push_str(&content); // Set new text
     }
 }
 
@@ -555,29 +606,34 @@ fn update_time_and_fps(
 // RENDERING (Network & Vehicles)
 // ============================================================================
 
+// Bevy system: Render the network (all links as white lines) using Bevy's Gizmos
 fn draw_network(mut gizmos: Gizmos, network: Res<NetworkData>, view: Option<Res<ViewSettings>>) {
-    // use current view settings (if not defined use default values as fallback)
+    // Get view settings (center and scale) or use defaults if not available yet
     let (center, scale) = if let Some(view) = view {
-        (view.center, view.scale.max(f32::EPSILON))
+        (view.center, view.scale.max(f32::EPSILON)) // Avoid division by zero
     } else {
-        (Vec2::ZERO, 1.0)
+        (Vec2::ZERO, 1.0) // Default: no offset, no scaling
     };
 
-    // draw the links
+    // Loop through all links in the network
     for (_link_id, (from_id, to_id)) in &network.link_endpoints {
+        // Try to get the world positions for both nodes
         if let (Some(from), Some(to)) = (
             network.node_positions.get(from_id),
             network.node_positions.get(to_id),
         ) {
+            // Transform world coordinates to view coordinates: (world - center) / scale
+            // Then draw a white line between the two nodes
             gizmos.line_2d(
                 (*from - center) / scale,
                 (*to - center) / scale,
-                Color::srgb(1.0, 1.0, 1.0),
+                Color::srgb(1.0, 1.0, 1.0), // White color
             );
         }
     }
 }
 
+// Bevy system: Render all vehicles as green circles at their current position
 fn draw_vehicles(
     mut gizmos: Gizmos,
     trips: Res<AllTrips>,
@@ -586,37 +642,42 @@ fn draw_vehicles(
     view: Option<Res<ViewSettings>>,
     clock: Res<SimulationClock>,
 ) {
-    // use current view settings (if not defined use default values as fallback)
+    // Get view settings (center and scale) or use defaults if not available yet
     let (center, scale) = if let Some(view) = view {
-        (view.center, view.scale.max(f32::EPSILON))
+        (view.center, view.scale.max(f32::EPSILON)) // Avoid division by zero
     } else {
-        (Vec2::ZERO, 1.0)
+        (Vec2::ZERO, 1.0) // Default: no offset, no scaling
     };
 
+    // Track how many vehicles are waiting at each node (for vertical stacking)
     let mut waiting_stacks: HashMap<String, u32> = HashMap::new();
 
-    // get the current simulation time.
+    // Get current simulation time
     let sim_time = clock.time;
 
-    // loop over all vehicles and draw their current position.
+    // Loop through all vehicles and calculate their current position
     for (vehicle_id, trips_for_vehicle) in trips.per_vehicle.iter() {
+        // Skip vehicles with no trips
         if trips_for_vehicle.is_empty() {
             continue;
         }
 
-        // get the max vehicle speed
+        // Get the vehicle's maximum speed (or use infinity if not found)
         let vehicle_v_max = vehicles
             .vehicles
             .get(vehicle_id)
             .map(|v| v.maximum_velocity)
             .unwrap_or(f32::INFINITY);
 
+        // Struct to hold the calculated position and waiting status
         struct VehiclePosition {
-            world: Vec2,
-            waiting_node: Option<String>,
+            world: Vec2,                  // World position
+            waiting_node: Option<String>, // Node ID if waiting, None if moving
         }
 
         let mut position_to_draw: Option<VehiclePosition> = None;
+
+        // Struct to hold scheduled link traversal with calculated times
         struct ScheduledLink {
             from_pos: Vec2,
             to_pos: Vec2,
@@ -625,58 +686,66 @@ fn draw_vehicles(
             to_node_id: String,
         }
 
+        // Loop through trips (labeled for early exit)
         'trips: for trip in trips_for_vehicle {
+            // Skip empty trips
             if trip.links.is_empty() {
                 continue;
             }
 
+            // Build a schedule with calculated departure and arrival times
             let mut schedule: Vec<ScheduledLink> = Vec::with_capacity(trip.links.len());
             let mut prev_arrival_time_schedule: Option<f32> = None;
 
+            // Process each link in the trip
             for traversed_link in &trip.links {
-                // Get link endpoints from the network
+                // Get link endpoints from network (skip if not found)
                 let (from_id, to_id) = match network.link_endpoints.get(&traversed_link.link_id) {
                     Some(v) => v.clone(),
-                    None => continue,
+                    None => continue, // Skip invalid link
                 };
 
-                // get the positions of the from and to nodes.
+                // Get node positions (skip if not found)
                 let (from_pos, to_pos) = match (
                     network.node_positions.get(&from_id),
                     network.node_positions.get(&to_id),
                 ) {
                     (Some(&from), Some(&to)) => (from, to),
-                    _ => continue,
+                    _ => continue, // Skip if nodes missing
                 };
 
-                // calc the link length based on the coordinates
+                // Calculate link length using Euclidean distance
                 let link_vector = to_pos - from_pos;
-                let link_length = link_vector.length().max(f32::EPSILON);
+                let link_length = link_vector.length().max(f32::EPSILON); // Avoid division by zero
 
-                // get the max speed for the link
+                // Get link's maximum speed (freespeed)
                 let link_v_max = *network
                     .link_freespeed
                     .get(&traversed_link.link_id)
                     .unwrap_or(&f32::INFINITY);
 
-                // calc the max speed based on min(link_v_max, vehicle_v_max)
+                // Effective speed = minimum of vehicle speed and link speed
                 let v_eff = vehicle_v_max.min(link_v_max);
+                // Skip if speed is invalid
                 if v_eff <= 0.0 {
                     continue;
                 }
 
-                // calc the travel time based on the speed and the length
+                // Calculate travel duration: distance / speed
                 let travel_duration = link_length / v_eff;
                 let scheduled_start = traversed_link.start_time;
 
-                // calc the departure time for this link
+                // Departure time = max(scheduled_start, previous_arrival)
+                // This handles waiting at nodes between links
                 let depart_time = match prev_arrival_time_schedule {
                     Some(arrival_prev) => scheduled_start.max(arrival_prev),
-                    None => scheduled_start,
+                    None => scheduled_start, // First link uses scheduled start
                 };
 
+                // Arrival time = departure + travel duration
                 let arrival_time = depart_time + travel_duration;
 
+                // Add this link to the schedule
                 schedule.push(ScheduledLink {
                     from_pos,
                     to_pos,
@@ -688,59 +757,77 @@ fn draw_vehicles(
                 prev_arrival_time_schedule = Some(arrival_time);
             }
 
+            // Skip if schedule is empty (all links were invalid)
             if schedule.is_empty() {
                 continue;
             }
 
+            // Get trip time range
             let trip_start = schedule.first().unwrap().depart_time;
             let trip_end = schedule.last().unwrap().arrival_time;
+            // Skip this trip if current time is outside its time range
             if sim_time < trip_start || sim_time >= trip_end {
                 continue;
             }
 
+            // Track previous arrival for detecting waiting periods
             let mut prev_arrival_time: Option<f32> = None;
             let mut prev_arrival_pos: Option<Vec2> = None;
             let mut prev_arrival_node_id: Option<String> = None;
 
+            // Find where the vehicle is at current sim_time
             for entry in &schedule {
+                // Check if vehicle is waiting at a node (between arrival and next departure)
                 if let (Some(arrival_prev), Some(wait_pos)) = (prev_arrival_time, prev_arrival_pos)
                 {
                     if sim_time >= arrival_prev && sim_time < entry.depart_time {
+                        // Vehicle is waiting at the node
                         position_to_draw = Some(VehiclePosition {
                             world: wait_pos,
                             waiting_node: prev_arrival_node_id.clone(),
                         });
-                        break 'trips;
+                        break 'trips; // Found position, exit both loops
                     }
                 }
 
+                // Check if vehicle is currently traversing this link
                 if sim_time >= entry.depart_time && sim_time < entry.arrival_time {
+                    // Calculate progress along the link (0.0 to 1.0)
                     let travel_duration =
                         (entry.arrival_time - entry.depart_time).max(f32::EPSILON);
                     let progress =
                         ((sim_time - entry.depart_time) / travel_duration).clamp(0.0, 1.0);
+                    // Interpolate position along the link
                     let link_vector = entry.to_pos - entry.from_pos;
                     let position = entry.from_pos + link_vector * progress;
                     position_to_draw = Some(VehiclePosition {
                         world: position,
-                        waiting_node: None,
+                        waiting_node: None, // Not waiting, moving
                     });
-                    break 'trips;
+                    break 'trips; // Found position, exit both loops
                 }
 
+                // Update tracking variables for next iteration
                 prev_arrival_time = Some(entry.arrival_time);
                 prev_arrival_pos = Some(entry.to_pos);
                 prev_arrival_node_id = Some(entry.to_node_id.clone());
             }
         }
 
+        // Draw the vehicle if a position was found
         if let Some(position_info) = position_to_draw {
+            // Transform world coordinates to view coordinates
             let mut position_view = (position_info.world - center) / scale;
+            // If vehicle is waiting at a node, stack it vertically with other waiting vehicles
             if let Some(node_id) = &position_info.waiting_node {
+                // Get the current stack index for this node (or 0 if first)
                 let stack_index = waiting_stacks.entry(node_id.clone()).or_insert(0);
+                // Offset position vertically based on stack index
                 position_view += Vec2::new(0.0, WAIT_STACK_OFFSET * (*stack_index as f32));
+                // Increment stack counter for next vehicle at this node
                 *stack_index += 1;
             }
+            // Draw a green circle at the calculated position
             gizmos.circle_2d(position_view, 4.0, Color::srgb(0.0, 1.0, 0.0));
         }
     }
@@ -751,63 +838,76 @@ fn draw_vehicles(
 // ============================================================================
 
 fn main() {
-    // start the event reading thread which reads the events file
+    // Start the background thread that reads events from file and sends to channel
     let events_channel = start_events_thread();
 
-    // create the trips builder and publisher for the main thread
+    // Create the trips builder (stores trip data) wrapped in Rc<RefCell<>> for main-thread sharing
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
+    // Create the event publisher (manages event listeners)
     let mut publisher = EventsPublisher::new();
+    // Register the builder as a listener (it will receive all published events)
     register_trips_listener(builder.clone(), &mut publisher);
 
+    // Bundle builder and publisher into a single resource
     let builder_resource = TripsBuilderResource { builder, publisher };
 
-    // create initial empty trips
+    // Create initial empty AllTrips resource
     let trips = AllTrips {
         per_vehicle: HashMap::new(),
         first_start: 0.0,
     };
 
+    // Create simulation clock starting at time 0
     let sim_clock = SimulationClock { time: 0.0 };
 
-    // init bevy app
+    // Initialize and run the Bevy application
     App::new()
+        // Insert resources that will be available to all systems
         .insert_resource(trips)
         .insert_resource(sim_clock)
         .insert_resource(events_channel)
+        // Insert builder_resource as NonSend (main-thread only, not Send/Sync)
         .insert_non_send_resource(builder_resource)
+        // Add Bevy plugins
         .add_plugins((
+            // Default Bevy plugins with custom window settings
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
-                    title: "MATSim Rust OTF Viz".into(),
-                    resolution: (1200, 800).into(),
-                    resizable: true,
+                    title: "MATSim Rust OTF Viz".into(), // Window title
+                    resolution: (1200, 800).into(),      // Window size
+                    resizable: true,                     // Allow resizing
                     ..default()
                 }),
                 ..default()
             }),
+            // PanCam plugin for camera panning and zooming
             PanCamPlugin::default(),
         ))
+        // Add startup systems (run once at application start)
+        // .chain() ensures they run sequentially in order
         .add_systems(
             Startup,
             (
-                read_and_parse_network,
-                read_and_parse_vehicles,
-                fit_camera_to_network,
-                setup,
-                setup_ui,
+                read_and_parse_network,  // Load network from protobuf
+                read_and_parse_vehicles, // Load vehicles from protobuf
+                fit_camera_to_network,   // Calculate camera position/zoom
+                setup,                   // Create camera entity
+                setup_ui,                // Create UI text entity
             )
                 .chain(),
         )
+        // Add update systems (run every frame)
         .add_systems(
             Update,
             (
-                simulation_time,
-                process_events_from_channel,
-                update_trips_from_builder,
-                draw_network,
-                draw_vehicles,
-                update_time_and_fps,
+                simulation_time,             // Advance simulation clock
+                process_events_from_channel, // Read events from channel and process them
+                update_trips_from_builder,   // Build AllTrips from current builder state
+                draw_network,                // Render network links
+                draw_vehicles,               // Render vehicle positions
+                update_time_and_fps,         // Update UI text
             ),
         )
+        // Start the application (blocking call, runs until window is closed)
         .run();
 }
