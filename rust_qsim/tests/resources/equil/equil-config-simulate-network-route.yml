@@ -1,6 +1,6 @@
 modules:
-  protofiles:
-    type: ProtoFiles
+  inputfiles:
+    type: InputFiles
     ids: "./test_output/simulation/output-simulate-network-route/equil.ids.binpb"
     network: "./test_output/simulation/output-simulate-network-route/equil.network.binpb"
     population: "./test_output/simulation/output-simulate-network-route/equil.population.binpb"

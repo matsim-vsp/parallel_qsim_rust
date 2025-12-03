@@ -1,6 +1,6 @@
 modules:
-  protofiles:
-    type: ProtoFiles
+  inputfiles:
+    type: InputFiles
     network: ./test_output/simulation/pt_tutorial_adaptive/network.binpb
     population: ./test_output/simulation/pt_tutorial_adaptive/plans_1.binpb
     vehicles: ./test_output/simulation/pt_tutorial_adaptive/vehicles.binpb

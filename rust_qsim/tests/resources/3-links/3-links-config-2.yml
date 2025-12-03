@@ -1,6 +1,6 @@
 modules:
-  protofiles:
-    type: ProtoFiles
+  inputfiles:
+    type: InputFiles
     network: ./test_output/simulation/execute_3_links_2_parts/3-links-network.binpb
     population: ./test_output/simulation/execute_3_links_2_parts/1-agent-full-leg.binpb
     vehicles: ./test_output/simulation/execute_3_links_2_parts/vehicles.binpb

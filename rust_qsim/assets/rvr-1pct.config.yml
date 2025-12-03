@@ -1,6 +1,6 @@
 modules:
-  protofiles:
-    type: ProtoFiles
+  inputfiles:
+    type: InputFiles
     network: /Users/paulheinrich/Nextcloud/Shared/RustQSim/scenarios/rvr/input/rvr-1pct/rvr-1pct.network.binpb
     population: /Users/paulheinrich/Nextcloud/Shared/RustQSim/scenarios/rvr/input/rvr-1pct/rvr-1pct.plans.binpb
     vehicles: /Users/paulheinrich/Nextcloud/Shared/RustQSim/scenarios/rvr/input/rvr-1pct/rvr-1pct.vehicles.binpb

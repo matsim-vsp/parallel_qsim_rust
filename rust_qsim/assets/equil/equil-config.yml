@@ -1,6 +1,6 @@
 modules:
-  protofiles:
-    type: ProtoFiles
+  inputfiles:
+    type: InputFiles
     ids: "output/equil.ids.binpb"
     network: "output/equil.network.binpb"
     population: "output/equil.plans.binpb"

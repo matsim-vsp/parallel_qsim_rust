@@ -1,6 +1,6 @@
 modules:
-  protofiles:
-    type: ProtoFiles
+  inputfiles:
+    type: InputFiles
     network: ./assets/drt/bin-data/drt.network.binpb
     population: ./assets/drt/bin-data/drt.plans.binpb
     vehicles: ./assets/drt/bin-data/drt.vehicles.binpb
