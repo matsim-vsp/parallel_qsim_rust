@@ -16,7 +16,6 @@ use std::io::Cursor;
 use std::rc::Rc;
 use std::sync::{mpsc, Mutex};
 use std::thread;
-
 // ============================================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================================
@@ -299,6 +298,7 @@ fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut E
 }
 
 // Convert proto events to internal event objects and publish them
+// TODO: Move to thread
 #[rustfmt::skip]
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
     for proto_event in events {
@@ -329,8 +329,14 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
 }
 
 // Start a background thread that reads events from the file and sends them through a channel
+// TODO:
+// - Send every iteration one fix time slop (e. g. 1 sec). remember the last time, send empty vecs if no events
+// - bevy knows every iteration
+// - contract: every simulation second bevy gets all events that happened in that second (coulb be empty)
+// - if there is no new entry in the channel, bevy should wait! (recv() waits until there is something...)
 fn start_events_thread() -> EventsChannel {
     // Create a channel for sending events from background thread to main thread
+    // TODO: Vec<MyEvent> to Box<Dyn EventTrait>
     let (tx, rx) = mpsc::channel::<(u32, Vec<MyEvent>)>();
 
     // create a new background thread
@@ -341,10 +347,15 @@ fn start_events_thread() -> EventsChannel {
         // Read all events from the file and send them to the main thread
         for (time, events_at_time) in reader {
             // Try to send the events through the channel
-            if tx.send((time, events_at_time)).is_err() {
-                // stop reading if the send fails
-                break;
-            }
+            // if tx.send((time, events_at_time)).is_err() {
+            //     // stop reading if the send fails
+            //     break;
+            // }
+
+            // thread::sleep(Duration::from_millis(100));
+
+            tx.send((time, events_at_time))
+                .expect("Failed to send events through channel");
         }
     });
 
