@@ -288,20 +288,15 @@ fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut E
 // Convert proto events to internal event objects and publish them
 #[rustfmt::skip]
 fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
-    // Process each proto event in the bundle
     for proto_event in events {
-        // Clone because we need to modify it
         let mut proto_event = proto_event.clone();
-        // Ensure the "type" attribute exists (some events don't have it)
         if !proto_event.attributes.contains_key("type") {
             proto_event
                 .attributes
                 .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
         }
 
-        // Get the event type as a string
         let type_ = proto_event.attributes["type"].as_string();
-        // Match the type and create the corresponding internal event object
         let internal_event: Box<dyn EventTrait> = match type_.as_str() {
             GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
             ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(&proto_event, time)),
@@ -316,34 +311,31 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
             PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
-        // Publish the event (this triggers all registered listeners)
         publisher.publish_event(internal_event.as_ref());
     }
 }
 
 // Start a background thread that reads events from the file and sends them through a channel
-// The thread ONLY reads, does NOT process events (processing happens in main thread)
 fn start_events_thread() -> EventsChannel {
     // Create a channel for sending events from background thread to main thread
     let (tx, rx) = mpsc::channel::<(u32, Vec<MyEvent>)>();
 
-    // Spawn a new background thread
+    // create a new background thread
     thread::spawn(move || {
-        // Create reader for the embedded events file
+        // create a new reader to read the events file
         let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
         // Read all events from the file and send them to the main thread
         for (time, events_at_time) in reader {
             // Try to send the events through the channel
             if tx.send((time, events_at_time)).is_err() {
-                // If send fails, main thread has closed the channel -> stop reading
+                // stop reading if the send fails
                 break;
             }
         }
-        // Thread ends here when all events are read or channel is closed
     });
 
-    // Return the receiver wrapped in an EventsChannel resource
+    // Returns the receiver side of the channel
     EventsChannel {
         receiver: Mutex::new(rx),
     }
@@ -354,7 +346,6 @@ fn process_events_from_channel(
     events_channel: Res<EventsChannel>,
     mut builder_resource: NonSendMut<TripsBuilderResource>,
 ) {
-    // Try to lock the channel to get exclusive access
     if let Ok(receiver) = events_channel.receiver.lock() {
         // Read all events which are currently in the channel
         // try_recv() also removes the event from the channel
@@ -464,14 +455,14 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
 // CAMERA & VIEW SETUP
 // ============================================================================
 
-// Bevy startup system: Create the 2D camera for visualization
+// Create the 2D camera for visualization
 fn setup(mut commands: Commands) {
     // Spawn a 2D camera with PanCam plugin (enables mouse panning and zooming)
     commands.spawn((Camera2d, PanCam::default()));
     // commands.spawn((Camera2d));
 }
 
-// Bevy startup system: Calculate camera position and zoom to fit the entire network
+// Calculate camera position and zoom to fit the entire network
 fn fit_camera_to_network(
     mut commands: Commands,
     network: Option<Res<NetworkData>>,
@@ -545,9 +536,9 @@ fn fit_camera_to_network(
 // UI SETUP & UPDATE
 // ============================================================================
 
-// Bevy startup system: Create UI text element in the top-right corner showing simulation time and FPS
+// Create UI text element in the top-right corner showing simulation time and FPS
 fn setup_ui(mut commands: Commands) {
-    // Spawn a text UI entity with position and styling
+    // Create a text UI entity for displaying time and FPS
     commands.spawn((
         // Position the text absolutely in the top-right corner
         UiNode {
@@ -565,12 +556,11 @@ fn setup_ui(mut commands: Commands) {
         },
         // Set text color to white
         TextColor(Color::srgb(1.0, 1.0, 1.0)),
-        // Mark this entity with TimeFpsText component for querying
         TimeFpsText,
     ));
 }
 
-// Bevy system: Update the UI text every frame with current simulation time and FPS
+// Update the UI text every frame with current simulation time and FPS
 fn update_time_and_fps(
     time: Res<Time>,
     clock: Res<SimulationClock>,
@@ -578,13 +568,13 @@ fn update_time_and_fps(
 ) {
     // Get current simulation time in seconds
     let sim_time = clock.time;
-    // Get the time elapsed since last frame (in seconds)
+    // Get the time elapsed since last frame
     let delta = time.delta_secs();
     // Calculate FPS: frames per second = 1 / time_per_frame
     let fps = if delta > 0.0 {
-        (1.0 / delta).round() as i32 // Convert to integer
+        (1.0 / delta).round() as i32
     } else {
-        0 // Avoid division by zero
+        0
     };
 
     // Convert simulation time to hours and minutes
@@ -606,7 +596,7 @@ fn update_time_and_fps(
 // RENDERING (Network & Vehicles)
 // ============================================================================
 
-// Bevy system: Render the network (all links as white lines) using Bevy's Gizmos
+// Render the network
 fn draw_network(mut gizmos: Gizmos, network: Res<NetworkData>, view: Option<Res<ViewSettings>>) {
     // Get view settings (center and scale) or use defaults if not available yet
     let (center, scale) = if let Some(view) = view {
@@ -633,7 +623,7 @@ fn draw_network(mut gizmos: Gizmos, network: Res<NetworkData>, view: Option<Res<
     }
 }
 
-// Bevy system: Render all vehicles as green circles at their current position
+// Render all vehicles
 fn draw_vehicles(
     mut gizmos: Gizmos,
     trips: Res<AllTrips>,
@@ -649,7 +639,7 @@ fn draw_vehicles(
         (Vec2::ZERO, 1.0) // Default: no offset, no scaling
     };
 
-    // Track how many vehicles are waiting at each node (for vertical stacking)
+    // Track how many vehicles are waiting at each node
     let mut waiting_stacks: HashMap<String, u32> = HashMap::new();
 
     // Get current simulation time
@@ -662,7 +652,7 @@ fn draw_vehicles(
             continue;
         }
 
-        // Get the vehicle's maximum speed (or use infinity if not found)
+        // Get the vehicle's maximum speed
         let vehicle_v_max = vehicles
             .vehicles
             .get(vehicle_id)
@@ -671,8 +661,8 @@ fn draw_vehicles(
 
         // Struct to hold the calculated position and waiting status
         struct VehiclePosition {
-            world: Vec2,                  // World position
-            waiting_node: Option<String>, // Node ID if waiting, None if moving
+            world: Vec2,                  // position
+            waiting_node: Option<String>, // Node ID if the vehicle is waiting at a node
         }
 
         let mut position_to_draw: Option<VehiclePosition> = None;
@@ -686,11 +676,11 @@ fn draw_vehicles(
             to_node_id: String,
         }
 
-        // Loop through trips (labeled for early exit)
-        'trips: for trip in trips_for_vehicle {
+        // Find vehicle position by searching through all trips
+        position_to_draw = trips_for_vehicle.iter().find_map(|trip| {
             // Skip empty trips
             if trip.links.is_empty() {
-                continue;
+                return None;
             }
 
             // Build a schedule with calculated departure and arrival times
@@ -699,34 +689,34 @@ fn draw_vehicles(
 
             // Process each link in the trip
             for traversed_link in &trip.links {
-                // Get link endpoints from network (skip if not found)
+                // Get link endpoints from network
                 let (from_id, to_id) = match network.link_endpoints.get(&traversed_link.link_id) {
                     Some(v) => v.clone(),
                     None => continue, // Skip invalid link
                 };
 
-                // Get node positions (skip if not found)
+                // Get node positions
                 let (from_pos, to_pos) = match (
                     network.node_positions.get(&from_id),
                     network.node_positions.get(&to_id),
                 ) {
                     (Some(&from), Some(&to)) => (from, to),
-                    _ => continue, // Skip if nodes missing
+                    _ => continue,
                 };
 
-                // Calculate link length using Euclidean distance
+                // Calculate link length
                 let link_vector = to_pos - from_pos;
-                let link_length = link_vector.length().max(f32::EPSILON); // Avoid division by zero
+                let link_length = link_vector.length().max(f32::EPSILON);
 
-                // Get link's maximum speed (freespeed)
+                // Get link's maximum speed
                 let link_v_max = *network
                     .link_freespeed
                     .get(&traversed_link.link_id)
                     .unwrap_or(&f32::INFINITY);
 
-                // Effective speed = minimum of vehicle speed and link speed
+                // effective speed (minimum of vehicle and link speed)
                 let v_eff = vehicle_v_max.min(link_v_max);
-                // Skip if speed is invalid
+
                 if v_eff <= 0.0 {
                     continue;
                 }
@@ -759,15 +749,16 @@ fn draw_vehicles(
 
             // Skip if schedule is empty (all links were invalid)
             if schedule.is_empty() {
-                continue;
+                return None;
             }
 
             // Get trip time range
             let trip_start = schedule.first().unwrap().depart_time;
             let trip_end = schedule.last().unwrap().arrival_time;
+
             // Skip this trip if current time is outside its time range
             if sim_time < trip_start || sim_time >= trip_end {
-                continue;
+                return None;
             }
 
             // Track previous arrival for detecting waiting periods
@@ -777,22 +768,21 @@ fn draw_vehicles(
 
             // Find where the vehicle is at current sim_time
             for entry in &schedule {
-                // Check if vehicle is waiting at a node (between arrival and next departure)
+                // Check if vehicle is waiting at a node
                 if let (Some(arrival_prev), Some(wait_pos)) = (prev_arrival_time, prev_arrival_pos)
                 {
                     if sim_time >= arrival_prev && sim_time < entry.depart_time {
                         // Vehicle is waiting at the node
-                        position_to_draw = Some(VehiclePosition {
+                        return Some(VehiclePosition {
                             world: wait_pos,
                             waiting_node: prev_arrival_node_id.clone(),
                         });
-                        break 'trips; // Found position, exit both loops
                     }
                 }
 
                 // Check if vehicle is currently traversing this link
                 if sim_time >= entry.depart_time && sim_time < entry.arrival_time {
-                    // Calculate progress along the link (0.0 to 1.0)
+                    // Calculate progress along the link (between 0.0 and 1.0)
                     let travel_duration =
                         (entry.arrival_time - entry.depart_time).max(f32::EPSILON);
                     let progress =
@@ -800,11 +790,10 @@ fn draw_vehicles(
                     // Interpolate position along the link
                     let link_vector = entry.to_pos - entry.from_pos;
                     let position = entry.from_pos + link_vector * progress;
-                    position_to_draw = Some(VehiclePosition {
+                    return Some(VehiclePosition {
                         world: position,
-                        waiting_node: None, // Not waiting, moving
+                        waiting_node: None,
                     });
-                    break 'trips; // Found position, exit both loops
                 }
 
                 // Update tracking variables for next iteration
@@ -812,7 +801,9 @@ fn draw_vehicles(
                 prev_arrival_pos = Some(entry.to_pos);
                 prev_arrival_node_id = Some(entry.to_node_id.clone());
             }
-        }
+
+            None
+        });
 
         // Draw the vehicle if a position was found
         if let Some(position_info) = position_to_draw {
@@ -840,12 +831,11 @@ fn draw_vehicles(
 fn main() {
     // Start the background thread that reads events from file and sends to channel
     let events_channel = start_events_thread();
-
-    // Create the trips builder (stores trip data) wrapped in Rc<RefCell<>> for main-thread sharing
+    // Create the trips builder
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
-    // Create the event publisher (manages event listeners)
+    // Create the event publisher
     let mut publisher = EventsPublisher::new();
-    // Register the builder as a listener (it will receive all published events)
+    // Register the builder as a listener
     register_trips_listener(builder.clone(), &mut publisher);
 
     // Bundle builder and publisher into a single resource
@@ -883,31 +873,30 @@ fn main() {
             // PanCam plugin for camera panning and zooming
             PanCamPlugin::default(),
         ))
-        // Add startup systems (run once at application start)
-        // .chain() ensures they run sequentially in order
+        // Add startup systems
         .add_systems(
             Startup,
             (
-                read_and_parse_network,  // Load network from protobuf
-                read_and_parse_vehicles, // Load vehicles from protobuf
-                fit_camera_to_network,   // Calculate camera position/zoom
-                setup,                   // Create camera entity
-                setup_ui,                // Create UI text entity
+                read_and_parse_network,
+                read_and_parse_vehicles,
+                fit_camera_to_network,
+                setup,
+                setup_ui,
             )
                 .chain(),
         )
-        // Add update systems (run every frame)
+        // Add update systems
         .add_systems(
             Update,
             (
-                simulation_time,             // Advance simulation clock
-                process_events_from_channel, // Read events from channel and process them
-                update_trips_from_builder,   // Build AllTrips from current builder state
-                draw_network,                // Render network links
-                draw_vehicles,               // Render vehicle positions
-                update_time_and_fps,         // Update UI text
+                simulation_time,
+                process_events_from_channel,
+                update_trips_from_builder,
+                draw_network,
+                draw_vehicles,
+                update_time_and_fps,
             ),
         )
-        // Start the application (blocking call, runs until window is closed)
+        // Start the application
         .run();
 }
