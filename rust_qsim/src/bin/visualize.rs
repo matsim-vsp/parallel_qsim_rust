@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::rc::Rc;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Mutex};
 use std::thread;
 
 // ============================================================================
@@ -38,9 +38,6 @@ const WAIT_STACK_OFFSET: f32 = 8.0;
 // defines how often the time and the fps value should be updated.
 // if the value is to small the fps value is not readable
 const TIME_FPS_UPDATE_EVERY_N_FRAMES: u32 = 50;
-
-// defines how often trips should be updated from incoming events (in frames)
-const TRIPS_UPDATE_EVERY_N_FRAMES: u32 = 10;
 
 // ============================================================================
 // DATA STRUCTURES & RESOURCES
@@ -76,7 +73,7 @@ struct SimulationClock {
 // Resource that contains the receiver side of the event channel.
 #[derive(Resource)]
 struct EventsChannel {
-    receiver: Mutex<mpsc::Receiver<Vec<MyEvent>>>,
+    receiver: Mutex<mpsc::Receiver<(u32, Vec<MyEvent>)>>,
 }
 
 // network
@@ -109,10 +106,11 @@ struct VehiclesData {
     vehicles: HashMap<String, Vehicle>,
 }
 
-// Shared state for the TripsBuilder that can be accessed from both the thread and Bevy systems
-#[derive(Resource, Clone)]
-struct SharedTripsBuilder {
-    builder: Arc<Mutex<TripsBuilder>>,
+// Resource that holds the TripsBuilder and EventsPublisher for the main thread
+// This is NOT Send/Sync because it uses Rc/RefCell, but that's fine since it only lives in the main thread
+struct TripsBuilderResource {
+    builder: Rc<RefCell<TripsBuilder>>,
+    publisher: EventsPublisher,
 }
 
 // ============================================================================
@@ -299,94 +297,60 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
 }
 
 // This method starts a new thread that reads all events from the proto events file and
-// processes them in real-time, updating the shared TripsBuilder
-fn start_events_thread(shared_builder: SharedTripsBuilder) -> EventsChannel {
+// sends them through a channel (WITHOUT processing them - that happens in the main thread)
+fn start_events_thread() -> EventsChannel {
     // create channel for sending events to visualization
-    let (tx_viz, rx_viz) = mpsc::channel::<Vec<MyEvent>>();
+    let (tx, rx) = mpsc::channel::<(u32, Vec<MyEvent>)>();
 
     // create a new thread for reading events
     thread::spawn(move || {
         // reader for all proto events
         let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
-        // create a local TripsBuilder that feeds into the shared one
-        let builder = Rc::new(RefCell::new(TripsBuilder::new()));
-        let mut publisher = EventsPublisher::new();
-        register_trips_listener(builder.clone(), &mut publisher);
-
-        // iterate over all events and process them
+        // iterate over all events and send them to the main thread
         for (time, events_at_time) in reader {
-            // process events locally
-            process_events(time, &events_at_time, &mut publisher);
-
-            // send to visualization channel
-            if tx_viz.send(events_at_time).is_err() {
-                break;
+            // send to main thread for processing
+            if tx.send((time, events_at_time)).is_err() {
+                break; // main thread closed the channel, stop reading
             }
-
-            // periodically update the shared builder with current state
-            if let Ok(mut shared) = shared_builder.builder.lock() {
-                *shared = builder.borrow().clone();
-            }
-        }
-
-        publisher.finish();
-
-        // final update with complete data
-        if let Ok(mut shared) = shared_builder.builder.lock() {
-            *shared = builder.borrow().clone();
         }
     });
 
     EventsChannel {
-        receiver: Mutex::new(rx_viz),
+        receiver: Mutex::new(rx),
     }
 }
 
-// Clone implementation for TripsBuilder
-impl Clone for TripsBuilder {
-    fn clone(&self) -> Self {
-        Self {
-            current_link_per_vehicle: self.current_link_per_vehicle.clone(),
-            current_trip_per_vehicle: self.current_trip_per_vehicle.clone(),
-            per_vehicle: self.per_vehicle.clone(),
-            first_start: self.first_start,
+// This system receives and processes events from the event channel
+fn process_events_from_channel(
+    events_channel: Res<EventsChannel>,
+    mut builder_resource: NonSendMut<TripsBuilderResource>,
+) {
+    if let Ok(receiver) = events_channel.receiver.lock() {
+        // process all available events (non-blocking)
+        while let Ok((time, events_at_time)) = receiver.try_recv() {
+            process_events(time, &events_at_time, &mut builder_resource.publisher);
         }
     }
 }
 
-// This system receives all events from the event channel (currently just drains them)
-fn receive_events_from_channel(events_channel: Res<EventsChannel>) {
-    if let Ok(receiver) = events_channel.receiver.lock() {
-        while let Ok(_timed_events) = receiver.try_recv() {}
-    }
-}
-
-// This system periodically updates the AllTrips resource from the shared builder
+// This system updates the AllTrips resource from the builder
 fn update_trips_from_builder(
-    mut frame_counter: Local<u32>,
     mut clock_initialized: Local<bool>,
-    shared_builder: Res<SharedTripsBuilder>,
+    builder_resource: NonSend<TripsBuilderResource>,
     mut trips: ResMut<AllTrips>,
     mut clock: ResMut<SimulationClock>,
 ) {
-    *frame_counter += 1;
-    if *frame_counter % TRIPS_UPDATE_EVERY_N_FRAMES != 0 {
-        return;
+    // build trips from the current builder state
+    let new_trips = builder_resource.builder.borrow().build_all_trips();
+
+    // on first update: set clock to the first event time
+    if !*clock_initialized && new_trips.first_start > 0.0 && new_trips.first_start != f32::MAX {
+        clock.time = new_trips.first_start;
+        *clock_initialized = true;
     }
 
-    // update trips from the shared builder
-    if let Ok(builder) = shared_builder.builder.lock() {
-        let new_trips = builder.build_all_trips();
-
-        // on first update: set clock to the first event time
-        if !*clock_initialized && new_trips.first_start > 0.0 && new_trips.first_start != f32::MAX {
-            clock.time = new_trips.first_start;
-            *clock_initialized = true;
-        }
-
-        *trips = new_trips;
-    }
+    *trips = new_trips;
 }
 
 // ============================================================================
@@ -787,14 +751,15 @@ fn draw_vehicles(
 // ============================================================================
 
 fn main() {
-    // create shared trips builder that can be accessed from both thread and Bevy systems
-    let shared_builder = SharedTripsBuilder {
-        builder: Arc::new(Mutex::new(TripsBuilder::new())),
-    };
-
     // start the event reading thread which reads the events file
-    // and processes them in real-time
-    let events_channel = start_events_thread(shared_builder.clone());
+    let events_channel = start_events_thread();
+
+    // create the trips builder and publisher for the main thread
+    let builder = Rc::new(RefCell::new(TripsBuilder::new()));
+    let mut publisher = EventsPublisher::new();
+    register_trips_listener(builder.clone(), &mut publisher);
+
+    let builder_resource = TripsBuilderResource { builder, publisher };
 
     // create initial empty trips
     let trips = AllTrips {
@@ -809,7 +774,7 @@ fn main() {
         .insert_resource(trips)
         .insert_resource(sim_clock)
         .insert_resource(events_channel)
-        .insert_resource(shared_builder)
+        .insert_non_send_resource(builder_resource)
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
@@ -837,7 +802,7 @@ fn main() {
             Update,
             (
                 simulation_time,
-                receive_events_from_channel,
+                process_events_from_channel,
                 update_trips_from_builder,
                 draw_network,
                 draw_vehicles,
