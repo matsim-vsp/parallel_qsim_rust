@@ -192,7 +192,7 @@ impl TripsBuilder {
     // Start a new trip when a person enters a vehicle
     fn handle_person_enters(&mut self, event: &PersonEntersVehicleEvent) {
         let vehicle_id = event.vehicle.external().to_string();
-        // Create an empty Vec for collecting TraversedLinks (if not exists)
+        // Create an empty Vec for collecting TraversedLinks
         self.current_trip_per_vehicle
             .entry(vehicle_id)
             .or_insert_with(Vec::new);
@@ -261,6 +261,19 @@ impl TripsBuilder {
         if first_start == f32::MAX {
             first_start = 0.0;
         }
+
+        // // Print all trips
+        // println!("\nAll Trips:");
+        // for (vehicle_id, trips) in &per_vehicle {
+        //     println!("\nVehicle: {}", vehicle_id);
+        //     for (trip_idx, trip) in trips.iter().enumerate() {
+        //         println!("  Trip {}:", trip_idx);
+        //         for link in &trip.links {
+        //             println!("    Link: {} (start: {})", link.link_id, link.start_time);
+        //         }
+        //     }
+        // }
+
         // Return the AllTrips object
         AllTrips {
             per_vehicle,
@@ -335,7 +348,7 @@ fn start_events_thread() -> EventsChannel {
         }
     });
 
-    // Returns the receiver side of the channel
+    // Returns the receiver
     EventsChannel {
         receiver: Mutex::new(rx),
     }
@@ -829,7 +842,7 @@ fn draw_vehicles(
 // ============================================================================
 
 fn main() {
-    // Start the background thread that reads events from file and sends to channel
+    // Start the background thred that reads events from file and sends them to the channel
     let events_channel = start_events_thread();
     // Create the trips builder
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
