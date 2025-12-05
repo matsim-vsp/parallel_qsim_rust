@@ -487,7 +487,7 @@ impl SimNetworkPartition {
                     sel_cap += in_link.flow_cap();
 
                     if sel_cap >= rnd_num {
-                        let veh = in_link.pop_veh();
+                        let veh = in_link.pop_veh().expect("No vehicle on link");
                         Self::move_vehicle(veh, links, active_links, comp_env, now);
                     }
                 } else {
