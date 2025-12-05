@@ -32,6 +32,11 @@ fn execute_3_links_single_part() {
 
     TestExecutorBuilder::default()
         .config(Arc::new(Config::from(config_args)))
+        // .expected_events(None)
+        // .additional_subscribers(HashMap::from([(
+        //     0,
+        //     vec![XmlEventsWriter::register("test_output/test.xml".into())],
+        // )]))
         .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
         .build()
         .unwrap()

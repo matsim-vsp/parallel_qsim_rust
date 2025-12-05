@@ -4,7 +4,7 @@ use crate::simulation::events::{
     ActivityEndEvent, ActivityStartEvent, EventTrait, EventsPublisher, GeneralEvent,
     LinkEnterEvent, LinkLeaveEvent, OnEventFnBuilder, PersonArrivalEvent, PersonDepartureEvent,
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PtTeleportationArrivalEvent,
-    TeleportationArrivalEvent,
+    TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use prost::Message;
 use std::cell::RefCell;
@@ -227,6 +227,66 @@ impl From<&PtTeleportationArrivalEvent> for MyEvent {
     }
 }
 
+impl From<&VehicleEntersTrafficEvent> for MyEvent {
+    fn from(value: &VehicleEntersTrafficEvent) -> Self {
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            "vehicle".to_string(),
+            AttributeValue::from(value.vehicle.external()),
+        );
+        attributes.insert(
+            "link".to_string(),
+            AttributeValue::from(value.link.external()),
+        );
+        attributes.insert(
+            "driver".to_string(),
+            AttributeValue::from(value.driver.external()),
+        );
+        attributes.insert(
+            "mode".to_string(),
+            AttributeValue::from(value.mode.external()),
+        );
+        attributes.insert(
+            "relative_position_on_link".to_string(),
+            AttributeValue::from(value.relative_position_on_link),
+        );
+        MyEvent {
+            r#type: value.type_().to_string(),
+            attributes,
+        }
+    }
+}
+
+impl From<&VehicleLeavesTrafficEvent> for MyEvent {
+    fn from(value: &VehicleLeavesTrafficEvent) -> Self {
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            "vehicle".to_string(),
+            AttributeValue::from(value.vehicle.external()),
+        );
+        attributes.insert(
+            "link".to_string(),
+            AttributeValue::from(value.link.external()),
+        );
+        attributes.insert(
+            "driver".to_string(),
+            AttributeValue::from(value.driver.external()),
+        );
+        attributes.insert(
+            "mode".to_string(),
+            AttributeValue::from(value.mode.external()),
+        );
+        attributes.insert(
+            "relative_position_on_link".to_string(),
+            AttributeValue::from(value.relative_position_on_link),
+        );
+        MyEvent {
+            r#type: value.type_().to_string(),
+            attributes,
+        }
+    }
+}
+
 impl From<&GeneralEvent> for MyEvent {
     fn from(value: &GeneralEvent) -> Self {
         let mut attributes = HashMap::new();
@@ -304,7 +364,12 @@ impl ProtoEventsWriter {
             MyEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
             MyEvent::from(event)
+        } else if let Some(event) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
+            MyEvent::from(event)
+        } else if let Some(event) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
+            MyEvent::from(event)
         } else {
+            // TODO use general event here and log warning
             panic!("Unknown event type: {:?}", event);
         }
     }

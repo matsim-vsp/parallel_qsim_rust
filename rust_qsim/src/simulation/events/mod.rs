@@ -326,6 +326,100 @@ impl EventTrait for LinkLeaveEvent {
 }
 
 #[derive(Builder, Debug)]
+pub struct VehicleEntersTrafficEvent {
+    pub time: u32,
+    pub vehicle: Id<InternalVehicle>,
+    pub link: Id<Link>,
+    pub driver: Id<InternalPerson>,
+    pub mode: Id<String>,
+    #[builder(default = 1.0)]
+    pub relative_position_on_link: f64,
+    #[builder(default)]
+    pub attributes: InternalAttributes,
+}
+
+impl VehicleEntersTrafficEvent {
+    pub const TYPE: &'static str = "vehicle enters traffic";
+    pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
+        let attrs = InternalAttributes::from(&event.attributes);
+        assert!(event.r#type.eq(Self::TYPE));
+        VehicleEntersTrafficEventBuilder::default()
+            .time(time)
+            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
+            .link(Id::create(&event.attributes["link"].as_string()))
+            .driver(Id::create(&event.attributes["driver"].as_string()))
+            .mode(Id::create(&event.attributes["mode"].as_string()))
+            .relative_position_on_link(event.attributes["relative_position_on_link"].as_double())
+            .attributes(attrs)
+            .build()
+            .unwrap()
+    }
+}
+
+impl EventTrait for VehicleEntersTrafficEvent {
+    fn type_(&self) -> &'static str {
+        Self::TYPE
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn time(&self) -> u32 {
+        self.time
+    }
+
+    fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
+    }
+}
+
+#[derive(Builder, Debug)]
+pub struct VehicleLeavesTrafficEvent {
+    pub time: u32,
+    pub vehicle: Id<InternalVehicle>,
+    pub link: Id<Link>,
+    pub driver: Id<InternalPerson>,
+    pub mode: Id<String>,
+    #[builder(default = 1.0)]
+    pub relative_position_on_link: f64,
+    #[builder(default)]
+    pub attributes: InternalAttributes,
+}
+
+impl VehicleLeavesTrafficEvent {
+    pub const TYPE: &'static str = "vehicle leaves traffic";
+    pub fn from_proto_event(event: &MyEvent, time: u32) -> Self {
+        let attrs = InternalAttributes::from(&event.attributes);
+        assert!(event.r#type.eq(Self::TYPE));
+        VehicleLeavesTrafficEventBuilder::default()
+            .time(time)
+            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
+            .link(Id::create(&event.attributes["link"].as_string()))
+            .driver(Id::create(&event.attributes["driver"].as_string()))
+            .mode(Id::create(&event.attributes["mode"].as_string()))
+            .relative_position_on_link(event.attributes["relative_position_on_link"].as_double())
+            .attributes(attrs)
+            .build()
+            .unwrap()
+    }
+}
+
+impl EventTrait for VehicleLeavesTrafficEvent {
+    fn type_(&self) -> &'static str {
+        Self::TYPE
+    }
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn time(&self) -> u32 {
+        self.time
+    }
+
+    fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
+    }
+}
+
+#[derive(Builder, Debug)]
 pub struct PersonEntersVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,

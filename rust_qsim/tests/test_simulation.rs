@@ -74,14 +74,14 @@ impl TestExecutor<'_> {
             .map(ReceivingSubscriber::new_with_events_from_file);
 
         for c in 0..self.config.partitioning().num_parts {
-            if receiver.is_none() {
-                continue;
-            }
+            let mut subscriber: Vec<Box<OnEventFnBuilder>> =
+                if let Some(receiver) = receiver.as_ref() {
+                    let subscr = SendingSubscriber::register(c, receiver.channel.0.clone());
+                    vec![Box::new(subscr)]
+                } else {
+                    vec![]
+                };
 
-            let subscr =
-                SendingSubscriber::register(c, receiver.as_ref().unwrap().channel.0.clone());
-
-            let mut subscriber: Vec<Box<OnEventFnBuilder>> = vec![Box::new(subscr)];
             subscriber.append(
                 self.additional_subscribers
                     .get_mut(&c)

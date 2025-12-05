@@ -436,8 +436,13 @@ pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
     pub sample_size: f32,
+    #[serde(default = "default_to_10")]
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
+}
+
+fn default_to_10() -> u32 {
+    10
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]

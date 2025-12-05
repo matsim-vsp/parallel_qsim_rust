@@ -59,6 +59,15 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
+    /// Performs a sim step for the leg engine. Note that vehicles that leave a link and move to another link are always processed one time step later.
+    /// This is in line with the Java reference implementation. The reason is that the order is:
+    ///
+    /// 1. `move_nodes`
+    /// 2. `move_links`
+    ///
+    /// Let's say, a vehicle's earliest exit time is `x`. The `move_links` call puts it into the buffer
+    /// at time step `x` (assuming it is free), and the `move_nodes` call at time step `x+1` puts it onto the next link.
+    /// The corresponding LinkEnter and LinkLeave events have time step `x+1`
     #[instrument(level = "trace", skip(self, agents), fields(rank=self.net_message_broker.rank()))]
     pub(crate) fn do_step(
         &mut self,
@@ -70,14 +79,16 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
 
         let teleported_vehicles = self.teleportation_engine.do_step(now);
-        let network_vehicles = self.network_engine.move_nodes(now);
+
+        self.network_engine.move_nodes(now);
+        let network_vehicles = self
+            .network_engine
+            .move_links(now, &mut self.net_message_broker);
 
         let mut agents = vec![];
         agents.extend(self.publish_end_events(now, network_vehicles, true));
         agents.extend(self.publish_end_events(now, teleported_vehicles, false));
 
-        self.network_engine
-            .move_links(now, &mut self.net_message_broker);
         let sync_messages = self.net_message_broker.send_recv(now);
 
         for mut msg in sync_messages {

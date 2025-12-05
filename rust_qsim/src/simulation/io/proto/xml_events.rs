@@ -17,7 +17,7 @@ use crate::simulation::events::{
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
     PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
-    TeleportationArrivalEventBuilder,
+    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
@@ -136,6 +136,26 @@ impl XmlEventsWriter {
                 ev.mode,
                 ev.line,
                 ev.route
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
+            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+                    ev.time(),
+                    ev.type_(),
+                    ev.driver,
+                    ev.link,
+                    ev.vehicle,
+                    ev.mode,
+                    ev.relative_position_on_link
+            )
+        } else if let Some(ev) = e.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
+            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+                    ev.time(),
+                    ev.type_(),
+                    ev.driver,
+                    ev.link,
+                    ev.vehicle,
+                    ev.mode,
+                    ev.relative_position_on_link
             )
         } else {
             panic!("Unknown event type");
