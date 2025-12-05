@@ -729,10 +729,13 @@ mod tests {
 
             // when the vehicle moves from link1 to link2, it will be placed on an out link.
             // the stored vehicles on out links should be collected during move links.
-            if now == 10 {
+            if now == 1 {
                 assert_eq!(1, res.vehicles_exit_partition.len());
             } else {
-                assert!(res.vehicles_exit_partition.is_empty());
+                assert!(
+                    res.vehicles_exit_partition.is_empty(),
+                    "There should be no vehicles on the out link at timestep {now}"
+                );
             }
         }
     }
