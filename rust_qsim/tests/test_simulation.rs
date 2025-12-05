@@ -96,7 +96,7 @@ impl TestExecutor<'_> {
         &mut self,
         subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
     ) -> IntMap<u32, JoinHandle<()>> {
-        let scenario = GlobalScenario::build(self.config.clone());
+        let scenario = GlobalScenario::load(self.config.clone());
 
         let controller = LocalControllerBuilder::default()
             .global_scenario(scenario)

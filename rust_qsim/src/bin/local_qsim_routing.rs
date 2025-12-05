@@ -27,6 +27,11 @@ fn main() {
     let total_thread_count = config.partitioning().num_parts + 1;
     let barrier = Arc::new(Barrier::new(total_thread_count as usize));
 
+    // Configuring the routing adapter. We need
+    // - the IP address of the router service
+    // - the configuration of the simulation
+    // - the shutdown handles of the executor (= receiver of shutdown signals from the controller)
+    // The AsyncExecutor will spawn a thread for the routing service adapter and an async runtime.
     let executor = AsyncExecutor::from_config(&config, barrier.clone());
     let factory = RoutingServiceAdapterFactory::new(
         vec![&args.router_ip],
@@ -34,13 +39,21 @@ fn main() {
         executor.shutdown_handles(),
     );
 
+    // Spawning the routing service adapter in a separate thread. The adapter will be run in its own tokio runtime.
+    // This function returns
+    // - the join handle of the adapter thread
+    // - a channel for sending requests to the adapter
+    // - a channel for sending shutdown signal for the adapter
     let (router_handle, send, send_sd) = executor.spawn_thread("router", factory);
 
+    // The request sender is passed to the controller.
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    let scenario = GlobalScenario::build(config);
+    // Load scenario
+    let scenario = GlobalScenario::load(config);
 
+    // Create controller
     let controller = LocalControllerBuilder::default()
         .global_scenario(scenario)
         .external_services(services)
@@ -48,8 +61,10 @@ fn main() {
         .build()
         .unwrap();
 
+    // Run controller
     let sim_handles = controller.run();
 
+    // Wait for the controller to finish and the routing adapter to finish.
     controller::try_join(
         sim_handles,
         vec![AdapterHandleBuilder::default()

@@ -19,7 +19,7 @@ pub struct GlobalScenario {
 }
 
 impl GlobalScenario {
-    pub fn build(config: Arc<Config>) -> Self {
+    pub fn load(config: Arc<Config>) -> Self {
         id::load_from_file(&io::resolve_path(
             config.context(),
             &config.proto_files().ids,
