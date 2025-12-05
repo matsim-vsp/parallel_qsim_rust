@@ -120,7 +120,7 @@ impl SimLink {
     }
 
     #[cfg(test)]
-    fn used_storage(&self) -> f32 {
+    pub fn used_storage(&self) -> f32 {
         match self {
             SimLink::Local(ll) => ll.storage_cap.used(),
             SimLink::In(il) => il.local_link.storage_cap.used(),
@@ -445,8 +445,9 @@ impl LocalLink {
         None
     }
 
-    pub fn veh_count(&self) -> usize {
-        self.q.len()
+    #[cfg(test)]
+    pub(super) fn veh_count(&self) -> usize {
+        self.q.len() + self.waiting_list.len() + self.buffer.len()
     }
 
     pub fn is_available(&self) -> bool {
