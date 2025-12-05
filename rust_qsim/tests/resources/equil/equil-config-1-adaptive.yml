@@ -1,6 +1,6 @@
 modules:
-  protofiles:
-    type: ProtoFiles
+  inputfiles:
+    type: InputFiles
     network: ./test_output/simulation/equil_single_part_adaptive/equil-network.binpb
     population: ./test_output/simulation/equil_single_part_adaptive/equil-1-plan.binpb
     vehicles: ./test_output/simulation/equil_single_part_adaptive/equil-vehicles.binpb
