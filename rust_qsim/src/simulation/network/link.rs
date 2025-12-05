@@ -728,7 +728,7 @@ mod sim_link_tests {
         assert_eq!(id2.to_string(), popped_vehicle2.id.external());
     }
 
-    #[test]
+    #[integration_test]
     pub fn stuck_time() {
         let stuck_threshold = 10;
         let config = config::Simulation {

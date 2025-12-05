@@ -225,6 +225,12 @@ impl From<&str> for AttributeValue {
     }
 }
 
+impl From<f64> for AttributeValue {
+    fn from(value: f64) -> Self {
+        AttributeValue::new_double(value)
+    }
+}
+
 // we can't tag the enum as non-exhaustive because prost generates it. This is why the warning is manually disabled.
 #[allow(unreachable_patterns)]
 impl Serialize for AttributeValue {
