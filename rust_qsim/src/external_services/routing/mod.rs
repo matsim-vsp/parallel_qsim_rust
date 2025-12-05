@@ -109,14 +109,14 @@ impl From<Response> for InternalRoutingResponse {
 pub struct RoutingServiceAdapterFactory {
     ip: Vec<String>,
     config: Arc<Config>,
-    shutdown_handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+    shutdown_handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
 }
 
 impl RoutingServiceAdapterFactory {
     pub fn new(
         ip: Vec<impl Into<String>>,
         config: Arc<Config>,
-        shutdown_handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+        shutdown_handles: Arc<Mutex<Vec<JoinHandle<()>>>>,
     ) -> Self {
         Self {
             ip: ip.into_iter().map(|s| s.into()).collect(),

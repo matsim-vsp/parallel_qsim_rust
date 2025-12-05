@@ -194,8 +194,7 @@ fn create_events(
     Rc::new(RefCell::new(events))
 }
 
-/// Have this more complicated join logic, so that threads in the back of the handle vec can also
-/// cause the main thread to panic.
+/// Joins all simulation threads and then shuts down all adapter threads.
 pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandle>) {
     while !handles.is_empty() {
         sleep(Duration::from_secs(1)); // test for finished threads once a second
@@ -207,7 +206,10 @@ pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterH
         }
         for i in finished {
             let handle = handles.remove(&i).unwrap();
-            handle.join().expect("Error in a thread");
+            let name = handle.thread().name().unwrap().to_string();
+            handle
+                .join()
+                .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
         }
     }
 

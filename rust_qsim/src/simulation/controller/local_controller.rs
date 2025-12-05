@@ -122,7 +122,7 @@ pub fn run_channel_from_args() {
     let config = Arc::new(Config::from(args));
 
     // Load and adapt scenario
-    let scenario = GlobalScenario::build(config);
+    let scenario = GlobalScenario::load(config);
 
     // Create and run simulation
     let controller = LocalControllerBuilder::default()
