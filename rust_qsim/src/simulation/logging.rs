@@ -93,13 +93,12 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
             let routing_path = instrument_dir.join(routing_file_name);
             let (routing, routing_guard) = RoutingSpanDurationToCSVLayer::new(&routing_path);
 
-            let routing_filter = EnvFilter::new(format!(
-                "rust_qsim::simulation::agents::agent_logic={}",
-                level.to_string()
-            ));
+            let routing_mod = "rust_qsim::simulation::agents::agent_logic";
+            let routing_filter = EnvFilter::new(format!("{}={}", routing_mod, level));
+            let general_filter = EnvFilter::new(format!("{},{}=off", level, routing_mod));
 
             CsvLayers {
-                general: Some((general, EnvFilter::default())),
+                general: Some((general, general_filter)),
                 routing: Some((routing, routing_filter)),
                 writer_guards: vec![general_guard, routing_guard],
             }

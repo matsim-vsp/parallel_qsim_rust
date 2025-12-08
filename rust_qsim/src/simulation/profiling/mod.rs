@@ -82,7 +82,7 @@ impl SpanDurationToCSVLayer {
                 "timestamp",
                 "target",
                 "func_name",
-                "duration",
+                "duration_ns",
                 "sim_time",
                 "rank",
             ])
@@ -121,8 +121,6 @@ where
 
         let span = ctx.span(id).expect("should exist");
         let mut extensions = span.extensions_mut();
-
-        println!("{:?}", extensions);
 
         let option = extensions.replace(SpanDuration::new());
         assert!(option.is_none(), "Trying to initialize Span, but it already exists. This should not happen. \

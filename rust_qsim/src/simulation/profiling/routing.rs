@@ -16,7 +16,7 @@ const HEADER: [&str; 8] = [
     "timestamp",
     "target",
     "func_name",
-    "duration",
+    "duration_ns",
     "sim_time",
     "request_uuid",
     "person_id",
