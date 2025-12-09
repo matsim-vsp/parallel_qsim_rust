@@ -185,7 +185,11 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
             self.requests[0].equals_ignoring_uuid(&InternalRoutingRequestPayload {
                 person_id: "1".to_string(),
                 from_link: "1".to_string(),
+                from_x: -25000.,
+                from_y: 0.,
                 to_link: "20".to_string(),
+                to_x: 3456.,
+                to_y: 4242.,
                 mode: "car".to_string(),
                 departure_time: 21600,
                 now: 21000,

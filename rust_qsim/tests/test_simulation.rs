@@ -18,6 +18,7 @@ use std::thread::JoinHandle;
 // If not set here, import gets optimized away.
 #[allow(unused_imports)]
 use derive_more::Debug;
+use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 
 #[derive(Debug, Builder)]
 #[builder(pattern = "owned")]
@@ -42,6 +43,8 @@ pub struct TestExecutor<'s> {
 #[allow(dead_code)]
 impl TestExecutor<'_> {
     pub fn execute(mut self) {
+        let _guard = init_std_out_logging_thread_local();
+
         // create a test environment
         let (subscribers, receiver) = self.create_test_sub_recv();
 
@@ -51,12 +54,21 @@ impl TestExecutor<'_> {
         // start listening for events
         if let Some(mut receiver) = receiver {
             // create another thread for the receiver so that the main thread doesn't block.
-            let receiver_handle = thread::spawn(move || receiver.start_listen());
+            let receiver_handle = thread::Builder::new()
+                .name(String::from("test-receiver"))
+                .spawn(move || {
+                    let _guard = init_std_out_logging_thread_local();
+                    receiver.start_listen();
+                    drop(_guard)
+                })
+                .expect("No test receiver thread could be created.");
             handles.insert(handles.len() as u32, receiver_handle);
         }
 
         // wait for all threads to finish
         rust_qsim::simulation::controller::try_join(handles, self.adapter_handles);
+
+        drop(_guard);
     }
 
     /// Creates a test subscriber for each partition and a receiving subscriber for the events.

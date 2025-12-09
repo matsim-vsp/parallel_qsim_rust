@@ -349,18 +349,25 @@ impl AdaptivePlanBasedSimulationLogic {
             )
         });
 
+        let curr_act = self.delegate.curr_act();
+        let next_act = self.delegate.next_act();
+
         let mode = identify_main_mode(trip.legs).unwrap_or_else(|| {
             panic!(
                 "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
-                self.delegate.curr_act(),
+                curr_act,
                 self.delegate.id()
             )
         });
 
         let payload = InternalRoutingRequestPayloadBuilder::default()
             .person_id(self.delegate.id().external().to_string())
-            .from_link(self.delegate.curr_act().link_id.external().to_string())
-            .to_link(self.delegate.next_act().link_id.external().to_string())
+            .from_link(curr_act.link_id.external().to_string())
+            .from_x(curr_act.x)
+            .from_y(curr_act.y)
+            .to_link(next_act.link_id.external().to_string())
+            .to_x(next_act.x)
+            .to_y(next_act.y)
             .mode(mode.clone())
             .departure_time(departure_time)
             .now(now)
