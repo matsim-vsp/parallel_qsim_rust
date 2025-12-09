@@ -48,11 +48,21 @@ fn test_pt_tutorial() {
 
 #[integration_test(rust_qsim)]
 #[ignore]
+fn pt_adaptive_with_access_egress() {
+    test_pt_adaptive(PathBuf::from("plans_1-access_egress.xml"))
+}
+
+#[integration_test(rust_qsim)]
+#[ignore]
+fn pt_adaptive_with_dummy() {
+    test_pt_adaptive(PathBuf::from("plans_1-dummy.xml"))
+}
+
 // to be tested with running routing service;
 // --config /Users/paulh/git/parallel_qsim_rust/rust_qsim/assets/pt_tutorial/config.xml --output output/v6.4/test-router
-fn test_pt_adaptive() {
+fn test_pt_adaptive(pop_path: PathBuf) {
     let test_dir = PathBuf::from("./test_output/simulation/pt_tutorial_adaptive/");
-    create_resources(&test_dir, &PathBuf::from("plans_1-dummy.xml"));
+    create_resources(&test_dir, &pop_path);
 
     let mut config_args = CommandLineArgs::new_with_path(
         "./tests/resources/pt_tutorial/pt_tutorial_config_adaptive.yml",
@@ -81,7 +91,10 @@ fn test_pt_adaptive() {
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
     let subs: HashMap<u32, Vec<Box<OnEventFnBuilder>>> = HashMap::new();
-    // subs.insert(0, vec![Box::new(XmlEventsWriter::new("test.xml".as_ref()))]);
+    // subs.insert(
+    //     0,
+    //     vec![Box::new(XmlEventsWriter::register("test.xml".into()))],
+    // );
 
     TestExecutorBuilder::default()
         .config(config)
