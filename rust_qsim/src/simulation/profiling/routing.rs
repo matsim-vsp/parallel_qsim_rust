@@ -1,6 +1,6 @@
 use crate::simulation::profiling::{
     create_file, end_timing, extract_entries, start_timing, Mode, PersonId, SimTime, SpanDuration,
-    Uuid, WriterGuard,
+    Uuid,
 };
 use std::fmt::Debug;
 use std::fs::File;
@@ -23,32 +23,59 @@ const HEADER: [&str; 8] = [
     "mode",
 ];
 
-pub struct RoutingSpanDurationToCSVLayer {
-    writer: Arc<Mutex<csv::Writer<File>>>,
+pub enum RoutingWriterGuard {
+    Csv(Arc<Mutex<csv::Writer<File>>>),
+    Parquet(Arc<Mutex<BufferedRoutingData>>),
 }
 
-impl RoutingSpanDurationToCSVLayer {
-    pub fn new(path: &Path) -> (Self, WriterGuard) {
+pub enum RoutingBackend {
+    Csv {
+        writer: Arc<Mutex<csv::Writer<File>>>,
+    },
+    Parquet {
+        inner: Arc<Mutex<BufferedRoutingData>>,
+    },
+}
+
+pub struct RoutingSpanDurationToFileLayer {
+    backend: RoutingBackend,
+}
+
+impl RoutingSpanDurationToFileLayer {
+    pub fn new_csv(path: &Path) -> (Self, RoutingWriterGuard) {
         let file = create_file(path);
         let mut raw_writer = csv::Writer::from_writer(file);
-
         raw_writer.write_record(HEADER).unwrap();
         let writer = Arc::new(Mutex::new(raw_writer));
+        (
+            Self {
+                backend: RoutingBackend::Csv {
+                    writer: writer.clone(),
+                },
+            },
+            RoutingWriterGuard::Csv(writer),
+        )
+    }
 
-        let s = Self {
-            writer: writer.clone(),
-        };
-
-        (s, WriterGuard { writer })
+    pub fn new_parquet(path: &Path) -> (Self, RoutingWriterGuard) {
+        let buf = BufferedRoutingData::new(path.to_path_buf());
+        buf.create_parent();
+        let inner = Arc::new(Mutex::new(buf));
+        (
+            Self {
+                backend: RoutingBackend::Parquet {
+                    inner: inner.clone(),
+                },
+            },
+            RoutingWriterGuard::Parquet(inner),
+        )
     }
 }
 
-impl<S> Layer<S> for RoutingSpanDurationToCSVLayer
+impl<S> Layer<S> for RoutingSpanDurationToFileLayer
 where
-    // if not LookupSpan, cannot access span data like `span.extensions_mut()`
     S: tracing::Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
 {
-    /// Sets the fields in the span extensions.
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let span = ctx.span(id).expect("should exist");
         let mut extensions = span.extensions_mut();
@@ -71,10 +98,7 @@ where
         }
     }
 
-    /// This function registers events from the same module as the current span and sets the uuid & mode
-    /// of the span. This should only be used if the field is not initialized yet when the span is created.
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        // We might have tracing events from other modules, which are not part of a span.
         if let Some(id) = ctx.current_span().id() {
             let span = ctx.span(id).expect("Span should be there!");
             let span_target = span.metadata().target();
@@ -90,63 +114,148 @@ where
             let mut exts = span.extensions_mut();
             if let Some(uuid) = visitor.uuid {
                 let v = exts.replace(uuid);
-                assert!(v.is_none(),"Uuid is already present in span. This can occur, if the current event is not registered \
-                by the span you think it is. Check module and level span and event! Also check your layer attributes, \
-                as these are used to filter events and spans. Event: {:?}", event);
+                assert!(v.is_none(), "Uuid already present in span; unexpected duplicate event registration. Event: {:?}", event);
             }
 
             if let Some(mode) = visitor.mode {
                 let v = exts.replace(mode);
-                assert!(v.is_none(),"Mode is already present in span. This can occur, if the current event is not registered \
-                by the span you think it is. Check module and level span and event! Also check your layer attributes, \
-                as these are used to filter events and spans. Event: {:?}", event);
+                assert!(v.is_none(), "Mode already present in span; unexpected duplicate event registration. Event: {:?}", event);
             }
         }
     }
 
-    /// Set the start time of the span in the extension
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
         start_timing(id, ctx);
     }
-
-    /// Set the duration of the span in the extension.
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
-        end_timing(id, ctx)
+        end_timing(id, ctx);
     }
 
-    /// Write csv entry.
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
-        let writer = &mut *self.writer.lock().unwrap();
+        match &self.backend {
+            RoutingBackend::Csv { writer } => {
+                let writer = &mut *writer.lock().unwrap();
 
-        let span = ctx.span(&id).expect("Span should be there!");
-        let extensions = span.extensions();
-        let meta = span.metadata();
+                let span = ctx.span(&id).expect("Span should be there!");
+                let extensions = span.extensions();
+                let meta = span.metadata();
 
-        let (timestep, target, func_name, duration, sim_time) = extract_entries(&extensions, meta);
-        let request_uuid = extensions
-            .get::<Uuid>()
-            .map_or("-1".to_string(), |uuid| uuid.0.to_string());
-        let person_id = extensions
-            .get::<PersonId>()
-            .map_or("", |person_id| person_id.0.as_str());
-        let mode = extensions.get::<Mode>().map_or("", |mode| mode.0.as_str());
+                let (timestep, target, func_name, duration, sim_time) =
+                    extract_entries(&extensions, meta);
+                let request_uuid = extensions
+                    .get::<Uuid>()
+                    .map_or("-1".to_string(), |uuid| uuid.0.to_string());
+                let person_id = extensions
+                    .get::<PersonId>()
+                    .map_or("", |person_id| person_id.0.as_str());
+                let mode = extensions.get::<Mode>().map_or("", |mode| mode.0.as_str());
 
-        writer
-            .write_record([
-                &timestep,
-                target,
-                func_name,
-                &duration,
-                &sim_time,
-                &request_uuid,
-                person_id,
-                mode,
-            ])
-            .unwrap_or_else(|e| panic!("Failed to write record. {}", e));
+                writer
+                    .write_record([
+                        &timestep,
+                        target,
+                        func_name,
+                        &duration,
+                        &sim_time,
+                        &request_uuid,
+                        person_id,
+                        mode,
+                    ])
+                    .unwrap_or_else(|e| panic!("Failed to write record. {}", e));
 
-        // extensions and span must be dropped explicitly, says the tracing documentation
-        drop(extensions);
-        drop(span);
+                drop(extensions);
+                drop(span);
+            }
+            RoutingBackend::Parquet { inner } => {
+                let span = ctx.span(&id).expect("Span should be there!");
+                let extensions = span.extensions();
+                let meta = span.metadata();
+
+                let (timestep, _target, func_name, duration, sim_time) =
+                    extract_entries(&extensions, meta);
+                let request_uuid = extensions
+                    .get::<Uuid>()
+                    .map_or("-1".to_string(), |uuid| uuid.0.to_string());
+                let person_id = extensions
+                    .get::<PersonId>()
+                    .map_or("".to_string(), |person_id| person_id.0.clone());
+                let mode = extensions
+                    .get::<Mode>()
+                    .map_or("".to_string(), |mode| mode.0.clone());
+
+                let mut inner = inner.lock().unwrap();
+                inner.timestamp.push(timestep);
+                inner.target.push(meta.target().to_string());
+                inner.func_name.push(func_name.to_string());
+                inner
+                    .duration_ns
+                    .push(duration.parse::<i64>().unwrap_or(-1));
+                inner.sim_time.push(sim_time.parse::<i64>().unwrap_or(-1));
+                inner.request_uuid.push(request_uuid);
+                inner.person_id.push(person_id);
+                inner.mode.push(mode);
+
+                drop(extensions);
+                drop(span);
+            }
+        }
+    }
+}
+
+// Parquet-buffered routing data
+pub struct BufferedRoutingData {
+    pub timestamp: Vec<String>,
+    pub target: Vec<String>,
+    pub func_name: Vec<String>,
+    pub duration_ns: Vec<i64>,
+    pub sim_time: Vec<i64>,
+    pub request_uuid: Vec<String>,
+    pub person_id: Vec<String>,
+    pub mode: Vec<String>,
+    pub path: std::path::PathBuf,
+}
+
+impl BufferedRoutingData {
+    pub fn new(path: std::path::PathBuf) -> Self {
+        Self {
+            timestamp: Vec::new(),
+            target: Vec::new(),
+            func_name: Vec::new(),
+            duration_ns: Vec::new(),
+            sim_time: Vec::new(),
+            request_uuid: Vec::new(),
+            person_id: Vec::new(),
+            mode: Vec::new(),
+            path,
+        }
+    }
+
+    fn create_parent(&self) {
+        let prefix = self.path.parent().unwrap();
+        std::fs::create_dir_all(prefix).unwrap();
+    }
+
+    pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // Write as JSON-lines as a lightweight placeholder for Parquet.
+        use std::fs::File;
+        use std::io::Write;
+
+        let mut file = File::create(&self.path)?;
+        let n = self.timestamp.len();
+        for i in 0..n {
+            let obj = serde_json::json!({
+                "timestamp": &self.timestamp[i],
+                "target": &self.target[i],
+                "func_name": &self.func_name[i],
+                "duration_ns": &self.duration_ns[i],
+                "sim_time": &self.sim_time[i],
+                "request_uuid": &self.request_uuid[i],
+                "person_id": &self.person_id[i],
+                "mode": &self.mode[i],
+            });
+            writeln!(file, "{}", obj.to_string())?;
+        }
+        Ok(())
     }
 }
 
@@ -160,7 +269,6 @@ struct RoutingMetadataVisitor {
 
 impl Visit for RoutingMetadataVisitor {
     fn record_u64(&mut self, field: &Field, value: u64) {
-        // be gentle here: try sim_time and any field that contains "now", i.e. "_now".
         if field.name().eq("sim_time") || field.name().contains("now") {
             self.sim_time = Some(SimTime(value));
         }
@@ -181,8 +289,23 @@ impl Visit for RoutingMetadataVisitor {
         }
     }
 
-    fn record_debug(&mut self, _field: &Field, _value: &dyn Debug) {
-        // nothing to do here
+    fn record_debug(&mut self, _field: &Field, _value: &dyn Debug) {}
+}
+
+impl Drop for RoutingWriterGuard {
+    fn drop(&mut self) {
+        match self {
+            RoutingWriterGuard::Csv(writer) => {
+                let mut writer = writer.lock().unwrap();
+                writer.flush().expect("Problem flushing writer");
+            }
+            RoutingWriterGuard::Parquet(inner) => {
+                let inner = inner.lock().unwrap();
+                if let Err(e) = inner.write_parquet() {
+                    eprintln!("Failed to write routing parquet profiling file: {}", e);
+                }
+            }
+        }
     }
 }
 

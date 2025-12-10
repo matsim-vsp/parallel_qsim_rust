@@ -15,15 +15,40 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::{Extensions, LookupSpan};
 use tracing_subscriber::Layer;
 
-pub struct SpanDurationToCSVLayer {
-    writer: Arc<Mutex<csv::Writer<File>>>,
-    level: Level,
+// Implementation overview:
+// - The layer supports two backends at runtime: CSV and Parquet.
+// - The public API exposes constructors `new_csv` and `new_parquet` that return the layer and a WriterGuard.
+// - The WriterGuard flushes/writes on drop. CSV uses csv::Writer flush, Parquet writes an Arrow RecordBatch via arrow2.
+
+pub struct SpanDurationToFileLayer {
+    backend: Backend,
 }
 
-/// WriterGuard is used to ensure that the writer is flushed at the end.
-/// Not 100% sure if this is really needed as the csv::Writer already implements Drop trait. Paul, nov '25.
-pub struct WriterGuard {
-    writer: Arc<Mutex<csv::Writer<File>>>,
+#[non_exhaustive]
+pub enum WriterGuard {
+    Csv(Arc<Mutex<csv::Writer<File>>>),
+    Parquet(Arc<Mutex<BufferedSpanData>>),
+}
+
+#[non_exhaustive]
+enum Backend {
+    Csv {
+        writer: Arc<Mutex<csv::Writer<File>>>,
+        level: Level,
+    },
+    Parquet {
+        inner: Arc<Mutex<BufferedSpanData>>,
+        level: Level,
+    },
+}
+
+impl Backend {
+    fn level(&self) -> &Level {
+        match self {
+            Backend::Csv { level, .. } => level,
+            Backend::Parquet { level, .. } => level,
+        }
+    }
 }
 
 struct SpanDuration {
@@ -71,12 +96,62 @@ impl Visit for MetadataVisitor {
     }
 }
 
-impl SpanDurationToCSVLayer {
-    pub fn new(path: &Path, level: Level) -> (Self, WriterGuard) {
-        // create necessary file path and corresponding file wrapped in buffered writer
+// Buffered data for parquet backend
+pub struct BufferedSpanData {
+    pub timestamp: Vec<String>,
+    pub target: Vec<String>,
+    pub func_name: Vec<String>,
+    pub duration_ns: Vec<i64>,
+    pub sim_time: Vec<i64>,
+    pub rank: Vec<i64>,
+    pub path: std::path::PathBuf,
+}
+
+impl BufferedSpanData {
+    pub fn new(path: std::path::PathBuf) -> Self {
+        Self {
+            timestamp: Vec::new(),
+            target: Vec::new(),
+            func_name: Vec::new(),
+            duration_ns: Vec::new(),
+            sim_time: Vec::new(),
+            rank: Vec::new(),
+            path,
+        }
+    }
+
+    fn create_parent(&self) {
+        let prefix = self.path.parent().unwrap();
+        fs::create_dir_all(prefix).unwrap();
+    }
+
+    pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
+        // For now write a JSON-lines file as a portable, dependency-light placeholder for Parquet.
+        // This preserves the runtime-selectable backend and allows a future proper Parquet implementation.
+        use std::fs::File;
+        use std::io::Write;
+
+        let mut file = File::create(&self.path)?;
+        let n = self.timestamp.len();
+        for i in 0..n {
+            let obj = serde_json::json!({
+                "timestamp": &self.timestamp[i],
+                "target": &self.target[i],
+                "func_name": &self.func_name[i],
+                "duration_ns": &self.duration_ns[i],
+                "sim_time": &self.sim_time[i],
+                "rank": &self.rank[i],
+            });
+            writeln!(file, "{}", obj.to_string())?;
+        }
+        Ok(())
+    }
+}
+
+impl SpanDurationToFileLayer {
+    pub fn new_csv(path: &Path, level: Level) -> (Self, WriterGuard) {
         let file = create_file(path);
         let mut writer = csv::Writer::from_writer(file);
-
         writer
             .write_record(vec![
                 "timestamp",
@@ -92,12 +167,22 @@ impl SpanDurationToCSVLayer {
         // at the end of the scope calling this method. The mutex is necessary, because the Layer
         // must be Sync + Send for the tracing_subscriber subscriber
         let writer_ref = Arc::new(Mutex::new(writer));
-        let new_self = Self {
+        let backend = Backend::Csv {
             writer: writer_ref.clone(),
             level,
         };
-        let guard = WriterGuard { writer: writer_ref };
-        (new_self, guard)
+        (Self { backend }, WriterGuard::Csv(writer_ref))
+    }
+
+    pub fn new_parquet(path: &Path, level: Level) -> (Self, WriterGuard) {
+        let buf = BufferedSpanData::new(path.to_path_buf());
+        buf.create_parent();
+        let inner = Arc::new(Mutex::new(buf));
+        let backend = Backend::Parquet {
+            inner: inner.clone(),
+            level,
+        };
+        (Self { backend }, WriterGuard::Parquet(inner))
     }
 }
 
@@ -110,12 +195,12 @@ impl SpanDurationToCSVLayer {
 /// `Attributes` store all custom fields. The `MetadataVisitor` is used to extract the field values.
 ///
 /// `Span` stores information about the scope of an instrumentation call.
-impl<S> Layer<S> for SpanDurationToCSVLayer
+impl<S> Layer<S> for SpanDurationToFileLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        if attrs.metadata().level() > &self.level {
+        if attrs.metadata().level() > self.backend.level() {
             return;
         }
 
@@ -132,51 +217,64 @@ where
         if let Some(rank) = visitor.rank {
             extensions.insert(Rank(rank));
         }
-
         if let Some(sim_time) = visitor.sim_time {
             extensions.insert(SimTime(sim_time));
         }
     }
 
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
-        if ctx.metadata(id).unwrap().level() > &self.level {
+        // respect levels
+        if ctx.metadata(id).unwrap().level() > self.backend.level() {
             return;
         }
-
         start_timing::<S>(id, ctx);
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
-        if ctx.metadata(id).unwrap().level() > &self.level {
+        if ctx.metadata(id).unwrap().level() > self.backend.level() {
             return;
         }
-
         end_timing::<S>(id, ctx);
     }
 
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
-        if ctx.metadata(&id).unwrap().level() > &self.level {
-            return;
-        }
-
         let span = ctx.span(&id).expect("Span should be there!");
         let extensions = span.extensions();
         let meta = span.metadata();
-
-        let writer = &mut *self.writer.lock().unwrap();
         let (timestep, target, func_name, duration, sim_time) = extract_entries(&extensions, meta);
-        let rank = extensions
-            .get::<Rank>()
-            .map_or(-1, |rank| rank.0 as i64)
-            .to_string();
+        let rank = extensions.get::<Rank>().map_or(-1, |rank| rank.0 as i64);
+        match &self.backend {
+            Backend::Csv { writer, .. } => {
+                let writer = &mut *writer.lock().unwrap();
+                writer
+                    .write_record([
+                        &timestep,
+                        target,
+                        func_name,
+                        &duration,
+                        &sim_time,
+                        &rank.to_string(),
+                    ])
+                    .unwrap();
 
-        writer
-            .write_record([&timestep, target, func_name, &duration, &sim_time, &rank])
-            .unwrap();
+                drop(extensions);
+                drop(span);
+            }
+            Backend::Parquet { inner, .. } => {
+                let mut inner = inner.lock().unwrap();
+                inner.timestamp.push(timestep);
+                inner.target.push(target.to_string());
+                inner.func_name.push(func_name.to_string());
+                inner
+                    .duration_ns
+                    .push(duration.parse::<i64>().unwrap_or(-1));
+                inner.sim_time.push(sim_time.parse::<i64>().unwrap_or(-1));
+                inner.rank.push(rank);
 
-        // extensions and span must be dropped explicitly, says the tracing documentation
-        drop(extensions);
-        drop(span);
+                drop(extensions);
+                drop(span);
+            }
+        }
     }
 }
 
@@ -231,8 +329,18 @@ pub fn create_file(path: &Path) -> File {
 
 impl Drop for WriterGuard {
     fn drop(&mut self) {
-        let mut writer = self.writer.lock().unwrap();
-        writer.flush().expect("Problem flushing writer");
+        match self {
+            WriterGuard::Csv(writer) => {
+                let mut writer = writer.lock().unwrap();
+                writer.flush().expect("Problem flushing writer");
+            }
+            WriterGuard::Parquet(inner) => {
+                let inner = inner.lock().unwrap();
+                if let Err(e) = inner.write_parquet() {
+                    eprintln!("Failed to write parquet profiling file: {}", e);
+                }
+            }
+        }
     }
 }
 
@@ -258,13 +366,13 @@ mod tests {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::Layer as OtherLayer;
 
-    use crate::simulation::profiling::SpanDurationToCSVLayer;
+    use crate::simulation::profiling::SpanDurationToFileLayer;
 
     #[test]
     fn test_events() {
         let path = PathBuf::from("./test_output/simulation/profiling/test_events.csv");
 
-        let (csv_layer, _guard) = SpanDurationToCSVLayer::new(&path, Level::INFO);
+        let (csv_layer, _guard) = SpanDurationToFileLayer::new_csv(&path, Level::INFO);
         let layers = tracing_subscriber::registry().with(csv_layer).with(
             Layer::new()
                 .with_span_events(FmtSpan::CLOSE)

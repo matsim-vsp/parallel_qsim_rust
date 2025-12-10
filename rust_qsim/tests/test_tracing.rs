@@ -1,6 +1,6 @@
 // needed for the `with` function on Registry
 use macros::integration_test;
-use rust_qsim::simulation::profiling::routing::RoutingSpanDurationToCSVLayer;
+use rust_qsim::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
 use std::path::Path;
 use std::str::FromStr;
 use tracing_subscriber::layer::SubscriberExt;
@@ -12,14 +12,14 @@ use uuid::{NoContext, Timestamp, Uuid};
 #[integration_test(rust_qsim)]
 fn test_creation() {
     let path = Path::new("./test_output/simulation/profiling/routing/test_creation.csv");
-    let (_, guard) = RoutingSpanDurationToCSVLayer::new(path);
+    let (_, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
     drop(guard);
 }
 
 #[integration_test(rust_qsim)]
 fn test_all_events() {
     let path = Path::new("./test_output/simulation/profiling/routing/test_events.csv");
-    let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
+    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
 
     let filtered = layer.with_filter(EnvFilter::new("test_tracing=trace"));
     run_test(filtered.boxed());
@@ -35,7 +35,7 @@ fn test_all_events() {
 #[integration_test(rust_qsim)]
 fn test_info_events() {
     let path = Path::new("./test_output/simulation/profiling/routing/test_info_events.csv");
-    let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
+    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
 
     let filtered = layer.with_filter(EnvFilter::new("test_tracing=info"));
     run_test(filtered.boxed());
@@ -50,7 +50,7 @@ fn test_info_events() {
 #[integration_test(rust_qsim)]
 fn test_module_filtering() {
     let path = Path::new("./test_output/simulation/profiling/routing/test_module_filtering.csv");
-    let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
+    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
 
     let filtered = layer
         .with_filter(EnvFilter::new("test_tracing::foo::bar=info"))
@@ -70,7 +70,7 @@ fn test_module_filtering_with_level() {
     let path = Path::new(
         "./test_output/simulation/profiling/routing/test_module_filtering_with_level.csv",
     );
-    let (layer, guard) = RoutingSpanDurationToCSVLayer::new(path);
+    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
 
     let filtered = layer
         .with_filter(EnvFilter::new("test_tracing::foo::bar=warn"))

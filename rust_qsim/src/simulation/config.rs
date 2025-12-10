@@ -564,6 +564,7 @@ pub enum Profiling {
     #[default]
     None,
     CSV(ProfilingLevel),
+    Parquet(ProfilingLevel),
 }
 
 /// Have this extra layer of log level enum, as tracing subscriber has no
