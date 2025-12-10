@@ -1,6 +1,6 @@
 use crate::simulation::profiling::{
-    create_file, end_timing, extract_entries, start_timing, ModeWrapper, PersonIdWrapper,
-    SimTimeWrapper, SpanDuration, UuidWrapper, WriterGuard,
+    create_file, end_timing, extract_entries, start_timing, Mode, PersonId, SimTime, SpanDuration,
+    Uuid, WriterGuard,
 };
 use std::fmt::Debug;
 use std::fs::File;
@@ -124,14 +124,12 @@ where
 
         let (timestep, target, func_name, duration, sim_time) = extract_entries(&extensions, meta);
         let request_uuid = extensions
-            .get::<UuidWrapper>()
+            .get::<Uuid>()
             .map_or("-1".to_string(), |uuid| uuid.0.to_string());
         let person_id = extensions
-            .get::<PersonIdWrapper>()
+            .get::<PersonId>()
             .map_or("", |person_id| person_id.0.as_str());
-        let mode = extensions
-            .get::<ModeWrapper>()
-            .map_or("", |mode| mode.0.as_str());
+        let mode = extensions.get::<Mode>().map_or("", |mode| mode.0.as_str());
 
         writer
             .write_record([
@@ -154,32 +152,32 @@ where
 
 #[derive(Default)]
 struct RoutingMetadataVisitor {
-    sim_time: Option<SimTimeWrapper>,
-    uuid: Option<UuidWrapper>,
-    person_id: Option<PersonIdWrapper>,
-    mode: Option<ModeWrapper>,
+    sim_time: Option<SimTime>,
+    uuid: Option<Uuid>,
+    person_id: Option<PersonId>,
+    mode: Option<Mode>,
 }
 
 impl Visit for RoutingMetadataVisitor {
     fn record_u64(&mut self, field: &Field, value: u64) {
         // be gentle here: try sim_time and any field that contains "now", i.e. "_now".
         if field.name().eq("sim_time") || field.name().contains("now") {
-            self.sim_time = Some(SimTimeWrapper(value));
+            self.sim_time = Some(SimTime(value));
         }
     }
 
     fn record_u128(&mut self, field: &Field, value: u128) {
         if field.name().eq("uuid") {
-            self.uuid = Some(UuidWrapper(value));
+            self.uuid = Some(Uuid(value));
         }
     }
 
     fn record_str(&mut self, field: &Field, value: &str) {
         if field.name().eq("person_id") {
-            self.person_id = Some(PersonIdWrapper(value.to_string()));
+            self.person_id = Some(PersonId(value.to_string()));
         }
         if field.name().eq("mode") {
-            self.mode = Some(ModeWrapper(value.to_string()));
+            self.mode = Some(Mode(value.to_string()));
         }
     }
 

@@ -33,11 +33,11 @@ struct SpanDuration {
 
 // We need these type wrappers to get distinct types for the extensions
 #[derive(Debug)]
-pub struct UuidWrapper(pub u128);
-pub struct PersonIdWrapper(pub String);
-pub struct ModeWrapper(pub String);
-pub struct RankWrapper(pub u64);
-pub struct SimTimeWrapper(pub u64);
+struct Uuid(pub u128);
+struct PersonId(pub String);
+struct Mode(pub String);
+struct Rank(pub u64);
+struct SimTime(pub u64);
 
 struct MetadataVisitor {
     rank: Option<u64>,
@@ -130,11 +130,11 @@ where
         let mut visitor = MetadataVisitor::new();
         attrs.record(&mut visitor as &mut dyn Visit);
         if let Some(rank) = visitor.rank {
-            extensions.insert(RankWrapper(rank));
+            extensions.insert(Rank(rank));
         }
 
         if let Some(sim_time) = visitor.sim_time {
-            extensions.insert(SimTimeWrapper(sim_time));
+            extensions.insert(SimTime(sim_time));
         }
     }
 
@@ -166,7 +166,7 @@ where
         let writer = &mut *self.writer.lock().unwrap();
         let (timestep, target, func_name, duration, sim_time) = extract_entries(&extensions, meta);
         let rank = extensions
-            .get::<RankWrapper>()
+            .get::<Rank>()
             .map_or(-1, |rank| rank.0 as i64)
             .to_string();
 
@@ -197,7 +197,7 @@ fn extract_entries<'a>(
         .elapsed
         .to_string();
     let sim_time = extensions
-        .get::<SimTimeWrapper>()
+        .get::<SimTime>()
         .map_or(-1, |sim_time| sim_time.0 as i64)
         .to_string();
     (timestep, target, func_name, span_duration, sim_time)
