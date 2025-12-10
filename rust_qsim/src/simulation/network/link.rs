@@ -506,7 +506,10 @@ impl SplitOutLink {
         match position {
             LinkPosition::QStart => {}
             LinkPosition::Waiting => {
-                panic!("SplitOutLink cannot push vehicles into the buffer.")
+                panic!(
+                    "SplitOutLink {} cannot push vehicle {:?} into the buffer.",
+                    self.id, veh
+                )
             }
         }
         self.storage_cap.consume(veh.pce);
