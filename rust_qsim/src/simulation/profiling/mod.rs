@@ -1,12 +1,13 @@
 pub mod routing;
 
+use arrow2::array::FixedSizeBinaryArray;
+use std::error::Error;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
-
 use tracing::field::Field;
 use tracing::span::Attributes;
 use tracing::{Id, Level, Metadata, Subscriber};
@@ -14,6 +15,13 @@ use tracing_subscriber::field::Visit;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::{Extensions, LookupSpan};
 use tracing_subscriber::Layer;
+
+use arrow2::array::{Array, Int64Array, Utf8Array};
+use arrow2::chunk::Chunk;
+use arrow2::datatypes::{DataType, Schema};
+use arrow2::io::parquet::write::{
+    CompressionOptions, Encoding, FileWriter, RowGroupIterator, Version, WriteOptions,
+};
 
 // Implementation overview:
 // - The layer supports two backends at runtime: CSV and Parquet.
@@ -98,7 +106,7 @@ impl Visit for MetadataVisitor {
 
 // Buffered data for parquet backend
 pub struct BufferedSpanData {
-    pub timestamp: Vec<String>,
+    pub timestamp: Vec<u128>,
     pub target: Vec<String>,
     pub func_name: Vec<String>,
     pub duration_ns: Vec<i64>,
@@ -126,25 +134,27 @@ impl BufferedSpanData {
     }
 
     pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // For now write a JSON-lines file as a portable, dependency-light placeholder for Parquet.
-        // This preserves the runtime-selectable backend and allows a future proper Parquet implementation.
-        use std::fs::File;
-        use std::io::Write;
+        // Build arrow arrays
+        let fields = vec![
+            arrow2::datatypes::Field::new("timestamp", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("target", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("func_name", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("duration_ns", DataType::Int64, false),
+            arrow2::datatypes::Field::new("sim_time", DataType::Int64, false),
+            arrow2::datatypes::Field::new("rank", DataType::Int64, false),
+        ];
+        let schema = Schema::from(fields);
 
-        let mut file = File::create(&self.path)?;
-        let n = self.timestamp.len();
-        for i in 0..n {
-            let obj = serde_json::json!({
-                "timestamp": &self.timestamp[i],
-                "target": &self.target[i],
-                "func_name": &self.func_name[i],
-                "duration_ns": &self.duration_ns[i],
-                "sim_time": &self.sim_time[i],
-                "rank": &self.rank[i],
-            });
-            writeln!(file, "{}", obj.to_string())?;
-        }
-        Ok(())
+        let columns: Vec<Box<dyn Array>> = vec![
+            Box::new(convert_u128_to_fixed_size_binary(&self.timestamp)),
+            Box::new(Utf8Array::<i32>::from_slice(&self.target)),
+            Box::new(Utf8Array::<i32>::from_slice(&self.func_name)),
+            Box::new(Int64Array::from_slice(self.duration_ns.as_slice())),
+            Box::new(Int64Array::from_slice(self.sim_time.as_slice())),
+            Box::new(Int64Array::from_slice(self.rank.as_slice())),
+        ];
+
+        write_parquet(&schema, columns, &self.path)?
     }
 }
 
@@ -248,7 +258,7 @@ where
                 let writer = &mut *writer.lock().unwrap();
                 writer
                     .write_record([
-                        &timestep,
+                        &timestep.to_string(),
                         target,
                         func_name,
                         &duration,
@@ -281,12 +291,11 @@ where
 fn extract_entries<'a>(
     extensions: &Extensions,
     meta: &Metadata<'a>,
-) -> (String, &'a str, &'a str, String, String) {
+) -> (u128, &'a str, &'a str, String, String) {
     let timestep = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
-        .as_nanos()
-        .to_string();
+        .as_nanos();
     let target = meta.target();
     let func_name = meta.name();
     let span_duration = extensions
@@ -325,6 +334,50 @@ pub fn create_file(path: &Path) -> File {
     let prefix = path.parent().unwrap();
     fs::create_dir_all(prefix).unwrap();
     File::create(path).unwrap_or_else(|_e| panic!("Failed to open file at: {path:?}"))
+}
+
+fn convert_u128_to_fixed_size_binary(data: &Vec<u128>) -> FixedSizeBinaryArray {
+    let byte_width = 16;
+    let mut timestamp_data = Vec::with_capacity(data.len() * byte_width);
+    for t in data {
+        timestamp_data.extend_from_slice(&t.to_le_bytes());
+    }
+    let ts = FixedSizeBinaryArray::new(
+        DataType::FixedSizeBinary(byte_width),
+        timestamp_data.into(),
+        None,
+    );
+    ts
+}
+
+fn write_parquet(
+    schema: &Schema,
+    columns: Vec<Box<dyn Array>>,
+    path: &Path,
+) -> Result<Result<(), Box<dyn Error>>, Box<dyn Error>> {
+    let chunk = Chunk::new(columns);
+
+    let file = File::create(path)?;
+    let options = WriteOptions {
+        write_statistics: false,
+        version: Version::V2,
+        compression: CompressionOptions::Uncompressed,
+        data_pagesize_limit: None,
+    };
+
+    // Simple plain encoding for all fields
+    let encodings = vec![vec![Encoding::Plain]; schema.fields.len()];
+
+    let row_group_iter =
+        RowGroupIterator::try_new(vec![Ok(chunk)].into_iter(), &schema, options, encodings)?;
+
+    let mut writer = FileWriter::try_new(file, schema.clone(), options)?;
+    for rg in row_group_iter {
+        let rg = rg?; // RowGroupIter
+        writer.write(rg)?;
+    }
+    writer.end(None)?;
+    Ok(Ok(()))
 }
 
 impl Drop for WriterGuard {

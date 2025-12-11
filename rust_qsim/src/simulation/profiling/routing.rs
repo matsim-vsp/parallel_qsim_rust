@@ -1,9 +1,8 @@
 use crate::simulation::profiling::{
-    create_file, end_timing, extract_entries, start_timing, Mode, PersonId, SimTime, SpanDuration,
-    Uuid,
+    convert_u128_to_fixed_size_binary, create_file, end_timing, extract_entries, start_timing,
+    write_parquet, Mode, PersonId, SimTime, SpanDuration, Uuid,
 };
 use std::fmt::Debug;
-use std::fs::File;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tracing::field::{Field, Visit};
@@ -11,6 +10,10 @@ use tracing::span::Attributes;
 use tracing::{Event, Id};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+
+use arrow2::array::{Array, Int64Array, Utf8Array};
+use arrow2::datatypes::{DataType, Schema};
+use std::fs::File;
 
 const HEADER: [&str; 8] = [
     "timestamp",
@@ -152,7 +155,7 @@ where
 
                 writer
                     .write_record([
-                        &timestep,
+                        &timestep.to_string(),
                         target,
                         func_name,
                         &duration,
@@ -173,9 +176,7 @@ where
 
                 let (timestep, _target, func_name, duration, sim_time) =
                     extract_entries(&extensions, meta);
-                let request_uuid = extensions
-                    .get::<Uuid>()
-                    .map_or("-1".to_string(), |uuid| uuid.0.to_string());
+                let request_uuid = extensions.get::<Uuid>().map_or(0, |uuid| uuid.0);
                 let person_id = extensions
                     .get::<PersonId>()
                     .map_or("".to_string(), |person_id| person_id.0.clone());
@@ -204,12 +205,12 @@ where
 
 // Parquet-buffered routing data
 pub struct BufferedRoutingData {
-    pub timestamp: Vec<String>,
+    pub timestamp: Vec<u128>,
     pub target: Vec<String>,
     pub func_name: Vec<String>,
     pub duration_ns: Vec<i64>,
     pub sim_time: Vec<i64>,
-    pub request_uuid: Vec<String>,
+    pub request_uuid: Vec<u128>,
     pub person_id: Vec<String>,
     pub mode: Vec<String>,
     pub path: std::path::PathBuf,
@@ -236,26 +237,30 @@ impl BufferedRoutingData {
     }
 
     pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Write as JSON-lines as a lightweight placeholder for Parquet.
-        use std::fs::File;
-        use std::io::Write;
+        let fields = vec![
+            arrow2::datatypes::Field::new("timestamp", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("target", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("func_name", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("duration_ns", DataType::Int64, false),
+            arrow2::datatypes::Field::new("sim_time", DataType::Int64, false),
+            arrow2::datatypes::Field::new("request_uuid", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("person_id", DataType::Utf8, false),
+            arrow2::datatypes::Field::new("mode", DataType::Utf8, false),
+        ];
+        let schema = Schema::from(fields);
 
-        let mut file = File::create(&self.path)?;
-        let n = self.timestamp.len();
-        for i in 0..n {
-            let obj = serde_json::json!({
-                "timestamp": &self.timestamp[i],
-                "target": &self.target[i],
-                "func_name": &self.func_name[i],
-                "duration_ns": &self.duration_ns[i],
-                "sim_time": &self.sim_time[i],
-                "request_uuid": &self.request_uuid[i],
-                "person_id": &self.person_id[i],
-                "mode": &self.mode[i],
-            });
-            writeln!(file, "{}", obj.to_string())?;
-        }
-        Ok(())
+        let columns: Vec<Box<dyn Array>> = vec![
+            Box::new(convert_u128_to_fixed_size_binary(&self.timestamp)),
+            Box::new(Utf8Array::<i32>::from_slice(&self.target)),
+            Box::new(Utf8Array::<i32>::from_slice(&self.func_name)),
+            Box::new(Int64Array::from_slice(self.duration_ns.as_slice())),
+            Box::new(Int64Array::from_slice(self.sim_time.as_slice())),
+            Box::new(convert_u128_to_fixed_size_binary(&self.request_uuid)),
+            Box::new(Utf8Array::<i32>::from_slice(&self.person_id)),
+            Box::new(Utf8Array::<i32>::from_slice(&self.mode)),
+        ];
+
+        write_parquet(&schema, columns, &self.path)?
     }
 }
 
@@ -308,5 +313,3 @@ impl Drop for RoutingWriterGuard {
         }
     }
 }
-
-// tests are integration tests as they require exclusive execution
