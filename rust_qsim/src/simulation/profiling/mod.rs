@@ -115,10 +115,19 @@ pub struct BufferedSpanData {
     options: WriteOptions,
     encodings: Vec<Vec<Encoding>>,
     writer: FileWriter<BufWriter<File>>,
+
+    // buffering fields for batch writes
+    batch_size: usize,
+    timestamps: Vec<u128>,
+    targets: Vec<String>,
+    func_names: Vec<String>,
+    durations: Vec<u64>,
+    sim_times: Vec<i64>,
+    ranks: Vec<i64>,
 }
 
 impl BufferedSpanData {
-    pub fn new(path: std::path::PathBuf) -> Self {
+    pub fn new(path: std::path::PathBuf, batch_size: usize) -> Self {
         let fields = vec![
             arrow2::datatypes::Field::new(
                 "timestamp",
@@ -157,6 +166,13 @@ impl BufferedSpanData {
             options,
             encodings,
             writer,
+            batch_size,
+            timestamps: Vec::with_capacity(batch_size),
+            targets: Vec::with_capacity(batch_size),
+            func_names: Vec::with_capacity(batch_size),
+            durations: Vec::with_capacity(batch_size),
+            sim_times: Vec::with_capacity(batch_size),
+            ranks: Vec::with_capacity(batch_size),
         }
     }
 
@@ -165,7 +181,7 @@ impl BufferedSpanData {
         fs::create_dir_all(prefix).unwrap();
     }
 
-    /// Write a single row as a parquet row-group. This writes immediately to the open file.
+    /// Append a single row into the in-memory buffers and flush if we reached batch_size.
     pub fn write_row(
         &mut self,
         timestamp: u128,
@@ -175,14 +191,46 @@ impl BufferedSpanData {
         sim_time: i64,
         rank: i64,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let timestamp_vec = vec![timestamp];
+        self.timestamps.push(timestamp);
+        self.targets.push(target.to_string());
+        self.func_names.push(func_name.to_string());
+        self.durations.push(duration_ns);
+        self.sim_times.push(sim_time);
+        self.ranks.push(rank);
+
+        if self.timestamps.len() >= self.batch_size {
+            self.flush_batch()?;
+        }
+
+        Ok(())
+    }
+
+    /// Convert the accumulated vectors into Arrow arrays and write a single row-group.
+    pub fn flush_batch(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.timestamps.is_empty() {
+            return Ok(());
+        }
+
+        // convert to arrays
+        let ts_array = convert_u128_to_fixed_size_binary(&self.timestamps);
+
+        let target_refs: Vec<&str> = self.targets.iter().map(|s| s.as_str()).collect();
+        let targets_array = Utf8Array::<i32>::from_slice(&target_refs);
+
+        let func_refs: Vec<&str> = self.func_names.iter().map(|s| s.as_str()).collect();
+        let func_array = Utf8Array::<i32>::from_slice(&func_refs);
+
+        let duration_array = UInt64Array::from_slice(&self.durations);
+        let sim_time_array = Int64Array::from_slice(&self.sim_times);
+        let rank_array = Int64Array::from_slice(&self.ranks);
+
         let columns: Vec<Box<dyn Array>> = vec![
-            Box::new(convert_u128_to_fixed_size_binary(&timestamp_vec)),
-            Box::new(Utf8Array::<i32>::from_slice([target])),
-            Box::new(Utf8Array::<i32>::from_slice([func_name])),
-            Box::new(UInt64Array::from_slice([duration_ns])),
-            Box::new(Int64Array::from_slice([sim_time])),
-            Box::new(Int64Array::from_slice([rank])),
+            Box::new(ts_array),
+            Box::new(targets_array),
+            Box::new(func_array),
+            Box::new(duration_array),
+            Box::new(sim_time_array),
+            Box::new(rank_array),
         ];
 
         write_parquet(
@@ -191,11 +239,24 @@ impl BufferedSpanData {
             self.options,
             &self.encodings,
             &mut self.writer,
-        )?
+        )??;
+
+        // clear buffers but keep capacity
+        self.timestamps.clear();
+        self.targets.clear();
+        self.func_names.clear();
+        self.durations.clear();
+        self.sim_times.clear();
+        self.ranks.clear();
+
+        Ok(())
     }
 
-    /// Close the writer (write footer). Call at Drop time.
+    /// Close the writer (write footer). Call at Drop time. Flush any remaining buffered rows first.
     pub fn close_writer(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // flush any remaining rows
+        self.flush_batch()?;
+        // write footer
         self.writer.end(None)?;
         Ok(())
     }
@@ -227,8 +288,8 @@ impl SpanDurationToFileLayer {
         (Self { backend }, WriterGuard::Csv(writer_ref))
     }
 
-    pub fn new_parquet(path: &Path, level: Level) -> (Self, WriterGuard) {
-        let buf = BufferedSpanData::new(path.to_path_buf());
+    pub fn new_parquet(path: &Path, level: Level, batch_size: usize) -> (Self, WriterGuard) {
+        let buf = BufferedSpanData::new(path.to_path_buf(), batch_size);
         buf.create_parent();
         let inner = Arc::new(Mutex::new(buf));
         let backend = Backend::Parquet {

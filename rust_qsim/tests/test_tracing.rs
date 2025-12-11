@@ -29,7 +29,7 @@ impl Mode {
         buf.set_extension(self.expansion());
         match self {
             Mode::Csv => RoutingSpanDurationToFileLayer::new_csv(Path::new(&buf)),
-            Mode::Parquet => RoutingSpanDurationToFileLayer::new_parquet(Path::new(&buf)),
+            Mode::Parquet => RoutingSpanDurationToFileLayer::new_parquet(Path::new(&buf), 50_000),
         }
     }
 

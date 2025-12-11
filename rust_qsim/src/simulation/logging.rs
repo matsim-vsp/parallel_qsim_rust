@@ -109,15 +109,15 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
                 FileLayers::new()
             }
         }
-        Profiling::Parquet(level_string) => {
-            let level = level_string.create_tracing_level();
+        Profiling::Parquet(p) => {
+            let level = p.create_tracing_level();
             if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
                 duration_path.set_extension("parquet");
                 routing_path.set_extension("parquet");
                 let (general, general_guard) =
-                    SpanDurationToFileLayer::new_parquet(&duration_path, level);
+                    SpanDurationToFileLayer::new_parquet(&duration_path, level, p.batch_size);
                 let (routing, routing_guard) =
-                    RoutingSpanDurationToFileLayer::new_parquet(&routing_path);
+                    RoutingSpanDurationToFileLayer::new_parquet(&routing_path, p.batch_size);
                 let (routing_filter, general_filter) = create_filter(level);
 
                 FileLayers {

@@ -61,8 +61,8 @@ impl RoutingSpanDurationToFileLayer {
         )
     }
 
-    pub fn new_parquet(path: &Path) -> (Self, RoutingWriterGuard) {
-        let buf = BufferedRoutingData::new(path.to_path_buf());
+    pub fn new_parquet(path: &Path, batch_size: usize) -> (Self, RoutingWriterGuard) {
+        let buf = BufferedRoutingData::new(path.to_path_buf(), batch_size);
         buf.create_parent();
         let inner = Arc::new(Mutex::new(buf));
         (
@@ -213,10 +213,20 @@ pub struct BufferedRoutingData {
     options: WriteOptions,
     encodings: Vec<Vec<Encoding>>,
     writer: FileWriter<std::io::BufWriter<File>>,
+    batch_size: usize,
+    // for buffering rows before writing to parquet file
+    timestamps: Vec<u128>,
+    targets: Vec<String>,
+    func_names: Vec<String>,
+    durations: Vec<u64>,
+    sim_times: Vec<i64>,
+    request_uuids: Vec<u128>,
+    person_ids: Vec<String>,
+    modes: Vec<String>,
 }
 
 impl BufferedRoutingData {
-    pub fn new(path: std::path::PathBuf) -> Self {
+    pub fn new(path: std::path::PathBuf, batch_size: usize) -> Self {
         let fields = vec![
             arrow2::datatypes::Field::new(
                 "timestamp",
@@ -260,6 +270,15 @@ impl BufferedRoutingData {
             options,
             encodings,
             writer,
+            batch_size,
+            timestamps: Vec::with_capacity(batch_size),
+            targets: Vec::with_capacity(batch_size),
+            func_names: Vec::with_capacity(batch_size),
+            durations: Vec::with_capacity(batch_size),
+            sim_times: Vec::with_capacity(batch_size),
+            request_uuids: Vec::with_capacity(batch_size),
+            person_ids: Vec::with_capacity(batch_size),
+            modes: Vec::with_capacity(batch_size),
         }
     }
 
@@ -280,18 +299,55 @@ impl BufferedRoutingData {
         person_id: &str,
         mode: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let timestamp_vec = vec![timestamp];
-        let request_uuid_vec = vec![request_uuid];
+        self.timestamps.push(timestamp);
+        self.targets.push(target.to_string());
+        self.func_names.push(func_name.to_string());
+        self.durations.push(duration_ns);
+        self.sim_times.push(sim_time);
+        self.request_uuids.push(request_uuid);
+        self.person_ids.push(person_id.to_string());
+        self.modes.push(mode.to_string());
+
+        if self.timestamps.len() >= self.batch_size {
+            self.flush_batch()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn flush_batch(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.timestamps.is_empty() {
+            return Ok(());
+        }
+
+        let ts_array = convert_u128_to_fixed_size_binary(&self.timestamps);
+
+        let target_refs: Vec<&str> = self.targets.iter().map(|s| s.as_str()).collect();
+        let targets_array = Utf8Array::<i32>::from_slice(&target_refs);
+
+        let func_refs: Vec<&str> = self.func_names.iter().map(|s| s.as_str()).collect();
+        let func_array = Utf8Array::<i32>::from_slice(&func_refs);
+
+        let duration_array = UInt64Array::from_slice(&self.durations);
+        let sim_time_array = Int64Array::from_slice(&self.sim_times);
+
+        let req_uuid_array = convert_u128_to_fixed_size_binary(&self.request_uuids);
+
+        let person_refs: Vec<&str> = self.person_ids.iter().map(|s| s.as_str()).collect();
+        let person_array = Utf8Array::<i32>::from_slice(&person_refs);
+
+        let mode_refs: Vec<&str> = self.modes.iter().map(|s| s.as_str()).collect();
+        let mode_array = Utf8Array::<i32>::from_slice(&mode_refs);
 
         let columns: Vec<Box<dyn Array>> = vec![
-            Box::new(convert_u128_to_fixed_size_binary(&timestamp_vec)),
-            Box::new(Utf8Array::<i32>::from_slice([target])),
-            Box::new(Utf8Array::<i32>::from_slice([func_name])),
-            Box::new(UInt64Array::from_slice([duration_ns])),
-            Box::new(Int64Array::from_slice([sim_time])),
-            Box::new(convert_u128_to_fixed_size_binary(&request_uuid_vec)),
-            Box::new(Utf8Array::<i32>::from_slice([person_id])),
-            Box::new(Utf8Array::<i32>::from_slice([mode])),
+            Box::new(ts_array),
+            Box::new(targets_array),
+            Box::new(func_array),
+            Box::new(duration_array),
+            Box::new(sim_time_array),
+            Box::new(req_uuid_array),
+            Box::new(person_array),
+            Box::new(mode_array),
         ];
 
         write_parquet(
@@ -300,10 +356,22 @@ impl BufferedRoutingData {
             self.options,
             &self.encodings,
             &mut self.writer,
-        )?
+        )??;
+
+        self.timestamps.clear();
+        self.targets.clear();
+        self.func_names.clear();
+        self.durations.clear();
+        self.sim_times.clear();
+        self.request_uuids.clear();
+        self.person_ids.clear();
+        self.modes.clear();
+
+        Ok(())
     }
 
     pub fn close_writer(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.flush_batch()?;
         self.writer.end(None)?;
         Ok(())
     }
