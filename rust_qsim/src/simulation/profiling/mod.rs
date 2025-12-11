@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
 use tracing::field::Field;
 use tracing::span::Attributes;
-use tracing::{Id, Level, Metadata, Subscriber};
+use tracing::{Id, Metadata, Subscriber};
 use tracing_subscriber::field::Visit;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::{Extensions, LookupSpan};
@@ -45,21 +45,10 @@ pub enum WriterGuard {
 enum Backend {
     Csv {
         writer: Arc<Mutex<csv::Writer<File>>>,
-        level: Level,
     },
     Parquet {
         inner: Arc<Mutex<BufferedSpanData>>,
-        level: Level,
     },
-}
-
-impl Backend {
-    fn level(&self) -> &Level {
-        match self {
-            Backend::Csv { level, .. } => level,
-            Backend::Parquet { level, .. } => level,
-        }
-    }
 }
 
 struct SpanDuration {
@@ -263,7 +252,7 @@ impl BufferedSpanData {
 }
 
 impl SpanDurationToFileLayer {
-    pub fn new_csv(path: &Path, level: Level) -> (Self, WriterGuard) {
+    pub fn new_csv(path: &Path) -> (Self, WriterGuard) {
         let file = create_file(path);
         let mut writer = csv::Writer::from_writer(file);
         writer
@@ -283,18 +272,16 @@ impl SpanDurationToFileLayer {
         let writer_ref = Arc::new(Mutex::new(writer));
         let backend = Backend::Csv {
             writer: writer_ref.clone(),
-            level,
         };
         (Self { backend }, WriterGuard::Csv(writer_ref))
     }
 
-    pub fn new_parquet(path: &Path, level: Level, batch_size: usize) -> (Self, WriterGuard) {
+    pub fn new_parquet(path: &Path, batch_size: usize) -> (Self, WriterGuard) {
         let buf = BufferedSpanData::new(path.to_path_buf(), batch_size);
         buf.create_parent();
         let inner = Arc::new(Mutex::new(buf));
         let backend = Backend::Parquet {
             inner: inner.clone(),
-            level,
         };
         (Self { backend }, WriterGuard::Parquet(inner))
     }
@@ -314,10 +301,6 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn on_new_span(&self, attrs: &Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
-        if attrs.metadata().level() > self.backend.level() {
-            return;
-        }
-
         let span = ctx.span(id).expect("should exist");
         let mut extensions = span.extensions_mut();
 
@@ -337,17 +320,10 @@ where
     }
 
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
-        // respect levels
-        if ctx.metadata(id).unwrap().level() > self.backend.level() {
-            return;
-        }
         start_timing::<S>(id, ctx);
     }
 
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
-        if ctx.metadata(id).unwrap().level() > self.backend.level() {
-            return;
-        }
         end_timing::<S>(id, ctx);
     }
 
@@ -512,7 +488,7 @@ mod tests {
     fn test_events() {
         let path = PathBuf::from("./test_output/simulation/profiling/test_events.csv");
 
-        let (csv_layer, _guard) = SpanDurationToFileLayer::new_csv(&path, Level::INFO);
+        let (csv_layer, _guard) = SpanDurationToFileLayer::new_csv(&path);
         let layers = tracing_subscriber::registry().with(csv_layer).with(
             Layer::new()
                 .with_span_events(FmtSpan::CLOSE)

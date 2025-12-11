@@ -131,6 +131,7 @@ where
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
         start_timing(id, ctx);
     }
+    
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
         end_timing(id, ctx);
     }

@@ -95,7 +95,7 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
                 duration_path.set_extension("csv");
                 routing_path.set_extension("csv");
                 let (general, general_guard) =
-                    SpanDurationToFileLayer::new_csv(&duration_path, level);
+                    SpanDurationToFileLayer::new_csv(&duration_path);
                 let (routing, routing_guard) =
                     RoutingSpanDurationToFileLayer::new_csv(&routing_path);
                 let (routing_filter, general_filter) = create_filter(level);
@@ -115,7 +115,7 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
                 duration_path.set_extension("parquet");
                 routing_path.set_extension("parquet");
                 let (general, general_guard) =
-                    SpanDurationToFileLayer::new_parquet(&duration_path, level, p.batch_size);
+                    SpanDurationToFileLayer::new_parquet(&duration_path, p.batch_size);
                 let (routing, routing_guard) =
                     RoutingSpanDurationToFileLayer::new_parquet(&routing_path, p.batch_size);
                 let (routing_filter, general_filter) = create_filter(level);
