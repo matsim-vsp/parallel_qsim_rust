@@ -50,6 +50,9 @@ futures = "0.3.31"
 uuid = { version = "1.18.1", features = ["v7"] }
 csv = "1.4.0"
 inventory = "0.3.21"
+arrow2 = { version = "0.18.0", features = ["io_parquet", "io_parquet_compression"] }
+
+# arrow2 removed; we write parquet-proxy as JSON-lines implementation for now
 
 [dev-dependencies]
 # For development, test_util feature is always activated so that functions like id store reset work

@@ -564,6 +564,7 @@ pub enum Profiling {
     #[default]
     None,
     CSV(ProfilingLevel),
+    Parquet(ParquetProfilingLevel),
 }
 
 /// Have this extra layer of log level enum, as tracing subscriber has no
@@ -583,12 +584,34 @@ pub enum WriteEvents {
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ParquetProfilingLevel {
+    #[serde(default = "default_profiling_level")]
+    pub level: String,
+    #[serde(default = "default_parquet_batch_size")]
+    pub batch_size: usize,
+}
+
+fn default_parquet_batch_size() -> usize {
+    50_000
+}
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProfilingLevel {
     #[serde(default = "default_profiling_level")]
     pub level: String,
 }
 
 impl ProfilingLevel {
+    pub fn create_tracing_level(&self) -> Level {
+        match self.level.as_str() {
+            "INFO" => Level::INFO,
+            "TRACE" => Level::TRACE,
+            _ => panic!("{} not yet implemented as profiling level!", self.level),
+        }
+    }
+}
+
+impl ParquetProfilingLevel {
     pub fn create_tracing_level(&self) -> Level {
         match self.level.as_str() {
             "INFO" => Level::INFO,

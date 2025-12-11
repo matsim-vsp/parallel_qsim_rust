@@ -12,13 +12,13 @@ use tracing_subscriber::{EnvFilter, Layer};
 
 use crate::simulation::config::{Config, Logging, Profiling};
 use crate::simulation::io::resolve_path;
-use crate::simulation::profiling::routing::RoutingSpanDurationToCSVLayer;
-use crate::simulation::profiling::{SpanDurationToCSVLayer, WriterGuard};
+use crate::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
+use crate::simulation::profiling::SpanDurationToFileLayer;
 
 // This is a helper struct to store the logger guards. When they are dropped, logging can be reset.
 #[allow(dead_code)]
 pub(crate) struct LogGuards {
-    tracing_guards: Vec<WriterGuard>,
+    tracing_guards: Vec<Box<dyn std::any::Any + Send>>,
     log_guard: Option<WorkerGuard>,
     default: DefaultGuard,
 }
@@ -77,47 +77,77 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     }
 }
 
-fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Path) -> CsvLayers {
+fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Path) -> FileLayers {
     // if we set profiling at all and if profiling is set to level trace, then each process creates an instrumenting file
     // if profiling level is set to INFO, only process 0 creates an instrument file. This is important if we run on a lot of
     // processes, because then we spent a lot of computing time on creating instrument files for each process.
-    if let Profiling::CSV(level_string) = config.output().profiling {
-        let level = level_string.create_tracing_level();
-        if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
-            let instrument_dir = dir.join("instrument");
-            let duration_file_name = format!("instrument_process_{file_discriminant}.csv");
-            let duration_path = instrument_dir.join(duration_file_name);
-            let (general, general_guard) = SpanDurationToCSVLayer::new(&duration_path, level);
+    let instrument_dir = dir.join("instrument");
+    let duration_file_name = format!("instrument_process_{file_discriminant}");
+    let mut duration_path = instrument_dir.join(duration_file_name);
 
-            let routing_file_name = format!("routing_process_{file_discriminant}.csv");
-            let routing_path = instrument_dir.join(routing_file_name);
-            let (routing, routing_guard) = RoutingSpanDurationToCSVLayer::new(&routing_path);
+    let routing_file_name = format!("routing_process_{file_discriminant}");
+    let mut routing_path = instrument_dir.join(routing_file_name);
 
-            let routing_mod = "rust_qsim::simulation::agents::agent_logic";
-            let routing_filter = EnvFilter::new(format!("{}={}", routing_mod, level));
-            let general_filter = EnvFilter::new(format!("{},{}=off", level, routing_mod));
+    match &config.output().profiling {
+        Profiling::CSV(level_string) => {
+            let level = level_string.create_tracing_level();
+            if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
+                duration_path.set_extension("csv");
+                routing_path.set_extension("csv");
+                let (general, general_guard) =
+                    SpanDurationToFileLayer::new_csv(&duration_path);
+                let (routing, routing_guard) =
+                    RoutingSpanDurationToFileLayer::new_csv(&routing_path);
+                let (routing_filter, general_filter) = create_filter(level);
 
-            CsvLayers {
-                general: Some((general, general_filter)),
-                routing: Some((routing, routing_filter)),
-                writer_guards: vec![general_guard, routing_guard],
+                FileLayers {
+                    general: Some((general, general_filter)),
+                    routing: Some((routing, routing_filter)),
+                    writer_guards: vec![Box::new(general_guard), Box::new(routing_guard)],
+                }
+            } else {
+                FileLayers::new()
             }
-        } else {
-            CsvLayers::new()
         }
-    } else {
-        CsvLayers::new()
+        Profiling::Parquet(p) => {
+            let level = p.create_tracing_level();
+            if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
+                duration_path.set_extension("parquet");
+                routing_path.set_extension("parquet");
+                let (general, general_guard) =
+                    SpanDurationToFileLayer::new_parquet(&duration_path, p.batch_size);
+                let (routing, routing_guard) =
+                    RoutingSpanDurationToFileLayer::new_parquet(&routing_path, p.batch_size);
+                let (routing_filter, general_filter) = create_filter(level);
+
+                FileLayers {
+                    general: Some((general, general_filter)),
+                    routing: Some((routing, routing_filter)),
+                    writer_guards: vec![Box::new(general_guard), Box::new(routing_guard)],
+                }
+            } else {
+                FileLayers::new()
+            }
+        }
+        _ => FileLayers::new(),
     }
 }
 
-#[derive(Default)]
-struct CsvLayers {
-    general: Option<(SpanDurationToCSVLayer, EnvFilter)>,
-    routing: Option<(RoutingSpanDurationToCSVLayer, EnvFilter)>,
-    writer_guards: Vec<WriterGuard>,
+fn create_filter(level: Level) -> (EnvFilter, EnvFilter) {
+    let routing_mod = "rust_qsim::simulation::agents::agent_logic";
+    let routing_filter = EnvFilter::new(format!("{}={}", routing_mod, level));
+    let general_filter = EnvFilter::new(format!("{},{}=off", level, routing_mod));
+    (routing_filter, general_filter)
 }
 
-impl CsvLayers {
+#[derive(Default)]
+struct FileLayers {
+    general: Option<(SpanDurationToFileLayer, EnvFilter)>,
+    routing: Option<(RoutingSpanDurationToFileLayer, EnvFilter)>,
+    writer_guards: Vec<Box<dyn std::any::Any + Send>>,
+}
+
+impl FileLayers {
     pub fn new() -> Self {
         Self {
             general: None,
