@@ -1,6 +1,6 @@
 use crate::simulation::profiling::{
     convert_u128_to_fixed_size_binary, create_file, end_timing, extract_entries, start_timing,
-    write_parquet, Mode, PersonId, SimTime, SpanDuration, Uuid,
+    write_parquet, Mode, PersonId, SimTime, SpanDuration, Uuid, BYTE_WIDTH_U128,
 };
 use std::fmt::Debug;
 use std::path::Path;
@@ -238,12 +238,20 @@ impl BufferedRoutingData {
 
     pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
         let fields = vec![
-            arrow2::datatypes::Field::new("timestamp", DataType::Utf8, false),
+            arrow2::datatypes::Field::new(
+                "timestamp",
+                DataType::FixedSizeBinary(BYTE_WIDTH_U128),
+                false,
+            ),
             arrow2::datatypes::Field::new("target", DataType::Utf8, false),
             arrow2::datatypes::Field::new("func_name", DataType::Utf8, false),
             arrow2::datatypes::Field::new("duration_ns", DataType::Int64, false),
             arrow2::datatypes::Field::new("sim_time", DataType::Int64, false),
-            arrow2::datatypes::Field::new("request_uuid", DataType::Utf8, false),
+            arrow2::datatypes::Field::new(
+                "request_uuid",
+                DataType::FixedSizeBinary(BYTE_WIDTH_U128),
+                false,
+            ),
             arrow2::datatypes::Field::new("person_id", DataType::Utf8, false),
             arrow2::datatypes::Field::new("mode", DataType::Utf8, false),
         ];

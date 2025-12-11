@@ -1,31 +1,85 @@
 // needed for the `with` function on Registry
+use arrow2::array::FixedSizeBinaryArray;
 use macros::integration_test;
-use rust_qsim::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
-use std::path::Path;
+use rust_qsim::simulation::profiling::routing::{
+    RoutingSpanDurationToFileLayer, RoutingWriterGuard,
+};
+use std::io::BufReader;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Layer, Registry};
 use uuid::{NoContext, Timestamp, Uuid};
 
-/// all tests are marked with serial to avoid race conditions on the subscriber registry
+enum Mode {
+    Csv,
+    Parquet,
+}
+
+impl Mode {
+    fn expansion(&self) -> &'static str {
+        match self {
+            Mode::Csv => "csv",
+            Mode::Parquet => "parquet",
+        }
+    }
+
+    fn layer(&self, path: &Path) -> (RoutingSpanDurationToFileLayer, RoutingWriterGuard) {
+        let mut buf = PathBuf::from(path);
+        buf.set_extension(self.expansion());
+        match self {
+            Mode::Csv => RoutingSpanDurationToFileLayer::new_csv(Path::new(&buf)),
+            Mode::Parquet => RoutingSpanDurationToFileLayer::new_parquet(Path::new(&buf)),
+        }
+    }
+
+    fn read_rows(&self, path: &Path) -> Vec<RoutingRow> {
+        let mut buf = PathBuf::from(path);
+        buf.set_extension(self.expansion());
+        match self {
+            Mode::Csv => read_csv_structs(Path::new(&buf)),
+            Mode::Parquet => read_parquet_structs(Path::new(&buf)),
+        }
+    }
+}
+
+// all tests are marked with serial to avoid race conditions on the subscriber registry
 
 #[integration_test(rust_qsim)]
-fn test_creation() {
-    let path = Path::new("./test_output/simulation/profiling/routing/test_creation.csv");
-    let (_, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
+fn test_creation_csv() {
+    test_creation(Mode::Csv);
+}
+
+#[integration_test(rust_qsim)]
+fn test_creation_parquet() {
+    test_creation(Mode::Parquet);
+}
+
+fn test_creation(mode: Mode) {
+    let path = Path::new("./test_output/simulation/profiling/routing/test_creation");
+    let (_, guard) = mode.layer(path);
     drop(guard);
 }
 
 #[integration_test(rust_qsim)]
-fn test_all_events() {
-    let path = Path::new("./test_output/simulation/profiling/routing/test_events.csv");
-    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
+fn test_all_events_csv() {
+    test_all_events(Mode::Csv);
+}
+
+#[integration_test(rust_qsim)]
+fn test_all_events_parquet() {
+    test_all_events(Mode::Parquet);
+}
+
+fn test_all_events(mode: Mode) {
+    let path = Path::new("./test_output/simulation/profiling/routing/test_events");
+    let (layer, guard) = mode.layer(path);
 
     let filtered = layer.with_filter(EnvFilter::new("test_tracing=trace"));
     run_test(filtered.boxed());
     drop(guard);
 
-    let rows = read_csv_structs(path);
+    let rows = mode.read_rows(path);
     assert_eq!(rows.len(), 2);
     let expected = get_expected();
     assert_eq!(rows.first(), Some(&expected[0]));
@@ -33,24 +87,42 @@ fn test_all_events() {
 }
 
 #[integration_test(rust_qsim)]
-fn test_info_events() {
-    let path = Path::new("./test_output/simulation/profiling/routing/test_info_events.csv");
-    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
+fn test_info_events_csv() {
+    test_info_events(Mode::Csv);
+}
+
+#[integration_test(rust_qsim)]
+fn test_info_events_parquet() {
+    test_info_events(Mode::Parquet);
+}
+
+fn test_info_events(mode: Mode) {
+    let path = Path::new("./test_output/simulation/profiling/routing/test_info_events");
+    let (layer, guard) = mode.layer(path);
 
     let filtered = layer.with_filter(EnvFilter::new("test_tracing=info"));
     run_test(filtered.boxed());
     drop(guard);
 
-    let rows = read_csv_structs(path);
+    let rows = mode.read_rows(path);
     assert_eq!(rows.len(), 1);
     // The first event is by the inner span, which has level info.
     assert_eq!(rows.first(), Some(&get_expected()[0]));
 }
 
 #[integration_test(rust_qsim)]
-fn test_module_filtering() {
-    let path = Path::new("./test_output/simulation/profiling/routing/test_module_filtering.csv");
-    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
+fn test_module_filtering_csv() {
+    test_module_filtering(Mode::Csv);
+}
+
+#[integration_test(rust_qsim)]
+fn test_module_filtering_parquet() {
+    test_module_filtering(Mode::Parquet);
+}
+
+fn test_module_filtering(mode: Mode) {
+    let path = Path::new("./test_output/simulation/profiling/routing/test_module_filtering");
+    let (layer, guard) = mode.layer(path);
 
     let filtered = layer
         .with_filter(EnvFilter::new("test_tracing::foo::bar=info"))
@@ -59,18 +131,26 @@ fn test_module_filtering() {
 
     drop(guard);
 
-    let rows = read_csv_structs(path);
+    let rows = mode.read_rows(path);
     assert_eq!(rows.len(), 1);
     // Only the inner function should be recorded due to module filtering.
     assert_eq!(rows.first(), Some(&get_expected()[0]));
 }
 
 #[integration_test(rust_qsim)]
-fn test_module_filtering_with_level() {
-    let path = Path::new(
-        "./test_output/simulation/profiling/routing/test_module_filtering_with_level.csv",
-    );
-    let (layer, guard) = RoutingSpanDurationToFileLayer::new_csv(path);
+fn test_module_filtering_with_level_csv() {
+    test_module_filtering_with_level(Mode::Csv);
+}
+
+#[integration_test(rust_qsim)]
+fn test_module_filtering_with_level_parquet() {
+    test_module_filtering_with_level(Mode::Parquet);
+}
+
+fn test_module_filtering_with_level(mode: Mode) {
+    let path =
+        Path::new("./test_output/simulation/profiling/routing/test_module_filtering_with_level");
+    let (layer, guard) = mode.layer(path);
 
     let filtered = layer
         .with_filter(EnvFilter::new("test_tracing::foo::bar=warn"))
@@ -79,7 +159,7 @@ fn test_module_filtering_with_level() {
     run_test(filtered.boxed());
     drop(guard);
 
-    let rows = read_csv_structs(path);
+    let rows = mode.read_rows(path);
     assert_eq!(rows.len(), 0);
 }
 
@@ -138,6 +218,75 @@ fn read_csv_structs(path: &Path) -> Vec<RoutingRow> {
         rows.push(row);
     }
     rows
+}
+
+// Parquet reader helper used by Parquet tests
+fn read_parquet_structs(path: &std::path::Path) -> Vec<RoutingRow> {
+    use arrow2::array::Int64Array;
+    use arrow2::array::Utf8Array;
+    use arrow2::io::parquet::read::{infer_schema, read_metadata, FileReader};
+    use std::fs::File;
+
+    let mut file = BufReader::new(File::open(path).unwrap());
+    let metadata = read_metadata(&mut file).unwrap();
+    let schema = infer_schema(&metadata).unwrap();
+    let row_groups = metadata.row_groups.clone();
+
+    let reader = FileReader::new(file, row_groups, schema, None, None, None);
+    let mut rows = Vec::new();
+
+    for chunk_res in reader {
+        let chunk = chunk_res.unwrap();
+        // column layout assumed: timestamp, target, func_name, duration_ns, sim_time, request_uuid, person_id, mode
+        let target_array = chunk.arrays()[1]
+            .as_any()
+            .downcast_ref::<Utf8Array<i32>>()
+            .unwrap();
+        let func_array = chunk.arrays()[2]
+            .as_any()
+            .downcast_ref::<Utf8Array<i32>>()
+            .unwrap();
+        let sim_time_array = chunk.arrays()[4]
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .unwrap();
+        let uuid_array = chunk.arrays()[5]
+            .as_any()
+            .downcast_ref::<FixedSizeBinaryArray>()
+            .unwrap();
+        let person_array = chunk.arrays()[6]
+            .as_any()
+            .downcast_ref::<Utf8Array<i32>>()
+            .unwrap();
+        let mode_array = chunk.arrays()[7]
+            .as_any()
+            .downcast_ref::<Utf8Array<i32>>()
+            .unwrap();
+
+        let len = chunk.len();
+        for i in 0..len {
+            let x = uuid_array.value(i);
+            let uuid = read_u128(x);
+
+            let row = RoutingRow {
+                target: target_array.value(i).to_string(),
+                func_name: func_array.value(i).to_string(),
+                sim_time: sim_time_array.value(i),
+                request_uuid: ComparableUuid(uuid),
+                person_id: person_array.value(i).to_string(),
+                mode: mode_array.value(i).to_string(),
+            };
+            rows.push(row);
+        }
+    }
+
+    rows
+}
+
+fn read_u128(x: &[u8]) -> u128 {
+    let mut buf = [0u8; 16];
+    buf.copy_from_slice(x);
+    u128::from_le_bytes(buf)
 }
 
 #[derive(Debug, PartialEq)]

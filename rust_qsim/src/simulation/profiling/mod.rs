@@ -5,6 +5,7 @@ use std::error::Error;
 use std::fmt::Debug;
 use std::fs;
 use std::fs::File;
+use std::io::BufWriter;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
@@ -22,6 +23,8 @@ use arrow2::datatypes::{DataType, Schema};
 use arrow2::io::parquet::write::{
     CompressionOptions, Encoding, FileWriter, RowGroupIterator, Version, WriteOptions,
 };
+
+pub const BYTE_WIDTH_U128: usize = 16;
 
 // Implementation overview:
 // - The layer supports two backends at runtime: CSV and Parquet.
@@ -136,7 +139,11 @@ impl BufferedSpanData {
     pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
         // Build arrow arrays
         let fields = vec![
-            arrow2::datatypes::Field::new("timestamp", DataType::Utf8, false),
+            arrow2::datatypes::Field::new(
+                "timestamp",
+                DataType::FixedSizeBinary(BYTE_WIDTH_U128),
+                false,
+            ),
             arrow2::datatypes::Field::new("target", DataType::Utf8, false),
             arrow2::datatypes::Field::new("func_name", DataType::Utf8, false),
             arrow2::datatypes::Field::new("duration_ns", DataType::Int64, false),
@@ -337,13 +344,12 @@ pub fn create_file(path: &Path) -> File {
 }
 
 fn convert_u128_to_fixed_size_binary(data: &Vec<u128>) -> FixedSizeBinaryArray {
-    let byte_width = 16;
-    let mut timestamp_data = Vec::with_capacity(data.len() * byte_width);
+    let mut timestamp_data = Vec::with_capacity(data.len() * BYTE_WIDTH_U128);
     for t in data {
         timestamp_data.extend_from_slice(&t.to_le_bytes());
     }
     FixedSizeBinaryArray::new(
-        DataType::FixedSizeBinary(byte_width),
+        DataType::FixedSizeBinary(BYTE_WIDTH_U128),
         timestamp_data.into(),
         None,
     )
@@ -356,7 +362,7 @@ fn write_parquet(
 ) -> Result<Result<(), Box<dyn Error>>, Box<dyn Error>> {
     let chunk = Chunk::new(columns);
 
-    let file = File::create(path)?;
+    let file = BufWriter::new(File::create(path)?);
     let options = WriteOptions {
         write_statistics: false,
         version: Version::V2,
