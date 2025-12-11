@@ -82,16 +82,18 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
     // if profiling level is set to INFO, only process 0 creates an instrument file. This is important if we run on a lot of
     // processes, because then we spent a lot of computing time on creating instrument files for each process.
     let instrument_dir = dir.join("instrument");
-    let duration_file_name = format!("instrument_process_{file_discriminant}.csv");
-    let duration_path = instrument_dir.join(duration_file_name);
+    let duration_file_name = format!("instrument_process_{file_discriminant}");
+    let mut duration_path = instrument_dir.join(duration_file_name);
 
-    let routing_file_name = format!("routing_process_{file_discriminant}.csv");
-    let routing_path = instrument_dir.join(routing_file_name);
+    let routing_file_name = format!("routing_process_{file_discriminant}");
+    let mut routing_path = instrument_dir.join(routing_file_name);
 
     match &config.output().profiling {
         Profiling::CSV(level_string) => {
             let level = level_string.create_tracing_level();
             if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
+                duration_path.set_extension("csv");
+                routing_path.set_extension("csv");
                 let (general, general_guard) =
                     SpanDurationToFileLayer::new_csv(&duration_path, level);
                 let (routing, routing_guard) =
@@ -110,6 +112,8 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
         Profiling::Parquet(level_string) => {
             let level = level_string.create_tracing_level();
             if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
+                duration_path.set_extension("parquet");
+                routing_path.set_extension("parquet");
                 let (general, general_guard) =
                     SpanDurationToFileLayer::new_parquet(&duration_path, level);
                 let (routing, routing_guard) =

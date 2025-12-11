@@ -342,12 +342,11 @@ fn convert_u128_to_fixed_size_binary(data: &Vec<u128>) -> FixedSizeBinaryArray {
     for t in data {
         timestamp_data.extend_from_slice(&t.to_le_bytes());
     }
-    let ts = FixedSizeBinaryArray::new(
+    FixedSizeBinaryArray::new(
         DataType::FixedSizeBinary(byte_width),
         timestamp_data.into(),
         None,
-    );
-    ts
+    )
 }
 
 fn write_parquet(
@@ -361,7 +360,7 @@ fn write_parquet(
     let options = WriteOptions {
         write_statistics: false,
         version: Version::V2,
-        compression: CompressionOptions::Uncompressed,
+        compression: CompressionOptions::Snappy,
         data_pagesize_limit: None,
     };
 
@@ -369,7 +368,7 @@ fn write_parquet(
     let encodings = vec![vec![Encoding::Plain]; schema.fields.len()];
 
     let row_group_iter =
-        RowGroupIterator::try_new(vec![Ok(chunk)].into_iter(), &schema, options, encodings)?;
+        RowGroupIterator::try_new(vec![Ok(chunk)].into_iter(), schema, options, encodings)?;
 
     let mut writer = FileWriter::try_new(file, schema.clone(), options)?;
     for rg in row_group_iter {
