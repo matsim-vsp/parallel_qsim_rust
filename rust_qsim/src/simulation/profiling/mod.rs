@@ -1,6 +1,6 @@
 pub mod routing;
 
-use arrow2::array::FixedSizeBinaryArray;
+use arrow2::array::{FixedSizeBinaryArray, UInt64Array};
 use std::error::Error;
 use std::fmt::Debug;
 use std::fs;
@@ -29,7 +29,7 @@ pub const BYTE_WIDTH_U128: usize = 16;
 // Implementation overview:
 // - The layer supports two backends at runtime: CSV and Parquet.
 // - The public API exposes constructors `new_csv` and `new_parquet` that return the layer and a WriterGuard.
-// - The WriterGuard flushes/writes on drop. CSV uses csv::Writer flush, Parquet writes an Arrow RecordBatch via arrow2.
+// - The WriterGuard flushes/writes on drop. CSV uses csv::Writer flush, Parquet writes rows on every on_close using an open FileWriter.
 
 pub struct SpanDurationToFileLayer {
     backend: Backend,
@@ -109,35 +109,16 @@ impl Visit for MetadataVisitor {
 
 // Buffered data for parquet backend
 pub struct BufferedSpanData {
-    pub timestamp: Vec<u128>,
-    pub target: Vec<String>,
-    pub func_name: Vec<String>,
-    pub duration_ns: Vec<i64>,
-    pub sim_time: Vec<i64>,
-    pub rank: Vec<i64>,
+    // Keep an open parquet FileWriter and schema/options so we can write a row on every on_close
     pub path: std::path::PathBuf,
+    schema: Schema,
+    options: WriteOptions,
+    encodings: Vec<Vec<Encoding>>,
+    writer: FileWriter<BufWriter<File>>,
 }
 
 impl BufferedSpanData {
     pub fn new(path: std::path::PathBuf) -> Self {
-        Self {
-            timestamp: Vec::new(),
-            target: Vec::new(),
-            func_name: Vec::new(),
-            duration_ns: Vec::new(),
-            sim_time: Vec::new(),
-            rank: Vec::new(),
-            path,
-        }
-    }
-
-    fn create_parent(&self) {
-        let prefix = self.path.parent().unwrap();
-        fs::create_dir_all(prefix).unwrap();
-    }
-
-    pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
-        // Build arrow arrays
         let fields = vec![
             arrow2::datatypes::Field::new(
                 "timestamp",
@@ -146,22 +127,77 @@ impl BufferedSpanData {
             ),
             arrow2::datatypes::Field::new("target", DataType::Utf8, false),
             arrow2::datatypes::Field::new("func_name", DataType::Utf8, false),
-            arrow2::datatypes::Field::new("duration_ns", DataType::Int64, false),
+            arrow2::datatypes::Field::new("duration_ns", DataType::UInt64, false),
             arrow2::datatypes::Field::new("sim_time", DataType::Int64, false),
             arrow2::datatypes::Field::new("rank", DataType::Int64, false),
         ];
         let schema = Schema::from(fields);
 
+        let options = WriteOptions {
+            write_statistics: false,
+            version: Version::V2,
+            compression: CompressionOptions::Snappy,
+            data_pagesize_limit: None,
+        };
+
+        let encodings = vec![vec![Encoding::Plain]; schema.fields.len()];
+
+        // create parent dirs
+        let prefix = path.parent().unwrap();
+        fs::create_dir_all(prefix).unwrap();
+
+        // open file and create writer
+        let file = BufWriter::new(File::create(&path).unwrap());
+        let writer = FileWriter::try_new(file, schema.clone(), options)
+            .expect("Failed to create parquet FileWriter");
+
+        Self {
+            path,
+            schema,
+            options,
+            encodings,
+            writer,
+        }
+    }
+
+    fn create_parent(&self) {
+        let prefix = self.path.parent().unwrap();
+        fs::create_dir_all(prefix).unwrap();
+    }
+
+    /// Write a single row as a parquet row-group. This writes immediately to the open file.
+    pub fn write_row(
+        &mut self,
+        timestamp: u128,
+        target: &str,
+        func_name: &str,
+        duration_ns: u64,
+        sim_time: i64,
+        rank: i64,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let timestamp_vec = vec![timestamp];
         let columns: Vec<Box<dyn Array>> = vec![
-            Box::new(convert_u128_to_fixed_size_binary(&self.timestamp)),
-            Box::new(Utf8Array::<i32>::from_slice(&self.target)),
-            Box::new(Utf8Array::<i32>::from_slice(&self.func_name)),
-            Box::new(Int64Array::from_slice(self.duration_ns.as_slice())),
-            Box::new(Int64Array::from_slice(self.sim_time.as_slice())),
-            Box::new(Int64Array::from_slice(self.rank.as_slice())),
+            Box::new(convert_u128_to_fixed_size_binary(&timestamp_vec)),
+            Box::new(Utf8Array::<i32>::from_slice([target])),
+            Box::new(Utf8Array::<i32>::from_slice([func_name])),
+            Box::new(UInt64Array::from_slice([duration_ns])),
+            Box::new(Int64Array::from_slice([sim_time])),
+            Box::new(Int64Array::from_slice([rank])),
         ];
 
-        write_parquet(&schema, columns, &self.path)?
+        write_parquet(
+            &self.schema,
+            columns,
+            self.options,
+            &self.encodings,
+            &mut self.writer,
+        )?
+    }
+
+    /// Close the writer (write footer). Call at Drop time.
+    pub fn close_writer(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.writer.end(None)?;
+        Ok(())
     }
 }
 
@@ -268,8 +304,8 @@ where
                         &timestep.to_string(),
                         target,
                         func_name,
-                        &duration,
-                        &sim_time,
+                        &duration.to_string(),
+                        &sim_time.to_string(),
                         &rank.to_string(),
                     ])
                     .unwrap();
@@ -279,14 +315,12 @@ where
             }
             Backend::Parquet { inner, .. } => {
                 let mut inner = inner.lock().unwrap();
-                inner.timestamp.push(timestep);
-                inner.target.push(target.to_string());
-                inner.func_name.push(func_name.to_string());
-                inner
-                    .duration_ns
-                    .push(duration.parse::<i64>().unwrap_or(-1));
-                inner.sim_time.push(sim_time.parse::<i64>().unwrap_or(-1));
-                inner.rank.push(rank);
+                // write a single row immediately
+                if let Err(e) =
+                    inner.write_row(timestep, target, func_name, duration, sim_time, rank)
+                {
+                    eprintln!("Failed to write parquet row: {}", e);
+                }
 
                 drop(extensions);
                 drop(span);
@@ -298,22 +332,17 @@ where
 fn extract_entries<'a>(
     extensions: &Extensions,
     meta: &Metadata<'a>,
-) -> (u128, &'a str, &'a str, String, String) {
+) -> (u128, &'a str, &'a str, u64, i64) {
     let timestep = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
     let target = meta.target();
     let func_name = meta.name();
-    let span_duration = extensions
-        .get::<SpanDuration>()
-        .unwrap()
-        .elapsed
-        .to_string();
+    let span_duration = extensions.get::<SpanDuration>().unwrap().elapsed;
     let sim_time = extensions
         .get::<SimTime>()
-        .map_or(-1, |sim_time| sim_time.0 as i64)
-        .to_string();
+        .map_or(-1, |sim_time| sim_time.0 as i64);
     (timestep, target, func_name, span_duration, sim_time)
 }
 
@@ -355,33 +384,25 @@ fn convert_u128_to_fixed_size_binary(data: &Vec<u128>) -> FixedSizeBinaryArray {
     )
 }
 
+// Keep write_parquet helper for compatibility but not used for per-row writing
 fn write_parquet(
     schema: &Schema,
     columns: Vec<Box<dyn Array>>,
-    path: &Path,
+    options: WriteOptions,
+    encodings: &[Vec<Encoding>],
+    writer: &mut FileWriter<std::io::BufWriter<File>>,
 ) -> Result<Result<(), Box<dyn Error>>, Box<dyn Error>> {
     let chunk = Chunk::new(columns);
-
-    let file = BufWriter::new(File::create(path)?);
-    let options = WriteOptions {
-        write_statistics: false,
-        version: Version::V2,
-        compression: CompressionOptions::Snappy,
-        data_pagesize_limit: None,
-    };
-
-    // Simple plain encoding for all fields
-    let encodings = vec![vec![Encoding::Plain]; schema.fields.len()];
-
-    let row_group_iter =
-        RowGroupIterator::try_new(vec![Ok(chunk)].into_iter(), schema, options, encodings)?;
-
-    let mut writer = FileWriter::try_new(file, schema.clone(), options)?;
+    let row_group_iter = RowGroupIterator::try_new(
+        vec![Ok(chunk)].into_iter(),
+        schema,
+        options,
+        Vec::from(encodings),
+    )?;
     for rg in row_group_iter {
-        let rg = rg?; // RowGroupIter
+        let rg = rg?;
         writer.write(rg)?;
     }
-    writer.end(None)?;
     Ok(Ok(()))
 }
 
@@ -393,9 +414,9 @@ impl Drop for WriterGuard {
                 writer.flush().expect("Problem flushing writer");
             }
             WriterGuard::Parquet(inner) => {
-                let inner = inner.lock().unwrap();
-                if let Err(e) = inner.write_parquet() {
-                    eprintln!("Failed to write parquet profiling file: {}", e);
+                let mut guard = inner.lock().unwrap();
+                if let Err(e) = guard.close_writer() {
+                    eprintln!("Failed to close parquet writer: {}", e);
                 }
             }
         }

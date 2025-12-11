@@ -11,8 +11,9 @@ use tracing::{Event, Id};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
 
-use arrow2::array::{Array, Int64Array, Utf8Array};
+use arrow2::array::{Array, Int64Array, UInt64Array, Utf8Array};
 use arrow2::datatypes::{DataType, Schema};
+use arrow2::io::parquet::write::{CompressionOptions, Encoding, FileWriter, Version, WriteOptions};
 use std::fs::File;
 
 const HEADER: [&str; 8] = [
@@ -158,8 +159,8 @@ where
                         &timestep.to_string(),
                         target,
                         func_name,
-                        &duration,
-                        &sim_time,
+                        &duration.to_string(),
+                        &sim_time.to_string(),
                         &request_uuid,
                         person_id,
                         mode,
@@ -185,16 +186,18 @@ where
                     .map_or("".to_string(), |mode| mode.0.clone());
 
                 let mut inner = inner.lock().unwrap();
-                inner.timestamp.push(timestep);
-                inner.target.push(meta.target().to_string());
-                inner.func_name.push(func_name.to_string());
-                inner
-                    .duration_ns
-                    .push(duration.parse::<i64>().unwrap_or(-1));
-                inner.sim_time.push(sim_time.parse::<i64>().unwrap_or(-1));
-                inner.request_uuid.push(request_uuid);
-                inner.person_id.push(person_id);
-                inner.mode.push(mode);
+                if let Err(e) = inner.write_row(
+                    timestep,
+                    meta.target(),
+                    func_name,
+                    duration,
+                    sim_time,
+                    request_uuid,
+                    person_id.as_str(),
+                    mode.as_str(),
+                ) {
+                    eprintln!("Failed to write routing parquet row: {}", e);
+                }
 
                 drop(extensions);
                 drop(span);
@@ -203,40 +206,17 @@ where
     }
 }
 
-// Parquet-buffered routing data
+// Parquet writer for routing data – writes rows immediately.
 pub struct BufferedRoutingData {
-    pub timestamp: Vec<u128>,
-    pub target: Vec<String>,
-    pub func_name: Vec<String>,
-    pub duration_ns: Vec<i64>,
-    pub sim_time: Vec<i64>,
-    pub request_uuid: Vec<u128>,
-    pub person_id: Vec<String>,
-    pub mode: Vec<String>,
     pub path: std::path::PathBuf,
+    schema: Schema,
+    options: WriteOptions,
+    encodings: Vec<Vec<Encoding>>,
+    writer: FileWriter<std::io::BufWriter<File>>,
 }
 
 impl BufferedRoutingData {
     pub fn new(path: std::path::PathBuf) -> Self {
-        Self {
-            timestamp: Vec::new(),
-            target: Vec::new(),
-            func_name: Vec::new(),
-            duration_ns: Vec::new(),
-            sim_time: Vec::new(),
-            request_uuid: Vec::new(),
-            person_id: Vec::new(),
-            mode: Vec::new(),
-            path,
-        }
-    }
-
-    fn create_parent(&self) {
-        let prefix = self.path.parent().unwrap();
-        std::fs::create_dir_all(prefix).unwrap();
-    }
-
-    pub fn write_parquet(&self) -> Result<(), Box<dyn std::error::Error>> {
         let fields = vec![
             arrow2::datatypes::Field::new(
                 "timestamp",
@@ -257,18 +237,75 @@ impl BufferedRoutingData {
         ];
         let schema = Schema::from(fields);
 
+        let options = WriteOptions {
+            write_statistics: false,
+            version: Version::V2,
+            compression: CompressionOptions::Snappy,
+            data_pagesize_limit: None,
+        };
+
+        let encodings = vec![vec![Encoding::Plain]; schema.fields.len()];
+
+        // create parent dirs
+        let prefix = path.parent().unwrap();
+        std::fs::create_dir_all(prefix).unwrap();
+
+        let file = std::io::BufWriter::new(File::create(&path).unwrap());
+        let writer = FileWriter::try_new(file, schema.clone(), options)
+            .expect("Failed to create parquet FileWriter");
+
+        Self {
+            path,
+            schema,
+            options,
+            encodings,
+            writer,
+        }
+    }
+
+    fn create_parent(&self) {
+        let prefix = self.path.parent().unwrap();
+        std::fs::create_dir_all(prefix).unwrap();
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn write_row(
+        &mut self,
+        timestamp: u128,
+        target: &str,
+        func_name: &str,
+        duration_ns: u64,
+        sim_time: i64,
+        request_uuid: u128,
+        person_id: &str,
+        mode: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let timestamp_vec = vec![timestamp];
+        let request_uuid_vec = vec![request_uuid];
+
         let columns: Vec<Box<dyn Array>> = vec![
-            Box::new(convert_u128_to_fixed_size_binary(&self.timestamp)),
-            Box::new(Utf8Array::<i32>::from_slice(&self.target)),
-            Box::new(Utf8Array::<i32>::from_slice(&self.func_name)),
-            Box::new(Int64Array::from_slice(self.duration_ns.as_slice())),
-            Box::new(Int64Array::from_slice(self.sim_time.as_slice())),
-            Box::new(convert_u128_to_fixed_size_binary(&self.request_uuid)),
-            Box::new(Utf8Array::<i32>::from_slice(&self.person_id)),
-            Box::new(Utf8Array::<i32>::from_slice(&self.mode)),
+            Box::new(convert_u128_to_fixed_size_binary(&timestamp_vec)),
+            Box::new(Utf8Array::<i32>::from_slice([target])),
+            Box::new(Utf8Array::<i32>::from_slice([func_name])),
+            Box::new(UInt64Array::from_slice([duration_ns])),
+            Box::new(Int64Array::from_slice([sim_time])),
+            Box::new(convert_u128_to_fixed_size_binary(&request_uuid_vec)),
+            Box::new(Utf8Array::<i32>::from_slice([person_id])),
+            Box::new(Utf8Array::<i32>::from_slice([mode])),
         ];
 
-        write_parquet(&schema, columns, &self.path)?
+        write_parquet(
+            &self.schema,
+            columns,
+            self.options,
+            &self.encodings,
+            &mut self.writer,
+        )?
+    }
+
+    pub fn close_writer(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.writer.end(None)?;
+        Ok(())
     }
 }
 
@@ -313,9 +350,9 @@ impl Drop for RoutingWriterGuard {
                 writer.flush().expect("Problem flushing writer");
             }
             RoutingWriterGuard::Parquet(inner) => {
-                let inner = inner.lock().unwrap();
-                if let Err(e) = inner.write_parquet() {
-                    eprintln!("Failed to write routing parquet profiling file: {}", e);
+                let mut inner = inner.lock().unwrap();
+                if let Err(e) = inner.close_writer() {
+                    eprintln!("Failed to close routing parquet profiling file: {}", e);
                 }
             }
         }
