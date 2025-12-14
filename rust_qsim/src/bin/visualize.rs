@@ -13,7 +13,10 @@ use rust_qsim::simulation::io::proto::proto_events::ProtoEventsReader;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Cursor;
+use std::mem;
+use std::ops::Add;
 use std::rc::Rc;
+use std::sync::mpsc::TryRecvError;
 use std::sync::{mpsc, Mutex};
 use std::thread;
 // ============================================================================
@@ -65,10 +68,17 @@ struct SimulationClock {
     time: f32,
 }
 
+type BoxedEvent = Box<dyn EventTrait + Send>;
+
+enum EventsTickMessage {
+    Tick { time: u32, events: Vec<BoxedEvent> },
+    Done,
+}
+
 // Resource that contains the receiver side of the event channel.
 #[derive(Resource)]
 struct EventsChannel {
-    receiver: Mutex<mpsc::Receiver<(u32, Vec<MyEvent>)>>,
+    receiver: Mutex<mpsc::Receiver<EventsTickMessage>>,
 }
 
 // network
@@ -298,11 +308,11 @@ fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut E
 }
 
 // Convert proto events to internal event objects and publish them
-// TODO: Move to thread
 #[rustfmt::skip]
-fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
-    for proto_event in events {
-        let mut proto_event = proto_event.clone();
+fn process_events(time: u32, mut events: Vec<MyEvent>) -> Vec<BoxedEvent> {
+    let mut internal_events: Vec<BoxedEvent> = Vec::with_capacity(events.len());
+
+    for proto_event in events.iter_mut() {
         if !proto_event.attributes.contains_key("type") {
             proto_event
                 .attributes
@@ -310,53 +320,106 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
         }
 
         let type_ = proto_event.attributes["type"].as_string();
-        let internal_event: Box<dyn EventTrait> = match type_.as_str() {
-            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(&proto_event, time)),
-            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(&proto_event, time)),
-            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(&proto_event, time)),
-            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(&proto_event, time)),
-            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(&proto_event, time)),
-            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(&proto_event, time)),
-            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(&proto_event, time)),
-            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(&proto_event, time)),
-            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(&proto_event, time)),
-            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(&proto_event, time)),
-            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(&proto_event, time)),
+        let internal_event: BoxedEvent = match type_.as_str() {
+            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(proto_event, time)),
+            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
+            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
+            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
+            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(proto_event, time)),
+            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(proto_event, time)),
+            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(proto_event, time)),
+            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(proto_event, time)),
+            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(proto_event, time)),
+            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(proto_event, time)),
+            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
-        publisher.publish_event(internal_event.as_ref());
+
+        internal_events.push(internal_event);
     }
+
+    internal_events
 }
 
 // Start a background thread that reads events from the file and sends them through a channel
-// TODO:
-// - Send every iteration one fix time slop (e. g. 1 sec). remember the last time, send empty vecs if no events
-// - bevy knows every iteration
-// - contract: every simulation second bevy gets all events that happened in that second (coulb be empty)
-// - if there is no new entry in the channel, bevy should wait! (recv() waits until there is something...)
 fn start_events_thread() -> EventsChannel {
-    // Create a channel for sending events from background thread to main thread
-    // TODO: Vec<MyEvent> to Box<Dyn EventTrait>
-    let (tx, rx) = mpsc::channel::<(u32, Vec<MyEvent>)>();
+    const EVENT_TIME_STEP: u32 = 1;
+    const CHANNEL_BUFFER_TICKS: usize = 256;
+
+    // Bounded channel provides backpressure so the background thread can't outrun the main thread.
+    let (tx, rx) = mpsc::sync_channel::<EventsTickMessage>(CHANNEL_BUFFER_TICKS);
 
     // create a new background thread
     thread::spawn(move || {
         // create a new reader to read the events file
         let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
-        // Read all events from the file and send them to the main thread
+        let mut next_time_to_send: Option<u32> = None;
+        let mut buffered_time: Option<u32> = None;
+        let mut buffered_events: Vec<MyEvent> = Vec::new();
+
+        let mut flush_time_slot = |time: u32, events_at_time: Vec<MyEvent>| {
+            let cursor = next_time_to_send.get_or_insert(time);
+
+            // Send empty ticks for gaps between the last and current time slot.
+            while *cursor < time {
+                if tx
+                    .send(EventsTickMessage::Tick {
+                        time: *cursor,
+                        events: Vec::new(),
+                    })
+                    .is_err()
+                {
+                    return false;
+                }
+                *cursor = cursor.add(EVENT_TIME_STEP);
+            }
+
+            let internal_events = process_events(time, events_at_time);
+            if tx
+                .send(EventsTickMessage::Tick {
+                    time,
+                    events: internal_events,
+                })
+                .is_err()
+            {
+                return false;
+            }
+
+            *cursor = time.add(EVENT_TIME_STEP);
+            true
+        };
+
+        // Read all events from the file and send them to the main thread in fixed time steps.
+        // If the reader yields multiple entries for the same time, merge them before sending.
         for (time, events_at_time) in reader {
-            // Try to send the events through the channel
-            // if tx.send((time, events_at_time)).is_err() {
-            //     // stop reading if the send fails
-            //     break;
-            // }
-
-            // thread::sleep(Duration::from_millis(100));
-
-            tx.send((time, events_at_time))
-                .expect("Failed to send events through channel");
+            match buffered_time {
+                None => {
+                    buffered_time = Some(time);
+                    buffered_events = events_at_time;
+                }
+                Some(t) if time == t => {
+                    buffered_events.extend(events_at_time);
+                }
+                Some(t) if time > t => {
+                    let events_to_flush = mem::take(&mut buffered_events);
+                    if !flush_time_slot(t, events_to_flush) {
+                        return;
+                    }
+                    buffered_time = Some(time);
+                    buffered_events = events_at_time;
+                }
+                Some(t) => panic!("Events file is not sorted (time went backwards: {t} -> {time})"),
+            }
         }
+
+        if let Some(t) = buffered_time {
+            if !flush_time_slot(t, buffered_events) {
+                return;
+            }
+        }
+
+        let _ = tx.send(EventsTickMessage::Done);
     });
 
     // Returns the receiver
@@ -369,13 +432,35 @@ fn start_events_thread() -> EventsChannel {
 fn process_events_from_channel(
     events_channel: Res<EventsChannel>,
     mut builder_resource: NonSendMut<TripsBuilderResource>,
+    mut done: Local<bool>,
 ) {
+    if *done {
+        return;
+    }
+
     if let Ok(receiver) = events_channel.receiver.lock() {
-        // Read all events which are currently in the channel
-        // try_recv() also removes the event from the channel
-        while let Ok((time, events_at_time)) = receiver.try_recv() {
-            // Process the evennt
-            process_events(time, &events_at_time, &mut builder_resource.publisher);
+        const MAX_TICKS_PER_FRAME: usize = 2_000;
+
+        for _ in 0..MAX_TICKS_PER_FRAME {
+            match receiver.try_recv() {
+                Ok(EventsTickMessage::Tick {
+                    time: _time,
+                    events,
+                }) => {
+                    for event in &events {
+                        builder_resource.publisher.publish_event(event.as_ref());
+                    }
+                }
+                Ok(EventsTickMessage::Done) => {
+                    *done = true;
+                    break;
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    *done = true;
+                    break;
+                }
+            }
         }
     }
 }
@@ -689,8 +774,6 @@ fn draw_vehicles(
             waiting_node: Option<String>, // Node ID if the vehicle is waiting at a node
         }
 
-        let mut position_to_draw: Option<VehiclePosition> = None;
-
         // Struct to hold scheduled link traversal with calculated times
         struct ScheduledLink {
             from_pos: Vec2,
@@ -701,7 +784,7 @@ fn draw_vehicles(
         }
 
         // Find vehicle position by searching through all trips
-        position_to_draw = trips_for_vehicle.iter().find_map(|trip| {
+        let position_to_draw = trips_for_vehicle.iter().find_map(|trip| {
             // Skip empty trips
             if trip.links.is_empty() {
                 return None;
