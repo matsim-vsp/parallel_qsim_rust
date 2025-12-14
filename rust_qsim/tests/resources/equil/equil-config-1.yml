@@ -1,10 +1,16 @@
 modules:
-  protofiles:
-    type: ProtoFiles
-    network: ./test_output/simulation/equil_single_part/equil-network.binpb
-    population: ./test_output/simulation/equil_single_part/equil-1-plan.binpb
-    vehicles: ./test_output/simulation/equil_single_part/equil-vehicles.binpb
-    ids: ./test_output/simulation/equil_single_part/ids.binpb
+  network:
+    type: Network
+    path: ./test_output/simulation/equil_single_part/equil-network.binpb
+  population:
+    type: Population
+    path: ./test_output/simulation/equil_single_part/equil-1-plan.binpb
+  vehicles:
+    type: Vehicles
+    path: ./test_output/simulation/equil_single_part/equil-vehicles.binpb
+  ids:
+    type: Ids
+    path: ./test_output/simulation/equil_single_part/ids.binpb
   partitioning:
     type: Partitioning
     num_parts: 1

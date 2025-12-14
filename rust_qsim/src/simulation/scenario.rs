@@ -20,10 +20,7 @@ pub struct GlobalScenario {
 
 impl GlobalScenario {
     pub fn load(config: Arc<Config>) -> Self {
-        id::load_from_file(&io::resolve_path(
-            config.context(),
-            &config.proto_files().ids,
-        ));
+        id::load_from_file(&io::resolve_path(config.context(), &config.ids().path));
 
         // mandatory content to create a scenario
         let network = Self::create_network(&config);
@@ -39,7 +36,7 @@ impl GlobalScenario {
     }
 
     fn create_network(config: &Config) -> Network {
-        let net_in_path = io::resolve_path(config.context(), &config.proto_files().network);
+        let net_in_path = io::resolve_path(config.context(), &config.network().path);
         let num_parts = config.partitioning().num_parts;
         let network =
             Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
@@ -54,15 +51,12 @@ impl GlobalScenario {
     }
 
     fn create_garage(config: &Config) -> Garage {
-        Garage::from_file(&io::resolve_path(
-            config.context(),
-            &config.proto_files().vehicles,
-        ))
+        Garage::from_file(&io::resolve_path(config.context(), &config.vehicles().path))
     }
 
     fn create_population(config: &Config, garage: &mut Garage) -> Population {
         Population::from_file(
-            &io::resolve_path(config.context(), &config.proto_files().population),
+            &io::resolve_path(config.context(), &config.population().path),
             garage,
         )
     }

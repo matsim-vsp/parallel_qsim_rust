@@ -206,7 +206,11 @@ pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterH
         }
         for i in finished {
             let handle = handles.remove(&i).unwrap();
-            let name = handle.thread().name().unwrap().to_string();
+            let name = handle
+                .thread()
+                .name()
+                .unwrap_or("unnamed_thread")
+                .to_string();
             handle
                 .join()
                 .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
@@ -216,7 +220,12 @@ pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterH
     // When all simulation threads are finished, we shutdown the adapters.
     for a in adapters {
         a.shutdown_sender.send(true).unwrap();
-        let name = a.handle.thread().name().unwrap().to_string();
+        let name = a
+            .handle
+            .thread()
+            .name()
+            .unwrap_or("unnamed_thread")
+            .to_string();
         a.handle
             .join()
             .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));

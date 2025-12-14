@@ -1,10 +1,16 @@
 modules:
-  protofiles:
-    type: ProtoFiles
-    ids: "./test_output/simulation/output-simulate-generic-route-panics/equil.ids.binpb"
-    network: "./test_output/simulation/output-simulate-generic-route-panics/equil.network.binpb"
-    population: "./test_output/simulation/output-simulate-generic-route-panics/equil.population.binpb"
-    vehicles: "./test_output/simulation/output-simulate-generic-route-panics/equil.vehicles.binpb"
+  network:
+    type: Network
+    path: "./test_output/simulation/output-simulate-generic-route-panics/equil.network.binpb"
+  population:
+    type: Population
+    path: "./test_output/simulation/output-simulate-generic-route-panics/equil.population.binpb"
+  vehicles:
+    type: Vehicles
+    path: "./test_output/simulation/output-simulate-generic-route-panics/equil.vehicles.binpb"
+  ids:
+    type: Ids
+    path: "./test_output/simulation/output-simulate-generic-route-panics/equil.ids.binpb"
   partitioning:
     type: Partitioning
     num_parts: 1

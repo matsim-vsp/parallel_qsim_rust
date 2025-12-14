@@ -1,10 +1,16 @@
 modules:
-  protofiles:
-    type: ProtoFiles
-    network: ./test_output/simulation/execute_3_links_2_parts/3-links-network.binpb
-    population: ./test_output/simulation/execute_3_links_2_parts/1-agent-full-leg.binpb
-    vehicles: ./test_output/simulation/execute_3_links_2_parts/vehicles.binpb
-    ids: ./test_output/simulation/execute_3_links_2_parts/ids.binpb
+  network:
+    type: Network
+    path: ./test_output/simulation/execute_3_links_2_parts/3-links-network.binpb
+  population:
+    type: Population
+    path: ./test_output/simulation/execute_3_links_2_parts/1-agent-full-leg.binpb
+  vehicles:
+    type: Vehicles
+    path: ./test_output/simulation/execute_3_links_2_parts/vehicles.binpb
+  ids:
+    type: Ids
+    path: ./test_output/simulation/execute_3_links_2_parts/ids.binpb
   partitioning:
     type: Partitioning
     num_parts: 2
