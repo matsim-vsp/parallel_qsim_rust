@@ -16,7 +16,7 @@ use std::io::Cursor;
 use std::mem;
 use std::ops::Add;
 use std::rc::Rc;
-use std::sync::mpsc::TryRecvError;
+use std::sync::mpsc::RecvError;
 use std::sync::{mpsc, Mutex};
 use std::thread;
 // ============================================================================
@@ -473,7 +473,7 @@ fn process_events_from_channel(
 
     if let Ok(receiver) = events_channel.receiver.lock() {
         loop {
-            match receiver.try_recv() {
+            match receiver.recv() {
                 Ok(EventsTickMessage::Tick {
                     time: _time,
                     events,
@@ -486,8 +486,7 @@ fn process_events_from_channel(
                     *done = true;
                     break;
                 }
-                Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => {
+                Err(RecvError) => {
                     *done = true;
                     break;
                 }
