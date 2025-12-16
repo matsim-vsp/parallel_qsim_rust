@@ -308,30 +308,48 @@ fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut E
 }
 
 // Convert proto events to internal event objects and publish them
-#[rustfmt::skip]
 fn process_events(time: u32, mut events: Vec<MyEvent>) -> Vec<BoxedEvent> {
     let mut internal_events: Vec<BoxedEvent> = Vec::with_capacity(events.len());
 
     for proto_event in events.iter_mut() {
         if !proto_event.attributes.contains_key("type") {
-            proto_event
-                .attributes
-                .insert("type".to_string(), AttributeValue::from(proto_event.r#type.as_str()));
+            proto_event.attributes.insert(
+                "type".to_string(),
+                AttributeValue::from(proto_event.r#type.as_str()),
+            );
         }
 
         let type_ = proto_event.attributes["type"].as_string();
         let internal_event: BoxedEvent = match type_.as_str() {
             GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(proto_event, time)),
-            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
-            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
+            ActivityStartEvent::TYPE => {
+                Box::new(ActivityStartEvent::from_proto_event(proto_event, time))
+            }
+            ActivityEndEvent::TYPE => {
+                Box::new(ActivityEndEvent::from_proto_event(proto_event, time))
+            }
             LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
             LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(proto_event, time)),
-            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(proto_event, time)),
-            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(proto_event, time)),
-            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(proto_event, time)),
-            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(proto_event, time)),
-            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(proto_event, time)),
-            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
+            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(
+                proto_event,
+                time,
+            )),
+            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(
+                proto_event,
+                time,
+            )),
+            PersonDepartureEvent::TYPE => {
+                Box::new(PersonDepartureEvent::from_proto_event(proto_event, time))
+            }
+            PersonArrivalEvent::TYPE => {
+                Box::new(PersonArrivalEvent::from_proto_event(proto_event, time))
+            }
+            TeleportationArrivalEvent::TYPE => Box::new(
+                TeleportationArrivalEvent::from_proto_event(proto_event, time),
+            ),
+            PtTeleportationArrivalEvent::TYPE => Box::new(
+                PtTeleportationArrivalEvent::from_proto_event(proto_event, time),
+            ),
             _ => panic!("Unknown event type: {:?}", type_),
         };
 
@@ -346,22 +364,31 @@ fn start_events_thread() -> EventsChannel {
     const EVENT_TIME_STEP: u32 = 1;
     const CHANNEL_BUFFER_TICKS: usize = 256;
 
-    // Bounded channel provides backpressure so the background thread can't outrun the main thread.
     let (tx, rx) = mpsc::sync_channel::<EventsTickMessage>(CHANNEL_BUFFER_TICKS);
 
-    // create a new background thread
+    // Create a background thread that reads the events file and sends fixed time-step ticks.
+    // - For each simulation second t, one Tick (time: t, events: ...) will be sent to the main thread.
+    // - If there are no events, an empty events Vec is sent.
+    // - When the file is fully read, a Done message is sent.
     thread::spawn(move || {
-        // create a new reader to read the events file
+        // Create a reader to iterate through the events file.
         let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
+        // stores the nex time to send
         let mut next_time_to_send: Option<u32> = None;
+
+        // stores the current simulation time
         let mut buffered_time: Option<u32> = None;
+        // Store the events which will be sent the next time
         let mut buffered_events: Vec<MyEvent> = Vec::new();
 
+        // flush_time_slot is a closure that takes a time and events, processes them, and sends them through the channel.
         let mut flush_time_slot = |time: u32, events_at_time: Vec<MyEvent>| {
             let cursor = next_time_to_send.get_or_insert(time);
 
-            // Send empty ticks for gaps between the last and current time slot.
+            // Sends empty ticks until we reach the desired time slot.
+            // cursor defines the next time to send and time is the current time slot to flush
+            // if the cursor is less than time, we need to send empty ticks until we reach time
             while *cursor < time {
                 if tx
                     .send(EventsTickMessage::Tick {
@@ -375,6 +402,7 @@ fn start_events_thread() -> EventsChannel {
                 *cursor = cursor.add(EVENT_TIME_STEP);
             }
 
+            // convert all proto events to internal events and send them to the main thread
             let internal_events = process_events(time, events_at_time);
             if tx
                 .send(EventsTickMessage::Tick {
@@ -391,17 +419,20 @@ fn start_events_thread() -> EventsChannel {
         };
 
         // Read all events from the file and send them to the main thread in fixed time steps.
-        // If the reader yields multiple entries for the same time, merge them before sending.
         for (time, events_at_time) in reader {
             match buffered_time {
                 None => {
+                    // in the first iteration we store the time and events
+                    // because the viz should start from the first event time
                     buffered_time = Some(time);
                     buffered_events = events_at_time;
                 }
                 Some(t) if time == t => {
+                    // Same time as the buffered slot: append events (reader may split chunks).
                     buffered_events.extend(events_at_time);
                 }
                 Some(t) if time > t => {
+                    // if the current time slot is finished, the events are send via flush_time_slot to the main thread
                     let events_to_flush = mem::take(&mut buffered_events);
                     if !flush_time_slot(t, events_to_flush) {
                         return;
@@ -413,12 +444,14 @@ fn start_events_thread() -> EventsChannel {
             }
         }
 
+        // delete the buffered events after sending in the last time slot
         if let Some(t) = buffered_time {
             if !flush_time_slot(t, buffered_events) {
                 return;
             }
         }
 
+        // send a done message after all events have been processed
         let _ = tx.send(EventsTickMessage::Done);
     });
 
@@ -439,9 +472,7 @@ fn process_events_from_channel(
     }
 
     if let Ok(receiver) = events_channel.receiver.lock() {
-        const MAX_TICKS_PER_FRAME: usize = 2_000;
-
-        for _ in 0..MAX_TICKS_PER_FRAME {
+        loop {
             match receiver.try_recv() {
                 Ok(EventsTickMessage::Tick {
                     time: _time,
