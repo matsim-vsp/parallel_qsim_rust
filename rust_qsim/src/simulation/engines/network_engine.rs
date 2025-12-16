@@ -1,3 +1,4 @@
+use tracing::instrument;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -29,10 +30,12 @@ impl NetworkEngine {
         self.network.send_veh_en_route(vehicle, events, now)
     }
 
+    #[instrument(level = "trace", skip(self), fields(rank = self.network.partition()))]
     pub(super) fn move_nodes(&mut self, now: u32) {
         self.network.move_nodes(&mut self.comp_env, now)
     }
 
+    #[instrument(level = "trace", skip(self, net_message_broker), fields(rank = self.network.partition()))]
     pub(super) fn move_links<C: SimCommunicator>(
         &mut self,
         now: u32,
