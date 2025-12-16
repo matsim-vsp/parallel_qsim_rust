@@ -12,11 +12,15 @@ service RoutingService {
 message Request {
   string person_id = 1;
   string from_link_id = 2;
-  string to_link_id = 3;
-  string mode = 4;
-  uint32 departure_time = 5;
-  uint32 now = 6;
-  bytes request_id = 7;
+  double from_x = 3;
+  double from_y = 4;
+  double to_x = 5;
+  double to_y = 6;
+  string to_link_id = 7;
+  string mode = 8;
+  uint32 departure_time = 9;
+  uint32 now = 10;
+  bytes request_id = 11;
 }
 
 message Response {

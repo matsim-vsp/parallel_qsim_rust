@@ -29,7 +29,11 @@ impl RequestToAdapter for InternalRoutingRequest {}
 pub struct InternalRoutingRequestPayload {
     pub person_id: String,
     pub from_link: String,
+    pub from_x: f64,
+    pub from_y: f64,
     pub to_link: String,
+    pub to_x: f64,
+    pub to_y: f64,
     pub mode: String,
     pub departure_time: u32,
     pub now: u32,
@@ -41,7 +45,11 @@ impl InternalRoutingRequestPayload {
     pub fn equals_ignoring_uuid(&self, other: &Self) -> bool {
         self.person_id == other.person_id
             && self.from_link == other.from_link
+            && self.from_x == other.from_x
+            && self.from_y == other.from_y
             && self.to_link == other.to_link
+            && self.to_x == other.to_x
+            && self.to_y == other.to_y
             && self.mode == other.mode
             && self.departure_time == other.departure_time
             && self.now == other.now
@@ -59,7 +67,11 @@ impl From<InternalRoutingRequestPayload> for Request {
         Request {
             person_id: req.person_id,
             from_link_id: req.from_link,
+            from_x: req.from_x,
+            from_y: req.from_y,
             to_link_id: req.to_link,
+            to_x: req.to_x,
+            to_y: req.to_y,
             mode: req.mode,
             departure_time: req.departure_time,
             now: req.now,

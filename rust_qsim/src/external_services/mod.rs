@@ -1,4 +1,5 @@
 use crate::simulation::config::Config;
+use crate::simulation::logging::init_std_out_logging_thread_local;
 use derive_builder::Builder;
 use futures::future::join_all;
 use std::fmt::Debug;
@@ -90,6 +91,7 @@ impl AsyncExecutor {
         req_adapter_factory: impl RequestAdapterFactory<T>,
         mut shutdown: tokio::sync::watch::Receiver<bool>,
     ) {
+        let _guard = init_std_out_logging_thread_local();
         info!("Starting adapter");
 
         let mut builder = if self.worker_threads > 0 {
@@ -139,7 +141,8 @@ impl AsyncExecutor {
             }
 
             info!("All shutdown tasks finished, exiting adapter.");
-        })
+        });
+        drop(_guard);
     }
 
     /// This method creates a shutdown channel for the adapter.
