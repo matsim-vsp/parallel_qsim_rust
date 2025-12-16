@@ -427,27 +427,20 @@ fn start_events_thread() -> EventsChannel {
                     buffered_time = Some(time);
                     buffered_events = events_at_time;
                 }
-                Some(t) if time == t => {
-                    // Same time as the buffered slot: append events (reader may split chunks).
+                Some(t) if time <= t => {
+                    // if the events belong to the current time slot, we append them
                     buffered_events.extend(events_at_time);
                 }
                 Some(t) if time > t => {
                     // if the current time slot is finished, the events are send via flush_time_slot to the main thread
                     let events_to_flush = mem::take(&mut buffered_events);
-                    if !flush_time_slot(t, events_to_flush) {
-                        return;
-                    }
+
+                    // send the buffered events via flush_time_slot to the main thread
+                    flush_time_slot(t, events_to_flush);
                     buffered_time = Some(time);
                     buffered_events = events_at_time;
                 }
                 Some(t) => panic!("Events file is not sorted (time went backwards: {t} -> {time})"),
-            }
-        }
-
-        // delete the buffered events after sending in the last time slot
-        if let Some(t) = buffered_time {
-            if !flush_time_slot(t, buffered_events) {
-                return;
             }
         }
 
@@ -461,12 +454,13 @@ fn start_events_thread() -> EventsChannel {
     }
 }
 
-// Read the events from the channel and process them
+// Read ticks from the channel and publish their events to the TripsBuilder.
 fn process_events_from_channel(
     events_channel: Res<EventsChannel>,
     mut builder_resource: NonSendMut<TripsBuilderResource>,
     mut done: Local<bool>,
 ) {
+    // do nothing if the the file is already fully read (done = true)
     if *done {
         return;
     }
@@ -478,15 +472,18 @@ fn process_events_from_channel(
                     time: _time,
                     events,
                 }) => {
+                    // Publish all events for this tick into the EventsPublisher.
                     for event in &events {
                         builder_resource.publisher.publish_event(event.as_ref());
                     }
                 }
                 Ok(EventsTickMessage::Done) => {
+                    // received last message -> stop receiving
                     *done = true;
                     break;
                 }
                 Err(RecvError) => {
+                    // if the sender is gone -> stop receiving
                     *done = true;
                     break;
                 }
