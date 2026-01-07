@@ -75,13 +75,13 @@ struct SimulationClock {
 struct FixedTickStats {
     ticks_this_second: u32, // count how many FixedUpdates happened in the current second
     last_tps: u32,          // last tps value
-    accum: f32,             // stores how much time passed since the last_tps was updated
+    seconds_since_last_sample: f32, // stores how much time passed since the last_tps was updated
 }
 
 #[derive(Resource, Default)]
 struct EventsProgress {
     latest_tick_time: u32, // latest tick time which was processed by the main thread
-    done: bool,            // is true wenn all events have been processed
+    done: bool,            // is true when all events have been processed
 }
 
 type BoxedEvent = Box<dyn EventTrait + Send>;
@@ -759,12 +759,12 @@ fn count_fixed_ticks(mut stats: ResMut<FixedTickStats>) {
 
 // Runs every frame in Update: measure real time and snapshot the tick count once per second
 fn sample_tps(mut stats: ResMut<FixedTickStats>, real: Res<Time<Real>>) {
-    stats.accum += real.delta_secs();
+    stats.seconds_since_last_sample += real.delta_secs();
 
-    if stats.accum >= 1.0 {
+    if stats.seconds_since_last_sample >= 1.0 {
         stats.last_tps = stats.ticks_this_second;
         stats.ticks_this_second = 0;
-        stats.accum -= 1.0;
+        stats.seconds_since_last_sample -= 1.0;
     }
 }
 
@@ -1072,7 +1072,6 @@ fn main() {
         .insert_resource(FixedTickStats::default())
         .insert_resource(EventsProgress::default())
         .insert_resource(events_channel)
-        // Insert builder_resource as NonSend (main-thread only, not Send/Sync)
         .insert_non_send_resource(builder_resource)
         // Add Bevy plugins
         .add_plugins((
