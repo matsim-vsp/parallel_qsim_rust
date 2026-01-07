@@ -16,9 +16,10 @@ use std::io::Cursor;
 use std::mem;
 use std::ops::Add;
 use std::rc::Rc;
-use std::sync::mpsc::RecvError;
 use std::sync::{mpsc, Mutex};
 use std::thread;
+use std::thread::JoinHandle;
+use std::time::Duration;
 // ============================================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================================
@@ -34,8 +35,9 @@ const EVENTS_FILE: &[u8] = include_bytes!("assets/equil-100/events.0.binpb");
 
 // Defines how much faster the simulation runs compared to the real time
 const TIME_SCALE: f32 = 50.0;
-
+// Defines the vertical offset between stacked waiting vehicles at a node
 const WAIT_STACK_OFFSET: f32 = 8.0;
+const FIXED_HZ: f64 = 30.0; // Ticks Per Seconds; Fixed time steps per second
 
 // ============================================================================
 // DATA STRUCTURES & RESOURCES
@@ -66,6 +68,20 @@ struct AllTrips {
 #[derive(Resource)]
 struct SimulationClock {
     time: f32,
+}
+
+// Tracks how many FixedUpdate ticks actually happened per real second
+#[derive(Resource, Default)]
+struct FixedTickStats {
+    ticks_this_second: u32, // count how many FixedUpdates happened in the current second
+    last_tps: u32,          // last tps value
+    accum: f32,             // stores how much time passed since the last_tps was updated
+}
+
+#[derive(Resource, Default)]
+struct EventsProgress {
+    latest_tick_time: u32, // latest tick time which was processed by the main thread
+    done: bool,            // is true wenn all events have been processed
 }
 
 type BoxedEvent = Box<dyn EventTrait + Send>;
@@ -271,18 +287,6 @@ impl TripsBuilder {
             first_start = 0.0;
         }
 
-        // // Print all trips
-        // println!("\nAll Trips:");
-        // for (vehicle_id, trips) in &per_vehicle {
-        //     println!("\nVehicle: {}", vehicle_id);
-        //     for (trip_idx, trip) in trips.iter().enumerate() {
-        //         println!("  Trip {}:", trip_idx);
-        //         for link in &trip.links {
-        //             println!("    Link: {} (start: {})", link.link_id, link.start_time);
-        //         }
-        //     }
-        // }
-
         // Return the AllTrips object
         AllTrips {
             per_vehicle,
@@ -360,7 +364,7 @@ fn process_events(time: u32, mut events: Vec<MyEvent>) -> Vec<BoxedEvent> {
 }
 
 // Start a background thread that reads events from the file and sends them through a channel
-fn start_events_thread() -> EventsChannel {
+fn start_events_thread() -> (EventsChannel, JoinHandle<()>) {
     const EVENT_TIME_STEP: u32 = 1;
     const CHANNEL_BUFFER_TICKS: usize = 256;
 
@@ -370,7 +374,10 @@ fn start_events_thread() -> EventsChannel {
     // - For each simulation second t, one Tick (time: t, events: ...) will be sent to the main thread.
     // - If there are no events, an empty events Vec is sent.
     // - When the file is fully read, a Done message is sent.
-    thread::spawn(move || {
+    let handle = thread::spawn(move || {
+        // println!("Before; Current time = {:?}", std::time::SystemTime::now());
+        // thread::sleep(Duration::from_secs(10));
+        // println!("After; Current time = {:?}", std::time::SystemTime::now());
         // Create a reader to iterate through the events file.
         let reader = ProtoEventsReader::new(Cursor::new(EVENTS_FILE));
 
@@ -381,6 +388,8 @@ fn start_events_thread() -> EventsChannel {
         let mut buffered_time: Option<u32> = None;
         // Store the events which will be sent the next time
         let mut buffered_events: Vec<MyEvent> = Vec::new();
+
+        let mut event_tick_count: usize = 0;
 
         // flush_time_slot is a closure that takes a time and events, processes them, and sends them through the channel.
         let mut flush_time_slot = |time: u32, events_at_time: Vec<MyEvent>| {
@@ -402,6 +411,8 @@ fn start_events_thread() -> EventsChannel {
                 *cursor = cursor.add(EVENT_TIME_STEP);
             }
 
+            event_tick_count += 1;
+
             // convert all proto events to internal events and send them to the main thread
             let internal_events = process_events(time, events_at_time);
             if tx
@@ -415,10 +426,20 @@ fn start_events_thread() -> EventsChannel {
             }
 
             *cursor = time.add(EVENT_TIME_STEP);
+            // thread::sleep(Duration::from_millis(20));
+            // println!("currnet time = {}", time);
+
+            if event_tick_count > 10 {
+                println!("Lets wait a bit...");
+                thread::sleep(Duration::from_millis(200));
+            }
+
             true
         };
 
         // Read all events from the file and send them to the main thread in fixed time steps.
+        // time = sim time
+        // events_at_time = all events that happen at this time
         for (time, events_at_time) in reader {
             match buffered_time {
                 None => {
@@ -449,44 +470,70 @@ fn start_events_thread() -> EventsChannel {
     });
 
     // Returns the receiver
-    EventsChannel {
-        receiver: Mutex::new(rx),
-    }
+    (
+        EventsChannel {
+            receiver: Mutex::new(rx),
+        },
+        handle,
+    )
 }
 
-// Read ticks from the channel and publish their events to the TripsBuilder.
+// Reads all available messages from the events channel and sends them to the TripsBuilder
+// This tracks also the time from the latest tick that was processed
 fn process_events_from_channel(
     events_channel: Res<EventsChannel>,
     mut builder_resource: NonSendMut<TripsBuilderResource>,
+    mut progress: ResMut<EventsProgress>,
     mut done: Local<bool>,
 ) {
-    // do nothing if the the file is already fully read (done = true)
+    // return immediately if done
     if *done {
         return;
     }
 
-    if let Ok(receiver) = events_channel.receiver.lock() {
+    // Collect all currently available event tick messages
+    let mut current_available_events: Vec<EventsTickMessage> = Vec::new();
+    {
+        // Lock the receiver
+        let Ok(receiver) = events_channel.receiver.lock() else {
+            // if its not possible (to lock) -> return ans try next time..
+            return;
+        };
+
+        //get all currently available event tick messages
         loop {
-            match receiver.recv() {
-                Ok(EventsTickMessage::Tick {
-                    time: _time,
-                    events,
-                }) => {
-                    // Publish all events for this tick into the EventsPublisher.
-                    for event in &events {
-                        builder_resource.publisher.publish_event(event.as_ref());
-                    }
-                }
-                Ok(EventsTickMessage::Done) => {
-                    // received last message -> stop receiving
+            match receiver.try_recv() {
+                Ok(msg) => current_available_events.push(msg),
+                Err(mpsc::TryRecvError::Empty) => {
+                    // if there are no more messages -> exit the loop
+                    break;
+                } // Nothing more available right now
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    // if the connection is disconnected -> handle this like a done message
                     *done = true;
                     break;
                 }
-                Err(RecvError) => {
-                    // if the sender is gone -> stop receiving
-                    *done = true;
-                    break;
+            }
+        }
+    }
+
+    // Process events
+    for msg in current_available_events {
+        match msg {
+            EventsTickMessage::Tick { time, events } => {
+                // store the latest tick time
+                progress.latest_tick_time = progress.latest_tick_time.max(time);
+
+                // Publish each event
+                for event in &events {
+                    builder_resource.publisher.publish_event(event.as_ref());
                 }
+            }
+            EventsTickMessage::Done => {
+                // if all events are processed (Done) -> set done = true
+                progress.done = true;
+                *done = true;
+                break;
             }
         }
     }
@@ -504,7 +551,7 @@ fn update_trips_from_builder(
 
     // On first update: Initialize the simulation clock to start at the first event time
     if !*clock_initialized && new_trips.first_start > 0.0 && new_trips.first_start != f32::MAX {
-        // Set clock to the time of the first event
+        // set the clock to the time of the first event
         clock.time = new_trips.first_start;
         *clock_initialized = true;
     }
@@ -580,11 +627,23 @@ fn read_and_parse_vehicles(mut commands: Commands) {
 // SIMULATION TIME
 // ============================================================================
 
-// Bevy system: Update the simulation time based on real time delta and TIME_SCALE (runs every frame)
-fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
-    // Increment simulation time: real_delta * scale_factor
-    // Example: TIME_SCALE=50 means simulation runs 50x faster than real time
-    clock.time += time.delta_secs() * TIME_SCALE;
+// calculates the simulation time based on real time and event progress
+// the next time is the minimum of the next simulation time and latest processed tick time + 1.0
+// this runs in every update to make the visualization smooth
+fn simulation_time(
+    real: Res<Time<Real>>,
+    mut clock: ResMut<SimulationClock>,
+    progress: Res<EventsProgress>,
+) {
+    // this is the next simulation time based on the real time and time scale
+    let next = clock.time + real.delta_secs() * TIME_SCALE;
+
+    // latest_tick_time is the latest time where the main thread received events
+    // -> the next simulation time should not be bigger than latest_tick_time + 1.0
+    let max_time = (progress.latest_tick_time as f32) + 1.0;
+
+    // calculates the minimum of next and max_time
+    clock.time = next.min(max_time);
 }
 
 // ============================================================================
@@ -595,7 +654,6 @@ fn simulation_time(time: Res<Time>, mut clock: ResMut<SimulationClock>) {
 fn setup(mut commands: Commands) {
     // Spawn a 2D camera with PanCam plugin (enables mouse panning and zooming)
     commands.spawn((Camera2d, PanCam::default()));
-    // commands.spawn((Camera2d));
 }
 
 // Calculate camera position and zoom to fit the entire network
@@ -674,7 +732,7 @@ fn fit_camera_to_network(
 
 // Create UI text element in the top-right corner showing simulation time and FPS
 fn setup_ui(mut commands: Commands) {
-    // Create a text UI entity for displaying time and FPS
+    // Create a text UI entity for displaying time, FPS and TPS
     commands.spawn((
         // Position the text absolutely in the top-right corner
         UiNode {
@@ -683,48 +741,69 @@ fn setup_ui(mut commands: Commands) {
             right: Val::Px(10.0), // 10 pixels from right
             ..Default::default()
         },
-        // Initial placeholder text (will be updated every frame)
+        // Initial placeholder text
         Text::new("Sim Time: 00:00  FPS:     "),
-        // Set font size to 18px
         TextFont {
             font_size: 18.0,
             ..Default::default()
         },
-        // Set text color to white
         TextColor(Color::srgb(1.0, 1.0, 1.0)),
         TimeFpsText,
     ));
 }
 
-// Update the UI text every frame with current simulation time and FPS
+// Runs in FixedUpdate: count how many fixed ticks happened to display the actual TPS
+fn count_fixed_ticks(mut stats: ResMut<FixedTickStats>) {
+    stats.ticks_this_second += 1;
+}
+
+// Runs every frame in Update: measure real time and snapshot the tick count once per second
+fn sample_tps(mut stats: ResMut<FixedTickStats>, real: Res<Time<Real>>) {
+    stats.accum += real.delta_secs();
+
+    if stats.accum >= 1.0 {
+        stats.last_tps = stats.ticks_this_second;
+        stats.ticks_this_second = 0;
+        stats.accum -= 1.0;
+    }
+}
+
+// Updates the UI text every frame with the current simulation time, FPS, and the measured fixed-update rate.
 fn update_time_and_fps(
-    time: Res<Time>,
-    clock: Res<SimulationClock>,
+    time: Res<Time<Virtual>>,    // Frame time (runs in `Update`)
+    clock: Res<SimulationClock>, // Simulation clock (drives vehicle positions)
+    stats: Res<FixedTickStats>,  // Measured FixedUpdate ticks per real second
     mut query: Query<&mut Text, With<TimeFpsText>>,
 ) {
-    // Get current simulation time in seconds
+    // Read the current simulation time in seconds.
     let sim_time = clock.time;
-    // Get the time elapsed since last frame
-    let delta = time.delta_secs();
-    // Calculate FPS: frames per second = 1 / time_per_frame
-    let fps = if delta > 0.0 {
-        (1.0 / delta).round() as i32
+
+    // Estimate FPS from the last frame duration.
+    let frame_delta = time.delta_secs();
+    let fps = if frame_delta > 0.0 {
+        (1.0 / frame_delta).round() as i32
     } else {
         0
     };
 
-    // Convert simulation time to hours and minutes
+    // latest tps value
+    let tps = stats.last_tps as i32;
+
+    // Format simulation time (HH:MM)
     let total_seconds = sim_time.max(0.0) as i32;
     let hours = (total_seconds / 3600) % 24;
     let minutes = (total_seconds / 60) % 60;
 
-    // Format the text string
-    let content = format!("Sim Time: {:02}:{:02}  FPS: {:>4}", hours, minutes, fps);
+    // Build the UI string
+    let content = format!(
+        "Sim Time: {:02}:{:02}  FPS: {:>4}  TPS: {:>2}",
+        hours, minutes, fps, tps
+    );
 
-    // Update the TimeFpsText
+    // Update the text component
     for mut text in &mut query {
-        text.0.clear(); // Clear old text
-        text.0.push_str(&content); // Set new text
+        text.0.clear();
+        text.0.push_str(&content);
     }
 }
 
@@ -964,7 +1043,7 @@ fn draw_vehicles(
 
 fn main() {
     // Start the background thred that reads events from file and sends them to the channel
-    let events_channel = start_events_thread();
+    let (events_channel, handle) = start_events_thread();
     // Create the trips builder
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
     // Create the event publisher
@@ -987,8 +1066,11 @@ fn main() {
     // Initialize and run the Bevy application
     App::new()
         // Insert resources that will be available to all systems
+        .insert_resource(Time::<Fixed>::from_hz(FIXED_HZ))
         .insert_resource(trips)
         .insert_resource(sim_clock)
+        .insert_resource(FixedTickStats::default())
+        .insert_resource(EventsProgress::default())
         .insert_resource(events_channel)
         // Insert builder_resource as NonSend (main-thread only, not Send/Sync)
         .insert_non_send_resource(builder_resource)
@@ -1021,16 +1103,25 @@ fn main() {
         )
         // Add update systems
         .add_systems(
+            FixedUpdate,
+            (
+                count_fixed_ticks,
+                process_events_from_channel,
+                update_trips_from_builder,
+            ),
+        )
+        .add_systems(
             Update,
             (
                 simulation_time,
-                process_events_from_channel,
-                update_trips_from_builder,
+                sample_tps,
                 draw_network,
                 draw_vehicles,
                 update_time_and_fps,
-            ),
+            )
+                .chain(),
         )
         // Start the application
         .run();
+    handle.join().unwrap();
 }
