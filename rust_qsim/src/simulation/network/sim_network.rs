@@ -16,7 +16,6 @@ use rand::{rng, Rng};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
-use tracing::instrument;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StorageUpdate {
