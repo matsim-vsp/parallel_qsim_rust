@@ -476,7 +476,7 @@ mod tests {
     use std::time::Duration;
 
     use tracing::level_filters::LevelFilter;
-    use tracing::{info, instrument, Level};
+    use tracing::{info, instrument};
     use tracing_subscriber::fmt::format::FmtSpan;
     use tracing_subscriber::fmt::Layer;
     use tracing_subscriber::layer::SubscriberExt;

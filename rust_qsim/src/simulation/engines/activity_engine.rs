@@ -435,7 +435,7 @@ mod tests {
 
     fn create_plan() -> InternalPlan {
         let mut plan = InternalPlan::default();
-        plan.add_act(InternalActivity::new(
+        let mut activity = InternalActivity::new(
             0.0,
             0.0,
             "home",
@@ -443,8 +443,10 @@ mod tests {
             None,
             None,
             Some(10),
-        ));
-        let mut leg = InternalLeg::new(
+        );
+        activity.attributes.add(crate::simulation::population::PREPLANNING_HORIZON, 5);
+        plan.add_act(activity);
+        plan.add_leg(InternalLeg::new(
             InternalRoute::Generic(InternalGenericRoute::new(
                 Id::create("start"),
                 Id::create("end"),
@@ -455,10 +457,7 @@ mod tests {
             "mode",
             1,
             Some(2),
-        );
-        leg.attributes
-            .add(crate::simulation::population::PREPLANNING_HORIZON, 5);
-        plan.add_leg(leg);
+        ));
         plan.add_act(InternalActivity::new(
             0.0,
             0.0,
