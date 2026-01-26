@@ -250,20 +250,27 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
 
     fn wakeup_time(&self, now: u32) -> u32 {
         let mut end = self.delegate.curr_act().cmp_end_time(now);
-        if let Some(l) = self.delegate.next_leg() {
-            let horizon: Option<u32> = l
-                .attributes
-                .get(crate::simulation::population::PREPLANNING_HORIZON);
-            if let Some(h) = horizon {
-                if h > end {
-                    // if horizon is larger than the current end time, then end - h would be negative
-                    // and thus there would be an error.
-                    end = 0;
-                } else {
-                    end -= h;
-                }
+        if self.delegate.next_leg().is_none() {
+            // no need to wake up if there is no other leg.
+            return end;
+        }
+
+        let horizon: Option<u32> = self
+            .delegate
+            .curr_act()
+            .attributes
+            .get(crate::simulation::population::PREPLANNING_HORIZON);
+
+        if let Some(h) = horizon {
+            if h > end {
+                // if horizon is larger than the current end time, then end - h would be negative (might be the case at the very beginning of the simulation)
+                // and thus there would be an error.
+                end = 0;
+            } else {
+                end -= h;
             }
         }
+
         end
     }
 }
@@ -312,13 +319,12 @@ impl AdaptivePlanBasedSimulationLogic {
             return;
         }
 
-        let preplan = self
-            .next_leg()
-            .and_then(|l| {
-                l.attributes
-                    .get::<u32>(crate::simulation::population::PREPLANNING_HORIZON)
-            })
-            .is_some();
+        let preplan = self.next_leg().is_some()
+            && self
+                .curr_act()
+                .attributes
+                .get::<u32>(crate::simulation::population::PREPLANNING_HORIZON)
+                .is_some();
 
         if !preplan {
             // No reason to call the router if we are not preplanning.
@@ -476,6 +482,7 @@ mod tests {
             start_time: None,
             end_time: None,
             max_dur: None,
+            attributes: Default::default(),
         }
     }
 

@@ -125,6 +125,7 @@ pub struct IOActivity {
     pub end_time: Option<String>,
     #[serde(rename = "@max_dur")]
     pub max_dur: Option<String>,
+    pub attributes: Option<IOAttributes>,
 }
 
 impl IOActivity {
@@ -246,13 +247,12 @@ mod tests {
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::io::xml::population::{
-        load_from_xml, IOLeg, IOPlanElement, IOPopulation,
-    };
+    use crate::simulation::io::xml::population::{load_from_xml, IOActivity, IOLeg, IOPlanElement, IOPopulation};
     use crate::simulation::network::Network;
     use crate::simulation::vehicles::garage::Garage;
     use macros::integration_test;
     use quick_xml::de::from_str;
+    use crate::simulation::io::xml::attributes::{IOAttribute};
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all
@@ -434,5 +434,19 @@ mod tests {
         for i in 1u32..101 {
             assert!(persons.get(&Id::get_from_ext(&format!("{}", i))).is_some());
         }
+    }
+
+    #[test]
+    fn test_activity_attributes() {
+        let xml = "<activity type=\"home_86400\" link=\"-150731516#0\" x=\"789538.61\" y=\"5813719.01\" end_time=\"07:47:35\" >
+                                <attributes>
+                                        <attribute name=\"initialEndTime\" class=\"java.lang.Double\">26455.0</attribute>
+                                        <attribute name=\"orig_dist\" class=\"java.lang.Double\">0.0</attribute>
+                                </attributes>
+                        </activity>";
+        let attributes = from_str::<IOActivity>(xml).unwrap().attributes.unwrap().attributes;
+        assert_eq!(attributes.len(), 2);
+        assert_eq!(attributes.get(0).unwrap(), &IOAttribute::new_with_class(String::from("initialEndTime"), String::from("java.lang.Double"), String::from("26455.0")));
+        assert_eq!(attributes.get(1).unwrap(), &IOAttribute::new_with_class(String::from("orig_dist"), String::from("java.lang.Double"), String::from("0.0")));
     }
 }

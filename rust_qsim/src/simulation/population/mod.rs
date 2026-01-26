@@ -132,6 +132,7 @@ pub struct InternalActivity {
     pub start_time: Option<u32>,
     pub end_time: Option<u32>,
     pub max_dur: Option<u32>,
+    pub attributes: InternalAttributes,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -301,6 +302,7 @@ impl InternalActivity {
             start_time,
             end_time,
             max_dur,
+            attributes: InternalAttributes::default(),
         }
     }
 
@@ -604,6 +606,10 @@ impl From<IOActivity> for InternalActivity {
             start_time: parse_time_opt(&io.start_time),
             end_time: parse_time_opt(&io.end_time),
             max_dur: parse_time_opt(&io.max_dur),
+            attributes: io
+                .attributes
+                .map(InternalAttributes::from)
+                .unwrap_or_default(),
         }
     }
 }
@@ -618,6 +624,7 @@ impl From<Activity> for InternalActivity {
             start_time: value.start_time,
             end_time: value.end_time,
             max_dur: value.max_dur,
+            attributes: InternalAttributes::from(&value.attributes),
         }
     }
 }

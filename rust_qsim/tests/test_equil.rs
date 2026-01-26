@@ -210,13 +210,13 @@ fn execute_adaptive(
     let f = |pop: &mut Population| {
         let agent = pop.persons.get_mut(&Id::create("1")).unwrap();
         let plan = agent.selected_plan_mut();
-        match plan.elements.get_mut(1).unwrap() {
-            InternalPlanElement::Activity(_) => {
-                panic!()
-            }
-            InternalPlanElement::Leg(l) => {
+        match plan.elements.get_mut(0).unwrap() {
+            InternalPlanElement::Activity(a) => {
                 // add a preplanning horizon attribute to
-                l.attributes.insert(PREPLANNING_HORIZON, 10 * 60);
+                a.attributes.insert(PREPLANNING_HORIZON, 10 * 60);
+            }
+            InternalPlanElement::Leg(_) => {
+                panic!()
             }
         }
     };

@@ -109,6 +109,7 @@ impl Activity {
             start_time: value.start_time,
             end_time: value.end_time,
             max_dur: value.max_dur,
+            attributes: value.attributes.as_cloned_map(),
         }
     }
 }

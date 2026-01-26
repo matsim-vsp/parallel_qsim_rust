@@ -48,7 +48,7 @@ impl PopulationAgentSource {
             .selected_plan()
             .as_ref()
             .unwrap_or_else(|| panic!("Plan does not exist for person with id: {}", id.external()))
-            .legs()
+            .acts()
             .iter()
             .any(|l| {
                 l.attributes

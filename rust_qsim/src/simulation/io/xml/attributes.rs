@@ -18,6 +18,10 @@ impl IOAttribute {
             value,
         }
     }
+
+    pub fn new_with_class(name: String, class: String, value: String) -> Self {
+        IOAttribute { name, class, value }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
