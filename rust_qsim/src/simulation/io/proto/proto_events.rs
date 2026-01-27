@@ -1,8 +1,8 @@
 use crate::generated::events::{MyEvent, TimeStep};
 use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
-    ActivityEndEvent, ActivityStartEvent, EventTrait, EventsPublisher, GeneralEvent,
-    LinkEnterEvent, LinkLeaveEvent, OnEventFnBuilder, PersonArrivalEvent, PersonDepartureEvent,
+    ActivityEndEvent, ActivityStartEvent, EventTrait, EventsManager, GeneralEvent, LinkEnterEvent,
+    LinkLeaveEvent, OnEventFnBuilder, PersonArrivalEvent, PersonDepartureEvent,
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PtTeleportationArrivalEvent,
     TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
@@ -391,7 +391,7 @@ impl ProtoEventsWriter {
     }
 
     pub fn register(path: PathBuf) -> Box<OnEventFnBuilder> {
-        Box::new(move |events: &mut EventsPublisher| {
+        Box::new(move |events: &mut EventsManager| {
             let proto = Rc::new(RefCell::new(ProtoEventsWriter::new(path.as_path())));
             let proto1 = proto.clone();
             let proto2 = proto.clone();

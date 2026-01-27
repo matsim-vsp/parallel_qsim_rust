@@ -2,15 +2,14 @@ use std::io::{Read, Seek};
 use std::path::PathBuf;
 
 use clap::Parser;
-use tracing::info;
-
 use rust_qsim::generated::events::MyEvent;
 use rust_qsim::simulation::events::*;
-use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
+use rust_qsim::simulation::events::{EventTrait, EventsManager, PtTeleportationArrivalEvent};
 use rust_qsim::simulation::id;
 use rust_qsim::simulation::io::proto::proto_events::ProtoEventsReader;
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use tracing::info;
 
 struct StatefulReader<R: Read + Seek> {
     reader: ProtoEventsReader<R>,
@@ -55,14 +54,22 @@ fn main() {
     let output_file_path = PathBuf::from(output_file_string);
     let register_xml_writer = XmlEventsWriter::register(output_file_path);
 
-    let mut publisher = EventsPublisher::new();
+    let mut publisher = EventsManager::new();
     register_xml_writer(&mut publisher);
 
+    info!("Starting to read proto files.");
+    let mut last_reported_time_step = 0;
     while !readers.is_empty() {
         readers.sort_by(|a, b| a.curr_time_step.0.cmp(&b.curr_time_step.0));
 
         // get the reader with the smallest curr time step and process its events
         let reader = readers.first_mut().unwrap();
+
+        let hour = reader.curr_time_step.0 / 3600;
+        if hour > last_reported_time_step && reader.curr_time_step.0 % 3600 == 0 {
+            info!("Reading time step: {:?}h", hour);
+            last_reported_time_step = hour;
+        }
 
         process_events(
             reader.curr_time_step.0,
@@ -80,7 +87,7 @@ fn main() {
 }
 
 #[rustfmt::skip]
-fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublisher) {
+fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsManager) {
     for proto_event in events {
         let type_ = proto_event.r#type.as_str();
         let internal_event: Box<dyn EventTrait> = match type_ {
@@ -95,6 +102,8 @@ fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsPublis
             PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(proto_event, time)),
             TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(proto_event, time)),
             PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
+            VehicleEntersTrafficEvent::TYPE => Box::new(VehicleEntersTrafficEvent::from_proto_event(proto_event, time)),
+            VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
         publisher.publish_event(internal_event.as_ref());

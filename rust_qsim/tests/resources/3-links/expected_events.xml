@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <events version="1.0">
     <event time="32400" type="actend" person="100" link="link1" actType="home"/>
-    <event time="32400" type="departure" person="100" link="link1" legMode="walk"/>
+    <event time="32400" type="departure" person="100" link="link1" legMode="walk" computationalRoutingMode="car"/>
     <event time="32408" type="travelled" person="100" distance="10" mode="walk"/>
     <event time="32408" type="arrival" person="100" link="link1" legMode="walk"/>
     <event time="32409" type="actstart" person="100" link="link1" actType="car interaction"/>
     <event time="32409" type="actend" person="100" link="link1" actType="car interaction"/>
-    <event time="32409" type="departure" person="100" link="link1" legMode="car"/>
+    <event time="32409" type="departure" person="100" link="link1" legMode="car" computationalRoutingMode="car"/>
     <event time="32409" type="PersonEntersVehicle" person="100" vehicle="100_car"/>
     <event time="32409" type="vehicle enters traffic" person="100" link="link1" vehicle="100_car" networkMode="car" relativePosition="1"/>
     <event time="32410" type="left link" link="link1" vehicle="100_car"/>
@@ -18,7 +18,7 @@
     <event time="32521" type="arrival" person="100" link="link3" legMode="car"/>
     <event time="32522" type="actstart" person="100" link="link3" actType="car interaction"/>
     <event time="32522" type="actend" person="100" link="link3" actType="car interaction"/>
-    <event time="32522" type="departure" person="100" link="link3" legMode="walk"/>
+    <event time="32522" type="departure" person="100" link="link3" legMode="walk" computationalRoutingMode="car"/>
     <event time="32538" type="travelled" person="100" distance="20" mode="walk"/>
     <event time="32538" type="arrival" person="100" link="link3" legMode="walk"/>
     <event time="32539" type="actstart" person="100" link="link3" actType="errands"/>

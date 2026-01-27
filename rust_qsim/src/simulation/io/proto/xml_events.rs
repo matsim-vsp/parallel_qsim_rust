@@ -12,12 +12,12 @@ use xml::EventReader;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
-    EventTrait, EventsPublisher, GeneralEvent, LinkEnterEvent, LinkEnterEventBuilder,
-    LinkLeaveEvent, LinkLeaveEventBuilder, OnEventFnBuilder, PersonArrivalEvent,
-    PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
-    PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
-    PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
-    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
+    EventTrait, EventsManager, GeneralEvent, LinkEnterEvent, LinkEnterEventBuilder, LinkLeaveEvent,
+    LinkLeaveEventBuilder, OnEventFnBuilder, PersonArrivalEvent, PersonArrivalEventBuilder,
+    PersonDepartureEvent, PersonDepartureEventBuilder, PersonEntersVehicleEvent,
+    PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent, PersonLeavesVehicleEventBuilder,
+    PtTeleportationArrivalEvent, TeleportationArrivalEvent, TeleportationArrivalEventBuilder,
+    VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
@@ -101,12 +101,13 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonDepartureEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" computationalRoutingMode=\"{}\"/>\n",
                 ev.time(),
                 ev.type_(),
                 ev.person,
                 ev.link,
-                ev.leg_mode
+                ev.leg_mode,
+                ev.routing_mode
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonArrivalEvent>() {
             format!(
@@ -182,7 +183,7 @@ impl XmlEventsWriter {
     }
 
     pub fn register(path: PathBuf) -> Box<OnEventFnBuilder> {
-        Box::new(move |events: &mut EventsPublisher| {
+        Box::new(move |events: &mut EventsManager| {
             let xml = Rc::new(XmlEventsWriter::new(path));
             let xml1 = xml.clone();
             let xml2 = xml.clone();
@@ -285,12 +286,14 @@ fn handle_departure(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
     let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
     let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
     let leg_mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let routing_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
     Box::new(
         PersonDepartureEventBuilder::default()
             .time(time)
             .person(person)
             .link(link)
             .leg_mode(leg_mode)
+            .routing_mode(routing_mode)
             .build()
             .unwrap(),
     )

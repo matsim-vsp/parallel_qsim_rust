@@ -20,19 +20,19 @@ pub trait EventTrait: Debug + Any {
 
 type OnEventFn = dyn Fn(&dyn EventTrait) + 'static;
 
-pub type OnEventFnBuilder = dyn FnOnce(&mut EventsPublisher) + Send;
+pub type OnEventFnBuilder = dyn FnOnce(&mut EventsManager) + Send;
 
 /// The EventsPublisher holds call-backs for event processing. This might seem a bit odd
 /// (in particular in comparison to the Java implementation). The reason is that Rust has no reflection, and this
 /// architecture allows compile-time checking of the event types.
 #[derive(Default)]
-pub struct EventsPublisher {
+pub struct EventsManager {
     per_type: HashMap<TypeId, Vec<Rc<OnEventFn>>>,
     catch_all: Vec<Box<OnEventFn>>,
     finish: Vec<Box<dyn Fn() + 'static>>,
 }
 
-impl Debug for EventsPublisher {
+impl Debug for EventsManager {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -44,9 +44,9 @@ impl Debug for EventsPublisher {
     }
 }
 
-impl EventsPublisher {
+impl EventsManager {
     pub fn new() -> Self {
-        EventsPublisher {
+        EventsManager {
             per_type: HashMap::new(),
             catch_all: Vec::new(),
             finish: Vec::new(),
@@ -75,7 +75,7 @@ impl EventsPublisher {
     pub fn on<E, F>(&mut self, f: F)
     where
         E: EventTrait,
-        F: Fn(&dyn EventTrait) + 'static,
+        F: Fn(&E) + 'static,
     {
         let type_id = TypeId::of::<E>();
         let entry = self.per_type.entry(type_id).or_default();
@@ -503,6 +503,7 @@ pub struct PersonDepartureEvent {
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
     pub leg_mode: Id<String>,
+    pub routing_mode: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,
 }
@@ -517,6 +518,7 @@ impl PersonDepartureEvent {
             .person(Id::create(&event.attributes["person"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
             .leg_mode(Id::create(&event.attributes["mode"].as_string()))
+            .routing_mode(Id::create(&event.attributes["routing_mode"].as_string()))
             .attributes(attrs)
             .build()
             .unwrap()
