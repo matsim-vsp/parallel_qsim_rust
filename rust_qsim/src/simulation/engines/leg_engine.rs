@@ -237,7 +237,7 @@ impl VehicularDepartureHandler {
                 .routing_mode(
                     leg.routing_mode
                         .as_ref()
-                        .expect("Missing routing mode for leg")
+                        .expect(&format!("Missing routing mode for leg {:?}", leg))
                         .clone(),
                 )
                 .build()

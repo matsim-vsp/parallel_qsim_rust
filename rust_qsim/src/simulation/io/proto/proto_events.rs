@@ -146,6 +146,10 @@ impl From<&PersonDepartureEvent> for MyEvent {
             "mode".to_string(),
             AttributeValue::from(value.leg_mode.external()),
         );
+        attributes.insert(
+            "routing_mode".to_string(),
+            AttributeValue::from(value.routing_mode.external()),
+        );
         MyEvent {
             r#type: value.type_().to_string(),
             attributes,
@@ -491,6 +495,30 @@ impl ProtoEventsReader<File> {
     pub fn from_file(path: &Path) -> Self {
         let file = File::open(path).unwrap_or_else(|_e| panic!("Failed to open File at: {path:?}"));
         Self::new(file)
+    }
+}
+
+#[rustfmt::skip]
+pub fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsManager) {
+    for proto_event in events {
+        let type_ = proto_event.r#type.as_str();
+        let internal_event: Box<dyn EventTrait> = match type_ {
+            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(proto_event, time)),
+            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
+            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
+            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
+            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(proto_event, time)),
+            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(proto_event, time)),
+            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(proto_event, time)),
+            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(proto_event, time)),
+            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(proto_event, time)),
+            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(proto_event, time)),
+            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
+            VehicleEntersTrafficEvent::TYPE => Box::new(VehicleEntersTrafficEvent::from_proto_event(proto_event, time)),
+            VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
+            _ => panic!("Unknown event type: {:?}", type_),
+        };
+        publisher.publish_event(internal_event.as_ref());
     }
 }
 

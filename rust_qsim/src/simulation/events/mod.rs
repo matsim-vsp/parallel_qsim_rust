@@ -1,3 +1,5 @@
+pub mod utils;
+
 use crate::generated::events::MyEvent;
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
