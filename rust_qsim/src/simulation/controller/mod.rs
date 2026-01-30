@@ -206,7 +206,11 @@ pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterH
         }
         for i in finished {
             let handle = handles.remove(&i).unwrap();
-            let name = handle.thread().name().unwrap().to_string();
+            let name = handle
+                .thread()
+                .name()
+                .unwrap_or("unnamed_thread")
+                .to_string();
             handle
                 .join()
                 .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
@@ -216,7 +220,12 @@ pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterH
     // When all simulation threads are finished, we shutdown the adapters.
     for a in adapters {
         a.shutdown_sender.send(true).unwrap();
-        let name = a.handle.thread().name().unwrap().to_string();
+        let name = a
+            .handle
+            .thread()
+            .name()
+            .unwrap_or("unnamed_thread")
+            .to_string();
         a.handle
             .join()
             .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
@@ -235,10 +244,21 @@ pub fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
 
 pub(crate) fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
     let filename = path.file_name().unwrap().to_str().unwrap();
-    let mut stripped = filename.strip_suffix(".binpb").unwrap();
-    if let Some(s) = stripped.strip_suffix(format!(".{part}").as_str()) {
-        stripped = s;
-    }
-    let new_filename = format!("{stripped}.{part}.binpb");
+
+    let (stripped, ext) = if filename.ends_with(".xml.gz") {
+        (filename.strip_suffix(".xml.gz").unwrap(), "xml.gz")
+    } else if filename.ends_with(".xml") {
+        (filename.strip_suffix(".xml").unwrap(), "xml")
+    } else if filename.ends_with(".binpb") {
+        (filename.strip_suffix(".binpb").unwrap(), "binpb")
+    } else {
+        panic!("Unknown file extension")
+    };
+
+    let stripped = stripped
+        .strip_suffix(format!(".{part}").as_str())
+        .unwrap_or_else(|| stripped);
+
+    let new_filename = format!("{stripped}.{part}.{ext}");
     path.parent().unwrap().join(new_filename)
 }

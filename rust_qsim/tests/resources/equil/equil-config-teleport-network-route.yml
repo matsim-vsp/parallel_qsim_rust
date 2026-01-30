@@ -1,10 +1,13 @@
 modules:
-  protofiles:
-    type: ProtoFiles
-    ids: "./test_output/simulation/output-teleport-network-route/equil.ids.binpb"
-    network: "./test_output/simulation/output-teleport-network-route/equil.network.binpb"
-    population: "./test_output/simulation/output-teleport-network-route/equil.population.binpb"
-    vehicles: "./test_output/simulation/output-teleport-network-route/equil.vehicles.binpb"
+  network:
+    type: Network
+    path: ./assets/equil/equil-network.xml
+  population:
+    type: Population
+    path: ./tests/resources/equil/equil-1-plan-network.xml
+  vehicles:
+    type: Vehicles
+    path: ./assets/equil/equil-vehicles.xml
   partitioning:
     type: Partitioning
     num_parts: 1

@@ -43,15 +43,15 @@ fn load_files_from_url_have_content() {
     );
 
     // Check if the config can be loaded from URL and matches local config.
-    // Note: Only the protofiles.ids, output.output_dir, and partitioning.num_parts are compared here.
+    // Note: Only ids.path, output.output_dir, and partitioning.num_parts are compared here.
     let config_url = format!("{}/3-links-config-1.yml", BASE_URL);
     let config_content: Config = PathBuf::from(config_url).into();
     let config_local = "./tests/resources/3-links-url/3-links-config-1.yml";
     let config_content_local: Config = PathBuf::from(config_local).into();
 
     assert_eq!(
-        config_content.proto_files().ids,
-        config_content_local.proto_files().ids,
+        config_content.ids().unwrap().path,
+        config_content_local.ids().unwrap().path,
         "Config loaded from URL should match local config"
     );
     assert_eq!(

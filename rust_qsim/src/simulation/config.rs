@@ -137,19 +137,60 @@ impl Config {
         }
     }
 
-    pub fn proto_files(&self) -> ProtoFiles {
-        if let Some(proto_files) = self.module::<ProtoFiles>("protofiles") {
-            proto_files
+    pub fn network(&self) -> Network {
+        if let Some(network) = self.module::<Network>("network") {
+            network
         } else {
-            panic!("Protofiles were not set.")
+            panic!("Network was not set.")
         }
     }
 
-    pub fn set_proto_files(&mut self, proto_files: ProtoFiles) {
+    pub fn set_network(&mut self, network: Network) {
         self.modules
             .lock()
             .unwrap()
-            .insert("protofiles".to_string(), Box::new(proto_files));
+            .insert("network".to_string(), Box::new(network));
+    }
+
+    pub fn population(&self) -> Population {
+        if let Some(population) = self.module::<Population>("population") {
+            population
+        } else {
+            panic!("Population was not set.")
+        }
+    }
+
+    pub fn set_population(&mut self, population: Population) {
+        self.modules
+            .lock()
+            .unwrap()
+            .insert("population".to_string(), Box::new(population));
+    }
+
+    pub fn vehicles(&self) -> Vehicles {
+        if let Some(vehicles) = self.module::<Vehicles>("vehicles") {
+            vehicles
+        } else {
+            panic!("Vehicles was not set.")
+        }
+    }
+
+    pub fn set_vehicles(&mut self, vehicles: Vehicles) {
+        self.modules
+            .lock()
+            .unwrap()
+            .insert("vehicles".to_string(), Box::new(vehicles));
+    }
+
+    pub fn ids(&self) -> Option<Ids> {
+        self.module::<Ids>("ids")
+    }
+
+    pub fn set_ids(&mut self, ids: Ids) {
+        self.modules
+            .lock()
+            .unwrap()
+            .insert("ids".to_string(), Box::new(ids));
     }
 
     pub fn partitioning(&self) -> Partitioning {
@@ -306,35 +347,47 @@ pub fn write_config(config: &Config, output_path: PathBuf) {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ProtoFiles {
-    pub network: PathBuf,
-    pub population: PathBuf,
-    pub vehicles: PathBuf,
-    pub ids: PathBuf,
+pub struct Network {
+    pub path: PathBuf,
 }
 
-register_override!("protofiles.network", |config, value| {
-    let mut proto_files = config.proto_files();
-    proto_files.network = PathBuf::from(value);
-    config.set_proto_files(proto_files);
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Population {
+    pub path: PathBuf,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Vehicles {
+    pub path: PathBuf,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Ids {
+    pub path: PathBuf,
+}
+
+register_override!("network.path", |config, value| {
+    let mut network = config.network();
+    network.path = PathBuf::from(value);
+    config.set_network(network);
 });
 
-register_override!("protofiles.population", |config, value| {
-    let mut proto_files = config.proto_files();
-    proto_files.population = PathBuf::from(value);
-    config.set_proto_files(proto_files);
+register_override!("population.path", |config, value| {
+    let mut population = config.population();
+    population.path = PathBuf::from(value);
+    config.set_population(population);
 });
 
-register_override!("protofiles.vehicles", |config, value| {
-    let mut proto_files = config.proto_files();
-    proto_files.vehicles = PathBuf::from(value);
-    config.set_proto_files(proto_files);
+register_override!("vehicles.path", |config, value| {
+    let mut vehicles = config.vehicles();
+    vehicles.path = PathBuf::from(value);
+    config.set_vehicles(vehicles);
 });
 
-register_override!("protofiles.ids", |config, value| {
-    let mut proto_files = config.proto_files();
-    proto_files.ids = PathBuf::from(value);
-    config.set_proto_files(proto_files);
+register_override!("ids.path", |config, value| {
+    config.set_ids(Ids {
+        path: PathBuf::from(value),
+    });
 });
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -485,7 +538,28 @@ pub trait ConfigModule: Debug + Send + DynClone {
 }
 
 #[typetag::serde]
-impl ConfigModule for ProtoFiles {
+impl ConfigModule for Network {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Population {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Vehicles {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Ids {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -725,13 +799,13 @@ mod tests {
     use crate::simulation::config::Output;
     use crate::simulation::config::PathBuf;
     use crate::simulation::config::Profiling;
-    use crate::simulation::config::ProtoFiles;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
         parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType,
         DrtService, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation,
         VertexWeight,
     };
+    use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
     use std::io::Write;
     use tempfile::NamedTempFile;
@@ -935,39 +1009,33 @@ mod tests {
     }
 
     #[test]
-    fn test_override_protofiles_population() {
+    fn test_override_population_path() {
         let yaml = r#"
 modules:
-  protofiles:
-    type: ProtoFiles
-    network: net
-    population: pop
-    vehicles: veh
-    ids: ids
+  population:
+    type: Population
+    path: pop
   output:
     type: Output
     output_dir: out
 "#;
+
         let file = write_temp_config(yaml);
+
         let args = CommandLineArgs {
             config: file.path().to_str().unwrap().to_string(),
-            overrides: vec![("protofiles.population".to_string(), "new_pop".to_string())],
+            overrides: vec![("population.path".to_string(), "new_pop".to_string())],
         };
+
         let config = Config::from(args);
-        assert_eq!(config.proto_files().population.to_str().unwrap(), "new_pop");
-        assert_eq!(config.proto_files().network.to_str().unwrap(), "net");
+
+        assert_eq!(config.population().path.to_str().unwrap(), "new_pop");
     }
 
     #[test]
     fn test_override_output_dir() {
         let yaml = r#"
 modules:
-  protofiles:
-    type: ProtoFiles
-    network: net
-    population: pop
-    vehicles: veh
-    ids: ids
   output:
     type: Output
     output_dir: out
@@ -1004,29 +1072,29 @@ modules:
 
     #[test]
     fn test_parse_key_val_valid() {
-        let input = "protofiles.population=some_path";
+        let input = "population.path=some_path";
         let parsed = parse_key_val(input);
         assert_eq!(
             parsed,
-            Ok(("protofiles.population".to_string(), "some_path".to_string()))
+            Ok(("population.path".to_string(), "some_path".to_string()))
         );
     }
 
     #[test]
     fn test_parse_key_val_invalid() {
-        let input = "protofiles.population_some_path";
+        let input = "population.path_some_path";
         let parsed = parse_key_val(input);
         assert!(parsed.is_err());
     }
 
     fn base_config() -> Config {
         let mut config = Config::default();
-        config.set_proto_files(ProtoFiles {
-            network: "net".into(),
-            population: "pop".into(),
-            vehicles: "veh".into(),
-            ids: "ids".into(),
-        });
+
+        config.set_network(Network { path: "net".into() });
+        config.set_population(Population { path: "pop".into() });
+        config.set_vehicles(Vehicles { path: "veh".into() });
+        config.set_ids(Ids { path: "ids".into() });
+
         config.set_output(Output {
             output_dir: "out".into(),
             profiling: Profiling::None,
@@ -1044,10 +1112,10 @@ modules:
     }
 
     #[test]
-    fn override_protofiles_network() {
+    fn override_network_path() {
         let mut config = base_config();
-        config.apply_overrides(&[("protofiles.network".to_string(), "new_net".to_string())]);
-        assert_eq!(config.proto_files().network, PathBuf::from("new_net"));
+        config.apply_overrides(&[("network.path".to_string(), "new_net".to_string())]);
+        assert_eq!(config.network().path, PathBuf::from("new_net"));
     }
 
     #[test]
