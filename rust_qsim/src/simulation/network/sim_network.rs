@@ -16,7 +16,6 @@ use rand::{rng, Rng};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
-use tracing::instrument;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StorageUpdate {
@@ -206,6 +205,10 @@ impl SimNetworkPartition {
         }
     }
 
+    pub fn partition(&self) -> u32 {
+        self.partition
+    }
+
     pub fn neighbors(&self) -> IntSet<u32> {
         let distinct_partitions: IntSet<u32> = self
             .links
@@ -314,7 +317,6 @@ impl SimNetworkPartition {
         }
     }
 
-    #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
     pub fn move_links(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
@@ -424,7 +426,6 @@ impl SimNetworkPartition {
         MoveSingleLinkResult::default()
     }
 
-    #[instrument(level = "trace", skip(self), fields(rank = self.partition))]
     pub fn move_nodes(&mut self, comp_env: &mut ThreadLocalComputationalEnvironment, now: u32) {
         let mut deactivate = vec![];
         for n in &self.active_nodes {

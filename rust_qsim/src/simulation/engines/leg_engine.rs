@@ -18,6 +18,7 @@ use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::IntSet;
 use tracing::instrument;
+use crate::simulation::messaging::messages::InternalSyncMessage;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
@@ -74,9 +75,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         now: u32,
         agents: Vec<SimulationAgent>,
     ) -> Vec<SimulationAgent> {
-        for agent in agents {
-            self.receive_agent(now, agent);
-        }
+        self.receive_agents(now, agents);
 
         let teleported_vehicles = self.teleportation_engine.do_step(now);
 
@@ -85,11 +84,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             .network_engine
             .move_links(now, &mut self.net_message_broker);
 
-        let mut agents = vec![];
-        agents.extend(self.publish_end_events(now, network_vehicles, true));
-        agents.extend(self.publish_end_events(now, teleported_vehicles, false));
-
-        let sync_messages = self.net_message_broker.send_recv(now);
+        let sync_messages = self.send_recv(now);
 
         for mut msg in sync_messages {
             self.network_engine
@@ -101,7 +96,22 @@ impl<C: SimCommunicator> LegEngine<C> {
             }
         }
 
+        let mut agents = vec![];
+        agents.extend(self.publish_end_events(now, network_vehicles, true));
+        agents.extend(self.publish_end_events(now, teleported_vehicles, false));
         agents
+    }
+
+    #[instrument(level = "trace", skip(self), fields(rank=self.net_message_broker.rank()))]
+    fn send_recv(&mut self, now: u32) -> Vec<InternalSyncMessage> {
+        let sync_messages = self.net_message_broker.send_recv(now);
+        sync_messages
+    }
+
+    fn receive_agents(&mut self, now: u32, agents: Vec<SimulationAgent>) {
+        for agent in agents {
+            self.receive_agent(now, agent);
+        }
     }
 
     fn publish_end_events(

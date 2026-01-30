@@ -8,12 +8,13 @@ use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::GlobalScenario;
 use std::sync::{Arc, Barrier};
+use tracing::info;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 struct RoutingCommandLineArgs {
-    #[arg(long, short)]
-    router_ip: String,
+    #[clap(long, short, num_args = 1.., value_delimiter = ' ')]
+    router_ip: Vec<String>,
     #[clap(flatten)]
     delegate: rust_qsim::simulation::config::CommandLineArgs,
 }
@@ -21,6 +22,9 @@ struct RoutingCommandLineArgs {
 fn main() {
     let _guard = init_std_out_logging_thread_local();
     let args = RoutingCommandLineArgs::parse();
+
+    info!("Starting with args: {:?}", args);
+
     let config = Arc::new(Config::from(args.delegate));
 
     // Creating the routing adapter is only one task, so we add 1 and not the number of worker threads!
@@ -34,7 +38,7 @@ fn main() {
     // The AsyncExecutor will spawn a thread for the routing service adapter and an async runtime.
     let executor = AsyncExecutor::from_config(&config, barrier.clone());
     let factory = RoutingServiceAdapterFactory::new(
-        vec![&args.router_ip],
+        args.router_ip,
         config.clone(),
         executor.shutdown_handles(),
     );

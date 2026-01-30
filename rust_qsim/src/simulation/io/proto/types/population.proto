@@ -28,6 +28,7 @@ message Activity {
   optional uint32 start_time = 5;
   optional uint32 end_time = 6;
   optional uint32 max_dur = 7;
+  map<string, general.AttributeValue> attributes = 8;
 }
 
 message Leg {
