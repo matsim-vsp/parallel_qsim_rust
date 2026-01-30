@@ -244,10 +244,21 @@ pub fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
 
 pub(crate) fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
     let filename = path.file_name().unwrap().to_str().unwrap();
-    let mut stripped = filename.strip_suffix(".binpb").unwrap();
-    if let Some(s) = stripped.strip_suffix(format!(".{part}").as_str()) {
-        stripped = s;
-    }
-    let new_filename = format!("{stripped}.{part}.binpb");
+
+    let (stripped, ext) = if filename.ends_with(".xml.gz") {
+        (filename.strip_suffix(".xml.gz").unwrap(), "xml.gz")
+    } else if filename.ends_with(".xml") {
+        (filename.strip_suffix(".xml").unwrap(), "xml")
+    } else if filename.ends_with(".binpb") {
+        (filename.strip_suffix(".binpb").unwrap(), "binpb")
+    } else {
+        panic!("Unknown file extension")
+    };
+
+    let stripped = stripped
+        .strip_suffix(format!(".{part}").as_str())
+        .unwrap_or_else(|| stripped);
+
+    let new_filename = format!("{stripped}.{part}.{ext}");
     path.parent().unwrap().join(new_filename)
 }

@@ -182,12 +182,8 @@ impl Config {
             .insert("vehicles".to_string(), Box::new(vehicles));
     }
 
-    pub fn ids(&self) -> Ids {
-        if let Some(ids) = self.module::<Ids>("ids") {
-            ids
-        } else {
-            panic!("Ids was not set.")
-        }
+    pub fn ids(&self) -> Option<Ids> {
+        self.module::<Ids>("ids")
     }
 
     pub fn set_ids(&mut self, ids: Ids) {
@@ -389,9 +385,9 @@ register_override!("vehicles.path", |config, value| {
 });
 
 register_override!("ids.path", |config, value| {
-    let mut ids = config.ids();
-    ids.path = PathBuf::from(value);
-    config.set_ids(ids);
+    config.set_ids(Ids {
+        path: PathBuf::from(value),
+    });
 });
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

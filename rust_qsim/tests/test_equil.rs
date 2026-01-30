@@ -19,6 +19,7 @@ use rust_qsim::simulation::network::Network;
 use rust_qsim::simulation::population::{InternalPlanElement, Population, PREPLANNING_HORIZON};
 use rust_qsim::simulation::vehicles::garage::Garage;
 
+// in the adaptive scenario we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
 where
     F: Fn(&mut Population),
@@ -38,9 +39,6 @@ where
 
 #[integration_test(rust_qsim)]
 fn execute_equil_single_part() {
-    let test_dir = PathBuf::from("./test_output/simulation/equil_single_part/");
-    create_resources(&test_dir, |_pop| {});
-
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
     let config = Arc::new(Config::from(config_args));
 
@@ -54,9 +52,6 @@ fn execute_equil_single_part() {
 
 #[integration_test(rust_qsim)]
 fn execute_equil_2_parts() {
-    let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels/");
-    create_resources(&test_dir, |_| {});
-
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
     let config = Arc::new(Config::from(config_args));
 

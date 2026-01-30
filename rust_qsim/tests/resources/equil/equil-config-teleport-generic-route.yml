@@ -1,16 +1,13 @@
 modules:
   network:
     type: Network
-    path: "./test_output/simulation/output-teleport-generic-route/equil.network.binpb"
+    path: ./assets/equil/equil-network.xml
   population:
     type: Population
-    path: "./test_output/simulation/output-teleport-generic-route/equil.population.binpb"
+    path: ./tests/resources/equil/equil-1-plan-generic.xml
   vehicles:
     type: Vehicles
-    path: "./test_output/simulation/output-teleport-generic-route/equil.vehicles.binpb"
-  ids:
-    type: Ids
-    path: "./test_output/simulation/output-teleport-generic-route/equil.ids.binpb"
+    path: ./assets/equil/equil-vehicles.xml
   partitioning:
     type: Partitioning
     num_parts: 1

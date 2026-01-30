@@ -1,16 +1,13 @@
 modules:
   network:
     type: Network
-    path: ./test_output/simulation/execute_3_links_single_part/3-links-network.binpb
+    path: ./assets/3-links/3-links-network.xml
   population:
     type: Population
-    path: ./test_output/simulation/execute_3_links_single_part/1-agent-full-leg.binpb
+    path: ./assets/3-links/1-agent-full-leg.xml
   vehicles:
     type: Vehicles
-    path: ./test_output/simulation/execute_3_links_single_part/vehicles.binpb
-  ids:
-    type: Ids
-    path: ./test_output/simulation/execute_3_links_single_part/ids.binpb
+    path: ./assets/3-links/vehicles.xml
   partitioning:
     type: Partitioning
     num_parts: 1

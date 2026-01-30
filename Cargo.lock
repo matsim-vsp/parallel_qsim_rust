@@ -1881,6 +1881,7 @@ dependencies = [
  "inventory",
  "itertools",
  "keyed_priority_queue",
+ "log",
  "lz4",
  "lz4_flex",
  "macros",

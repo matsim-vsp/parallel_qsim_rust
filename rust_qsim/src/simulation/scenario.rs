@@ -20,7 +20,10 @@ pub struct GlobalScenario {
 
 impl GlobalScenario {
     pub fn load(config: Arc<Config>) -> Self {
-        id::load_from_file(&io::resolve_path(config.context(), &config.ids().path));
+        if let Some(ids) = config.ids() {
+            info!("Loading IDs from {:?}", ids.path);
+            id::load_from_file(&io::resolve_path(config.context(), &ids.path));
+        }
 
         // mandatory content to create a scenario
         let network = Self::create_network(&config);

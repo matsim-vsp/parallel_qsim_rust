@@ -1,16 +1,13 @@
 modules:
   network:
     type: Network
-    path: ./test_output/simulation/pt_tutorial/network.binpb
+    path: ./assets/pt_tutorial/multimodalnetwork.xml
   population:
     type: Population
-    path: ./test_output/simulation/pt_tutorial/plans_1.binpb
+    path: ./assets/pt_tutorial/plans_1.xml.gz
   vehicles:
     type: Vehicles
-    path: ./test_output/simulation/pt_tutorial/vehicles.binpb
-  ids:
-    type: Ids
-    path: ./test_output/simulation/pt_tutorial/ids.binpb
+    path: ./assets/pt_tutorial/vehicles.xml
   partitioning:
     type: Partitioning
     num_parts: 1

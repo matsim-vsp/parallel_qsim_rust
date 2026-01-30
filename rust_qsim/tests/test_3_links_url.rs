@@ -50,8 +50,8 @@ fn load_files_from_url_have_content() {
     let config_content_local: Config = PathBuf::from(config_local).into();
 
     assert_eq!(
-        config_content.ids().path,
-        config_content_local.ids().path,
+        config_content.ids().unwrap().path,
+        config_content_local.ids().unwrap().path,
         "Config loaded from URL should match local config"
     );
     assert_eq!(
