@@ -86,19 +86,13 @@ impl TravelTimeCollector {
             let ttc1 = ttc.clone();
             let ttc2 = ttc.clone();
 
-            e.on::<LinkEnterEvent, _>(move |ev| {
-                let e = ev.as_any().downcast_ref::<LinkEnterEvent>().unwrap();
+            e.on::<LinkEnterEvent, _>(move |e| {
                 ttc.borrow_mut().process_link_enter_event(e);
             });
-            e.on::<LinkLeaveEvent, _>(move |ev| {
-                let e = ev.as_any().downcast_ref::<LinkLeaveEvent>().unwrap();
+            e.on::<LinkLeaveEvent, _>(move |e| {
                 ttc1.borrow_mut().process_link_leave_event(e);
             });
-            e.on::<PersonLeavesVehicleEvent, _>(move |ev| {
-                let e = ev
-                    .as_any()
-                    .downcast_ref::<PersonLeavesVehicleEvent>()
-                    .unwrap();
+            e.on::<PersonLeavesVehicleEvent, _>(move |e| {
                 ttc2.borrow_mut().process_person_leaves_vehicle_event(e);
             })
         })

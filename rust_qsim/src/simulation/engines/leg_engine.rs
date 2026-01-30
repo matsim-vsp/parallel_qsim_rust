@@ -9,6 +9,7 @@ use crate::simulation::events::{
     PersonLeavesVehicleEventBuilder,
 };
 use crate::simulation::id::Id;
+use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -18,7 +19,6 @@ use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::IntSet;
 use tracing::instrument;
-use crate::simulation::messaging::messages::InternalSyncMessage;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
@@ -234,6 +234,12 @@ impl VehicularDepartureHandler {
                 .person(agent.id().clone())
                 .link(route.start_link().clone())
                 .leg_mode(leg.mode.clone())
+                .routing_mode(
+                    leg.routing_mode
+                        .as_ref()
+                        .expect(&format!("Missing routing mode for leg {:?}", leg))
+                        .clone(),
+                )
                 .build()
                 .unwrap(),
         );
