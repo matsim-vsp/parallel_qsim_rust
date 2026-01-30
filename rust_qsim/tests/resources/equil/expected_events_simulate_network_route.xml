@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <events version="1.0">
     <event time="21600" type="actend" person="1" link="1" actType="h"/>
-    <event time="21600" type="departure" person="1" link="1" legMode="car"/>
+    <event time="21600" type="departure" person="1" link="1" legMode="car" computationalRoutingMode="car"/>
     <event time="21600" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
     <event time="21600" type="vehicle enters traffic" person="1" link="1" vehicle="1_car" networkMode="car" relativePosition="1"/>
     <event time="21601" type="left link" link="1" vehicle="1_car"/>
@@ -15,7 +15,7 @@
     <event time="22500" type="arrival" person="1" link="20" legMode="car"/>
     <event time="22501" type="actstart" person="1" link="20" actType="w"/>
     <event time="23101" type="actend" person="1" link="20" actType="w"/>
-    <event time="23101" type="departure" person="1" link="20" legMode="car"/>
+    <event time="23101" type="departure" person="1" link="20" legMode="car" computationalRoutingMode="car"/>
     <event time="23101" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
     <event time="23101" type="vehicle enters traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
     <event time="23101" type="vehicle leaves traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
@@ -23,7 +23,7 @@
     <event time="23101" type="arrival" person="1" link="20" legMode="car"/>
     <event time="23102" type="actstart" person="1" link="20" actType="w"/>
     <event time="35702" type="actend" person="1" link="20" actType="w"/>
-    <event time="35702" type="departure" person="1" link="20" legMode="car"/>
+    <event time="35702" type="departure" person="1" link="20" legMode="car" computationalRoutingMode="car"/>
     <event time="35702" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
     <event time="35702" type="vehicle enters traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
     <event time="35703" type="left link" link="20" vehicle="1_car"/>

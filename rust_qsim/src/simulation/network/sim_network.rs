@@ -5,7 +5,7 @@ use super::{
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
-use crate::simulation::events::{EventsPublisher, LinkEnterEventBuilder, LinkLeaveEventBuilder};
+use crate::simulation::events::{EventsManager, LinkEnterEventBuilder, LinkLeaveEventBuilder};
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
 use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
@@ -259,7 +259,7 @@ impl SimNetworkPartition {
     pub fn send_veh_en_route(
         &mut self,
         vehicle: InternalVehicle,
-        events_publisher: Option<Rc<RefCell<EventsPublisher>>>,
+        events_publisher: Option<Rc<RefCell<EventsManager>>>,
         now: u32,
     ) {
         let link_id = vehicle.curr_link_id().unwrap_or_else(|| {

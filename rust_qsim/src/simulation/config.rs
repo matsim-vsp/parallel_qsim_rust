@@ -39,7 +39,7 @@ inventory::collect!(OverrideHandler);
 #[command(author, version, about, long_about = None)]
 pub struct CommandLineArgs {
     #[arg(long, short)]
-    pub config_path: String,
+    pub config: String,
     #[arg(long= "set", value_parser = parse_key_val)]
     pub overrides: Vec<(String, String)>,
 }
@@ -47,7 +47,7 @@ pub struct CommandLineArgs {
 impl CommandLineArgs {
     pub fn new_with_path(path: impl ToString) -> Self {
         CommandLineArgs {
-            config_path: path.to_string(),
+            config: path.to_string(),
             overrides: Vec::new(),
         }
     }
@@ -80,7 +80,7 @@ impl Default for Config {
 
 impl From<CommandLineArgs> for Config {
     fn from(args: CommandLineArgs) -> Self {
-        let mut config = Config::from(args.config_path.parse::<PathBuf>().unwrap());
+        let mut config = Config::from(args.config.parse::<PathBuf>().unwrap());
         config.apply_overrides(&args.overrides);
         config
     }
@@ -950,7 +950,7 @@ modules:
 "#;
         let file = write_temp_config(yaml);
         let args = CommandLineArgs {
-            config_path: file.path().to_str().unwrap().to_string(),
+            config: file.path().to_str().unwrap().to_string(),
             overrides: vec![("protofiles.population".to_string(), "new_pop".to_string())],
         };
         let config = Config::from(args);
@@ -974,7 +974,7 @@ modules:
 "#;
         let file = write_temp_config(yaml);
         let args = CommandLineArgs {
-            config_path: file.path().to_str().unwrap().to_string(),
+            config: file.path().to_str().unwrap().to_string(),
             overrides: vec![("output.output_dir".to_string(), "new_out".to_string())],
         };
         let config = Config::from(args);
@@ -995,7 +995,7 @@ modules:
 "#;
         let file = write_temp_config(yaml);
         let args = CommandLineArgs {
-            config_path: file.path().to_str().unwrap().to_string(),
+            config: file.path().to_str().unwrap().to_string(),
             overrides: vec![("partitioning.num_parts".to_string(), "5".to_string())],
         };
         let config = Config::from(args);

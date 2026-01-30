@@ -4,7 +4,7 @@ use rust_qsim::external_services::AdapterHandle;
 use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
-use rust_qsim::simulation::events::{EventTrait, EventsPublisher, OnEventFnBuilder};
+use rust_qsim::simulation::events::{EventTrait, EventsManager, OnEventFnBuilder};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_qsim::simulation::scenario::GlobalScenario;
 use std::collections::HashMap;
@@ -148,7 +148,7 @@ impl SendingSubscriber {
 
     pub fn register(rank: u32, sender: Sender<String>) -> Box<OnEventFnBuilder> {
         let subscriber = Self { rank, sender };
-        Box::new(move |events: &mut EventsPublisher| {
+        Box::new(move |events: &mut EventsManager| {
             events.on_any(move |e| {
                 subscriber.on_event(e);
             });

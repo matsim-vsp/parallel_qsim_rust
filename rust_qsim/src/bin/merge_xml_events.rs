@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use rust_qsim::simulation::events::EventsPublisher;
+use rust_qsim::simulation::events::EventsManager;
 use rust_qsim::simulation::io::proto::xml_events::{XmlEventsReader, XmlEventsWriter};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use tracing::info;
@@ -34,7 +34,7 @@ fn main() {
         });
     }
 
-    let mut publisher = EventsPublisher::new();
+    let mut publisher = EventsManager::new();
     XmlEventsWriter::register(PathBuf::from(&args.path).join("events.xml"))(&mut publisher);
 
     info!("Starting to read events files.");

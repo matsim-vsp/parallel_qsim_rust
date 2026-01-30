@@ -2,7 +2,7 @@ pub mod local_controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
-use crate::simulation::events::{EventsPublisher, OnEventFnBuilder};
+use crate::simulation::events::{EventsManager, OnEventFnBuilder};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -83,14 +83,14 @@ pub struct ThreadLocalComputationalEnvironment {
     services: ExternalServices,
     // The value is of type Rc as this is a thread-local events publisher.
     #[builder(default)]
-    events_publisher: Rc<RefCell<EventsPublisher>>,
+    events_publisher: Rc<RefCell<EventsManager>>,
 }
 
 impl Default for ThreadLocalComputationalEnvironment {
     fn default() -> Self {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
-            events_publisher: Rc::new(RefCell::new(EventsPublisher::new())),
+            events_publisher: Rc::new(RefCell::new(EventsManager::new())),
         }
     }
 }
@@ -103,11 +103,11 @@ impl ThreadLocalComputationalEnvironment {
         self.services.get_service(service_type)
     }
 
-    pub fn events_publisher_borrow_mut(&mut self) -> RefMut<'_, EventsPublisher> {
+    pub fn events_publisher_borrow_mut(&mut self) -> RefMut<'_, EventsManager> {
         self.events_publisher.borrow_mut()
     }
 
-    pub fn events_publisher(&self) -> Rc<RefCell<EventsPublisher>> {
+    pub fn events_publisher(&self) -> Rc<RefCell<EventsManager>> {
         self.events_publisher.clone()
     }
 }
@@ -174,10 +174,10 @@ fn create_events(
     config: &Config,
     rank: u32,
     additional_subscribers: Vec<Box<OnEventFnBuilder>>,
-) -> Rc<RefCell<EventsPublisher>> {
+) -> Rc<RefCell<EventsManager>> {
     let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
-    let mut events = EventsPublisher::new();
+    let mut events = EventsManager::new();
 
     if config.output().write_events == WriteEvents::Proto {
         let events_file = format!("events.{rank}.binpb");
