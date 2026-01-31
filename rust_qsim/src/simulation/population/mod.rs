@@ -883,7 +883,7 @@ mod tests {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
             2,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
         let pop1 = Population::from_file_filtered_part(
@@ -910,7 +910,7 @@ mod tests {
         let net = Network::from_file(
             "./assets/equil/equil-network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
         let population = Population::from_file(

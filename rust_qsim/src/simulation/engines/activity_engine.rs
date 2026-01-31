@@ -259,7 +259,7 @@ mod tests {
     use std::thread::JoinHandle;
     use tokio::sync::mpsc::Receiver;
 
-    #[test]
+    #[integration_test]
     fn test_activity_engine_build() {
         let mut engine =
             ActivityEngineBuilder::new(vec![], &Config::default(), Default::default()).build();
@@ -269,7 +269,7 @@ mod tests {
         engine.end(0);
     }
 
-    #[test]
+    #[integration_test]
     fn test_activity_engine_wake_up_plan() {
         let plan = create_plan();
 
@@ -435,16 +435,11 @@ mod tests {
 
     fn create_plan() -> InternalPlan {
         let mut plan = InternalPlan::default();
-        let mut activity = InternalActivity::new(
-            0.0,
-            0.0,
-            "home",
-            Id::create("start"),
-            None,
-            None,
-            Some(10),
-        );
-        activity.attributes.add(crate::simulation::population::PREPLANNING_HORIZON, 5);
+        let mut activity =
+            InternalActivity::new(0.0, 0.0, "home", Id::create("start"), None, None, Some(10));
+        activity
+            .attributes
+            .add(crate::simulation::population::PREPLANNING_HORIZON, 5);
         plan.add_act(activity);
         plan.add_leg(InternalLeg::new(
             InternalRoute::Generic(InternalGenericRoute::new(

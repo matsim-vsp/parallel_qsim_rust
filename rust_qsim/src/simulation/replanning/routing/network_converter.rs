@@ -183,7 +183,7 @@ mod test {
         let network = Network::from_file(
             "./assets/routing_tests/triangle-network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let graph = NetworkConverter::convert_network(&network, None);
 
@@ -205,7 +205,7 @@ mod test {
         let network = Network::from_file(
             "./assets/routing_tests/network_different_modes.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
 
         let mut garage = Garage::new();
@@ -246,7 +246,7 @@ mod test {
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let garage = Garage::from_file(&PathBuf::from(
             "./assets/adhoc_routing/no_updates/vehicles.xml",
@@ -282,7 +282,7 @@ mod test {
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let garage = Garage::from_file(&PathBuf::from(
             "./assets/mode_dependent_routing/vehicle_definitions.xml",

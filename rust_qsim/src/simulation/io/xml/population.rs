@@ -247,12 +247,14 @@ mod tests {
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::io::xml::population::{load_from_xml, IOActivity, IOLeg, IOPlanElement, IOPopulation};
+    use crate::simulation::io::xml::attributes::IOAttribute;
+    use crate::simulation::io::xml::population::{
+        load_from_xml, IOActivity, IOLeg, IOPlanElement, IOPopulation,
+    };
     use crate::simulation::network::Network;
     use crate::simulation::vehicles::garage::Garage;
     use macros::integration_test;
     use quick_xml::de::from_str;
-    use crate::simulation::io::xml::attributes::{IOAttribute};
 
     /**
     This tests against the first person from the equil scenario. Probably this doesn't cover all
@@ -421,7 +423,7 @@ mod tests {
         let _net = Network::from_file(
             "./assets/equil/equil-network.xml",
             2,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
 
@@ -444,9 +446,27 @@ mod tests {
                                         <attribute name=\"orig_dist\" class=\"java.lang.Double\">0.0</attribute>
                                 </attributes>
                         </activity>";
-        let attributes = from_str::<IOActivity>(xml).unwrap().attributes.unwrap().attributes;
+        let attributes = from_str::<IOActivity>(xml)
+            .unwrap()
+            .attributes
+            .unwrap()
+            .attributes;
         assert_eq!(attributes.len(), 2);
-        assert_eq!(attributes.get(0).unwrap(), &IOAttribute::new_with_class(String::from("initialEndTime"), String::from("java.lang.Double"), String::from("26455.0")));
-        assert_eq!(attributes.get(1).unwrap(), &IOAttribute::new_with_class(String::from("orig_dist"), String::from("java.lang.Double"), String::from("0.0")));
+        assert_eq!(
+            attributes.get(0).unwrap(),
+            &IOAttribute::new_with_class(
+                String::from("initialEndTime"),
+                String::from("java.lang.Double"),
+                String::from("26455.0")
+            )
+        );
+        assert_eq!(
+            attributes.get(1).unwrap(),
+            &IOAttribute::new_with_class(
+                String::from("orig_dist"),
+                String::from("java.lang.Double"),
+                String::from("0.0")
+            )
+        );
     }
 }
