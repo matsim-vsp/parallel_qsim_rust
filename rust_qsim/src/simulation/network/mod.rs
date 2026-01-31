@@ -70,14 +70,14 @@ impl Network {
         self.effective_cell_size
     }
 
-    pub fn from_file(file: &str, num_parts: u32, partition_method: PartitionMethod) -> Self {
+    pub fn from_file(file: &str, num_parts: u32, partition_method: &PartitionMethod) -> Self {
         Self::from_file_path(&PathBuf::from(file), num_parts, partition_method)
     }
 
     pub fn from_file_path(
         file_path: &Path,
         num_parts: u32,
-        partition_method: PartitionMethod,
+        partition_method: &PartitionMethod,
     ) -> Self {
         let mut result = from_file(file_path);
         Self::partition_network(&mut result, partition_method, num_parts);
@@ -140,7 +140,11 @@ impl Network {
         self.links.get_mut(id).unwrap()
     }
 
-    fn partition_network(network: &mut Network, partition_method: PartitionMethod, num_parts: u32) {
+    fn partition_network(
+        network: &mut Network,
+        partition_method: &PartitionMethod,
+        num_parts: u32,
+    ) {
         match partition_method {
             PartitionMethod::Metis(options) => {
                 let partitions = metis_partitioning::partition(network, num_parts, options);
@@ -441,7 +445,7 @@ mod tests {
             "./assets/equil/equil-network.xml",
             2,
             //I don't know, why "edge_weight = true" sets 1 as partition for all nodes.
-            PartitionMethod::Metis(MetisOptions::default().set_edge_weight(EdgeWeight::Constant)),
+            &PartitionMethod::Metis(MetisOptions::default().set_edge_weight(EdgeWeight::Constant)),
         );
 
         // check partitioning

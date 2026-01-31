@@ -33,7 +33,7 @@ fn main() {
     let args = InputArgs::parse();
 
     let mut veh = Garage::from_file(&args.vehicles);
-    let mut net = Network::from_file_path(&args.network, 1, PartitionMethod::None);
+    let mut net = Network::from_file_path(&args.network, 1, &PartitionMethod::None);
     if let Some(transit_schedule) = args.transit_schedule.as_ref() {
         // For now, we only read the transit schedule to extract the ids. It is not used in the simulation.
         TransitSchedule::from_file(transit_schedule);

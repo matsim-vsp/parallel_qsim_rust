@@ -42,7 +42,7 @@ impl GlobalScenario {
         let net_in_path = io::resolve_path(config.context(), &config.network().path);
         let num_parts = config.partitioning().num_parts;
         let network =
-            Network::from_file_path(&net_in_path, num_parts, config.partitioning().method);
+            Network::from_file_path(&net_in_path, num_parts, &config.partitioning().method);
 
         let mut net_out_path = create_output_filename(
             &io::resolve_path(config.context(), &config.output().output_dir),

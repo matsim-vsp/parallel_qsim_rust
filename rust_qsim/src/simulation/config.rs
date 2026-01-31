@@ -11,8 +11,6 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
-use std::sync::Mutex;
-use tracing::subscriber::with_default;
 use tracing::{info, warn, Level};
 
 /// Macro to register an override handler for a specific config key
@@ -64,18 +62,19 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    //this is deliberately a Mutex to allow for thread-safe sharing of the config
-    modules: Mutex<HashMap<String, Box<dyn ConfigModule>>>,
+    modules: HashMap<String, Box<dyn ConfigModule>>,
     #[serde(skip)]
     context: Option<PathBuf>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config {
-            modules: Mutex::new(HashMap::default()),
+        let mut config = Config {
+            modules: HashMap::default(),
             context: None,
-        }
+        };
+        config.ensure_defaults();
+        config
     }
 }
 
@@ -114,11 +113,23 @@ impl From<PathBuf> for Config {
             )
         });
         config.set_context(Some(config_path.clone()));
+        config.ensure_defaults();
         config
     }
 }
 
 impl Config {
+    /// Ensures that all modules with defaults are present in the config.
+    /// Called after deserialization to guarantee that read accessors won't panic
+    /// for modules that have sensible defaults.
+    pub fn ensure_defaults(&mut self) {
+        self.partitioning_mut();
+        self.output_mut();
+        self.simulation_mut();
+        self.routing_mut();
+        self.computational_setup_mut();
+    }
+
     pub fn set_context(&mut self, context: Option<PathBuf>) {
         self.context = context;
     }
@@ -138,12 +149,9 @@ impl Config {
         }
     }
 
-    pub fn network(&self) -> Network {
-        if let Some(network) = self.module::<Network>("network") {
-            network
-        } else {
-            panic!("Network was not set.")
-        }
+    pub fn network(&self) -> &Network {
+        self.module::<Network>("network")
+            .expect("Network was not set.")
     }
 
     pub fn network_mut(&mut self) -> &mut Network {
@@ -153,17 +161,12 @@ impl Config {
 
     pub fn set_network(&mut self, network: Network) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("network".to_string(), Box::new(network));
     }
 
-    pub fn population(&self) -> Population {
-        if let Some(population) = self.module::<Population>("population") {
-            population
-        } else {
-            panic!("Population was not set.")
-        }
+    pub fn population(&self) -> &Population {
+        self.module::<Population>("population")
+            .expect("Population was not set.")
     }
 
     pub fn population_mut(&mut self) -> &mut Population {
@@ -173,17 +176,12 @@ impl Config {
 
     pub fn set_population(&mut self, population: Population) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("population".to_string(), Box::new(population));
     }
 
-    pub fn vehicles(&self) -> Vehicles {
-        if let Some(vehicles) = self.module::<Vehicles>("vehicles") {
-            vehicles
-        } else {
-            panic!("Vehicles was not set.")
-        }
+    pub fn vehicles(&self) -> &Vehicles {
+        self.module::<Vehicles>("vehicles")
+            .expect("Vehicles was not set.")
     }
 
     pub fn vehicles_mut(&mut self) -> &mut Vehicles {
@@ -193,12 +191,10 @@ impl Config {
 
     pub fn set_vehicles(&mut self, vehicles: Vehicles) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("vehicles".to_string(), Box::new(vehicles));
     }
 
-    pub fn ids(&self) -> Option<Ids> {
+    pub fn ids(&self) -> Option<&Ids> {
         self.module::<Ids>("ids")
     }
 
@@ -208,31 +204,17 @@ impl Config {
 
     pub fn set_ids(&mut self, ids: Ids) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("ids".to_string(), Box::new(ids));
     }
 
-    pub fn partitioning(&self) -> Partitioning {
-        if let Some(partitioning) = self.module::<Partitioning>("partitioning") {
-            partitioning
-        } else {
-            let default = Partitioning {
-                num_parts: 1,
-                method: PartitionMethod::None,
-            };
-            self.modules
-                .lock()
-                .unwrap()
-                .insert("partitioning".to_string(), Box::new(default.clone()));
-            default
-        }
+    pub fn partitioning(&self) -> &Partitioning {
+        self.module::<Partitioning>("partitioning")
+            .expect("Partitioning was not set.")
     }
 
     pub fn partitioning_mut(&mut self) -> &mut Partitioning {
-        let modules = self.modules.get_mut().unwrap();
-        if !modules.contains_key("partitioning") {
-            modules.insert(
+        if !self.modules.contains_key("partitioning") {
+            self.modules.insert(
                 "partitioning".to_string(),
                 Box::new(Partitioning {
                     num_parts: 1,
@@ -240,75 +222,43 @@ impl Config {
                 }),
             );
         }
-        modules
-            .get_mut("partitioning")
-            .unwrap()
-            .as_mut()
-            .as_any_mut()
-            .downcast_mut::<Partitioning>()
-            .unwrap()
+        self.module_mut::<Partitioning>("partitioning").unwrap()
     }
 
     pub fn set_partitioning(&mut self, partitioning: Partitioning) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("partitioning".to_string(), Box::new(partitioning));
     }
 
     pub fn computational_setup_mut(&mut self) -> &mut ComputationalSetup {
-        let modules = self.modules.get_mut().unwrap();
-        if !modules.contains_key("computational_setup") {
-            modules.insert(
+        if !self.modules.contains_key("computational_setup") {
+            self.modules.insert(
                 "computational_setup".to_string(),
                 Box::new(ComputationalSetup::default()),
             );
         }
-        modules
-            .get_mut("computational_setup")
-            .unwrap()
-            .as_mut()
-            .as_any_mut()
-            .downcast_mut::<ComputationalSetup>()
+        self.module_mut::<ComputationalSetup>("computational_setup")
             .unwrap()
     }
 
     pub fn set_computational_setup(&mut self, setup: ComputationalSetup) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("computational_setup".to_string(), Box::new(setup));
     }
 
     pub fn set_simulation(&mut self, simulation: Simulation) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("simulation".to_string(), Box::new(simulation));
     }
 
-    pub fn output(&self) -> Output {
-        if let Some(output) = self.module::<Output>("output") {
-            output
-        } else {
-            let default = Output {
-                output_dir: "./".parse().unwrap(),
-                profiling: Profiling::None,
-                logging: Logging::Info,
-                write_events: WriteEvents::None,
-            };
-            self.modules
-                .lock()
-                .unwrap()
-                .insert("output".to_string(), Box::new(default.clone()));
-            default
-        }
+    pub fn output(&self) -> &Output {
+        self.module::<Output>("output")
+            .expect("Output was not set.")
     }
 
     pub fn output_mut(&mut self) -> &mut Output {
-        let modules = self.modules.get_mut().unwrap();
-        if !modules.contains_key("output") {
-            modules.insert(
+        if !self.modules.contains_key("output") {
+            self.modules.insert(
                 "output".to_string(),
                 Box::new(Output {
                     output_dir: "./output".parse().unwrap(),
@@ -318,84 +268,46 @@ impl Config {
                 }),
             );
         }
-        modules
-            .get_mut("output")
-            .unwrap()
-            .as_mut()
-            .as_any_mut()
-            .downcast_mut::<Output>()
-            .unwrap()
+        self.module_mut::<Output>("output").unwrap()
     }
 
     pub fn set_output(&mut self, output: Output) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("output".to_string(), Box::new(output));
     }
 
     pub fn routing_mut(&mut self) -> &mut Routing {
-        let modules = self.modules.get_mut().unwrap();
-        if !modules.contains_key("routing") {
-            modules.insert("routing".to_string(), Box::new(Routing::default()));
+        if !self.modules.contains_key("routing") {
+            self.modules
+                .insert("routing".to_string(), Box::new(Routing::default()));
         }
-        modules
-            .get_mut("routing")
-            .unwrap()
-            .as_mut()
-            .as_any_mut()
-            .downcast_mut::<Routing>()
-            .unwrap()
+        self.module_mut::<Routing>("routing").unwrap()
     }
 
     pub fn set_routing(&mut self, routing: Routing) {
         self.modules
-            .lock()
-            .unwrap()
             .insert("routing".to_string(), Box::new(routing));
     }
 
-    pub fn simulation(&self) -> Simulation {
-        if let Some(simulation) = self.module::<Simulation>("simulation") {
-            simulation
-        } else {
-            let default = Simulation::default();
-            self.modules
-                .lock()
-                .unwrap()
-                .insert("simulation".to_string(), Box::new(default.clone()));
-            default
-        }
+    pub fn simulation(&self) -> &Simulation {
+        self.module::<Simulation>("simulation")
+            .expect("Simulation was not set.")
     }
 
     pub fn simulation_mut(&mut self) -> &mut Simulation {
-        let modules = self.modules.get_mut().unwrap();
-        if !modules.contains_key("simulation") {
-            modules.insert("simulation".to_string(), Box::new(Simulation::default()));
-        }
-        modules
-            .get_mut("simulation")
-            .unwrap()
-            .as_mut()
-            .as_any_mut()
-            .downcast_mut::<Simulation>()
-            .unwrap()
-    }
-
-    pub fn routing(&self) -> Routing {
-        if let Some(routing) = self.module::<Routing>("routing") {
-            routing
-        } else {
-            let default = Routing::default();
+        if !self.modules.contains_key("simulation") {
             self.modules
-                .lock()
-                .unwrap()
-                .insert("routing".to_string(), Box::new(default.clone()));
-            default
+                .insert("simulation".to_string(), Box::new(Simulation::default()));
         }
+        self.module_mut::<Simulation>("simulation").unwrap()
     }
 
-    pub fn drt(&self) -> Option<Drt> {
+    pub fn routing(&self) -> &Routing {
+        self.module::<Routing>("routing")
+            .expect("Routing was not set.")
+    }
+
+    pub fn drt(&self) -> Option<&Drt> {
         self.module::<Drt>("drt")
     }
 
@@ -403,31 +315,19 @@ impl Config {
         self.module_mut::<Drt>("drt")
     }
 
-    pub fn computational_setup(&self) -> ComputationalSetup {
-        if let Some(setup) = self.module::<ComputationalSetup>("computational_setup") {
-            setup
-        } else {
-            let default = ComputationalSetup::default();
-            self.modules
-                .lock()
-                .unwrap()
-                .insert("computational_setup".to_string(), Box::new(default));
-            default
-        }
+    pub fn computational_setup(&self) -> &ComputationalSetup {
+        self.module::<ComputationalSetup>("computational_setup")
+            .expect("ComputationalSetup was not set.")
     }
 
-    fn module<T: Clone + 'static>(&self, key: &str) -> Option<T> {
+    fn module<T: 'static>(&self, key: &str) -> Option<&T> {
         self.modules
-            .lock()
-            .unwrap()
             .get(key)
-            .map(|boxed| boxed.as_ref().as_any().downcast_ref::<T>().unwrap().clone())
+            .map(|boxed| boxed.as_ref().as_any().downcast_ref::<T>().unwrap())
     }
 
     fn module_mut<T: 'static>(&mut self, key: &str) -> Option<&mut T> {
         self.modules
-            .get_mut()
-            .unwrap()
             .get_mut(key)
             .map(|boxed| boxed.as_mut().as_any_mut().downcast_mut::<T>().unwrap())
     }
@@ -486,21 +386,15 @@ pub struct Ids {
 }
 
 register_override!("network.path", |config, value| {
-    let mut network = config.network();
-    network.path = PathBuf::from(value);
-    config.set_network(network);
+    config.network_mut().path = PathBuf::from(value);
 });
 
 register_override!("population.path", |config, value| {
-    let mut population = config.population();
-    population.path = PathBuf::from(value);
-    config.set_population(population);
+    config.population_mut().path = PathBuf::from(value);
 });
 
 register_override!("vehicles.path", |config, value| {
-    let mut vehicles = config.vehicles();
-    vehicles.path = PathBuf::from(value);
-    config.set_vehicles(vehicles);
+    config.vehicles_mut().path = PathBuf::from(value);
 });
 
 register_override!("ids.path", |config, value| {
@@ -516,15 +410,11 @@ pub struct Partitioning {
 }
 
 register_override!("partitioning.num_parts", |config, value| {
-    let mut part = config.partitioning();
     if let Ok(v) = value.parse() {
-        part.num_parts = v;
-        config.set_partitioning(part);
+        config.partitioning_mut().num_parts = v;
         // replace some configuration if we get a partition from the outside. This is interesting for testing
         let out_dir = format!("{}-{v}", config.output().output_dir.to_str().unwrap());
-        let mut output = config.output().clone();
-        output.output_dir = out_dir.into();
-        config.set_output(output);
+        config.output_mut().output_dir = out_dir.into();
     }
 });
 
@@ -540,9 +430,7 @@ pub struct Output {
 }
 
 register_override!("output.output_dir", |config, value| {
-    let mut output = config.output();
-    output.output_dir = PathBuf::from(value);
-    config.set_output(output);
+    config.output_mut().output_dir = PathBuf::from(value);
 });
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -551,13 +439,11 @@ pub struct Routing {
 }
 
 register_override!("routing.mode", |config, value| {
-    let mut routing = config.routing();
-    routing.mode = match value.to_lowercase().as_str() {
+    config.routing_mut().mode = match value.to_lowercase().as_str() {
         "ad-hoc" | "adhoc" => RoutingMode::AdHoc,
         "use-plans" | "useplans" => RoutingMode::UsePlans,
         _ => panic!("Invalid routing mode: {}", value),
     };
-    config.set_routing(routing);
 });
 
 impl Default for Routing {
@@ -630,15 +516,12 @@ pub struct ComputationalSetup {
 register_override!(
     "computational_setup.adapter_worker_threads",
     |config, value| {
-        let mut setup = config.computational_setup();
-        setup.adapter_worker_threads = value.parse().unwrap();
-        config.set_computational_setup(setup);
+        config.computational_setup_mut().adapter_worker_threads = value.parse().unwrap();
     }
 );
 
 register_override!("computational_setup.global_sync", |config, value| {
-    let mut setup = config.computational_setup();
-    setup.global_sync = value.parse().unwrap();
+    config.computational_setup_mut().global_sync = value.parse().unwrap();
 });
 
 impl Default for ComputationalSetup {
@@ -652,7 +535,7 @@ impl Default for ComputationalSetup {
 }
 
 #[typetag::serde(tag = "type")]
-pub trait ConfigModule: Debug + Send + DynClone {
+pub trait ConfigModule: Debug + Send + Sync + DynClone {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
@@ -1114,7 +997,7 @@ mod tests {
                 max_travel_time_beta: 600.
         "#;
 
-        let config = Config::default();
+        let mut config = Config::default();
         let drt = Drt {
             process_type: DrtProcessType::OneProcess,
             services: vec![DrtService {
@@ -1127,8 +1010,6 @@ mod tests {
         };
         config
             .modules
-            .lock()
-            .unwrap()
             .insert("drt".to_string(), Box::new(drt));
 
         let parsed_config: Config = serde_yaml::from_str(serde).expect("failed to parse config");

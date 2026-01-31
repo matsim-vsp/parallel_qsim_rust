@@ -10,7 +10,7 @@ use crate::simulation::network::{Link, Network, Node};
 pub fn partition(
     network: &Network,
     num_parts: u32,
-    options: MetisOptions,
+    options: &MetisOptions,
 ) -> IntMap<Id<Node>, Idx> {
     if num_parts <= 1 {
         let mut result = IntMap::new();
@@ -146,7 +146,7 @@ mod tests {
         ));
 
         for _n in 0..100 {
-            let _partition_result = partition(&net, 2, MetisOptions::default());
+            let _partition_result = partition(&net, 2, &MetisOptions::default());
         }
     }
 
@@ -155,7 +155,7 @@ mod tests {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
             5,
-            PartitionMethod::Metis(MetisOptions::default().set_contiguous(false)),
+            &PartitionMethod::Metis(MetisOptions::default().set_contiguous(false)),
         );
         println!("=== Default ===");
         let _node_count = node_count(&network);
@@ -167,7 +167,7 @@ mod tests {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
             5,
-            PartitionMethod::Metis(
+            &PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCapacity)
                     .set_imbalance_factor(0.)
@@ -184,7 +184,7 @@ mod tests {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
             5,
-            PartitionMethod::Metis(
+            &PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCount)
                     .set_imbalance_factor(0.)
@@ -201,7 +201,7 @@ mod tests {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
             5,
-            PartitionMethod::Metis(
+            &PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::InLinkCapacity)
                     .add_vertex_weight(VertexWeight::InLinkCount)
@@ -219,7 +219,7 @@ mod tests {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
             5,
-            PartitionMethod::Metis(
+            &PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::Constant)
                     .set_imbalance_factor(0.)
@@ -236,7 +236,7 @@ mod tests {
         let network = Network::from_file(
             "./assets/andorra-network.xml.gz",
             5,
-            PartitionMethod::Metis(
+            &PartitionMethod::Metis(
                 MetisOptions::default()
                     .add_vertex_weight(VertexWeight::Constant)
                     .add_vertex_weight(VertexWeight::InLinkCount)

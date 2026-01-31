@@ -31,7 +31,7 @@ fn main() {
         let net = Network::from_file_path(
             &args.network,
             num_parts,
-            PartitionMethod::Metis(MetisOptions {
+            &PartitionMethod::Metis(MetisOptions {
                 vertex_weight: vec![VertexWeight::PreComputed],
                 edge_weight: EdgeWeight::Capacity,
                 imbalance_factor: 0.03,
@@ -44,7 +44,7 @@ fn main() {
             let net_partition = SimNetworkPartitionBuilder::from_network(
                 &net,
                 partition,
-                config::Simulation::default(),
+                &config::Simulation::default(),
             )
             .build();
             let neighbors = net_partition.neighbors().len();

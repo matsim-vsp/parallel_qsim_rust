@@ -106,7 +106,7 @@ impl SimNetworkPartitionBuilder {
     pub fn from_network(
         global_network: &Network,
         partition: u32,
-        config: config::Simulation,
+        config: &config::Simulation,
     ) -> Self {
         let nodes: Vec<&Node> = global_network
             .nodes()
@@ -665,10 +665,10 @@ mod tests {
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut network =
-            SimNetworkPartitionBuilder::from_network(&global_net, 0, test_utils::config()).build();
+            SimNetworkPartitionBuilder::from_network(&global_net, 0, &test_utils::config()).build();
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
         let vehicle = InternalVehicle::new(1, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
@@ -712,10 +712,10 @@ mod tests {
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             2,
-            PartitionMethod::None,
+            &PartitionMethod::None,
         );
         let mut network =
-            SimNetworkPartitionBuilder::from_network(&global_net, 0, test_utils::config()).build();
+            SimNetworkPartitionBuilder::from_network(&global_net, 0, &test_utils::config()).build();
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
         let vehicle = InternalVehicle::new(1, 0, 10., 100., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
@@ -747,10 +747,10 @@ mod tests {
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         let mut network =
-            SimNetworkPartitionBuilder::from_network(&global_net, 0, test_utils::config()).build();
+            SimNetworkPartitionBuilder::from_network(&global_net, 0, &test_utils::config()).build();
 
         // place 100 vehicles on first link
         for i in 0..100 {
@@ -778,7 +778,7 @@ mod tests {
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         global_net.set_effective_cell_size(10.);
 
@@ -787,7 +787,7 @@ mod tests {
         let id_3: Id<Link> = Id::get_from_ext("link3");
         let mut config = test_utils::config();
         config.stuck_threshold = u32::MAX;
-        let mut network = SimNetworkPartitionBuilder::from_network(&global_net, 0, config).build();
+        let mut network = SimNetworkPartitionBuilder::from_network(&global_net, 0, &config).build();
 
         // Place 10 vehicles on link1. They will be released every 10s because PCE is 10 and flow_cap is 1.
         // Since they are super slow, they will leave link2 after 1000s.
@@ -879,7 +879,7 @@ mod tests {
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         global_net.set_effective_cell_size(10.);
 
@@ -888,7 +888,7 @@ mod tests {
         let id_3: Id<Link> = Id::get_from_ext("link3");
         let mut config = test_utils::config();
         config.stuck_threshold = 10;
-        let mut network = SimNetworkPartitionBuilder::from_network(&global_net, 0, config).build();
+        let mut network = SimNetworkPartitionBuilder::from_network(&global_net, 0, &config).build();
 
         // Place 10 vehicles on link1. They will be released every 10s because PCE is 10 and flow_cap is 1.
         // Since they are super slow, they will leave link2 after 1000s.
@@ -1056,7 +1056,7 @@ mod tests {
             attributes: Default::default(),
         });
         let mut sim_net =
-            SimNetworkPartitionBuilder::from_network(&net, 0, test_utils::config()).build();
+            SimNetworkPartitionBuilder::from_network(&net, 0, &test_utils::config()).build();
 
         // Place 1000 vehicles on link1. Flow cap: 1 veh/s
         for i in 0..1000 {
@@ -1189,7 +1189,7 @@ mod tests {
         net.add_link(out_link_3_1);
 
         let sim_net =
-            SimNetworkPartitionBuilder::from_network(&net, 0, test_utils::config()).build();
+            SimNetworkPartitionBuilder::from_network(&net, 0, &test_utils::config()).build();
 
         let neighbors = sim_net.neighbors();
         assert_eq!(3, neighbors.len());
@@ -1221,8 +1221,8 @@ mod tests {
         network.add_link(link2);
 
         vec![
-            SimNetworkPartitionBuilder::from_network(network, 0, test_utils::config()).into(),
-            SimNetworkPartitionBuilder::from_network(network, 1, test_utils::config()).into(),
+            SimNetworkPartitionBuilder::from_network(network, 0, &test_utils::config()).into(),
+            SimNetworkPartitionBuilder::from_network(network, 1, &test_utils::config()).into(),
         ]
     }
 }
