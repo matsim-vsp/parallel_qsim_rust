@@ -12,6 +12,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tracing::subscriber::with_default;
 use tracing::{info, warn, Level};
 
 /// Macro to register an override handler for a specific config key
@@ -145,6 +146,11 @@ impl Config {
         }
     }
 
+    pub fn network_mut(&mut self) -> &mut Network {
+        self.module_mut::<Network>("network")
+            .expect("Network was not set.")
+    }
+
     pub fn set_network(&mut self, network: Network) {
         self.modules
             .lock()
@@ -158,6 +164,11 @@ impl Config {
         } else {
             panic!("Population was not set.")
         }
+    }
+
+    pub fn population_mut(&mut self) -> &mut Population {
+        self.module_mut::<Population>("population")
+            .expect("Population was not set.")
     }
 
     pub fn set_population(&mut self, population: Population) {
@@ -175,6 +186,11 @@ impl Config {
         }
     }
 
+    pub fn vehicles_mut(&mut self) -> &mut Vehicles {
+        self.module_mut::<Vehicles>("vehicles")
+            .expect("Vehicles was not set.")
+    }
+
     pub fn set_vehicles(&mut self, vehicles: Vehicles) {
         self.modules
             .lock()
@@ -184,6 +200,10 @@ impl Config {
 
     pub fn ids(&self) -> Option<Ids> {
         self.module::<Ids>("ids")
+    }
+
+    pub fn ids_mut(&mut self) -> Option<&mut Ids> {
+        self.module_mut::<Ids>("ids")
     }
 
     pub fn set_ids(&mut self, ids: Ids) {
@@ -209,11 +229,48 @@ impl Config {
         }
     }
 
+    pub fn partitioning_mut(&mut self) -> &mut Partitioning {
+        let modules = self.modules.get_mut().unwrap();
+        if !modules.contains_key("partitioning") {
+            modules.insert(
+                "partitioning".to_string(),
+                Box::new(Partitioning {
+                    num_parts: 1,
+                    method: PartitionMethod::None,
+                }),
+            );
+        }
+        modules
+            .get_mut("partitioning")
+            .unwrap()
+            .as_mut()
+            .as_any_mut()
+            .downcast_mut::<Partitioning>()
+            .unwrap()
+    }
+
     pub fn set_partitioning(&mut self, partitioning: Partitioning) {
         self.modules
             .lock()
             .unwrap()
             .insert("partitioning".to_string(), Box::new(partitioning));
+    }
+
+    pub fn computational_setup_mut(&mut self) -> &mut ComputationalSetup {
+        let modules = self.modules.get_mut().unwrap();
+        if !modules.contains_key("computational_setup") {
+            modules.insert(
+                "computational_setup".to_string(),
+                Box::new(ComputationalSetup::default()),
+            );
+        }
+        modules
+            .get_mut("computational_setup")
+            .unwrap()
+            .as_mut()
+            .as_any_mut()
+            .downcast_mut::<ComputationalSetup>()
+            .unwrap()
     }
 
     pub fn set_computational_setup(&mut self, setup: ComputationalSetup) {
@@ -248,11 +305,47 @@ impl Config {
         }
     }
 
+    pub fn output_mut(&mut self) -> &mut Output {
+        let modules = self.modules.get_mut().unwrap();
+        if !modules.contains_key("output") {
+            modules.insert(
+                "output".to_string(),
+                Box::new(Output {
+                    output_dir: "./output".parse().unwrap(),
+                    profiling: Profiling::None,
+                    logging: Logging::Info,
+                    write_events: WriteEvents::None,
+                }),
+            );
+        }
+        modules
+            .get_mut("output")
+            .unwrap()
+            .as_mut()
+            .as_any_mut()
+            .downcast_mut::<Output>()
+            .unwrap()
+    }
+
     pub fn set_output(&mut self, output: Output) {
         self.modules
             .lock()
             .unwrap()
             .insert("output".to_string(), Box::new(output));
+    }
+
+    pub fn routing_mut(&mut self) -> &mut Routing {
+        let modules = self.modules.get_mut().unwrap();
+        if !modules.contains_key("routing") {
+            modules.insert("routing".to_string(), Box::new(Routing::default()));
+        }
+        modules
+            .get_mut("routing")
+            .unwrap()
+            .as_mut()
+            .as_any_mut()
+            .downcast_mut::<Routing>()
+            .unwrap()
     }
 
     pub fn set_routing(&mut self, routing: Routing) {
@@ -275,6 +368,20 @@ impl Config {
         }
     }
 
+    pub fn simulation_mut(&mut self) -> &mut Simulation {
+        let modules = self.modules.get_mut().unwrap();
+        if !modules.contains_key("simulation") {
+            modules.insert("simulation".to_string(), Box::new(Simulation::default()));
+        }
+        modules
+            .get_mut("simulation")
+            .unwrap()
+            .as_mut()
+            .as_any_mut()
+            .downcast_mut::<Simulation>()
+            .unwrap()
+    }
+
     pub fn routing(&self) -> Routing {
         if let Some(routing) = self.module::<Routing>("routing") {
             routing
@@ -290,6 +397,10 @@ impl Config {
 
     pub fn drt(&self) -> Option<Drt> {
         self.module::<Drt>("drt")
+    }
+
+    pub fn drt_mut(&mut self) -> Option<&mut Drt> {
+        self.module_mut::<Drt>("drt")
     }
 
     pub fn computational_setup(&self) -> ComputationalSetup {
@@ -311,6 +422,14 @@ impl Config {
             .unwrap()
             .get(key)
             .map(|boxed| boxed.as_ref().as_any().downcast_ref::<T>().unwrap().clone())
+    }
+
+    fn module_mut<T: 'static>(&mut self, key: &str) -> Option<&mut T> {
+        self.modules
+            .get_mut()
+            .unwrap()
+            .get_mut(key)
+            .map(|boxed| boxed.as_mut().as_any_mut().downcast_mut::<T>().unwrap())
     }
 
     pub fn context(&self) -> &Option<PathBuf> {
@@ -535,11 +654,15 @@ impl Default for ComputationalSetup {
 #[typetag::serde(tag = "type")]
 pub trait ConfigModule: Debug + Send + DynClone {
     fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 #[typetag::serde]
 impl ConfigModule for Network {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
@@ -549,11 +672,17 @@ impl ConfigModule for Population {
     fn as_any(&self) -> &dyn Any {
         self
     }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 #[typetag::serde]
 impl ConfigModule for Vehicles {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
@@ -563,11 +692,17 @@ impl ConfigModule for Ids {
     fn as_any(&self) -> &dyn Any {
         self
     }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 #[typetag::serde]
 impl ConfigModule for Partitioning {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
@@ -577,11 +712,17 @@ impl ConfigModule for Output {
     fn as_any(&self) -> &dyn Any {
         self
     }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 #[typetag::serde]
 impl ConfigModule for Routing {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
@@ -591,6 +732,9 @@ impl ConfigModule for Simulation {
     fn as_any(&self) -> &dyn Any {
         self
     }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 #[typetag::serde]
@@ -598,11 +742,17 @@ impl ConfigModule for ComputationalSetup {
     fn as_any(&self) -> &dyn Any {
         self
     }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 #[typetag::serde]
 impl ConfigModule for Drt {
     fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
         self
     }
 }
@@ -616,7 +766,7 @@ impl Default for Simulation {
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,
-            stuck_threshold: u32::MAX,
+            stuck_threshold: default_to_10(),
             main_modes: vec!["car".to_string()],
         }
     }
