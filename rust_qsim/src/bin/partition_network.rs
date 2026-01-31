@@ -47,7 +47,7 @@ fn main() {
     let net1 = Network::from_file_path(
         &args.net_path,
         args.num_parts,
-        PartitionMethod::Metis(MetisOptions::default()),
+        &PartitionMethod::Metis(MetisOptions::default()),
     );
     info!(
         "Network is loaded with {} links and {} nodes.",

@@ -51,6 +51,14 @@ impl LocalControllerBuilder {
 }
 
 impl LocalController {
+    /// Runs the simulation and joins all threads before returning.
+    pub fn run_and_join_handles(self) {
+        let handles = self.run();
+        controller::try_join(handles, Default::default());
+    }
+
+    /// This function starts the simulation threads and returns their JoinHandles. The caller is
+    /// responsible for joining the threads! E.g. if not joined, the simulation probably won't run.
     pub fn run(self) -> IntMap<u32, JoinHandle<()>> {
         Self::run_channel(self)
     }
@@ -132,6 +140,5 @@ pub fn run_channel_from_args() {
         .build()
         .unwrap();
 
-    let handles = controller.run();
-    controller::try_join(handles, Default::default())
+    controller.run_and_join_handles()
 }

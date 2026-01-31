@@ -53,8 +53,8 @@ fn test_pt_adaptive(pop_path: PathBuf) {
         .overrides
         .push((String::from("routing.mode"), String::from("ad-hoc")));
 
-    let c = Config::from(config_args);
-    c.population().path = pop_path;
+    let mut c = Config::from(config_args);
+    c.population_mut().path = pop_path;
 
     let config = Arc::new(c);
 

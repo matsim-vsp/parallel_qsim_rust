@@ -156,7 +156,7 @@ pub(crate) mod tests {
         let network = Network::from_file(
             "./assets/routing_tests/triangle-network.xml",
             1,
-            PartitionMethod::Metis(MetisOptions::default()),
+            &PartitionMethod::Metis(MetisOptions::default()),
         );
         NetworkConverter::convert_network(&network, None)
     }
