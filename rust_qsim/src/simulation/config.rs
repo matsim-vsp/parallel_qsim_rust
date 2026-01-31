@@ -203,8 +203,7 @@ impl Config {
     }
 
     pub fn set_ids(&mut self, ids: Ids) {
-        self.modules
-            .insert("ids".to_string(), Box::new(ids));
+        self.modules.insert("ids".to_string(), Box::new(ids));
     }
 
     pub fn partitioning(&self) -> &Partitioning {
@@ -272,8 +271,7 @@ impl Config {
     }
 
     pub fn set_output(&mut self, output: Output) {
-        self.modules
-            .insert("output".to_string(), Box::new(output));
+        self.modules.insert("output".to_string(), Box::new(output));
     }
 
     pub fn routing_mut(&mut self) -> &mut Routing {
@@ -685,9 +683,10 @@ pub enum Logging {
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
 pub enum WriteEvents {
-    #[default]
     None,
+    #[default]
     Proto,
+    XmlGz,
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
@@ -1008,9 +1007,7 @@ mod tests {
                 max_travel_time_beta: 600.,
             }],
         };
-        config
-            .modules
-            .insert("drt".to_string(), Box::new(drt));
+        config.modules.insert("drt".to_string(), Box::new(drt));
 
         let parsed_config: Config = serde_yaml::from_str(serde).expect("failed to parse config");
         assert_eq!(

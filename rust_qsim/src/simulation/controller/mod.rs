@@ -4,6 +4,7 @@ use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdap
 use crate::simulation::config::{Config, WriteEvents};
 use crate::simulation::events::{EventsManager, OnEventFnBuilder};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
+use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::ScenarioPartitionBuilder;
@@ -179,15 +180,23 @@ fn create_events(
 
     let mut events = EventsManager::new();
 
-    if config.output().write_events == WriteEvents::Proto {
-        let events_file = format!("events.{rank}.binpb");
-        let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
-        info!("adding events writer with path: {events_path:?}");
-        ProtoEventsWriter::register(events_path)(&mut events)
+    match config.output().write_events {
+        WriteEvents::None => {}
+        WriteEvents::Proto => {
+            let events_file = format!("events.{rank}.binpb");
+            let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
+            info!("adding events writer with path: {events_path:?}");
+            ProtoEventsWriter::register(events_path)(&mut events)
+        }
+        WriteEvents::XmlGz => {
+            let events_file = format!("events.{rank}.xml.gz");
+            let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
+            info!("adding events writer with path: {events_path:?}");
+            XmlEventsWriter::register(events_path)(&mut events)
+        }
     }
 
     for subscriber in additional_subscribers {
-        // events.borrow_mut().add_subscriber(subscriber);
         subscriber(&mut events);
     }
 
