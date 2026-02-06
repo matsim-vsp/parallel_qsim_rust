@@ -119,26 +119,3 @@ impl LocalController {
         handles
     }
 }
-
-pub fn run_channel_from_args() {
-    let _guard = init_std_out_logging_thread_local();
-
-    let args = CommandLineArgs::parse();
-    info!("Started with args: {:?}", args);
-
-    // Load and adapt config
-    let config = Arc::new(Config::from(args));
-
-    // Load and adapt scenario
-    let scenario = GlobalScenario::load(config);
-
-    // Create and run simulation
-    let controller = LocalControllerBuilder::default()
-        .global_scenario(scenario)
-        .events_subscriber_per_partition(HashMap::default())
-        .external_services(ExternalServices::default())
-        .build()
-        .unwrap();
-
-    controller.run_and_join_handles()
-}
