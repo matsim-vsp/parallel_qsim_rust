@@ -1,4 +1,4 @@
-use crate::simulation::config::{write_config, Config};
+use crate::simulation::config::write_config;
 use crate::simulation::controller::{ExternalServices, PartitionArgumentsBuilder};
 use crate::simulation::events::OnEventFnBuilder;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
