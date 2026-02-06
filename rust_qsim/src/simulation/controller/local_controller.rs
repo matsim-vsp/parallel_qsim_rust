@@ -1,11 +1,9 @@
-use crate::simulation::config::{write_config, CommandLineArgs, Config};
+use crate::simulation::config::write_config;
 use crate::simulation::controller::{ExternalServices, PartitionArgumentsBuilder};
 use crate::simulation::events::OnEventFnBuilder;
-use crate::simulation::logging::init_std_out_logging_thread_local;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::scenario::{GlobalScenario, ScenarioPartitionBuilder};
 use crate::simulation::{controller, io};
-use clap::Parser;
 use derive_builder::Builder;
 use derive_more::Debug;
 use nohash_hasher::IntMap;
