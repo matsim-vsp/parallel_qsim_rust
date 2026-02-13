@@ -1,5 +1,4 @@
 use crate::simulation::config::Config;
-use crate::simulation::controller::{create_output_filename, insert_number_in_proto_filename};
 use crate::simulation::network::sim_network::{SimNetworkPartition, SimNetworkPartitionBuilder};
 use crate::simulation::network::Network;
 use crate::simulation::population::Population;
@@ -8,17 +7,26 @@ use crate::simulation::{id, io};
 use std::sync::Arc;
 use tracing::info;
 
-/// The GlobalScenario contains the full scenario data.
+/// This enum works as state holder enum for the scenario's population. Either, the scenario is owner
+/// of the Population (e.g. at startup and end) or the population is split among the threads.
 #[derive(Debug)]
-pub struct GlobalScenario {
-    pub network: Network,
-    pub garage: Garage,
-    pub population: Population,
+#[allow(dead_code)]
+pub enum GlobalPopulation {
+    Full(Population),
+    Partitioned,
+}
+
+/// The scenario contains the full scenario data.
+#[derive(Debug)]
+pub struct Scenario {
+    pub network: Arc<Network>,
+    pub garage: Arc<Garage>,
+    pub population: GlobalPopulation,
     // this is deliberately an Arc, as it is shared between all partitions and other threads. Otherwise, cloning would be needed.
     pub config: Arc<Config>,
 }
 
-impl GlobalScenario {
+impl Scenario {
     pub fn load(config: Arc<Config>) -> Self {
         info!("Start loading scenario.");
 
@@ -32,10 +40,10 @@ impl GlobalScenario {
         let mut garage = Self::load_garage(&config);
         let population = Self::load_population(&config, &mut garage);
 
-        GlobalScenario {
-            network,
-            garage,
-            population,
+        Scenario {
+            network: Arc::new(network),
+            garage: Arc::new(garage),
+            population: GlobalPopulation::Full(population),
             config,
         }
     }
@@ -43,16 +51,7 @@ impl GlobalScenario {
     fn load_network(config: &Config) -> Network {
         let net_in_path = io::resolve_path(config.context(), &config.network().path);
         let num_parts = config.partitioning().num_parts;
-        let network =
-            Network::from_file_path(&net_in_path, num_parts, &config.partitioning().method);
-
-        let mut net_out_path = create_output_filename(
-            &io::resolve_path(config.context(), &config.output().output_dir),
-            &net_in_path,
-        );
-        net_out_path = insert_number_in_proto_filename(&net_out_path, num_parts);
-        network.to_file(&net_out_path);
-        network
+        Network::from_file_path(&net_in_path, num_parts, &config.partitioning().method)
     }
 
     fn load_garage(config: &Config) -> Garage {
@@ -70,7 +69,7 @@ impl GlobalScenario {
 /// The ScenarioPartition contains the scenario data for a specific partition.
 #[derive(Debug)]
 pub struct ScenarioPartition {
-    pub(crate) network: Network,
+    pub(crate) network: Arc<Network>,
     pub(crate) garage: Garage,
     pub(crate) population: Population,
     pub(crate) network_partition: SimNetworkPartition,
@@ -80,7 +79,7 @@ pub struct ScenarioPartition {
 /// This struct is needed as intermediate step to build a ScenarioPartition.
 #[derive(Debug)]
 pub struct ScenarioPartitionBuilder {
-    network: Network,
+    network: Arc<Network>,
     garage: Garage,
     population: Population,
     network_partition: SimNetworkPartitionBuilder,
@@ -88,10 +87,10 @@ pub struct ScenarioPartitionBuilder {
 }
 
 impl ScenarioPartitionBuilder {
-    pub(crate) fn from(mut value: GlobalScenario) -> Vec<Self> {
+    pub(crate) fn from(scenario: &mut Scenario) -> Vec<Self> {
         let mut partitions = Vec::new();
-        for i in 0..value.config.partitioning().num_parts {
-            let partition = Self::create_partition(i, &mut value);
+        for i in 0..scenario.config.partitioning().num_parts {
+            let partition = Self::create_partition(i, scenario);
             partitions.push(partition);
         }
         partitions
@@ -107,24 +106,31 @@ impl ScenarioPartitionBuilder {
         }
     }
 
-    fn create_partition(partition_num: u32, global_scenario: &mut GlobalScenario) -> Self {
+    fn create_partition(partition_num: u32, scenario: &mut Scenario) -> Self {
+        let global_pop = match &mut scenario.population {
+            GlobalPopulation::Full(p) => p,
+            GlobalPopulation::Partitioned => {
+                panic!("Tried to create a partition after the population was already split among the partitions. This is not allowed.")
+            }
+        };
+
         let network_partition = Self::create_network_partition(
-            &global_scenario.config,
+            &scenario.config,
             partition_num,
-            &global_scenario.network,
-            &global_scenario.population,
+            &scenario.network,
+            global_pop,
         );
 
-        let population = global_scenario
-            .population
-            .take_from_filtered_part(&global_scenario.network, partition_num);
+        let population = global_pop.take_from_filtered_part(&scenario.network, partition_num);
 
         Self {
-            network: global_scenario.network.clone(),
-            garage: global_scenario.garage.clone(),
+            network: scenario.network.clone(),
+            // this not very nice, but for now we are very liberal about when, where and how often agents can access their vehicles.
+            // Also, we just have an `unpark` method, no counterpart for adding vehicles. paul, feb '26
+            garage: (*scenario.garage).clone(),
             population,
             network_partition,
-            config: global_scenario.config.clone(),
+            config: scenario.config.clone(),
         }
     }
 

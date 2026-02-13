@@ -169,6 +169,10 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     // This is important for integration tests when the same test thread executes multiple simulations
     // one after another and consequently initializes logging for each test case.
     drop(_guards);
+
+    // TODO
+    // At some point, we want to return the population here such that the controller gets ownership back
+    // when the simulation is over.
 }
 
 fn create_events(
@@ -204,7 +208,7 @@ fn create_events(
 }
 
 /// Joins all simulation threads and then shuts down all adapter threads.
-pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandle>) {
+fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandle>) {
     while !handles.is_empty() {
         sleep(Duration::from_secs(1)); // test for finished threads once a second
         let mut finished = Vec::new();
