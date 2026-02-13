@@ -161,7 +161,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
-    info!("Process #{rank} of {size} has arrived at initial barrier. Waiting for other processes and potentially external services to arrive at global barrier.");
+    info!("Process #{rank} of {size} has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier.");
     partition_arguments.global_barrier.wait();
     simulation.run();
 

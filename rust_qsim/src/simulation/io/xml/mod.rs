@@ -40,13 +40,16 @@ where
     };
 
     // Parse the XML
+    info!("Starting to read from file: {file_path:?}");
     let mut de = Deserializer::from_reader(reader);
-    match serde_path_to_error::deserialize(&mut de) {
+    let res = match serde_path_to_error::deserialize(&mut de) {
         Ok(parsed) => parsed,
         Err(err) => {
             panic!("Failed to deserialize XML:\n{err:#?}");
         }
-    }
+    };
+    info!("Finished reading from file: {file_path:?}");
+    res
 }
 
 fn local_file_reader(file_path: &str, is_gz: bool) -> Box<dyn BufRead> {

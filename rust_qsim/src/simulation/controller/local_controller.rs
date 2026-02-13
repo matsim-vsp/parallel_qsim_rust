@@ -77,6 +77,7 @@ impl LocalController {
                 .map(Some)
                 .collect();
 
+        info!("=========== Start Iteration 0 ===========");
         info!(
             "Starting multithreaded Simulation with {} partitions.",
             num_parts
@@ -113,7 +114,7 @@ impl LocalController {
                 )
             })
             .collect();
-
+        info!("=========== End Iteration 0 ===========");
         handles
     }
 }

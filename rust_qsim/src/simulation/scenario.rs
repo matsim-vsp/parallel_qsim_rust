@@ -20,15 +20,17 @@ pub struct GlobalScenario {
 
 impl GlobalScenario {
     pub fn load(config: Arc<Config>) -> Self {
+        info!("Start loading scenario.");
+
         if let Some(ids) = config.ids() {
             info!("Loading IDs from {:?}", ids.path);
             id::load_from_file(&io::resolve_path(config.context(), &ids.path));
         }
 
         // mandatory content to create a scenario
-        let network = Self::create_network(&config);
-        let mut garage = Self::create_garage(&config);
-        let population = Self::create_population(&config, &mut garage);
+        let network = Self::load_network(&config);
+        let mut garage = Self::load_garage(&config);
+        let population = Self::load_population(&config, &mut garage);
 
         GlobalScenario {
             network,
@@ -38,7 +40,7 @@ impl GlobalScenario {
         }
     }
 
-    fn create_network(config: &Config) -> Network {
+    fn load_network(config: &Config) -> Network {
         let net_in_path = io::resolve_path(config.context(), &config.network().path);
         let num_parts = config.partitioning().num_parts;
         let network =
@@ -53,11 +55,11 @@ impl GlobalScenario {
         network
     }
 
-    fn create_garage(config: &Config) -> Garage {
+    fn load_garage(config: &Config) -> Garage {
         Garage::from_file(&io::resolve_path(config.context(), &config.vehicles().path))
     }
 
-    fn create_population(config: &Config, garage: &mut Garage) -> Population {
+    fn load_population(config: &Config, garage: &mut Garage) -> Population {
         Population::from_file(
             &io::resolve_path(config.context(), &config.population().path),
             garage,
