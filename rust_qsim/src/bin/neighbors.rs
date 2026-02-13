@@ -45,6 +45,7 @@ fn main() {
                 &net,
                 partition,
                 &config::Simulation::default(),
+                4711,
             )
             .build();
             let neighbors = net_partition.neighbors().len();

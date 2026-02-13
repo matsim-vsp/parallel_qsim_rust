@@ -351,7 +351,7 @@ mod tests {
             main_modes: vec![],
         };
         let partition =
-            SimNetworkPartitionBuilder::from_network(&create_network(), rank, &config).build();
+            SimNetworkPartitionBuilder::from_network(&create_network(), rank, &config, 4711).build();
 
         assert_eq!(partition.get_node_ids().len(), 1);
 
