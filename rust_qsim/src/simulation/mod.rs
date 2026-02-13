@@ -22,6 +22,7 @@ pub mod network;
 pub mod population;
 pub mod profiling;
 pub mod pt;
+pub mod random;
 pub mod replanning;
 pub mod scenario;
 #[allow(clippy::module_inception)]

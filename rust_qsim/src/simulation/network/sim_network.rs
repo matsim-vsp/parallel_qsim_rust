@@ -1105,6 +1105,10 @@ mod tests {
         // link1 has flow cap of 1 veh/s, link2 has flow cap of 2 veh/s.
         // Since all go from link1 and link2 to link3 (flow cap: 1 veh/s), there is only one vehicle per time step moved over the node.
         // This is why we expect link1 to have roughly twice the vehicles as link2.
+        print!(
+            "Link 1 vehicle count: {}; Link 2 vehicle count: {}",
+            link1, link2
+        );
         assert!(
             (link2 * 2).abs_diff(link1) <= 100,
             "values differ by more than 100"

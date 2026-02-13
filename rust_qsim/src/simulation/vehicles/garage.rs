@@ -162,7 +162,10 @@ impl Garage {
         let veh_type_id = &self
             .vehicles
             .get(&id)
-            .unwrap_or_else(|| panic!("Can't unpark vehicle with id {id}. It was not parked in this garage. Vehicle: {:?}", self.vehicles.len())).vehicle_type;
+            .unwrap_or_else(|| {
+                panic!("Can't unpark vehicle with id {id}. It was not parked in this garage.")
+            })
+            .vehicle_type;
 
         let veh_type = self.vehicle_types.get(veh_type_id).unwrap();
 

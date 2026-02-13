@@ -1,19 +1,17 @@
 use derive_builder::Builder;
-use nohash_hasher::IntMap;
 use rust_qsim::external_services::AdapterHandle;
 use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::{EventTrait, EventsManager, OnEventFnBuilder};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_qsim::simulation::scenario::GlobalScenario;
+use rust_qsim::simulation::scenario::Scenario;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Barrier};
 use std::thread;
-use std::thread::JoinHandle;
 
 // If not set here, import gets optimized away.
 #[allow(unused_imports)]
@@ -49,7 +47,7 @@ impl TestExecutor<'_> {
         let (subscribers, receiver) = self.create_test_sub_recv();
 
         // start the simulation
-        let mut handles = self.run(subscribers);
+        self.run(subscribers);
 
         // start listening for events
         if let Some(mut receiver) = receiver {
@@ -62,11 +60,10 @@ impl TestExecutor<'_> {
                     drop(_guard)
                 })
                 .expect("No test receiver thread could be created.");
-            handles.insert(handles.len() as u32, receiver_handle);
+            receiver_handle
+                .join()
+                .expect("Failed to join test receiver thread.");
         }
-
-        // wait for all threads to finish
-        rust_qsim::simulation::controller::try_join(handles, self.adapter_handles);
 
         drop(_guard);
     }
@@ -104,17 +101,15 @@ impl TestExecutor<'_> {
         (subscribers, receiver)
     }
 
-    fn run(
-        &mut self,
-        subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
-    ) -> IntMap<u32, JoinHandle<()>> {
-        let scenario = GlobalScenario::load(self.config.clone());
+    fn run(self, subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>>) {
+        let scenario = Scenario::load(self.config.clone());
 
         let controller = LocalControllerBuilder::default()
-            .global_scenario(scenario)
+            .scenario(scenario)
             .events_subscriber_per_partition(subscribers)
             .external_services(self.external_services.clone())
             .global_barrier(self.global_barrier.clone())
+            .adapter_handles(self.adapter_handles)
             .build()
             .unwrap();
 
