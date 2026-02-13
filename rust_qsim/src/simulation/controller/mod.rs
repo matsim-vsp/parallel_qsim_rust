@@ -161,6 +161,9 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
         .services(external_services)
         .events_publisher(events.clone())
+        .random_generator(Arc::new(RandomGenerator::new(
+            scenario.config.computational_setup().random_seed,
+        )))
         .build()
         .unwrap();
 

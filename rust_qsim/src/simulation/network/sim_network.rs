@@ -11,8 +11,7 @@ use crate::simulation::id::Id;
 use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
 use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::{IntMap, IntSet};
-use rand::rngs::ThreadRng;
-use rand::{rng, Rng};
+use rand::Rng;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -75,7 +74,6 @@ pub struct SimNetworkPartition {
     pub nodes: IntMap<Id<Node>, SimNode>,
     // use int map as hash map variant with stable order
     pub links: IntMap<Id<Link>, SimLink>,
-    rnd: ThreadRng,
     active_nodes: ActiveCache<Node>,
     active_links: ActiveCache<Link>,
     veh_counter: usize,
@@ -197,7 +195,6 @@ impl SimNetworkPartition {
         Self {
             nodes,
             links,
-            rnd: rng(),
             active_links: ActiveCache::<Link>::default(),
             active_nodes: ActiveCache::<Node>::default(),
             veh_counter: 0,
@@ -435,7 +432,6 @@ impl SimNetworkPartition {
                 &mut self.links,
                 &mut self.active_links,
                 comp_env,
-                &mut self.rnd,
                 now,
             );
             if !active {
@@ -453,9 +449,12 @@ impl SimNetworkPartition {
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut ActiveCache<Link>,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        rnd: &mut ThreadRng,
         now: u32,
     ) -> bool {
+        // Get node-specific RNG using node id and current time as hash
+        // This ensures determinism while maintaining different behavior across time steps
+        let mut rnd = comp_env.random_generator().get_rnd((&node.id, now));
+        
         let (active, mut avail_capacity) =
             Self::get_active_in_links(&node.in_links, active_links, links);
         let mut exhausted_links: Vec<Option<()>> = vec![None; active.len()];
