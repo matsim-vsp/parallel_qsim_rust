@@ -63,8 +63,9 @@ mod tests {
         let mut rng1 = gen.get_rnd(123);
         let mut rng2 = gen.get_rnd(123);
         
+        // Test with integers for robust comparison
         for _ in 0..10 {
-            assert_eq!(rng1.random::<f32>(), rng2.random::<f32>());
+            assert_eq!(rng1.random::<u32>(), rng2.random::<u32>());
         }
     }
 

@@ -53,6 +53,13 @@ where
     }
 }
 
+/// TimeQueue provides a priority queue ordered by time with stable FIFO ordering
+/// for entries with the same time.
+/// 
+/// Note: The internal counter will wrap around after usize::MAX insertions (2^64 on 64-bit systems).
+/// This is acceptable for simulation purposes as it would take an astronomically large number
+/// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
+/// of having entries with both the same time and counter values after overflow.
 pub struct TimeQueue<T, I>
 where
     T: EndTime,
@@ -86,7 +93,8 @@ where
     pub fn add(&mut self, value: T, now: u32) {
         let end_time = value.end_time(now);
         let order = self.counter;
-        self.counter += 1;
+        // Counter wraps around naturally with usize overflow behavior
+        self.counter = self.counter.wrapping_add(1);
         self.q.push(Entry { end_time, order, value });
     }
 
