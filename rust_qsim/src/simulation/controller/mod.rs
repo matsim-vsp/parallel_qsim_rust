@@ -7,6 +7,7 @@ use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
+use crate::simulation::random::RandomGenerator;
 use crate::simulation::scenario::ScenarioPartitionBuilder;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
@@ -85,6 +86,9 @@ pub struct ThreadLocalComputationalEnvironment {
     // The value is of type Rc as this is a thread-local events publisher.
     #[builder(default)]
     events_publisher: Rc<RefCell<EventsManager>>,
+    // The value is of type Arc as this is shared across threads but immutable once created.
+    #[builder(default)]
+    random_generator: Arc<RandomGenerator>,
 }
 
 impl Default for ThreadLocalComputationalEnvironment {
@@ -92,6 +96,7 @@ impl Default for ThreadLocalComputationalEnvironment {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
             events_publisher: Rc::new(RefCell::new(EventsManager::new())),
+            random_generator: Arc::new(RandomGenerator::new(4711)),
         }
     }
 }
@@ -110,6 +115,10 @@ impl ThreadLocalComputationalEnvironment {
 
     pub fn events_publisher(&self) -> Rc<RefCell<EventsManager>> {
         self.events_publisher.clone()
+    }
+
+    pub fn random_generator(&self) -> Arc<RandomGenerator> {
+        self.random_generator.clone()
     }
 }
 

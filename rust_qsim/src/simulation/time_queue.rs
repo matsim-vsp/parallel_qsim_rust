@@ -17,6 +17,7 @@ where
     T: EndTime,
 {
     end_time: u32,
+    order: usize,
     value: T,
 }
 
@@ -45,7 +46,10 @@ where
     T: EndTime,
 {
     fn cmp(&self, other: &Self) -> Ordering {
+        // First compare by end_time (reverse for min-heap)
+        // Then use order as secondary sort key (also reverse for FIFO within same time)
         other.end_time.cmp(&self.end_time)
+            .then_with(|| other.order.cmp(&self.order))
     }
 }
 
@@ -54,6 +58,7 @@ where
     T: EndTime,
 {
     q: BinaryHeap<Entry<T>>,
+    counter: usize,
     _phantom: std::marker::PhantomData<I>,
 }
 
@@ -73,13 +78,16 @@ where
     pub fn new() -> Self {
         TimeQueue {
             q: BinaryHeap::new(),
+            counter: 0,
             _phantom: std::marker::PhantomData,
         }
     }
 
     pub fn add(&mut self, value: T, now: u32) {
         let end_time = value.end_time(now);
-        self.q.push(Entry { end_time, value });
+        let order = self.counter;
+        self.counter += 1;
+        self.q.push(Entry { end_time, order, value });
     }
 
     pub fn pop(&mut self, now: u32) -> Vec<T> {

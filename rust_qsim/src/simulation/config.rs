@@ -501,6 +501,10 @@ fn default_to_10() -> u32 {
     10
 }
 
+fn default_random_seed() -> u64 {
+    4711
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
@@ -509,6 +513,8 @@ pub struct ComputationalSetup {
     pub adapter_worker_threads: u32,
     #[serde(default = "default_to_600")]
     pub retry_time_seconds: u64,
+    #[serde(default = "default_random_seed")]
+    pub random_seed: u64,
 }
 
 register_override!(
@@ -522,12 +528,17 @@ register_override!("computational_setup.global_sync", |config, value| {
     config.computational_setup_mut().global_sync = value.parse().unwrap();
 });
 
+register_override!("computational_setup.random_seed", |config, value| {
+    config.computational_setup_mut().random_seed = value.parse().unwrap();
+});
+
 impl Default for ComputationalSetup {
     fn default() -> Self {
         Self {
             global_sync: false,
             adapter_worker_threads: default_to_3(),
             retry_time_seconds: default_to_600(),
+            random_seed: default_random_seed(),
         }
     }
 }
@@ -859,6 +870,7 @@ mod tests {
             global_sync: true,
             adapter_worker_threads: 42,
             retry_time_seconds: 41,
+            random_seed: 4711,
         };
 
         let simulation = Simulation {
