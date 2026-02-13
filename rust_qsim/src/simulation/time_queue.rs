@@ -185,3 +185,63 @@ where
         self.cache.values_mut()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    struct TestItem {
+        id: u32,
+        end: u32,
+    }
+
+    impl EndTime for TestItem {
+        fn end_time(&self, _now: u32) -> u32 {
+            self.end
+        }
+    }
+
+    #[test]
+    fn test_time_queue_stable_ordering() {
+        let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        
+        // Add multiple items with the same end time
+        // They should be popped in the order they were added (FIFO)
+        queue.add(TestItem { id: 1, end: 10 }, 0);
+        queue.add(TestItem { id: 2, end: 10 }, 0);
+        queue.add(TestItem { id: 3, end: 10 }, 0);
+        
+        let results = queue.pop(10);
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].id, 1);
+        assert_eq!(results[1].id, 2);
+        assert_eq!(results[2].id, 3);
+    }
+
+    #[test]
+    fn test_time_queue_time_ordering_priority() {
+        let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        
+        // Add items with different end times
+        // They should be popped in time order first
+        queue.add(TestItem { id: 1, end: 15 }, 0);
+        queue.add(TestItem { id: 2, end: 10 }, 0);
+        queue.add(TestItem { id: 3, end: 20 }, 0);
+        queue.add(TestItem { id: 4, end: 10 }, 0); // Same as id:2
+        
+        let results = queue.pop(10);
+        assert_eq!(results.len(), 2);
+        // Time 10 items should come out in order they were added
+        assert_eq!(results[0].id, 2);
+        assert_eq!(results[1].id, 4);
+        
+        let results = queue.pop(15);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, 1);
+        
+        let results = queue.pop(20);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, 3);
+    }
+}
