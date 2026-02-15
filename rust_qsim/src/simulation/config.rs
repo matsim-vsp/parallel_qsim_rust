@@ -401,7 +401,7 @@ register_override!("ids.path", |config, value| {
     });
 });
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Partitioning {
     pub num_parts: u32,
     pub method: PartitionMethod,
@@ -416,7 +416,7 @@ register_override!("partitioning.num_parts", |config, value| {
     }
 });
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Output {
     pub output_dir: PathBuf,
     #[serde(default)]
@@ -431,7 +431,7 @@ register_override!("output.output_dir", |config, value| {
     config.output_mut().output_dir = PathBuf::from(value);
 });
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Routing {
     pub mode: RoutingMode,
 }
@@ -460,7 +460,7 @@ fn default_to_600() -> u64 {
     600
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Drt {
     #[serde(default)]
     pub process_type: DrtProcessType,
@@ -474,7 +474,7 @@ pub enum DrtProcessType {
     OneProcessPerService,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct DrtService {
     pub mode: String,
     #[serde(default)]
@@ -487,7 +487,7 @@ pub struct DrtService {
     pub max_travel_time_beta: f32,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
@@ -501,7 +501,7 @@ fn default_to_10() -> u32 {
     10
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
     #[serde(default = "default_to_3")]
