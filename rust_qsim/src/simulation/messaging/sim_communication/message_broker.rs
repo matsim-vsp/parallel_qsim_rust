@@ -350,8 +350,13 @@ mod tests {
             stuck_threshold: 0,
             main_modes: vec![],
         };
-        let partition =
-            SimNetworkPartitionBuilder::from_network(&create_network(), rank, &config).build();
+        let partition = SimNetworkPartitionBuilder::from_network(
+            &create_network(),
+            rank,
+            &config,
+            config::DEFAULT_RANDOM_SEED,
+        )
+        .build();
 
         assert_eq!(partition.get_node_ids().len(), 1);
 

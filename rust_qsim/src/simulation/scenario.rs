@@ -140,8 +140,9 @@ impl ScenarioPartitionBuilder {
         network: &Network,
         population: &Population,
     ) -> SimNetworkPartitionBuilder {
+        let base_seed = config.computational_setup().random_seed;
         let partition =
-            SimNetworkPartitionBuilder::from_network(network, rank, config.simulation());
+            SimNetworkPartitionBuilder::from_network(network, rank, config.simulation(), base_seed);
         info!(
             "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
             partition.nodes.len(),

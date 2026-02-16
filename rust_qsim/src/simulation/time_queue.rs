@@ -17,6 +17,7 @@ where
     T: EndTime,
 {
     end_time: u32,
+    order: usize,
     value: T,
 }
 
@@ -45,15 +46,26 @@ where
     T: EndTime,
 {
     fn cmp(&self, other: &Self) -> Ordering {
+        // First compare by end_time (reverse for min-heap)
+        // Then use order as secondary sort key (also reverse for FIFO within same time)
         other.end_time.cmp(&self.end_time)
+            .then_with(|| other.order.cmp(&self.order))
     }
 }
 
+/// TimeQueue provides a priority queue ordered by time with stable FIFO ordering
+/// for entries with the same time.
+/// 
+/// Note: The internal counter will wrap around after usize::MAX insertions (2^64 on 64-bit systems).
+/// This is acceptable for simulation purposes as it would take an astronomically large number
+/// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
+/// of having entries with both the same time and counter values after overflow.
 pub struct TimeQueue<T, I>
 where
     T: EndTime,
 {
     q: BinaryHeap<Entry<T>>,
+    counter: usize,
     _phantom: std::marker::PhantomData<I>,
 }
 
@@ -73,13 +85,17 @@ where
     pub fn new() -> Self {
         TimeQueue {
             q: BinaryHeap::new(),
+            counter: 0,
             _phantom: std::marker::PhantomData,
         }
     }
 
     pub fn add(&mut self, value: T, now: u32) {
         let end_time = value.end_time(now);
-        self.q.push(Entry { end_time, value });
+        let order = self.counter;
+        // Counter wraps around naturally with usize overflow behavior
+        self.counter = self.counter.wrapping_add(1);
+        self.q.push(Entry { end_time, order, value });
     }
 
     pub fn pop(&mut self, now: u32) -> Vec<T> {
@@ -175,5 +191,65 @@ where
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.cache.values_mut()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    struct TestItem {
+        id: u32,
+        end: u32,
+    }
+
+    impl EndTime for TestItem {
+        fn end_time(&self, _now: u32) -> u32 {
+            self.end
+        }
+    }
+
+    #[test]
+    fn test_time_queue_stable_ordering() {
+        let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        
+        // Add multiple items with the same end time
+        // They should be popped in the order they were added (FIFO)
+        queue.add(TestItem { id: 1, end: 10 }, 0);
+        queue.add(TestItem { id: 2, end: 10 }, 0);
+        queue.add(TestItem { id: 3, end: 10 }, 0);
+        
+        let results = queue.pop(10);
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].id, 1);
+        assert_eq!(results[1].id, 2);
+        assert_eq!(results[2].id, 3);
+    }
+
+    #[test]
+    fn test_time_queue_time_ordering_priority() {
+        let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        
+        // Add items with different end times
+        // They should be popped in time order first
+        queue.add(TestItem { id: 1, end: 15 }, 0);
+        queue.add(TestItem { id: 2, end: 10 }, 0);
+        queue.add(TestItem { id: 3, end: 20 }, 0);
+        queue.add(TestItem { id: 4, end: 10 }, 0); // Same as id:2
+        
+        let results = queue.pop(10);
+        assert_eq!(results.len(), 2);
+        // Time 10 items should come out in order they were added
+        assert_eq!(results[0].id, 2);
+        assert_eq!(results[1].id, 4);
+        
+        let results = queue.pop(15);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, 1);
+        
+        let results = queue.pop(20);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].id, 3);
     }
 }

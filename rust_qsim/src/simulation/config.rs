@@ -13,6 +13,8 @@ use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 use tracing::{info, warn, Level};
 
+pub const DEFAULT_RANDOM_SEED: u64 = 4711;
+
 /// Macro to register an override handler for a specific config key
 #[macro_export]
 macro_rules! register_override {
@@ -501,6 +503,10 @@ fn default_to_10() -> u32 {
     10
 }
 
+fn default_random_seed() -> u64 {
+    DEFAULT_RANDOM_SEED
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
@@ -509,6 +515,8 @@ pub struct ComputationalSetup {
     pub adapter_worker_threads: u32,
     #[serde(default = "default_to_600")]
     pub retry_time_seconds: u64,
+    #[serde(default = "default_random_seed")]
+    pub random_seed: u64,
 }
 
 register_override!(
@@ -522,12 +530,17 @@ register_override!("computational_setup.global_sync", |config, value| {
     config.computational_setup_mut().global_sync = value.parse().unwrap();
 });
 
+register_override!("computational_setup.random_seed", |config, value| {
+    config.computational_setup_mut().random_seed = value.parse().unwrap();
+});
+
 impl Default for ComputationalSetup {
     fn default() -> Self {
         Self {
             global_sync: false,
             adapter_worker_threads: default_to_3(),
             retry_time_seconds: default_to_600(),
+            random_seed: default_random_seed(),
         }
     }
 }
@@ -828,6 +841,7 @@ fn default_profiling_level() -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config;
     use crate::simulation::config::Output;
     use crate::simulation::config::PathBuf;
     use crate::simulation::config::Profiling;
@@ -859,6 +873,7 @@ mod tests {
             global_sync: true,
             adapter_worker_threads: 42,
             retry_time_seconds: 41,
+            random_seed: config::DEFAULT_RANDOM_SEED,
         };
 
         let simulation = Simulation {
