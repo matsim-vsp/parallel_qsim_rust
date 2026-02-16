@@ -6,7 +6,9 @@ use ahash::HashSet;
 use clap::Parser;
 use tracing::info;
 
-use rust_qsim::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod, VertexWeight};
+use rust_qsim::simulation::config::{
+    Config, EdgeWeight, MetisOptions, PartitionMethod, VertexWeight,
+};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::network::sim_network::SimNetworkPartitionBuilder;
 use rust_qsim::simulation::network::Network;
@@ -45,7 +47,7 @@ fn main() {
                 &net,
                 partition,
                 &config::Simulation::default(),
-                4711,
+                config::DEFAULT_RANDOM_SEED,
             )
             .build();
             let neighbors = net_partition.neighbors().len();

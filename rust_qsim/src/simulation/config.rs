@@ -13,6 +13,8 @@ use std::io::{BufRead, BufReader, BufWriter};
 use std::path::PathBuf;
 use tracing::{info, warn, Level};
 
+pub const DEFAULT_RANDOM_SEED: u64 = 4711;
+
 /// Macro to register an override handler for a specific config key
 #[macro_export]
 macro_rules! register_override {
@@ -502,7 +504,7 @@ fn default_to_10() -> u32 {
 }
 
 fn default_random_seed() -> u64 {
-    4711
+    DEFAULT_RANDOM_SEED
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -839,6 +841,7 @@ fn default_profiling_level() -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::config;
     use crate::simulation::config::Output;
     use crate::simulation::config::PathBuf;
     use crate::simulation::config::Profiling;
@@ -870,7 +873,7 @@ mod tests {
             global_sync: true,
             adapter_worker_threads: 42,
             retry_time_seconds: 41,
-            random_seed: 4711,
+            random_seed: config::DEFAULT_RANDOM_SEED,
         };
 
         let simulation = Simulation {
