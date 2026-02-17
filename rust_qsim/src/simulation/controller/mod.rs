@@ -161,7 +161,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
-    info!("Process #{rank} of {size} has arrived at initial barrier. Waiting for other processes and potentially external services to arrive at global barrier.");
+    info!("Process #{rank} of {size} has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier.");
     partition_arguments.global_barrier.wait();
     simulation.run();
 
@@ -169,6 +169,10 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     // This is important for integration tests when the same test thread executes multiple simulations
     // one after another and consequently initializes logging for each test case.
     drop(_guards);
+
+    // TODO
+    // At some point, we want to return the population here such that the controller gets ownership back
+    // when the simulation is over.
 }
 
 fn create_events(
@@ -204,7 +208,7 @@ fn create_events(
 }
 
 /// Joins all simulation threads and then shuts down all adapter threads.
-pub fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandle>) {
+fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandle>) {
     while !handles.is_empty() {
         sleep(Duration::from_secs(1)); // test for finished threads once a second
         let mut finished = Vec::new();

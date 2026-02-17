@@ -4,17 +4,22 @@ use std::path::Path;
 use tracing::info;
 
 pub fn load_from_proto(path: &Path) -> Network {
+    info!("Start reading proto network from path: {path:?}");
     let wire_net: crate::generated::network::Network = crate::generated::read_from_file(path);
-    Network::from(wire_net)
+    let res = Network::from(wire_net);
+    info!("Finished reading proto network from path: {path:?}");
+    res
 }
 
 pub fn write_to_proto(network: &Network, path: &Path) {
+    info!("Start writing proto network to path: {path:?}");
     let wire_network = crate::generated::network::Network::from(network);
     crate::generated::write_to_file(wire_network, path);
+    info!("Finished writing proto network to path: {path:?}");
 }
 
 impl crate::generated::network::Network {
-    pub fn from(network: &crate::simulation::network::Network) -> Self {
+    pub fn from(network: &Network) -> Self {
         info!("Converting Network into wire format");
         let nodes: Vec<_> = network
             .nodes()

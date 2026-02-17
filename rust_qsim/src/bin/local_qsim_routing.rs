@@ -2,11 +2,10 @@ use clap::Parser;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::Config;
-use rust_qsim::simulation::controller;
 use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::scenario::GlobalScenario;
+use rust_qsim::simulation::scenario::Scenario;
 use std::sync::{Arc, Barrier};
 use tracing::info;
 
@@ -50,31 +49,29 @@ fn main() {
     // - a channel for sending shutdown signal for the adapter
     let (router_handle, send, send_sd) = executor.spawn_thread("router", factory);
 
+    // Creating the adapter handle. This is necessary for regulated shutdown of the adapter thread. Otherwise, the adapter might be stuck in a loop.
+    let adapters = vec![AdapterHandleBuilder::default()
+        .shutdown_sender(send_sd)
+        .handle(router_handle)
+        .build()
+        .unwrap()];
+
     // The request sender is passed to the controller.
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
     // Load scenario
-    let scenario = GlobalScenario::load(config);
+    let scenario = Scenario::load(config);
 
     // Create controller
     let controller = LocalControllerBuilder::default()
-        .global_scenario(scenario)
+        .scenario(scenario)
         .external_services(services)
         .global_barrier(barrier)
+        .adapter_handles(adapters)
         .build()
         .unwrap();
 
     // Run controller
-    let sim_handles = controller.run();
-
-    // Wait for the controller to finish and the routing adapter to finish.
-    controller::try_join(
-        sim_handles,
-        vec![AdapterHandleBuilder::default()
-            .shutdown_sender(send_sd)
-            .handle(router_handle)
-            .build()
-            .unwrap()],
-    )
+    controller.run();
 }
