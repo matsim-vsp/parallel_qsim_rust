@@ -55,6 +55,7 @@ mod tests {
     // use flate2::bufread;
     use flate2::bufread::GzDecoder;
     use rust_qsim::simulation::io::proto::xml_events::XmlEventsReader;
+    use std::fs;
     use std::fs::File;
     use std::io::copy;
     use std::io::BufRead;
@@ -65,12 +66,19 @@ mod tests {
     fn test_output() {
         // run proto2xml on results from a run of 3-links-config-2.yml
         let args = InputArgs {
-            path: "./test_output/simulation/execute_3_links_2_parts/".to_string(),
-            id_store: "./test_output/simulation/execute_3_links_2_parts/test3links2parts.ids.binpb"
-                .to_string(),
+            path: "./tests/resources/3-links/".to_string(),
+            id_store: "./tests/resources/3-links/3-links.ids.binpb".to_string(),
             num_parts: 2,
         };
         run(args);
+
+        // create result directory, move the generated .gz file there
+        fs::create_dir_all("./test_output/simulation/execute_3_links_2_parts/").unwrap();
+        fs::rename(
+            "./tests/resources/3-links/events.xml.gz",
+            "./test_output/simulation/execute_3_links_2_parts/events.xml.gz",
+        )
+        .unwrap();
 
         // decompress the generated XML file and save as .xml
         let compressed_path = "./test_output/simulation/execute_3_links_2_parts/events.xml.gz";
