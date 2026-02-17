@@ -36,7 +36,14 @@ const EVENTS_FILE: &[u8] = include_bytes!("assets/equil-100/events.0.binpb");
 // Defines the vertical offset between stacked waiting vehicles at a node
 const WAIT_STACK_OFFSET: f32 = 8.0;
 // Delay after each tick is sent to simulate slow event ingestion.
-const EVENTS_READ_DELAY_MS: u64 = 0;
+const EVENTS_READ_DELAY_MS: u64 = 50;
+
+// Display as soon as link enter event is persent -> unsync done
+
+// sleep in viz -> sync
+
+// implement in simulation:
+//
 
 // ============================================================================
 // DATA STRUCTURES & RESOURCES
