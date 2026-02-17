@@ -478,7 +478,7 @@ fn process_events_from_channel(
     for msg in current_available_events {
         match msg {
             EventsTickMessage::Tick { time, events } => {
-                // Advance sim time to the latest tick we received.
+                // Set sim time to the latest tick received.
                 clock.time = clock.time.max(time as f32);
 
                 // Publish each event
@@ -677,20 +677,11 @@ fn setup_ui(mut commands: Commands) {
 
 // Updates the UI text every frame with the current simulation time and FPS.
 fn update_time_and_fps(
-    time: Res<Time<Virtual>>,    // Frame time (runs in `Update`)
-    clock: Res<SimulationClock>, // Simulation clock (drives vehicle positions)
+    clock: Res<SimulationClock>, // Simulation clock
     mut query: Query<&mut Text, With<TimeFpsText>>,
 ) {
     // Read the current simulation time in seconds.
     let sim_time = clock.time;
-
-    // Estimate FPS from the last frame duration.
-    let frame_delta = time.delta_secs();
-    let fps = if frame_delta > 0.0 {
-        (1.0 / frame_delta).round() as i32
-    } else {
-        0
-    };
 
     // Format simulation time (HH:MM)
     let total_seconds = sim_time.max(0.0) as i32;
@@ -698,7 +689,7 @@ fn update_time_and_fps(
     let minutes = (total_seconds / 60) % 60;
 
     // Build the UI string
-    let content = format!("Sim Time: {:02}:{:02}  FPS: {:>4}", hours, minutes, fps);
+    let content = format!("Sim Time: {:02}:{:02}", hours, minutes);
 
     // Update the text component
     for mut text in &mut query {
@@ -754,7 +745,7 @@ fn draw_vehicles(
         (Vec2::ZERO, 1.0) // Default: no offset, no scaling
     };
 
-    // Track how many vehicles are waiting at each node
+    // Track how many vehicles are waiting at each nodei
     let mut waiting_stacks: HashMap<String, u32> = HashMap::new();
 
     // Get current simulation time
