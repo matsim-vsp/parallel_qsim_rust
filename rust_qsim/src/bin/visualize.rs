@@ -8,7 +8,7 @@ use rust_qsim::generated::general::AttributeValue;
 use rust_qsim::generated::network as wire_network;
 use rust_qsim::generated::vehicles as wire_vehicles;
 use rust_qsim::simulation::events::*;
-use rust_qsim::simulation::events::{EventTrait, EventsPublisher, PtTeleportationArrivalEvent};
+use rust_qsim::simulation::events::{EventTrait, EventsManager};
 use rust_qsim::simulation::io::proto::proto_events::ProtoEventsReader;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -118,10 +118,10 @@ struct VehiclesData {
     vehicles: HashMap<String, Vehicle>,
 }
 
-// Resource that holds the TripsBuilder and EventsPublisher for the main thread
+// Resource that holds the TripsBuilder and EventsManager for the main thread
 struct TripsBuilderResource {
     builder: Rc<RefCell<TripsBuilder>>,
-    publisher: EventsPublisher,
+    manager: EventsManager,
 }
 
 // ============================================================================
@@ -275,18 +275,18 @@ impl TripsBuilder {
 // ============================================================================
 
 // Register a callback that forwards all published events to the TripsBuilder
-fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, publisher: &mut EventsPublisher) {
+fn register_trips_listener(builder: Rc<RefCell<TripsBuilder>>, manager: &mut EventsManager) {
     // Clone the builder to use it inside the closure
     let builder_for_events = builder.clone();
 
     // Register a closure that will be called for every published event
-    publisher.on_any(move |event| {
+    manager.on_any(move |event| {
         // Get mutable access to the builder and handle the event
         builder_for_events.borrow_mut().handle_event(event);
     });
 }
 
-// Convert proto events to internal event objects and publish them
+// Convert proto events to internal event objects used by TripsBuilder.
 fn process_events(time: u32, mut events: Vec<MyEvent>) -> Vec<BoxedEvent> {
     let mut internal_events: Vec<BoxedEvent> = Vec::with_capacity(events.len());
 
@@ -299,40 +299,21 @@ fn process_events(time: u32, mut events: Vec<MyEvent>) -> Vec<BoxedEvent> {
         }
 
         let type_ = proto_event.attributes["type"].as_string();
-        let internal_event: BoxedEvent = match type_.as_str() {
-            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(proto_event, time)),
-            ActivityStartEvent::TYPE => {
-                Box::new(ActivityStartEvent::from_proto_event(proto_event, time))
-            }
-            ActivityEndEvent::TYPE => {
-                Box::new(ActivityEndEvent::from_proto_event(proto_event, time))
-            }
-            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
-            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(proto_event, time)),
-            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(
-                proto_event,
-                time,
+        let internal_event: Option<BoxedEvent> = match type_.as_str() {
+            LinkEnterEvent::TYPE => Some(Box::new(LinkEnterEvent::from_proto_event(proto_event, time))),
+            LinkLeaveEvent::TYPE => Some(Box::new(LinkLeaveEvent::from_proto_event(proto_event, time))),
+            PersonEntersVehicleEvent::TYPE => Some(Box::new(
+                PersonEntersVehicleEvent::from_proto_event(proto_event, time),
             )),
-            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(
-                proto_event,
-                time,
+            PersonLeavesVehicleEvent::TYPE => Some(Box::new(
+                PersonLeavesVehicleEvent::from_proto_event(proto_event, time),
             )),
-            PersonDepartureEvent::TYPE => {
-                Box::new(PersonDepartureEvent::from_proto_event(proto_event, time))
-            }
-            PersonArrivalEvent::TYPE => {
-                Box::new(PersonArrivalEvent::from_proto_event(proto_event, time))
-            }
-            TeleportationArrivalEvent::TYPE => Box::new(
-                TeleportationArrivalEvent::from_proto_event(proto_event, time),
-            ),
-            PtTeleportationArrivalEvent::TYPE => Box::new(
-                PtTeleportationArrivalEvent::from_proto_event(proto_event, time),
-            ),
-            _ => panic!("Unknown event type: {:?}", type_),
+            _ => None,
         };
 
-        internal_events.push(internal_event);
+        if let Some(event) = internal_event {
+            internal_events.push(event);
+        }
     }
 
     internal_events
@@ -490,7 +471,7 @@ fn process_events_from_channel(
 
                 // Publish each event
                 for event in &events {
-                    builder_resource.publisher.publish_event(event.as_ref());
+                    builder_resource.manager.publish_event(event.as_ref());
                 }
             }
             EventsTickMessage::Done => {
@@ -944,13 +925,13 @@ fn main() {
     let (events_channel, handle) = start_events_thread();
     // Create the trips builder
     let builder = Rc::new(RefCell::new(TripsBuilder::new()));
-    // Create the event publisher
-    let mut publisher = EventsPublisher::new();
+    // Create the event manager
+    let mut manager = EventsManager::new();
     // Register the builder as a listener
-    register_trips_listener(builder.clone(), &mut publisher);
+    register_trips_listener(builder.clone(), &mut manager);
 
-    // Bundle builder and publisher into a single resource
-    let builder_resource = TripsBuilderResource { builder, publisher };
+    // Bundle builder and manager into a single resource
+    let builder_resource = TripsBuilderResource { builder, manager };
 
     // Create initial empty AllTrips resource
     let trips = AllTrips {
