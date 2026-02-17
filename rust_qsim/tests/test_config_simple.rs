@@ -65,6 +65,6 @@ fn roundtrip_serialize_deserialize() {
     let yaml = fs::read_to_string("tests/resources/simple_config/example.yml").unwrap();
     let config: SimpleConfig = serde_yaml::from_str(&yaml).unwrap();
     let serialized = serde_yaml::to_string(&config).unwrap();
-    let roundtripped: SimpleConfig = serde_yaml::from_str(&serialized).unwrap();
-    assert_eq!(config, roundtripped);
+    let deserialized: SimpleConfig = serde_yaml::from_str(&serialized).unwrap();
+    assert_eq!(config, deserialized);
 }
