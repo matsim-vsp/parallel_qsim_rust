@@ -53,11 +53,11 @@ struct InputArgs {
 mod tests {
     use super::*;
     // use flate2::bufread;
-    use flate2::bufread::GzDecoder;
+    use flate2::read::GzDecoder;
     use rust_qsim::simulation::io::proto::xml_events::XmlEventsReader;
+
     use std::fs;
     use std::fs::File;
-    use std::io::copy;
     use std::io::BufRead;
     use std::io::BufReader;
     use std::path::Path;
@@ -80,14 +80,9 @@ mod tests {
         )
         .unwrap();
 
-        // decompress the generated XML file and save as .xml
-        let compressed_path = "./test_output/simulation/execute_3_links_2_parts/events.xml.gz";
-        let decompressed_path = "./test_output/simulation/execute_3_links_2_parts/events.xml";
-        decompress_gz(compressed_path, decompressed_path);
-
         // Load and compare two XML event files
         let generated_file =
-            Path::new("./test_output/simulation/execute_3_links_2_parts/events.xml");
+            Path::new("./test_output/simulation/execute_3_links_2_parts/events.xml.gz");
         let expected_file = Path::new("./tests/resources/3-links/expected_events.xml");
 
         compare_xml_event_files_as_string(generated_file, expected_file);
@@ -97,29 +92,40 @@ mod tests {
         // compare_xml_event_files_as_xml(generated_file, expected_file);
     }
 
-    /// Decompresses .gz file into a new file
-    fn decompress_gz(compressed_path: &str, decompressed_path: &str) {
-        let input = BufReader::new(File::open(compressed_path).unwrap());
-        let mut output = File::create(decompressed_path).unwrap();
+    /// copied from io/xml/mod.rs so far, is hopefully not needed in the future when we read xml
+    /// files as XML events instead of as strings
+    fn local_file_reader(file_path: &str, is_gz: bool) -> Box<dyn BufRead> {
+        // Local file path
+        let file = File::open(file_path)
+            .unwrap_or_else(|_| panic!("xml_reader::read: Could not open file at {file_path}"));
 
-        let mut decoder = GzDecoder::new(input);
-        copy(&mut decoder, &mut output).unwrap();
-        info!(
-            "Finished unzipping {} to {}.",
-            compressed_path, decompressed_path
-        );
+        if is_gz {
+            // Local .xml.gz
+            let gz = GzDecoder::new(file);
+            Box::new(BufReader::new(gz))
+        } else {
+            // Local plain .xml
+            Box::new(BufReader::new(file))
+        }
     }
 
     /// Compares two XML event files line by line as strings, ignoring leading and trailing
     /// whitespace. Panics if any line differs or if the files have different number of lines.
-    fn compare_xml_event_files_as_string(file1: &Path, file2: &Path) {
-        let reader1 = BufReader::new(File::open(file1).unwrap());
-        let reader2 = BufReader::new(File::open(file2).unwrap());
+    fn compare_xml_event_files_as_string(filepath1: &Path, filepath2: &Path) {
+        fn is_gz_path(path: &Path) -> bool {
+            path.extension().unwrap() == "gz"
+        }
+
+        let reader1: Box<dyn BufRead> =
+            local_file_reader(filepath1.to_str().unwrap(), is_gz_path(filepath1));
+        let reader2: Box<dyn BufRead> =
+            local_file_reader(filepath2.to_str().unwrap(), is_gz_path(filepath2));
 
         let mut line_iterator1 = reader1.lines().map(|l| l.unwrap());
         let mut line_iterator2 = reader2.lines().map(|l| l.unwrap());
 
         let mut line_count = 0;
+
         loop {
             let line1 = line_iterator1.next();
             let line2 = line_iterator2.next();
