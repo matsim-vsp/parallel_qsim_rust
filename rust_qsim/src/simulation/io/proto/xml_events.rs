@@ -140,7 +140,7 @@ impl XmlEventsWriter {
                 ev.route
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" network_mode=\"{}\" relative_position=\"{}\"/>\n",
+            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
                     ev.time(),
                     ev.type_(),
                     ev.person,
@@ -150,7 +150,7 @@ impl XmlEventsWriter {
                     ev.relative_position
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" network_mode=\"{}\" relative_position=\"{}\"/>\n",
+            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
                     ev.time(),
                     ev.type_(),
                     ev.person,

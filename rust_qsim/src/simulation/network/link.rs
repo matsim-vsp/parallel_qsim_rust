@@ -279,9 +279,9 @@ impl LocalLink {
                 &VehicleLeavesTrafficEventBuilder::default()
                     .vehicle(v.id.clone())
                     .link(self.id.clone())
-                    .driver(v.driver().id().clone())
+                    .person(v.driver().id().clone())
                     .time(now)
-                    .mode(v.driver().curr_leg().mode.clone())
+                    .network_mode(v.driver().curr_leg().mode.clone())
                     .build()
                     .unwrap(),
             );
@@ -387,9 +387,9 @@ impl LocalLink {
             &VehicleEntersTrafficEventBuilder::default()
                 .vehicle(vehicle.id.clone())
                 .link(self.id.clone())
-                .driver(vehicle.driver().id().clone())
+                .person(vehicle.driver().id().clone())
                 .time(now)
-                .mode(vehicle.driver().curr_leg().mode.clone())
+                .network_mode(vehicle.driver().curr_leg().mode.clone())
                 .build()
                 .unwrap(),
         );

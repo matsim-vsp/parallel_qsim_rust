@@ -243,15 +243,15 @@ impl From<&VehicleEntersTrafficEvent> for MyEvent {
             AttributeValue::from(value.link.external()),
         );
         attributes.insert(
-            "driver".to_string(),
+            "person".to_string(),
             AttributeValue::from(value.person.external()),
         );
         attributes.insert(
-            "mode".to_string(),
+            "network_mode".to_string(),
             AttributeValue::from(value.network_mode.external()),
         );
         attributes.insert(
-            "relative_position_on_link".to_string(),
+            "relative_position".to_string(),
             AttributeValue::from(value.relative_position),
         );
         MyEvent {
@@ -273,15 +273,15 @@ impl From<&VehicleLeavesTrafficEvent> for MyEvent {
             AttributeValue::from(value.link.external()),
         );
         attributes.insert(
-            "driver".to_string(),
+            "person".to_string(),
             AttributeValue::from(value.person.external()),
         );
         attributes.insert(
-            "mode".to_string(),
+            "network_mode".to_string(),
             AttributeValue::from(value.network_mode.external()),
         );
         attributes.insert(
-            "relative_position_on_link".to_string(),
+            "relative_position".to_string(),
             AttributeValue::from(value.relative_position),
         );
         MyEvent {
