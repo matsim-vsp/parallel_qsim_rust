@@ -275,7 +275,7 @@ impl LocalLink {
         ending_vehicles.append(&mut self.add_queue_to_buffer(now));
 
         for v in &ending_vehicles {
-            comp_env.events_publisher_borrow_mut().publish_event(
+            comp_env.events_manager_borrow_mut().publish_event(
                 &VehicleLeavesTrafficEventBuilder::default()
                     .vehicle(v.id.clone())
                     .link(self.id.clone())
@@ -383,7 +383,7 @@ impl LocalLink {
         now: u32,
     ) -> InternalVehicle {
         let vehicle = self.waiting_list.pop_front().unwrap();
-        comp_env.events_publisher_borrow_mut().publish_event(
+        comp_env.events_manager_borrow_mut().publish_event(
             &VehicleEntersTrafficEventBuilder::default()
                 .vehicle(vehicle.id.clone())
                 .link(self.id.clone())

@@ -56,7 +56,7 @@ where
         }
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
-        self.comp_env.events_publisher_borrow_mut().finish();
+        self.comp_env.events_manager_borrow_mut().finish();
     }
 
     /// Performs a sim step for the activity engine and the leg engine.

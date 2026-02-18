@@ -82,16 +82,16 @@ impl ExternalServices {
 pub struct ThreadLocalComputationalEnvironment {
     #[builder(default)]
     services: ExternalServices,
-    // The value is of type Rc as this is a thread-local events publisher.
+    // The value is of type Rc as this is a thread-local events manager.
     #[builder(default)]
-    events_publisher: Rc<RefCell<EventsManager>>,
+    events_manager: Rc<RefCell<EventsManager>>,
 }
 
 impl Default for ThreadLocalComputationalEnvironment {
     fn default() -> Self {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
-            events_publisher: Rc::new(RefCell::new(EventsManager::new())),
+            events_manager: Rc::new(RefCell::new(EventsManager::new())),
         }
     }
 }
@@ -104,12 +104,12 @@ impl ThreadLocalComputationalEnvironment {
         self.services.get_service(service_type)
     }
 
-    pub fn events_publisher_borrow_mut(&mut self) -> RefMut<'_, EventsManager> {
-        self.events_publisher.borrow_mut()
+    pub fn events_manager_borrow_mut(&mut self) -> RefMut<'_, EventsManager> {
+        self.events_manager.borrow_mut()
     }
 
-    pub fn events_publisher(&self) -> Rc<RefCell<EventsManager>> {
-        self.events_publisher.clone()
+    pub fn events_manager(&self) -> Rc<RefCell<EventsManager>> {
+        self.events_manager.clone()
     }
 }
 
@@ -151,7 +151,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 
     let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
         .services(external_services)
-        .events_publisher(events.clone())
+        .events_manager(events.clone())
         .build()
         .unwrap();
 

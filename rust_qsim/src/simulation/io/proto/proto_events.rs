@@ -499,7 +499,7 @@ impl ProtoEventsReader<File> {
 }
 
 #[rustfmt::skip]
-pub fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsManager) {
+pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsManager) {
     for proto_event in events {
         let type_ = proto_event.r#type.as_str();
         let internal_event: Box<dyn EventTrait> = match type_ {
@@ -518,7 +518,7 @@ pub fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsMa
             VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
-        publisher.publish_event(internal_event.as_ref());
+        manager.publish_event(internal_event.as_ref());
     }
 }
 
