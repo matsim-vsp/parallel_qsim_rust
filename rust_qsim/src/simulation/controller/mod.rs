@@ -2,7 +2,8 @@ pub mod local_controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
-use crate::simulation::events::{EventsManager, OnEventFnBuilder};
+use crate::simulation::events::{EventHandlerRegistrator, EventsManager};
+use crate::simulation::framework_events::{MobsimEventBus, MobsimListenerRegistrator};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -85,6 +86,8 @@ pub struct ThreadLocalComputationalEnvironment {
     // The value is of type Rc as this is a thread-local events manager.
     #[builder(default)]
     events_manager: Rc<RefCell<EventsManager>>,
+    #[builder(default)]
+    mobsim_event_bus: Rc<RefCell<MobsimEventBus>>,
 }
 
 impl Default for ThreadLocalComputationalEnvironment {
@@ -92,6 +95,7 @@ impl Default for ThreadLocalComputationalEnvironment {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
             events_manager: Rc::new(RefCell::new(EventsManager::new())),
+            mobsim_event_bus: Rc::new(RefCell::new(MobsimEventBus::default())),
         }
     }
 }
@@ -111,6 +115,14 @@ impl ThreadLocalComputationalEnvironment {
     pub fn events_manager(&self) -> Rc<RefCell<EventsManager>> {
         self.events_manager.clone()
     }
+
+    pub fn mobsim_event_bus_borrow_mut(&mut self) -> RefMut<'_, MobsimEventBus> {
+        self.mobsim_event_bus.borrow_mut()
+    }
+
+    pub fn mobsim_event_bus(&self) -> Rc<RefCell<MobsimEventBus>> {
+        self.mobsim_event_bus.clone()
+    }
 }
 
 #[derive(Debug, Builder)]
@@ -123,7 +135,10 @@ pub struct PartitionArguments<C: SimCommunicator> {
     external_services: ExternalServices,
     #[builder(default)]
     #[debug(skip)]
-    events_subscriber: Vec<Box<OnEventFnBuilder>>,
+    event_handler: Vec<Box<EventHandlerRegistrator>>,
+    #[builder(default)]
+    #[debug(skip)]
+    mobsim_event_listener: Vec<Box<MobsimListenerRegistrator>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -133,7 +148,8 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 
     let comm = partition_arguments.communicator;
     let external_services = partition_arguments.external_services;
-    let subscribers = partition_arguments.events_subscriber;
+    let subscribers = partition_arguments.event_handler;
+    let mobsim_subscribers = partition_arguments.mobsim_event_listener;
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
@@ -149,11 +165,21 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
         scenario.config.computational_setup().global_sync,
     );
 
-    let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
+    let mut comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
         .services(external_services)
         .events_manager(events.clone())
+        .mobsim_event_bus(Rc::new(RefCell::new(MobsimEventBus::for_partition(
+            rank, 0,
+        ))))
         .build()
         .unwrap();
+
+    {
+        let mut bus = comp_env.mobsim_event_bus_borrow_mut();
+        for subscriber in mobsim_subscribers {
+            subscriber(&mut bus);
+        }
+    }
 
     let mut simulation: Simulation<C> =
         SimulationBuilder::new(scenario, net_message_broker, comp_env).build();
@@ -178,7 +204,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 fn create_events(
     config: &Config,
     rank: u32,
-    additional_subscribers: Vec<Box<OnEventFnBuilder>>,
+    additional_subscribers: Vec<Box<EventHandlerRegistrator>>,
 ) -> Rc<RefCell<EventsManager>> {
     let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
@@ -190,13 +216,13 @@ fn create_events(
             let events_file = format!("events.{rank}.binpb");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
-            ProtoEventsWriter::register(events_path)(&mut events)
+            ProtoEventsWriter::registrator(events_path)(&mut events)
         }
         WriteEvents::XmlGz => {
             let events_file = format!("events.{rank}.xml.gz");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
-            XmlEventsWriter::register(events_path)(&mut events)
+            XmlEventsWriter::registrator(events_path)(&mut events)
         }
     }
 

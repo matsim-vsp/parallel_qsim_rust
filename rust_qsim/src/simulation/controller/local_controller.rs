@@ -4,7 +4,11 @@ use crate::simulation::controller::{
     create_output_filename, insert_number_in_proto_filename, ExternalServices,
     PartitionArgumentsBuilder,
 };
-use crate::simulation::events::OnEventFnBuilder;
+use crate::simulation::events::EventHandlerRegistrator;
+use crate::simulation::framework_events::{
+    ControllerEvent, ControllerEventBus, ControllerListenerRegistrator, GeneralControllerEvent,
+    MobsimListenerRegistrator,
+};
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::scenario::{Scenario, ScenarioPartitionBuilder};
 use crate::simulation::{controller, id, io};
@@ -23,8 +27,17 @@ use tracing::info;
 pub struct LocalController {
     scenario: Scenario,
     #[builder(default)]
+    #[builder(private)]
+    controller_event_bus: ControllerEventBus,
+    #[builder(default)]
     #[debug(skip)]
-    events_subscriber_per_partition: HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
+    controller_event_listener: Vec<Box<ControllerListenerRegistrator>>,
+    #[builder(default)]
+    #[debug(skip)]
+    event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
+    #[builder(default)]
+    #[debug(skip)]
+    mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegistrator>>>,
     #[builder(default)]
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,
@@ -45,8 +58,11 @@ impl LocalControllerBuilder {
 
         Ok(LocalController {
             scenario,
-            events_subscriber_per_partition: self
-                .events_subscriber_per_partition
+            controller_event_bus: self.controller_event_bus.unwrap_or_default(),
+            controller_event_listener: self.controller_event_listener.unwrap_or_default(),
+            event_handler_per_partition: self.event_handler_per_partition.unwrap_or_default(),
+            mobsim_event_listener_per_partition: self
+                .mobsim_event_listener_per_partition
                 .unwrap_or_default(),
             external_services: self.external_services.clone().unwrap_or_default(),
             global_barrier: barrier,
@@ -58,6 +74,16 @@ impl LocalControllerBuilder {
 impl LocalController {
     /// Runs the simulation and joins all threads before returning.
     pub fn run(mut self) {
+        for subscriber in std::mem::take(&mut self.controller_event_listener) {
+            subscriber(&mut self.controller_event_bus);
+        }
+        let _ =
+            self.controller_event_bus
+                .process(ControllerEvent::Startup(GeneralControllerEvent {
+                    iteration: 0,
+                    last_iteration: 0,
+                }));
+
         let output_path = io::resolve_path(
             self.scenario.config.context(),
             &self.scenario.config.output().output_dir,
@@ -116,8 +142,13 @@ impl LocalController {
                     .global_barrier(self.global_barrier.clone())
                     .scenario_partition(partition)
                     .external_services(self.external_services.clone())
-                    .events_subscriber(
-                        self.events_subscriber_per_partition
+                    .event_handler(
+                        self.event_handler_per_partition
+                            .remove(&rank)
+                            .unwrap_or_default(),
+                    )
+                    .mobsim_event_listener(
+                        self.mobsim_event_listener_per_partition
                             .remove(&rank)
                             .unwrap_or_default(),
                     )

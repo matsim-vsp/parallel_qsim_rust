@@ -3,6 +3,7 @@ use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
+use crate::simulation::framework_events::{MobsimEvent, MobsimTimeEvent};
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
@@ -39,6 +40,10 @@ where
         let mut agents_changing_engine = vec![];
 
         while now <= self.end_time {
+            self.comp_env
+                .mobsim_event_bus_borrow_mut()
+                .process(MobsimEvent::BeforeSimStep(MobsimTimeEvent { time: now }));
+
             if now % 3600 == 0 {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
