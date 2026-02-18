@@ -1,9 +1,9 @@
-use tracing::instrument;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::InternalVehicle;
+use tracing::instrument;
 
 pub struct NetworkEngine {
     pub(crate) network: SimNetworkPartition,
@@ -25,7 +25,7 @@ impl NetworkEngine {
         } else {
             //if route is already in progress, this method gets vehicles from another partition and should publish link enter event
             //this is because the receiving partition is the owner of this link and should publish the event
-            Some(self.comp_env.events_publisher())
+            Some(self.comp_env.events_manager())
         };
         self.network.send_veh_en_route(vehicle, events, now)
     }

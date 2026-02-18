@@ -24,7 +24,7 @@ type OnEventFn = dyn Fn(&dyn EventTrait) + 'static;
 
 pub type OnEventFnBuilder = dyn FnOnce(&mut EventsManager) + Send;
 
-/// The EventsPublisher holds call-backs for event processing. This might seem a bit odd
+/// The EventsManager holds call-backs for event processing. This might seem a bit odd
 /// (in particular in comparison to the Java implementation). The reason is that Rust has no reflection, and this
 /// architecture allows compile-time checking of the event types.
 #[derive(Default)]
@@ -38,7 +38,7 @@ impl Debug for EventsManager {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "EventsPublisher {{ per_type: {:?}, catch_all: {:?}, finish: {:?} }}",
+            "EventsManager {{ per_type: {:?}, catch_all: {:?}, finish: {:?} }}",
             self.per_type.len(),
             self.catch_all.len(),
             self.finish.len()

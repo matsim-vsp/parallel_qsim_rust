@@ -74,14 +74,14 @@ pub fn convert_proto_to_xml_events(
     num_parts: u32,
     output_file_path: PathBuf,
 ) {
-    let mut publisher = EventsManager::new();
+    let mut manager = EventsManager::new();
 
     let register_xml_writer = XmlEventsWriter::register(output_file_path.clone());
 
-    register_xml_writer(&mut publisher);
+    register_xml_writer(&mut manager);
 
     read_proto_events(
-        &mut publisher,
+        &mut manager,
         &PathBuf::from(&path_to_proto_files),
         String::from("events"),
         num_parts,
