@@ -64,8 +64,7 @@ fn main() {
     let scenario = Scenario::load(config);
 
     // Create controller
-    let controller = LocalControllerBuilder::default()
-        .scenario(scenario)
+    let controller = LocalControllerBuilder::default_with_scenario(scenario)
         .external_services(services)
         .global_barrier(barrier)
         .adapter_handles(adapters)

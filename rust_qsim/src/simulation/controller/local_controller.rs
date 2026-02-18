@@ -12,7 +12,6 @@ use crate::simulation::framework_events::{
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::scenario::{Scenario, ScenarioPartitionBuilder};
 use crate::simulation::{controller, id, io};
-use derive_builder::Builder;
 use derive_more::Debug;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
@@ -22,61 +21,110 @@ use std::thread::JoinHandle;
 use std::{fs, thread};
 use tracing::info;
 
-#[derive(Debug, Builder)]
-#[builder(pattern = "owned", build_fn(skip))]
+#[derive(Debug)]
 pub struct LocalController {
     scenario: Scenario,
-    #[builder(default)]
-    #[builder(private)]
     controller_event_bus: ControllerEventBus,
-    #[builder(default)]
-    #[debug(skip)]
-    controller_event_listener: Vec<Box<ControllerListenerRegistrator>>,
-    #[builder(default)]
     #[debug(skip)]
     event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
-    #[builder(default)]
     #[debug(skip)]
     mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegistrator>>>,
-    #[builder(default)]
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
 }
 
-impl LocalControllerBuilder {
-    // Implementing a custom build function in order to set the barrier if not set by the user.
-    pub fn build(self) -> Result<LocalController, String> {
-        let scenario = self.scenario.ok_or("scenario is required")?;
+pub struct LocalControllerBuilder {
+    scenario: Scenario,
+    controller_event_registrators: Vec<Box<ControllerListenerRegistrator>>,
+    event_handler_registrators: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
+    mobsim_event_registrators: HashMap<u32, Vec<Box<MobsimListenerRegistrator>>>,
+    external_services: ExternalServices,
+    global_barrier: Option<Arc<Barrier>>,
+    adapter_handles: Vec<AdapterHandle>,
+}
 
+impl LocalControllerBuilder {
+    pub fn default_with_scenario(scenario: Scenario) -> Self {
+        LocalControllerBuilder {
+            scenario,
+            controller_event_registrators: Vec::new(),
+            event_handler_registrators: HashMap::new(),
+            mobsim_event_registrators: HashMap::new(),
+            external_services: ExternalServices::default(),
+            global_barrier: None,
+            adapter_handles: Vec::new(),
+        }
+    }
+
+    // Implementing a custom build function in order to set the barrier if not set by the user.
+    pub fn build(mut self) -> Result<LocalController, String> {
         // create a barrier for the number of partitions, if not provided
-        let barrier = self.global_barrier.clone().unwrap_or_else(|| {
+        let barrier = self.global_barrier.take().unwrap_or_else(|| {
             Arc::new(Barrier::new(
-                scenario.config.partitioning().num_parts as usize,
+                self.scenario.config.partitioning().num_parts as usize,
             ))
         });
 
+        let mut controller_event_bus = ControllerEventBus::default();
+        for registrator in self.controller_event_registrators {
+            registrator(&mut controller_event_bus);
+        }
+
         Ok(LocalController {
-            scenario,
-            controller_event_bus: self.controller_event_bus.unwrap_or_default(),
-            controller_event_listener: self.controller_event_listener.unwrap_or_default(),
-            event_handler_per_partition: self.event_handler_per_partition.unwrap_or_default(),
-            mobsim_event_listener_per_partition: self
-                .mobsim_event_listener_per_partition
-                .unwrap_or_default(),
-            external_services: self.external_services.clone().unwrap_or_default(),
+            scenario: self.scenario,
+            controller_event_bus,
+            event_handler_per_partition: self.event_handler_registrators,
+            mobsim_event_listener_per_partition: self.mobsim_event_registrators,
+            external_services: self.external_services,
             global_barrier: barrier,
-            adapter_handles: self.adapter_handles.unwrap_or_default(),
+            adapter_handles: self.adapter_handles,
         })
+    }
+
+    pub fn controller_event_registrators(
+        mut self,
+        v: Vec<Box<ControllerListenerRegistrator>>,
+    ) -> Self {
+        self.controller_event_registrators = v;
+        self
+    }
+
+    pub fn event_handler_registrators(
+        mut self,
+        v: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
+    ) -> Self {
+        self.event_handler_registrators = v;
+        self
+    }
+
+    pub fn mobsim_event_registrators(
+        mut self,
+        v: HashMap<u32, Vec<Box<MobsimListenerRegistrator>>>,
+    ) -> Self {
+        self.mobsim_event_registrators = v;
+        self
+    }
+
+    pub fn external_services(mut self, e: ExternalServices) -> Self {
+        self.external_services = e;
+        self
+    }
+
+    pub fn global_barrier(mut self, b: Arc<Barrier>) -> Self {
+        self.global_barrier = Some(b);
+        self
+    }
+
+    pub fn adapter_handles(mut self, v: Vec<AdapterHandle>) -> Self {
+        self.adapter_handles = v;
+        self
     }
 }
 
 impl LocalController {
     /// Runs the simulation and joins all threads before returning.
     pub fn run(mut self) {
-        for subscriber in std::mem::take(&mut self.controller_event_listener) {
-            subscriber(&mut self.controller_event_bus);
-        }
         let _ =
             self.controller_event_bus
                 .process(ControllerEvent::Startup(GeneralControllerEvent {

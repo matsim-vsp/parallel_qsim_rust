@@ -19,8 +19,7 @@ fn main() {
     let scenario = Scenario::load(config);
 
     // Create and run simulation
-    let controller = LocalControllerBuilder::default()
-        .scenario(scenario)
+    let controller = LocalControllerBuilder::default_with_scenario(scenario)
         .build()
         .unwrap();
 

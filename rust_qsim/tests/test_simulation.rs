@@ -1,7 +1,6 @@
 use derive_builder::Builder;
 use rust_qsim::external_services::AdapterHandle;
 use rust_qsim::simulation::config::Config;
-use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::{EventHandlerRegistrator, EventTrait, EventsManager};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
@@ -16,6 +15,7 @@ use std::thread;
 // If not set here, import gets optimized away.
 #[allow(unused_imports)]
 use derive_more::Debug;
+use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 
 #[derive(Debug, Builder)]
@@ -100,9 +100,8 @@ impl TestExecutor<'_> {
     fn run(self, subscribers: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>) {
         let scenario = Scenario::load(self.config.clone());
 
-        let controller = LocalControllerBuilder::default()
-            .scenario(scenario)
-            .event_handler_per_partition(subscribers)
+        let controller = LocalControllerBuilder::default_with_scenario(scenario)
+            .event_handler_registrators(subscribers)
             .external_services(self.external_services.clone())
             .global_barrier(self.global_barrier.clone())
             .adapter_handles(self.adapter_handles)
