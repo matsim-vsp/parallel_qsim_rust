@@ -17,7 +17,8 @@ use crate::simulation::events::{
     PersonDepartureEvent, PersonDepartureEventBuilder, PersonEntersVehicleEvent,
     PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent, PersonLeavesVehicleEventBuilder,
     PtTeleportationArrivalEvent, TeleportationArrivalEvent, TeleportationArrivalEventBuilder,
-    VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
+    VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder, VehicleLeavesTrafficEvent,
+    VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
@@ -139,24 +140,24 @@ impl XmlEventsWriter {
                 ev.route
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" network_mode=\"{}\" relative_position=\"{}\"/>\n",
                     ev.time(),
                     ev.type_(),
-                    ev.driver,
+                    ev.person,
                     ev.link,
                     ev.vehicle,
-                    ev.mode,
-                    ev.relative_position_on_link
+                    ev.network_mode,
+                    ev.relative_position
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" network_mode=\"{}\" relative_position=\"{}\"/>\n",
                     ev.time(),
                     ev.type_(),
-                    ev.driver,
+                    ev.person,
                     ev.link,
                     ev.vehicle,
-                    ev.mode,
-                    ev.relative_position_on_link
+                    ev.network_mode,
+                    ev.relative_position
             )
         } else {
             panic!("Unknown event type");
@@ -245,8 +246,50 @@ fn handle(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
         "PersonLeavesVehicle" => handle_person_leaves_veh(attr),
         "entered link" => handle_link_enter(attr),
         "left link" => handle_link_leave(attr),
+        "vehicle enters traffic" => handle_vehicle_enters_traffic(attr),
+        "vehicle leaves traffic" => handle_vehicle_leaves_traffic(attr),
         _ => panic!("Unknown event type {ev_type}"),
     }
+}
+
+fn handle_vehicle_enters_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(4).unwrap().value);
+    let network_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
+    let relative_position: f64 = attr.get(6).unwrap().value.parse().unwrap();
+    Box::new(
+        VehicleEntersTrafficEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .vehicle(vehicle)
+            .network_mode(network_mode)
+            .relative_position(relative_position)
+            .build()
+            .unwrap(),
+    )
+}
+
+fn handle_vehicle_leaves_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(4).unwrap().value);
+    let network_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
+    let relative_position: f64 = attr.get(6).unwrap().value.parse().unwrap();
+    Box::new(
+        VehicleLeavesTrafficEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .vehicle(vehicle)
+            .network_mode(network_mode)
+            .relative_position(relative_position)
+            .build()
+            .unwrap(),
+    )
 }
 
 fn handle_act_end(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {

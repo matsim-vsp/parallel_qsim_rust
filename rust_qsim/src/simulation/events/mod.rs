@@ -332,10 +332,10 @@ pub struct VehicleEntersTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
     pub link: Id<Link>,
-    pub driver: Id<InternalPerson>,
-    pub mode: Id<String>,
+    pub person: Id<InternalPerson>,
+    pub network_mode: Id<String>,
     #[builder(default = 1.0)]
-    pub relative_position_on_link: f64,
+    pub relative_position: f64,
     #[builder(default)]
     pub attributes: InternalAttributes,
 }
@@ -349,9 +349,9 @@ impl VehicleEntersTrafficEvent {
             .time(time)
             .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
-            .driver(Id::create(&event.attributes["driver"].as_string()))
-            .mode(Id::create(&event.attributes["mode"].as_string()))
-            .relative_position_on_link(event.attributes["relative_position_on_link"].as_double())
+            .person(Id::create(&event.attributes["person"].as_string()))
+            .network_mode(Id::create(&event.attributes["network_mode"].as_string()))
+            .relative_position(event.attributes["relative_position"].as_double())
             .attributes(attrs)
             .build()
             .unwrap()
@@ -379,10 +379,10 @@ pub struct VehicleLeavesTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
     pub link: Id<Link>,
-    pub driver: Id<InternalPerson>,
-    pub mode: Id<String>,
+    pub person: Id<InternalPerson>,
+    pub network_mode: Id<String>,
     #[builder(default = 1.0)]
-    pub relative_position_on_link: f64,
+    pub relative_position: f64,
     #[builder(default)]
     pub attributes: InternalAttributes,
 }
@@ -396,9 +396,9 @@ impl VehicleLeavesTrafficEvent {
             .time(time)
             .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
-            .driver(Id::create(&event.attributes["driver"].as_string()))
-            .mode(Id::create(&event.attributes["mode"].as_string()))
-            .relative_position_on_link(event.attributes["relative_position_on_link"].as_double())
+            .person(Id::create(&event.attributes["person"].as_string()))
+            .network_mode(Id::create(&event.attributes["network_mode"].as_string()))
+            .relative_position(event.attributes["relative_position"].as_double())
             .attributes(attrs)
             .build()
             .unwrap()

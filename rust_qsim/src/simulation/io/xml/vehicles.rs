@@ -130,7 +130,7 @@ impl Default for IOPassengerCarEquivalents {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IONetworkMode {
-    #[serde(rename = "@networkMode")]
+    #[serde(rename = "@network_mode")]
     pub(crate) network_mode: String,
 }
 
@@ -208,7 +208,7 @@ mod test {
                                     <width meter=\"9.5\"/>\
                                     <maximumVelocity meterPerSecond=\"9.5\"/>\
                                     <passengerCarEquivalents pce=\"9.5\"/>\
-                                    <networkMode networkMode=\"some-network-mode\"/>\
+                                    <network_mode network_mode=\"some-network-mode\"/>\
                                     <flowEfficiencyFactor factor=\"9.5\"/>\
                                 </vehicleType>\
                                 <vehicle id=\"drt\" type=\"some-vehicle-id\">
