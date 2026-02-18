@@ -35,7 +35,7 @@ fn main() {
     }
 
     let mut manager = EventsManager::new();
-    XmlEventsWriter::register(PathBuf::from(&args.path).join("events.xml"))(&mut manager);
+    XmlEventsWriter::registrator(PathBuf::from(&args.path).join("events.xml"))(&mut manager);
 
     info!("Starting to read events files.");
     while !readers.is_empty() {

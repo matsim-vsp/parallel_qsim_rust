@@ -1,8 +1,8 @@
 use crate::generated::events::{MyEvent, TimeStep};
 use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
-    ActivityEndEvent, ActivityStartEvent, EventTrait, EventsManager, GeneralEvent, LinkEnterEvent,
-    LinkLeaveEvent, OnEventFnBuilder, PersonArrivalEvent, PersonDepartureEvent,
+    ActivityEndEvent, ActivityStartEvent, EventHandlerRegistrator, EventTrait, EventsManager,
+    GeneralEvent, LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PtTeleportationArrivalEvent,
     TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
@@ -394,7 +394,7 @@ impl ProtoEventsWriter {
             .expect("Failed to flush buffered writer.");
     }
 
-    pub fn register(path: PathBuf) -> Box<OnEventFnBuilder> {
+    pub fn registrator(path: PathBuf) -> Box<EventHandlerRegistrator> {
         Box::new(move |events: &mut EventsManager| {
             let proto = Rc::new(RefCell::new(ProtoEventsWriter::new(path.as_path())));
             let proto1 = proto.clone();

@@ -12,12 +12,12 @@ use xml::EventReader;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
-    EventTrait, EventsManager, GeneralEvent, LinkEnterEvent, LinkEnterEventBuilder, LinkLeaveEvent,
-    LinkLeaveEventBuilder, OnEventFnBuilder, PersonArrivalEvent, PersonArrivalEventBuilder,
-    PersonDepartureEvent, PersonDepartureEventBuilder, PersonEntersVehicleEvent,
-    PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent, PersonLeavesVehicleEventBuilder,
-    PtTeleportationArrivalEvent, TeleportationArrivalEvent, TeleportationArrivalEventBuilder,
-    VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
+    EventHandlerRegistrator, EventTrait, EventsManager, GeneralEvent, LinkEnterEvent,
+    LinkEnterEventBuilder, LinkLeaveEvent, LinkLeaveEventBuilder, PersonArrivalEvent,
+    PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
+    PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
+    PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
+    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
@@ -182,7 +182,7 @@ impl XmlEventsWriter {
         writer.flush().expect("Failed to flush events.");
     }
 
-    pub fn register(path: PathBuf) -> Box<OnEventFnBuilder> {
+    pub fn registrator(path: PathBuf) -> Box<EventHandlerRegistrator> {
         Box::new(move |events: &mut EventsManager| {
             let xml = Rc::new(XmlEventsWriter::new(path));
             let xml1 = xml.clone();

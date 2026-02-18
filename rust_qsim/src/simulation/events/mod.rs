@@ -20,17 +20,27 @@ pub trait EventTrait: Debug + Any {
     fn attributes(&self) -> &InternalAttributes;
 }
 
-type OnEventFn = dyn Fn(&dyn EventTrait) + 'static;
+type HandleEventFn = dyn Fn(&dyn EventTrait) + 'static;
 
-pub type OnEventFnBuilder = dyn FnOnce(&mut EventsManager) + Send;
+/// This is a meta function. It is used to register functions at the [EventsManager] that handle events. Also check the documentation there.
+/// This function gets a `&mut` to [EventsManager] and then registers the callbacks for the specific event types.
+/// This mechanism allows
+/// ```
+/// use rust_qsim::simulation::events::{EventTrait, EventsManager, LinkEnterEvent};
+/// let f = |events: &mut EventsManager| {
+///     events.on_any(|ev: &dyn EventTrait| println!("{:?}", ev));
+///     events.on::<LinkEnterEvent, _>(|le: &LinkEnterEvent| println!("This is a LinkEnterEvent: {:?}", le));
+/// };
+/// ```
+pub type EventHandlerRegistrator = dyn FnOnce(&mut EventsManager) + Send;
 
 /// The EventsManager holds call-backs for event processing. This might seem a bit odd
 /// (in particular in comparison to the Java implementation). The reason is that Rust has no reflection, and this
 /// architecture allows compile-time checking of the event types.
 #[derive(Default)]
 pub struct EventsManager {
-    per_type: HashMap<TypeId, Vec<Rc<OnEventFn>>>,
-    catch_all: Vec<Box<OnEventFn>>,
+    per_type: HashMap<TypeId, Vec<Rc<HandleEventFn>>>,
+    catch_all: Vec<Box<HandleEventFn>>,
     finish: Vec<Box<dyn Fn() + 'static>>,
 }
 

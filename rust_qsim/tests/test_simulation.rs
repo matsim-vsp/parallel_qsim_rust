@@ -3,7 +3,7 @@ use rust_qsim::external_services::AdapterHandle;
 use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
-use rust_qsim::simulation::events::{EventTrait, EventsManager, OnEventFnBuilder};
+use rust_qsim::simulation::events::{EventHandlerRegistrator, EventTrait, EventsManager};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
 use rust_qsim::simulation::scenario::Scenario;
 use std::collections::HashMap;
@@ -31,7 +31,7 @@ pub struct TestExecutor<'s> {
     external_services: ExternalServices,
     #[builder(default)]
     #[debug(skip)]
-    additional_subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
+    additional_handler: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
     #[builder(default)]
     adapter_handles: Vec<AdapterHandle>,
     #[builder(default = "Arc::new(Barrier::new(1))")]
@@ -73,40 +73,36 @@ impl TestExecutor<'_> {
     fn create_test_sub_recv(
         &mut self,
     ) -> (
-        HashMap<u32, Vec<Box<OnEventFnBuilder>>>,
+        HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
         Option<ReceivingSubscriber>,
     ) {
-        let mut subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>> = HashMap::new();
+        let mut subscribers: HashMap<u32, Vec<Box<EventHandlerRegistrator>>> = HashMap::new();
 
         let receiver = self
             .expected_events
             .map(ReceivingSubscriber::new_with_events_from_file);
 
         for c in 0..self.config.partitioning().num_parts {
-            let mut subscriber: Vec<Box<OnEventFnBuilder>> =
+            let mut subscriber: Vec<Box<EventHandlerRegistrator>> =
                 if let Some(receiver) = receiver.as_ref() {
-                    let subscr = SendingSubscriber::register(c, receiver.channel.0.clone());
+                    let subscr = SendingSubscriber::registrator(c, receiver.channel.0.clone());
                     vec![Box::new(subscr)]
                 } else {
                     vec![]
                 };
 
-            subscriber.append(
-                self.additional_subscribers
-                    .get_mut(&c)
-                    .unwrap_or(&mut vec![]),
-            );
+            subscriber.append(self.additional_handler.get_mut(&c).unwrap_or(&mut vec![]));
             subscribers.insert(c, subscriber);
         }
         (subscribers, receiver)
     }
 
-    fn run(self, subscribers: HashMap<u32, Vec<Box<OnEventFnBuilder>>>) {
+    fn run(self, subscribers: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>) {
         let scenario = Scenario::load(self.config.clone());
 
         let controller = LocalControllerBuilder::default()
             .scenario(scenario)
-            .events_subscriber_per_partition(subscribers)
+            .event_handler_per_partition(subscribers)
             .external_services(self.external_services.clone())
             .global_barrier(self.global_barrier.clone())
             .adapter_handles(self.adapter_handles)
@@ -141,7 +137,7 @@ impl SendingSubscriber {
             .expect("Failed on sending event message!");
     }
 
-    pub fn register(rank: u32, sender: Sender<String>) -> Box<OnEventFnBuilder> {
+    pub fn registrator(rank: u32, sender: Sender<String>) -> Box<EventHandlerRegistrator> {
         let subscriber = Self { rank, sender };
         Box::new(move |events: &mut EventsManager| {
             events.on_any(move |e| {

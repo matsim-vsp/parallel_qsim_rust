@@ -679,7 +679,7 @@ mod tests {
     #[integration_test]
     fn vehicle_travels_local() {
         let mut env = ThreadLocalComputationalEnvironment::default();
-        let register = XmlEventsWriter::register("test_output/test.xml".into());
+        let register = XmlEventsWriter::registrator("test_output/test.xml".into());
         register(&mut env.events_manager_borrow_mut());
 
         let global_net = Network::from_file(
@@ -914,7 +914,7 @@ mod tests {
     #[integration_test]
     fn move_nodes_stuck_threshold() {
         let mut env = ThreadLocalComputationalEnvironment::default();
-        XmlEventsWriter::register("test_output/test.xml".into())(
+        XmlEventsWriter::registrator("test_output/test.xml".into())(
             &mut env.events_manager_borrow_mut(),
         );
         let mut global_net = Network::from_file(
@@ -1125,7 +1125,7 @@ mod tests {
         }
 
         let mut env = ThreadLocalComputationalEnvironment::default();
-        XmlEventsWriter::register("test_output/test.xml".into())(
+        XmlEventsWriter::registrator("test_output/test.xml".into())(
             &mut env.events_manager_borrow_mut(),
         );
 
