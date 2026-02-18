@@ -267,15 +267,15 @@ impl SimNetworkPartition {
         self.nodes.keys().cloned().collect::<HashSet<_>>()
     }
 
-    /// The event publisher is only used to publish link enter events. There are two different cases:
-    /// 1. The vehicle is received from another partition. The event publisher should be Some(_) in order to publish the
+    /// The event manager is only used to publish link enter events. There are two different cases:
+    /// 1. The vehicle is received from another partition. The event manager should be Some(_) in order to publish the
     ///    link enter event.
     /// 2. The vehicle starts at this partition. Because its link enter is right after an activity,
-    ///    the MATSim default is to not publish this link enter event. Therefore, the event publisher should be None.
+    ///    the MATSim default is to not publish this link enter event. Therefore, the event manager should be None.
     pub fn send_veh_en_route(
         &mut self,
         vehicle: InternalVehicle,
-        events_publisher: Option<Rc<RefCell<EventsManager>>>,
+        events_manager: Option<Rc<RefCell<EventsManager>>>,
         now: u32,
     ) {
         let link_id = vehicle.curr_link_id().unwrap_or_else(|| {
@@ -283,7 +283,7 @@ impl SimNetworkPartition {
         });
         let link = self.links.get_mut(link_id).unwrap_or_else(|| {
             let agent_id = vehicle.id();
-            let coming_from_other_partition = events_publisher.is_some();
+            let coming_from_other_partition = events_manager.is_some();
             let where_is_it_from = if coming_from_other_partition {
                 "Vehicle is already en route and comes from another partition."
             } else {
@@ -300,12 +300,12 @@ impl SimNetworkPartition {
             );
         });
 
-        // If events_publisher is None, this is the start of the route and the vehicle goes
+        // If events_manager is None, this is the start of the route and the vehicle goes
         // into the waiting list. `fill_buffer` prioritizes draining waiting_list into buffer.
-        let is_route_begin = events_publisher.is_none();
+        let is_route_begin = events_manager.is_none();
 
-        if let Some(publisher) = events_publisher {
-            publisher.borrow_mut().publish_event(
+        if let Some(manager) = events_manager {
+            manager.borrow_mut().publish_event(
                 &LinkEnterEventBuilder::default()
                     .time(now)
                     .link(link.id().clone())
@@ -587,7 +587,7 @@ impl SimNetworkPartition {
     ) {
         let old_link_id = vehicle.curr_link_id().unwrap().clone();
 
-        comp_env.events_publisher_borrow_mut().publish_event(
+        comp_env.events_manager_borrow_mut().publish_event(
             &LinkLeaveEventBuilder::default()
                 .vehicle(vehicle.id.clone())
                 .link(old_link_id.clone())
@@ -601,7 +601,7 @@ impl SimNetworkPartition {
 
         // for out links, link enter event is published at receiving partition
         if let SimLink::Local(_) = new_link {
-            comp_env.events_publisher_borrow_mut().publish_event(
+            comp_env.events_manager_borrow_mut().publish_event(
                 &LinkEnterEventBuilder::default()
                     .time(now)
                     .link(new_link.id().clone())
@@ -678,9 +678,9 @@ mod tests {
 
     #[integration_test]
     fn vehicle_travels_local() {
-        let mut publisher = ThreadLocalComputationalEnvironment::default();
+        let mut env = ThreadLocalComputationalEnvironment::default();
         let register = XmlEventsWriter::register("test_output/test.xml".into());
-        register(&mut publisher.events_publisher_borrow_mut());
+        register(&mut env.events_manager_borrow_mut());
 
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
@@ -699,7 +699,7 @@ mod tests {
         network.send_veh_en_route(vehicle, None, 0);
 
         for i in 0..113 {
-            network.move_nodes(&mut publisher, i);
+            network.move_nodes(&mut env, i);
             let result = network.move_links(&mut Default::default(), i);
 
             // only in the timestep before the vehicle switches links, we should see one active node. Otherwise not.
@@ -733,7 +733,7 @@ mod tests {
 
     #[integration_test]
     fn vehicle_reaches_boundary() {
-        let mut publisher = Default::default();
+        let mut env = Default::default();
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             2,
@@ -751,9 +751,9 @@ mod tests {
         network.send_veh_en_route(vehicle, None, 0);
 
         for now in 0..20 {
-            network.move_nodes(&mut publisher, now);
+            network.move_nodes(&mut env, now);
 
-            let res = network.move_links(&mut publisher, now);
+            let res = network.move_links(&mut env, now);
             assert_eq!(0, res.storage_cap_updates.len()); // we expect no out links here
 
             assert_eq!(0, res.vehicles_end_leg.len());
@@ -773,7 +773,7 @@ mod tests {
 
     #[integration_test]
     fn move_nodes_enter_exit_constraint() {
-        let mut publisher = Default::default();
+        let mut env = Default::default();
         let global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -796,8 +796,8 @@ mod tests {
 
         // all vehicles only have to traverse link1. they enter and directly exit
         for now in 0..2 {
-            network.move_nodes(&mut publisher, now);
-            let res = network.move_links(&mut publisher, now);
+            network.move_nodes(&mut env, now);
+            let res = network.move_links(&mut env, now);
             if now == 0 {
                 assert_eq!(100, res.vehicles_end_leg.len());
             } else {
@@ -809,7 +809,7 @@ mod tests {
     /// Test that vehicles are released from out links in case there is no stuck timer.
     #[integration_test]
     fn move_nodes_storage_cap_constraint() {
-        let mut publisher = ThreadLocalComputationalEnvironment::default();
+        let mut env = ThreadLocalComputationalEnvironment::default();
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
             1,
@@ -842,8 +842,8 @@ mod tests {
         }
 
         for now in 0..2012 {
-            network.move_nodes(&mut publisher, now);
-            network.move_links(&mut publisher, now);
+            network.move_nodes(&mut env, now);
+            network.move_links(&mut env, now);
 
             let link1 = network.links.get(&id_1).unwrap();
             let link2 = network.links.get(&id_2).unwrap();
@@ -913,9 +913,9 @@ mod tests {
     /// Tests that vehicles are released from out links when stuck timer is reached.
     #[integration_test]
     fn move_nodes_stuck_threshold() {
-        let mut publisher = ThreadLocalComputationalEnvironment::default();
+        let mut env = ThreadLocalComputationalEnvironment::default();
         XmlEventsWriter::register("test_output/test.xml".into())(
-            &mut publisher.events_publisher_borrow_mut(),
+            &mut env.events_manager_borrow_mut(),
         );
         let mut global_net = Network::from_file(
             "./assets/3-links/3-links-network.xml",
@@ -950,8 +950,8 @@ mod tests {
         }
 
         for now in 0..3300 {
-            network.move_nodes(&mut publisher, now);
-            network.move_links(&mut publisher, now);
+            network.move_nodes(&mut env, now);
+            network.move_links(&mut env, now);
 
             let link1 = network.links.get(&id_1).unwrap();
             let link2 = network.links.get(&id_2).unwrap();
@@ -1016,7 +1016,7 @@ mod tests {
                 }
             }
         }
-        publisher.events_publisher_borrow_mut().finish();
+        env.events_manager_borrow_mut().finish();
     }
 
     /// Tests that move_node produces outcome as expected with different link loadings.
@@ -1124,14 +1124,14 @@ mod tests {
             sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
-        let mut publisher = ThreadLocalComputationalEnvironment::default();
+        let mut env = ThreadLocalComputationalEnvironment::default();
         XmlEventsWriter::register("test_output/test.xml".into())(
-            &mut publisher.events_publisher_borrow_mut(),
+            &mut env.events_manager_borrow_mut(),
         );
 
         for now in 0..1000 {
-            sim_net.move_nodes(&mut publisher, now);
-            sim_net.move_links(&mut publisher, now);
+            sim_net.move_nodes(&mut env, now);
+            sim_net.move_links(&mut env, now);
             if let Local(l) = sim_net.links.get(&Id::create("link1")).unwrap() {
                 println!("Time {}, link1 veh_count: {}", now, l.veh_count());
             }
@@ -1174,7 +1174,7 @@ mod tests {
         let mut network = Network::new();
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
         let net2 = sim_nets.get_mut(1).unwrap();
-        let mut publisher = Default::default();
+        let mut env = Default::default();
 
         let split_link_id: Id<Link> = Id::get_from_ext("link2");
         let agent = test_utils::create_agent(1, vec![split_link_id.external()]);
@@ -1196,7 +1196,7 @@ mod tests {
 
         // now, in the next time step, nothing has changed on the link. It should therefore not
         // report any storage capacities
-        net2.move_nodes(&mut publisher, 0);
+        net2.move_nodes(&mut env, 0);
         let res = net2.move_links(&mut Default::default(), 0);
         assert!(res.storage_cap_updates.is_empty());
 
