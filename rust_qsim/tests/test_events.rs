@@ -1,4 +1,5 @@
 use flate2::read::GzDecoder;
+use macros::integration_test;
 use rust_qsim::simulation::events::utils::convert_proto_to_xml_events;
 use rust_qsim::simulation::id;
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsReader;
@@ -8,23 +9,23 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use tracing::info;
 
-#[test]
+#[integration_test(rust_qsim)]
 fn test_proto_to_xml() {
     // run proto2xml on results from a run of 3-links-config-2.yml
-    let path = "./tests/resources/3-links/".to_string();
+    let path_to_proto_files = "./tests/resources/3-links/".to_string();
+    let output_folder = "./test_output/simulation/execute_3_links_2_parts/".to_string();
     let id_store = "./tests/resources/3-links/3-links.ids.binpb".to_string();
     let num_parts = 2;
 
-    id::load_from_file(&PathBuf::from(id_store));
-    convert_proto_to_xml_events(path, num_parts);
-
     // create result directory, move the generated .gz file there
-    fs::create_dir_all("./test_output/simulation/execute_3_links_2_parts/").unwrap();
-    fs::rename(
-        "./tests/resources/3-links/events.xml.gz",
-        "./test_output/simulation/execute_3_links_2_parts/events.xml.gz",
-    )
-    .unwrap();
+    fs::create_dir_all(&output_folder).unwrap();
+
+    id::load_from_file(&PathBuf::from(id_store));
+    convert_proto_to_xml_events(
+        path_to_proto_files,
+        num_parts,
+        PathBuf::from(output_folder).join("events.xml.gz"),
+    );
 
     // Load and compare two XML event files
     let generated_file =
@@ -34,7 +35,7 @@ fn test_proto_to_xml() {
     compare_xml_event_files_as_string(generated_file, expected_file);
 
     // commented out, since the XmlEventsReader doesn't know the event type "vehicle enters
-    // traffic", which is present in the given xml files, and thus panics.
+    // traffic", which is present in the given XML files, and thus panics.
     // compare_xml_event_files_as_xml(generated_file, expected_file);
 }
 
@@ -109,6 +110,7 @@ fn compare_xml_event_files_as_string(filepath1: &Path, filepath2: &Path) {
     }
 }
 
+#[allow(dead_code)]
 /// Compares two XML event files event by event. Panics if any events differ or if the files have different number of events.
 fn compare_xml_event_files_as_xml(file1: &Path, file2: &Path) {
     let mut reader1 = XmlEventsReader::new(file1);
@@ -116,7 +118,7 @@ fn compare_xml_event_files_as_xml(file1: &Path, file2: &Path) {
 
     let mut line_count = 0;
     loop {
-        // this panics for the given xml files, since the XmlEventsReader doesn't know the event
+        // this panics for the given XML files, since the XmlEventsReader doesn't know the event
         // type "vehicle enters traffic"
         let event1 = reader1.read_next();
         let event2 = reader2.read_next();

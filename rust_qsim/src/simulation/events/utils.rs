@@ -2,7 +2,6 @@ use crate::generated::events::MyEvent;
 use crate::simulation::events::EventsManager;
 use crate::simulation::io::proto::proto_events::{process_events, ProtoEventsReader};
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
-use crate::simulation::logging::init_std_out_logging_thread_local;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use tracing::info;
@@ -67,19 +66,23 @@ pub fn read_proto_events(
     info!("Finished reading proto files.");
     events.finish();
 }
-
-pub fn convert_proto_to_xml_events(path: String, num_parts: u32) {
-    let _g = init_std_out_logging_thread_local();
-
+/// Reads all proto events from the given folder and writes them to a single XML file (optionally
+/// compressed as xml.gz, based on the file extension in the given output path).
+/// Assumes that ids are already loaded.
+pub fn convert_proto_to_xml_events(
+    path_to_proto_files: String,
+    num_parts: u32,
+    output_file_path: PathBuf,
+) {
     let mut publisher = EventsManager::new();
-    let output_file_path = PathBuf::from(&path).join("events.xml.gz");
+
     let register_xml_writer = XmlEventsWriter::register(output_file_path.clone());
 
     register_xml_writer(&mut publisher);
 
     read_proto_events(
         &mut publisher,
-        &PathBuf::from(&path),
+        &PathBuf::from(&path_to_proto_files),
         String::from("events"),
         num_parts,
     );
