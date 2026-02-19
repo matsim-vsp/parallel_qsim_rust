@@ -212,3 +212,103 @@ impl Default for FrameworkEventsManager<ControllerEvent> {
         Self::for_controller(0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    #[test]
+    fn controller_events_invoke_callbacks_with_controller_meta() {
+        let mut manager = ControllerEventsManager::for_controller(3);
+        let received: Rc<RefCell<Vec<ControllerRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let received_clone = received.clone();
+
+        manager.on_event(move |event| {
+            received_clone.borrow_mut().push(event.clone());
+        });
+
+        manager.process_event(ControllerEvent::startup(false));
+        manager.process_event(ControllerEvent::iteration_starts(true));
+
+        let events = received.borrow();
+        assert_eq!(2, events.len());
+
+        assert_eq!(EventOrigin::Controller, events[0].meta.origin);
+        assert_eq!(3, events[0].meta.iteration);
+        assert_eq!(0, events[0].meta.seq_no);
+        assert_eq!(ControllerEvent::startup(false), events[0].payload.clone());
+
+        assert_eq!(EventOrigin::Controller, events[1].meta.origin);
+        assert_eq!(3, events[1].meta.iteration);
+        assert_eq!(1, events[1].meta.seq_no);
+        assert_eq!(
+            ControllerEvent::iteration_starts(true),
+            events[1].payload.clone()
+        );
+    }
+
+    #[test]
+    fn controller_next_iteration_resets_seq_counter() {
+        let mut manager = ControllerEventsManager::for_controller(10);
+
+        let first = manager.process_event(ControllerEvent::startup(false));
+        assert_eq!(10, first.meta.iteration);
+        assert_eq!(0, first.meta.seq_no);
+
+        manager.next_iteration();
+
+        let second = manager.process_event(ControllerEvent::shutdown(true));
+        assert_eq!(11, second.meta.iteration);
+        assert_eq!(0, second.meta.seq_no);
+    }
+
+    #[test]
+    fn mobsim_events_use_partition_origin_and_invoke_callbacks() {
+        let mut manager = MobsimEventsManager::for_partition(7, 2);
+        let received: Rc<RefCell<Vec<MobsimRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let received_clone = received.clone();
+
+        manager.on_event(move |event| {
+            received_clone.borrow_mut().push(event.clone());
+        });
+
+        manager.process_event(MobsimEvent::before_sim_step(100));
+        manager.process_event(MobsimEvent::after_sim_step(100));
+        manager.process_event(MobsimEvent::BeforeCleanup);
+
+        let events = received.borrow();
+        assert_eq!(3, events.len());
+
+        assert_eq!(EventOrigin::Partition(7), events[0].meta.origin);
+        assert_eq!(2, events[0].meta.iteration);
+        assert_eq!(0, events[0].meta.seq_no);
+        assert_eq!(MobsimEvent::before_sim_step(100), events[0].payload.clone());
+
+        assert_eq!(EventOrigin::Partition(7), events[1].meta.origin);
+        assert_eq!(2, events[1].meta.iteration);
+        assert_eq!(1, events[1].meta.seq_no);
+        assert_eq!(MobsimEvent::after_sim_step(100), events[1].payload.clone());
+
+        assert_eq!(EventOrigin::Partition(7), events[2].meta.origin);
+        assert_eq!(2, events[2].meta.iteration);
+        assert_eq!(2, events[2].meta.seq_no);
+        assert_eq!(MobsimEvent::BeforeCleanup, events[2].payload.clone());
+    }
+
+    #[test]
+    fn mobsim_next_iteration_resets_seq_counter() {
+        let mut manager = MobsimEventsManager::for_partition(1, 5);
+
+        let first = manager.process_event(MobsimEvent::before_sim_step(1));
+        assert_eq!(5, first.meta.iteration);
+        assert_eq!(0, first.meta.seq_no);
+
+        manager.next_iteration();
+
+        let second = manager.process_event(MobsimEvent::after_sim_step(2));
+        assert_eq!(6, second.meta.iteration);
+        assert_eq!(0, second.meta.seq_no);
+    }
+}

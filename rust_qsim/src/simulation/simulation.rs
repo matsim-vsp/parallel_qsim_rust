@@ -3,7 +3,7 @@ use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
-use crate::simulation::framework_events::{MobsimEvent, MobsimTimeEvent};
+use crate::simulation::framework_events::MobsimEvent;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
