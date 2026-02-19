@@ -145,18 +145,23 @@ impl EventRuntimeState {
 
 type OnRuntimeEventFn<E> = dyn Fn(&RuntimeEvent<E>) + 'static;
 
+struct RegisteredCallback<E> {
+    priority: i32,
+    callback: Box<OnRuntimeEventFn<E>>,
+}
+
 pub struct FrameworkEventsManager<E> {
     state: EventRuntimeState,
-    on_event: Vec<Box<OnRuntimeEventFn<E>>>,
+    callbacks: Vec<RegisteredCallback<E>>,
 }
 
 impl<E> std::fmt::Debug for FrameworkEventsManager<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "FrameworkEventsManager {{ state: {:?}, on_any: {} }}",
+            "FrameworkEventsManager {{ state: {:?}, callbacks: {} }}",
             self.state,
-            self.on_event.len()
+            self.callbacks.len()
         )
     }
 }
@@ -165,14 +170,14 @@ impl<E> FrameworkEventsManager<E> {
     pub fn new(origin: EventOrigin, iteration: u32) -> Self {
         Self {
             state: EventRuntimeState::new(origin, iteration),
-            on_event: Vec::new(),
+            callbacks: Vec::new(),
         }
     }
 
     pub fn process_event(&mut self, payload: E) -> RuntimeEvent<E> {
         let event = self.state.wrap(payload);
-        for callback in &self.on_event {
-            callback(&event);
+        for entry in &self.callbacks {
+            (entry.callback)(&event);
         }
         event
     }
@@ -185,7 +190,18 @@ impl<E> FrameworkEventsManager<E> {
     where
         F: Fn(&RuntimeEvent<E>) + 'static,
     {
-        self.on_event.push(Box::new(callback));
+        self.on_event_with_priority(0, callback);
+    }
+
+    pub fn on_event_with_priority<F>(&mut self, priority: i32, callback: F)
+    where
+        F: Fn(&RuntimeEvent<E>) + 'static,
+    {
+        self.callbacks.push(RegisteredCallback {
+            priority,
+            callback: Box::new(callback),
+        });
+        self.callbacks.sort_by(|a, b| b.priority.cmp(&a.priority));
     }
 }
 
@@ -310,5 +326,61 @@ mod tests {
         let second = manager.process_event(MobsimEvent::after_sim_step(2));
         assert_eq!(6, second.meta.iteration);
         assert_eq!(0, second.meta.seq_no);
+    }
+
+    #[test]
+    fn controller_callbacks_are_called_by_descending_priority() {
+        let mut manager = ControllerEventsManager::for_controller(0);
+        let order: Rc<RefCell<Vec<&'static str>>> = Rc::new(RefCell::new(Vec::new()));
+
+        let order_low = order.clone();
+        manager.on_event_with_priority(0, move |_| {
+            order_low.borrow_mut().push("low");
+        });
+
+        let order_high = order.clone();
+        manager.on_event_with_priority(10, move |_| {
+            order_high.borrow_mut().push("high");
+        });
+
+        let order_high_second = order.clone();
+        manager.on_event_with_priority(10, move |_| {
+            order_high_second.borrow_mut().push("high_2");
+        });
+
+        manager.process_event(ControllerEvent::startup(false));
+
+        assert_eq!(
+            vec!["high", "high_2", "low"],
+            order.borrow().clone()
+        );
+    }
+
+    #[test]
+    fn mobsim_callbacks_are_called_by_descending_priority() {
+        let mut manager = MobsimEventsManager::for_partition(2, 0);
+        let order: Rc<RefCell<Vec<&'static str>>> = Rc::new(RefCell::new(Vec::new()));
+
+        let order_default = order.clone();
+        manager.on_event(move |_| {
+            order_default.borrow_mut().push("default");
+        });
+
+        let order_high = order.clone();
+        manager.on_event_with_priority(5, move |_| {
+            order_high.borrow_mut().push("high");
+        });
+
+        let order_low = order.clone();
+        manager.on_event_with_priority(-1, move |_| {
+            order_low.borrow_mut().push("low");
+        });
+
+        manager.process_event(MobsimEvent::before_sim_step(10));
+
+        assert_eq!(
+            vec!["high", "default", "low"],
+            order.borrow().clone()
+        );
     }
 }
