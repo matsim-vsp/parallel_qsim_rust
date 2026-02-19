@@ -54,6 +54,9 @@ pub struct EventMeta {
 pub type MobsimRuntimeEvent = RuntimeEvent<MobsimEvent>;
 pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
 
+pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
+pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;
+
 pub type MobsimListenerRegistrator = dyn FnOnce(&mut MobsimEventsManager) + Send;
 pub type ControllerListenerRegistrator = dyn FnOnce(&mut ControllerEventsManager) + Send;
 
@@ -65,7 +68,7 @@ struct EventRuntimeState {
 }
 
 impl EventRuntimeState {
-    pub fn new(origin: EventOrigin, iteration: u32) -> Self {
+    fn new(origin: EventOrigin, iteration: u32) -> Self {
         Self {
             origin,
             iteration,
@@ -86,42 +89,41 @@ impl EventRuntimeState {
         event
     }
 
-    pub fn next_iteration(&mut self) {
+    fn next_iteration(&mut self) {
         self.iteration += 1;
         self.next_seq_no = 0;
     }
 }
 
-type OnMobsimEventFn = dyn Fn(&MobsimRuntimeEvent) + 'static;
-type OnControllerEventFn = dyn Fn(&ControllerRuntimeEvent) + 'static;
+type OnRuntimeEventFn<E> = dyn Fn(&RuntimeEvent<E>) + 'static;
 
-pub struct MobsimEventsManager {
+pub struct FrameworkEventsManager<E> {
     state: EventRuntimeState,
-    on_any: Vec<Box<OnMobsimEventFn>>,
+    on_event: Vec<Box<OnRuntimeEventFn<E>>>,
 }
 
-impl std::fmt::Debug for MobsimEventsManager {
+impl<E> std::fmt::Debug for FrameworkEventsManager<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MobsimEventsManager {{ state: {:?}, on_any: {} }}",
+            "FrameworkEventsManager {{ state: {:?}, on_any: {} }}",
             self.state,
-            self.on_any.len(),
+            self.on_event.len()
         )
     }
 }
 
-impl MobsimEventsManager {
-    pub fn for_partition(qsim_id: QSimId, iteration: u32) -> Self {
+impl<E> FrameworkEventsManager<E> {
+    pub fn new(origin: EventOrigin, iteration: u32) -> Self {
         Self {
-            state: EventRuntimeState::new(EventOrigin::Partition(qsim_id), iteration),
-            on_any: Vec::new(),
+            state: EventRuntimeState::new(origin, iteration),
+            on_event: Vec::new(),
         }
     }
 
-    pub fn process_event(&mut self, payload: MobsimEvent) -> MobsimRuntimeEvent {
+    pub fn process_event(&mut self, payload: E) -> RuntimeEvent<E> {
         let event = self.state.wrap(payload);
-        for callback in &self.on_any {
+        for callback in &self.on_event {
             callback(&event);
         }
         event
@@ -131,72 +133,33 @@ impl MobsimEventsManager {
         self.state.next_iteration();
     }
 
-    pub fn on_any<F>(&mut self, callback: F)
-    where
-        F: Fn(&MobsimRuntimeEvent) + 'static,
-    {
-        self.on_any.push(Box::new(callback));
-    }
-
     pub fn on_event<F>(&mut self, callback: F)
     where
-        F: Fn(&MobsimRuntimeEvent) + 'static,
+        F: Fn(&RuntimeEvent<E>) + 'static,
     {
-        self.on_any(callback);
+        self.on_event.push(Box::new(callback));
     }
 }
 
-impl Default for MobsimEventsManager {
+impl FrameworkEventsManager<MobsimEvent> {
+    pub fn for_partition(qsim_id: QSimId, iteration: u32) -> Self {
+        Self::new(EventOrigin::Partition(qsim_id), iteration)
+    }
+}
+
+impl Default for FrameworkEventsManager<MobsimEvent> {
     fn default() -> Self {
         Self::for_partition(0, 0)
     }
 }
 
-pub struct ControllerEventsManager {
-    state: EventRuntimeState,
-    on_any: Vec<Box<OnControllerEventFn>>,
-}
-
-impl std::fmt::Debug for ControllerEventsManager {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ControllerEventsManager {{ state: {:?}, on_any: {} }}",
-            self.state,
-            self.on_any.len(),
-        )
-    }
-}
-
-impl ControllerEventsManager {
+impl FrameworkEventsManager<ControllerEvent> {
     pub fn for_controller(iteration: u32) -> Self {
-        Self {
-            state: EventRuntimeState::new(EventOrigin::Controller, iteration),
-            on_any: Vec::new(),
-        }
-    }
-
-    pub fn process_event(&mut self, payload: ControllerEvent) -> ControllerRuntimeEvent {
-        let event = self.state.wrap(payload);
-        for callback in &self.on_any {
-            callback(&event);
-        }
-        event
-    }
-
-    pub fn next_iteration(&mut self) {
-        self.state.next_iteration();
-    }
-
-    pub fn on_any<F>(&mut self, callback: F)
-    where
-        F: Fn(&ControllerRuntimeEvent) + 'static,
-    {
-        self.on_any.push(Box::new(callback));
+        Self::new(EventOrigin::Controller, iteration)
     }
 }
 
-impl Default for ControllerEventsManager {
+impl Default for FrameworkEventsManager<ControllerEvent> {
     fn default() -> Self {
         Self::for_controller(0)
     }
