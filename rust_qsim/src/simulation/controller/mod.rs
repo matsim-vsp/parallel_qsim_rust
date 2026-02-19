@@ -8,7 +8,7 @@ use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::scenario::ScenarioPartitionBuilder;
+use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
 use derive_builder::Builder;
@@ -129,8 +129,7 @@ impl ThreadLocalComputationalEnvironment {
 #[builder(pattern = "owned")]
 pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
-    // Holding the builder instead of the built struct, the final struct holds ThreadRng, which can only be built on the corresponding thread.
-    scenario_partition: ScenarioPartitionBuilder,
+    scenario_partition: ScenarioPartition,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
@@ -143,7 +142,9 @@ pub struct PartitionArguments<C: SimCommunicator> {
 }
 
 fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
-    let config = &partition_arguments.scenario_partition.config;
+    let partition = partition_arguments.scenario_partition;
+
+    let config = &partition.config;
     let _guards = logging::init_logging(config, partition_arguments.communicator.rank());
 
     let comm = partition_arguments.communicator;
@@ -154,15 +155,13 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
 
-    let scenario = partition_arguments.scenario_partition.build();
-
-    let events = create_events(&scenario.config, rank, subscribers);
+    let events = create_events(&partition.config, rank, subscribers);
 
     let net_message_broker = NetMessageBroker::new(
         Rc::new(comm),
-        &scenario.network,
-        &scenario.network_partition,
-        scenario.config.computational_setup().global_sync,
+        &partition.network,
+        &partition.network_partition,
+        partition.config.computational_setup().global_sync,
     );
 
     let mut comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
@@ -182,7 +181,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     }
 
     let mut simulation: Simulation<C> =
-        SimulationBuilder::new(scenario, net_message_broker, comp_env).build();
+        SimulationBuilder::new(partition, net_message_broker, comp_env).build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to

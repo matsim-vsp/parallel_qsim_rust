@@ -91,21 +91,7 @@ pub struct SimNode {
     in_links: Vec<Id<Link>>,
 }
 
-#[derive(Debug)]
-pub struct SimNetworkPartitionBuilder {
-    pub(crate) nodes: IntMap<Id<Node>, SimNode>,
-    pub(crate) links: IntMap<Id<Link>, SimLink>,
-    partition: u32,
-    base_seed: u64,
-}
-
-impl From<SimNetworkPartitionBuilder> for SimNetworkPartition {
-    fn from(value: SimNetworkPartitionBuilder) -> Self {
-        SimNetworkPartition::build(value.nodes, value.links, value.partition, value.base_seed)
-    }
-}
-
-impl SimNetworkPartitionBuilder {
+impl SimNetworkPartition {
     pub fn from_network(
         global_network: &Network,
         partition: u32,
@@ -146,16 +132,7 @@ impl SimNetworkPartitionBuilder {
             .map(|n| (n.id.clone(), Self::create_sim_node(n)))
             .collect();
 
-        Self {
-            nodes: sim_nodes,
-            links: sim_links,
-            partition,
-            base_seed,
-        }
-    }
-
-    pub fn build(self) -> SimNetworkPartition {
-        SimNetworkPartition::build(self.nodes, self.links, self.partition, self.base_seed)
+        SimNetworkPartition::build(sim_nodes, sim_links, partition, base_seed)
     }
 
     fn create_sim_node(node: &Node) -> SimNode {
@@ -191,9 +168,7 @@ impl SimNetworkPartitionBuilder {
             ))
         }
     }
-}
 
-impl SimNetworkPartition {
     fn build(
         nodes: IntMap<Id<Node>, SimNode>,
         links: IntMap<Id<Link>, SimLink>,
@@ -637,7 +612,7 @@ struct MoveSingleLinkResult {
 
 #[cfg(test)]
 mod tests {
-    use super::{SimNetworkPartition, SimNetworkPartitionBuilder};
+    use super::SimNetworkPartition;
     use crate::simulation::config;
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::controller::ThreadLocalComputationalEnvironment;
@@ -687,13 +662,12 @@ mod tests {
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
-        let mut network = SimNetworkPartitionBuilder::from_network(
+        let mut network = SimNetworkPartition::from_network(
             &global_net,
             0,
             &test_utils::config(),
             config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        );
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
         let vehicle = InternalVehicle::new(1, 0, 10., 1., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
@@ -739,13 +713,12 @@ mod tests {
             2,
             &PartitionMethod::None,
         );
-        let mut network = SimNetworkPartitionBuilder::from_network(
+        let mut network = SimNetworkPartition::from_network(
             &global_net,
             0,
             &test_utils::config(),
             config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        );
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
         let vehicle = InternalVehicle::new(1, 0, 10., 100., Some(agent));
         network.send_veh_en_route(vehicle, None, 0);
@@ -779,13 +752,12 @@ mod tests {
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
-        let mut network = SimNetworkPartitionBuilder::from_network(
+        let mut network = SimNetworkPartition::from_network(
             &global_net,
             0,
             &test_utils::config(),
             config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        );
 
         // place 100 vehicles on first link
         for i in 0..100 {
@@ -822,13 +794,8 @@ mod tests {
         let id_3: Id<Link> = Id::get_from_ext("link3");
         let mut config = test_utils::config();
         config.stuck_threshold = u32::MAX;
-        let mut network = SimNetworkPartitionBuilder::from_network(
-            &global_net,
-            0,
-            &config,
-            config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        let mut network =
+            SimNetworkPartition::from_network(&global_net, 0, &config, config::DEFAULT_RANDOM_SEED);
 
         // Place 10 vehicles on link1. They will be released every 10s because PCE is 10 and flow_cap is 1.
         // Since they are super slow, they will leave link2 after 1000s.
@@ -929,13 +896,8 @@ mod tests {
         let id_3: Id<Link> = Id::get_from_ext("link3");
         let mut config = test_utils::config();
         config.stuck_threshold = 10;
-        let mut network = SimNetworkPartitionBuilder::from_network(
-            &global_net,
-            0,
-            &config,
-            config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        let mut network =
+            SimNetworkPartition::from_network(&global_net, 0, &config, config::DEFAULT_RANDOM_SEED);
 
         // Place 10 vehicles on link1. They will be released every 10s because PCE is 10 and flow_cap is 1.
         // Since they are super slow, they will leave link2 after 1000s.
@@ -1102,13 +1064,12 @@ mod tests {
             partition: 0,
             attributes: Default::default(),
         });
-        let mut sim_net = SimNetworkPartitionBuilder::from_network(
+        let mut sim_net = SimNetworkPartition::from_network(
             &net,
             0,
             &test_utils::config(),
             config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        );
 
         // Place 1000 vehicles on link1. Flow cap: 1 veh/s
         for i in 0..1000 {
@@ -1244,13 +1205,12 @@ mod tests {
         net.add_link(out_link_1_2);
         net.add_link(out_link_3_1);
 
-        let sim_net = SimNetworkPartitionBuilder::from_network(
+        let sim_net = SimNetworkPartition::from_network(
             &net,
             0,
             &test_utils::config(),
             config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        );
 
         let neighbors = sim_net.neighbors();
         assert_eq!(3, neighbors.len());
@@ -1282,14 +1242,14 @@ mod tests {
         network.add_link(link2);
 
         vec![
-            SimNetworkPartitionBuilder::from_network(
+            SimNetworkPartition::from_network(
                 network,
                 0,
                 &test_utils::config(),
                 config::DEFAULT_RANDOM_SEED,
             )
             .into(),
-            SimNetworkPartitionBuilder::from_network(
+            SimNetworkPartition::from_network(
                 network,
                 1,
                 &test_utils::config(),

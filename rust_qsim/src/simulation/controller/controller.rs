@@ -10,7 +10,7 @@ use crate::simulation::framework_events::{
     GeneralControllerEvent, MobsimListenerRegistrator,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
-use crate::simulation::scenario::{Scenario, ScenarioPartitionBuilder};
+use crate::simulation::scenario::{Scenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
 use nohash_hasher::IntMap;
@@ -158,8 +158,8 @@ impl Controller {
     fn run_channel(&mut self) -> IntMap<u32, JoinHandle<()>> {
         // Is of type Vec<Option<>> because later we iteratively take the partition builder and construct
         // the actual partitions.
-        let mut partitions: Vec<Option<ScenarioPartitionBuilder>> =
-            ScenarioPartitionBuilder::from(&mut self.scenario)
+        let mut partitions: Vec<Option<ScenarioPartition>> =
+            ScenarioPartition::from(&mut self.scenario)
                 .into_iter()
                 .map(Some)
                 .collect();

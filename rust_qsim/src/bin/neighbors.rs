@@ -8,7 +8,7 @@ use tracing::info;
 
 use rust_qsim::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod, VertexWeight};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::network::sim_network::SimNetworkPartitionBuilder;
+use rust_qsim::simulation::network::sim_network::SimNetworkPartition;
 use rust_qsim::simulation::network::Network;
 use rust_qsim::simulation::{config, id};
 
@@ -41,13 +41,12 @@ fn main() {
         );
         let distinct_partitions: HashSet<u32> = net.nodes().iter().map(|n| n.partition).collect();
         for partition in distinct_partitions {
-            let net_partition = SimNetworkPartitionBuilder::from_network(
+            let net_partition = SimNetworkPartition::from_network(
                 &net,
                 partition,
                 &config::Simulation::default(),
                 config::DEFAULT_RANDOM_SEED,
-            )
-            .build();
+            );
             let neighbors = net_partition.neighbors().len();
             let serialized = format!("{},{},{}\n", num_parts, partition, neighbors);
             writer

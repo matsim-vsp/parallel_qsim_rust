@@ -1,5 +1,5 @@
 use crate::simulation::config::Config;
-use crate::simulation::network::sim_network::{SimNetworkPartition, SimNetworkPartitionBuilder};
+use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::network::Network;
 use crate::simulation::population::Population;
 use crate::simulation::vehicles::garage::Garage;
@@ -76,17 +76,7 @@ pub struct ScenarioPartition {
     pub(crate) config: Arc<Config>,
 }
 
-/// This struct is needed as intermediate step to build a ScenarioPartition.
-#[derive(Debug)]
-pub struct ScenarioPartitionBuilder {
-    network: Arc<Network>,
-    garage: Garage,
-    population: Population,
-    network_partition: SimNetworkPartitionBuilder,
-    pub(crate) config: Arc<Config>,
-}
-
-impl ScenarioPartitionBuilder {
+impl ScenarioPartition {
     pub(crate) fn from(scenario: &mut Scenario) -> Vec<Self> {
         let mut partitions = Vec::new();
         for i in 0..scenario.config.partitioning().num_parts {
@@ -94,16 +84,6 @@ impl ScenarioPartitionBuilder {
             partitions.push(partition);
         }
         partitions
-    }
-
-    pub fn build(self) -> ScenarioPartition {
-        ScenarioPartition {
-            network: self.network,
-            garage: self.garage,
-            population: self.population,
-            network_partition: self.network_partition.build(),
-            config: self.config,
-        }
     }
 
     fn create_partition(partition_num: u32, scenario: &mut Scenario) -> Self {
@@ -139,10 +119,10 @@ impl ScenarioPartitionBuilder {
         rank: u32,
         network: &Network,
         population: &Population,
-    ) -> SimNetworkPartitionBuilder {
+    ) -> SimNetworkPartition {
         let base_seed = config.computational_setup().random_seed;
         let partition =
-            SimNetworkPartitionBuilder::from_network(network, rank, config.simulation(), base_seed);
+            SimNetworkPartition::from_network(network, rank, config.simulation(), base_seed);
         info!(
             "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
             partition.nodes.len(),
