@@ -42,7 +42,7 @@ where
         while now <= self.end_time {
             self.comp_env
                 .mobsim_event_bus_borrow_mut()
-                .process(MobsimEvent::BeforeSimStep(MobsimTimeEvent { time: now }));
+                .process_event(MobsimEvent::BeforeSimStep(MobsimTimeEvent { time: now }));
 
             if now % 3600 == 0 {
                 let _hour = now / 3600;

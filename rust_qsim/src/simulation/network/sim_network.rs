@@ -305,7 +305,7 @@ impl SimNetworkPartition {
         let is_route_begin = events_manager.is_none();
 
         if let Some(manager) = events_manager {
-            manager.borrow_mut().publish_event(
+            manager.borrow_mut().process_event(
                 &LinkEnterEventBuilder::default()
                     .time(now)
                     .link(link.id().clone())
@@ -587,7 +587,7 @@ impl SimNetworkPartition {
     ) {
         let old_link_id = vehicle.curr_link_id().unwrap().clone();
 
-        comp_env.events_manager_borrow_mut().publish_event(
+        comp_env.events_manager_borrow_mut().process_event(
             &LinkLeaveEventBuilder::default()
                 .vehicle(vehicle.id.clone())
                 .link(old_link_id.clone())
@@ -601,7 +601,7 @@ impl SimNetworkPartition {
 
         // for out links, link enter event is published at receiving partition
         if let SimLink::Local(_) = new_link {
-            comp_env.events_manager_borrow_mut().publish_event(
+            comp_env.events_manager_borrow_mut().process_event(
                 &LinkEnterEventBuilder::default()
                     .time(now)
                     .link(new_link.id().clone())

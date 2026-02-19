@@ -2,7 +2,7 @@ use clap::Parser;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::Config;
-use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::Scenario;
@@ -64,7 +64,7 @@ fn main() {
     let scenario = Scenario::load(config);
 
     // Create controller
-    let controller = LocalControllerBuilder::default_with_scenario(scenario)
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .external_services(services)
         .global_barrier(barrier)
         .adapter_handles(adapters)

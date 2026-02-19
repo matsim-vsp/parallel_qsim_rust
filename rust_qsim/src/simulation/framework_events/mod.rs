@@ -30,8 +30,7 @@ pub enum ControllerEvent {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GeneralControllerEvent {
-    pub iteration: u32,
-    pub last_iteration: u32,
+    pub last_iteration: bool,
     // something like "matsim services" in java
 }
 
@@ -59,10 +58,10 @@ pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
 
 type OnRuntimeEventFn<E> = dyn Fn(&RuntimeEvent<E>) + 'static;
 
-pub type MobsimListenerRegistrator = dyn FnOnce(&mut MobsimEventBus) + Send;
-pub type ControllerListenerRegistrator = dyn FnOnce(&mut ControllerEventBus) + Send;
+pub type MobsimListenerRegistrator = dyn FnOnce(&mut MobsimEventsManager) + Send;
+pub type ControllerListenerRegistrator = dyn FnOnce(&mut ControllerEventsManager) + Send;
 
-pub struct FrameworkEventBus<E> {
+pub struct FrameworkEventsManager<E> {
     origin: EventOrigin,
     iteration: u32,
     next_seq_no: u64,
@@ -70,7 +69,7 @@ pub struct FrameworkEventBus<E> {
     _event_type: PhantomData<E>,
 }
 
-impl<E> std::fmt::Debug for FrameworkEventBus<E> {
+impl<E> std::fmt::Debug for FrameworkEventsManager<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -83,7 +82,7 @@ impl<E> std::fmt::Debug for FrameworkEventBus<E> {
     }
 }
 
-impl<E> FrameworkEventBus<E> {
+impl<E> FrameworkEventsManager<E> {
     pub fn new(origin: EventOrigin, iteration: u32) -> Self {
         Self {
             origin,
@@ -94,7 +93,7 @@ impl<E> FrameworkEventBus<E> {
         }
     }
 
-    pub fn process(&mut self, payload: E) -> RuntimeEvent<E> {
+    pub fn process_event(&mut self, payload: E) -> RuntimeEvent<E> {
         let event = RuntimeEvent {
             meta: EventMeta {
                 origin: self.origin,
@@ -110,8 +109,8 @@ impl<E> FrameworkEventBus<E> {
         event
     }
 
-    pub fn set_iteration(&mut self, iteration: u32) {
-        self.iteration = iteration;
+    pub fn next_iteration(&mut self) {
+        self.iteration += 1;
         self.next_seq_no = 0;
     }
 
@@ -123,7 +122,7 @@ impl<E> FrameworkEventBus<E> {
     }
 }
 
-impl FrameworkEventBus<MobsimEvent> {
+impl FrameworkEventsManager<MobsimEvent> {
     pub fn for_partition(qsim_id: QSimId, iteration: u32) -> Self {
         Self::new(EventOrigin::Partition(qsim_id), iteration)
     }
@@ -140,7 +139,7 @@ impl FrameworkEventBus<MobsimEvent> {
     }
 }
 
-impl FrameworkEventBus<ControllerEvent> {
+impl FrameworkEventsManager<ControllerEvent> {
     pub fn for_controller(iteration: u32) -> Self {
         Self::new(EventOrigin::Controller, iteration)
     }
@@ -157,17 +156,17 @@ impl FrameworkEventBus<ControllerEvent> {
     }
 }
 
-impl Default for FrameworkEventBus<MobsimEvent> {
+impl Default for FrameworkEventsManager<MobsimEvent> {
     fn default() -> Self {
         Self::for_partition(0, 0)
     }
 }
 
-impl Default for FrameworkEventBus<ControllerEvent> {
+impl Default for FrameworkEventsManager<ControllerEvent> {
     fn default() -> Self {
         Self::for_controller(0)
     }
 }
 
-pub type MobsimEventBus = FrameworkEventBus<MobsimEvent>;
-pub type ControllerEventBus = FrameworkEventBus<ControllerEvent>;
+pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
+pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;

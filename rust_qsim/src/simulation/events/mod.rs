@@ -65,7 +65,7 @@ impl EventsManager {
         }
     }
 
-    pub fn publish_event(&mut self, event: &dyn EventTrait) {
+    pub fn process_event(&mut self, event: &dyn EventTrait) {
         let tid = event.as_any().type_id();
         if let Some(list) = self.per_type.get(&tid).cloned() {
             for h in list {

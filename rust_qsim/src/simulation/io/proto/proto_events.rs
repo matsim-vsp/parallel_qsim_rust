@@ -518,7 +518,7 @@ pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsMana
             VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
-        manager.publish_event(internal_event.as_ref());
+        manager.process_event(internal_event.as_ref());
     }
 }
 

@@ -1,6 +1,6 @@
 use clap::Parser;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
-use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::Scenario;
 use std::sync::Arc;
@@ -19,7 +19,7 @@ fn main() {
     let scenario = Scenario::load(config);
 
     // Create and run simulation
-    let controller = LocalControllerBuilder::default_with_scenario(scenario)
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
         .unwrap();
 

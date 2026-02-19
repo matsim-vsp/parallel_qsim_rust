@@ -6,8 +6,8 @@ use crate::simulation::controller::{
 };
 use crate::simulation::events::EventHandlerRegistrator;
 use crate::simulation::framework_events::{
-    ControllerEvent, ControllerEventBus, ControllerListenerRegistrator, GeneralControllerEvent,
-    MobsimListenerRegistrator,
+    ControllerEvent, ControllerEventsManager, ControllerListenerRegistrator,
+    GeneralControllerEvent, MobsimListenerRegistrator,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::scenario::{Scenario, ScenarioPartitionBuilder};
@@ -22,9 +22,9 @@ use std::{fs, thread};
 use tracing::info;
 
 #[derive(Debug)]
-pub struct LocalController {
+pub struct Controller {
     scenario: Scenario,
-    controller_event_bus: ControllerEventBus,
+    controller_event_bus: ControllerEventsManager,
     #[debug(skip)]
     event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
     #[debug(skip)]
@@ -34,7 +34,7 @@ pub struct LocalController {
     adapter_handles: Vec<AdapterHandle>,
 }
 
-pub struct LocalControllerBuilder {
+pub struct ControllerBuilder {
     scenario: Scenario,
     controller_event_registrators: Vec<Box<ControllerListenerRegistrator>>,
     event_handler_registrators: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
@@ -44,9 +44,9 @@ pub struct LocalControllerBuilder {
     adapter_handles: Vec<AdapterHandle>,
 }
 
-impl LocalControllerBuilder {
+impl ControllerBuilder {
     pub fn default_with_scenario(scenario: Scenario) -> Self {
-        LocalControllerBuilder {
+        ControllerBuilder {
             scenario,
             controller_event_registrators: Vec::new(),
             event_handler_registrators: HashMap::new(),
@@ -58,7 +58,7 @@ impl LocalControllerBuilder {
     }
 
     // Implementing a custom build function in order to set the barrier if not set by the user.
-    pub fn build(mut self) -> Result<LocalController, String> {
+    pub fn build(mut self) -> Result<Controller, String> {
         // create a barrier for the number of partitions, if not provided
         let barrier = self.global_barrier.take().unwrap_or_else(|| {
             Arc::new(Barrier::new(
@@ -66,14 +66,14 @@ impl LocalControllerBuilder {
             ))
         });
 
-        let mut controller_event_bus = ControllerEventBus::default();
+        let mut controller_event_manager = ControllerEventsManager::default();
         for registrator in self.controller_event_registrators {
-            registrator(&mut controller_event_bus);
+            registrator(&mut controller_event_manager);
         }
 
-        Ok(LocalController {
+        Ok(Controller {
             scenario: self.scenario,
-            controller_event_bus,
+            controller_event_bus: controller_event_manager,
             event_handler_per_partition: self.event_handler_registrators,
             mobsim_event_listener_per_partition: self.mobsim_event_registrators,
             external_services: self.external_services,
@@ -122,15 +122,13 @@ impl LocalControllerBuilder {
     }
 }
 
-impl LocalController {
+impl Controller {
     /// Runs the simulation and joins all threads before returning.
     pub fn run(mut self) {
-        let _ =
-            self.controller_event_bus
-                .process(ControllerEvent::Startup(GeneralControllerEvent {
-                    iteration: 0,
-                    last_iteration: 0,
-                }));
+        self.controller_event_bus
+            .process_event(ControllerEvent::Startup(GeneralControllerEvent {
+                last_iteration: true,
+            }));
 
         let output_path = io::resolve_path(
             self.scenario.config.context(),

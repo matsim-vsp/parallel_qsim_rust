@@ -1,9 +1,9 @@
-pub mod local_controller;
+pub mod controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
 use crate::simulation::events::{EventHandlerRegistrator, EventsManager};
-use crate::simulation::framework_events::{MobsimEventBus, MobsimListenerRegistrator};
+use crate::simulation::framework_events::{MobsimEventsManager, MobsimListenerRegistrator};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -87,7 +87,7 @@ pub struct ThreadLocalComputationalEnvironment {
     #[builder(default)]
     events_manager: Rc<RefCell<EventsManager>>,
     #[builder(default)]
-    mobsim_event_bus: Rc<RefCell<MobsimEventBus>>,
+    mobsim_event_bus: Rc<RefCell<MobsimEventsManager>>,
 }
 
 impl Default for ThreadLocalComputationalEnvironment {
@@ -95,7 +95,7 @@ impl Default for ThreadLocalComputationalEnvironment {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
             events_manager: Rc::new(RefCell::new(EventsManager::new())),
-            mobsim_event_bus: Rc::new(RefCell::new(MobsimEventBus::default())),
+            mobsim_event_bus: Rc::new(RefCell::new(MobsimEventsManager::default())),
         }
     }
 }
@@ -116,11 +116,11 @@ impl ThreadLocalComputationalEnvironment {
         self.events_manager.clone()
     }
 
-    pub fn mobsim_event_bus_borrow_mut(&mut self) -> RefMut<'_, MobsimEventBus> {
+    pub fn mobsim_event_bus_borrow_mut(&mut self) -> RefMut<'_, MobsimEventsManager> {
         self.mobsim_event_bus.borrow_mut()
     }
 
-    pub fn mobsim_event_bus(&self) -> Rc<RefCell<MobsimEventBus>> {
+    pub fn mobsim_event_bus(&self) -> Rc<RefCell<MobsimEventsManager>> {
         self.mobsim_event_bus.clone()
     }
 }
@@ -168,7 +168,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     let mut comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
         .services(external_services)
         .events_manager(events.clone())
-        .mobsim_event_bus(Rc::new(RefCell::new(MobsimEventBus::for_partition(
+        .mobsim_event_bus(Rc::new(RefCell::new(MobsimEventsManager::for_partition(
             rank, 0,
         ))))
         .build()

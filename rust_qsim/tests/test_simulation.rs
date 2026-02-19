@@ -15,7 +15,7 @@ use std::thread;
 // If not set here, import gets optimized away.
 #[allow(unused_imports)]
 use derive_more::Debug;
-use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 
 #[derive(Debug, Builder)]
@@ -100,7 +100,7 @@ impl TestExecutor<'_> {
     fn run(self, subscribers: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>) {
         let scenario = Scenario::load(self.config.clone());
 
-        let controller = LocalControllerBuilder::default_with_scenario(scenario)
+        let controller = ControllerBuilder::default_with_scenario(scenario)
             .event_handler_registrators(subscribers)
             .external_services(self.external_services.clone())
             .global_barrier(self.global_barrier.clone())

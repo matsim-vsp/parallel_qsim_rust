@@ -49,7 +49,7 @@ fn main() {
                 if time % 3600 == 0 {
                     info!("Starting time step: {time}");
                 }
-                manager.publish_event(event.as_ref());
+                manager.process_event(event.as_ref());
                 reader.curr_time_step = event.time();
             }
         }

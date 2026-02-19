@@ -57,7 +57,7 @@ impl TeleportationEngine {
     fn emit_travelled(&mut self, now: u32, agent: &SimulationAgent) {
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
-        self.comp_env.events_manager_borrow_mut().publish_event(
+        self.comp_env.events_manager_borrow_mut().process_event(
             &TeleportationArrivalEventBuilder::default()
                 .time(now)
                 .person(agent.id().clone())
@@ -81,7 +81,7 @@ impl TeleportationEngine {
         let transit_route_id = Id::<String>::get_from_ext(
             route.as_pt().unwrap().description.transit_route_id.as_str(),
         );
-        self.comp_env.events_manager_borrow_mut().publish_event(
+        self.comp_env.events_manager_borrow_mut().process_event(
             &PtTeleportationArrivalEventBuilder::default()
                 .time(now)
                 .person(agent.id().clone())
