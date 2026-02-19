@@ -87,7 +87,7 @@ pub struct ThreadLocalComputationalEnvironment {
     #[builder(default)]
     events_manager: Rc<RefCell<EventsManager>>,
     #[builder(default)]
-    mobsim_event_bus: Rc<RefCell<MobsimEventsManager>>,
+    mobsim_events_manager: Rc<RefCell<MobsimEventsManager>>,
 }
 
 impl Default for ThreadLocalComputationalEnvironment {
@@ -95,7 +95,7 @@ impl Default for ThreadLocalComputationalEnvironment {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
             events_manager: Rc::new(RefCell::new(EventsManager::new())),
-            mobsim_event_bus: Rc::new(RefCell::new(MobsimEventsManager::default())),
+            mobsim_events_manager: Rc::new(RefCell::new(MobsimEventsManager::default())),
         }
     }
 }
@@ -116,12 +116,12 @@ impl ThreadLocalComputationalEnvironment {
         self.events_manager.clone()
     }
 
-    pub fn mobsim_event_bus_borrow_mut(&mut self) -> RefMut<'_, MobsimEventsManager> {
-        self.mobsim_event_bus.borrow_mut()
+    pub fn mobsim_events_manager_borrow_mut(&mut self) -> RefMut<'_, MobsimEventsManager> {
+        self.mobsim_events_manager.borrow_mut()
     }
 
     pub fn mobsim_event_bus(&self) -> Rc<RefCell<MobsimEventsManager>> {
-        self.mobsim_event_bus.clone()
+        self.mobsim_events_manager.clone()
     }
 }
 
@@ -168,14 +168,14 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     let mut comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
         .services(external_services)
         .events_manager(events.clone())
-        .mobsim_event_bus(Rc::new(RefCell::new(MobsimEventsManager::for_partition(
+        .mobsim_events_manager(Rc::new(RefCell::new(MobsimEventsManager::for_partition(
             rank, 0,
         ))))
         .build()
         .unwrap();
 
     {
-        let mut bus = comp_env.mobsim_event_bus_borrow_mut();
+        let mut bus = comp_env.mobsim_events_manager_borrow_mut();
         for subscriber in mobsim_subscribers {
             subscriber(&mut bus);
         }

@@ -41,7 +41,7 @@ where
 
         while now <= self.end_time {
             self.comp_env
-                .mobsim_event_bus_borrow_mut()
+                .mobsim_events_manager_borrow_mut()
                 .process_event(MobsimEvent::BeforeSimStep(MobsimTimeEvent { time: now }));
 
             if now % 3600 == 0 {
@@ -58,6 +58,10 @@ where
 
             agents_changing_engine = self.do_sim_step(now, agents_changing_engine);
             now += 1;
+
+            self.comp_env
+                .mobsim_events_manager_borrow_mut()
+                .process_event(MobsimEvent::AfterSimStep(MobsimTimeEvent { time: now }));
         }
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
