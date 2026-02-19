@@ -1247,15 +1247,13 @@ mod tests {
                 0,
                 &test_utils::config(),
                 config::DEFAULT_RANDOM_SEED,
-            )
-            .into(),
+            ),
             SimNetworkPartition::from_network(
                 network,
                 1,
                 &test_utils::config(),
                 config::DEFAULT_RANDOM_SEED,
-            )
-            .into(),
+            ),
         ]
     }
 }

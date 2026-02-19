@@ -8,6 +8,16 @@ pub enum MobsimEvent {
     BeforeCleanup,
 }
 
+impl MobsimEvent {
+    pub fn before_sim_step(time: u32) -> Self {
+        Self::BeforeSimStep(MobsimTimeEvent { time })
+    }
+
+    pub fn after_sim_step(time: u32) -> Self {
+        Self::AfterSimStep(MobsimTimeEvent { time })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MobsimTimeEvent {
     pub time: u32,
