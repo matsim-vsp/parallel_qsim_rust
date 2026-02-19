@@ -37,6 +37,10 @@ pub type EventHandlerRegistrator = dyn FnOnce(&mut EventsManager) + Send;
 /// The EventsManager holds call-backs for event processing. This might seem a bit odd
 /// (in particular in comparison to the Java implementation). The reason is that Rust has no reflection, and this
 /// architecture allows compile-time checking of the event types.
+///
+/// There are two ways to register event handlers: (1) `on` and (2) `on_any`. For (1), you need to specify the event type. For (2), you don't.
+/// Note, that the impact of `on_any` registrations compared with `on` registrations is much higher on the runtime,
+/// since `on_any` callbacks are called for every event, regardless of it is needed or not. The callback needs to decide whether it wants to handle the event or not.
 #[derive(Default)]
 pub struct EventsManager {
     per_type: HashMap<TypeId, Vec<Rc<HandleEventFn>>>,

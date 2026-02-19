@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 pub type QSimId = u32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -56,44 +54,26 @@ pub struct EventMeta {
 pub type MobsimRuntimeEvent = RuntimeEvent<MobsimEvent>;
 pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
 
-type OnRuntimeEventFn<E> = dyn Fn(&RuntimeEvent<E>) + 'static;
-
 pub type MobsimListenerRegistrator = dyn FnOnce(&mut MobsimEventsManager) + Send;
 pub type ControllerListenerRegistrator = dyn FnOnce(&mut ControllerEventsManager) + Send;
 
-pub struct FrameworkEventsManager<E> {
+#[derive(Debug, Clone, Copy)]
+struct EventRuntimeState {
     origin: EventOrigin,
     iteration: u32,
     next_seq_no: u64,
-    callbacks: Vec<Box<OnRuntimeEventFn<E>>>,
-    _event_type: PhantomData<E>,
 }
 
-impl<E> std::fmt::Debug for FrameworkEventsManager<E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "EventBus {{ origin: {:?}, iteration: {}, next_seq_no: {}, callbacks: {} }}",
-            self.origin,
-            self.iteration,
-            self.next_seq_no,
-            self.callbacks.len()
-        )
-    }
-}
-
-impl<E> FrameworkEventsManager<E> {
+impl EventRuntimeState {
     pub fn new(origin: EventOrigin, iteration: u32) -> Self {
         Self {
             origin,
             iteration,
             next_seq_no: 0,
-            callbacks: Vec::new(),
-            _event_type: PhantomData,
         }
     }
 
-    pub fn process_event(&mut self, payload: E) -> RuntimeEvent<E> {
+    fn wrap<E>(&mut self, payload: E) -> RuntimeEvent<E> {
         let event = RuntimeEvent {
             meta: EventMeta {
                 origin: self.origin,
@@ -102,9 +82,6 @@ impl<E> FrameworkEventsManager<E> {
             },
             payload,
         };
-        for callback in &self.callbacks {
-            callback(&event);
-        }
         self.next_seq_no += 1;
         event
     }
@@ -113,60 +90,114 @@ impl<E> FrameworkEventsManager<E> {
         self.iteration += 1;
         self.next_seq_no = 0;
     }
+}
 
-    pub fn on_event<F>(&mut self, callback: F)
-    where
-        F: Fn(&RuntimeEvent<E>) + 'static,
-    {
-        self.callbacks.push(Box::new(callback));
+type OnMobsimEventFn = dyn Fn(&MobsimRuntimeEvent) + 'static;
+type OnControllerEventFn = dyn Fn(&ControllerRuntimeEvent) + 'static;
+
+pub struct MobsimEventsManager {
+    state: EventRuntimeState,
+    on_any: Vec<Box<OnMobsimEventFn>>,
+}
+
+impl std::fmt::Debug for MobsimEventsManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MobsimEventsManager {{ state: {:?}, on_any: {} }}",
+            self.state,
+            self.on_any.len(),
+        )
     }
 }
 
-impl FrameworkEventsManager<MobsimEvent> {
+impl MobsimEventsManager {
     pub fn for_partition(qsim_id: QSimId, iteration: u32) -> Self {
-        Self::new(EventOrigin::Partition(qsim_id), iteration)
+        Self {
+            state: EventRuntimeState::new(EventOrigin::Partition(qsim_id), iteration),
+            on_any: Vec::new(),
+        }
     }
 
-    pub fn on_before_sim_step<F>(&mut self, callback: F)
+    pub fn process_event(&mut self, payload: MobsimEvent) -> MobsimRuntimeEvent {
+        let event = self.state.wrap(payload);
+        for callback in &self.on_any {
+            callback(&event);
+        }
+        event
+    }
+
+    pub fn next_iteration(&mut self) {
+        self.state.next_iteration();
+    }
+
+    pub fn on_any<F>(&mut self, callback: F)
     where
         F: Fn(&MobsimRuntimeEvent) + 'static,
     {
-        self.on_event(move |event| {
-            if let MobsimEvent::BeforeSimStep(_) = &event.payload {
-                callback(event);
-            }
-        });
-    }
-}
-
-impl FrameworkEventsManager<ControllerEvent> {
-    pub fn for_controller(iteration: u32) -> Self {
-        Self::new(EventOrigin::Controller, iteration)
+        self.on_any.push(Box::new(callback));
     }
 
-    pub fn on_startup<F>(&mut self, callback: F)
+    pub fn on_event<F>(&mut self, callback: F)
     where
-        F: Fn(&ControllerRuntimeEvent) + 'static,
+        F: Fn(&MobsimRuntimeEvent) + 'static,
     {
-        self.on_event(move |event| {
-            if let ControllerEvent::Startup(_) = &event.payload {
-                callback(event);
-            }
-        });
+        self.on_any(callback);
     }
 }
 
-impl Default for FrameworkEventsManager<MobsimEvent> {
+impl Default for MobsimEventsManager {
     fn default() -> Self {
         Self::for_partition(0, 0)
     }
 }
 
-impl Default for FrameworkEventsManager<ControllerEvent> {
+pub struct ControllerEventsManager {
+    state: EventRuntimeState,
+    on_any: Vec<Box<OnControllerEventFn>>,
+}
+
+impl std::fmt::Debug for ControllerEventsManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ControllerEventsManager {{ state: {:?}, on_any: {} }}",
+            self.state,
+            self.on_any.len(),
+        )
+    }
+}
+
+impl ControllerEventsManager {
+    pub fn for_controller(iteration: u32) -> Self {
+        Self {
+            state: EventRuntimeState::new(EventOrigin::Controller, iteration),
+            on_any: Vec::new(),
+        }
+    }
+
+    pub fn process_event(&mut self, payload: ControllerEvent) -> ControllerRuntimeEvent {
+        let event = self.state.wrap(payload);
+        for callback in &self.on_any {
+            callback(&event);
+        }
+        event
+    }
+
+    pub fn next_iteration(&mut self) {
+        self.state.next_iteration();
+    }
+
+    pub fn on_any<F>(&mut self, callback: F)
+    where
+        F: Fn(&ControllerRuntimeEvent) + 'static,
+    {
+        self.on_any.push(Box::new(callback));
+    }
+}
+
+impl Default for ControllerEventsManager {
     fn default() -> Self {
         Self::for_controller(0)
     }
 }
-
-pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
-pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;
