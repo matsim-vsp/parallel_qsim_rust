@@ -2,10 +2,10 @@ pub type QSimId = u32;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MobsimEvent {
-    Initialized(),
+    Initialized,
     BeforeSimStep(MobsimTimeEvent),
     AfterSimStep(MobsimTimeEvent),
-    BeforeCleanup(),
+    BeforeCleanup,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -24,6 +24,44 @@ pub enum ControllerEvent {
     Replanning(GeneralControllerEvent),
     IterationEnds(GeneralControllerEvent),
     Shutdown(GeneralControllerEvent),
+}
+
+impl ControllerEvent {
+    fn with_flag(last_iteration: bool) -> GeneralControllerEvent {
+        GeneralControllerEvent { last_iteration }
+    }
+
+    pub fn startup(last_iteration: bool) -> Self {
+        Self::Startup(Self::with_flag(last_iteration))
+    }
+
+    pub fn iteration_starts(last_iteration: bool) -> Self {
+        Self::IterationStarts(Self::with_flag(last_iteration))
+    }
+
+    pub fn before_mobsim(last_iteration: bool) -> Self {
+        Self::BeforeMobsim(Self::with_flag(last_iteration))
+    }
+
+    pub fn after_mobsim(last_iteration: bool) -> Self {
+        Self::AfterMobsim(Self::with_flag(last_iteration))
+    }
+
+    pub fn scoring(last_iteration: bool) -> Self {
+        Self::Scoring(Self::with_flag(last_iteration))
+    }
+
+    pub fn replanning(last_iteration: bool) -> Self {
+        Self::Replanning(Self::with_flag(last_iteration))
+    }
+
+    pub fn iteration_ends(last_iteration: bool) -> Self {
+        Self::IterationEnds(Self::with_flag(last_iteration))
+    }
+
+    pub fn shutdown(last_iteration: bool) -> Self {
+        Self::Shutdown(Self::with_flag(last_iteration))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

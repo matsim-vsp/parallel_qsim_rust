@@ -6,8 +6,7 @@ use crate::simulation::controller::{
 };
 use crate::simulation::events::EventHandlerRegistrator;
 use crate::simulation::framework_events::{
-    ControllerEvent, ControllerEventsManager, ControllerListenerRegistrator,
-    GeneralControllerEvent, MobsimListenerRegistrator,
+    ControllerEvent, ControllerEventsManager, ControllerListenerRegistrator, MobsimListenerRegistrator,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::scenario::{Scenario, ScenarioPartition};
@@ -24,7 +23,7 @@ use tracing::info;
 #[derive(Debug)]
 pub struct Controller {
     scenario: Scenario,
-    controller_event_bus: ControllerEventsManager,
+    controller_events_manager: ControllerEventsManager,
     #[debug(skip)]
     event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
     #[debug(skip)]
@@ -73,7 +72,7 @@ impl ControllerBuilder {
 
         Ok(Controller {
             scenario: self.scenario,
-            controller_event_bus: controller_event_manager,
+            controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_registrators,
             mobsim_event_listener_per_partition: self.mobsim_event_registrators,
             external_services: self.external_services,
@@ -125,10 +124,8 @@ impl ControllerBuilder {
 impl Controller {
     /// Runs the simulation and joins all threads before returning.
     pub fn run(mut self) {
-        self.controller_event_bus
-            .process_event(ControllerEvent::Startup(GeneralControllerEvent {
-                last_iteration: true,
-            }));
+        self.controller_events_manager
+            .process_event(ControllerEvent::startup(true));
 
         let output_path = io::resolve_path(
             self.scenario.config.context(),
@@ -136,8 +133,19 @@ impl Controller {
         );
         fs::create_dir_all(&output_path).expect("Failed to create output path");
 
+        info!("=========== Start Iteration 0 ===========");
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::before_mobsim(true));
+
         let handles = self.run_channel();
         controller::try_join(handles, std::mem::take(&mut self.adapter_handles));
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::after_mobsim(true));
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::iteration_ends(true));
 
         info!("=========== End Iteration 0 ===========");
 
@@ -153,6 +161,9 @@ impl Controller {
             info!("    ... ID store ...");
             Self::write_output_id_store(&output_path);
         }
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::shutdown(true));
     }
 
     fn run_channel(&mut self) -> IntMap<u32, JoinHandle<()>> {
@@ -163,8 +174,6 @@ impl Controller {
                 .into_iter()
                 .map(Some)
                 .collect();
-
-        info!("=========== Start Iteration 0 ===========");
 
         let num_parts = self.scenario.config.partitioning().num_parts;
         info!(
