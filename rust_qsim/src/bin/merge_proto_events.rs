@@ -28,7 +28,7 @@ fn main() {
     let mut manager = EventsManager::new();
 
     let output_file_path = PathBuf::from(&args.path).join("events.binpb");
-    let register_proto_writer = ProtoEventsWriter::register(output_file_path.clone());
+    let register_proto_writer = ProtoEventsWriter::register_fn(output_file_path.clone());
 
     register_proto_writer(&mut manager);
 

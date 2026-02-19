@@ -66,6 +66,7 @@ pub fn read_proto_events(
     info!("Finished reading proto files.");
     events.finish();
 }
+
 /// Reads all proto events from the given folder and writes them to a single XML file (optionally
 /// compressed as xml.gz, based on the file extension in the given output path).
 /// Assumes that ids are already loaded.
@@ -76,7 +77,7 @@ pub fn convert_proto_to_xml_events(
 ) {
     let mut manager = EventsManager::new();
 
-    let register_xml_writer = XmlEventsWriter::register(output_file_path.clone());
+    let register_xml_writer = XmlEventsWriter::register_fn(output_file_path.clone());
 
     register_xml_writer(&mut manager);
 

@@ -158,7 +158,8 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
-    use crate::simulation::network::sim_network::{SimNetworkPartitionBuilder, StorageUpdate};
+    use crate::simulation::network::sim_network::SimNetworkPartition;
+    use crate::simulation::network::sim_network::StorageUpdate;
     use crate::simulation::network::{Link, Network, Node};
     use crate::simulation::vehicles::InternalVehicle;
     use crate::test_utils::create_agent;
@@ -350,13 +351,12 @@ mod tests {
             stuck_threshold: 0,
             main_modes: vec![],
         };
-        let partition = SimNetworkPartitionBuilder::from_network(
+        let partition = SimNetworkPartition::from_network(
             &create_network(),
             rank,
             &config,
             config::DEFAULT_RANDOM_SEED,
-        )
-        .build();
+        );
 
         assert_eq!(partition.get_node_ids().len(), 1);
 

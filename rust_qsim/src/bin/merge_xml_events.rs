@@ -35,7 +35,7 @@ fn main() {
     }
 
     let mut manager = EventsManager::new();
-    XmlEventsWriter::register(PathBuf::from(&args.path).join("events.xml"))(&mut manager);
+    XmlEventsWriter::register_fn(PathBuf::from(&args.path).join("events.xml"))(&mut manager);
 
     info!("Starting to read events files.");
     while !readers.is_empty() {
@@ -49,7 +49,7 @@ fn main() {
                 if time % 3600 == 0 {
                     info!("Starting time step: {time}");
                 }
-                manager.publish_event(event.as_ref());
+                manager.process_event(event.as_ref());
                 reader.curr_time_step = event.time();
             }
         }

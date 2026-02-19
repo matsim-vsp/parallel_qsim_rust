@@ -14,6 +14,7 @@ pub mod controller;
 pub mod data_structures;
 pub mod engines;
 pub mod events;
+pub mod framework_events;
 pub mod id;
 pub mod io;
 pub mod logging;
