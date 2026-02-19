@@ -76,7 +76,7 @@ pub fn convert_proto_to_xml_events(
 ) {
     let mut manager = EventsManager::new();
 
-    let register_xml_writer = XmlEventsWriter::register(output_file_path.clone());
+    let register_xml_writer = XmlEventsWriter::registrator(output_file_path.clone());
 
     register_xml_writer(&mut manager);
 
