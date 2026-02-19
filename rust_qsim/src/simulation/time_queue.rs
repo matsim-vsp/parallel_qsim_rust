@@ -25,8 +25,8 @@ impl<T> PartialEq<Self> for Entry<T>
 where
     T: EndTime,
 {
-    fn eq(&self, _other: &Self) -> bool {
-        false // how bad is this...
+    fn eq(&self, other: &Self) -> bool {
+        self.end_time == other.end_time && self.order == other.order
     }
 }
 
