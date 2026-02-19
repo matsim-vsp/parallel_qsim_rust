@@ -28,7 +28,7 @@ fn main() {
     let mut manager = EventsManager::new();
 
     let output_file_path = PathBuf::from(&args.path).join("events.xml.gz");
-    let register_proto_writer = XmlEventsWriter::registrator(output_file_path.clone());
+    let register_proto_writer = XmlEventsWriter::register_fn(output_file_path.clone());
 
     register_proto_writer(&mut manager);
 

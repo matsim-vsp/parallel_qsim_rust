@@ -95,8 +95,8 @@ pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
 pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
 pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;
 
-pub type MobsimListenerRegistrator = dyn FnOnce(&mut MobsimEventsManager) + Send;
-pub type ControllerListenerRegistrator = dyn FnOnce(&mut ControllerEventsManager) + Send;
+pub type MobsimListenerRegisterFn = dyn FnOnce(&mut MobsimEventsManager) + Send;
+pub type ControllerListenerRegisterFn = dyn FnOnce(&mut ControllerEventsManager) + Send;
 
 #[derive(Debug, Clone, Copy)]
 struct EventRuntimeState {

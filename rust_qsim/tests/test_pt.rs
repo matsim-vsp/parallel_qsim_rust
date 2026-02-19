@@ -4,7 +4,7 @@ use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::ExternalServices;
-use rust_qsim::simulation::events::EventHandlerRegistrator;
+use rust_qsim::simulation::events::EventHandlerRegisterFn;
 use rust_qsim::simulation::pt::TransitSchedule;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -74,7 +74,7 @@ fn test_pt_adaptive(pop_path: PathBuf) {
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    let handler: HashMap<u32, Vec<Box<EventHandlerRegistrator>>> = HashMap::new();
+    let handler: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>> = HashMap::new();
     // subs.insert(
     //     0,
     //     vec![Box::new(XmlEventsWriter::register("test.xml".into()))],

@@ -4,9 +4,10 @@ use crate::simulation::controller::{
     create_output_filename, insert_number_in_proto_filename, ExternalServices,
     PartitionArgumentsBuilder,
 };
-use crate::simulation::events::EventHandlerRegistrator;
+use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
-    ControllerEvent, ControllerEventsManager, ControllerListenerRegistrator, MobsimListenerRegistrator,
+    ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn,
+    MobsimListenerRegisterFn,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::scenario::{Scenario, ScenarioPartition};
@@ -25,9 +26,9 @@ pub struct Controller {
     scenario: Scenario,
     controller_events_manager: ControllerEventsManager,
     #[debug(skip)]
-    event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
+    event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
     #[debug(skip)]
-    mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegistrator>>>,
+    mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
@@ -35,9 +36,9 @@ pub struct Controller {
 
 pub struct ControllerBuilder {
     scenario: Scenario,
-    controller_event_registrators: Vec<Box<ControllerListenerRegistrator>>,
-    event_handler_registrators: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
-    mobsim_event_registrators: HashMap<u32, Vec<Box<MobsimListenerRegistrator>>>,
+    controller_event_register_fn: Vec<Box<ControllerListenerRegisterFn>>,
+    event_handler_register_fn: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
+    mobsim_event_register_fn: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
     external_services: ExternalServices,
     global_barrier: Option<Arc<Barrier>>,
     adapter_handles: Vec<AdapterHandle>,
@@ -47,9 +48,9 @@ impl ControllerBuilder {
     pub fn default_with_scenario(scenario: Scenario) -> Self {
         ControllerBuilder {
             scenario,
-            controller_event_registrators: Vec::new(),
-            event_handler_registrators: HashMap::new(),
-            mobsim_event_registrators: HashMap::new(),
+            controller_event_register_fn: Vec::new(),
+            event_handler_register_fn: HashMap::new(),
+            mobsim_event_register_fn: HashMap::new(),
             external_services: ExternalServices::default(),
             global_barrier: None,
             adapter_handles: Vec::new(),
@@ -66,42 +67,42 @@ impl ControllerBuilder {
         });
 
         let mut controller_event_manager = ControllerEventsManager::default();
-        for registrator in self.controller_event_registrators {
-            registrator(&mut controller_event_manager);
+        for register_fn in self.controller_event_register_fn {
+            register_fn(&mut controller_event_manager);
         }
 
         Ok(Controller {
             scenario: self.scenario,
             controller_events_manager: controller_event_manager,
-            event_handler_per_partition: self.event_handler_registrators,
-            mobsim_event_listener_per_partition: self.mobsim_event_registrators,
+            event_handler_per_partition: self.event_handler_register_fn,
+            mobsim_event_listener_per_partition: self.mobsim_event_register_fn,
             external_services: self.external_services,
             global_barrier: barrier,
             adapter_handles: self.adapter_handles,
         })
     }
 
-    pub fn controller_event_registrators(
+    pub fn controller_event_register_fn(
         mut self,
-        v: Vec<Box<ControllerListenerRegistrator>>,
+        v: Vec<Box<ControllerListenerRegisterFn>>,
     ) -> Self {
-        self.controller_event_registrators = v;
+        self.controller_event_register_fn = v;
         self
     }
 
-    pub fn event_handler_registrators(
+    pub fn event_handler_register_fn(
         mut self,
-        v: HashMap<u32, Vec<Box<EventHandlerRegistrator>>>,
+        v: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
     ) -> Self {
-        self.event_handler_registrators = v;
+        self.event_handler_register_fn = v;
         self
     }
 
-    pub fn mobsim_event_registrators(
+    pub fn mobsim_event_register_fn(
         mut self,
-        v: HashMap<u32, Vec<Box<MobsimListenerRegistrator>>>,
+        v: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
     ) -> Self {
-        self.mobsim_event_registrators = v;
+        self.mobsim_event_register_fn = v;
         self
     }
 

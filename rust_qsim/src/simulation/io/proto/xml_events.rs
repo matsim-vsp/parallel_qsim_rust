@@ -12,7 +12,7 @@ use xml::EventReader;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
-    EventHandlerRegistrator, EventTrait, EventsManager, GeneralEvent, LinkEnterEvent,
+    EventHandlerRegisterFn, EventTrait, EventsManager, GeneralEvent, LinkEnterEvent,
     LinkEnterEventBuilder, LinkLeaveEvent, LinkLeaveEventBuilder, PersonArrivalEvent,
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
@@ -182,7 +182,7 @@ impl XmlEventsWriter {
         writer.flush().expect("Failed to flush events.");
     }
 
-    pub fn registrator(path: PathBuf) -> Box<EventHandlerRegistrator> {
+    pub fn register_fn(path: PathBuf) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             let xml = Rc::new(XmlEventsWriter::new(path));
             let xml1 = xml.clone();

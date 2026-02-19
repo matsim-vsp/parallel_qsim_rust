@@ -1,5 +1,5 @@
 use crate::simulation::events::{
-    EventHandlerRegistrator, LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent,
+    EventHandlerRegisterFn, LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
@@ -79,7 +79,7 @@ impl TravelTimeCollector {
         self.travel_times_by_link = HashMap::new();
     }
 
-    pub fn register() -> Box<EventHandlerRegistrator> {
+    pub fn register() -> Box<EventHandlerRegisterFn> {
         Box::new(move |e| {
             let ttc = Rc::new(RefCell::new(TravelTimeCollector::new()));
 

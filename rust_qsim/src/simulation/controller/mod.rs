@@ -2,8 +2,8 @@ pub mod controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
-use crate::simulation::events::{EventHandlerRegistrator, EventsManager};
-use crate::simulation::framework_events::{MobsimEventsManager, MobsimListenerRegistrator};
+use crate::simulation::events::{EventHandlerRegisterFn, EventsManager};
+use crate::simulation::framework_events::{MobsimEventsManager, MobsimListenerRegisterFn};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
@@ -134,10 +134,10 @@ pub struct PartitionArguments<C: SimCommunicator> {
     external_services: ExternalServices,
     #[builder(default)]
     #[debug(skip)]
-    event_handler: Vec<Box<EventHandlerRegistrator>>,
+    event_handler: Vec<Box<EventHandlerRegisterFn>>,
     #[builder(default)]
     #[debug(skip)]
-    mobsim_event_listener: Vec<Box<MobsimListenerRegistrator>>,
+    mobsim_event_listener: Vec<Box<MobsimListenerRegisterFn>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -203,7 +203,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 fn create_events(
     config: &Config,
     rank: u32,
-    additional_subscribers: Vec<Box<EventHandlerRegistrator>>,
+    additional_subscribers: Vec<Box<EventHandlerRegisterFn>>,
 ) -> Rc<RefCell<EventsManager>> {
     let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
@@ -215,13 +215,13 @@ fn create_events(
             let events_file = format!("events.{rank}.binpb");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
-            ProtoEventsWriter::registrator(events_path)(&mut events)
+            ProtoEventsWriter::register_fn(events_path)(&mut events)
         }
         WriteEvents::XmlGz => {
             let events_file = format!("events.{rank}.xml.gz");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
-            XmlEventsWriter::registrator(events_path)(&mut events)
+            XmlEventsWriter::register_fn(events_path)(&mut events)
         }
     }
 

@@ -32,7 +32,7 @@ type HandleEventFn = dyn Fn(&dyn EventTrait) + 'static;
 ///     events.on::<LinkEnterEvent, _>(|le: &LinkEnterEvent| println!("This is a LinkEnterEvent: {:?}", le));
 /// };
 /// ```
-pub type EventHandlerRegistrator = dyn FnOnce(&mut EventsManager) + Send;
+pub type EventHandlerRegisterFn = dyn FnOnce(&mut EventsManager) + Send;
 
 /// The EventsManager holds call-backs for event processing. This might seem a bit odd
 /// (in particular in comparison to the Java implementation). The reason is that Rust has no reflection, and this
