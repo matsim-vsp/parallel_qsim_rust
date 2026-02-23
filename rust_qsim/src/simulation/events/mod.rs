@@ -1,3 +1,4 @@
+pub mod print_events;
 pub mod utils;
 
 use crate::generated::events::MyEvent;
