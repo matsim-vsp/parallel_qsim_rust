@@ -1,5 +1,5 @@
-pub mod print_events;
 pub mod utils;
+pub mod visualize;
 
 use crate::generated::events::MyEvent;
 use crate::simulation::id::Id;
