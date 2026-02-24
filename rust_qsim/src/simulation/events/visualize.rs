@@ -5,6 +5,7 @@ use crate::simulation::events::{
 use crate::simulation::network::Network;
 use crate::simulation::vehicles::garage::Garage;
 use bevy::prelude::*;
+use bevy::ui::Node as UiNode;
 use bevy::window::PrimaryWindow;
 use bevy_pancam::{PanCam, PanCamPlugin};
 use std::cell::RefCell;
@@ -115,7 +116,10 @@ impl VisualizeEvents {
                 }),
                 PanCamPlugin::default(),
             ))
-            .add_systems(Startup, (setup_camera, fit_camera_to_network).chain())
+            .add_systems(
+                Startup,
+                (setup_camera, fit_camera_to_network, setup_time_ui).chain(),
+            )
             .add_systems(
                 Update,
                 (
@@ -123,6 +127,7 @@ impl VisualizeEvents {
                     update_trips_from_builder,
                     draw_network,
                     draw_vehicles,
+                    update_time_ui,
                 )
                     .chain(),
             )
@@ -228,6 +233,9 @@ struct TripsBuilderResource {
     builder: Rc<RefCell<TripsBuilder>>,
 }
 
+#[derive(Component)]
+struct SimulationTimeText;
+
 #[derive(Default)]
 struct TripsBuilder {
     current_link_per_vehicle: HashMap<String, (String, f32)>,
@@ -265,6 +273,15 @@ impl TripsBuilder {
     fn handle_link_enter(&mut self, time: u32, link_id: &str, vehicle_id: &str) {
         self.current_link_per_vehicle
             .insert(vehicle_id.to_string(), (link_id.to_string(), time as f32));
+
+        // Add the traversed link immediately on enter so the vehicle becomes visible
+        // even before the corresponding leave event arrives.
+        if let Some(current_trip) = self.current_trip_per_vehicle.get_mut(vehicle_id) {
+            current_trip.push(TraversedLink {
+                link_id: link_id.to_string(),
+                start_time: time as f32,
+            });
+        }
     }
 
     fn handle_link_leave(&mut self, time: u32, link_id: &str, vehicle_id: &str) {
@@ -272,12 +289,7 @@ impl TripsBuilder {
         {
             let end_time = time as f32;
             if entered_link == link_id && end_time >= start_time {
-                if let Some(current_trip) = self.current_trip_per_vehicle.get_mut(vehicle_id) {
-                    current_trip.push(TraversedLink {
-                        link_id: link_id.to_string(),
-                        start_time,
-                    });
-                }
+                // Link already added on enter; leave only validates/removes current open link.
             }
         }
     }
@@ -357,6 +369,24 @@ fn fit_camera_to_network(
     commands.insert_resource(ViewSettings { center, scale });
 }
 
+fn setup_time_ui(mut commands: Commands) {
+    commands.spawn((
+        UiNode {
+            position_type: PositionType::Absolute,
+            top: Val::Px(10.0),
+            right: Val::Px(10.0),
+            ..Default::default()
+        },
+        Text::new("00:00:00"),
+        TextFont {
+            font_size: 22.0,
+            ..Default::default()
+        },
+        TextColor(Color::srgb(1.0, 1.0, 1.0)),
+        SimulationTimeText,
+    ));
+}
+
 fn process_events_from_channel(
     events_channel: Res<EventsChannel>,
     builder_resource: NonSendMut<TripsBuilderResource>,
@@ -392,6 +422,22 @@ fn process_events_from_channel(
                 break;
             }
         }
+    }
+}
+
+fn update_time_ui(
+    clock: Res<SimulationClock>,
+    mut query: Query<&mut Text, With<SimulationTimeText>>,
+) {
+    let total_seconds = clock.time.max(0.0) as u32;
+    let hours = (total_seconds / 3600) % 24;
+    let minutes = (total_seconds / 60) % 60;
+    let seconds = total_seconds % 60;
+    let time_text = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+
+    for mut text in &mut query {
+        text.0.clear();
+        text.0.push_str(&time_text);
     }
 }
 
