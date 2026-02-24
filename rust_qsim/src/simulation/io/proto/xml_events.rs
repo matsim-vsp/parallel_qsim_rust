@@ -1,7 +1,7 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -17,7 +17,8 @@ use crate::simulation::events::{
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
     PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
-    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder, VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
+    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder,
+    VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::Link;
@@ -199,14 +200,21 @@ impl XmlEventsWriter {
 }
 
 pub struct XmlEventsReader {
-    parser: EventReader<BufReader<File>>,
+    parser: EventReader<Box<dyn BufRead>>,
 }
 
 impl XmlEventsReader {
     pub fn new(events_file: &Path) -> Self {
         let file = File::open(events_file)
             .unwrap_or_else(|_| panic!("Could not open events file: {:?}", events_file));
-        let buffered_reader = BufReader::new(file);
+        // if events_file is a gz file, read it with a GzDecoder, otherwise read it directly
+        let file_is_gz = events_file.extension().unwrap() == "gz";
+        let buffered_reader: Box<dyn BufRead> = if file_is_gz {
+            let gz = flate2::read::GzDecoder::new(file);
+            Box::new(BufReader::new(gz))
+        } else {
+            Box::new(BufReader::new(file))
+        };
         let parser = EventReader::new(buffered_reader);
         Self { parser }
     }
