@@ -1,5 +1,5 @@
 use crate::simulation::events::{
-    EventsManager, LinkEnterEvent, LinkLeaveEvent, OnEventFnBuilder, PersonEntersVehicleEvent,
+    EventHandlerRegisterFn, EventsManager, LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent,
     PersonLeavesVehicleEvent,
 };
 use crate::simulation::network::Network;
@@ -41,7 +41,7 @@ pub enum VisualizeEventMessage {
 pub struct VisualizeEvents;
 
 impl VisualizeEvents {
-    pub fn register(sender: mpsc::Sender<VisualizeEventMessage>) -> Box<OnEventFnBuilder> {
+    pub fn register_fn(sender: mpsc::Sender<VisualizeEventMessage>) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             let sender_on_event = sender.clone();
             events.on_any(move |event| {

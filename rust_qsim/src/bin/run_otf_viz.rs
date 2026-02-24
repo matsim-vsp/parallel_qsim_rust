@@ -1,5 +1,5 @@
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
-use rust_qsim::simulation::controller::local_controller::LocalControllerBuilder;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::events::visualize::{VisualizeEventMessage, VisualizeEvents};
 use rust_qsim::simulation::network::Network;
 use rust_qsim::simulation::scenario::Scenario;
@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 
 fn main() {
     let args = CommandLineArgs::new_with_path("rust_qsim/assets/equil-100/run_equil_100.config.yml");
@@ -28,13 +27,12 @@ fn main() {
 
     let sim_thread = thread::spawn(move || {
         let mut subscribers = HashMap::new();
-        subscribers.insert(0, vec![VisualizeEvents::register(event_tx)]);
+        subscribers.insert(0, vec![VisualizeEvents::register_fn(event_tx)]);
 
         // thread::sleep(Duration::from_secs(10));
 
-        LocalControllerBuilder::default()
-            .scenario(Scenario::load(Arc::new(config)))
-            .events_subscriber_per_partition(subscribers)
+        ControllerBuilder::default_with_scenario(Scenario::load(Arc::new(config)))
+            .event_handler_register_fn(subscribers)
             .build()
             .unwrap()
             .run();
