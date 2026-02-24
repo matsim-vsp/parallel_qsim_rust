@@ -1,3 +1,4 @@
+pub mod controller_event_printer;
 pub mod utils;
 
 use crate::generated::events::MyEvent;
