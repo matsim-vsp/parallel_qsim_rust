@@ -124,7 +124,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         for veh in vehicles {
             //in case of teleportation, do not publish leave vehicle events
             if publish_leave_vehicle {
-                self.comp_env.events_publisher_borrow_mut().publish_event(
+                self.comp_env.events_manager_borrow_mut().process_event(
                     &PersonLeavesVehicleEventBuilder::default()
                         .time(now)
                         .vehicle(veh.id.clone())
@@ -136,7 +136,7 @@ impl<C: SimCommunicator> LegEngine<C> {
 
             for passenger in veh.passengers() {
                 if publish_leave_vehicle {
-                    self.comp_env.events_publisher_borrow_mut().publish_event(
+                    self.comp_env.events_manager_borrow_mut().process_event(
                         &PersonLeavesVehicleEventBuilder::default()
                             .time(now)
                             .vehicle(veh.id.clone())
@@ -148,7 +148,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             }
 
             let leg = veh.driver().curr_leg();
-            self.comp_env.events_publisher_borrow_mut().publish_event(
+            self.comp_env.events_manager_borrow_mut().process_event(
                 &PersonArrivalEventBuilder::default()
                     .time(now)
                     .person(veh.driver().id().clone())
@@ -228,7 +228,7 @@ impl VehicularDepartureHandler {
             .as_ref()
             .unwrap_or_else(|| panic!("Missing route for agent {} at leg {:?}", agent.id(), leg));
 
-        self.comp_env.events_publisher_borrow_mut().publish_event(
+        self.comp_env.events_manager_borrow_mut().process_event(
             &PersonDepartureEventBuilder::default()
                 .time(now)
                 .person(agent.id().clone())
@@ -261,7 +261,7 @@ impl VehicularDepartureHandler {
                 "{} is set as main mode but route is not network route",
                 leg.mode
             );
-            self.comp_env.events_publisher_borrow_mut().publish_event(
+            self.comp_env.events_manager_borrow_mut().process_event(
                 &PersonEntersVehicleEventBuilder::default()
                     .time(now)
                     .person(agent.id().clone())

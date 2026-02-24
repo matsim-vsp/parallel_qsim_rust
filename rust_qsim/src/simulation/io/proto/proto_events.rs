@@ -1,8 +1,8 @@
 use crate::generated::events::{MyEvent, TimeStep};
 use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
-    ActivityEndEvent, ActivityStartEvent, EventTrait, EventsManager, GeneralEvent, LinkEnterEvent,
-    LinkLeaveEvent, OnEventFnBuilder, PersonArrivalEvent, PersonDepartureEvent,
+    ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
+    GeneralEvent, LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PtTeleportationArrivalEvent,
     TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
@@ -394,7 +394,11 @@ impl ProtoEventsWriter {
             .expect("Failed to flush buffered writer.");
     }
 
-    pub fn register(path: PathBuf) -> Box<OnEventFnBuilder> {
+    /// Creates a register function that registers event handlers to an [EventsManager].
+    /// This function takes a file path as an input and returns a boxed [EventHandlerRegisterFn]
+    /// which can be used to register specific handlers to an [EventsManager]. The handlers
+    /// allow the processing of events and the proper management of their lifecycle.
+    pub fn register_fn(path: PathBuf) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             let proto = Rc::new(RefCell::new(ProtoEventsWriter::new(path.as_path())));
             let proto1 = proto.clone();
@@ -499,7 +503,7 @@ impl ProtoEventsReader<File> {
 }
 
 #[rustfmt::skip]
-pub fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsManager) {
+pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsManager) {
     for proto_event in events {
         let type_ = proto_event.r#type.as_str();
         let internal_event: Box<dyn EventTrait> = match type_ {
@@ -518,7 +522,7 @@ pub fn process_events(time: u32, events: &Vec<MyEvent>, publisher: &mut EventsMa
             VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
-        publisher.publish_event(internal_event.as_ref());
+        manager.process_event(internal_event.as_ref());
     }
 }
 

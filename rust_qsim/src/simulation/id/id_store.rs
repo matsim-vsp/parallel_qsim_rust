@@ -3,7 +3,6 @@ use dashmap::DashMap;
 use lz4::BlockMode;
 use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
-use serde::Serialize;
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, Read, Seek, Write};
@@ -169,27 +168,35 @@ fn decode_ids<B: Buf>(buffer: &mut B) -> Vec<String> {
     result
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 pub struct UntypedId {
     pub(crate) internal: u64,
-    pub(crate) external: String,
+    // Shared immutable id text. This is cloned into reverse-lookup maps without copying bytes.
+    // Not using &str here to ensure memory safety, i.e., make sure that the reference is always valid.
+    // Not using String here because essentially a copy of String would be necessary, which is not memory efficient.
+    pub(crate) external: Arc<str>,
 }
 
 impl UntypedId {
-    pub(crate) fn new(internal: u64, external: String) -> Self {
-        Self { internal, external }
+    pub(crate) fn new(internal: u64, external: impl Into<Arc<str>>) -> Self {
+        Self {
+            internal,
+            external: external.into(),
+        }
     }
 }
 
 #[derive(Debug)]
-pub struct IdStore<'ext> {
+pub struct IdStore {
+    // Dense per-type storage: internal id == index in this vector.
     ids: DashMap<u64, Vec<Arc<UntypedId>>>,
-    mapping: DashMap<u64, DashMap<&'ext str, u64>>,
+    // Per-type reverse lookup by external id text.
+    mapping: DashMap<u64, DashMap<Arc<str>, u64>>,
 }
 
 /// Cache for ids. All methods are public, so that they can be used from mod.rs. The module doesn't
 /// export this module, so that everything is kept package private
-impl IdStore<'_> {
+impl IdStore {
     pub fn new() -> Self {
         Self {
             ids: DashMap::default(),
@@ -214,20 +221,9 @@ impl IdStore<'_> {
         // If not, create a new one
         let mut type_ids = self.ids.entry(type_id).or_default();
         let next_internal = type_ids.len() as u64;
-        let next_id = Arc::new(UntypedId::new(next_internal, String::from(id)));
+        let next_id = Arc::new(UntypedId::new(next_internal, id));
         type_ids.push(next_id.clone());
-
-        let ptr_external: *const String = &next_id.external;
-        /*
-        # Safety:
-
-        As the external Strings are allocated by the ids, which keep a pointer to that allocation
-        The allocated string will not move as long as the id exists. This means as long as the id
-        is in the map, the ref to the external String which is used as a key in the map will be valid
-         */
-        let external_ref = unsafe { ptr_external.as_ref() }.unwrap();
-        type_mapping.insert(external_ref, next_id.internal);
-
+        type_mapping.insert(next_id.external.clone(), next_id.internal);
         next_id
     }
 

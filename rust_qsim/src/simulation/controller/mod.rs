@@ -1,13 +1,14 @@
-pub mod local_controller;
+pub mod controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
-use crate::simulation::events::{EventsManager, OnEventFnBuilder};
+use crate::simulation::events::{EventHandlerRegisterFn, EventsManager};
+use crate::simulation::framework_events::{MobsimEventsManager, MobsimListenerRegisterFn};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::scenario::ScenarioPartitionBuilder;
+use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
 use derive_builder::Builder;
@@ -82,16 +83,19 @@ impl ExternalServices {
 pub struct ThreadLocalComputationalEnvironment {
     #[builder(default)]
     services: ExternalServices,
-    // The value is of type Rc as this is a thread-local events publisher.
+    // The value is of type Rc as this is a thread-local events manager.
     #[builder(default)]
-    events_publisher: Rc<RefCell<EventsManager>>,
+    events_manager: Rc<RefCell<EventsManager>>,
+    #[builder(default)]
+    mobsim_events_manager: Rc<RefCell<MobsimEventsManager>>,
 }
 
 impl Default for ThreadLocalComputationalEnvironment {
     fn default() -> Self {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
-            events_publisher: Rc::new(RefCell::new(EventsManager::new())),
+            events_manager: Rc::new(RefCell::new(EventsManager::new())),
+            mobsim_events_manager: Rc::new(RefCell::new(MobsimEventsManager::default())),
         }
     }
 }
@@ -104,12 +108,20 @@ impl ThreadLocalComputationalEnvironment {
         self.services.get_service(service_type)
     }
 
-    pub fn events_publisher_borrow_mut(&mut self) -> RefMut<'_, EventsManager> {
-        self.events_publisher.borrow_mut()
+    pub fn events_manager_borrow_mut(&mut self) -> RefMut<'_, EventsManager> {
+        self.events_manager.borrow_mut()
     }
 
-    pub fn events_publisher(&self) -> Rc<RefCell<EventsManager>> {
-        self.events_publisher.clone()
+    pub fn events_manager(&self) -> Rc<RefCell<EventsManager>> {
+        self.events_manager.clone()
+    }
+
+    pub fn mobsim_events_manager_borrow_mut(&mut self) -> RefMut<'_, MobsimEventsManager> {
+        self.mobsim_events_manager.borrow_mut()
+    }
+
+    pub fn mobsim_event_bus(&self) -> Rc<RefCell<MobsimEventsManager>> {
+        self.mobsim_events_manager.clone()
     }
 }
 
@@ -117,46 +129,59 @@ impl ThreadLocalComputationalEnvironment {
 #[builder(pattern = "owned")]
 pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
-    // Holding the builder instead of the built struct, the final struct holds ThreadRng, which can only be built on the corresponding thread.
-    scenario_partition: ScenarioPartitionBuilder,
+    scenario_partition: ScenarioPartition,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
     #[debug(skip)]
-    events_subscriber: Vec<Box<OnEventFnBuilder>>,
+    event_handler: Vec<Box<EventHandlerRegisterFn>>,
+    #[builder(default)]
+    #[debug(skip)]
+    mobsim_event_listener: Vec<Box<MobsimListenerRegisterFn>>,
     global_barrier: Arc<Barrier>,
 }
 
 fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
-    let config = &partition_arguments.scenario_partition.config;
+    let partition = partition_arguments.scenario_partition;
+
+    let config = &partition.config;
     let _guards = logging::init_logging(config, partition_arguments.communicator.rank());
 
     let comm = partition_arguments.communicator;
     let external_services = partition_arguments.external_services;
-    let subscribers = partition_arguments.events_subscriber;
+    let subscribers = partition_arguments.event_handler;
+    let mobsim_subscribers = partition_arguments.mobsim_event_listener;
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
 
-    let scenario = partition_arguments.scenario_partition.build();
-
-    let events = create_events(&scenario.config, rank, subscribers);
+    let events = create_events(&partition.config, rank, subscribers);
 
     let net_message_broker = NetMessageBroker::new(
         Rc::new(comm),
-        &scenario.network,
-        &scenario.network_partition,
-        scenario.config.computational_setup().global_sync,
+        &partition.network,
+        &partition.network_partition,
+        partition.config.computational_setup().global_sync,
     );
 
-    let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
+    let mut comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
         .services(external_services)
-        .events_publisher(events.clone())
+        .events_manager(events.clone())
+        .mobsim_events_manager(Rc::new(RefCell::new(MobsimEventsManager::for_partition(
+            rank, 0,
+        ))))
         .build()
         .unwrap();
 
+    {
+        let mut bus = comp_env.mobsim_events_manager_borrow_mut();
+        for subscriber in mobsim_subscribers {
+            subscriber(&mut bus);
+        }
+    }
+
     let mut simulation: Simulation<C> =
-        SimulationBuilder::new(scenario, net_message_broker, comp_env).build();
+        SimulationBuilder::new(partition, net_message_broker, comp_env).build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
@@ -178,7 +203,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 fn create_events(
     config: &Config,
     rank: u32,
-    additional_subscribers: Vec<Box<OnEventFnBuilder>>,
+    additional_subscribers: Vec<Box<EventHandlerRegisterFn>>,
 ) -> Rc<RefCell<EventsManager>> {
     let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
@@ -190,13 +215,13 @@ fn create_events(
             let events_file = format!("events.{rank}.binpb");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
-            ProtoEventsWriter::register(events_path)(&mut events)
+            ProtoEventsWriter::register_fn(events_path)(&mut events)
         }
         WriteEvents::XmlGz => {
             let events_file = format!("events.{rank}.xml.gz");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
-            XmlEventsWriter::register(events_path)(&mut events)
+            XmlEventsWriter::register_fn(events_path)(&mut events)
         }
     }
 

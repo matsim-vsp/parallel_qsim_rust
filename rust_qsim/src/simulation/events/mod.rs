@@ -45,17 +45,31 @@ impl PartialEq for dyn EventTrait {
     }
 }
 
-type OnEventFn = dyn Fn(&dyn EventTrait) + 'static;
+type HandleEventFn = dyn Fn(&dyn EventTrait) + 'static;
 
-pub type OnEventFnBuilder = dyn FnOnce(&mut EventsManager) + Send;
+/// This is a meta function. It is used to register functions at the [EventsManager] that handle events. Also check the documentation there.
+/// This function gets a `&mut` to [EventsManager] and then registers the callbacks for the specific event types.
+/// This mechanism allows
+/// ```
+/// use rust_qsim::simulation::events::{EventTrait, EventsManager, LinkEnterEvent};
+/// let f = |events: &mut EventsManager| {
+///     events.on_any(|ev: &dyn EventTrait| println!("{:?}", ev));
+///     events.on::<LinkEnterEvent, _>(|le: &LinkEnterEvent| println!("This is a LinkEnterEvent: {:?}", le));
+/// };
+/// ```
+pub type EventHandlerRegisterFn = dyn FnOnce(&mut EventsManager) + Send;
 
-/// The EventsPublisher holds call-backs for event processing. This might seem a bit odd
+/// The EventsManager holds call-backs for event processing. This might seem a bit odd
 /// (in particular in comparison to the Java implementation). The reason is that Rust has no reflection, and this
 /// architecture allows compile-time checking of the event types.
+///
+/// There are two ways to register event handlers: (1) `on` and (2) `on_any`. For (1), you need to specify the event type. For (2), you don't.
+/// Note, that the impact of `on_any` registrations compared with `on` registrations is much higher on the runtime,
+/// since `on_any` callbacks are called for every event, regardless of it is needed or not. The callback needs to decide whether it wants to handle the event or not.
 #[derive(Default)]
 pub struct EventsManager {
-    per_type: HashMap<TypeId, Vec<Rc<OnEventFn>>>,
-    catch_all: Vec<Box<OnEventFn>>,
+    per_type: HashMap<TypeId, Vec<Rc<HandleEventFn>>>,
+    catch_all: Vec<Box<HandleEventFn>>,
     finish: Vec<Box<dyn Fn() + 'static>>,
 }
 
@@ -63,7 +77,7 @@ impl Debug for EventsManager {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "EventsPublisher {{ per_type: {:?}, catch_all: {:?}, finish: {:?} }}",
+            "EventsManager {{ per_type: {:?}, catch_all: {:?}, finish: {:?} }}",
             self.per_type.len(),
             self.catch_all.len(),
             self.finish.len()
@@ -80,7 +94,7 @@ impl EventsManager {
         }
     }
 
-    pub fn publish_event(&mut self, event: &dyn EventTrait) {
+    pub fn process_event(&mut self, event: &dyn EventTrait) {
         let tid = event.as_any().type_id();
         if let Some(list) = self.per_type.get(&tid).cloned() {
             for h in list {

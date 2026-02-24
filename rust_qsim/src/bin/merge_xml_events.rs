@@ -34,8 +34,8 @@ fn main() {
         });
     }
 
-    let mut publisher = EventsManager::new();
-    XmlEventsWriter::register(PathBuf::from(&args.path).join("events.xml"))(&mut publisher);
+    let mut manager = EventsManager::new();
+    XmlEventsWriter::register_fn(PathBuf::from(&args.path).join("events.xml"))(&mut manager);
 
     info!("Starting to read events files.");
     while !readers.is_empty() {
@@ -49,11 +49,11 @@ fn main() {
                 if time % 3600 == 0 {
                     info!("Starting time step: {time}");
                 }
-                publisher.publish_event(event.as_ref());
+                manager.process_event(event.as_ref());
                 reader.curr_time_step = event.time();
             }
         }
     }
 
-    publisher.finish();
+    manager.finish();
 }

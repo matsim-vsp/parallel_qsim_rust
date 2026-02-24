@@ -57,7 +57,7 @@ impl ActivityEngine {
             .into_iter()
             .chain(end_from_awake.into_iter())
         {
-            self.comp_env.events_publisher_borrow_mut().publish_event(
+            self.comp_env.events_manager_borrow_mut().process_event(
                 &ActivityEndEventBuilder::default()
                     .time(now)
                     .person(agent.id().clone())
@@ -90,7 +90,7 @@ impl ActivityEngine {
     fn receive_agent(&mut self, now: u32, agent: AsleepSimulationAgent) {
         // emmit act start event
         let act = agent.agent.curr_act();
-        self.comp_env.events_publisher_borrow_mut().publish_event(
+        self.comp_env.events_manager_borrow_mut().process_event(
             &ActivityStartEventBuilder::default()
                 .time(now)
                 .person(agent.agent.id().clone())

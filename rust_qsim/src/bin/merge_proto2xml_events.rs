@@ -25,15 +25,15 @@ fn main() {
     info!("Load Id Store");
     id::load_from_file(&PathBuf::from(args.id_store));
 
-    let mut publisher = EventsManager::new();
+    let mut manager = EventsManager::new();
 
     let output_file_path = PathBuf::from(&args.path).join("events.xml.gz");
-    let register_proto_writer = XmlEventsWriter::register(output_file_path.clone());
+    let register_proto_writer = XmlEventsWriter::register_fn(output_file_path.clone());
 
-    register_proto_writer(&mut publisher);
+    register_proto_writer(&mut manager);
 
     read_proto_events(
-        &mut publisher,
+        &mut manager,
         &PathBuf::from(args.path),
         String::from("events"),
         args.num_parts,
