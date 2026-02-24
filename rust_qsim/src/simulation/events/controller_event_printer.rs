@@ -31,13 +31,4 @@ impl ControllerEventPrinter {
             });
         })
     }
-
-    // pub fn print_from_channel(receiver: mpsc::Receiver<BeforeMobsimMessage>) {
-    //     while let Ok(msg) = receiver.recv() {
-    //         println!(
-    //             "[ControllerEvent] BeforeMobsim | iteration={} seq_no={} last_iteration={}",
-    //             msg.iteration, msg.seq_no, msg.last_iteration
-    //         );
-    //     }
-    // }
 }
