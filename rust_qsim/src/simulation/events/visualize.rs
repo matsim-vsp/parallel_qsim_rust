@@ -45,29 +45,64 @@ impl VisualizeEvents {
         Box::new(move |events: &mut EventsManager| {
             let sender_on_event = sender.clone();
             events.on_any(move |event| {
+
                 let msg = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
+                    // println!(
+                    //     "[EVENT] LinkEnter  | t={} | link={} | vehicle={}",
+                    //     e.time,
+                    //     e.link.external(),
+                    //     e.vehicle.external()
+                    // );
+
                     Some(VisualizeEventMessage::LinkEnter {
                         time: e.time,
                         link_id: e.link.external().to_string(),
                         vehicle_id: e.vehicle.external().to_string(),
                     })
+
                 } else if let Some(e) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
+                    // println!(
+                    //     "[EVENT] LinkLeave  | t={} | link={} | vehicle={}",
+                    //     e.time,
+                    //     e.link.external(),
+                    //     e.vehicle.external()
+                    // );
+
                     Some(VisualizeEventMessage::LinkLeave {
                         time: e.time,
                         link_id: e.link.external().to_string(),
                         vehicle_id: e.vehicle.external().to_string(),
                     })
+
                 } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
+                    // println!(
+                    //     "[EVENT] PersonEntersVehicle | t={} | vehicle={}",
+                    //     e.time,
+                    //     e.vehicle.external()
+                    // );
+
                     Some(VisualizeEventMessage::PersonEntersVehicle {
                         time: e.time,
                         vehicle_id: e.vehicle.external().to_string(),
                     })
+
                 } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+                    // println!(
+                    //     "[EVENT] PersonLeavesVehicle | t={} | vehicle={}",
+                    //     e.time,
+                    //     e.vehicle.external()
+                    // );
+
                     Some(VisualizeEventMessage::PersonLeavesVehicle {
                         time: e.time,
                         vehicle_id: e.vehicle.external().to_string(),
                     })
+
                 } else {
+                    // println!(
+                    //     "[EVENT] Other event type: {}",
+                    //     std::any::type_name_of_val(event)
+                    // );
                     None
                 };
 
@@ -617,6 +652,14 @@ fn draw_vehicles(
                 position_view += Vec2::new(0.0, WAIT_STACK_OFFSET * (*stack_index as f32));
                 *stack_index += 1;
             }
+
+            // println!(
+            //     "Drawing vehicle {} at sim_time {:.2} at position {:?}",
+            //     vehicle_id,
+            //     sim_time,
+            //     position_info.world
+            // );
+
             gizmos.circle_2d(position_view, 4.0, Color::srgb(0.0, 1.0, 0.0));
         }
     }

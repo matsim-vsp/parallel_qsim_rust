@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 fn main() {
     let args = CommandLineArgs::new_with_path("rust_qsim/assets/equil-100/run_equil_100.config.yml");
@@ -29,7 +30,7 @@ fn main() {
         let mut subscribers = HashMap::new();
         subscribers.insert(0, vec![VisualizeEvents::register_fn(event_tx)]);
 
-        // thread::sleep(Duration::from_secs(10));
+        thread::sleep(Duration::from_secs(10));
 
         ControllerBuilder::default_with_scenario(Scenario::load(Arc::new(config)))
             .event_handler_register_fn(subscribers)
