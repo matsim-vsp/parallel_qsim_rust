@@ -6,15 +6,21 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:10" />
 			<leg mode="car">
-				<route type="links" start_link="20" end_link="20" trav_time="undefined" distance="0.0">20</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="20" end_link="20" trav_time="undefined" distance="0.0">20</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="03:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -23,11 +29,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="05:59" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="02:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -36,11 +46,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="05:58:30" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="01:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -49,11 +63,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="05:59:30" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="02:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -62,11 +80,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="06:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -75,11 +97,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -88,11 +114,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -101,11 +131,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -114,11 +148,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -127,11 +165,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -140,11 +182,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -153,11 +199,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -166,11 +216,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -179,11 +233,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -192,11 +250,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -205,11 +267,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -218,11 +284,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -231,11 +301,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -244,11 +318,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -257,11 +335,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -270,11 +352,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -283,11 +369,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -296,11 +386,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -309,11 +403,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -322,11 +420,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -335,11 +437,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -348,11 +454,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -361,11 +471,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -374,11 +488,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -387,11 +505,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -400,11 +522,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -413,11 +539,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -426,11 +556,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -439,11 +573,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -452,11 +590,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -465,11 +607,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -478,11 +624,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -491,11 +641,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -504,11 +658,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -517,11 +675,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -530,11 +692,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -543,11 +709,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -556,11 +726,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -569,11 +743,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -582,11 +760,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -595,11 +777,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -608,11 +794,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -621,11 +811,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -634,11 +828,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -647,11 +845,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -660,11 +862,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -673,11 +879,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -686,11 +896,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -699,11 +913,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -712,11 +930,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -725,11 +947,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -738,11 +964,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -751,11 +981,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -764,11 +998,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -777,11 +1015,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -790,11 +1032,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -803,11 +1049,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -816,11 +1066,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -829,11 +1083,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -842,11 +1100,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -855,11 +1117,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -868,11 +1134,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -881,11 +1151,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -894,11 +1168,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -907,11 +1185,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -920,11 +1202,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -933,11 +1219,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -946,11 +1236,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -959,11 +1253,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -972,11 +1270,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -985,11 +1287,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -998,11 +1304,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1011,11 +1321,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1024,11 +1338,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1037,11 +1355,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1050,11 +1372,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1063,11 +1389,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1076,11 +1406,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1089,11 +1423,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1102,11 +1440,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1115,11 +1457,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1128,11 +1474,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1141,11 +1491,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1154,11 +1508,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1167,11 +1525,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1180,11 +1542,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1193,11 +1559,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1206,11 +1576,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1219,11 +1593,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1232,11 +1610,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1245,11 +1627,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1258,11 +1644,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1271,11 +1661,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1284,11 +1678,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>
@@ -1297,11 +1695,15 @@
 		<plan selected="yes">
 			<activity type="h" x="-25000" y="0" link="1" end_time="06:00" />
 			<leg mode="car">
-				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="2" end_link="12" trav_time="undefined" distance="0.0">2 7 12</route>
 			</leg>
 			<activity type="w" x="10000" y="0" link="20" dur="00:30" />
 			<leg mode="car">
-				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
+				<attributes>
+					<attribute name="routingMode" class="java.lang.String">car</attribute>
+				</attributes>				<route type="links" start_link="13" end_link="1" trav_time="undefined" distance="0.0">13 14 15 1</route>
 			</leg>
 			<activity type="h" x="-25000" y="0" link="1" />
 		</plan>

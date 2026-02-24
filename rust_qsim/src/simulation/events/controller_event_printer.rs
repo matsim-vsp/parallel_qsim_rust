@@ -21,7 +21,7 @@ impl ControllerEventPrinter {
         Box::new(move |events: &mut ControllerEventsManager| {
             events.on_event(move |runtime_event| {
                 if let ControllerEvent::BeforeMobsim(event) = &runtime_event.payload {
-                    thread::sleep(Duration::from_secs(1));
+                    thread::sleep(Duration::from_secs(10));
                     let _ = sender.send(BeforeMobsimMessage {
                         iteration: runtime_event.meta.iteration,
                         seq_no: runtime_event.meta.seq_no,
