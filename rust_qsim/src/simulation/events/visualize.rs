@@ -1,6 +1,9 @@
 use crate::simulation::events::{
-    EventHandlerRegisterFn, EventsManager, LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent,
-    PersonLeavesVehicleEvent,
+    EventHandlerRegisterFn, EventsManager, LinkEnterEvent, LinkLeaveEvent,
+    PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
+};
+use crate::simulation::framework_events::{
+    EventOrigin, MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn,
 };
 use crate::simulation::network::Network;
 use crate::simulation::vehicles::garage::Garage;
@@ -11,12 +14,26 @@ use bevy_pancam::{PanCam, PanCamPlugin};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{mpsc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 
 const WAIT_STACK_OFFSET: f32 = 8.0;
+// 1.0 = realtime, 50.0 = 50x realtime (1 simulated second every 20ms wall time).
+const REALTIME_SCALE: f64 = 100.0;
+
+#[derive(Debug, Clone)]
+pub struct BeforeSimStepMessage {
+    pub partition: u32,
+    pub iteration: u32,
+    pub seq_no: u64,
+    pub time: u32,
+}
 
 #[derive(Debug, Clone)]
 pub enum VisualizeEventMessage {
+    BeforeSimStep(BeforeSimStepMessage),
     LinkEnter {
         time: u32,
         link_id: String,
@@ -38,15 +55,67 @@ pub enum VisualizeEventMessage {
     Done,
 }
 
+#[derive(Default)]
+struct RealtimeThrottleState {
+    wall_start: Option<Instant>,
+    sim_start_time: Option<u32>,
+}
+
+fn throttle_simulation_to_realtime(state: &Mutex<RealtimeThrottleState>, sim_time: u32) {
+    if REALTIME_SCALE <= 0.0 {
+        return;
+    }
+
+    let Ok(mut state) = state.lock() else {
+        return;
+    };
+
+    // Handle time resets, e.g. when a new iteration starts.
+    if state
+        .sim_start_time
+        .is_some_and(|start_time| sim_time < start_time)
+    {
+        state.sim_start_time = None;
+        state.wall_start = None;
+    }
+
+    if state.sim_start_time.is_none() || state.wall_start.is_none() {
+        state.sim_start_time = Some(sim_time);
+        state.wall_start = Some(Instant::now());
+        return;
+    }
+
+    let Some(sim_start_time) = state.sim_start_time else {
+        return;
+    };
+    let Some(wall_start) = state.wall_start.as_ref() else {
+        return;
+    };
+
+    let elapsed_sim_seconds = (sim_time - sim_start_time) as f64;
+    let target_elapsed_wall_seconds = elapsed_sim_seconds / REALTIME_SCALE;
+    let elapsed_wall_seconds = wall_start.elapsed().as_secs_f64();
+
+    if target_elapsed_wall_seconds > elapsed_wall_seconds {
+        thread::sleep(Duration::from_secs_f64(
+            target_elapsed_wall_seconds - elapsed_wall_seconds,
+        ));
+    }
+}
+
 pub struct VisualizeEvents;
 
 impl VisualizeEvents {
-    pub fn register_fn(sender: mpsc::Sender<VisualizeEventMessage>) -> Box<EventHandlerRegisterFn> {
+    pub fn register_fn(
+        sender: mpsc::Sender<VisualizeEventMessage>,
+        first_link_enter_seen: Arc<AtomicBool>,
+    ) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             let sender_on_event = sender.clone();
+            let first_link_enter_seen_on_event = first_link_enter_seen.clone();
             events.on_any(move |event| {
-
                 let msg = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
+                    first_link_enter_seen_on_event.store(true, Ordering::Relaxed);
                     // println!(
                     //     "[EVENT] LinkEnter  | t={} | link={} | vehicle={}",
                     //     e.time,
@@ -59,7 +128,6 @@ impl VisualizeEvents {
                         link_id: e.link.external().to_string(),
                         vehicle_id: e.vehicle.external().to_string(),
                     })
-
                 } else if let Some(e) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
                     // println!(
                     //     "[EVENT] LinkLeave  | t={} | link={} | vehicle={}",
@@ -73,7 +141,6 @@ impl VisualizeEvents {
                         link_id: e.link.external().to_string(),
                         vehicle_id: e.vehicle.external().to_string(),
                     })
-
                 } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
                     // println!(
                     //     "[EVENT] PersonEntersVehicle | t={} | vehicle={}",
@@ -85,7 +152,6 @@ impl VisualizeEvents {
                         time: e.time,
                         vehicle_id: e.vehicle.external().to_string(),
                     })
-
                 } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
                     // println!(
                     //     "[EVENT] PersonLeavesVehicle | t={} | vehicle={}",
@@ -97,7 +163,6 @@ impl VisualizeEvents {
                         time: e.time,
                         vehicle_id: e.vehicle.external().to_string(),
                     })
-
                 } else {
                     // println!(
                     //     "[EVENT] Other event type: {}",
@@ -114,6 +179,38 @@ impl VisualizeEvents {
             let sender_on_finish = sender.clone();
             events.on_finish(move || {
                 let _ = sender_on_finish.send(VisualizeEventMessage::Done);
+            });
+        })
+    }
+
+    pub fn register_mobsim_fn(
+        sender: mpsc::Sender<VisualizeEventMessage>,
+        first_link_enter_seen: Arc<AtomicBool>,
+    ) -> Box<MobsimListenerRegisterFn> {
+        let throttle_state = Arc::new(Mutex::new(RealtimeThrottleState::default()));
+
+        Box::new(move |events: &mut MobsimEventsManager| {
+            let first_link_enter_seen = first_link_enter_seen.clone();
+            let throttle_state = throttle_state.clone();
+            events.on_event(move |runtime_event| {
+                if let MobsimEvent::BeforeSimStep(event) = &runtime_event.payload {
+                    if first_link_enter_seen.load(Ordering::Relaxed) {
+                        throttle_simulation_to_realtime(throttle_state.as_ref(), event.time);
+                    }
+
+                    let partition = match runtime_event.meta.origin {
+                        EventOrigin::Partition(rank) => rank,
+                        EventOrigin::Controller => 0,
+                    };
+
+                    let _ =
+                        sender.send(VisualizeEventMessage::BeforeSimStep(BeforeSimStepMessage {
+                            partition,
+                            iteration: runtime_event.meta.iteration,
+                            seq_no: runtime_event.meta.seq_no,
+                            time: event.time,
+                        }));
+                }
             });
         })
     }
@@ -285,6 +382,7 @@ impl TripsBuilder {
 
     fn handle_event(&mut self, event: &VisualizeEventMessage) {
         match event {
+            VisualizeEventMessage::BeforeSimStep(_) => {}
             VisualizeEventMessage::LinkEnter {
                 time,
                 link_id,
@@ -320,8 +418,7 @@ impl TripsBuilder {
     }
 
     fn handle_link_leave(&mut self, time: u32, link_id: &str, vehicle_id: &str) {
-        if let Some((entered_link, start_time)) = self.current_link_per_vehicle.remove(vehicle_id)
-        {
+        if let Some((entered_link, start_time)) = self.current_link_per_vehicle.remove(vehicle_id) {
             let end_time = time as f32;
             if entered_link == link_id && end_time >= start_time {
                 // Link already added on enter; leave only validates/removes current open link.
@@ -442,6 +539,9 @@ fn process_events_from_channel(
                 VisualizeEventMessage::Done => {
                     *done = true;
                     break;
+                }
+                VisualizeEventMessage::BeforeSimStep(event) => {
+                    clock.time = clock.time.max(event.time as f32);
                 }
                 VisualizeEventMessage::LinkEnter { time, .. }
                 | VisualizeEventMessage::LinkLeave { time, .. }
