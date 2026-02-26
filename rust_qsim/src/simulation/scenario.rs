@@ -30,9 +30,9 @@ impl Scenario {
     pub fn load(config: Arc<Config>) -> Self {
         info!("Start loading scenario.");
 
-        if let Some(ids) = config.ids() {
-            info!("Loading IDs from {:?}", ids.path);
-            id::load_from_file(&io::resolve_path(config.context(), &ids.path));
+        if let Some(path) = &config.ids().path {
+            info!("Loading IDs from {:?}", path);
+            id::load_from_file(&io::resolve_path(config.context(), &path));
         }
 
         // mandatory content to create a scenario
@@ -49,20 +49,31 @@ impl Scenario {
     }
 
     fn load_network(config: &Config) -> Network {
-        let net_in_path = io::resolve_path(config.context(), &config.network().path);
-        let num_parts = config.partitioning().num_parts;
-        Network::from_file_path(&net_in_path, num_parts, &config.partitioning().method)
+        if let Some(path) = &config.network().path {
+            let net_in_path = io::resolve_path(config.context(), path);
+            let num_parts = config.partitioning().num_parts;
+            Network::from_file_path(&net_in_path, num_parts, &config.partitioning().method)
+        } else {
+            Network::default()
+        }
     }
 
     fn load_garage(config: &Config) -> Garage {
-        Garage::from_file(&io::resolve_path(config.context(), &config.vehicles().path))
+        if let Some(path) = &config.vehicles().path {
+            let garage_in_path = io::resolve_path(config.context(), path);
+            Garage::from_file(&garage_in_path)
+        } else {
+            Garage::default()
+        }
     }
 
     fn load_population(config: &Config, garage: &mut Garage) -> Population {
-        Population::from_file(
-            &io::resolve_path(config.context(), &config.population().path),
-            garage,
-        )
+        if let Some(path) = &config.population().path {
+            let pop_in_path = io::resolve_path(config.context(), path);
+            Population::from_file(&pop_in_path, garage)
+        } else {
+            Population::default()
+        }
     }
 }
 

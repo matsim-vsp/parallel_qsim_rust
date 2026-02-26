@@ -227,10 +227,14 @@ impl Controller {
     }
 
     fn write_output_network(&mut self, output_path: PathBuf) {
-        let net_in_path = io::resolve_path(
-            self.scenario.config.context(),
-            &self.scenario.config.network().path,
-        );
+        let net_in_path = if let Some(path) = &self.scenario.config.network().path {
+            io::resolve_path(self.scenario.config.context(), path)
+        } else {
+            io::resolve_path(
+                self.scenario.config.context(),
+                &PathBuf::from("network.xml.gz"),
+            )
+        };
         let mut net_out_path = create_output_filename(&output_path, &net_in_path);
         net_out_path = insert_number_in_proto_filename(
             &net_out_path,

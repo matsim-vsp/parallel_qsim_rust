@@ -1,5 +1,6 @@
 /target
 /out
+*/output
 *.iml
 .idea/
 rust_qsim/test_output/
