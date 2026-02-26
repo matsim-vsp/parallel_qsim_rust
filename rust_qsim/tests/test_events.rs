@@ -3,14 +3,14 @@ use rust_qsim::simulation::events::utils;
 use rust_qsim::simulation::events::utils::convert_proto_to_xml_events;
 use rust_qsim::simulation::id;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[integration_test(rust_qsim)]
 fn test_proto_to_xml() {
     // run proto2xml on results from a run of 3-links-config-2.yml
-    let path_to_proto_files = "./tests/resources/3-links/".to_string();
-    let output_folder = "./test_output/simulation/execute_3_links_2_parts/".to_string();
-    let id_store = "./tests/resources/3-links/3-links.ids.binpb".to_string();
+    let resource_folder = "./tests/resources/events/".to_string();
+    let output_folder = "./test_output/io/xml_events/".to_string();
+    let id_store = "./tests/resources/events/3-links.ids.binpb".to_string();
     let num_parts = 2;
 
     // create result directory, move the generated .gz file there
@@ -18,15 +18,14 @@ fn test_proto_to_xml() {
 
     id::load_from_file(&PathBuf::from(id_store));
     convert_proto_to_xml_events(
-        path_to_proto_files,
+        &resource_folder,
         num_parts,
-        PathBuf::from(output_folder).join("events.xml.gz"),
+        PathBuf::from(&output_folder).join("events.xml.gz"),
     );
 
     // Load and compare two XML event files
-    let generated_file =
-        Path::new("./test_output/simulation/execute_3_links_2_parts/events.xml.gz");
-    let expected_file = Path::new("./tests/resources/3-links/expected_events.xml");
+    let generated_file = PathBuf::from(&output_folder).join("events.xml.gz");
+    let expected_file = PathBuf::from(&resource_folder).join("expected_events.xml");
 
     match utils::compare_xml_event_files(generated_file, expected_file) {
         Ok(()) => (),

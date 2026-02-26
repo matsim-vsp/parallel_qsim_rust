@@ -73,25 +73,25 @@ pub fn read_proto_events(
 /// compressed as xml.gz, based on the file extension in the given output path).
 /// Assumes that ids are already loaded.
 pub fn convert_proto_to_xml_events(
-    path_to_proto_files: String,
+    path_to_proto_files: impl AsRef<Path>,
     num_parts: u32,
-    output_file_path: PathBuf,
+    output_file_path: impl Into<PathBuf> + Clone,
 ) {
     let mut manager = EventsManager::new();
 
-    let register_xml_writer = XmlEventsWriter::register_fn(output_file_path.clone());
+    let register_xml_writer = XmlEventsWriter::register_fn(Into::into(output_file_path.clone()));
 
     register_xml_writer(&mut manager);
 
     read_proto_events(
         &mut manager,
-        &PathBuf::from(&path_to_proto_files),
+        path_to_proto_files.as_ref(),
         String::from("events"),
         num_parts,
     );
     info!(
         "Finished writing to xml file ({}).",
-        output_file_path.display()
+        Into::into(output_file_path).to_str().unwrap()
     );
 }
 
@@ -144,9 +144,12 @@ impl fmt::Display for XmlNotEqualError {
 
 /// Compares two XML event files event by event. Panics if any events differ or if the files have
 /// different numbers of events.
-pub fn compare_xml_event_files(file1: &Path, file2: &Path) -> Result<(), XmlNotEqualError> {
-    let mut reader1 = XmlEventsReader::new(file1);
-    let mut reader2 = XmlEventsReader::new(file2);
+pub fn compare_xml_event_files(
+    file1: impl AsRef<Path>,
+    file2: impl AsRef<Path>,
+) -> Result<(), XmlNotEqualError> {
+    let mut reader1 = XmlEventsReader::new(file1.as_ref());
+    let mut reader2 = XmlEventsReader::new(file2.as_ref());
 
     let mut line_count = 0;
     let mut time_of_last_line: Option<u32> = None;
