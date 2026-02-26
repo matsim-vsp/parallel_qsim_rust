@@ -73,7 +73,7 @@ impl Default for Config {
     fn default() -> Self {
         let mut config = Config {
             modules: HashMap::default(),
-            context: Some(std::env::current_dir().unwrap()),
+            context: std::env::current_dir().ok(),
         };
         config.ensure_defaults();
         config
