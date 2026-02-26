@@ -7,6 +7,7 @@ use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
 use derive_builder::Builder;
+use macros::EventTrait;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -171,7 +172,7 @@ impl Clone for Box<dyn EventsWriter> {
     }
 }
 
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct GeneralEvent {
     pub time: u32,
     #[builder(default)]
@@ -191,22 +192,7 @@ impl GeneralEvent {
     }
 }
 
-impl EventTrait for GeneralEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct ActivityStartEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -232,22 +218,7 @@ impl ActivityStartEvent {
     }
 }
 
-impl EventTrait for ActivityStartEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct ActivityEndEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -273,22 +244,7 @@ impl ActivityEndEvent {
     }
 }
 
-impl EventTrait for ActivityEndEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct LinkEnterEvent {
     pub time: u32,
     pub link: Id<Link>,
@@ -312,22 +268,7 @@ impl LinkEnterEvent {
     }
 }
 
-impl EventTrait for LinkEnterEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct LinkLeaveEvent {
     pub time: u32,
     pub link: Id<Link>,
@@ -351,22 +292,7 @@ impl LinkLeaveEvent {
     }
 }
 
-impl EventTrait for LinkLeaveEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct VehicleEntersTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
@@ -397,23 +323,7 @@ impl VehicleEntersTrafficEvent {
     }
 }
 
-impl EventTrait for VehicleEntersTrafficEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct VehicleLeavesTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
@@ -444,23 +354,7 @@ impl VehicleLeavesTrafficEvent {
     }
 }
 
-impl EventTrait for VehicleLeavesTrafficEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct PersonEntersVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -484,22 +378,7 @@ impl PersonEntersVehicleEvent {
     }
 }
 
-impl EventTrait for PersonEntersVehicleEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct PersonLeavesVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -523,22 +402,7 @@ impl PersonLeavesVehicleEvent {
     }
 }
 
-impl EventTrait for PersonLeavesVehicleEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct PersonDepartureEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -566,22 +430,7 @@ impl PersonDepartureEvent {
     }
 }
 
-impl EventTrait for PersonDepartureEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct PersonArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -607,22 +456,7 @@ impl PersonArrivalEvent {
     }
 }
 
-impl EventTrait for PersonArrivalEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct TeleportationArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -648,22 +482,7 @@ impl TeleportationArrivalEvent {
     }
 }
 
-impl EventTrait for TeleportationArrivalEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug, PartialEq)]
+#[derive(Builder, Debug, PartialEq, EventTrait)]
 pub struct PtTeleportationArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -690,20 +509,5 @@ impl PtTeleportationArrivalEvent {
             .attributes(attrs)
             .build()
             .unwrap()
-    }
-}
-
-impl EventTrait for PtTeleportationArrivalEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    // fn as_any(&self) -> &dyn Any {
-    //     self
-    // }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
     }
 }
