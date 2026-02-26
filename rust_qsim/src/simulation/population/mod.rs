@@ -568,7 +568,7 @@ impl FromIOPerson<IOLeg> for InternalLeg {
         let mode = Id::create(&io.mode);
         InternalLeg {
             mode: mode.clone(),
-            routing_mode: routing_mode.or_else(|| Some(mode.clone())),
+            routing_mode,
             dep_time: parse_time_opt(&io.dep_time),
             trav_time: parse_trav_time(
                 &io.trav_time,
