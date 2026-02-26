@@ -23,3 +23,6 @@ modules:
   routing:
     type: Routing
     mode: AdHoc
+  simulation:
+    type: Simulation
+    main_modes: [ "car" ]
