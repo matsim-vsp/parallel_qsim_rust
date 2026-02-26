@@ -73,7 +73,7 @@ impl Default for Config {
     fn default() -> Self {
         let mut config = Config {
             modules: HashMap::default(),
-            context: None,
+            context: Some(std::env::current_dir().unwrap()),
         };
         config.ensure_defaults();
         config
@@ -130,6 +130,10 @@ impl Config {
         self.simulation_mut();
         self.routing_mut();
         self.computational_setup_mut();
+        self.network_mut();
+        self.population_mut();
+        self.vehicles_mut();
+        self.ids_mut();
     }
 
     pub fn set_context(&mut self, context: Option<PathBuf>) {
@@ -157,8 +161,11 @@ impl Config {
     }
 
     pub fn network_mut(&mut self) -> &mut Network {
-        self.module_mut::<Network>("network")
-            .expect("Network was not set.")
+        if !self.modules.contains_key("network") {
+            self.modules
+                .insert("network".to_string(), Box::new(Network::default()));
+        }
+        self.module_mut::<Network>("network").unwrap()
     }
 
     pub fn set_network(&mut self, network: Network) {
@@ -172,8 +179,11 @@ impl Config {
     }
 
     pub fn population_mut(&mut self) -> &mut Population {
-        self.module_mut::<Population>("population")
-            .expect("Population was not set.")
+        if !self.modules.contains_key("population") {
+            self.modules
+                .insert("population".to_string(), Box::new(Population::default()));
+        }
+        self.module_mut::<Population>("population").unwrap()
     }
 
     pub fn set_population(&mut self, population: Population) {
@@ -187,8 +197,11 @@ impl Config {
     }
 
     pub fn vehicles_mut(&mut self) -> &mut Vehicles {
-        self.module_mut::<Vehicles>("vehicles")
-            .expect("Vehicles was not set.")
+        if !self.modules.contains_key("vehicles") {
+            self.modules
+                .insert("vehicles".to_string(), Box::new(Vehicles::default()));
+        }
+        self.module_mut::<Vehicles>("vehicles").unwrap()
     }
 
     pub fn set_vehicles(&mut self, vehicles: Vehicles) {
@@ -196,12 +209,16 @@ impl Config {
             .insert("vehicles".to_string(), Box::new(vehicles));
     }
 
-    pub fn ids(&self) -> Option<&Ids> {
-        self.module::<Ids>("ids")
+    pub fn ids(&self) -> &Ids {
+        self.module::<Ids>("ids").expect("Ids was not set.")
     }
 
-    pub fn ids_mut(&mut self) -> Option<&mut Ids> {
-        self.module_mut::<Ids>("ids")
+    pub fn ids_mut(&mut self) -> &mut Ids {
+        if !self.modules.contains_key("ids") {
+            self.modules
+                .insert("ids".to_string(), Box::new(Ids::default()));
+        }
+        self.module_mut::<Ids>("ids").unwrap()
     }
 
     pub fn set_ids(&mut self, ids: Ids) {
@@ -259,15 +276,8 @@ impl Config {
 
     pub fn output_mut(&mut self) -> &mut Output {
         if !self.modules.contains_key("output") {
-            self.modules.insert(
-                "output".to_string(),
-                Box::new(Output {
-                    output_dir: "./output".parse().unwrap(),
-                    profiling: Profiling::None,
-                    logging: Logging::Info,
-                    write_events: WriteEvents::None,
-                }),
-            );
+            self.modules
+                .insert("output".to_string(), Box::new(Output::default()));
         }
         self.module_mut::<Output>("output").unwrap()
     }
@@ -365,41 +375,41 @@ pub fn write_config(config: &Config, output_path: PathBuf) {
     serde_yaml::to_writer(writer, config).expect("Failed to write output config file");
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Network {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Population {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Vehicles {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Ids {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
 register_override!("network.path", |config, value| {
-    config.network_mut().path = PathBuf::from(value);
+    config.network_mut().path = Some(PathBuf::from(value));
 });
 
 register_override!("population.path", |config, value| {
-    config.population_mut().path = PathBuf::from(value);
+    config.population_mut().path = Some(PathBuf::from(value));
 });
 
 register_override!("vehicles.path", |config, value| {
-    config.vehicles_mut().path = PathBuf::from(value);
+    config.vehicles_mut().path = Some(PathBuf::from(value));
 });
 
 register_override!("ids.path", |config, value| {
     config.set_ids(Ids {
-        path: PathBuf::from(value),
+        path: Some(PathBuf::from(value)),
     });
 });
 
@@ -429,6 +439,17 @@ pub struct Output {
     pub write_events: WriteEvents,
 }
 
+impl Default for Output {
+    fn default() -> Self {
+        Self {
+            output_dir: "./output".parse().unwrap(),
+            profiling: Profiling::None,
+            logging: Logging::None,
+            write_events: WriteEvents::None,
+        }
+    }
+}
+
 register_override!("output.output_dir", |config, value| {
     config.output_mut().output_dir = PathBuf::from(value);
 });
@@ -452,14 +473,6 @@ impl Default for Routing {
             mode: RoutingMode::UsePlans,
         }
     }
-}
-
-fn default_to_3() -> u32 {
-    3
-}
-
-fn default_to_600() -> u64 {
-    600
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -490,32 +503,22 @@ pub struct DrtService {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
     pub sample_size: f32,
-    #[serde(default = "default_to_10")]
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
 }
 
-fn default_to_10() -> u32 {
-    10
-}
-
-fn default_random_seed() -> u64 {
-    DEFAULT_RANDOM_SEED
-}
-
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
-    #[serde(default = "default_to_3")]
     /// The number of threads to be used for the tokio runtime by the adapter.
     pub adapter_worker_threads: u32,
-    #[serde(default = "default_to_600")]
     pub retry_time_seconds: u64,
-    #[serde(default = "default_random_seed")]
     pub random_seed: u64,
 }
 
@@ -538,9 +541,9 @@ impl Default for ComputationalSetup {
     fn default() -> Self {
         Self {
             global_sync: false,
-            adapter_worker_threads: default_to_3(),
-            retry_time_seconds: default_to_600(),
-            random_seed: default_random_seed(),
+            adapter_worker_threads: 3,
+            retry_time_seconds: 600,
+            random_seed: DEFAULT_RANDOM_SEED,
         }
     }
 }
@@ -660,8 +663,8 @@ impl Default for Simulation {
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,
-            stuck_threshold: default_to_10(),
-            main_modes: vec!["car".to_string()],
+            stuck_threshold: 10,
+            main_modes: vec![],
         }
     }
 }
@@ -1072,7 +1075,43 @@ modules:
 
         let config = Config::from(args);
 
-        assert_eq!(config.population().path.to_str().unwrap(), "new_pop");
+        assert_eq!(
+            config.population().path.as_ref().unwrap().to_str().unwrap(),
+            "new_pop"
+        );
+    }
+
+    #[test]
+    fn test_optional_path() {
+        let yaml = r#"
+modules:
+  population:
+    type: Population
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![],
+        };
+        let config = Config::from(args);
+        assert_eq!(config.population().path, None);
+    }
+
+    #[test]
+    fn test_optional_path_null() {
+        let yaml = r#"
+modules:
+  population:
+    type: Population
+    path: null
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![],
+        };
+        let config = Config::from(args);
+        assert_eq!(config.population().path, None);
     }
 
     #[test]
@@ -1133,10 +1172,18 @@ modules:
     fn base_config() -> Config {
         let mut config = Config::default();
 
-        config.set_network(Network { path: "net".into() });
-        config.set_population(Population { path: "pop".into() });
-        config.set_vehicles(Vehicles { path: "veh".into() });
-        config.set_ids(Ids { path: "ids".into() });
+        config.set_network(Network {
+            path: Some("net".into()),
+        });
+        config.set_population(Population {
+            path: Some("pop".into()),
+        });
+        config.set_vehicles(Vehicles {
+            path: Some("veh".into()),
+        });
+        config.set_ids(Ids {
+            path: Some("ids".into()),
+        });
 
         config.set_output(Output {
             output_dir: "out".into(),
@@ -1158,7 +1205,7 @@ modules:
     fn override_network_path() {
         let mut config = base_config();
         config.apply_overrides(&[("network.path".to_string(), "new_net".to_string())]);
-        assert_eq!(config.network().path, PathBuf::from("new_net"));
+        assert_eq!(config.network().path, Some(PathBuf::from("new_net")));
     }
 
     #[test]

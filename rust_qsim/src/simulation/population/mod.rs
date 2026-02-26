@@ -551,7 +551,8 @@ impl InternalLeg {
                 .as_generic()
                 .trav_time
                 .unwrap_or_else(|| {
-                    panic!("Neither leg nor route travel time is set at leg {:?}", self);
+                    panic!("Neither leg nor route travel time is set for this leg. The mode of this leg is: {}. \
+                    If this is a teleported mode, the travel time must be present. Leg: {:?}", self.mode, self);
                 })
         }
     }
