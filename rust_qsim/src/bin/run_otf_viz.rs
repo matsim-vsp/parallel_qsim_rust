@@ -6,6 +6,7 @@ use rust_qsim::simulation::network::Network;
 use rust_qsim::simulation::scenario::Scenario;
 use rust_qsim::simulation::vehicles::garage::Garage;
 use std::collections::HashMap;
+use std::process;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -14,8 +15,8 @@ use std::thread;
 fn main() {
     let args =
         CommandLineArgs::new_with_path("rust_qsim/assets/equil-100/run_equil_100.config.yml");
-    // let args = CommandLineArgs::new_with_path("rust_qsim/assets/kehlheim/kehlheim_config.yml");
-    let config = Config::from(args);
+    let mut config = Config::from(args);
+    config.partitioning_mut().num_parts = 1;
 
     let network_path = io::resolve_path(config.context(), &config.network().path);
     let vehicles_path = io::resolve_path(config.context(), &config.vehicles().path);
@@ -25,9 +26,13 @@ fn main() {
         &config.partitioning().method,
     );
     let garage = Garage::from_file(&vehicles_path);
+
     let (event_tx, event_rx) = mpsc::channel::<VisualizeEventMessage>();
     let first_link_enter_seen = Arc::new(AtomicBool::new(false));
+    let pause_requested = Arc::new(AtomicBool::new(false));
+    let pause_requested_for_sim = pause_requested.clone();
 
+    // start simulation in seccond thread.
     let sim_thread = thread::spawn(move || {
         let event_handler_register_fns = HashMap::from([(
             0,
@@ -41,10 +46,9 @@ fn main() {
             vec![VisualizeEvents::register_mobsim_fn(
                 event_tx,
                 first_link_enter_seen,
+                pause_requested_for_sim,
             )],
         )]);
-
-        // thread::sleep(Duration::from_secs(10));
 
         ControllerBuilder::default_with_scenario(Scenario::load(Arc::new(config)))
             .event_handler_register_fn(event_handler_register_fns)
@@ -54,7 +58,9 @@ fn main() {
             .run();
     });
 
-    VisualizeEvents::run_window(event_rx, network, garage);
+    // Start UI in main thread
+    VisualizeEvents::run_window(event_rx, network, garage, pause_requested);
 
-    sim_thread.join().expect("Simulation thread failed");
+    let _ = sim_thread;
+    process::exit(0);
 }
