@@ -18,7 +18,7 @@ pub trait DynEq: Any {
     fn dyn_eq(&self, other: &dyn DynEq) -> bool;
 }
 
-pub trait EventTrait: Debug + Any + DynEq {
+pub trait EventTrait: Debug + DynEq {
     //This can't be a const, because traits with const fields are not dyn compatible.
     fn type_(&self) -> &'static str;
     // fn as_any(&self) -> &dyn Any;
@@ -26,6 +26,15 @@ pub trait EventTrait: Debug + Any + DynEq {
     fn attributes(&self) -> &InternalAttributes;
 }
 
+/// Trait for objects that need to be compared, but whose type is not known at compile time. This is
+/// needed for comparing event files, since it is not known which type of event will be read from
+/// the files.
+/// Based on https://users.rust-lang.org/t/how-to-compare-two-trait-objects-for-equality/88063/5,
+/// or specifically, the demo crate https://crates.io/crates/dyn_ord, written by the forum user who
+/// wrote the reply in the link above.
+/// Main idea: when comparing a and b which are both of type &dyn DynEq, try to downcast b to the
+/// type of a. If that works, compare them with the normal equality operator. If not, return false,
+/// since they are of different types and thus not equal.
 impl<T: Any + PartialEq> DynEq for T {
     fn as_any(&self) -> &dyn Any {
         self

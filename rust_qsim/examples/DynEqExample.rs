@@ -29,13 +29,14 @@ impl PartialEq for dyn DynEq {
 }
 
 fn main() {
-    // let x: i32 = 42;
+    // link enter event
     let le: Box<dyn EventTrait> = Box::new(LinkEnterEvent {
         time: 0,
         link: Id::create("link"),
         vehicle: Id::create("link"),
         attributes: Default::default(),
     });
+    // link leave event
     let ll: Box<dyn EventTrait> = Box::new(LinkLeaveEvent {
         time: 0,
         link: Id::create("link"),
@@ -46,15 +47,15 @@ fn main() {
     let le_ref = le.deref();
     let ll_ref = ll.deref();
 
+    // check if the two events are equal (should be false as they are of different types)
     dbg!(le_ref == ll_ref);
 
-    // let x: &dyn DynEq = le_ref;
-    // let y: &dyn DynEq = ll.deref();
-
-    // dbg!(x.eq(y));
+    // sanity check if the event is equal to itself (should be true)
+    dbg!(le_ref == le_ref);
 
     // ===========
 
+    // checks on more simple types
     let x: &dyn DynEq = &42u32;
 
     let y = String::from("foo");

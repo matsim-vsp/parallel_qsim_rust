@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
-use tracing::info;
+use tracing::{error, info};
 
 struct StatefulReader<R: Read + Seek> {
     reader: ProtoEventsReader<R>,
@@ -96,60 +96,53 @@ pub fn convert_proto_to_xml_events(
 }
 
 #[derive(Debug)]
-pub enum XmlNotEqualError {
+pub enum EventsFileNotEqualError {
     DifferentEventTimes {
         event_no: u32, // event number in the file (1-indexed), where the first difference in event times was found
         time1: u32,    // time of event in file 1
         time2: u32,    // time of event in file 2
     },
-    NotChronologicalOrder {
-        event_no: u32, // event number in the file (1-indexed), where the first event with earlier time than the previous event was found
-        current_time: u32, // time of event where the error occurred
-        last_time: u32, // time of previous event
-    },
-    DifferentNumberOfEvents {
-        file: u32,     // number of file (1 or 2) which has fewer events than the other file
-        ended_at: u32, // number of events (1-indexed) in the file with fewer events
-    },
-    NoMatchingEvent {
-        // meaning no event with same event data was found in file 2 for an event in file 1s
-        time: u32, // time of event in file 1 for which no matching event was found in file 2
-        event_id: usize, // id of event in the batch of events with same time in file 1 for which no matching event was found in file 2 (1-indexed)
-                         //     that is, if event_id is 3, then for the 3rd event with time 'time' in file 1, no matching event was found in file 2
+    NotChronologicalOrder,
+    DifferentNumberOfEvents,
+    MissingEvent {
+        event: String, // event type and time, of event in file 1 for which no identical event was found in file 2
     },
 }
 
-impl fmt::Display for XmlNotEqualError {
+impl fmt::Display for EventsFileNotEqualError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            XmlNotEqualError::DifferentEventTimes { event_no, time1, time2 } => write!(
+            EventsFileNotEqualError::DifferentEventTimes {
+                event_no,
+                time1,
+                time2,
+            } => write!(
                 f,
-                "Event number {event_no} have different times in the two files: {time1} vs {time2}"
+                "Event number {event_no} has different times in the two files: {time1} vs {time2}"
             ),
-            XmlNotEqualError::NotChronologicalOrder { event_no, current_time, last_time } => write!(
+            EventsFileNotEqualError::NotChronologicalOrder {} => {
+                write!(f, "Events in both files are not in chronological order.")
+            }
+            EventsFileNotEqualError::DifferentNumberOfEvents {} => {
+                write!(f, "Files have different numbers of events.")
+            }
+            EventsFileNotEqualError::MissingEvent { event } => write!(
                 f,
-                "Events in both files are not in chronological order: \nEvent number {event_no} has time {current_time}, which is earlier than time {last_time} in the previous event"
-            ),
-            XmlNotEqualError::DifferentNumberOfEvents { file, ended_at } => write!(
-                f,
-                "File {file} has fewer events than the other file. It had only {ended_at} events."
-            ),
-            XmlNotEqualError::NoMatchingEvent { time, event_id } =>
-                write!(
-                f,
-                "No matching event found in file 2 for an event with time {time} in file 1. ¸\nThe \
-                event is number {event_id} in the batch of events from file 1 with this time."
+                "No identical event found in file 2 for an {event} in file 1."
             ),
         }
     }
 }
 
-/// Compares two XML event files event by event. Panics if any events differ or if the files have
-/// different numbers of events.
+/// Compares two XML event files event by event. Returns an error if the files have differing event
+/// times in some line, if at some time they don't contain the same events, if the events are not in
+/// chronological order in one or both of the files, or if the files have different numbers of
+/// events. Note that the order of events with the same time does not matter, since it is not
+/// guaranteed to be the same in both files.
 pub fn compare_xml_event_files(
     file1: impl AsRef<Path>,
     file2: impl AsRef<Path>,
-) -> Result<(), XmlNotEqualError> {
+) -> Result<(), EventsFileNotEqualError> {
     let mut reader1 = XmlEventsReader::new(file1.as_ref());
     let mut reader2 = XmlEventsReader::new(file2.as_ref());
 
@@ -175,7 +168,12 @@ pub fn compare_xml_event_files(
                 // either the number of events with the same time differs between the two files, or
                 // the events are not sorted increasing in time in one (or both) of the files
                 if time1 != time2 {
-                    return Err(XmlNotEqualError::DifferentEventTimes {
+                    error!(
+                        "Event number {} has different times in files {} and {}, times are {} vs {}",
+                        event_count,
+                        file1.as_ref().to_str().unwrap(), file2.as_ref().to_str().unwrap(),
+                        time1, time2);
+                    return Err(EventsFileNotEqualError::DifferentEventTimes {
                         event_no: event_count,
                         time1,
                         time2,
@@ -195,11 +193,17 @@ pub fn compare_xml_event_files(
                     // event in current line has earlier time than event in previous line
                     Ordering::Less => {
                         // Not allowed, therefore return error
-                        return Err(XmlNotEqualError::NotChronologicalOrder {
-                            event_no: event_count,
-                            current_time: time1,
-                            last_time: time_of_last_line.unwrap(),
-                        });
+                        error!(
+                            "Events in files {} and {} are not in chronological order:\
+                            Event number {} has time {} in both files, but previous event has time \
+                            {}.",
+                            file1.as_ref().to_str().unwrap(),
+                            file2.as_ref().to_str().unwrap(),
+                            event_count,
+                            time1,
+                            time_of_last_line.unwrap()
+                        );
+                        return Err(EventsFileNotEqualError::NotChronologicalOrder);
                     }
 
                     // event in current line has same time as event in previous line.
@@ -214,7 +218,7 @@ pub fn compare_xml_event_files(
                     Ordering::Greater => {
                         // This means that we can compare all the events from the lines before,
                         // which had the same time.
-                        // Afterwards, clear the collections with those events, and add the events
+                        // Afterward, clear the collections with those events, and add the events
                         // of the current line to the collections, to start a new batch of events
                         // to compare
 
@@ -227,10 +231,24 @@ pub fn compare_xml_event_files(
                         ) {
                             Ok(()) => (),
                             Err(id) => {
-                                return Err(XmlNotEqualError::NoMatchingEvent {
-                                    time: time_of_last_line.unwrap(),
-                                    event_id: id,
-                                })
+                                let event_str = format!(
+                                    "event of type {} at time {}",
+                                    events_with_same_time1[id - 1].type_(),
+                                    time_of_last_line.unwrap()
+                                ); // id is 1-indexed, so subtract 1 to get the correct index in the vector
+
+                                error!(
+                                    "Events do not match in files {} and {}. \
+                                    An {} (event number {} with this time in the first file) does not \
+                                    exist in the second file.",
+                                    file1.as_ref().to_str().unwrap(),
+                                    file2.as_ref().to_str().unwrap(),
+                                    event_str,
+                                    id
+                                );
+                                return Err(EventsFileNotEqualError::MissingEvent {
+                                    event: event_str,
+                                });
                             }
                         }
 
@@ -255,10 +273,22 @@ pub fn compare_xml_event_files(
                 match compare_batch_of_events(&events_with_same_time1, &events_with_same_time2) {
                     Ok(()) => (),
                     Err(id) => {
-                        return Err(XmlNotEqualError::NoMatchingEvent {
-                            time: time_of_last_line.unwrap(),
-                            event_id: id,
-                        })
+                        let event_str = format!(
+                            "event of type {} at time {}",
+                            events_with_same_time1[id - 1].type_(),
+                            time_of_last_line.unwrap()
+                        ); // id is 1-indexed, so subtract 1 to get the correct index in the vector
+
+                        error!(
+                            "Events do not match in files {} and {}. \
+                            An {} (event number {} with this time in the first file) does not \
+                            exist in the second file.",
+                            file1.as_ref().to_str().unwrap(),
+                            file2.as_ref().to_str().unwrap(),
+                            event_str,
+                            id
+                        );
+                        return Err(EventsFileNotEqualError::MissingEvent { event: event_str });
                     }
                 }
 
@@ -266,16 +296,22 @@ pub fn compare_xml_event_files(
                 break;
             }
             (Some(_), None) => {
-                return Err(XmlNotEqualError::DifferentNumberOfEvents {
-                    file: 2,
-                    ended_at: event_count - 1, // file ended at previous line, thus subtract 1
-                });
+                error!(
+                    "File {} has only {} events, which is fewer than than file {}.",
+                    file2.as_ref().to_str().unwrap(),
+                    event_count - 1, // file ended at previous line, thus subtract 1
+                    file1.as_ref().to_str().unwrap(),
+                );
+                return Err(EventsFileNotEqualError::DifferentNumberOfEvents);
             }
             (None, Some(_)) => {
-                return Err(XmlNotEqualError::DifferentNumberOfEvents {
-                    file: 1,
-                    ended_at: event_count - 1, // file ended at previous line, thus subtract 1
-                });
+                error!(
+                    "File {} has only {} events, which is fewer than than file {}.",
+                    file1.as_ref().to_str().unwrap(),
+                    event_count - 1, // file ended at previous line, thus subtract 1
+                    file2.as_ref().to_str().unwrap(),
+                );
+                return Err(EventsFileNotEqualError::DifferentNumberOfEvents);
             }
         }
     }
@@ -359,7 +395,7 @@ mod tests {
             }
             Err(e) => match e {
 
-                XmlNotEqualError::DifferentEventTimes { event_no: line, time1, time2 } => {
+                EventsFileNotEqualError::DifferentEventTimes { event_no: line, time1, time2 } => {
                     assert_eq!(line, 1);
                     assert_eq!(time1, 32400);
                     assert_eq!(time2, 32408);
@@ -385,10 +421,8 @@ mod tests {
             }
             Err(e) => match e {
 
-                XmlNotEqualError::NotChronologicalOrder { event_no: line, current_time, last_time } => {
-                    assert_eq!(line, 2);
-                    assert_eq!(current_time, 32400);
-                    assert_eq!(last_time, 32408);
+                EventsFileNotEqualError::NotChronologicalOrder => {
+                    // expected error, do nothing
                 }
 
                 _ => panic!("Compared a file with incorrect (not chronological) order to itself, but got an unexpected error: {e}"),
@@ -409,9 +443,9 @@ mod tests {
             }
             Err(e) => match e {
 
-                XmlNotEqualError::NoMatchingEvent { time, event_id } => {
-                    assert_eq!(time, 32409);
-                    assert_eq!(event_id, 4);
+                EventsFileNotEqualError::MissingEvent { event } => {
+                    assert_eq!(event, String::from("event of type PersonEntersVehicle at time 32409"));
+
                 }
 
                 _ => panic!("Compared two files where the name of a car was changed in file2, but got an unexpected error: {e}"),
@@ -430,9 +464,8 @@ mod tests {
                 panic!("Compared two files where one file has fewer events than the other, but got Ok")
             }
             Err(e) => match e {
-                XmlNotEqualError::DifferentNumberOfEvents { file, ended_at } => {
-                    assert_eq!(file, 2);
-                    assert_eq!(ended_at, 21);
+                EventsFileNotEqualError::DifferentNumberOfEvents => {
+                    // expected error, do nothing
                 }
 
                 _ => panic!("Compared two files where one file has fewer events than the other, but got an unexpected error: {e}"),
