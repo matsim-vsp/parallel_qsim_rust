@@ -3,9 +3,15 @@ use rust_qsim::simulation::events::{EventTrait, LinkEnterEvent, LinkLeaveEvent};
 use rust_qsim::simulation::id::Id;
 use std::ops::Deref;
 
-trait DynEq: Any {
+// Example for implementation and usage of DynEq, a trait for dynamic equality comparison of trait
+// objects. This is used in the implementation of EventTrait to allow for equality comparison of
+// different event types.
+// Below is a copy of the implementation of DynEq (and subsequent implementation of PartialEq) from
+// src/simulation/events/mod.rs
+
+pub trait DynEq: Any {
     fn as_any(&self) -> &dyn Any;
-    fn eq(&self, arg1: &dyn DynEq) -> bool;
+    fn dyn_eq(&self, other: &dyn DynEq) -> bool;
 }
 
 impl<T: Any + PartialEq> DynEq for T {
@@ -13,18 +19,21 @@ impl<T: Any + PartialEq> DynEq for T {
         self
     }
 
-    fn eq(&self, arg1: &dyn DynEq) -> bool {
-        if let Some(other) = arg1.as_any().downcast_ref::<Self>() {
-            self == other
+    fn dyn_eq(&self, other: &dyn DynEq) -> bool {
+        if let Some(other) = other.as_any().downcast_ref::<T>() {
+            *self == *other
         } else {
             false
         }
     }
 }
 
+// Note: in src/simulation/events/mod.rs, we implement PartialEq for dyn EventTrait, which requires
+// that EventTrait extends DynEq. For the sake of this example, we implement PartialEq for dyn DynEq
+// directly.
 impl PartialEq for dyn DynEq {
     fn eq(&self, other: &Self) -> bool {
-        self.eq(other)
+        self.dyn_eq(other)
     }
 }
 
