@@ -27,6 +27,13 @@ fn test_proto_to_xml() {
     let generated_file = PathBuf::from(&output_folder).join("events.xml.gz");
     let expected_file = PathBuf::from(&resource_folder).join("expected_events.xml");
 
+    match utils::compare_xml_event_files_old(&generated_file, &expected_file) {
+        Ok(()) => (),
+        Err(e) => panic!(
+            "Generated XML event file ('file 1') and expected event file ('file 2') differ: {e}"
+        ),
+    }
+
     match utils::compare_xml_event_files(generated_file, expected_file) {
         Ok(()) => (),
         Err(e) => panic!(
