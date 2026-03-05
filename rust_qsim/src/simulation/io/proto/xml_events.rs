@@ -30,10 +30,10 @@ pub struct XmlEventsWriter {
 }
 
 impl XmlEventsWriter {
-    pub fn new(path: PathBuf) -> Self {
-        info!("Creating file: {path:?}");
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        info!("Creating file: {:?}", path.as_ref());
         let file = File::create(&path).expect("Failed to create File.");
-        let mut writer: Box<dyn Write + Send> = if path.extension().unwrap() == "gz" {
+        let mut writer: Box<dyn Write + Send> = if path.as_ref().extension().unwrap() == "gz" {
             Box::new(GzEncoder::new(file, Compression::fast()))
         } else {
             Box::new(BufWriter::new(file))
@@ -183,9 +183,9 @@ impl XmlEventsWriter {
         writer.flush().expect("Failed to flush events.");
     }
 
-    pub fn register_fn(path: PathBuf) -> Box<EventHandlerRegisterFn> {
+    pub fn register_fn(path: impl AsRef<Path> + Send + 'static) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
-            let xml = Rc::new(XmlEventsWriter::new(path));
+            let xml = Rc::new(XmlEventsWriter::new(path.as_ref()));
             let xml1 = xml.clone();
             let xml2 = xml.clone();
 
@@ -204,11 +204,11 @@ pub struct XmlEventsReader {
 }
 
 impl XmlEventsReader {
-    pub fn new(events_file: &Path) -> Self {
-        let file = File::open(events_file)
-            .unwrap_or_else(|_| panic!("Could not open events file: {:?}", events_file));
+    pub fn new(events_file: impl AsRef<Path>) -> Self {
+        let file = File::open(events_file.as_ref())
+            .unwrap_or_else(|_| panic!("Could not open events file: {:?}", events_file.as_ref()));
         // if events_file is a gz file, read it with a GzDecoder, otherwise read it directly
-        let file_is_gz = events_file.extension().unwrap() == "gz";
+        let file_is_gz = events_file.as_ref().extension().unwrap() == "gz";
         let buffered_reader: Box<dyn BufRead> = if file_is_gz {
             let gz = flate2::read::GzDecoder::new(file);
             Box::new(BufReader::new(gz))
