@@ -2,7 +2,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Mutex;
 use tracing::info;

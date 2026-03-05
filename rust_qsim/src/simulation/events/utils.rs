@@ -75,11 +75,11 @@ pub fn read_proto_events(
 pub fn convert_proto_to_xml_events(
     path_to_proto_files: impl AsRef<Path>,
     num_parts: u32,
-    output_file_path: impl Into<PathBuf> + Clone,
+    output_file_path: impl AsRef<Path> + 'static + Send + Clone,
 ) {
     let mut manager = EventsManager::new();
 
-    let register_xml_writer = XmlEventsWriter::register_fn(Into::into(output_file_path.clone()));
+    let register_xml_writer = XmlEventsWriter::register_fn(output_file_path.clone());
 
     register_xml_writer(&mut manager);
 
@@ -91,7 +91,7 @@ pub fn convert_proto_to_xml_events(
     );
     info!(
         "Finished writing to xml file ({}).",
-        Into::into(output_file_path).to_str().unwrap()
+        output_file_path.as_ref().to_str().unwrap()
     );
 }
 
