@@ -261,8 +261,12 @@ fn read_file_with_barrier(
                         }
 
                         // Phase 1: publish batch
+                        // i.e., wait for the other reader to also be ready with its batch. Only
+                        // then the comparator starts comparing the two
                         barrier.wait();
-                        // Phase 2: comparator has consumed/decided
+
+                        // Phase 2: wait for comparator to consume/decide
+                        // i.e., do nothing while the comparator compares the batches
                         barrier.wait();
 
                         if should_stop.load(AtomicOrdering::Relaxed) {
@@ -325,7 +329,10 @@ fn comparator_thread(
     let mut last_time: Option<u32> = None;
 
     loop {
+        // start by waiting for both readers to publish their batches
         barrier.wait();
+
+        // then start comparison
 
         let (time1, events1, finished1) = {
             let mut b = batch1.lock().unwrap();
@@ -365,15 +372,14 @@ fn comparator_thread(
                 }
                 // matching times, but comparing the batches yielded a difference
                 else if let Err(id) = compare_batch_of_events(&events1, &events2) {
-                    let event_str =
-                        format!("event of type {} at time {}", events1[id - 1].type_(), t1); // id is 1-indexed, so subtract 1 to get the correct index in the vector
+                    let event_str = format!("event of type {} at time {}", events1[id].type_(), t1);
                     error!(
                         "Events do not match in files {} and {}. An {} (event number {} with \
                             this time in the first file) does not exist in the second file.",
                         file1.to_str().unwrap(),
                         file2.to_str().unwrap(),
                         event_str,
-                        id
+                        id + 1 // id is 0-indexed, so add 1 to count as humans do
                     );
                     let mut result = comparison_result.lock().unwrap();
                     *result = Err(EventsFileNotEqualError::MissingEvent { event: event_str });
@@ -382,6 +388,8 @@ fn comparator_thread(
                 // otherwise, all good
             }
 
+            // wake up the reader threads one last time to let them break their loops
+            // and then break this loop
             barrier.wait();
             break;
         }
@@ -407,9 +415,14 @@ fn comparator_thread(
             let mut result = comparison_result.lock().unwrap();
             *result = Err(EventsFileNotEqualError::DifferentNumberOfEvents);
             should_stop.store(true, AtomicOrdering::Relaxed);
+
+            // wake up the reader threads one last time to let them break their loops
+            // and then break this loop
             barrier.wait();
             break;
         }
+
+        // no reader finished. proceed to compare current batches of events.
 
         // check time of both event batches
         match (time1, time2) {
@@ -429,6 +442,8 @@ fn comparator_thread(
                         time2: t2,
                     });
                     should_stop.store(true, AtomicOrdering::Relaxed);
+
+                    // wake up the reader threads
                     barrier.wait();
                     break;
                 }
@@ -449,6 +464,8 @@ fn comparator_thread(
                         let mut result = comparison_result.lock().unwrap();
                         *result = Err(EventsFileNotEqualError::NotChronologicalOrder);
                         should_stop.store(true, AtomicOrdering::Relaxed);
+
+                        // wake up the reader threads
                         barrier.wait();
                         break;
                     }
@@ -462,18 +479,20 @@ fn comparator_thread(
                     }
                     Err(id) => {
                         let event_str =
-                            format!("event of type {} at time {}", events1[id - 1].type_(), t1); // id is 1-indexed, so subtract 1 to get the correct index in the vector
+                            format!("event of type {} at time {}", events1[id].type_(), t1);
                         error!(
                             "Events do not match in files {} and {}. An {} (event number {} with \
                             this time in the first file) does not exist in the second file.",
                             file1.to_str().unwrap(),
                             file2.to_str().unwrap(),
                             event_str,
-                            id
+                            id + 1 // id is 0-indexed, so add 1 to count as humans do
                         );
                         let mut result = comparison_result.lock().unwrap();
                         *result = Err(EventsFileNotEqualError::MissingEvent { event: event_str });
                         should_stop.store(true, AtomicOrdering::Relaxed);
+
+                        // wake up the reader threads
                         barrier.wait();
                         break;
                     }
@@ -487,6 +506,7 @@ fn comparator_thread(
             }
         }
 
+        // wake up the reader threads to let them read the next batches
         barrier.wait();
     }
 }
@@ -590,9 +610,9 @@ pub fn compare_xml_event_files_old(
                             Err(id) => {
                                 let event_str = format!(
                                     "event of type {} at time {}",
-                                    events_with_same_time1[id - 1].type_(),
+                                    events_with_same_time1[id].type_(),
                                     time_of_last_line.unwrap()
-                                ); // id is 1-indexed, so subtract 1 to get the correct index in the vector
+                                );
 
                                 error!(
                                     "Events do not match in files {} and {}. \
@@ -601,7 +621,7 @@ pub fn compare_xml_event_files_old(
                                     file1.as_ref().to_str().unwrap(),
                                     file2.as_ref().to_str().unwrap(),
                                     event_str,
-                                    id
+                                    id + 1  // id is 0-indexed, so add 1 to count as humans do
                                 );
                                 return Err(EventsFileNotEqualError::MissingEvent {
                                     event: event_str,
@@ -632,9 +652,9 @@ pub fn compare_xml_event_files_old(
                     Err(id) => {
                         let event_str = format!(
                             "event of type {} at time {}",
-                            events_with_same_time1[id - 1].type_(),
+                            events_with_same_time1[id].type_(),
                             time_of_last_line.unwrap()
-                        ); // id is 1-indexed, so subtract 1 to get the correct index in the vector
+                        );
 
                         error!(
                             "Events do not match in files {} and {}. \
@@ -643,7 +663,7 @@ pub fn compare_xml_event_files_old(
                             file1.as_ref().to_str().unwrap(),
                             file2.as_ref().to_str().unwrap(),
                             event_str,
-                            id
+                            id + 1 // id is 0-indexed, so add 1 to count as humans do
                         );
                         return Err(EventsFileNotEqualError::MissingEvent { event: event_str });
                     }
@@ -697,7 +717,7 @@ fn compare_batch_of_events(
         }
 
         if !event1_has_match {
-            return Err(id1 + 1);
+            return Err(id1); // return 0-indexed id of event in batch 1 for which no match was found in batch 2
         }
     }
 
