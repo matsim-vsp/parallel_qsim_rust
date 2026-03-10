@@ -544,7 +544,7 @@ mod test {
     }
 
     #[integration_test]
-    fn test_event_manager() {
+    fn test_events_manager() {
         let mut events_manager = EventsManager::new();
 
         // define vectors that we will make the events manager fill when processing events.
