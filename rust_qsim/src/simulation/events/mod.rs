@@ -7,8 +7,7 @@ use crate::simulation::network::Link;
 use crate::simulation::population::InternalPerson;
 use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
-use derive_builder::Builder;
-use macros::EventTrait;
+use macros::event_struct;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -182,7 +181,7 @@ impl Clone for Box<dyn EventsWriter> {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct GeneralEvent {
     pub time: u32,
     #[builder(default)]
@@ -202,7 +201,7 @@ impl GeneralEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct ActivityStartEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -228,7 +227,7 @@ impl ActivityStartEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct ActivityEndEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -254,7 +253,7 @@ impl ActivityEndEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct LinkEnterEvent {
     pub time: u32,
     pub link: Id<Link>,
@@ -278,7 +277,7 @@ impl LinkEnterEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct LinkLeaveEvent {
     pub time: u32,
     pub link: Id<Link>,
@@ -302,7 +301,7 @@ impl LinkLeaveEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct VehicleEntersTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
@@ -333,7 +332,7 @@ impl VehicleEntersTrafficEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct VehicleLeavesTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
@@ -364,7 +363,7 @@ impl VehicleLeavesTrafficEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct PersonEntersVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -388,7 +387,7 @@ impl PersonEntersVehicleEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct PersonLeavesVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -412,7 +411,7 @@ impl PersonLeavesVehicleEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct PersonDepartureEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -440,7 +439,7 @@ impl PersonDepartureEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct PersonArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -466,7 +465,7 @@ impl PersonArrivalEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct TeleportationArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -492,7 +491,7 @@ impl TeleportationArrivalEvent {
     }
 }
 
-#[derive(Builder, Debug, PartialEq, EventTrait)]
+#[event_struct]
 pub struct PtTeleportationArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -519,5 +518,147 @@ impl PtTeleportationArrivalEvent {
             .attributes(attrs)
             .build()
             .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::simulation::events::{
+        EventTrait, EventsManager, Id, InternalAttributes, PersonArrivalEvent, PersonDepartureEvent,
+    };
+    use macros::event_struct;
+    use macros::integration_test;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    // create new event type to make sure it works for new types as well
+    #[event_struct]
+    struct NewSimpleEvent {
+        time: u32,
+        some_field: String,
+        attributes: InternalAttributes,
+    }
+
+    impl NewSimpleEvent {
+        pub const TYPE: &'static str = "new simple event";
+    }
+
+    #[integration_test]
+    fn test_event_manager() {
+        let mut events_manager = EventsManager::new();
+
+        // define vectors that we will make the events manager fill when processing events.
+        let collection_of_person_arrival_events: Rc<RefCell<Vec<PersonArrivalEvent>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let collection_of_new_simple_events: Rc<RefCell<Vec<NewSimpleEvent>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let collection_of_any_event_strings: Rc<RefCell<Vec<String>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let collection_of_finish_strings: Rc<RefCell<Vec<String>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        // clone the pointers, since we need to move them to the event managers
+        let cloned_ptr_to_pa_collection = collection_of_person_arrival_events.clone();
+        let cloned_ptr_to_nse_collection = collection_of_new_simple_events.clone();
+        let cloned_ptr_to_any_collection = collection_of_any_event_strings.clone();
+        let cloned_ptr_to_finish_collection = collection_of_finish_strings.clone();
+
+        // register functions in event manager:
+
+        // this registers a function in the events manager s.t. when a PersonArrivalEvent is
+        // processed, it will be added to the collection_of_person_arrival_events vector.
+        events_manager.on::<PersonArrivalEvent, _>(move |event| {
+            cloned_ptr_to_pa_collection.borrow_mut().push(event.clone());
+        });
+
+        // this does the same for NewSimpleEvent, to make sure that it works for new event types as well.
+        events_manager.on::<NewSimpleEvent, _>(move |event| {
+            cloned_ptr_to_nse_collection
+                .borrow_mut()
+                .push(event.clone());
+        });
+
+        // this registers a function in the events manager s.t. when any event is processed, its
+        // type will be added to the collection_of_any_events vector.
+        events_manager.on_any(move |event: &dyn EventTrait| {
+            cloned_ptr_to_any_collection
+                .borrow_mut()
+                .push(String::from(event.type_())); // cannot clone event without knowing
+                                                    // type, so we just store the type here,
+                                                    // for testing
+        });
+
+        // this registers a function in the events manager s.t. when the finish function is called,
+        // "finished" will be added to the collection_of_finish_strings vector.
+        events_manager.on_finish(move || {
+            cloned_ptr_to_finish_collection
+                .borrow_mut()
+                .push(String::from("finished"));
+        });
+
+        // create example events
+        let event1 = PersonArrivalEvent {
+            time: 10,
+            person: Id::create("person1"),
+            link: Id::create("link1"),
+            leg_mode: Id::create("car"),
+            attributes: InternalAttributes::default(),
+        };
+        let event2 = PersonArrivalEvent {
+            time: 12,
+            person: Id::create("person1"),
+            link: Id::create("link1"),
+            leg_mode: Id::create("car"),
+            attributes: InternalAttributes::default(),
+        };
+        let event3 = PersonDepartureEvent {
+            time: 15,
+            person: Id::create("person1"),
+            link: Id::create("link1"),
+            leg_mode: Id::create("car"),
+            routing_mode: Id::create("fastest"),
+            attributes: InternalAttributes::default(),
+        };
+        let event4 = NewSimpleEvent {
+            time: 20,
+            some_field: String::from("some value"),
+            attributes: InternalAttributes::default(),
+        };
+
+        // process all events and finish
+        events_manager.process_event(&event1);
+        events_manager.process_event(&event2);
+        events_manager.process_event(&event3);
+        events_manager.process_event(&event4);
+        events_manager.finish();
+
+        // verify that the PA collection contains event1 and event2, but not event3 or event4
+        assert_eq!(
+            *collection_of_person_arrival_events.borrow(),
+            vec![event1, event2]
+        );
+
+        // verify that the NewSimpleEvent collection contains event4, but not the other events
+        assert_eq!(*collection_of_new_simple_events.borrow(), vec![event4]);
+
+        // verify that the "any" collection contains the types of all events
+        assert_eq!(
+            *collection_of_any_event_strings.borrow(),
+            vec![
+                String::from("arrival"),
+                String::from("arrival"),
+                String::from("departure"),
+                String::from("new simple event")
+            ]
+        );
+
+        // verify that the finish collection contains "finished"
+        assert_eq!(
+            *collection_of_finish_strings.borrow(),
+            vec![String::from("finished")]
+        );
     }
 }
