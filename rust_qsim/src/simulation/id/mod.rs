@@ -3,7 +3,7 @@ use crate::simulation::id::id_store::UntypedId;
 use crate::simulation::id::serializable_type::StableTypeId;
 use once_cell::sync::Lazy;
 use std::cmp::Ordering;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::path::Path;
@@ -24,13 +24,18 @@ pub mod serializable_type;
 /// to hide internal representation and to enable implementing IsEnabled for using the NoHashHasher create
 /// Also, it uses the new type pattern because we wrap an untyped id, so that we can have a global id store of all
 /// ids.
-#[derive(Debug)]
 pub struct Id<T: StableTypeId> {
     _type_marker: PhantomData<T>,
     id: Arc<UntypedId>,
 }
 
-impl<T: StableTypeId + 'static> Id<T> {
+impl<T: StableTypeId> Debug for Id<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.external())
+    }
+}
+
+impl<T: StableTypeId> Id<T> {
     fn new(untyped_id: Arc<UntypedId>) -> Self {
         Self {
             _type_marker: PhantomData,

@@ -243,16 +243,16 @@ impl From<&VehicleEntersTrafficEvent> for MyEvent {
             AttributeValue::from(value.link.external()),
         );
         attributes.insert(
-            "driver".to_string(),
-            AttributeValue::from(value.driver.external()),
+            "person".to_string(),
+            AttributeValue::from(value.person.external()),
         );
         attributes.insert(
-            "mode".to_string(),
-            AttributeValue::from(value.mode.external()),
+            "network_mode".to_string(),
+            AttributeValue::from(value.network_mode.external()),
         );
         attributes.insert(
-            "relative_position_on_link".to_string(),
-            AttributeValue::from(value.relative_position_on_link),
+            "relative_position".to_string(),
+            AttributeValue::from(value.relative_position),
         );
         MyEvent {
             r#type: value.type_().to_string(),
@@ -273,16 +273,16 @@ impl From<&VehicleLeavesTrafficEvent> for MyEvent {
             AttributeValue::from(value.link.external()),
         );
         attributes.insert(
-            "driver".to_string(),
-            AttributeValue::from(value.driver.external()),
+            "person".to_string(),
+            AttributeValue::from(value.person.external()),
         );
         attributes.insert(
-            "mode".to_string(),
-            AttributeValue::from(value.mode.external()),
+            "network_mode".to_string(),
+            AttributeValue::from(value.network_mode.external()),
         );
         attributes.insert(
-            "relative_position_on_link".to_string(),
-            AttributeValue::from(value.relative_position_on_link),
+            "relative_position".to_string(),
+            AttributeValue::from(value.relative_position),
         );
         MyEvent {
             r#type: value.type_().to_string(),
@@ -536,11 +536,12 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::io::proto::proto_events::{ProtoEventsReader, ProtoEventsWriter};
     use crate::simulation::InternalAttributes;
+    use macros::integration_test;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
 
-    #[test]
+    #[integration_test]
     fn write_read_single() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_single/events.pbf");
@@ -566,7 +567,7 @@ mod tests {
         match_events(&event, events.first().unwrap());
     }
 
-    #[test]
+    #[integration_test]
     fn write_read_multiple() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_multiple/events.pbf");
@@ -618,7 +619,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn write_read_multiple_time_steps() {
         let path = create_path_with_prefix(
             "./test_output/io/proto_events/write_read_multiple_time_steps/events.pbf",

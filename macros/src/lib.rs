@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemFn};
+use syn::{parse_macro_input, Fields, ItemFn};
 
 #[proc_macro_attribute]
 pub fn integration_test(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -28,4 +28,54 @@ pub fn integration_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+// Automatically implement EventTrait for any struct with the right fields.
+// inspired by https://cetra3.github.io/blog/creating-your-own-derive-macro/
+#[proc_macro_derive(EventTrait)]
+pub fn event_trait_derive(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as syn::DeriveInput);
+
+    // make sure input is a struct
+    if let syn::Data::Struct(ref data) = input.data {
+        return match data.fields {
+            // make sure input is a struct with named fields
+            Fields::Named(ref _fields) => {
+                let name = input.ident;
+
+                TokenStream::from(quote!(
+                        impl crate::simulation::events::EventTrait for #name {
+                            fn type_(&self) -> &'static str {
+                                Self::TYPE
+                            }
+                            fn time(&self) -> u32 {
+                                self.time
+                            }
+                            fn attributes(&self) -> &InternalAttributes {
+                                &self.attributes
+                            }
+
+                }))
+            }
+            _ => {
+                // if it's not a struct with named fields, we can't derive EventTrait
+                TokenStream::from(
+                    syn::Error::new(
+                        input.ident.span(),
+                        "Only structs with named fields can derive `EventTrait`",
+                    )
+                    .to_compile_error(),
+                )
+            }
+        };
+    }
+
+    // Catchall if we don't match on the structure we don't want
+    TokenStream::from(
+        syn::Error::new(
+            input.ident.span(),
+            "Only structs with named fields can derive `EventTrait`",
+        )
+        .to_compile_error(),
+    )
 }
