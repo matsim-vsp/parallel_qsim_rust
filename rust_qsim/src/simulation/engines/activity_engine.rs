@@ -102,6 +102,7 @@ impl ActivityEngine {
         self.asleep_q.add(agent, now);
     }
 
+    /// Pushes agents whose wakeup time is reached into the awake queue and returns agents whose end time is already reached.
     fn wake_up(&mut self, now: u32) -> Vec<SimulationAgent> {
         let mut end_agents = Vec::new();
         let wake_up = self.asleep_q.pop(now);

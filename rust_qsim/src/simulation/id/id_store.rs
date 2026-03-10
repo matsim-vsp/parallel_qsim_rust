@@ -3,6 +3,7 @@ use dashmap::DashMap;
 use lz4::BlockMode;
 use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
+use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, Read, Seek, Write};
@@ -168,13 +169,18 @@ fn decode_ids<B: Buf>(buffer: &mut B) -> Vec<String> {
     result
 }
 
-#[derive(Debug)]
 pub struct UntypedId {
     pub(crate) internal: u64,
     // Shared immutable id text. This is cloned into reverse-lookup maps without copying bytes.
     // Not using &str here to ensure memory safety, i.e., make sure that the reference is always valid.
     // Not using String here because essentially a copy of String would be necessary, which is not memory efficient.
     pub(crate) external: Arc<str>,
+}
+
+impl Debug for UntypedId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.external)
+    }
 }
 
 impl UntypedId {
@@ -240,12 +246,12 @@ impl IdStore {
         }
     }
 
-    pub(crate) fn create_id<T: StableTypeId + 'static>(&self, id: &str) -> Id<T> {
+    pub(crate) fn create_id<T: StableTypeId>(&self, id: &str) -> Id<T> {
         let type_id = T::stable_type_id();
         Id::new(self.create_id_with_type_id(id, type_id))
     }
 
-    pub(crate) fn get<T: StableTypeId + 'static>(&self, internal: u64) -> Id<T> {
+    pub(crate) fn get<T: StableTypeId>(&self, internal: u64) -> Id<T> {
         let type_id = T::stable_type_id();
         let type_ids = self.ids.get(&type_id).unwrap_or_else(|| {
             panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids")
@@ -258,10 +264,7 @@ impl IdStore {
         Id::new(untyped_id)
     }
 
-    pub(crate) fn try_get_from_ext<T: StableTypeId + 'static>(
-        &self,
-        external: &str,
-    ) -> Option<Id<T>> {
+    pub(crate) fn try_get_from_ext<T: StableTypeId>(&self, external: &str) -> Option<Id<T>> {
         let type_id = T::stable_type_id();
         let type_mapping = self.mapping.get(&type_id)?;
 
@@ -270,7 +273,7 @@ impl IdStore {
         Some(id)
     }
 
-    pub(crate) fn get_from_ext<T: StableTypeId + 'static>(&self, external: &str) -> Id<T> {
+    pub(crate) fn get_from_ext<T: StableTypeId>(&self, external: &str) -> Id<T> {
         let type_id = T::stable_type_id();
         let type_mapping = self.mapping.get(&type_id).unwrap_or_else(|| {
             panic!("No ids for type {type_id:?}. Use Id::create::<T>(...) to create ids. Requested external id: {external}");
