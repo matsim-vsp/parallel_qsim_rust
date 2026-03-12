@@ -186,7 +186,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
-    info!("Process #{rank} of {size} has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier.");
+    info!("Process #{rank} (0-indexed) of {size} processes has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier.");
     partition_arguments.global_barrier.wait();
     simulation.run();
 
@@ -212,13 +212,13 @@ fn create_events(
     match config.output().write_events {
         WriteEvents::None => {}
         WriteEvents::Proto => {
-            let events_file = format!("events.{rank}.binpb");
+            let events_file = format!("events/events.{rank}.binpb");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
             ProtoEventsWriter::register_fn(events_path)(&mut events)
         }
         WriteEvents::XmlGz => {
-            let events_file = format!("events.{rank}.xml.gz");
+            let events_file = format!("events/events.{rank}.xml.gz");
             let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
             info!("adding events writer with path: {events_path:?}");
             XmlEventsWriter::register_fn(events_path)(&mut events)

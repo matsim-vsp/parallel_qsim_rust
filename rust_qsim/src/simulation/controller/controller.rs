@@ -1,5 +1,5 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::config::write_config;
+use crate::simulation::config::{write_config, Logging};
 use crate::simulation::controller::{
     create_output_filename, insert_number_in_proto_filename, ExternalServices,
     PartitionArgumentsBuilder,
@@ -132,7 +132,16 @@ impl Controller {
             self.scenario.config.context(),
             &self.scenario.config.output().output_dir,
         );
+
+        let events_path = output_path.join("events");
+
         fs::create_dir_all(&output_path).expect("Failed to create output path");
+        fs::create_dir_all(&events_path).expect("Failed to create events output path");
+
+        if Logging::Info == self.scenario.config.output().logging {
+            let log_path = output_path.join("logs");
+            fs::create_dir_all(&log_path).expect("Failed to create logs output path");
+        }
 
         info!("=========== Start Iteration 0 ===========");
 

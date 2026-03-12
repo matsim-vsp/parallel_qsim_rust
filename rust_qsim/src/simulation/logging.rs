@@ -38,7 +38,7 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
 
     let csv_layers = init_tracing(config, part, &file_discriminant, &dir);
     let (log_layer, log_guard) = if Logging::Info == config.output().logging {
-        let log_file_name = format!("log_process_{file_discriminant}.txt");
+        let log_file_name = format!("logs/log_process_{file_discriminant}.txt");
         let log_file_appender = rolling::never(&dir, log_file_name);
         let (log_file, log_guard) = non_blocking(log_file_appender);
         let layer = fmt::Layer::new()
@@ -94,8 +94,7 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
             if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
                 duration_path.set_extension("csv");
                 routing_path.set_extension("csv");
-                let (general, general_guard) =
-                    SpanDurationToFileLayer::new_csv(&duration_path);
+                let (general, general_guard) = SpanDurationToFileLayer::new_csv(&duration_path);
                 let (routing, routing_guard) =
                     RoutingSpanDurationToFileLayer::new_csv(&routing_path);
                 let (routing_filter, general_filter) = create_filter(level);
