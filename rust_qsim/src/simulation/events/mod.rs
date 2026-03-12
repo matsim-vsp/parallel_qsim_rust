@@ -522,7 +522,7 @@ impl PtTeleportationArrivalEvent {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::simulation::events::{
         EventTrait, EventsManager, Id, InternalAttributes, PersonArrivalEvent, PersonDepartureEvent,
     };
