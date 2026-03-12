@@ -106,13 +106,13 @@ pub struct IOLink {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-struct Nodes {
+pub struct Nodes {
     #[serde(rename = "node", default)]
     pub nodes: Vec<IONode>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-struct Links {
+pub struct Links {
     #[serde(rename = "link", default)]
     pub links: Vec<IOLink>,
     #[serde(rename = "@effectivecellsize")]
@@ -124,8 +124,8 @@ struct Links {
 pub struct IONetwork {
     #[serde(rename = "@name")]
     pub name: Option<String>,
-    nodes: Nodes,
-    links: Links,
+    pub nodes: Nodes,
+    pub links: Links,
 }
 
 impl IONetwork {
