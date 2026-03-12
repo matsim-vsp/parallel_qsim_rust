@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Fields, ItemFn};
+use syn::{parse_macro_input, Fields, ItemFn, ItemStruct};
 
 #[proc_macro_attribute]
 pub fn integration_test(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -51,7 +51,7 @@ pub fn event_trait_derive(input: TokenStream) -> TokenStream {
                             fn time(&self) -> u32 {
                                 self.time
                             }
-                            fn attributes(&self) -> &InternalAttributes {
+                            fn attributes(&self) -> &crate::simulation::InternalAttributes {
                                 &self.attributes
                             }
 
@@ -78,4 +78,31 @@ pub fn event_trait_derive(input: TokenStream) -> TokenStream {
         )
         .to_compile_error(),
     )
+}
+
+#[proc_macro_attribute]
+pub fn event_struct(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as syn::Item);
+
+    let item_struct: ItemStruct = match input {
+        syn::Item::Struct(s) => s,
+        other => {
+            return syn::Error::new_spanned(other, "`#[event_struct]` can only be used on structs")
+                .to_compile_error()
+                .into();
+        }
+    };
+
+    let attrs = item_struct.attrs;
+    let vis = item_struct.vis;
+    let ident = item_struct.ident;
+    let generics = item_struct.generics;
+    let fields = item_struct.fields;
+    let semi = item_struct.semi_token;
+
+    TokenStream::from(quote! {
+        #[derive(derive_builder::Builder, Debug, PartialEq, Clone, macros::EventTrait)]
+        #(#attrs)*
+        #vis struct #ident #generics #fields #semi
+    })
 }
