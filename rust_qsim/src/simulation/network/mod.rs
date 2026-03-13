@@ -124,6 +124,69 @@ impl Network {
         );
     }
 
+    /// Removes a link from the network and disconnects it from its endpoint nodes.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the link does not exist or if network adjacency invariants are broken
+    /// (for example, if the link is not present exactly once in the endpoint link lists).
+    pub fn remove_link(&mut self, id: Id<Link>) {
+        let link = self.links.remove(&id).unwrap_or_else(|| {
+            panic!("Link with id {} does not exist in the network.", id);
+        });
+
+        {
+            let from_node = self.nodes.get_mut(&link.from).unwrap();
+            let out_links_before = from_node.out_links.len();
+            from_node.out_links.retain(|link_id| link_id != &id);
+            let removed = out_links_before - from_node.out_links.len();
+            assert_eq!(
+                1, removed,
+                "Link with id {} is expected exactly once in out_links of node {}.",
+                id, link.from
+            );
+        }
+
+        {
+            let to_node = self.nodes.get_mut(&link.to).unwrap();
+            let in_links_before = to_node.in_links.len();
+            to_node.in_links.retain(|link_id| link_id != &id);
+            let removed = in_links_before - to_node.in_links.len();
+            assert_eq!(
+                1, removed,
+                "Link with id {} is expected exactly once in in_links of node {}.",
+                id, link.to
+            );
+        }
+    }
+
+    /// Removes a node from the network and deletes all incident links first.
+    ///
+    /// Incoming and outgoing links of the node are removed via [`Network::remove_link`]
+    /// before the node itself is deleted.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node does not exist.
+    pub fn remove_node(&mut self, id: Id<Node>) {
+        let links_to_remove: HashSet<_> = {
+            let node = self.nodes.get(&id).unwrap_or_else(|| {
+                panic!("Node with id {} does not exist in the network.", id);
+            });
+            node.in_links
+                .iter()
+                .chain(node.out_links.iter())
+                .cloned()
+                .collect()
+        };
+
+        for link_id in links_to_remove {
+            self.remove_link(link_id);
+        }
+
+        self.nodes.remove(&id).unwrap();
+    }
+
     pub fn get_node(&self, id: &Id<Node>) -> &Node {
         self.nodes.get(id).unwrap()
     }
@@ -436,6 +499,73 @@ mod tests {
         network.add_node(to);
         network.add_link(link);
         network.add_link(duplicate); // expecting panic here
+    }
+
+    #[test]
+    fn remove_link() {
+        let mut network = Network::new();
+        let from_id = Id::create("from");
+        let to_id = Id::create("to");
+        let link_id = Id::create("link-id");
+        let from = Node::new(from_id.clone(), 0., 0., 0, 1);
+        let to = Node::new(to_id.clone(), 3., 4., 0, 1);
+        let link = Link::new_with_default(link_id.clone(), &from, &to);
+
+        network.add_node(from);
+        network.add_node(to);
+        network.add_link(link);
+
+        network.remove_link(link_id.clone());
+
+        assert_eq!(0, network.links.len());
+        assert!(network.get_node(&from_id).out_links.is_empty());
+        assert!(network.get_node(&to_id).in_links.is_empty());
+    }
+
+    #[test]
+    #[should_panic]
+    fn remove_link_reject_missing() {
+        let mut network = Network::new();
+        network.remove_link(Id::create("does-not-exist"));
+    }
+
+    #[test]
+    fn remove_node() {
+        let mut network = Network::new();
+        let a_id = Id::create("a");
+        let b_id = Id::create("b");
+        let c_id = Id::create("c");
+        let ab_id = Id::create("ab");
+        let bc_id = Id::create("bc");
+        let bb_id = Id::create("bb");
+        let a = Node::new(a_id.clone(), 0., 0., 0, 1);
+        let b = Node::new(b_id.clone(), 1., 0., 0, 1);
+        let c = Node::new(c_id.clone(), 2., 0., 0, 1);
+        let ab = Link::new_with_default(ab_id.clone(), &a, &b);
+        let bc = Link::new_with_default(bc_id.clone(), &b, &c);
+        let bb = Link::new_with_default(bb_id.clone(), &b, &b);
+
+        network.add_node(a);
+        network.add_node(b);
+        network.add_node(c);
+        network.add_link(ab);
+        network.add_link(bc);
+        network.add_link(bb);
+
+        network.remove_node(b_id.clone());
+
+        assert_eq!(2, network.nodes.len());
+        assert_eq!(0, network.links.len());
+        assert!(network.nodes.get(&b_id).is_none());
+        assert!(network.get_node(&a_id).out_links.is_empty());
+        assert!(network.get_node(&c_id).in_links.is_empty());
+    }
+
+    #[test]
+    #[should_panic]
+    fn remove_node_reject_missing() {
+        let mut network = Network::new();
+        network.remove_node(Id::create("does-not-exist"));
     }
 
     #[test]
