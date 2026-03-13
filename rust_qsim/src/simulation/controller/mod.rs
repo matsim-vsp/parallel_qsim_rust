@@ -213,13 +213,13 @@ fn create_events(
         WriteEvents::None => {}
         WriteEvents::Proto => {
             let events_file = format!("events/events.{rank}.binpb");
-            let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
+            let events_path = output_path.join(events_file);
             info!("adding events writer with path: {events_path:?}");
             ProtoEventsWriter::register_fn(events_path)(&mut events)
         }
         WriteEvents::XmlGz => {
             let events_file = format!("events/events.{rank}.xml.gz");
-            let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
+            let events_path = output_path.join(events_file);
             info!("adding events writer with path: {events_path:?}");
             XmlEventsWriter::register_fn(events_path)(&mut events)
         }

@@ -185,7 +185,7 @@ impl XmlEventsWriter {
 
     pub fn register_fn(path: impl AsRef<Path> + Send + 'static) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
-            let xml = Rc::new(XmlEventsWriter::new(path.as_ref()));
+            let xml = Rc::new(XmlEventsWriter::new(path));
             let xml1 = xml.clone();
             let xml2 = xml.clone();
 
