@@ -4,7 +4,7 @@ use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_qsim::simulation::scenario::Scenario;
+use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -98,7 +98,7 @@ impl TestExecutor<'_> {
     }
 
     fn run(self, subscribers: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>) {
-        let scenario = Scenario::load(self.config.clone());
+        let scenario = MutableScenario::load(self.config);
 
         let controller = ControllerBuilder::default_with_scenario(scenario)
             .event_handler_register_fn(subscribers)

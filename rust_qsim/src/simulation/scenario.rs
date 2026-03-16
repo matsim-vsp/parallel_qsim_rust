@@ -7,28 +7,20 @@ use crate::simulation::{id, io};
 use std::sync::Arc;
 use tracing::info;
 
-/// This enum works as state holder enum for the scenario's population. Either, the scenario is owner
-/// of the Population (e.g. at startup and end) or the population is split among the threads.
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum GlobalPopulation {
-    Full(Population),
-    Partitioned,
-}
-
 /// The scenario contains the full scenario data.
 #[derive(Debug)]
-pub struct Scenario {
-    pub network: Arc<Network>,
-    pub garage: Arc<Garage>,
-    pub population: GlobalPopulation,
-    // this is deliberately an Arc, as it is shared between all partitions and other threads. Otherwise, cloning would be needed.
+pub struct MutableScenario {
+    pub network: Network,
+    pub garage: Garage,
+    pub population: Population,
     pub config: Arc<Config>,
 }
 
-impl Scenario {
-    pub fn load(config: Arc<Config>) -> Self {
+impl MutableScenario {
+    pub fn load<C: Into<Arc<Config>>>(config: C) -> Self {
         info!("Start loading scenario.");
+
+        let config = config.into();
 
         if let Some(path) = &config.ids().path {
             info!("Loading IDs from {:?}", path);
@@ -40,10 +32,10 @@ impl Scenario {
         let mut garage = Self::load_garage(&config);
         let population = Self::load_population(&config, &mut garage);
 
-        Scenario {
-            network: Arc::new(network),
-            garage: Arc::new(garage),
-            population: GlobalPopulation::Full(population),
+        MutableScenario {
+            network,
+            garage,
+            population,
             config,
         }
     }
@@ -88,40 +80,44 @@ pub struct ScenarioPartition {
 }
 
 impl ScenarioPartition {
-    pub(crate) fn from(scenario: &mut Scenario) -> Vec<Self> {
+    pub(crate) fn from(mut scenario: MutableScenario) -> Vec<Self> {
+        let network = Arc::new(scenario.network);
+
         let mut partitions = Vec::new();
         for i in 0..scenario.config.partitioning().num_parts {
-            let partition = Self::create_partition(i, scenario);
+            let partition = Self::create_partition(
+                i,
+                &mut scenario.population,
+                network.clone(),
+                // this not very nice, since this is a full clone.
+                // but for now we are very liberal about when, where and how often agents can access their vehicles.
+                // Also, we just have an `unpark` method, no counterpart for adding vehicles. paul, feb '26
+                scenario.garage.clone(),
+                scenario.config.clone(),
+            );
             partitions.push(partition);
         }
         partitions
     }
 
-    fn create_partition(partition_num: u32, scenario: &mut Scenario) -> Self {
-        let global_pop = match &mut scenario.population {
-            GlobalPopulation::Full(p) => p,
-            GlobalPopulation::Partitioned => {
-                panic!("Tried to create a partition after the population was already split among the partitions. This is not allowed.")
-            }
-        };
+    fn create_partition(
+        partition_num: u32,
+        population: &mut Population,
+        network: Arc<Network>,
+        garage: Garage,
+        config: Arc<Config>,
+    ) -> Self {
+        let network_partition =
+            Self::create_network_partition(&config, partition_num, &network, &population);
 
-        let network_partition = Self::create_network_partition(
-            &scenario.config,
-            partition_num,
-            &scenario.network,
-            global_pop,
-        );
-
-        let population = global_pop.take_from_filtered_part(&scenario.network, partition_num);
+        let population = population.take_from_filtered_part(&network, partition_num);
 
         Self {
-            network: scenario.network.clone(),
-            // this not very nice, but for now we are very liberal about when, where and how often agents can access their vehicles.
-            // Also, we just have an `unpark` method, no counterpart for adding vehicles. paul, feb '26
-            garage: (*scenario.garage).clone(),
+            network: network.clone(),
+            garage,
             population,
             network_partition,
-            config: scenario.config.clone(),
+            config: config.clone(),
         }
     }
 
