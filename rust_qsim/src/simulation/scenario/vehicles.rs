@@ -254,7 +254,9 @@ impl Garage {
     }
 
     pub(crate) fn park_veh(&mut self, vehicle: SimulationVehicle) -> Vec<SimulationAgent> {
-        let (_, person, mut agents) = vehicle.into_parts();
+        let person = vehicle.driver;
+        let mut agents = vehicle.passengers;
+        let person = person.expect("Vehicle has no driver.");
         agents.push(person);
         agents
 
@@ -278,7 +280,7 @@ impl Garage {
             })
             .clone();
 
-        SimulationVehicle::new(vehicle, agent, passengers)
+        SimulationVehicle::new(vehicle, Some(agent), passengers)
 
         // The following code would be used if mass conservation is enabled. But, there are some pitfalls.
         // One would need to configure for which vehicle types this is allowed.

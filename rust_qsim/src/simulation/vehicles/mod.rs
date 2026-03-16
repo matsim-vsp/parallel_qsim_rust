@@ -8,15 +8,15 @@ use crate::simulation::time_queue::{EndTime, Identifiable};
 
 #[derive(Debug)]
 pub struct SimulationVehicle {
-    vehicle: InternalVehicle,
-    driver: SimulationAgent,
-    passengers: Vec<SimulationAgent>,
+    pub(super) vehicle: InternalVehicle,
+    pub(super) driver: Option<SimulationAgent>,
+    pub(super) passengers: Vec<SimulationAgent>,
 }
 
 impl SimulationVehicle {
     pub fn new(
         vehicle: InternalVehicle,
-        driver: SimulationAgent,
+        driver: Option<SimulationAgent>,
         passengers: Vec<SimulationAgent>,
     ) -> Self {
         Self {
@@ -36,17 +36,21 @@ impl SimulationVehicle {
     ) -> Self {
         Self::new(
             InternalVehicle::new(id, veh_type, max_v, pce),
-            driver,
+            Some(driver),
             Vec::new(),
         )
     }
 
     pub fn driver_mut(&mut self) -> &mut SimulationAgent {
-        &mut self.driver
+        self.driver
+            .as_mut()
+            .expect("SimulationVehicle has no driver.")
     }
 
     pub fn driver(&self) -> &SimulationAgent {
-        &self.driver
+        self.driver
+            .as_ref()
+            .expect("SimulationVehicle has no driver.")
     }
 
     pub fn passengers(&self) -> &Vec<SimulationAgent> {
@@ -73,16 +77,8 @@ impl SimulationVehicle {
         self.driver().peek_next_link_id()
     }
 
-    pub fn is_wanting_to_arrive_on_current_link(&self) -> bool {
-        self.driver().is_wanting_to_arrive_on_current_link()
-    }
-
     pub fn internal_vehicle(&self) -> &InternalVehicle {
         &self.vehicle
-    }
-
-    pub fn into_parts(self) -> (InternalVehicle, SimulationAgent, Vec<SimulationAgent>) {
-        (self.vehicle, self.driver, self.passengers)
     }
 }
 
