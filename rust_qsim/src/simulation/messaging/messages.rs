@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::simulation::network::sim_network::StorageUpdate;
-use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::vehicles::SimulationVehicle;
 
 pub enum InternalSimMessage {
     Sync(InternalSyncMessage),
@@ -13,7 +13,7 @@ pub struct InternalSyncMessage {
     time: u32,
     from_process: u32,
     to_process: u32,
-    vehicles: Vec<InternalVehicle>,
+    vehicles: Vec<SimulationVehicle>,
     storage_capacities: Vec<StorageUpdate>,
 }
 
@@ -45,7 +45,7 @@ impl InternalSyncMessage {
         }
     }
 
-    pub fn add_veh(&mut self, vehicle: InternalVehicle) {
+    pub fn add_veh(&mut self, vehicle: SimulationVehicle) {
         self.vehicles.push(vehicle);
     }
 
@@ -65,11 +65,11 @@ impl InternalSyncMessage {
         self.to_process
     }
 
-    pub fn vehicles(&self) -> &Vec<InternalVehicle> {
+    pub fn vehicles(&self) -> &Vec<SimulationVehicle> {
         &self.vehicles
     }
 
-    pub fn vehicles_mut(&mut self) -> &mut Vec<InternalVehicle> {
+    pub fn vehicles_mut(&mut self) -> &mut Vec<SimulationVehicle> {
         &mut self.vehicles
     }
 
@@ -81,7 +81,7 @@ impl InternalSyncMessage {
         std::mem::take(&mut self.storage_capacities)
     }
 
-    pub fn take_vehicles(&mut self) -> Vec<InternalVehicle> {
+    pub fn take_vehicles(&mut self) -> Vec<SimulationVehicle> {
         std::mem::take(&mut self.vehicles)
     }
 }

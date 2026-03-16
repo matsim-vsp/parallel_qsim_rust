@@ -1,13 +1,12 @@
 use crate::generated::vehicles::{Vehicle, VehicleType};
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::vehicles::{
     load_from_xml, write_to_xml, IOVehicle, IOVehicleDefinitions, IOVehicleType,
 };
-use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::vehicles::SimulationVehicle;
 use crate::simulation::InternalAttributes;
 use nohash_hasher::IntMap;
 use std::path::Path;
@@ -45,37 +44,13 @@ pub struct InternalVehicleType {
     pub attributes: InternalAttributes,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct InternalVehicle {
     pub id: Id<InternalVehicle>,
     pub max_v: f32,
     pub pce: f32,
-    pub driver: Option<SimulationAgent>,
-    pub passengers: Vec<SimulationAgent>,
     pub vehicle_type: Id<InternalVehicleType>,
     pub attributes: InternalAttributes,
-}
-
-impl Clone for InternalVehicle {
-    fn clone(&self) -> Self {
-        assert!(
-            self.driver.is_none(),
-            "Cloning vehicles with drivers is not supported."
-        );
-        assert!(
-            self.passengers.is_empty(),
-            "Cloning vehicles with passengers is not supported."
-        );
-        Self {
-            id: self.id.clone(),
-            max_v: self.max_v,
-            pce: self.pce,
-            driver: None,
-            passengers: Vec::new(),
-            vehicle_type: self.vehicle_type.clone(),
-            attributes: self.attributes.clone(),
-        }
-    }
 }
 
 impl From<IOVehicleType> for InternalVehicleType {
@@ -114,8 +89,6 @@ impl From<Vehicle> for InternalVehicle {
             id: Id::get(value.id),
             max_v: value.max_v,
             pce: value.pce,
-            driver: None,
-            passengers: vec![],
             vehicle_type: Id::get(value.r#type),
             attributes: InternalAttributes::from(&value.attributes),
         }
@@ -128,54 +101,24 @@ impl InternalVehicle {
             id: Id::create(&io.id),
             max_v: io_veh_type.max_v,
             pce: io_veh_type.pce,
-            driver: None,
-            passengers: Vec::new(),
             vehicle_type: Id::create(&io.vehicle_type),
             attributes: io.attributes.map(Into::into).unwrap_or_default(),
         }
     }
 
     #[cfg(test)]
-    pub fn new(
-        id: u64,
-        veh_type: u64,
-        max_v: f32,
-        pce: f32,
-        driver: Option<SimulationAgent>,
-    ) -> Self {
+    pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32) -> Self {
         InternalVehicle {
             id: Id::create(&id.to_string()),
             max_v,
             pce,
-            driver,
-            passengers: Vec::new(),
             vehicle_type: Id::create(&veh_type.to_string()),
             attributes: Default::default(),
         }
     }
 
-    pub(crate) fn driver_mut(&mut self) -> &mut SimulationAgent {
-        self.driver.as_mut().unwrap()
-    }
-
-    pub fn driver(&self) -> &SimulationAgent {
-        self.driver.as_ref().unwrap()
-    }
-
-    pub fn passengers(&self) -> &Vec<SimulationAgent> {
-        &self.passengers
-    }
-
     pub fn id(&self) -> &Id<InternalVehicle> {
         &self.id
-    }
-
-    pub fn curr_link_id(&self) -> Option<&Id<Link>> {
-        self.driver().curr_link_id()
-    }
-
-    pub fn peek_next_route_element(&self) -> Option<&Id<Link>> {
-        self.driver().peek_next_link_id()
     }
 }
 
@@ -287,8 +230,6 @@ impl Garage {
 
         let vehicle = InternalVehicle {
             id: veh_id,
-            driver: None,
-            passengers: vec![],
             vehicle_type: veh_type.id.clone(),
             attributes: Default::default(),
             max_v: veh_type.max_v,
@@ -312,9 +253,8 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, mut vehicle: InternalVehicle) -> Vec<SimulationAgent> {
-        let mut agents = std::mem::take(&mut vehicle.passengers);
-        let person = vehicle.driver.take().expect("Vehicle has no driver.");
+    pub(crate) fn park_veh(&mut self, vehicle: SimulationVehicle) -> Vec<SimulationAgent> {
+        let (_, person, mut agents) = vehicle.into_parts();
         agents.push(person);
         agents
 
@@ -329,26 +269,16 @@ impl Garage {
         agent: SimulationAgent,
         passengers: Vec<SimulationAgent>,
         id: Id<InternalVehicle>,
-    ) -> InternalVehicle {
-        let veh_type_id = &self
+    ) -> SimulationVehicle {
+        let vehicle = self
             .vehicles
             .get(&id)
             .unwrap_or_else(|| {
                 panic!("Can't unpark vehicle with id {id}. It was not parked in this garage.")
             })
-            .vehicle_type;
+            .clone();
 
-        let veh_type = self.vehicle_types.get(veh_type_id).unwrap();
-
-        InternalVehicle {
-            id: id.clone(),
-            max_v: veh_type.max_v,
-            pce: veh_type.pce,
-            driver: Some(agent),
-            passengers,
-            vehicle_type: veh_type_id.clone(),
-            attributes: Default::default(),
-        }
+        SimulationVehicle::new(vehicle, agent, passengers)
 
         // The following code would be used if mass conservation is enabled. But, there are some pitfalls.
         // One would need to configure for which vehicle types this is allowed.
@@ -367,7 +297,7 @@ impl Garage {
         &mut self,
         agent: SimulationAgent,
         id: Id<InternalVehicle>,
-    ) -> InternalVehicle {
+    ) -> SimulationVehicle {
         self.unpark_veh_with_passengers(agent, vec![], id)
     }
 
@@ -428,8 +358,6 @@ mod tests {
             id: Id::create("0"),
             max_v: 0.0,
             pce: 0.0,
-            driver: None,
-            passengers: vec![],
             vehicle_type: Id::create("0"),
             attributes: Default::default(),
         });
@@ -450,8 +378,6 @@ mod tests {
             id,
             max_v: 0.0,
             pce: 0.0,
-            driver: None,
-            passengers: vec![],
             vehicle_type: veh_type_id,
             attributes: Default::default(),
         });

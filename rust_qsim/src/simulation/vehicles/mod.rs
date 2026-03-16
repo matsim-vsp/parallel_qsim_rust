@@ -1,17 +1,92 @@
 use crate::simulation::agents::agent::SimulationAgent;
+use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
+use crate::simulation::id::Id;
+use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::time_queue::EndTime;
+use crate::simulation::time_queue::{EndTime, Identifiable};
 
-struct MobsimVehicle {
+#[derive(Debug)]
+pub struct SimulationVehicle {
     vehicle: InternalVehicle,
-    pub driver: Option<SimulationAgent>,
-    pub passengers: Vec<SimulationAgent>,
+    driver: SimulationAgent,
+    passengers: Vec<SimulationAgent>,
 }
 
-impl MobsimVehicle {}
+impl SimulationVehicle {
+    pub fn new(
+        vehicle: InternalVehicle,
+        driver: SimulationAgent,
+        passengers: Vec<SimulationAgent>,
+    ) -> Self {
+        Self {
+            vehicle,
+            driver,
+            passengers,
+        }
+    }
 
-impl EnvironmentalEventObserver for InternalVehicle {
+    #[cfg(test)]
+    pub fn from_parts(
+        id: u64,
+        veh_type: u64,
+        max_v: f32,
+        pce: f32,
+        driver: SimulationAgent,
+    ) -> Self {
+        Self::new(
+            InternalVehicle::new(id, veh_type, max_v, pce),
+            driver,
+            Vec::new(),
+        )
+    }
+
+    pub fn driver_mut(&mut self) -> &mut SimulationAgent {
+        &mut self.driver
+    }
+
+    pub fn driver(&self) -> &SimulationAgent {
+        &self.driver
+    }
+
+    pub fn passengers(&self) -> &Vec<SimulationAgent> {
+        &self.passengers
+    }
+
+    pub fn id(&self) -> &Id<InternalVehicle> {
+        &self.vehicle.id
+    }
+
+    pub fn max_v(&self) -> f32 {
+        self.vehicle.max_v
+    }
+
+    pub fn pce(&self) -> f32 {
+        self.vehicle.pce
+    }
+
+    pub fn curr_link_id(&self) -> Option<&Id<Link>> {
+        self.driver().curr_link_id()
+    }
+
+    pub fn peek_next_route_element(&self) -> Option<&Id<Link>> {
+        self.driver().peek_next_link_id()
+    }
+
+    pub fn is_wanting_to_arrive_on_current_link(&self) -> bool {
+        self.driver().is_wanting_to_arrive_on_current_link()
+    }
+
+    pub fn internal_vehicle(&self) -> &InternalVehicle {
+        &self.vehicle
+    }
+
+    pub fn into_parts(self) -> (InternalVehicle, SimulationAgent, Vec<SimulationAgent>) {
+        (self.vehicle, self.driver, self.passengers)
+    }
+}
+
+impl EnvironmentalEventObserver for SimulationVehicle {
     fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
         self.driver_mut().notify_event(event, now);
         self.passengers.iter_mut().for_each(|p| {
@@ -20,8 +95,14 @@ impl EnvironmentalEventObserver for InternalVehicle {
     }
 }
 
-impl EndTime for InternalVehicle {
+impl EndTime for SimulationVehicle {
     fn end_time(&self, now: u32) -> u32 {
         self.driver().end_time(now)
+    }
+}
+
+impl Identifiable<InternalVehicle> for SimulationVehicle {
+    fn id(&self) -> &Id<InternalVehicle> {
+        self.id()
     }
 }
