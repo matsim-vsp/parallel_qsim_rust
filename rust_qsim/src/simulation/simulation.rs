@@ -8,7 +8,7 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
 use crate::simulation::scenario::ScenarioPartition;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::vehicles::SimulationVehicle;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tracing::info;
@@ -84,10 +84,10 @@ where
     }
 
     pub(crate) fn is_local_route(
-        veh: &InternalVehicle,
+        veh: &SimulationVehicle,
         message_broker: &NetMessageBroker<C>,
     ) -> bool {
-        let leg = veh.driver.as_ref().unwrap().curr_leg();
+        let leg = veh.driver().curr_leg();
         let route = leg.route.as_ref().unwrap();
         let to = message_broker.rank_for_link(route.end_link());
         message_broker.rank() == to

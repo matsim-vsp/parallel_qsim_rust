@@ -7,12 +7,12 @@ use crate::simulation::agents::{
 };
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::trip_structure_utils::{
-    find_trip_starting_at_activity_default, identify_main_mode,
-};
-use crate::simulation::population::{
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::{
     InternalActivity, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement, InternalRoute,
+};
+use crate::simulation::scenario::trip_structure_utils::{
+    find_trip_starting_at_activity_default, identify_main_mode,
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::{Debug, Formatter};
@@ -259,7 +259,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
             .delegate
             .curr_act()
             .attributes
-            .get(crate::simulation::population::PREPLANNING_HORIZON);
+            .get(crate::simulation::scenario::population::PREPLANNING_HORIZON);
 
         if let Some(h) = horizon {
             if h > end {
@@ -323,7 +323,7 @@ impl AdaptivePlanBasedSimulationLogic {
             && self
                 .curr_act()
                 .attributes
-                .get::<u32>(crate::simulation::population::PREPLANNING_HORIZON)
+                .get::<u32>(crate::simulation::scenario::population::PREPLANNING_HORIZON)
                 .is_some();
 
         if !preplan {
@@ -468,7 +468,7 @@ mod tests {
     use super::*;
     use crate::external_services::routing::InternalRoutingResponse;
     use crate::simulation::id::Id;
-    use crate::simulation::population::{
+    use crate::simulation::scenario::population::{
         InternalActivity, InternalLeg, InternalPlan, InternalRoute,
     };
     use uuid::Uuid;
@@ -493,7 +493,7 @@ mod tests {
             dep_time: None,
             trav_time: Some(10),
             route: Some(InternalRoute::Generic(
-                crate::simulation::population::InternalGenericRoute::new(
+                crate::simulation::scenario::population::InternalGenericRoute::new(
                     Id::create("l1"),
                     Id::create("l2"),
                     Some(10),

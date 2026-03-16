@@ -1,4 +1,4 @@
-use crate::simulation::population::{InternalActivity, InternalPlanElement};
+use crate::simulation::scenario::population::{InternalActivity, InternalPlanElement};
 use tracing::error;
 
 pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<String> {
@@ -111,7 +111,7 @@ pub fn find_trip_starting_at_activity_default(
 mod tests {
     use super::*;
     use crate::simulation::id::Id;
-    use crate::simulation::population::{InternalLeg, InternalPlanElement};
+    use crate::simulation::scenario::population::{InternalLeg, InternalPlanElement};
     use macros::integration_test;
 
     #[integration_test]

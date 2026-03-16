@@ -1,6 +1,6 @@
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
-use crate::simulation::network::Network;
+use crate::simulation::scenario::network::Network;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::path::Path;

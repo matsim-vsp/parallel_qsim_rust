@@ -3,9 +3,9 @@ pub mod utils;
 
 use crate::generated::events::MyEvent;
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::InternalPerson;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
 use macros::event_struct;
 use std::any::{Any, TypeId};

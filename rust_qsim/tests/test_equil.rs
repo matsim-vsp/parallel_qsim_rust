@@ -15,11 +15,13 @@ use crate::test_simulation::TestExecutorBuilder;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
 use rust_qsim::simulation::id::{store_to_file, Id};
-use rust_qsim::simulation::network::Network;
-use rust_qsim::simulation::population::{InternalPlanElement, Population, PREPLANNING_HORIZON};
-use rust_qsim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::scenario::network::Network;
+use rust_qsim::simulation::scenario::population::{
+    InternalPlanElement, Population, PREPLANNING_HORIZON,
+};
+use rust_qsim::simulation::scenario::vehicles::Garage;
 
-// in the adaptive scenario we are still using the binpb files
+// in the adaptive mod we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
 where
     F: Fn(&mut Population),

@@ -2,7 +2,7 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::vehicles::SimulationVehicle;
 use tracing::instrument;
 
 pub struct NetworkEngine {
@@ -18,7 +18,7 @@ impl NetworkEngine {
         NetworkEngine { network, comp_env }
     }
 
-    pub fn receive_vehicle(&mut self, now: u32, vehicle: InternalVehicle, route_begin: bool) {
+    pub fn receive_vehicle(&mut self, now: u32, vehicle: SimulationVehicle, route_begin: bool) {
         let events = if route_begin {
             //if route has just begun, no link enter event should be published
             None
@@ -40,7 +40,7 @@ impl NetworkEngine {
         &mut self,
         now: u32,
         net_message_broker: &mut NetMessageBroker<C>,
-    ) -> Vec<InternalVehicle> {
+    ) -> Vec<SimulationVehicle> {
         let move_links_result = self.network.move_links(&mut self.comp_env, now);
 
         for veh in move_links_result.vehicles_exit_partition {

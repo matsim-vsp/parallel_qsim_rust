@@ -1,14 +1,12 @@
-use super::{
-    link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
-    Link, Network, Node,
-};
+use super::link::{LocalLink, SimLink, SplitInLink, SplitOutLink};
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{EventsManager, LinkEnterEventBuilder, LinkLeaveEventBuilder};
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
 use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::{Link, Network, Node};
+use crate::simulation::vehicles::SimulationVehicle;
 use crate::simulation::{config, random};
 use ahash::AHasher;
 use nohash_hasher::{IntMap, IntSet};
@@ -249,7 +247,7 @@ impl SimNetworkPartition {
     ///    the MATSim default is to not publish this link enter event. Therefore, the event manager should be None.
     pub fn send_veh_en_route(
         &mut self,
-        vehicle: InternalVehicle,
+        vehicle: SimulationVehicle,
         events_manager: Option<Rc<RefCell<EventsManager>>>,
         now: u32,
     ) {
@@ -284,7 +282,7 @@ impl SimNetworkPartition {
                 &LinkEnterEventBuilder::default()
                     .time(now)
                     .link(link.id().clone())
-                    .vehicle(vehicle.id.clone())
+                    .vehicle(vehicle.id().clone())
                     .build()
                     .unwrap(),
             );
@@ -408,7 +406,7 @@ impl SimNetworkPartition {
 
     fn move_out_link(
         link: &mut SplitOutLink,
-        vehicles: &mut Vec<InternalVehicle>,
+        vehicles: &mut Vec<SimulationVehicle>,
     ) -> MoveSingleLinkResult {
         let out_q = link.take_veh();
         for veh in out_q {
@@ -554,7 +552,7 @@ impl SimNetworkPartition {
 
     /// Moves the vehicle from the current link to the next link.
     fn move_vehicle(
-        mut vehicle: InternalVehicle,
+        mut vehicle: SimulationVehicle,
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut ActiveCache<Link>,
         comp_env: &mut ThreadLocalComputationalEnvironment,
@@ -564,7 +562,7 @@ impl SimNetworkPartition {
 
         comp_env.events_manager_borrow_mut().process_event(
             &LinkLeaveEventBuilder::default()
-                .vehicle(vehicle.id.clone())
+                .vehicle(vehicle.id().clone())
                 .link(old_link_id.clone())
                 .time(now)
                 .build()
@@ -580,7 +578,7 @@ impl SimNetworkPartition {
                 &LinkEnterEventBuilder::default()
                     .time(now)
                     .link(new_link.id().clone())
-                    .vehicle(vehicle.id.clone())
+                    .vehicle(vehicle.id().clone())
                     .build()
                     .unwrap(),
             );
@@ -599,14 +597,14 @@ impl SimNetworkPartition {
 }
 
 pub struct MoveAllLinksResult {
-    pub vehicles_exit_partition: Vec<InternalVehicle>,
-    pub vehicles_end_leg: Vec<InternalVehicle>,
+    pub vehicles_exit_partition: Vec<SimulationVehicle>,
+    pub vehicles_end_leg: Vec<SimulationVehicle>,
     pub storage_cap_updates: Vec<StorageUpdate>,
 }
 
 #[derive(Default)]
 struct MoveSingleLinkResult {
-    vehicles_end_leg: Vec<InternalVehicle>,
+    vehicles_end_leg: Vec<SimulationVehicle>,
     is_active: bool,
 }
 
@@ -621,8 +619,8 @@ mod tests {
     use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::SimLink;
     use crate::simulation::network::link::SimLink::Local;
-    use crate::simulation::network::{Link, Network, Node};
-    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils;
     use assert_approx_eq::assert_approx_eq;
     use macros::integration_test;
@@ -669,7 +667,7 @@ mod tests {
             config::DEFAULT_RANDOM_SEED,
         );
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
-        let vehicle = InternalVehicle::new(1, 0, 10., 1., Some(agent));
+        let vehicle = SimulationVehicle::from_parts(1, 0, 10., 1., agent);
         network.send_veh_en_route(vehicle, None, 0);
 
         for i in 0..113 {
@@ -720,7 +718,7 @@ mod tests {
             config::DEFAULT_RANDOM_SEED,
         );
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
-        let vehicle = InternalVehicle::new(1, 0, 10., 100., Some(agent));
+        let vehicle = SimulationVehicle::from_parts(1, 0, 10., 100., agent);
         network.send_veh_en_route(vehicle, None, 0);
 
         for now in 0..20 {
@@ -762,7 +760,7 @@ mod tests {
         // place 100 vehicles on first link
         for i in 0..100 {
             let agent = test_utils::create_agent(i, vec!["link1"]);
-            let vehicle = InternalVehicle::new(i, 0, 10., 1., Some(agent));
+            let vehicle = SimulationVehicle::from_parts(i, 0, 10., 1., agent);
             network.send_veh_en_route(vehicle, None, 0);
         }
 
@@ -804,7 +802,7 @@ mod tests {
         for i in 0..10 {
             let agent =
                 test_utils::create_agent(i, vec![id_1.external(), id_2.external(), "link3"]);
-            let vehicle = InternalVehicle::new(i, 0, 1., 10., Some(agent));
+            let vehicle = SimulationVehicle::from_parts(i, 0, 1., 10., agent);
             network.send_veh_en_route(vehicle, None, 0);
         }
 
@@ -905,7 +903,7 @@ mod tests {
         for i in 0..10 {
             let agent =
                 test_utils::create_agent(i, vec![id_1.external(), id_2.external(), "link3"]);
-            let vehicle = InternalVehicle::new(i, 0, 1., 10., Some(agent));
+            let vehicle = SimulationVehicle::from_parts(i, 0, 1., 10., agent);
             network.send_veh_en_route(vehicle, None, 0);
         }
 
@@ -1072,14 +1070,14 @@ mod tests {
         // Place 1000 vehicles on link1. Flow cap: 1 veh/s
         for i in 0..1000 {
             let agent = test_utils::create_agent(i, vec!["link1", "link3", "link4"]);
-            let vehicle = InternalVehicle::new(i, 0, 100., 1., Some(agent));
+            let vehicle = SimulationVehicle::from_parts(i, 0, 100., 1., agent);
             sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
         // Place 1000 vehicles on link2. Flow cap: 2 veh/s
         for i in 1000..2000 {
             let agent = test_utils::create_agent(i, vec!["link2", "link3", "link4"]);
-            let vehicle = InternalVehicle::new(i, 0, 100., 1., Some(agent));
+            let vehicle = SimulationVehicle::from_parts(i, 0, 100., 1., agent);
             sim_net.send_veh_en_route(vehicle, None, 0);
         }
 
@@ -1135,7 +1133,7 @@ mod tests {
 
         let split_link_id: Id<Link> = Id::get_from_ext("link2");
         let agent = test_utils::create_agent(1, vec![split_link_id.external()]);
-        let vehicle = InternalVehicle::new(1, 0, 10., 100., Some(agent));
+        let vehicle = SimulationVehicle::from_parts(1, 0, 10., 100., agent);
 
         // Network is empty, so no storage cap updates should be collected
         let res = net2.move_links(&mut Default::default(), 0);

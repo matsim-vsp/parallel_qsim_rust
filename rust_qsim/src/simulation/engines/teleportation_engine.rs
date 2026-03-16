@@ -7,13 +7,14 @@ use crate::simulation::events::{
 use crate::simulation::id::Id;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::population::InternalRoute;
+use crate::simulation::scenario::population::InternalRoute;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::time_queue::{Identifiable, TimeQueue};
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::vehicles::SimulationVehicle;
 
 pub struct TeleportationEngine {
-    queue: TimeQueue<InternalVehicle, InternalVehicle>,
+    queue: TimeQueue<SimulationVehicle, InternalVehicle>,
     comp_env: ThreadLocalComputationalEnvironment,
 }
 
@@ -28,7 +29,7 @@ impl TeleportationEngine {
     pub fn receive_vehicle<C: SimCommunicator>(
         &mut self,
         now: u32,
-        mut vehicle: InternalVehicle,
+        mut vehicle: SimulationVehicle,
         net_message_broker: &mut NetMessageBroker<C>,
     ) {
         vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), now);
@@ -40,10 +41,10 @@ impl TeleportationEngine {
         }
     }
 
-    pub fn do_step(&mut self, now: u32) -> Vec<InternalVehicle> {
+    pub fn do_step(&mut self, now: u32) -> Vec<SimulationVehicle> {
         let mut teleportation_vehicles = self.queue.pop(now);
         for vehicle in &mut teleportation_vehicles {
-            let agent = vehicle.driver.as_ref().unwrap();
+            let agent = vehicle.driver();
 
             match agent.curr_leg().route.as_ref().unwrap() {
                 InternalRoute::Generic(_) => self.emit_travelled(now, agent),

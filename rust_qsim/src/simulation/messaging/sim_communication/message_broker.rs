@@ -2,8 +2,8 @@ use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
-use crate::simulation::network::{Link, Network};
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::{Link, Network};
+use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
 
@@ -56,7 +56,7 @@ where
         *self.link_mapping.get(link_id).unwrap()
     }
 
-    pub fn add_veh(&mut self, vehicle: InternalVehicle, now: u32) {
+    pub fn add_veh(&mut self, vehicle: SimulationVehicle, now: u32) {
         let link_id = vehicle.curr_link_id().unwrap();
         let partition = *self.link_mapping.get(link_id).unwrap();
         let rank = self.rank();
@@ -160,8 +160,8 @@ mod tests {
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::network::sim_network::StorageUpdate;
-    use crate::simulation::network::{Link, Network, Node};
-    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils::create_agent;
     use macros::integration_test;
     use std::rc::Rc;
@@ -214,7 +214,7 @@ mod tests {
             // place vehicle into partition 0
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec!["2", "6"]);
-                let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
+                let vehicle = SimulationVehicle::from_parts(0, 0, 0., 0., agent);
                 broker.add_veh(vehicle, 0);
             }
 
@@ -269,7 +269,7 @@ mod tests {
             // place vehicle into partition 0 with a future timestamp
             if broker.rank() == 0 {
                 let agent = create_agent(0, vec!["6"]);
-                let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
+                let vehicle = SimulationVehicle::from_parts(0, 0, 0., 0., agent);
                 broker.add_veh(vehicle, 1);
             }
 
@@ -302,7 +302,7 @@ mod tests {
             if broker.rank() == 0 {
                 // place vehicle into partition 0 with a future timestamp with remote destination
                 let agent = create_agent(0, vec!["6"]);
-                let vehicle = InternalVehicle::new(0, 0, 0., 0., Some(agent));
+                let vehicle = SimulationVehicle::from_parts(0, 0, 0., 0., agent);
                 broker.add_veh(vehicle, 1);
             }
 
@@ -317,7 +317,7 @@ mod tests {
             if broker.rank() == 2 {
                 // place vehicle into partition 2 with a current timestamp with neighbor destination
                 let agent = create_agent(1, vec!["6"]);
-                let vehicle = InternalVehicle::new(1, 0, 0., 0., Some(agent));
+                let vehicle = SimulationVehicle::from_parts(1, 0, 0., 0., agent);
                 broker.add_veh(vehicle, 1);
             }
 
@@ -327,10 +327,10 @@ mod tests {
             for msg in result_1 {
                 if broker.rank() == 3 && msg.from_process() == 0 {
                     assert_eq!(1, msg.vehicles().len());
-                    assert_eq!("0", msg.vehicles().first().unwrap().id.external());
+                    assert_eq!("0", msg.vehicles().first().unwrap().id().external());
                 } else if broker.rank() == 3 && msg.from_process() == 2 {
                     assert_eq!(1, msg.vehicles().len());
-                    assert_eq!("1", msg.vehicles().first().unwrap().id.external());
+                    assert_eq!("1", msg.vehicles().first().unwrap().id().external());
                 } else {
                     assert_eq!(0, msg.vehicles().len());
                 }

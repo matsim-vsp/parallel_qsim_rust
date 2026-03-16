@@ -1,5 +1,5 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::config::{write_config, Logging};
+use crate::simulation::config::{write_config, Config, Logging};
 use crate::simulation::controller::{
     create_output_filename, insert_number_in_proto_filename, ExternalServices,
     PartitionArgumentsBuilder,
@@ -10,7 +10,7 @@ use crate::simulation::framework_events::{
     MobsimListenerRegisterFn,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
-use crate::simulation::scenario::{Scenario, ScenarioPartition};
+use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
 use nohash_hasher::IntMap;
@@ -18,12 +18,19 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
-use std::{fs, thread};
+use std::{fs, mem, thread};
 use tracing::info;
+
+#[derive(Debug)]
+pub enum Scenario {
+    Partitioned,
+    Full(MutableScenario),
+}
 
 #[derive(Debug)]
 pub struct Controller {
     scenario: Scenario,
+    config: Arc<Config>,
     controller_events_manager: ControllerEventsManager,
     #[debug(skip)]
     event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
@@ -35,7 +42,7 @@ pub struct Controller {
 }
 
 pub struct ControllerBuilder {
-    scenario: Scenario,
+    scenario: MutableScenario,
     controller_event_register_fn: Vec<Box<ControllerListenerRegisterFn>>,
     event_handler_register_fn: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
     mobsim_event_register_fn: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
@@ -45,7 +52,7 @@ pub struct ControllerBuilder {
 }
 
 impl ControllerBuilder {
-    pub fn default_with_scenario(scenario: Scenario) -> Self {
+    pub fn default_with_scenario(scenario: MutableScenario) -> Self {
         ControllerBuilder {
             scenario,
             controller_event_register_fn: Vec::new(),
@@ -71,8 +78,11 @@ impl ControllerBuilder {
             register_fn(&mut controller_event_manager);
         }
 
+        let config = self.scenario.config.clone();
+
         Ok(Controller {
-            scenario: self.scenario,
+            scenario: Scenario::Full(self.scenario),
+            config,
             controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_register_fn,
             mobsim_event_listener_per_partition: self.mobsim_event_register_fn,
@@ -128,20 +138,24 @@ impl Controller {
         self.controller_events_manager
             .process_event(ControllerEvent::startup(true));
 
-        let output_path = io::resolve_path(
-            self.scenario.config.context(),
-            &self.scenario.config.output().output_dir,
-        );
+        let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
 
         let events_path = output_path.join("events");
 
         fs::create_dir_all(&output_path).expect("Failed to create output path");
         fs::create_dir_all(&events_path).expect("Failed to create events output path");
 
-        if Logging::Info == self.scenario.config.output().logging {
+        if Logging::Info == self.config.output().logging {
             let log_path = output_path.join("logs");
             fs::create_dir_all(&log_path).expect("Failed to create logs output path");
         }
+
+        // TODO This needs to be shifted to the end once we have iterations. Therefore, the threads need the simulation agents. paul, mar '26
+        info!("Writing output files:");
+        info!("    ... Config ...");
+        self.write_output_config(output_path.clone());
+        info!("    ... Network ...");
+        self.write_output_network(output_path.clone());
 
         info!("=========== Start Iteration 0 ===========");
 
@@ -149,7 +163,7 @@ impl Controller {
             .process_event(ControllerEvent::before_mobsim(true));
 
         let handles = self.run_channel();
-        controller::try_join(handles, std::mem::take(&mut self.adapter_handles));
+        controller::try_join(handles, mem::take(&mut self.adapter_handles));
 
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(true));
@@ -159,15 +173,7 @@ impl Controller {
 
         info!("=========== End Iteration 0 ===========");
 
-        info!("Writing output files:");
-        info!("    ... Config ...");
-        self.write_output_config(output_path.clone());
-        info!("    ... Network ...");
-        self.write_output_network(output_path.clone());
-
-        if self.scenario.config.output().write_events
-            == crate::simulation::config::WriteEvents::Proto
-        {
+        if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
             info!("    ... ID store ...");
             Self::write_output_id_store(&output_path);
         }
@@ -177,15 +183,24 @@ impl Controller {
     }
 
     fn run_channel(&mut self) -> IntMap<u32, JoinHandle<()>> {
+        let scenario = {
+            let s = mem::replace(&mut self.scenario, Scenario::Partitioned);
+            match s {
+                Scenario::Partitioned => {
+                    panic!("Wanted to create partitions, but mod is already partitioned. This shouldn't happen.")
+                }
+                Scenario::Full(s) => s,
+            }
+        };
+
         // Is of type Vec<Option<>> because later we iteratively take the partition builder and construct
         // the actual partitions.
-        let mut partitions: Vec<Option<ScenarioPartition>> =
-            ScenarioPartition::from(&mut self.scenario)
-                .into_iter()
-                .map(Some)
-                .collect();
+        let mut partitions: Vec<Option<ScenarioPartition>> = ScenarioPartition::from(scenario)
+            .into_iter()
+            .map(Some)
+            .collect();
 
-        let num_parts = self.scenario.config.partitioning().num_parts;
+        let num_parts = self.config.partitioning().num_parts;
         info!(
             "Starting multithreaded Simulation with {} partitions.",
             num_parts
@@ -232,24 +247,27 @@ impl Controller {
     }
 
     fn write_output_config(&mut self, output_path: PathBuf) {
-        write_config(self.scenario.config.as_ref(), output_path);
+        write_config(self.config.as_ref(), output_path);
     }
 
     fn write_output_network(&mut self, output_path: PathBuf) {
-        let net_in_path = if let Some(path) = &self.scenario.config.network().path {
-            io::resolve_path(self.scenario.config.context(), path)
+        let net_in_path = if let Some(path) = &self.config.network().path {
+            io::resolve_path(self.config.context(), path)
         } else {
-            io::resolve_path(
-                self.scenario.config.context(),
-                &PathBuf::from("network.xml.gz"),
-            )
+            io::resolve_path(self.config.context(), &PathBuf::from("network.xml.gz"))
         };
         let mut net_out_path = create_output_filename(&output_path, &net_in_path);
-        net_out_path = insert_number_in_proto_filename(
-            &net_out_path,
-            self.scenario.config.partitioning().num_parts,
-        );
-        self.scenario.network.to_file(&net_out_path);
+        net_out_path =
+            insert_number_in_proto_filename(&net_out_path, self.config.partitioning().num_parts);
+
+        match &self.scenario {
+            Scenario::Partitioned => {
+                panic!("Tried to write network to file, but mod is partitioned. This shouldn't happen.")
+            }
+            Scenario::Full(s) => {
+                s.network.to_file(&net_out_path);
+            }
+        }
     }
 
     fn write_output_id_store(output_path: &PathBuf) {
