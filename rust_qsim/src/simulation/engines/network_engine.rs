@@ -2,7 +2,7 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use tracing::instrument;
 
 pub struct NetworkEngine {

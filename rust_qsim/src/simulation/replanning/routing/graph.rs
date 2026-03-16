@@ -146,9 +146,9 @@ impl Graph {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
-    use crate::simulation::network::Network;
     use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
+    use crate::simulation::scenario::network::Network;
     use macros::integration_test;
     use std::collections::HashMap;
 

@@ -1,7 +1,7 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::id::Id;
-use crate::simulation::population::InternalPerson;
+use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::ScenarioPartition;
 use std::collections::HashMap;
 
@@ -53,7 +53,7 @@ impl PopulationAgentSource {
             .any(|l| {
                 l.attributes
                     .attributes
-                    .contains_key(crate::simulation::population::PREPLANNING_HORIZON)
+                    .contains_key(crate::simulation::scenario::population::PREPLANNING_HORIZON)
             });
 
         if has_at_least_one_preplanning_horizon {

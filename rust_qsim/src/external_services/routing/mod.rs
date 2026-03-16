@@ -3,7 +3,7 @@ use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
 use crate::simulation::data_structures::RingIter;
-use crate::simulation::population::{InternalActivity, InternalLeg, InternalPlanElement};
+use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
 use std::sync::{Arc, Mutex};

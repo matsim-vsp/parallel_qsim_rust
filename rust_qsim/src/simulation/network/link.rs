@@ -8,10 +8,10 @@ use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
-use crate::simulation::network::Link;
-use crate::simulation::network::Node;
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::network::Node;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time_queue::Identifiable;
-use crate::simulation::vehicles::InternalVehicle;
 use std::collections::VecDeque;
 use std::fmt::Debug;
 
@@ -542,7 +542,7 @@ mod sim_link_tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::{LocalLink, SimLink};
-    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::test_utils;
     use crate::test_utils::create_agent_without_route;
     use assert_approx_eq::assert_approx_eq;
@@ -846,7 +846,7 @@ mod out_link_tests {
     use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::{SimLink, SplitOutLink};
     use crate::simulation::network::storage_cap::StorageCap;
-    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::test_utils::create_agent_without_route;
     use macros::integration_test;
 

@@ -6,7 +6,7 @@ use tracing::info;
 use rust_qsim::simulation::config::PartitionMethod;
 use rust_qsim::simulation::id;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::scenario::network::Network;
 
 fn main() {
     let _g = init_std_out_logging_thread_local();

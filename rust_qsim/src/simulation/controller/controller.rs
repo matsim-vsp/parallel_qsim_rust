@@ -187,7 +187,7 @@ impl Controller {
             let s = mem::replace(&mut self.scenario, Scenario::Partitioned);
             match s {
                 Scenario::Partitioned => {
-                    panic!("Wanted to create partitions, but scenario is already partitioned. This shouldn't happen.")
+                    panic!("Wanted to create partitions, but mod is already partitioned. This shouldn't happen.")
                 }
                 Scenario::Full(s) => s,
             }
@@ -262,7 +262,7 @@ impl Controller {
 
         match &self.scenario {
             Scenario::Partitioned => {
-                panic!("Tried to write network to file, but scenario is partitioned. This shouldn't happen.")
+                panic!("Tried to write network to file, but mod is partitioned. This shouldn't happen.")
             }
             Scenario::Full(s) => {
                 s.network.to_file(&net_out_path);

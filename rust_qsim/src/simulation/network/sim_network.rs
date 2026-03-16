@@ -1,14 +1,12 @@
-use super::{
-    link::{LocalLink, SimLink, SplitInLink, SplitOutLink},
-    Link, Network, Node,
-};
+use super::link::{LocalLink, SimLink, SplitInLink, SplitOutLink};
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{EventsManager, LinkEnterEventBuilder, LinkLeaveEventBuilder};
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
 use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::{Link, Network, Node};
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::{config, random};
 use ahash::AHasher;
 use nohash_hasher::{IntMap, IntSet};
@@ -621,8 +619,8 @@ mod tests {
     use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::SimLink;
     use crate::simulation::network::link::SimLink::Local;
-    use crate::simulation::network::{Link, Network, Node};
-    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::test_utils;
     use assert_approx_eq::assert_approx_eq;
     use macros::integration_test;

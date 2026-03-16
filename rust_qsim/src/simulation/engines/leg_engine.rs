@@ -13,10 +13,10 @@ use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::population::InternalRoute;
+use crate::simulation::scenario::population::InternalRoute;
+use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time_queue::Identifiable;
-use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::vehicles::InternalVehicle;
 use nohash_hasher::IntSet;
 use tracing::instrument;
 

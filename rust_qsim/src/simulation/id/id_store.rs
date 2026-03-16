@@ -309,11 +309,11 @@ mod tests {
     };
     use crate::simulation::id::Id;
     use crate::simulation::logging::init_std_out_logging_thread_local;
-    use crate::simulation::network::{Link, Network, Node};
-    use crate::simulation::population::InternalPerson;
-    use crate::simulation::population::Population;
-    use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
+    use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::scenario::population::InternalPerson;
+    use crate::simulation::scenario::population::Population;
+    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_folders;
     use macros::integration_test;
     use std::io::{BufReader, BufWriter, Cursor};

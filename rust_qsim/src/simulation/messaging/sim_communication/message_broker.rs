@@ -2,8 +2,8 @@ use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
-use crate::simulation::network::{Link, Network};
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::{Link, Network};
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
 
@@ -160,8 +160,8 @@ mod tests {
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::network::sim_network::StorageUpdate;
-    use crate::simulation::network::{Link, Network, Node};
-    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::test_utils::create_agent;
     use macros::integration_test;
     use std::rc::Rc;

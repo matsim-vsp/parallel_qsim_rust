@@ -1,13 +1,18 @@
+pub mod network;
+pub mod population;
+pub mod trip_structure_utils;
+pub mod vehicles;
+
 use crate::simulation::config::Config;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::network::Network;
-use crate::simulation::population::Population;
-use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, io};
+use network::Network;
+use population::Population;
 use std::sync::Arc;
 use tracing::info;
+use vehicles::Garage;
 
-/// The scenario contains the full scenario data.
+/// The mod contains the full mod data.
 #[derive(Debug)]
 pub struct MutableScenario {
     pub network: Network,
@@ -18,7 +23,7 @@ pub struct MutableScenario {
 
 impl MutableScenario {
     pub fn load<C: Into<Arc<Config>>>(config: C) -> Self {
-        info!("Start loading scenario.");
+        info!("Start loading mod.");
 
         let config = config.into();
 
@@ -27,7 +32,7 @@ impl MutableScenario {
             id::load_from_file(&io::resolve_path(config.context(), &path));
         }
 
-        // mandatory content to create a scenario
+        // mandatory content to create a mod
         let network = Self::load_network(&config);
         let mut garage = Self::load_garage(&config);
         let population = Self::load_population(&config, &mut garage);
@@ -69,7 +74,7 @@ impl MutableScenario {
     }
 }
 
-/// The ScenarioPartition contains the scenario data for a specific partition.
+/// The ScenarioPartition contains the mod data for a specific partition.
 #[derive(Debug)]
 pub struct ScenarioPartition {
     pub(crate) network: Arc<Network>,

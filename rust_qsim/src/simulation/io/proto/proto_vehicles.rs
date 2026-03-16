@@ -1,7 +1,7 @@
 use crate::generated;
 use crate::generated::vehicles::{Vehicle, VehicleType, VehiclesContainer};
-use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
+use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
 use std::path::Path;
 use tracing::info;
 
@@ -71,8 +71,8 @@ impl VehicleType {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
-    use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::{from_file, to_file, InternalVehicleType};
+    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::vehicles::{from_file, to_file, InternalVehicleType};
     use crate::simulation::InternalAttributes;
     use macros::integration_test;
     use std::path::PathBuf;

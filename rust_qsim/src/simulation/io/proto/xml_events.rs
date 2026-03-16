@@ -21,9 +21,9 @@ use crate::simulation::events::{
     VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::InternalPerson;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 
 pub struct XmlEventsWriter {
     writer: Mutex<Box<dyn Write + Send>>,

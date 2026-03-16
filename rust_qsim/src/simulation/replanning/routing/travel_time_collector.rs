@@ -2,8 +2,8 @@ use crate::simulation::events::{
     EventHandlerRegisterFn, LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent,
 };
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use nohash_hasher::IntMap;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -103,10 +103,10 @@ impl TravelTimeCollector {
 mod test {
     use crate::simulation::events::{LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent};
     use crate::simulation::id::Id;
-    use crate::simulation::network::Link;
-    use crate::simulation::population::InternalPerson;
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
-    use crate::simulation::vehicles::InternalVehicle;
+    use crate::simulation::scenario::network::Link;
+    use crate::simulation::scenario::population::InternalPerson;
+    use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::simulation::InternalAttributes;
     use macros::integration_test;
 

@@ -60,7 +60,7 @@ fn main() {
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    // Load scenario
+    // Load mod
     let scenario = MutableScenario::load(config);
 
     // Create controller

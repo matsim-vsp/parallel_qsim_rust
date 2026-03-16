@@ -272,12 +272,12 @@ mod tests {
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::network::Network;
     use crate::simulation::replanning::routing::alt_router::{AltQueryResult, AltRouter};
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
-    use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::InternalVehicleType;
+    use crate::simulation::scenario::network::Network;
+    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::vehicles::InternalVehicleType;
 
     fn query_and_check(
         router: &AltRouter,

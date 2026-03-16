@@ -1,5 +1,5 @@
 use crate::generated::network::{Link, Node};
-use crate::simulation::network::Network;
+use crate::simulation::scenario::network::Network;
 use std::path::Path;
 use tracing::info;
 

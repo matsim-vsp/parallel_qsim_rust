@@ -5,7 +5,7 @@ use tracing::info;
 
 use crate::simulation::config::{EdgeWeight, MetisOptions, VertexWeight};
 use crate::simulation::id::Id;
-use crate::simulation::network::{Link, Network, Node};
+use crate::simulation::scenario::network::{Link, Network, Node};
 
 pub fn partition(
     network: &Network,
@@ -127,7 +127,7 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod, VertexWeight};
     use crate::simulation::id::Id;
     use crate::simulation::network::metis_partitioning::partition;
-    use crate::simulation::network::{Link, Network, Node};
+    use crate::simulation::scenario::network::{Link, Network, Node};
     use macros::integration_test;
     use std::collections::BTreeMap;
 

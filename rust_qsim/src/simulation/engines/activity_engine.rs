@@ -5,7 +5,7 @@ use crate::simulation::agents::{
 use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
-use crate::simulation::population::InternalPerson;
+use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
 use tracing::instrument;
 
@@ -249,7 +249,7 @@ mod tests {
     };
     use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
     use crate::simulation::id::Id;
-    use crate::simulation::population::{
+    use crate::simulation::scenario::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalPlanElement, InternalRoute,
     };
@@ -438,9 +438,10 @@ mod tests {
         let mut plan = InternalPlan::default();
         let mut activity =
             InternalActivity::new(0.0, 0.0, "home", Id::create("start"), None, None, Some(10));
-        activity
-            .attributes
-            .add(crate::simulation::population::PREPLANNING_HORIZON, 5);
+        activity.attributes.add(
+            crate::simulation::scenario::population::PREPLANNING_HORIZON,
+            5,
+        );
         plan.add_act(activity);
         plan.add_leg(InternalLeg::new(
             InternalRoute::Generic(InternalGenericRoute::new(

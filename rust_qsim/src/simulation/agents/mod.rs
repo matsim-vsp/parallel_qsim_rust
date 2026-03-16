@@ -3,8 +3,8 @@ pub mod agent_logic;
 
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::{InternalActivity, InternalLeg, InternalPerson};
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::Debug;
 

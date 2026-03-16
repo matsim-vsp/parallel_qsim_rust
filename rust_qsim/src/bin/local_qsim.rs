@@ -15,7 +15,7 @@ fn main() {
     // Load and adapt config
     let config = Arc::new(Config::from(args));
 
-    // Load and adapt scenario
+    // Load and adapt mod
     let scenario = MutableScenario::load(config);
 
     // Create and run simulation
