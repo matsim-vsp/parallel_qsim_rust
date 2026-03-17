@@ -1,6 +1,7 @@
 use crate::simulation::scenario::population::{InternalActivity, InternalPlanElement};
 use tracing::error;
 
+/// Returns the main mode for a trip based on its leg sequence.
 pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<String> {
     // Try to get the routing mode from the first leg
     let mut mode: Option<String> =
@@ -28,15 +29,11 @@ pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<Strin
     mode
 }
 
-/// A trip is a sequence of plan elements between two non-stage activities.
-#[derive(Debug, PartialEq)]
-pub struct Trip<'a> {
-    pub origin: &'a InternalActivity,
-    pub legs: &'a [InternalPlanElement],
-    pub destination: &'a InternalActivity,
-}
-
 /// Identifies a trip inside a flat plan by its boundary activities.
+///
+/// We use boundary indices instead of separate `Trip` and `TripMut` views because trips are only a
+/// derived structure over the flat plan. Indices make both read-only access and structural edits
+/// work through the same abstraction, including replacements that would invalidate borrowed views.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct TripSpan {
     pub origin_index: usize,
@@ -44,10 +41,12 @@ pub struct TripSpan {
 }
 
 impl TripSpan {
+    /// Returns the origin activity of this trip.
     pub fn origin<'a>(&self, plan_elements: &'a [InternalPlanElement]) -> &'a InternalActivity {
         activity_at(plan_elements, self.origin_index)
     }
 
+    /// Returns the destination activity of this trip.
     pub fn destination<'a>(
         &self,
         plan_elements: &'a [InternalPlanElement],
@@ -55,6 +54,7 @@ impl TripSpan {
         activity_at(plan_elements, self.destination_index)
     }
 
+    /// Returns the plan elements between origin and destination.
     pub fn trip_elements<'a>(
         &self,
         plan_elements: &'a [InternalPlanElement],
@@ -62,6 +62,7 @@ impl TripSpan {
         &plan_elements[self.origin_index + 1..self.destination_index]
     }
 
+    /// Returns mutable access to the origin activity.
     pub fn origin_mut<'a>(
         &self,
         plan_elements: &'a mut [InternalPlanElement],
@@ -69,6 +70,7 @@ impl TripSpan {
         activity_at_mut(plan_elements, self.origin_index)
     }
 
+    /// Returns mutable access to the destination activity.
     pub fn destination_mut<'a>(
         &self,
         plan_elements: &'a mut [InternalPlanElement],
@@ -76,6 +78,7 @@ impl TripSpan {
         activity_at_mut(plan_elements, self.destination_index)
     }
 
+    /// Returns mutable access to the plan elements between origin and destination.
     pub fn trip_elements_mut<'a>(
         &self,
         plan_elements: &'a mut [InternalPlanElement],
@@ -83,6 +86,7 @@ impl TripSpan {
         &mut plan_elements[self.origin_index + 1..self.destination_index]
     }
 
+    /// Replaces the plan elements between origin and destination.
     pub fn replace_trip_elements(
         &self,
         plan_elements: &mut Vec<InternalPlanElement>,
@@ -110,7 +114,7 @@ fn activity_at_mut(
 
 fn trip_spans<F>(plan_elements: &[InternalPlanElement], mut is_stage_activity: F) -> Vec<TripSpan>
 where
-    F: FnMut(&InternalActivity) -> bool,
+    F: Fn(&InternalActivity) -> bool,
 {
     let mut trips = Vec::new();
     let mut origin_activity_index: isize = -1;
@@ -143,26 +147,7 @@ where
     trips
 }
 
-/// Extracts trips from a plan, using is_stage_activity to identify stage activities.
-pub fn get_trips<F>(plan_elements: &[InternalPlanElement], mut is_stage_activity: F) -> Vec<Trip>
-where
-    F: Fn(&InternalActivity) -> bool,
-{
-    trip_spans(plan_elements, &mut is_stage_activity)
-        .into_iter()
-        .map(|span| Trip {
-            origin: span.origin(plan_elements),
-            legs: span.trip_elements(plan_elements),
-            destination: span.destination(plan_elements),
-        })
-        .collect()
-}
-
-/// Extracts trips from a plan, using InternalActivity::is_interaction as the default stage activity detector.
-pub fn get_trips_default(plan_elements: &[InternalPlanElement]) -> Vec<Trip> {
-    get_trips(plan_elements, |a| a.is_interaction())
-}
-
+/// Returns the spans of all trips in the plan.
 pub fn get_trip_spans<F>(
     plan_elements: &[InternalPlanElement],
     is_stage_activity: F,
@@ -173,45 +158,21 @@ where
     trip_spans(plan_elements, is_stage_activity)
 }
 
+/// Returns the spans of all trips using the default stage-activity rule.
 pub fn get_trip_spans_default(plan_elements: &[InternalPlanElement]) -> Vec<TripSpan> {
     get_trip_spans(plan_elements, |a| a.is_interaction())
 }
 
-/// Finds the next trip starting at the given activity index in the plan.
-/// Returns Some(Trip) if a trip is found, or None if there are no more trips.
-pub fn find_trip_starting_at_activity<F>(
-    plan_elements: &[InternalPlanElement],
-    start_index: usize,
-    mut is_stage_activity: F,
-) -> Option<Trip>
-where
-    F: Fn(&InternalActivity) -> bool,
-{
-    find_trip_span_starting_at_activity(plan_elements, start_index, &mut is_stage_activity).map(
-        |span| Trip {
-            origin: span.origin(plan_elements),
-            legs: span.trip_elements(plan_elements),
-            destination: span.destination(plan_elements),
-        },
-    )
-}
-
-pub fn find_trip_starting_at_activity_default(
-    plan_elements: &[InternalPlanElement],
-    start_index: usize,
-) -> Option<Trip> {
-    find_trip_starting_at_activity(plan_elements, start_index, |a| a.is_interaction())
-}
-
+/// Finds the next trip span starting at the given activity index.
 pub fn find_trip_span_starting_at_activity<F>(
     plan_elements: &[InternalPlanElement],
     start_index: usize,
-    mut is_stage_activity: F,
+    is_stage_activity: F,
 ) -> Option<TripSpan>
 where
-    F: FnMut(&InternalActivity) -> bool,
+    F: Fn(&InternalActivity) -> bool,
 {
-    trip_spans(&plan_elements[start_index..], &mut is_stage_activity)
+    trip_spans(&plan_elements[start_index..], &is_stage_activity)
         .into_iter()
         .next()
         .map(|span| TripSpan {
@@ -220,6 +181,7 @@ where
         })
 }
 
+/// Finds the next trip span using the default stage-activity rule.
 pub fn find_trip_span_starting_at_activity_default(
     plan_elements: &[InternalPlanElement],
     start_index: usize,
@@ -304,14 +266,14 @@ mod tests {
             make_leg("walk"),
             make_activity("shop", "3"),
         ];
-        let trips = get_trips_default(&plan);
-        assert_eq!(trips.len(), 2);
-        assert_eq!(trips[0].origin.act_type.external(), "home");
-        assert_eq!(trips[0].destination.act_type.external(), "work");
-        assert_eq!(trips[0].legs.len(), 1);
-        assert_eq!(trips[1].origin.act_type.external(), "work");
-        assert_eq!(trips[1].destination.act_type.external(), "shop");
-        assert_eq!(trips[1].legs.len(), 1);
+        let spans = get_trip_spans_default(&plan);
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[0].origin(&plan).act_type.external(), "home");
+        assert_eq!(spans[0].destination(&plan).act_type.external(), "work");
+        assert_eq!(spans[0].trip_elements(&plan).len(), 1);
+        assert_eq!(spans[1].origin(&plan).act_type.external(), "work");
+        assert_eq!(spans[1].destination(&plan).act_type.external(), "shop");
+        assert_eq!(spans[1].trip_elements(&plan).len(), 1);
     }
 
     #[integration_test]
@@ -323,25 +285,25 @@ mod tests {
             make_leg("car"),
             make_activity("work", "3"),
         ];
-        let trips = get_trips_default(&plan);
-        assert_eq!(trips.len(), 1);
-        assert_eq!(trips[0].origin.act_type.external(), "home");
-        assert_eq!(trips[0].destination.act_type.external(), "work");
-        assert_eq!(trips[0].legs.len(), 3);
+        let spans = get_trip_spans_default(&plan);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].origin(&plan).act_type.external(), "home");
+        assert_eq!(spans[0].destination(&plan).act_type.external(), "work");
+        assert_eq!(spans[0].trip_elements(&plan).len(), 3);
     }
 
     #[integration_test]
     fn test_get_trips_no_trips() {
         let plan = vec![make_activity("home", "1"), make_activity("work", "2")];
-        let trips = get_trips_default(&plan);
-        assert!(trips.is_empty());
+        let spans = get_trip_spans_default(&plan);
+        assert!(spans.is_empty());
     }
 
     #[integration_test]
     fn test_get_trips_empty() {
         let plan: Vec<InternalPlanElement> = vec![];
-        let trips = get_trips_default(&plan);
-        assert!(trips.is_empty());
+        let spans = get_trip_spans_default(&plan);
+        assert!(spans.is_empty());
     }
 
     #[integration_test]
@@ -425,7 +387,7 @@ mod tests {
     }
 
     #[integration_test]
-    fn test_find_trip_starting_at_activity_default_basic() {
+    fn test_find_trip_span_starting_at_activity_default_basic_read_only() {
         let plan = vec![
             make_activity("home", "1"),
             make_leg("car"),
@@ -433,21 +395,21 @@ mod tests {
             make_leg("walk"),
             make_activity("shop", "3"),
         ];
-        let trip = find_trip_starting_at_activity_default(&plan, 0).unwrap();
-        assert_eq!(trip.origin.act_type.external(), "home");
-        assert_eq!(trip.destination.act_type.external(), "work");
-        assert_eq!(trip.legs.len(), 1);
+        let span = find_trip_span_starting_at_activity_default(&plan, 0).unwrap();
+        assert_eq!(span.origin(&plan).act_type.external(), "home");
+        assert_eq!(span.destination(&plan).act_type.external(), "work");
+        assert_eq!(span.trip_elements(&plan).len(), 1);
 
-        let trip2 = find_trip_starting_at_activity_default(&plan, 2).unwrap();
-        assert_eq!(trip2.origin.act_type.external(), "work");
-        assert_eq!(trip2.destination.act_type.external(), "shop");
-        assert_eq!(trip2.legs.len(), 1);
+        let span2 = find_trip_span_starting_at_activity_default(&plan, 2).unwrap();
+        assert_eq!(span2.origin(&plan).act_type.external(), "work");
+        assert_eq!(span2.destination(&plan).act_type.external(), "shop");
+        assert_eq!(span2.trip_elements(&plan).len(), 1);
 
-        assert!(find_trip_starting_at_activity_default(&plan, 4).is_none());
+        assert!(find_trip_span_starting_at_activity_default(&plan, 4).is_none());
     }
 
     #[integration_test]
-    fn test_find_trip_starting_at_activity_default_with_stage() {
+    fn test_find_trip_span_starting_at_activity_default_with_stage() {
         let plan = vec![
             make_activity("home", "1"),
             make_leg("car"),
@@ -455,38 +417,16 @@ mod tests {
             make_leg("car"),
             make_activity("work", "3"),
         ];
-        let trip = find_trip_starting_at_activity_default(&plan, 0).unwrap();
-        assert_eq!(trip.origin.act_type.external(), "home");
-        assert_eq!(trip.destination.act_type.external(), "work");
-        assert_eq!(trip.legs.len(), 3);
-        assert!(find_trip_starting_at_activity_default(&plan, 2).is_none());
+        let span = find_trip_span_starting_at_activity_default(&plan, 0).unwrap();
+        assert_eq!(span.origin(&plan).act_type.external(), "home");
+        assert_eq!(span.destination(&plan).act_type.external(), "work");
+        assert_eq!(span.trip_elements(&plan).len(), 3);
+        assert!(find_trip_span_starting_at_activity_default(&plan, 2).is_none());
     }
 
     #[integration_test]
-    fn test_find_trip_starting_at_activity_default_empty() {
+    fn test_find_trip_span_starting_at_activity_default_empty() {
         let plan: Vec<InternalPlanElement> = vec![];
-        assert!(find_trip_starting_at_activity_default(&plan, 0).is_none());
-    }
-
-    #[integration_test]
-    fn test_find_trip_span_starting_at_activity_default_basic() {
-        let plan = vec![
-            make_activity("home", "1"),
-            make_leg("car"),
-            make_activity("work", "2"),
-            make_leg("walk"),
-            make_activity("shop", "3"),
-        ];
-
-        let span = find_trip_span_starting_at_activity_default(&plan, 2).unwrap();
-        assert_eq!(
-            span,
-            TripSpan {
-                origin_index: 2,
-                destination_index: 4,
-            }
-        );
-        assert_eq!(span.origin(&plan).act_type.external(), "work");
-        assert_eq!(span.destination(&plan).act_type.external(), "shop");
+        assert!(find_trip_span_starting_at_activity_default(&plan, 0).is_none());
     }
 }

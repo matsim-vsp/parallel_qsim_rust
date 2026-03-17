@@ -12,8 +12,7 @@ use crate::simulation::scenario::population::{
     InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute,
 };
 use crate::simulation::scenario::trip_structure_utils::{
-    find_trip_span_starting_at_activity_default, find_trip_starting_at_activity_default,
-    identify_main_mode,
+    find_trip_span_starting_at_activity_default, identify_main_mode,
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::{Debug, Formatter};
@@ -344,7 +343,7 @@ impl AdaptivePlanBasedSimulationLogic {
     ) {
         let (send, recv) = tokio::sync::oneshot::channel();
 
-        let trip = find_trip_starting_at_activity_default(
+        let trip_span = find_trip_span_starting_at_activity_default(
             &self
                 .delegate
                 .basic_agent_delegate
@@ -362,16 +361,23 @@ impl AdaptivePlanBasedSimulationLogic {
             )
         });
 
-        let origin = trip.origin;
-        let destination = trip.destination;
+        let plan_elements = &self
+            .delegate
+            .basic_agent_delegate
+            .selected_plan()
+            .unwrap()
+            .elements;
+        let origin = trip_span.origin(plan_elements);
+        let destination = trip_span.destination(plan_elements);
 
-        let mode = identify_main_mode(trip.legs).unwrap_or_else(|| {
-            panic!(
-                "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
-                origin,
-                self.delegate.id()
-            )
-        });
+        let mode =
+            identify_main_mode(trip_span.trip_elements(plan_elements)).unwrap_or_else(|| {
+                panic!(
+                    "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
+                    origin,
+                    self.delegate.id()
+                )
+            });
 
         let payload = InternalRoutingRequestPayloadBuilder::default()
             .person_id(self.delegate.id().external().to_string())
