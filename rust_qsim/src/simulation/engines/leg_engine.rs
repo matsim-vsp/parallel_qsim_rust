@@ -104,8 +104,7 @@ impl<C: SimCommunicator> LegEngine<C> {
 
     #[instrument(level = "trace", skip(self), fields(rank=self.net_message_broker.rank()))]
     fn send_recv(&mut self, now: u32) -> Vec<InternalSyncMessage> {
-        let sync_messages = self.net_message_broker.send_recv(now);
-        sync_messages
+        self.net_message_broker.send_recv(now)
     }
 
     fn receive_agents(&mut self, now: u32, agents: Vec<SimulationAgent>) {
@@ -237,7 +236,7 @@ impl VehicularDepartureHandler {
                 .routing_mode(
                     leg.routing_mode
                         .as_ref()
-                        .expect(&format!("Missing routing mode for leg {:?}", leg))
+                        .unwrap_or_else(|| panic!("Missing routing mode for leg {:?}", leg))
                         .clone(),
                 )
                 .build()

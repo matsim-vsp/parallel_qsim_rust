@@ -422,11 +422,11 @@ impl LocalLink {
     /// This method returns the next vehicle allowed to leave the connection and checks
     /// whether flow capacity is available.
     fn offers_veh(&self, now: u32) -> Option<&SimulationVehicle> {
-        if let Some(entry) = self.buffer.front() {
-            if self.flow_cap.has_capacity_left() {
-                self.stuck_timer.start(now);
-                return Some(entry);
-            }
+        if let Some(entry) = self.buffer.front()
+            && self.flow_cap.has_capacity_left()
+        {
+            self.stuck_timer.start(now);
+            return Some(entry);
         }
 
         None
@@ -768,12 +768,14 @@ mod sim_link_tests {
         l.do_sim_step(expected_timer_start, &mut Default::default());
         let offers = l.offers_veh(expected_timer_start);
         assert!(offers.is_some());
-        assert!(!l
-            .stuck_timer
-            .is_stuck(expected_timer_start + stuck_threshold - 1));
-        assert!(l
-            .stuck_timer
-            .is_stuck(expected_timer_start + stuck_threshold));
+        assert!(
+            !l.stuck_timer
+                .is_stuck(expected_timer_start + stuck_threshold - 1)
+        );
+        assert!(
+            l.stuck_timer
+                .is_stuck(expected_timer_start + stuck_threshold)
+        );
     }
 
     #[integration_test]

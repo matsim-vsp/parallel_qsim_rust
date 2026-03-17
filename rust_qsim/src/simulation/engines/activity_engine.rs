@@ -73,7 +73,7 @@ impl ActivityEngine {
     }
 
     #[instrument(level = "trace", skip(self, end_after_wake_up))]
-    fn notify_wakeup_all(&mut self, now: u32, end_after_wake_up: &mut Vec<SimulationAgent>) {
+    fn notify_wakeup_all(&mut self, now: u32, end_after_wake_up: &mut [SimulationAgent]) {
         // inform agents about wakeup
         // those are the agents that are woken up and directly end their activity
         end_after_wake_up.iter_mut().for_each(|agent| {
@@ -366,11 +366,13 @@ mod tests {
                 .now(5)
                 .build()
                 .unwrap();
-            assert!(request
-                .as_ref()
-                .unwrap()
-                .payload
-                .equals_ignoring_uuid(&payload));
+            assert!(
+                request
+                    .as_ref()
+                    .unwrap()
+                    .payload
+                    .equals_ignoring_uuid(&payload)
+            );
             request
                 .unwrap()
                 .response_tx

@@ -42,20 +42,20 @@ pub fn partition(
         xadj.push(next_adjacency_index);
 
         // Add vertex weights
-        add_vwgt(network, &options, &mut vwgt, node);
+        add_vwgt(network, options, &mut vwgt, node);
 
         for id in &node.out_links {
             let link = &network.get_link(id);
             let node_pos = pos_by_node_id.get(&link.to.internal()).unwrap();
             adjncy.push(*node_pos as Idx);
-            adjwgt.push(get_adjwgt(&options, link) as Idx);
+            adjwgt.push(get_adjwgt(options, link) as Idx);
         }
 
         for id in &node.in_links {
             let link = &network.get_link(id);
             let node_pos = pos_by_node_id.get(&link.to.internal()).unwrap();
             adjncy.push(*node_pos as Idx);
-            adjwgt.push(get_adjwgt(&options, link) as Idx);
+            adjwgt.push(get_adjwgt(options, link) as Idx);
         }
     }
 

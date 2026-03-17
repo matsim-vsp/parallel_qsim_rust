@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{arg, Parser};
+use clap::Parser;
 use tracing::info;
 
 use rust_qsim::simulation::config::{MetisOptions, PartitionMethod};

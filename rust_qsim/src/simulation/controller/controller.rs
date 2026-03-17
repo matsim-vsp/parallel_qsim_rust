@@ -15,7 +15,7 @@ use crate::simulation::{controller, id, io};
 use derive_more::Debug;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::{fs, mem, thread};
@@ -173,6 +173,7 @@ impl Controller {
 
         info!("=========== End Iteration 0 ===========");
 
+        info!("Writing output files:");
         if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
             info!("    ... ID store ...");
             Self::write_output_id_store(&output_path);
@@ -187,7 +188,9 @@ impl Controller {
             let s = mem::replace(&mut self.scenario, Scenario::Partitioned);
             match s {
                 Scenario::Partitioned => {
-                    panic!("Wanted to create partitions, but mod is already partitioned. This shouldn't happen.")
+                    panic!(
+                        "Wanted to create partitions, but mod is already partitioned. This shouldn't happen."
+                    )
                 }
                 Scenario::Full(s) => s,
             }
@@ -262,7 +265,9 @@ impl Controller {
 
         match &self.scenario {
             Scenario::Partitioned => {
-                panic!("Tried to write network to file, but mod is partitioned. This shouldn't happen.")
+                panic!(
+                    "Tried to write network to file, but mod is partitioned. This shouldn't happen."
+                )
             }
             Scenario::Full(s) => {
                 s.network.to_file(&net_out_path);
@@ -270,7 +275,7 @@ impl Controller {
         }
     }
 
-    fn write_output_id_store(output_path: &PathBuf) {
+    fn write_output_id_store(output_path: &Path) {
         id::store_to_file(&output_path.join("output_ids.binpb"));
     }
 }
