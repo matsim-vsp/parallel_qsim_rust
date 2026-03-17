@@ -9,10 +9,10 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{
-    InternalActivity, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement, InternalRoute,
+    InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute,
 };
 use crate::simulation::scenario::trip_structure_utils::{
-    find_trip_starting_at_activity_default, identify_main_mode,
+    find_trip_span_starting_at_activity_default, identify_main_mode,
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::{Debug, Formatter};
@@ -343,7 +343,7 @@ impl AdaptivePlanBasedSimulationLogic {
     ) {
         let (send, recv) = tokio::sync::oneshot::channel();
 
-        let trip = find_trip_starting_at_activity_default(
+        let trip_span = find_trip_span_starting_at_activity_default(
             &self
                 .delegate
                 .basic_agent_delegate
@@ -361,16 +361,23 @@ impl AdaptivePlanBasedSimulationLogic {
             )
         });
 
-        let origin = trip.origin;
-        let destination = trip.destination;
+        let plan_elements = &self
+            .delegate
+            .basic_agent_delegate
+            .selected_plan()
+            .unwrap()
+            .elements;
+        let origin = trip_span.origin(plan_elements);
+        let destination = trip_span.destination(plan_elements);
 
-        let mode = identify_main_mode(trip.legs).unwrap_or_else(|| {
-            panic!(
-                "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
-                origin,
-                self.delegate.id()
-            )
-        });
+        let mode =
+            identify_main_mode(trip_span.trip_elements(plan_elements)).unwrap_or_else(|| {
+                panic!(
+                    "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
+                    origin,
+                    self.delegate.id()
+                )
+            });
 
         let payload = InternalRoutingRequestPayloadBuilder::default()
             .person_id(self.delegate.id().external().to_string())
@@ -441,25 +448,11 @@ impl AdaptivePlanBasedSimulationLogic {
         let plan = self.delegate.basic_agent_delegate.selected_plan_mut();
         let start_index = self.delegate.curr_plan_element;
 
-        let trip = find_trip_starting_at_activity_default(&plan.elements, start_index)
+        let span = find_trip_span_starting_at_activity_default(&plan.elements, start_index)
             .expect("No trip found starting at the current plan element");
 
-        let origin_ptr = trip.origin as *const _;
-        let dest_ptr = trip.destination as *const _;
-
-        let origin_idx = Self::get_index(plan, origin_ptr);
-        let dest_idx = Self::get_index(plan, dest_ptr);
-
         // Replace the trip elements (legs and intermediate activities) with the new response
-        plan.elements
-            .splice(origin_idx + 1..dest_idx, response.elements);
-    }
-
-    fn get_index(plan: &mut InternalPlan, origin_ptr: *const InternalActivity) -> usize {
-        plan.elements
-            .iter()
-            .position(|e| e.as_activity().map(|a| a as *const _) == Some(origin_ptr))
-            .expect("Didn't find the activity in the plan")
+        span.replace_trip_elements(&mut plan.elements, response.elements);
     }
 }
 
