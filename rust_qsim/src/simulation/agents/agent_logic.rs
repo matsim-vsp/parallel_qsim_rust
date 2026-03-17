@@ -96,7 +96,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     }
 
     fn next_act(&self) -> &InternalActivity {
-        let add = if self.curr_plan_element % 2 == 0 {
+        let add = if self.curr_plan_element.is_multiple_of(2) {
             // If the current plan element is an activity, the next one should be a leg
             2
         } else {
@@ -117,7 +117,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     }
 
     fn next_leg(&self) -> Option<&InternalLeg> {
-        let add = if self.curr_plan_element % 2 == 0 {
+        let add = if self.curr_plan_element.is_multiple_of(2) {
             // If the current plan element is an activity, the next one should be a leg
             1
         } else {
@@ -161,7 +161,10 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
                 0 => Some(g.start_link()),
                 1 => Some(g.end_link()),
                 _ => panic!(
-                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}",
+                    self.curr_plan_element,
+                    self.curr_route_element,
+                    self.basic_agent_delegate.id()
                 ),
             },
             InternalRoute::Network(n) => n.route_element_at(self.curr_route_element),
@@ -169,7 +172,10 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
                 0 => Some(p.start_link()),
                 1 => Some(p.end_link()),
                 _ => panic!(
-                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}",
+                    self.curr_plan_element,
+                    self.curr_route_element,
+                    self.basic_agent_delegate.id()
                 ),
             },
         }

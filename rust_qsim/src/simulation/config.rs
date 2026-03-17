@@ -94,14 +94,16 @@ impl Config {
 
         // Check if the path is a URL
         let path = config_path.as_ref().to_string_lossy();
-        if is_url(&*path) {
+        if is_url(&path) {
             #[cfg(feature = "http")]
             {
                 reader = Self::url_file_reader(path.parse().unwrap());
             }
             #[cfg(not(feature = "http"))]
             {
-                panic!("HTTP support is not enabled. Please recompile with the `http` feature enabled.");
+                panic!(
+                    "HTTP support is not enabled. Please recompile with the `http` feature enabled."
+                );
             }
         } else {
             reader = Self::local_file_reader(config_path.as_ref());
@@ -849,9 +851,8 @@ mod tests {
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
-        parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType,
-        DrtService, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation,
-        VertexWeight,
+        parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType, DrtService,
+        EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation, VertexWeight,
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};

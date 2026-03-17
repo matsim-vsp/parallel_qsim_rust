@@ -29,7 +29,7 @@ impl MutableScenario {
 
         if let Some(path) = &config.ids().path {
             info!("Loading IDs from {:?}", path);
-            id::load_from_file(&io::resolve_path(config.context(), &path));
+            id::load_from_file(&io::resolve_path(config.context(), path));
         }
 
         // mandatory content to create a mod
@@ -113,7 +113,7 @@ impl ScenarioPartition {
         config: Arc<Config>,
     ) -> Self {
         let network_partition =
-            Self::create_network_partition(&config, partition_num, &network, &population);
+            Self::create_network_partition(&config, partition_num, &network, population);
 
         let population = population.take_from_filtered_part(&network, partition_num);
 

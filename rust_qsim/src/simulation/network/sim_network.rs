@@ -118,7 +118,7 @@ impl SimNetworkPartition {
                         link,
                         partition,
                         global_network.effective_cell_size(),
-                        &config,
+                        config,
                         global_network,
                     ),
                 )
@@ -175,8 +175,8 @@ impl SimNetworkPartition {
     ) -> Self {
         // Initialize RNG with a seed based on the base seed and node id
         let rng = nodes
-            .iter()
-            .map(|(n, _)| {
+            .keys()
+            .map(|n| {
                 let mut hasher = AHasher::default();
                 hasher.write(n.external().as_ref());
                 (n.clone(), random::get_rng(base_seed, hasher.finish()))
@@ -543,7 +543,11 @@ impl SimNetworkPartition {
                 });
                 in_link.is_veh_stuck(now) || out_link.is_available()
             } else {
-                panic!("Vehicle {:?} is offered by link {:?} but has no next link. This should not happen. Leg ends are handled in move_links, not move_nodes.", veh_ref.id(), in_link.id())
+                panic!(
+                    "Vehicle {:?} is offered by link {:?} but has no next link. This should not happen. Leg ends are handled in move_links, not move_nodes.",
+                    veh_ref.id(),
+                    in_link.id()
+                )
             };
         }
         // if the link doesn't have a vehicle to offer, we don't have to do anything.

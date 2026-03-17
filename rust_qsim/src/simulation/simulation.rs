@@ -44,7 +44,7 @@ where
                 .mobsim_events_manager_borrow_mut()
                 .process_event(MobsimEvent::before_sim_step(now));
 
-            if now % 3600 == 0 {
+            if now.is_multiple_of(3600) {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!(
@@ -139,7 +139,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             self.scenario.network_partition,
             self.scenario.garage,
             self.net_message_broker,
-            &self.scenario.config.simulation(),
+            self.scenario.config.simulation(),
             self.comp_env.clone(),
         );
 

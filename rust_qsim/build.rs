@@ -1,11 +1,9 @@
 extern crate prost_build;
 extern crate protobuf_src;
 
-fn main() {
-    // we use the protobuf-src which provides the protoc compiler. This line makes it available
-    // to prost-build
-    std::env::set_var("PROTOC", protobuf_src::protoc());
+use prost_build::Config;
 
+fn main() {
     let proto_files = [
         "src/simulation/io/proto/types/general.proto",
         "src/simulation/io/proto/types/events.proto",
@@ -22,8 +20,13 @@ fn main() {
     }
 
     // Compiling the protobuf files
+    let mut config = Config::new();
+    // we use the protobuf-src which provides the protoc compiler. This line makes it available
+    // to prost-build
+    config.protoc_executable(protobuf_src::protoc());
+
     tonic_build::configure()
         .build_client(true)
-        .compile_protos(&proto_files, &["src/"])
+        .compile_protos_with_config(config, &proto_files, &["src/"])
         .unwrap();
 }

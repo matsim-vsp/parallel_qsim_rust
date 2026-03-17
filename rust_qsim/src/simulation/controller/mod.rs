@@ -1,3 +1,4 @@
+#[allow(clippy::module_inception)]
 pub mod controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
@@ -186,7 +187,9 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
-    info!("Process #{rank} (0-indexed) of {size} processes has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier.");
+    info!(
+        "Process #{rank} (0-indexed) of {size} processes has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier."
+    );
     partition_arguments.global_barrier.wait();
     simulation.run();
 
@@ -295,7 +298,7 @@ pub(crate) fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf
 
     let stripped = stripped
         .strip_suffix(format!(".{part}").as_str())
-        .unwrap_or_else(|| stripped);
+        .unwrap_or(stripped);
 
     let new_filename = format!("{stripped}.{part}.{ext}");
     path.parent().unwrap().join(new_filename)

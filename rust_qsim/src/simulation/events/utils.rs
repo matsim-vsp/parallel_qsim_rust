@@ -111,11 +111,11 @@ pub enum EventsFileNotEqualError {
 impl fmt::Display for EventsFileNotEqualError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EventsFileNotEqualError::DifferentEventTimes {} => write!(f, "Event times differ."),
-            EventsFileNotEqualError::NotChronologicalOrder {} => {
+            EventsFileNotEqualError::DifferentEventTimes => write!(f, "Event times differ."),
+            EventsFileNotEqualError::NotChronologicalOrder => {
                 write!(f, "Events in both files are not in chronological order.")
             }
-            EventsFileNotEqualError::DifferentNumberOfEvents {} => {
+            EventsFileNotEqualError::DifferentNumberOfEvents => {
                 write!(f, "Files have different numbers of events.")
             }
             EventsFileNotEqualError::MissingEvent { event } => write!(

@@ -67,6 +67,5 @@ fn replace_filename(path: PathBuf) -> PathBuf {
     let stripped = file_name.strip_suffix(".binpb");
     let new_file_name = format!("{}.xml.gz", stripped.unwrap());
     info!("New file name: {}", new_file_name);
-    let result = path.parent().unwrap().join(new_file_name);
-    result
+    path.parent().unwrap().join(new_file_name)
 }
