@@ -1,5 +1,5 @@
 use macros::integration_test;
-use rust_qsim::simulation::config::Config;
+use rust_qsim::simulation::config::{Config, OverwriteFile};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::scenario::MutableScenario;
 
@@ -7,6 +7,7 @@ use rust_qsim::simulation::scenario::MutableScenario;
 #[integration_test(rust_qsim)]
 fn test_empty() {
     let mut config = Config::default();
+    config.output_mut().overwrite_file = OverwriteFile::DeleteDirectoryIfExists;
     config.output_mut().output_dir = "./test_output/simulation/empty".parse().unwrap();
     let scenario = MutableScenario::load(config);
     let controller = ControllerBuilder::default_with_scenario(scenario)

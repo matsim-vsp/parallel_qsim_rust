@@ -14,6 +14,7 @@ modules:
     method: !Metis
   output:
     type: Output
+    overwrite_file: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/output-simulate-network-route
     write_events: Proto
   routing:

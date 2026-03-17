@@ -19,6 +19,7 @@ modules:
     main_modes: [ "car" ]
   output:
     type: Output
+    overwrite_file: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/execute_3_links_single_part
   routing:
     type: Routing
