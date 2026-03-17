@@ -404,7 +404,9 @@ pub fn from_file(path: &Path) -> Network {
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         network::load_from_xml(path)
     } else {
-        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!(
+            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+        );
     }
 }
 
@@ -414,7 +416,9 @@ pub fn to_file(network: &Network, path: &Path) {
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         write_to_xml(network, path);
     } else {
-        panic!("Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!(
+            "Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+        );
     }
 }
 
@@ -424,8 +428,9 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::network::{IOLink, IONode};
     use crate::simulation::scenario::network::{add_io_link, add_io_node, Link, Network, Node};
+    use macros::integration_test;
 
-    #[test]
+    #[integration_test]
     fn add_node() {
         let mut network = Network::new();
         let id = Id::create("node-id");
@@ -437,7 +442,7 @@ mod tests {
         assert_eq!(id, network.get_node(&id).id);
     }
 
-    #[test]
+    #[integration_test]
     #[should_panic]
     fn add_node_reject_duplicate() {
         let mut network = Network::new();
@@ -450,7 +455,7 @@ mod tests {
         network.add_node(duplicate); // expecting panic here.
     }
 
-    #[test]
+    #[integration_test]
     fn add_link() {
         let mut network = Network::new();
         let from = Node::new(Id::create("from"), 0., 0., 0, 1);
@@ -479,7 +484,7 @@ mod tests {
         assert_eq!(&id, to.in_links.first().unwrap());
     }
 
-    #[test]
+    #[integration_test]
     #[should_panic]
     fn add_link_reject_duplicate() {
         let mut network = Network::new();
@@ -495,7 +500,7 @@ mod tests {
         network.add_link(duplicate); // expecting panic here
     }
 
-    #[test]
+    #[integration_test]
     fn remove_link() {
         let mut network = Network::new();
         let from_id = Id::create("from");
@@ -516,14 +521,14 @@ mod tests {
         assert!(network.get_node(&to_id).in_links.is_empty());
     }
 
-    #[test]
+    #[integration_test]
     #[should_panic]
     fn remove_link_reject_missing() {
         let mut network = Network::new();
         network.remove_link(Id::create("does-not-exist"));
     }
 
-    #[test]
+    #[integration_test]
     fn remove_node() {
         let mut network = Network::new();
         let a_id = Id::create("a");
@@ -555,14 +560,14 @@ mod tests {
         assert!(network.get_node(&c_id).in_links.is_empty());
     }
 
-    #[test]
+    #[integration_test]
     #[should_panic]
     fn remove_node_reject_missing() {
         let mut network = Network::new();
         network.remove_node(Id::create("does-not-exist"));
     }
 
-    #[test]
+    #[integration_test]
     #[ignore] // ingore this test, because it keeps not working, due to non determined ordering of metis
     fn from_file() {
         let network = Network::from_file(
@@ -605,7 +610,7 @@ mod tests {
         assert_eq!(7.5, network.effective_cell_size);
     }
 
-    #[test]
+    #[integration_test]
     fn link_new_with_default() {
         let from = Node::new(Id::create("from"), 0., 0., 0, 1);
         let to = Node::new(Id::create("to"), 3., 4., 0, 1);
@@ -618,10 +623,10 @@ mod tests {
         assert_eq!(to.id, link.to);
     }
 
-    #[test]
+    #[integration_test]
     fn test_metis_with_large_graph() {}
 
-    #[test]
+    #[integration_test]
     fn test_add_io_node() {
         let external_id = String::from("some-id");
         let x = 1.;
@@ -646,7 +651,7 @@ mod tests {
         assert_eq!(id, node.id);
     }
 
-    #[test]
+    #[integration_test]
     fn test_add_io_link() {
         let ext_from_id = String::from("from");
         let ext_to_id = String::from("to");

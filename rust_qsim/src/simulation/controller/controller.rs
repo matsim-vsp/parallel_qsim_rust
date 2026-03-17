@@ -173,6 +173,7 @@ impl Controller {
 
         info!("=========== End Iteration 0 ===========");
 
+        info!("Writing output files:");
         if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
             info!("    ... ID store ...");
             Self::write_output_id_store(&output_path);
