@@ -1,9 +1,9 @@
 use crate::generated;
+use crate::generated::MessageIter;
 use crate::generated::population::leg::Route;
 use crate::generated::population::{
     Activity, GenericRoute, Header, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,
 };
-use crate::generated::MessageIter;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{
     InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,

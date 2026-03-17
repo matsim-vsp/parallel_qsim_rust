@@ -1,9 +1,9 @@
-use crate::generated::general::attribute_value::Type;
 use crate::generated::general::AttributeValue;
+use crate::generated::general::attribute_value::Type;
 use io::xml::attributes::IOAttributes;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use tracing::warn;

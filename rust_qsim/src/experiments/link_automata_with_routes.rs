@@ -66,7 +66,10 @@ impl Node {
                     // fetch the next link id of the vehicle's route. If None, the vehicle's trip is over
                     match vehicle.route.link_ids.get(next_route_element) {
                         None => {
-                            println!("Vehicle #{} has reached its destination on link #{}. It will dissapear now. ", vehicle.id, in_link.id)
+                            println!(
+                                "Vehicle #{} has reached its destination on link #{}. It will dissapear now. ",
+                                vehicle.id, in_link.id
+                            )
                         }
                         Some(out_index) => {
                             // fetch the next link of the route.

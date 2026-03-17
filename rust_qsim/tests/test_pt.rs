@@ -88,11 +88,13 @@ fn test_pt_adaptive(pop_path: PathBuf) {
         .external_services(services)
         .additional_handler(handler)
         .global_barrier(global_barrier)
-        .adapter_handles(vec![AdapterHandleBuilder::default()
-            .shutdown_sender(shutdown)
-            .handle(handle)
-            .build()
-            .unwrap()])
+        .adapter_handles(vec![
+            AdapterHandleBuilder::default()
+                .shutdown_sender(shutdown)
+                .handle(handle)
+                .build()
+                .unwrap(),
+        ])
         .build()
         .unwrap()
         .execute();

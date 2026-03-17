@@ -433,6 +433,8 @@ register_override!("partitioning.num_parts", |config, value| {
 pub struct Output {
     pub output_dir: PathBuf,
     #[serde(default)]
+    pub overwrite_files: OverwriteFiles,
+    #[serde(default)]
     pub profiling: Profiling,
     #[serde(default)]
     pub logging: Logging,
@@ -444,6 +446,7 @@ impl Default for Output {
     fn default() -> Self {
         Self {
             output_dir: "./output".parse().unwrap(),
+            overwrite_files: OverwriteFiles::FailIfDirectoryExists,
             profiling: Profiling::None,
             logging: Logging::None,
             write_events: WriteEvents::None,
@@ -453,6 +456,10 @@ impl Default for Output {
 
 register_override!("output.output_dir", |config, value| {
     config.output_mut().output_dir = PathBuf::from(value);
+});
+
+register_override!("output.overwrite_files", |config, value| {
+    config.output_mut().overwrite_files = parse_overwrite_file(value);
 });
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -675,6 +682,24 @@ pub enum RoutingMode {
     AdHoc,
     UsePlans,
 }
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum OverwriteFiles {
+    DeleteDirectoryIfExists,
+    #[default]
+    FailIfDirectoryExists,
+    OverwriteExistingFiles,
+}
+
+fn parse_overwrite_file(value: &str) -> OverwriteFiles {
+    match value.to_lowercase().replace(['-', '_'], "").as_str() {
+        "deletedirectoryifexists" => OverwriteFiles::DeleteDirectoryIfExists,
+        "failifdirectoryexists" => OverwriteFiles::FailIfDirectoryExists,
+        "overwriteexistingfiles" => OverwriteFiles::OverwriteExistingFiles,
+        _ => panic!("Invalid overwrite_files mode: {}", value),
+    }
+}
+
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum PartitionMethod {
     Metis(MetisOptions),
@@ -847,6 +872,7 @@ fn default_profiling_level() -> String {
 mod tests {
     use crate::simulation::config;
     use crate::simulation::config::Output;
+    use crate::simulation::config::OverwriteFiles;
     use crate::simulation::config::PathBuf;
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
@@ -1132,6 +1158,50 @@ modules:
     }
 
     #[test]
+    fn test_parse_output_overwrite_files() {
+        let yaml = r#"
+modules:
+  output:
+    type: Output
+    output_dir: out
+    overwrite_files: DeleteDirectoryIfExists
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![],
+        };
+        let config = Config::from_args(args);
+        assert_eq!(
+            config.output().overwrite_files,
+            OverwriteFiles::DeleteDirectoryIfExists
+        );
+    }
+
+    #[test]
+    fn test_override_output_overwrite_files() {
+        let yaml = r#"
+modules:
+  output:
+    type: Output
+    output_dir: out
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![(
+                "output.overwrite_files".to_string(),
+                "FailIfDirectoryExists".to_string(),
+            )],
+        };
+        let config = Config::from_args(args);
+        assert_eq!(
+            config.output().overwrite_files,
+            OverwriteFiles::FailIfDirectoryExists
+        );
+    }
+
+    #[test]
     fn test_override_partitioning_num_parts() {
         let yaml = r#"
 modules:
@@ -1187,6 +1257,7 @@ modules:
 
         config.set_output(Output {
             output_dir: "out".into(),
+            overwrite_files: OverwriteFiles::OverwriteExistingFiles,
             profiling: Profiling::None,
             logging: Logging::Info,
             write_events: WriteEvents::None,

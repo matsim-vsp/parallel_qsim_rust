@@ -1,7 +1,7 @@
 use crate::simulation::id::Id;
 use flate2::bufread::GzDecoder;
-use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
+use quick_xml::events::{BytesStart, Event};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;

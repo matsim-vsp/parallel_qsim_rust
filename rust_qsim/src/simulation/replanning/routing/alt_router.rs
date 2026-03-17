@@ -141,11 +141,7 @@ impl AltRouter {
 
             h = h.max(forward_estimate.max(backward_estimate))
         }
-        if h < 0 {
-            0
-        } else {
-            h as u32
-        }
+        if h < 0 { 0 } else { h as u32 }
     }
 
     fn extract_path(to: usize, parent: Vec<Option<usize>>) -> Vec<usize> {

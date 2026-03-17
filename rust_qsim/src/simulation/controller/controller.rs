@@ -1,5 +1,5 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::config::{write_config, Config, Logging};
+use crate::simulation::config::{write_config, Config, Logging, OverwriteFiles};
 use crate::simulation::controller::{
     create_output_filename, insert_number_in_proto_filename, ExternalServices,
     PartitionArgumentsBuilder,
@@ -139,10 +139,10 @@ impl Controller {
             .process_event(ControllerEvent::startup(true));
 
         let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
-
         let events_path = output_path.join("events");
 
-        fs::create_dir_all(&output_path).expect("Failed to create output path");
+        prepare_output_directory(&output_path, self.config.output().overwrite_files)
+            .unwrap_or_else(|err| panic!("{err}"));
         fs::create_dir_all(&events_path).expect("Failed to create events output path");
 
         if Logging::Info == self.config.output().logging {
@@ -277,5 +277,88 @@ impl Controller {
 
     fn write_output_id_store(output_path: &Path) {
         id::store_to_file(&output_path.join("output_ids.binpb"));
+    }
+}
+
+fn prepare_output_directory(
+    output_path: &Path,
+    overwrite_files: OverwriteFiles,
+) -> Result<(), String> {
+    if output_path.exists() {
+        match overwrite_files {
+            OverwriteFiles::DeleteDirectoryIfExists => {
+                fs::remove_dir_all(output_path).map_err(|err| {
+                    format!(
+                        "Failed to delete existing output directory {}: {}",
+                        output_path.display(),
+                        err
+                    )
+                })?
+            }
+            OverwriteFiles::FailIfDirectoryExists => {
+                return Err(format!(
+                    "Output directory already exists: {}",
+                    output_path.display()
+                ));
+            }
+            OverwriteFiles::OverwriteExistingFiles => {}
+        }
+    }
+
+    fs::create_dir_all(output_path).map_err(|err| {
+        format!(
+            "Failed to create output path {}: {}",
+            output_path.display(),
+            err
+        )
+    })?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prepare_output_directory;
+    use crate::simulation::config::OverwriteFiles;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn delete_directory_if_exists_recreates_output_dir() {
+        let dir = tempdir().unwrap();
+        let output_dir = dir.path().join("output");
+        fs::create_dir_all(&output_dir).unwrap();
+        let stale_file = output_dir.join("stale.txt");
+        fs::write(&stale_file, "stale").unwrap();
+
+        prepare_output_directory(&output_dir, OverwriteFiles::DeleteDirectoryIfExists).unwrap();
+
+        assert!(output_dir.exists());
+        assert!(!stale_file.exists());
+    }
+
+    #[test]
+    fn fail_if_directory_exists_returns_error() {
+        let dir = tempdir().unwrap();
+        let output_dir = dir.path().join("output");
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let result = prepare_output_directory(&output_dir, OverwriteFiles::FailIfDirectoryExists);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn overwrite_existing_files_keeps_existing_directory_contents() {
+        let dir = tempdir().unwrap();
+        let output_dir = dir.path().join("output");
+        fs::create_dir_all(&output_dir).unwrap();
+        let existing_file = output_dir.join("existing.txt");
+        fs::write(&existing_file, "keep").unwrap();
+
+        prepare_output_directory(&output_dir, OverwriteFiles::OverwriteExistingFiles).unwrap();
+
+        assert!(output_dir.exists());
+        assert!(existing_file.exists());
     }
 }

@@ -257,11 +257,13 @@ mod test {
 
         // No link allows mode "walk". So the graph is expected to be empty.
         let walk_id = &Id::<InternalVehicleType>::get_from_ext("walk");
-        assert!(vehicle_type2graph
-            .get(walk_id)
-            .unwrap()
-            .forward_link_ids()
-            .is_empty());
+        assert!(
+            vehicle_type2graph
+                .get(walk_id)
+                .unwrap()
+                .forward_link_ids()
+                .is_empty()
+        );
 
         // Test for mode "car"
         let car_id = &Id::<InternalVehicleType>::get_from_ext("car");

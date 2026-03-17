@@ -12,10 +12,10 @@ use std::time::{Instant, SystemTime};
 use tracing::field::Field;
 use tracing::span::Attributes;
 use tracing::{Id, Metadata, Subscriber};
+use tracing_subscriber::Layer;
 use tracing_subscriber::field::Visit;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::{Extensions, LookupSpan};
-use tracing_subscriber::Layer;
 
 use arrow2::array::{Array, Int64Array, Utf8Array};
 use arrow2::chunk::Chunk;
@@ -305,9 +305,12 @@ where
         let mut extensions = span.extensions_mut();
 
         let option = extensions.replace(SpanDuration::new());
-        assert!(option.is_none(), "Trying to initialize Span, but it already exists. This should not happen. \
+        assert!(
+            option.is_none(),
+            "Trying to initialize Span, but it already exists. This should not happen. \
         It might happen, if multiple Layers are trying to insert the same type into the extensions. \
-        Check the configuration of the Layers with respect to their including/excluding module path.");
+        Check the configuration of the Layers with respect to their including/excluding module path."
+        );
 
         let mut visitor = MetadataVisitor::new();
         attrs.record(&mut visitor as &mut dyn Visit);
@@ -477,10 +480,10 @@ mod tests {
 
     use tracing::level_filters::LevelFilter;
     use tracing::{info, instrument};
-    use tracing_subscriber::fmt::format::FmtSpan;
-    use tracing_subscriber::fmt::Layer;
-    use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::Layer as OtherLayer;
+    use tracing_subscriber::fmt::Layer;
+    use tracing_subscriber::fmt::format::FmtSpan;
+    use tracing_subscriber::layer::SubscriberExt;
 
     use crate::simulation::profiling::SpanDurationToFileLayer;
 

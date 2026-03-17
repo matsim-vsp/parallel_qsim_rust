@@ -16,6 +16,7 @@ modules:
         - Constant
   output:
     type: Output
+    overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/pt_tutorial
   routing:
     type: Routing

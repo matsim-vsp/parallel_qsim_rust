@@ -1,6 +1,6 @@
 use ahash::AHasher;
-use rand::rngs::SmallRng;
 use rand::SeedableRng;
+use rand::rngs::SmallRng;
 use std::hash::{Hash, Hasher};
 
 /// Random number generator utilities similar to MATSim's MatsimRandom in Java.
