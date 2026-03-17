@@ -42,7 +42,7 @@ where
 #[integration_test(rust_qsim)]
 fn execute_equil_single_part() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
-    let config = Arc::new(Config::from(config_args));
+    let config = Arc::new(Config::from_args(config_args));
 
     TestExecutorBuilder::default()
         .config(config)
@@ -55,7 +55,7 @@ fn execute_equil_single_part() {
 #[integration_test(rust_qsim)]
 fn execute_equil_2_parts() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
-    let config = Arc::new(Config::from(config_args));
+    let config = Arc::new(Config::from_args(config_args));
 
     TestExecutorBuilder::default()
         .config(config)
@@ -75,7 +75,7 @@ fn execute_equil_adaptive_planning_single_part_panics() {
     // panics because no external service is provided
     execute_adaptive(
         test_dir,
-        Config::from(CommandLineArgs::new_with_path(config_path)),
+        Config::from_args(CommandLineArgs::new_with_path(config_path)),
         expected_events,
         ExternalServices::default(),
         vec![],
@@ -91,7 +91,7 @@ fn execute_equil_adaptive_planning_single_part() {
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let config = Config::from(CommandLineArgs::new_with_path(config_path));
+    let config = Config::from_args(CommandLineArgs::new_with_path(config_path));
 
     let parts = config.partitioning().num_parts + 1;
     let barrier = Arc::new(Barrier::new(parts as usize));
@@ -127,7 +127,7 @@ fn execute_equil_adaptive_planning_two_parts() {
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let config = Config::from(CommandLineArgs::new_with_path(config_path));
+    let config = Config::from_args(CommandLineArgs::new_with_path(config_path));
 
     let barrier = Arc::new(Barrier::new((config.partitioning().num_parts + 1) as usize));
     let executor = AsyncExecutor::from_config(&config, barrier.clone());

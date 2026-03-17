@@ -13,7 +13,7 @@ fn main() {
     info!("Started with args: {:?}", args);
 
     // Load and adapt config
-    let config = Arc::new(Config::from(args));
+    let config = Arc::new(Config::from_args(args));
 
     // Load and adapt mod
     let scenario = MutableScenario::load(config);

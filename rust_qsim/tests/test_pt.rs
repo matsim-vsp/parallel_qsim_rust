@@ -16,7 +16,7 @@ mod test_simulation;
 fn test_pt_tutorial() {
     TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
 
-    let config = Arc::new(Config::from(CommandLineArgs::new_with_path(
+    let config = Arc::new(Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/pt_tutorial/pt_tutorial_config.yml",
     )));
 
@@ -53,7 +53,7 @@ fn test_pt_adaptive(pop_path: PathBuf) {
         .overrides
         .push((String::from("routing.mode"), String::from("ad-hoc")));
 
-    let mut c = Config::from(config_args);
+    let mut c = Config::from_args(config_args);
     c.population_mut().path = Some(pop_path);
 
     let config = Arc::new(c);

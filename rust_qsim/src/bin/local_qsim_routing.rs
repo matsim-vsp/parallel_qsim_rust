@@ -24,7 +24,7 @@ fn main() {
 
     info!("Starting with args: {:?}", args);
 
-    let config = Arc::new(Config::from(args.delegate));
+    let config = Arc::new(Config::from_args(args.delegate));
 
     // Creating the routing adapter is only one task, so we add 1 and not the number of worker threads!
     let total_thread_count = config.partitioning().num_parts + 1;
