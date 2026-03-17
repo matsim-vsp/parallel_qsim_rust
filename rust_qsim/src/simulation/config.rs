@@ -11,7 +11,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::{Path, PathBuf};
-use tracing::{Level, info, warn};
+use tracing::{info, warn, Level};
 
 pub const DEFAULT_RANDOM_SEED: u64 = 4711;
 
@@ -686,8 +686,8 @@ pub enum RoutingMode {
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum OverwriteFile {
     DeleteDirectoryIfExists,
-    FailIfDirectoryExists,
     #[default]
+    FailIfDirectoryExists,
     OverwriteExistingFiles,
 }
 
@@ -877,8 +877,8 @@ mod tests {
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
-        CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight,
-        MetisOptions, PartitionMethod, Partitioning, Simulation, VertexWeight, parse_key_val,
+        parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType, DrtService,
+        EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation, VertexWeight,
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
