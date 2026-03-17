@@ -13,7 +13,7 @@ fn teleport_network_route() {
     );
 
     TestExecutorBuilder::default()
-        .config(Arc::new(Config::from(config_args)))
+        .config(Arc::new(Config::from_args(config_args)))
         .expected_events(Some(
             "./tests/resources/equil/expected_events_teleport_network_route.xml",
         ))
@@ -30,7 +30,7 @@ fn teleport_generic_route() {
     );
 
     TestExecutorBuilder::default()
-        .config(Arc::new(Config::from(config_args)))
+        .config(Arc::new(Config::from_args(config_args)))
         .expected_events(Some(
             "./tests/resources/equil/expected_events_teleport_generic_route.xml",
         ))
@@ -47,7 +47,7 @@ fn simulate_network_route() {
     );
 
     TestExecutorBuilder::default()
-        .config(Arc::new(Config::from(config_args)))
+        .config(Arc::new(Config::from_args(config_args)))
         .expected_events(Some(
             "./tests/resources/equil/expected_events_simulate_network_route.xml",
         ))
@@ -65,7 +65,7 @@ fn simulate_generic_route_panics() {
     );
 
     TestExecutorBuilder::default()
-        .config(Arc::new(Config::from(config_args)))
+        .config(Arc::new(Config::from_args(config_args)))
         .expected_events(None)
         .build()
         .unwrap()

@@ -10,7 +10,7 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::{info, warn, Level};
 
 pub const DEFAULT_RANDOM_SEED: u64 = 4711;
@@ -80,21 +80,21 @@ impl Default for Config {
     }
 }
 
-impl From<CommandLineArgs> for Config {
-    fn from(args: CommandLineArgs) -> Self {
-        let mut config = Config::from(args.config.parse::<PathBuf>().unwrap());
+impl Config {
+    pub fn from_args(args: CommandLineArgs) -> Self {
+        let mut config = Config::from_path(args.config);
         config.apply_overrides(&args.overrides);
         config
     }
-}
 
-impl From<PathBuf> for Config {
-    fn from(config_path: PathBuf) -> Self {
+    pub fn from_path(config_path: impl AsRef<Path>) -> Self {
+        let path_buf = config_path.as_ref().to_path_buf();
+
         let reader: Box<dyn BufRead>;
 
         // Check if the path is a URL
-        let path = &config_path.to_string_lossy();
-        if is_url(path) {
+        let path = config_path.as_ref().to_string_lossy();
+        if is_url(&*path) {
             #[cfg(feature = "http")]
             {
                 reader = Self::url_file_reader(path.parse().unwrap());
@@ -104,23 +104,21 @@ impl From<PathBuf> for Config {
                 panic!("HTTP support is not enabled. Please recompile with the `http` feature enabled.");
             }
         } else {
-            reader = Self::local_file_reader(&config_path);
+            reader = Self::local_file_reader(config_path.as_ref());
         }
 
         // Parse YAML into Config
         let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
             panic!(
                 "Failed to parse config at {:?}. Original error was: {}",
-                config_path, e
+                path, e
             )
         });
-        config.set_context(Some(config_path.clone()));
+        config.set_context(Some(path_buf));
         config.ensure_defaults();
         config
     }
-}
 
-impl Config {
     /// Ensures that all modules with defaults are present in the config.
     /// Called after deserialization to guarantee that read accessors won't panic
     /// for modules that have sensible defaults.
@@ -346,12 +344,13 @@ impl Config {
         &self.context
     }
 
-    fn local_file_reader(config_path: &PathBuf) -> Box<dyn BufRead> {
+    fn local_file_reader(config_path: impl AsRef<Path>) -> Box<dyn BufRead> {
         // Open the config file from the local file system
         let file = File::open(&config_path).unwrap_or_else(|e| {
             panic!(
                 "Failed to open config file at {:?}. Original error was {}",
-                config_path, e
+                config_path.as_ref(),
+                e
             );
         });
         // Wrap the file in a BufReader for YAML parsing
@@ -1073,7 +1072,7 @@ modules:
             overrides: vec![("population.path".to_string(), "new_pop".to_string())],
         };
 
-        let config = Config::from(args);
+        let config = Config::from_args(args);
 
         assert_eq!(
             config.population().path.as_ref().unwrap().to_str().unwrap(),
@@ -1093,7 +1092,7 @@ modules:
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![],
         };
-        let config = Config::from(args);
+        let config = Config::from_args(args);
         assert_eq!(config.population().path, None);
     }
 
@@ -1110,7 +1109,7 @@ modules:
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![],
         };
-        let config = Config::from(args);
+        let config = Config::from_args(args);
         assert_eq!(config.population().path, None);
     }
 
@@ -1127,7 +1126,7 @@ modules:
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![("output.output_dir".to_string(), "new_out".to_string())],
         };
-        let config = Config::from(args);
+        let config = Config::from_args(args);
         assert_eq!(config.output().output_dir.to_str().unwrap(), "new_out");
     }
 
@@ -1148,7 +1147,7 @@ modules:
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![("partitioning.num_parts".to_string(), "5".to_string())],
         };
-        let config = Config::from(args);
+        let config = Config::from_args(args);
         assert_eq!(config.partitioning().num_parts, 5);
     }
 
