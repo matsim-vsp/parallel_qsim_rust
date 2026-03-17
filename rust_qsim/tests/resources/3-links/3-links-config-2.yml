@@ -16,7 +16,7 @@ modules:
         - Constant
   output:
     type: Output
-    overwrite_file: DeleteDirectoryIfExists
+    overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/execute_3_links_2_parts
   simulation:
     type: Simulation
@@ -24,4 +24,3 @@ modules:
   routing:
     type: Routing
     mode: UsePlans
-

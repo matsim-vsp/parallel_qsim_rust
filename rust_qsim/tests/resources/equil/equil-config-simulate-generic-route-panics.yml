@@ -14,7 +14,7 @@ modules:
     method: !Metis
   output:
     type: Output
-    overwrite_file: DeleteDirectoryIfExists
+    overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/output-simulate-generic-route-panics
     write_events: Proto
   routing:

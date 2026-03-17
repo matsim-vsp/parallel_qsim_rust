@@ -433,7 +433,7 @@ register_override!("partitioning.num_parts", |config, value| {
 pub struct Output {
     pub output_dir: PathBuf,
     #[serde(default)]
-    pub overwrite_file: OverwriteFile,
+    pub overwrite_files: OverwriteFiles,
     #[serde(default)]
     pub profiling: Profiling,
     #[serde(default)]
@@ -446,7 +446,7 @@ impl Default for Output {
     fn default() -> Self {
         Self {
             output_dir: "./output".parse().unwrap(),
-            overwrite_file: OverwriteFile::FailIfDirectoryExists,
+            overwrite_files: OverwriteFiles::FailIfDirectoryExists,
             profiling: Profiling::None,
             logging: Logging::None,
             write_events: WriteEvents::None,
@@ -458,8 +458,8 @@ register_override!("output.output_dir", |config, value| {
     config.output_mut().output_dir = PathBuf::from(value);
 });
 
-register_override!("output.overwrite_file", |config, value| {
-    config.output_mut().overwrite_file = parse_overwrite_file(value);
+register_override!("output.overwrite_files", |config, value| {
+    config.output_mut().overwrite_files = parse_overwrite_file(value);
 });
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -684,19 +684,19 @@ pub enum RoutingMode {
 }
 
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum OverwriteFile {
+pub enum OverwriteFiles {
     DeleteDirectoryIfExists,
     #[default]
     FailIfDirectoryExists,
     OverwriteExistingFiles,
 }
 
-fn parse_overwrite_file(value: &str) -> OverwriteFile {
+fn parse_overwrite_file(value: &str) -> OverwriteFiles {
     match value.to_lowercase().replace(['-', '_'], "").as_str() {
-        "deletedirectoryifexists" => OverwriteFile::DeleteDirectoryIfExists,
-        "failifdirectoryexists" => OverwriteFile::FailIfDirectoryExists,
-        "overwriteexistingfiles" => OverwriteFile::OverwriteExistingFiles,
-        _ => panic!("Invalid overwrite_file mode: {}", value),
+        "deletedirectoryifexists" => OverwriteFiles::DeleteDirectoryIfExists,
+        "failifdirectoryexists" => OverwriteFiles::FailIfDirectoryExists,
+        "overwriteexistingfiles" => OverwriteFiles::OverwriteExistingFiles,
+        _ => panic!("Invalid overwrite_files mode: {}", value),
     }
 }
 
@@ -872,7 +872,7 @@ fn default_profiling_level() -> String {
 mod tests {
     use crate::simulation::config;
     use crate::simulation::config::Output;
-    use crate::simulation::config::OverwriteFile;
+    use crate::simulation::config::OverwriteFiles;
     use crate::simulation::config::PathBuf;
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
@@ -1158,13 +1158,13 @@ modules:
     }
 
     #[test]
-    fn test_parse_output_overwrite_file() {
+    fn test_parse_output_overwrite_files() {
         let yaml = r#"
 modules:
   output:
     type: Output
     output_dir: out
-    overwrite_file: DeleteDirectoryIfExists
+    overwrite_files: DeleteDirectoryIfExists
 "#;
         let file = write_temp_config(yaml);
         let args = CommandLineArgs {
@@ -1173,13 +1173,13 @@ modules:
         };
         let config = Config::from_args(args);
         assert_eq!(
-            config.output().overwrite_file,
-            OverwriteFile::DeleteDirectoryIfExists
+            config.output().overwrite_files,
+            OverwriteFiles::DeleteDirectoryIfExists
         );
     }
 
     #[test]
-    fn test_override_output_overwrite_file() {
+    fn test_override_output_overwrite_files() {
         let yaml = r#"
 modules:
   output:
@@ -1190,14 +1190,14 @@ modules:
         let args = CommandLineArgs {
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![(
-                "output.overwrite_file".to_string(),
+                "output.overwrite_files".to_string(),
                 "FailIfDirectoryExists".to_string(),
             )],
         };
         let config = Config::from_args(args);
         assert_eq!(
-            config.output().overwrite_file,
-            OverwriteFile::FailIfDirectoryExists
+            config.output().overwrite_files,
+            OverwriteFiles::FailIfDirectoryExists
         );
     }
 
@@ -1257,7 +1257,7 @@ modules:
 
         config.set_output(Output {
             output_dir: "out".into(),
-            overwrite_file: OverwriteFile::OverwriteExistingFiles,
+            overwrite_files: OverwriteFiles::OverwriteExistingFiles,
             profiling: Profiling::None,
             logging: Logging::Info,
             write_events: WriteEvents::None,

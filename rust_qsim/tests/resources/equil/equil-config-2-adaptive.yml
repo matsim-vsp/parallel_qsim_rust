@@ -19,7 +19,7 @@ modules:
         - Constant
   output:
     type: Output
-    overwrite_file: DeleteDirectoryIfExists
+    overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/equil_with_channels-adaptive
   routing:
     type: Routing

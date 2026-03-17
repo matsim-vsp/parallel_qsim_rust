@@ -13,10 +13,9 @@ modules:
         - Constant
   output:
     type: Output
-    overwrite_file: DeleteDirectoryIfExists
+    overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/adhoc_routing/with_updates/one_part
     logging: Info
   routing:
     type: Routing
     mode: AdHoc
-
