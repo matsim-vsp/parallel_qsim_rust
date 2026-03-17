@@ -224,7 +224,7 @@ fn read_csv_structs(path: &Path) -> Vec<RoutingRow> {
 fn read_parquet_structs(path: &std::path::Path) -> Vec<RoutingRow> {
     use arrow2::array::Int64Array;
     use arrow2::array::Utf8Array;
-    use arrow2::io::parquet::read::{infer_schema, read_metadata, FileReader};
+    use arrow2::io::parquet::read::{FileReader, infer_schema, read_metadata};
     use std::fs::File;
 
     let mut file = BufReader::new(File::open(path).unwrap());

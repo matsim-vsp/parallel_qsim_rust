@@ -1,6 +1,6 @@
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
-use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::vehicles::SimulationVehicle;
 use tracing::instrument;

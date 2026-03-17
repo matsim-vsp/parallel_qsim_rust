@@ -236,12 +236,12 @@ impl EndTime for AsleepSimulationAgent {
 
 #[cfg(test)]
 mod tests {
+    use crate::external_services::ExternalServiceType;
     use crate::external_services::routing::{
         InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
     };
-    use crate::external_services::ExternalServiceType;
-    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::agents::SimulationAgentLogic;
+    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::config::Config;
     use crate::simulation::controller::{
         RequestSender, ThreadLocalComputationalEnvironment,

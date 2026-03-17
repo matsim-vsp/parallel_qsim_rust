@@ -101,13 +101,13 @@ impl TravelTimeCollector {
 
 #[cfg(test)]
 mod test {
+    use crate::simulation::InternalAttributes;
     use crate::simulation::events::{LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent};
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::travel_time_collector::TravelTimeCollector;
     use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::population::InternalPerson;
     use crate::simulation::scenario::vehicles::InternalVehicle;
-    use crate::simulation::InternalAttributes;
     use macros::integration_test;
 
     fn link_enter_event(

@@ -1,6 +1,6 @@
+use rand::SeedableRng;
 use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
-use rand::SeedableRng;
 
 use crate::simulation::replanning::routing::dijsktra::Dijkstra;
 use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;

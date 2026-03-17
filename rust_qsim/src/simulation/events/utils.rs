@@ -1,7 +1,7 @@
 use crate::generated::events::MyEvent;
 use crate::simulation::events::comparision::EventBatch;
-use crate::simulation::events::{comparision, EventsManager};
-use crate::simulation::io::proto::proto_events::{process_events, ProtoEventsReader};
+use crate::simulation::events::{EventsManager, comparision};
+use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::logging::init_std_out_logging_thread_local;
 use std::io::{Read, Seek};

@@ -529,13 +529,13 @@ pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsMana
 #[cfg(test)]
 mod tests {
     use crate::generated::events::MyEvent;
+    use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
         ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
         EventTrait, GeneralEvent, GeneralEventBuilder,
     };
     use crate::simulation::id::Id;
     use crate::simulation::io::proto::proto_events::{ProtoEventsReader, ProtoEventsWriter};
-    use crate::simulation::InternalAttributes;
     use macros::integration_test;
     use std::collections::HashMap;
     use std::fs;

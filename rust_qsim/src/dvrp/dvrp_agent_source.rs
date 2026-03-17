@@ -1,10 +1,10 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
 use crate::simulation::population::agent_source::AgentSource;
+use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::scenario::ScenarioPartition;
 use std::collections::HashMap;
 use tracing::info;
 

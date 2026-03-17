@@ -249,7 +249,7 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::attributes::IOAttribute;
     use crate::simulation::io::xml::population::{
-        load_from_xml, IOActivity, IOLeg, IOPlanElement, IOPopulation,
+        IOActivity, IOLeg, IOPlanElement, IOPopulation, load_from_xml,
     };
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::vehicles::Garage;
@@ -403,7 +403,12 @@ mod tests {
         assert_eq!(route.trav_time, Some(String::from("00:10:01")));
         assert!(route.distance.is_nan());
         assert_eq!(route.vehicle, None);
-        assert_eq!(route.route, Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")));
+        assert_eq!(
+            route.route,
+            Some(String::from(
+                "{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}"
+            ))
+        );
     }
 
     #[test]

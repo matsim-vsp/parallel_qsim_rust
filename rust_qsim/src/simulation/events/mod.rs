@@ -2,11 +2,11 @@ mod comparision;
 pub mod utils;
 
 use crate::generated::events::MyEvent;
+use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::InternalAttributes;
 use macros::event_struct;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -587,8 +587,8 @@ mod tests {
             cloned_ptr_to_any_collection
                 .borrow_mut()
                 .push(String::from(event.type_())); // cannot clone event without knowing
-                                                    // type, so we just store the type here,
-                                                    // for testing
+            // type, so we just store the type here,
+            // for testing
         });
 
         // this registers a function in the events manager s.t. when the finish function is called,

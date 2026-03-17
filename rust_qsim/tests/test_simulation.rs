@@ -8,7 +8,7 @@ use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Barrier};
 use std::thread;
 
@@ -191,7 +191,9 @@ impl TestSubscriber {
             }
             #[cfg(not(feature = "http"))]
             {
-                panic!("HTTP support is not enabled. Please recompile with the `http` feature enabled.");
+                panic!(
+                    "HTTP support is not enabled. Please recompile with the `http` feature enabled."
+                );
             }
         } else {
             let file = File::open(events_file)

@@ -1,5 +1,6 @@
 use crate::generated::population::leg::Route;
 use crate::generated::population::{Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription};
+use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::population::{
@@ -8,7 +9,6 @@ use crate::simulation::io::xml::population::{
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::InternalAttributes;
 use itertools::{EitherOrBoth, Itertools};
 use serde_json::{Error, Value};
 use std::collections::HashMap;
@@ -35,7 +35,9 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
             .collect();
         Population { persons }
     } else {
-        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!(
+            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+        );
     }
 }
 
@@ -843,10 +845,12 @@ mod tests {
         // check that we have all three vehicle types
         let expected_veh_types = HashSet::from(["car", "bike", "walk"]);
         assert_eq!(3, garage.vehicle_types.len());
-        assert!(garage
-            .vehicle_types
-            .keys()
-            .all(|type_id| expected_veh_types.contains(type_id.external())));
+        assert!(
+            garage
+                .vehicle_types
+                .keys()
+                .all(|type_id| expected_veh_types.contains(type_id.external()))
+        );
 
         // check that we have a vehicle for each mode and for each person
         assert_eq!(9, garage.vehicles.len());
@@ -983,7 +987,9 @@ mod tests {
                 trav_time: Some("00:20:00".to_string()),
                 distance: f64::NAN,
                 vehicle: None,
-                route: Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")),
+                route: Some(String::from(
+                    "{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}",
+                )),
             }),
             attributes: None,
         };

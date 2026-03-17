@@ -1,19 +1,19 @@
 use std::io;
 use std::path::Path;
-use tracing::dispatcher::DefaultGuard;
 use tracing::Level;
+use tracing::dispatcher::DefaultGuard;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::{fmt, registry};
 use tracing_subscriber::{EnvFilter, Layer};
+use tracing_subscriber::{fmt, registry};
 
 use crate::simulation::config::{Config, Logging, Profiling};
 use crate::simulation::io::resolve_path;
-use crate::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
 use crate::simulation::profiling::SpanDurationToFileLayer;
+use crate::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
 
 // This is a helper struct to store the logger guards. When they are dropped, logging can be reset.
 #[allow(dead_code)]

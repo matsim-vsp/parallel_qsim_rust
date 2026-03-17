@@ -1,11 +1,11 @@
+use crate::simulation::InternalAttributes;
 use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_network::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::attributes::IOAttributes;
 use crate::simulation::io::xml::network;
-use crate::simulation::io::xml::network::{write_to_xml, IOLink, IONetwork, IONode};
+use crate::simulation::io::xml::network::{IOLink, IONetwork, IONode, write_to_xml};
 use crate::simulation::network::metis_partitioning;
-use crate::simulation::InternalAttributes;
 use itertools::Itertools;
 use nohash_hasher::{IntMap, IntSet};
 use std::collections::HashSet;
@@ -427,7 +427,7 @@ mod tests {
     use crate::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::network::{IOLink, IONode};
-    use crate::simulation::scenario::network::{add_io_link, add_io_node, Link, Network, Node};
+    use crate::simulation::scenario::network::{Link, Network, Node, add_io_link, add_io_node};
     use macros::integration_test;
 
     #[integration_test]

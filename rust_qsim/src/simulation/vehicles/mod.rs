@@ -1,5 +1,5 @@
-use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::SimulationAgentLogic;
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;

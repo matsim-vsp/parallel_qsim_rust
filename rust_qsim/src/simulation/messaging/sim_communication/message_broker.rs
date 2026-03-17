@@ -165,8 +165,8 @@ mod tests {
     use crate::test_utils::create_agent;
     use macros::integration_test;
     use std::rc::Rc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
 
     #[integration_test]

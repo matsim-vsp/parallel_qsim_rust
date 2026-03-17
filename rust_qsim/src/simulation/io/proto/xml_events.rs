@@ -1,14 +1,14 @@
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Mutex;
 use tracing::info;
+use xml::EventReader;
 use xml::attribute::OwnedAttribute;
 use xml::reader::XmlEvent;
-use xml::EventReader;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
@@ -140,24 +140,26 @@ impl XmlEventsWriter {
                 ev.route
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
-                    ev.time(),
-                    ev.type_(),
-                    ev.person,
-                    ev.link,
-                    ev.vehicle,
-                    ev.network_mode,
-                    ev.relative_position
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.vehicle,
+                ev.network_mode,
+                ev.relative_position
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
-                    ev.time(),
-                    ev.type_(),
-                    ev.person,
-                    ev.link,
-                    ev.vehicle,
-                    ev.network_mode,
-                    ev.relative_position
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.vehicle,
+                ev.network_mode,
+                ev.relative_position
             )
         } else {
             panic!("Unknown event type");

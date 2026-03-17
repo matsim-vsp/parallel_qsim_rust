@@ -14,10 +14,10 @@ mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
-use rust_qsim::simulation::id::{store_to_file, Id};
+use rust_qsim::simulation::id::{Id, store_to_file};
 use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::scenario::population::{
-    InternalPlanElement, Population, PREPLANNING_HORIZON,
+    InternalPlanElement, PREPLANNING_HORIZON, Population,
 };
 use rust_qsim::simulation::scenario::vehicles::Garage;
 
@@ -110,11 +110,13 @@ fn execute_equil_adaptive_planning_single_part() {
         config,
         expected_events,
         map.into(),
-        vec![AdapterHandleBuilder::default()
-            .handle(handle)
-            .shutdown_sender(shutdown)
-            .build()
-            .unwrap()],
+        vec![
+            AdapterHandleBuilder::default()
+                .handle(handle)
+                .shutdown_sender(shutdown)
+                .build()
+                .unwrap(),
+        ],
         barrier,
     );
 }
@@ -145,11 +147,13 @@ fn execute_equil_adaptive_planning_two_parts() {
         config,
         expected_events,
         map.into(),
-        vec![AdapterHandleBuilder::default()
-            .handle(handle)
-            .shutdown_sender(shutdown)
-            .build()
-            .unwrap()],
+        vec![
+            AdapterHandleBuilder::default()
+                .handle(handle)
+                .shutdown_sender(shutdown)
+                .build()
+                .unwrap(),
+        ],
         barrier,
     );
 }

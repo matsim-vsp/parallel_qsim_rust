@@ -1,7 +1,7 @@
+use crate::external_services::ExternalServiceType;
 use crate::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
-use crate::external_services::ExternalServiceType;
 use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };

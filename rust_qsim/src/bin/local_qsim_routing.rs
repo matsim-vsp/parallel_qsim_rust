@@ -2,8 +2,8 @@ use clap::Parser;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::Config;
-use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::MutableScenario;
 use std::sync::{Arc, Barrier};
@@ -50,11 +50,13 @@ fn main() {
     let (router_handle, send, send_sd) = executor.spawn_thread("router", factory);
 
     // Creating the adapter handle. This is necessary for regulated shutdown of the adapter thread. Otherwise, the adapter might be stuck in a loop.
-    let adapters = vec![AdapterHandleBuilder::default()
-        .shutdown_sender(send_sd)
-        .handle(router_handle)
-        .build()
-        .unwrap()];
+    let adapters = vec![
+        AdapterHandleBuilder::default()
+            .shutdown_sender(send_sd)
+            .handle(router_handle)
+            .build()
+            .unwrap(),
+    ];
 
     // The request sender is passed to the controller.
     let mut services = ExternalServices::default();

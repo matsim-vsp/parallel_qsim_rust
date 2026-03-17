@@ -4,8 +4,8 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 use flate2::Compression;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use tracing::info;
 
 pub mod attributes;
@@ -118,7 +118,9 @@ pub fn write_to_file<T: Serialize>(serde_message: &T, path: &Path, dtd_spec: &st
         quick_xml::se::to_writer(ToFmtWrite(file_writer), &serde_message)
             .expect("failed to write serde message");
     } else {
-        panic!("Tried to write {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!(
+            "Tried to write {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+        );
     }
     info!("Finished writing file to: {path:?}");
 }

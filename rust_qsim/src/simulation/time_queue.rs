@@ -1,5 +1,5 @@
-use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
+use crate::simulation::id::serializable_type::StableTypeId;
 use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;

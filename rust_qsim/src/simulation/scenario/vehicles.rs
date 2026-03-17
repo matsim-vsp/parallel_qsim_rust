@@ -1,13 +1,13 @@
 use crate::generated::vehicles::{Vehicle, VehicleType};
+use crate::simulation::InternalAttributes;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::vehicles::{
-    load_from_xml, write_to_xml, IOVehicle, IOVehicleDefinitions, IOVehicleType,
+    IOVehicle, IOVehicleDefinitions, IOVehicleType, load_from_xml, write_to_xml,
 };
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::vehicles::SimulationVehicle;
-use crate::simulation::InternalAttributes;
 use nohash_hasher::IntMap;
 use std::path::Path;
 use tracing::info;
@@ -18,7 +18,9 @@ pub fn from_file(path: &Path) -> Garage {
     } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
         load_from_xml(path)
     } else {
-        panic!("Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!(
+            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+        );
     }
 }
 
@@ -324,7 +326,7 @@ mod tests {
     use crate::test_utils::create_vehicle_type;
 
     use crate::simulation::scenario::vehicles::{
-        add_io_veh_type, Garage, InternalVehicle, InternalVehicleType,
+        Garage, InternalVehicle, InternalVehicleType, add_io_veh_type,
     };
     use macros::integration_test;
 
