@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Fields, ItemFn, ItemStruct};
+use syn::{Fields, ItemFn, ItemStruct, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn integration_test(attr: TokenStream, item: TokenStream) -> TokenStream {
