@@ -8,8 +8,10 @@ use crate::simulation::scenario::ScenarioPartition;
 use std::collections::HashMap;
 use tracing::info;
 
+#[allow(unused)]
 pub struct DrtAgentSource {}
 
+#[allow(unused)]
 impl DrtAgentSource {
     fn add_drt_ids() {
         info!("Creating DRT ids.");

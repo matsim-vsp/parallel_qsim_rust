@@ -112,7 +112,7 @@ fn activity_at_mut(
     }
 }
 
-fn trip_spans<F>(plan_elements: &[InternalPlanElement], mut is_stage_activity: F) -> Vec<TripSpan>
+fn trip_spans<F>(plan_elements: &[InternalPlanElement], is_stage_activity: F) -> Vec<TripSpan>
 where
     F: Fn(&InternalActivity) -> bool,
 {

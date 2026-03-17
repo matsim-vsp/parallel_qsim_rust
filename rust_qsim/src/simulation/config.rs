@@ -18,7 +18,7 @@ pub const DEFAULT_RANDOM_SEED: u64 = 4711;
 /// Macro to register an override handler for a specific config key
 #[macro_export]
 macro_rules! register_override {
-    ($key:literal, $func:expr) => {
+    ($key:literal, $func:expr_2021) => {
         inventory::submit! {
             $crate::simulation::config::OverrideHandler {
                 key: $key,
