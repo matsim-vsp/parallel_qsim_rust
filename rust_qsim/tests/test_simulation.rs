@@ -17,6 +17,7 @@ use std::thread;
 use derive_more::Debug;
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::population::agent_source::DynAgentSource;
 
 #[derive(Debug, Builder)]
 #[builder(pattern = "owned")]
@@ -24,6 +25,8 @@ use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 // See https://zerotomastery.io/blog/complete-guide-to-testing-code-in-rust/#Integration-testing
 #[allow(dead_code)]
 pub struct TestExecutor<'s> {
+    #[debug(skip)]
+    agent_source: DynAgentSource,
     config: Arc<Config>,
     #[builder(default)]
     expected_events: Option<&'s str>,
@@ -104,6 +107,7 @@ impl TestExecutor<'_> {
             .event_handler_register_fn(subscribers)
             .external_services(self.external_services.clone())
             .global_barrier(self.global_barrier.clone())
+            .agent_source(self.agent_source)
             .adapter_handles(self.adapter_handles)
             .build()
             .unwrap();

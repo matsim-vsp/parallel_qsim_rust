@@ -16,6 +16,34 @@ pub trait AgentSource {
     ) -> HashMap<Id<InternalPerson>, SimulationAgent>;
 }
 
+pub trait IntoDynAgentSource {
+    fn into_dyn_agent_source(self) -> DynAgentSource;
+}
+
+impl<T> IntoDynAgentSource for T
+where
+    T: AgentSource + Send + Sync + 'static,
+{
+    fn into_dyn_agent_source(self) -> DynAgentSource {
+        Arc::new(self)
+    }
+}
+
+impl<T> IntoDynAgentSource for Arc<T>
+where
+    T: AgentSource + Send + Sync + 'static,
+{
+    fn into_dyn_agent_source(self) -> DynAgentSource {
+        self
+    }
+}
+
+impl IntoDynAgentSource for DynAgentSource {
+    fn into_dyn_agent_source(self) -> DynAgentSource {
+        self
+    }
+}
+
 pub struct PopulationAgentSource;
 
 impl AgentSource for PopulationAgentSource {
@@ -84,5 +112,52 @@ fn identify_logic_and_insert(
         // if there is no rolling horizon logic, we assume that the person has a plan logic
         // and we create a InternalSimulationAgent with plan logic
         agents.insert(id, SimulationAgent::new_plan_based(person));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AgentSource, DynAgentSource, IntoDynAgentSource};
+    use crate::simulation::agents::agent::SimulationAgent;
+    use crate::simulation::id::Id;
+    use crate::simulation::scenario::ScenarioPartition;
+    use crate::simulation::scenario::population::InternalPerson;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    struct TestAgentSource;
+
+    impl AgentSource for TestAgentSource {
+        fn create_agents(
+            &self,
+            _scenario: &mut ScenarioPartition,
+        ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
+            HashMap::new()
+        }
+    }
+
+    #[test]
+    fn converts_concrete_agent_source_to_dyn_agent_source() {
+        let source = TestAgentSource.into_dyn_agent_source();
+
+        assert_eq!(Arc::strong_count(&source), 1);
+    }
+
+    #[test]
+    fn converts_arc_agent_source_to_dyn_agent_source() {
+        let source = Arc::new(TestAgentSource);
+        let dyn_source = source.clone().into_dyn_agent_source();
+
+        assert_eq!(Arc::strong_count(&source), 2);
+        assert_eq!(Arc::strong_count(&dyn_source), 2);
+    }
+
+    #[test]
+    fn accepts_existing_dyn_agent_source() {
+        let source: DynAgentSource = Arc::new(TestAgentSource);
+        let dyn_source = source.clone().into_dyn_agent_source();
+
+        assert_eq!(Arc::strong_count(&source), 2);
+        assert_eq!(Arc::strong_count(&dyn_source), 2);
     }
 }
