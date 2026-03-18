@@ -5,6 +5,7 @@ use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
 use rust_qsim::simulation::scenario::MutableScenario;
 use std::sync::{Arc, Barrier};
 use tracing::info;
@@ -68,6 +69,7 @@ fn main() {
     // Create controller
     let controller = ControllerBuilder::default_with_scenario(scenario)
         .external_services(services)
+        .agent_source(PreplanningHorizonAgentSource)
         .global_barrier(barrier)
         .adapter_handles(adapters)
         .build()

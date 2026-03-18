@@ -32,6 +32,10 @@ impl SimulationAgent {
             logic: Box::new(AdaptivePlanBasedSimulationLogic::new(person)),
         }
     }
+
+    pub fn new(logic: Box<dyn SimulationAgentLogic>) -> Self {
+        Self { logic }
+    }
 }
 
 impl EndTime for SimulationAgent {

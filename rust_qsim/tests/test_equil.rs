@@ -15,6 +15,7 @@ use crate::test_simulation::TestExecutorBuilder;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
 use rust_qsim::simulation::id::{Id, store_to_file};
+use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
 use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::scenario::population::{
     InternalPlanElement, PREPLANNING_HORIZON, Population,
@@ -226,6 +227,7 @@ fn execute_adaptive(
 
     TestExecutorBuilder::default()
         .config(Arc::new(config))
+        .agent_source(Arc::new(PreplanningHorizonAgentSource))
         .expected_events(Some(expected_events))
         .external_services(map)
         .adapter_handles(adapter_handles)

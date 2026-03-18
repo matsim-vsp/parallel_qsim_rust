@@ -11,7 +11,7 @@ use crate::simulation::framework_events::{
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::population::agent_source::{
-    AgentSource, DynAgentSource, PopulationAgentSource,
+    DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
 use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
@@ -124,11 +124,8 @@ impl ControllerBuilder {
         self
     }
 
-    pub fn agent_source<T>(mut self, source: impl Into<Arc<T>>) -> Self
-    where
-        T: AgentSource + Send + Sync + 'static,
-    {
-        self.agent_source = source.into();
+    pub fn agent_source(mut self, source: impl IntoDynAgentSource) -> Self {
+        self.agent_source = source.into_dyn_agent_source();
         self
     }
 
