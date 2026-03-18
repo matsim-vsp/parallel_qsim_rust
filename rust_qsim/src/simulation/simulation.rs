@@ -6,7 +6,7 @@ use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::framework_events::MobsimEvent;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
-use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
+use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::vehicles::SimulationVehicle;
 use std::fmt::Debug;
@@ -108,6 +108,7 @@ pub struct SimulationBuilder<C: SimCommunicator> {
     scenario: ScenarioPartition,
     net_message_broker: NetMessageBroker<C>,
     comp_env: ThreadLocalComputationalEnvironment,
+    agent_source: DynAgentSource,
 }
 
 impl<C: SimCommunicator> SimulationBuilder<C> {
@@ -115,18 +116,18 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
         scenario: ScenarioPartition,
         net_message_broker: NetMessageBroker<C>,
         comp_env: ThreadLocalComputationalEnvironment,
+        agent_source: DynAgentSource,
     ) -> Self {
         SimulationBuilder {
             scenario,
             net_message_broker,
             comp_env,
+            agent_source,
         }
     }
 
     pub fn build(mut self) -> Simulation<C> {
-        // this needs to be adapted if new agent sources are introduced
-        let agent_source = PopulationAgentSource {};
-        let agents = agent_source.create_agents(&mut self.scenario);
+        let agents = self.agent_source.create_agents(&mut self.scenario);
 
         let activity_engine = ActivityEngineBuilder::new(
             agents.into_values().collect(),

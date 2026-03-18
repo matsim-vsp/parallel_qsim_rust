@@ -213,3 +213,10 @@ You need to create protobuf files from the xml files. This can be done with the 
 ```shell
 cargo run --bin convert_to_binary --release -- --network network.xml --population population.xml --vehicles vehicles.xml --output-dir output --run-id run
 ```
+
+## RustRover settings
+
+If you use RustRover, you need to disable "Optimize Import". Otherwise, the imports are sorted differently compared to
+`cargo fmt`. This is a known
+issue: https://youtrack.jetbrains.com/issue/RUST-18774/Optimize-import-should-take-into-account-rustfmt-formatting-rules
+Hopefully, this will be fixed soon.

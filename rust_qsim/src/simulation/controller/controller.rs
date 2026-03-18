@@ -1,8 +1,8 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::config::{write_config, Config, Logging, OverwriteFiles};
+use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
 use crate::simulation::controller::{
-    create_output_filename, insert_number_in_proto_filename, ExternalServices,
-    PartitionArgumentsBuilder,
+    ExternalServices, PartitionArgumentsBuilder, create_output_filename,
+    insert_number_in_proto_filename,
 };
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
@@ -10,6 +10,9 @@ use crate::simulation::framework_events::{
     MobsimListenerRegisterFn,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
+use crate::simulation::population::agent_source::{
+    AgentSource, DynAgentSource, PopulationAgentSource,
+};
 use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
@@ -31,6 +34,8 @@ pub enum Scenario {
 pub struct Controller {
     scenario: Scenario,
     config: Arc<Config>,
+    #[debug(skip)]
+    agent_source: DynAgentSource,
     controller_events_manager: ControllerEventsManager,
     #[debug(skip)]
     event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
@@ -43,6 +48,7 @@ pub struct Controller {
 
 pub struct ControllerBuilder {
     scenario: MutableScenario,
+    agent_source: DynAgentSource,
     controller_event_register_fn: Vec<Box<ControllerListenerRegisterFn>>,
     event_handler_register_fn: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
     mobsim_event_register_fn: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
@@ -55,6 +61,7 @@ impl ControllerBuilder {
     pub fn default_with_scenario(scenario: MutableScenario) -> Self {
         ControllerBuilder {
             scenario,
+            agent_source: Arc::new(PopulationAgentSource),
             controller_event_register_fn: Vec::new(),
             event_handler_register_fn: HashMap::new(),
             mobsim_event_register_fn: HashMap::new(),
@@ -83,6 +90,7 @@ impl ControllerBuilder {
         Ok(Controller {
             scenario: Scenario::Full(self.scenario),
             config,
+            agent_source: self.agent_source,
             controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_register_fn,
             mobsim_event_listener_per_partition: self.mobsim_event_register_fn,
@@ -113,6 +121,14 @@ impl ControllerBuilder {
         v: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
     ) -> Self {
         self.mobsim_event_register_fn = v;
+        self
+    }
+
+    pub fn agent_source<T>(mut self, source: impl Into<Arc<T>>) -> Self
+    where
+        T: AgentSource + Send + Sync + 'static,
+    {
+        self.agent_source = source.into();
         self
     }
 
@@ -224,6 +240,7 @@ impl Controller {
                     .communicator(comm)
                     .global_barrier(self.global_barrier.clone())
                     .scenario_partition(partition)
+                    .agent_source(self.agent_source.clone())
                     .external_services(self.external_services.clone())
                     .event_handler(
                         self.event_handler_per_partition
