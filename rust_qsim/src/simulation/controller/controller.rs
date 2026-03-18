@@ -1,8 +1,8 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::config::{write_config, Config, Logging, OverwriteFiles};
+use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
 use crate::simulation::controller::{
-    create_output_filename, insert_number_in_proto_filename, ExternalServices,
-    PartitionArgumentsBuilder,
+    ExternalServices, PartitionArgumentsBuilder, create_output_filename,
+    insert_number_in_proto_filename,
 };
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
