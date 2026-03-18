@@ -632,17 +632,6 @@ fn trim_quotes(s: &Value) -> String {
     s.to_string().trim_matches('"').to_string()
 }
 
-fn parse_trav_time(
-    leg_trav_time: &Option<String>,
-    route_trav_time: &Option<String>,
-) -> Option<u32> {
-    if let Some(trav_time) = parse_time_opt(leg_trav_time) {
-        Some(trav_time)
-    } else {
-        parse_time_opt(route_trav_time)
-    }
-}
-
 fn parse_time_opt(value: &Option<String>) -> Option<u32> {
     if let Some(time) = value.as_ref() {
         parse_time(time)

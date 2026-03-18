@@ -404,12 +404,6 @@ pub struct IOPopulation {
 }
 
 impl IOPopulation {
-    pub fn new(name: Option<String>) -> IOPopulation {
-        IOPopulation {
-            persons: Vec::new(),
-        }
-    }
-
     pub fn from_file(file_path: &str) -> IOPopulation {
         let population: IOPopulation = xml::read_from_file(file_path);
         info!(
