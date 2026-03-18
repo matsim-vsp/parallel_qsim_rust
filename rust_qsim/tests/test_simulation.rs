@@ -4,6 +4,7 @@ use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
+use rust_qsim::simulation::population::agent_source::PopulationAgentSource;
 use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
 use std::fs::File;
@@ -26,6 +27,7 @@ use rust_qsim::simulation::population::agent_source::DynAgentSource;
 #[allow(dead_code)]
 pub struct TestExecutor<'s> {
     #[debug(skip)]
+    #[builder(default = "Arc::new(PopulationAgentSource)")]
     agent_source: DynAgentSource,
     config: Arc<Config>,
     #[builder(default)]
