@@ -9,6 +9,7 @@ use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
@@ -131,6 +132,8 @@ impl ThreadLocalComputationalEnvironment {
 pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
     scenario_partition: ScenarioPartition,
+    #[debug(skip)]
+    agent_source: DynAgentSource,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
@@ -181,8 +184,13 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
         }
     }
 
-    let mut simulation: Simulation<C> =
-        SimulationBuilder::new(partition, net_message_broker, comp_env).build();
+    let mut simulation: Simulation<C> = SimulationBuilder::new(
+        partition,
+        net_message_broker,
+        comp_env,
+        partition_arguments.agent_source,
+    )
+    .build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to

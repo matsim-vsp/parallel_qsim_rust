@@ -1,9 +1,13 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::id::Id;
-use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::ScenarioPartition;
 use std::collections::HashMap;
+use std::sync::Arc;
+
+// needs to be an Arc since agents are inserted on every partition.
+pub type DynAgentSource = Arc<dyn AgentSource + Send + Sync>;
 
 pub trait AgentSource {
     fn create_agents(
@@ -12,7 +16,7 @@ pub trait AgentSource {
     ) -> HashMap<Id<InternalPerson>, SimulationAgent>;
 }
 
-pub struct PopulationAgentSource {}
+pub struct PopulationAgentSource;
 
 impl AgentSource for PopulationAgentSource {
     fn create_agents(
