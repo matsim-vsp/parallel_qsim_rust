@@ -42,10 +42,12 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
     }
 }
 
-pub fn to_file(population: &Population, path: &Path) {
-    if path.extension().unwrap().eq("binpb") {
-        write_to_proto(population, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+pub fn to_file(population: &Population, path: impl AsRef<Path>) {
+    if path.as_ref().extension().unwrap().eq("binpb") {
+        write_to_proto(population, path.as_ref());
+    } else if path.as_ref().extension().unwrap().eq("xml")
+        || path.as_ref().extension().unwrap().eq("gz")
+    {
         crate::simulation::io::xml::population::write_to_xml(population, path);
     } else {
         panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
@@ -118,7 +120,7 @@ impl Population {
         }
     }
 
-    pub fn to_file(&self, file_path: &Path) {
+    pub fn to_file(&self, file_path: impl AsRef<Path>) {
         to_file(self, file_path);
     }
 }
@@ -210,11 +212,6 @@ impl InternalPerson {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct InternalPopulation {
-    pub persons: Vec<InternalPerson>,
-}
-
 impl InternalPerson {
     pub fn new(id: Id<InternalPerson>, plan: InternalPlan) -> Self {
         InternalPerson {
@@ -230,6 +227,10 @@ impl InternalPerson {
 
     pub fn plans(&self) -> &Vec<InternalPlan> {
         &self.plans
+    }
+
+    pub(crate) fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
     }
 
     pub fn plan_element_at(&self, index: usize) -> Option<&InternalPlanElement> {
@@ -370,7 +371,7 @@ impl InternalRoute {
     }
 
     fn from_io(io: IORoute, id: Id<InternalPerson>, mode: Id<String>) -> Self {
-        let external = format!("{}_{}", id.external(), mode.external());
+        let external = format!("{}_{}", id.external(), mode.external()); // TODO: we are defining a new id here, although IORoute may contain a VehicleRefId. Is this correct?
         let generic = InternalGenericRoute::new(
             Id::create(io.start_link.as_str()),
             Id::create(io.end_link.as_str()),
@@ -571,10 +572,7 @@ impl FromIOPerson<IOLeg> for InternalLeg {
             mode: mode.clone(),
             routing_mode,
             dep_time: parse_time_opt(&io.dep_time),
-            trav_time: parse_trav_time(
-                &io.trav_time,
-                &io.route.as_ref().and_then(|r| r.trav_time.clone()),
-            ),
+            trav_time: parse_time_opt(&io.trav_time),
             route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes
@@ -664,6 +662,14 @@ fn parse_time(value: &str) -> Option<u32> {
     } else {
         None
     }
+}
+
+// FIXME maybe this shouldn't be pub(crate) but just be used where it is
+pub(crate) fn write_timestr(time_secs: u32) -> String {
+    let hours = time_secs / 3600; // rounds towards zero, i.e., floors the result
+    let minutes = (time_secs % 3600) / 60;
+    let seconds = time_secs % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
 impl From<IOPerson> for InternalPerson {

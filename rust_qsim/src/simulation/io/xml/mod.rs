@@ -96,31 +96,60 @@ where
     }
 }
 
-pub fn write_to_file<T: Serialize>(serde_message: &T, path: &Path, dtd_spec: &str) {
-    let prefix = path.parent().unwrap();
+pub fn write_to_file<T: Serialize>(serde_message: &T, path: impl AsRef<Path>, dtd_spec: &str) {
+    let prefix = path.as_ref().parent().unwrap();
     fs::create_dir_all(prefix).unwrap();
-    let file = File::create(path).unwrap();
+    let file = File::create(path.as_ref()).unwrap();
     let mut file_writer = BufWriter::new(file);
 
-    info!("Starting to write file to: {path:?}");
-    if path.extension().unwrap().eq("gz") {
+    info!("Starting to write file to: {:?}", path.as_ref());
+    if path.as_ref().extension().unwrap().eq("gz") {
         let mut compressor = flate2::write::GzEncoder::new(file_writer, Compression::fast());
         compressor
             .write_all(dtd_spec.as_bytes())
             .expect("Failed to write header");
+
+        // add newline unless header already contained it
+        if !dtd_spec.ends_with('\n') {
+            compressor
+                .write_all(b"\n")
+                .expect("Failed to write newline after header");
+        }
+
         // serialize the actual message
-        quick_xml::se::to_writer(ToFmtWrite(compressor), &serde_message)
+        let mut tfw_compressor = ToFmtWrite(compressor);
+        let mut serializer = quick_xml::se::Serializer::new(&mut tfw_compressor);
+        serializer.indent(' ', 4);
+
+        // quick_xml::se::to_writer(ToFmtWrite(compressor), &serde_message)
+        serde_message
+            .serialize(serializer)
             .expect("Failed to write message to file");
-    } else if path.extension().unwrap().eq("xml") {
+    } else if path.as_ref().extension().unwrap().eq("xml") {
         file_writer
             .write_all(dtd_spec.as_bytes())
             .expect("Failed to write header");
-        quick_xml::se::to_writer(ToFmtWrite(file_writer), &serde_message)
+
+        // add newline unless header already contained it
+        if !dtd_spec.ends_with('\n') {
+            file_writer
+                .write_all(b"\n")
+                .expect("Failed to write newline after header");
+        }
+
+        let mut tfw_file_writer = ToFmtWrite(file_writer);
+        let mut serializer = quick_xml::se::Serializer::new(&mut tfw_file_writer);
+
+        serializer.indent(' ', 4);
+
+        // quick_xml::se::to_writer(ToFmtWrite(file_writer), &serde_message)
+        serde_message
+            .serialize(serializer)
             .expect("failed to write serde message");
     } else {
-        panic!("Tried to write {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!("Tried to write {:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension", path.as_ref());
     }
-    info!("Finished writing file to: {path:?}");
+    info!("Finished writing file to: {:?}", path.as_ref());
 }
 
 #[cfg(test)]

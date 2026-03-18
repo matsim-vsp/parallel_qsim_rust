@@ -10,12 +10,13 @@ use crate::simulation::framework_events::{
     MobsimListenerRegisterFn,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
+use crate::simulation::scenario::GlobalPopulation::Full;
 use crate::simulation::scenario::{Scenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::{fs, thread};
@@ -134,6 +135,11 @@ impl Controller {
         );
         fs::create_dir_all(&output_path).expect("Failed to create output path");
 
+        // TODO is is valid that we're writing output population before the program was run?
+        // Afterwards, the population is empty since it was distributed across partitions
+        info!("    ... Population ...");
+        self.write_output_population(output_path.clone());
+
         info!("=========== Start Iteration 0 ===========");
 
         self.controller_events_manager
@@ -155,6 +161,8 @@ impl Controller {
         self.write_output_config(output_path.clone());
         info!("    ... Network ...");
         self.write_output_network(output_path.clone());
+        // info!("    ... Population ...");
+        // self.write_output_population(output_path.clone());
 
         if self.scenario.config.output().write_events
             == crate::simulation::config::WriteEvents::Proto
@@ -243,7 +251,29 @@ impl Controller {
         self.scenario.network.to_file(&net_out_path);
     }
 
-    fn write_output_id_store(output_path: &PathBuf) {
-        id::store_to_file(&output_path.join("output_ids.binpb"));
+    fn write_output_population(&mut self, output_path: impl AsRef<Path>) {
+        let pop_in_path = if let Some(path) = &self.scenario.config.population().path {
+            io::resolve_path(self.scenario.config.context(), path)
+        } else {
+            io::resolve_path(
+                self.scenario.config.context(),
+                &PathBuf::from("population.xml.gz"),
+            )
+        };
+        let mut pop_out_path = create_output_filename(output_path, &pop_in_path);
+        pop_out_path = insert_number_in_proto_filename(
+            &pop_out_path,
+            self.scenario.config.partitioning().num_parts,
+        );
+        println!("pop_out_path: {}", pop_out_path.display());
+        if let Full(pop) = &self.scenario.population {
+            pop.to_file(&pop_out_path);
+        } else {
+            panic!("Cannot write output population because it split among the threads.");
+        }
+    }
+
+    fn write_output_id_store(output_path: impl AsRef<Path>) {
+        id::store_to_file(&output_path.as_ref().join("output_ids.binpb"));
     }
 }
