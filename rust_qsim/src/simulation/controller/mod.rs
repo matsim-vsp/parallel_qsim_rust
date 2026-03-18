@@ -1,3 +1,4 @@
+#[allow(clippy::module_inception)]
 pub mod controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
@@ -6,8 +7,9 @@ use crate::simulation::events::{EventHandlerRegisterFn, EventsManager};
 use crate::simulation::framework_events::{MobsimEventsManager, MobsimListenerRegisterFn};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
-use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
@@ -20,7 +22,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Barrier};
-use std::thread::{sleep, JoinHandle};
+use std::thread::{JoinHandle, sleep};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
@@ -130,6 +132,8 @@ impl ThreadLocalComputationalEnvironment {
 pub struct PartitionArguments<C: SimCommunicator> {
     communicator: C,
     scenario_partition: ScenarioPartition,
+    #[debug(skip)]
+    agent_source: DynAgentSource,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
@@ -180,13 +184,20 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
         }
     }
 
-    let mut simulation: Simulation<C> =
-        SimulationBuilder::new(partition, net_message_broker, comp_env).build();
+    let mut simulation: Simulation<C> = SimulationBuilder::new(
+        partition,
+        net_message_broker,
+        comp_env,
+        partition_arguments.agent_source,
+    )
+    .build();
 
     // Wait for all processes to arrive at this barrier. This is important to ensure that the
     // instrumentation of the simulation.run() method does not include any time it takes to
     // load the network and population.
-    info!("Process #{rank} of {size} has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier.");
+    info!(
+        "Process #{rank} (0-indexed) of {size} processes has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier."
+    );
     partition_arguments.global_barrier.wait();
     simulation.run();
 
@@ -212,14 +223,14 @@ fn create_events(
     match config.output().write_events {
         WriteEvents::None => {}
         WriteEvents::Proto => {
-            let events_file = format!("events.{rank}.binpb");
-            let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
+            let events_file = format!("events/events.{rank}.binpb");
+            let events_path = output_path.join(events_file);
             info!("adding events writer with path: {events_path:?}");
             ProtoEventsWriter::register_fn(events_path)(&mut events)
         }
         WriteEvents::XmlGz => {
-            let events_file = format!("events.{rank}.xml.gz");
-            let events_path = io::resolve_path(config.context(), &output_path.join(events_file));
+            let events_file = format!("events/events.{rank}.xml.gz");
+            let events_path = output_path.join(events_file);
             info!("adding events writer with path: {events_path:?}");
             XmlEventsWriter::register_fn(events_path)(&mut events)
         }
@@ -302,7 +313,7 @@ pub(crate) fn insert_number_in_proto_filename(path: impl AsRef<Path>, part: u32)
 
     let stripped = stripped
         .strip_suffix(format!(".{part}").as_str())
-        .unwrap_or_else(|| stripped);
+        .unwrap_or(stripped);
 
     let new_filename = format!("{stripped}.{part}.{ext}");
     path.as_ref().parent().unwrap().join(new_filename)

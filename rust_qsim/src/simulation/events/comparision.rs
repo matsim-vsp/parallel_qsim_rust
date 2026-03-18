@@ -1,8 +1,8 @@
-use crate::simulation::events::utils::EventsFileNotEqualError;
 use crate::simulation::events::EventTrait;
+use crate::simulation::events::utils::EventsFileNotEqualError;
 use crate::simulation::io::proto::xml_events::XmlEventsReader;
 use crate::simulation::logging::init_std_out_logging_thread_local;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
@@ -10,15 +10,15 @@ use std::thread::JoinHandle;
 use tracing::error;
 
 pub fn spawn_event_reader(
-    file_path: &PathBuf,
+    file_path: &Path,
     batch: &Arc<Mutex<EventBatch>>,
     should_stop: &Arc<AtomicBool>,
     barrier: &Arc<Barrier>,
 ) -> JoinHandle<()> {
-    let batch_clone = Arc::clone(&batch);
-    let barrier_clone = Arc::clone(&barrier);
-    let should_stop_clone = Arc::clone(&should_stop);
-    let file1_path_clone = file_path.clone();
+    let batch_clone = Arc::clone(batch);
+    let barrier_clone = Arc::clone(barrier);
+    let should_stop_clone = Arc::clone(should_stop);
+    let file1_path_clone = file_path.to_path_buf();
     thread::spawn(move || {
         let _guard = init_std_out_logging_thread_local();
         read_file_with_barrier(
@@ -123,24 +123,23 @@ impl EventBatch {
 fn update_batch(
     batch: &Arc<Mutex<EventBatch>>,
     current_time: &mut Option<u32>,
-    mut current_events: &mut Vec<Box<dyn EventTrait>>,
+    current_events: &mut Vec<Box<dyn EventTrait>>,
     finished: bool,
 ) {
     let mut batch_lock = batch.lock().unwrap();
     batch_lock.time = *current_time;
-    batch_lock.events = std::mem::take(&mut current_events);
+    batch_lock.events = std::mem::take(current_events);
     batch_lock.finished = finished;
 }
 
 /// Comparator thread: compares the event batches from both reader threads. Breaks loop when
 /// returning errors or when both readers have reached EOF.
 /// Order of comparison in the loop:
-/// 1) If both readers have reached EOF, do the final checks (time matches between batches, events
-///     in batches match) and break the loop
+/// 1) If both readers have reached EOF, do the final checks (time matches between batches, events in batches match) and break the loop
 /// 2) If only one reader has reached EOF, log error (DifferentNumberOfEvents) and break the loop
-/// 3) Compare times of batches: if times differ, log error (DifferentEventTimes); if time is
-///     smaller than last time, log error (NotChronologicalOrder); else compare events in the
-///     batches, log error (MissingEvent) if they don't match.
+/// 3) Compare times of batches: if times differ, log error (DifferentEventTimes);
+///    if time is smaller than last time, log error (NotChronologicalOrder);
+///    else compare events in the batches, log error (MissingEvent) if they don't match.
 pub fn comparator_thread(
     batch1: Arc<Mutex<EventBatch>>,
     batch2: Arc<Mutex<EventBatch>>,
@@ -238,24 +237,24 @@ pub fn comparator_thread(
                 }
 
                 // if time is smaller than last time, then events are not in chronological order
-                if let Some(last_t) = last_time {
-                    if t1 < last_t || t2 < last_t {
-                        error!(
-                            "Events are not in chronological order: \
+                if let Some(last_t) = last_time
+                    && (t1 < last_t || t2 < last_t)
+                {
+                    error!(
+                        "Events are not in chronological order: \
                             Event number {} has time {} in both files, but previous event has time \
                             {}.",
-                            event_count + 1,
-                            t1,
-                            last_t
-                        );
-                        let mut result = comparison_result.lock().unwrap();
-                        *result = Err(EventsFileNotEqualError::NotChronologicalOrder);
-                        should_stop.store(true, AtomicOrdering::Relaxed);
+                        event_count + 1,
+                        t1,
+                        last_t
+                    );
+                    let mut result = comparison_result.lock().unwrap();
+                    *result = Err(EventsFileNotEqualError::NotChronologicalOrder);
+                    should_stop.store(true, AtomicOrdering::Relaxed);
 
-                        // wake up the reader threads
-                        barrier.wait();
-                        break;
-                    }
+                    // wake up the reader threads
+                    barrier.wait();
+                    break;
                 }
 
                 // If times are good, finally compare the batches of events
@@ -288,7 +287,7 @@ pub fn comparator_thread(
 fn handle_missing_event(
     should_stop: &Arc<AtomicBool>,
     comparison_result: &Arc<Mutex<Result<(), EventsFileNotEqualError>>>,
-    events1: &Vec<Box<dyn EventTrait>>,
+    events1: &[Box<dyn EventTrait>],
     id: usize,
 ) {
     error!(
@@ -310,7 +309,8 @@ fn handle_different_event_times(
     events1: &Vec<Box<dyn EventTrait>>,
     events2: &Vec<Box<dyn EventTrait>>,
 ) {
-    error!("Event files differ starting from event #{event_count}. Times are different. Different events: \n    In file 1: {:?}\n    In file 2: {:?}; ",
+    error!(
+        "Event files differ starting from event #{event_count}. Times are different. Different events: \n    In file 1: {:?}\n    In file 2: {:?}; ",
         events1.first().unwrap(),
         events2.first().unwrap()
     );
@@ -384,7 +384,9 @@ mod tests {
 
         match compare_xml_event_files(file1, file2) {
             Ok(()) => (),
-            Err(e) => panic!("Compared two equivalent files (with same events but different order), but got error: {e}"),
+            Err(e) => panic!(
+                "Compared two equivalent files (with same events but different order), but got error: {e}"
+            ),
         }
     }
 
@@ -403,7 +405,9 @@ mod tests {
             Err(e) => match e {
                 EventsFileNotEqualError::DifferentEventTimes => {}
 
-                _ => panic!("Compared two files where event times differ in line 1, but got a different error: {e}"),
+                _ => panic!(
+                    "Compared two files where event times differ in line 1, but got a different error: {e}"
+                ),
             },
         }
     }
@@ -419,14 +423,18 @@ mod tests {
 
         match compare_xml_event_files(file1, file2) {
             Ok(()) => {
-                panic!("Compared a file with incorrect (not chronological) order to itself, but got Ok")
+                panic!(
+                    "Compared a file with incorrect (not chronological) order to itself, but got Ok"
+                )
             }
             Err(e) => match e {
                 EventsFileNotEqualError::NotChronologicalOrder => {
                     // expected error, do nothing
                 }
 
-                _ => panic!("Compared a file with incorrect (not chronological) order to itself, but got an unexpected error: {e}"),
+                _ => panic!(
+                    "Compared a file with incorrect (not chronological) order to itself, but got an unexpected error: {e}"
+                ),
             },
         }
     }
@@ -440,14 +448,23 @@ mod tests {
 
         match compare_xml_event_files(file1, file2) {
             Ok(()) => {
-                panic!("Compared two files where the name of a car was changed in file2, but got Ok")
+                panic!(
+                    "Compared two files where the name of a car was changed in file2, but got Ok"
+                )
             }
             Err(e) => match e {
                 EventsFileNotEqualError::MissingEvent { event } => {
-                    assert_eq!(event, String::from("PersonEntersVehicleEvent { time: 32409, person: 100, vehicle: 100_car, attributes: InternalAttributes { attributes: {} } }"));
+                    assert_eq!(
+                        event,
+                        String::from(
+                            "PersonEntersVehicleEvent { time: 32409, person: 100, vehicle: 100_car, attributes: InternalAttributes { attributes: {} } }"
+                        )
+                    );
                 }
 
-                _ => panic!("Compared two files where the name of a car was changed in file2, but got an unexpected error: {e}"),
+                _ => panic!(
+                    "Compared two files where the name of a car was changed in file2, but got an unexpected error: {e}"
+                ),
             },
         }
     }
@@ -460,14 +477,18 @@ mod tests {
 
         match compare_xml_event_files(file1, file2) {
             Ok(()) => {
-                panic!("Compared two files where one file has fewer events than the other, but got Ok")
+                panic!(
+                    "Compared two files where one file has fewer events than the other, but got Ok"
+                )
             }
             Err(e) => match e {
                 EventsFileNotEqualError::DifferentNumberOfEvents => {
                     // expected error, do nothing
                 }
 
-                _ => panic!("Compared two files where one file has fewer events than the other, but got an unexpected error: {e}"),
+                _ => panic!(
+                    "Compared two files where one file has fewer events than the other, but got an unexpected error: {e}"
+                ),
             },
         }
     }

@@ -4,8 +4,8 @@ use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 use flate2::Compression;
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use tracing::info;
 
 pub mod attributes;

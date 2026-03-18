@@ -10,13 +10,13 @@ use crate::simulation::events::{
 };
 use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalSyncMessage;
-use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::population::InternalRoute;
+use crate::simulation::scenario::population::InternalRoute;
+use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::time_queue::Identifiable;
-use crate::simulation::vehicles::garage::Garage;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::vehicles::SimulationVehicle;
 use nohash_hasher::IntSet;
 use tracing::instrument;
 
@@ -104,8 +104,7 @@ impl<C: SimCommunicator> LegEngine<C> {
 
     #[instrument(level = "trace", skip(self), fields(rank=self.net_message_broker.rank()))]
     fn send_recv(&mut self, now: u32) -> Vec<InternalSyncMessage> {
-        let sync_messages = self.net_message_broker.send_recv(now);
-        sync_messages
+        self.net_message_broker.send_recv(now)
     }
 
     fn receive_agents(&mut self, now: u32, agents: Vec<SimulationAgent>) {
@@ -117,7 +116,7 @@ impl<C: SimCommunicator> LegEngine<C> {
     fn publish_end_events(
         &mut self,
         now: u32,
-        vehicles: Vec<InternalVehicle>,
+        vehicles: Vec<SimulationVehicle>,
         publish_leave_vehicle: bool,
     ) -> Vec<SimulationAgent> {
         let mut agents = vec![];
@@ -127,7 +126,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                 self.comp_env.events_manager_borrow_mut().process_event(
                     &PersonLeavesVehicleEventBuilder::default()
                         .time(now)
-                        .vehicle(veh.id.clone())
+                        .vehicle(veh.id().clone())
                         .person(veh.driver().id().clone())
                         .build()
                         .unwrap(),
@@ -139,7 +138,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                     self.comp_env.events_manager_borrow_mut().process_event(
                         &PersonLeavesVehicleEventBuilder::default()
                             .time(now)
-                            .vehicle(veh.id.clone())
+                            .vehicle(veh.id().clone())
                             .person(passenger.id().clone())
                             .build()
                             .unwrap(),
@@ -173,7 +172,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
-    fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: InternalVehicle, route_begin: bool) {
+    fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: SimulationVehicle, route_begin: bool) {
         let leg = vehicle.driver().curr_leg();
 
         // If mode of leg is not main mode, teleport vehicle in every case
@@ -219,7 +218,7 @@ impl VehicularDepartureHandler {
         now: u32,
         agent: SimulationAgent,
         garage: &mut Garage,
-    ) -> Option<InternalVehicle> {
+    ) -> Option<SimulationVehicle> {
         assert_eq!(agent.state(), SimulationAgentState::LEG);
 
         let leg = agent.curr_leg();
@@ -237,7 +236,7 @@ impl VehicularDepartureHandler {
                 .routing_mode(
                     leg.routing_mode
                         .as_ref()
-                        .expect(&format!("Missing routing mode for leg {:?}", leg))
+                        .unwrap_or_else(|| panic!("Missing routing mode for leg {:?}", leg))
                         .clone(),
                 )
                 .build()

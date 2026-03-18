@@ -1,15 +1,17 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
 use crate::simulation::population::agent_source::AgentSource;
-use crate::simulation::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::ScenarioPartition;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use std::collections::HashMap;
 use tracing::info;
 
+#[allow(unused)]
 pub struct DrtAgentSource {}
 
+#[allow(unused)]
 impl DrtAgentSource {
     fn add_drt_ids() {
         info!("Creating DRT ids.");
@@ -119,30 +121,30 @@ mod tests {
     //     let config_path = "./assets/drt/config.yml";
     //     let config = Config::from(CommandLineArgs::new_with_path(config_path));
     //
-    //     let mut scenario = GlobalScenario::build(config, 0, &config.output().output_dir);
+    //     let mut mod = GlobalScenario::build(config, 0, &config.output().output_dir);
     //
     //     let drt_source = DrtAgentSource {};
-    //     let drt_agents = drt_source.create_agents(&mut scenario, &config);
+    //     let drt_agents = drt_source.create_agents(&mut mod, &config);
     //
     //     let agent_source = PopulationAgentSource {};
-    //     let default_agents = agent_source.create_agents(&mut scenario, &config);
+    //     let default_agents = agent_source.create_agents(&mut mod, &config);
     //
-    //     assert_eq!(scenario.network.nodes().len(), 62);
-    //     assert_eq!(scenario.network.links().len(), 170);
+    //     assert_eq!(mod.network.nodes().len(), 62);
+    //     assert_eq!(mod.network.links().len(), 170);
     //
     //     // 10 agents, 1 drt agent
     //     assert_eq!(default_agents.len(), 10);
     //     assert_eq!(drt_agents.len(), 1);
     //
     //     // 10 agent vehicles, 1 drt vehicle
-    //     assert_eq!(scenario.garage.vehicles.len(), 10 + 1);
+    //     assert_eq!(mod.garage.vehicles.len(), 10 + 1);
     //
     //     //there is only one predefined vehicle type (car)
-    //     assert_eq!(scenario.garage.vehicle_types.len(), 1);
+    //     assert_eq!(mod.garage.vehicle_types.len(), 1);
     //
     //     let default_agent_ids = default_agents.keys().collect::<Vec<&Id<InternalPerson>>>();
     //
-    //     let vehicle_ids = scenario
+    //     let vehicle_ids = mod
     //         .garage
     //         .vehicles
     //         .keys()

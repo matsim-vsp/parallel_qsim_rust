@@ -1,11 +1,10 @@
 use ahash::AHasher;
-use rand::rngs::SmallRng;
 use rand::SeedableRng;
+use rand::rngs::SmallRng;
 use std::hash::{Hash, Hasher};
 
 /// Random number generator utilities similar to MATSim's MatsimRandom in Java.
 /// Provides static functions to create node-specific random number generators based on a base seed.
-
 /// Gets a random number generator for a specific hash (e.g., hash of node ID).
 /// The hash parameter should uniquely identify the entity.
 pub fn get_rng<H: Hash>(base_seed: u64, hash: H) -> SmallRng {

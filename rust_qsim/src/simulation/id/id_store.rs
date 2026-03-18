@@ -1,8 +1,8 @@
 use bytes::{Buf, BufMut};
 use dashmap::DashMap;
 use lz4::BlockMode;
-use prost::encoding::{DecodeContext, WireType};
 use prost::Message;
+use prost::encoding::{DecodeContext, WireType};
 use std::fmt::{Debug, Formatter};
 use std::fs;
 use std::fs::File;
@@ -11,11 +11,11 @@ use std::path::Path;
 use std::sync::Arc;
 use tracing::info;
 
-use crate::generated::ids::ids_with_type::Data;
-use crate::generated::ids::IdsWithType;
 use crate::generated::MessageIter;
-use crate::simulation::id::serializable_type::StableTypeId;
+use crate::generated::ids::IdsWithType;
+use crate::generated::ids::ids_with_type::Data;
 use crate::simulation::id::Id;
+use crate::simulation::id::serializable_type::StableTypeId;
 
 #[derive(Clone, Copy)]
 #[allow(dead_code)] // allow dead code, because we never construct None. I still want to have it as option here.
@@ -304,16 +304,16 @@ impl IdStore {
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::PartitionMethod;
-    use crate::simulation::id::id_store::{
-        deserialize, deserialize_from_file, serialize, serialize_to_file, IdCompression, IdStore,
-    };
     use crate::simulation::id::Id;
+    use crate::simulation::id::id_store::{
+        IdCompression, IdStore, deserialize, deserialize_from_file, serialize, serialize_to_file,
+    };
     use crate::simulation::logging::init_std_out_logging_thread_local;
-    use crate::simulation::network::{Link, Network, Node};
-    use crate::simulation::population::InternalPerson;
-    use crate::simulation::population::Population;
-    use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
+    use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::scenario::population::InternalPerson;
+    use crate::simulation::scenario::population::Population;
+    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_folders;
     use macros::integration_test;
     use std::io::{BufReader, BufWriter, Cursor};

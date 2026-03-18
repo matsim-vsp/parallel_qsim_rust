@@ -1,6 +1,7 @@
 use crate::simulation::profiling::{
+    BYTE_WIDTH_U128, Mode, PersonId, SimTime, SpanDuration, Uuid,
     convert_u128_to_fixed_size_binary, create_file, end_timing, extract_entries, start_timing,
-    write_parquet, Mode, PersonId, SimTime, SpanDuration, Uuid, BYTE_WIDTH_U128,
+    write_parquet,
 };
 use std::fmt::Debug;
 use std::path::Path;
@@ -8,8 +9,8 @@ use std::sync::{Arc, Mutex};
 use tracing::field::{Field, Visit};
 use tracing::span::Attributes;
 use tracing::{Event, Id};
-use tracing_subscriber::layer::Context;
 use tracing_subscriber::Layer;
+use tracing_subscriber::layer::Context;
 
 use arrow2::array::{Array, Int64Array, UInt64Array, Utf8Array};
 use arrow2::datatypes::{DataType, Schema};
@@ -118,12 +119,20 @@ where
             let mut exts = span.extensions_mut();
             if let Some(uuid) = visitor.uuid {
                 let v = exts.replace(uuid);
-                assert!(v.is_none(), "Uuid already present in span; unexpected duplicate event registration. Event: {:?}", event);
+                assert!(
+                    v.is_none(),
+                    "Uuid already present in span; unexpected duplicate event registration. Event: {:?}",
+                    event
+                );
             }
 
             if let Some(mode) = visitor.mode {
                 let v = exts.replace(mode);
-                assert!(v.is_none(), "Mode already present in span; unexpected duplicate event registration. Event: {:?}", event);
+                assert!(
+                    v.is_none(),
+                    "Mode already present in span; unexpected duplicate event registration. Event: {:?}",
+                    event
+                );
             }
         }
     }
@@ -131,7 +140,7 @@ where
     fn on_enter(&self, id: &Id, ctx: Context<'_, S>) {
         start_timing(id, ctx);
     }
-    
+
     fn on_exit(&self, id: &Id, ctx: Context<'_, S>) {
         end_timing(id, ctx);
     }

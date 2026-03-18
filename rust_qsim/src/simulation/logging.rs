@@ -1,19 +1,19 @@
 use std::io;
 use std::path::Path;
-use tracing::dispatcher::DefaultGuard;
 use tracing::Level;
+use tracing::dispatcher::DefaultGuard;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::{fmt, registry};
 use tracing_subscriber::{EnvFilter, Layer};
+use tracing_subscriber::{fmt, registry};
 
 use crate::simulation::config::{Config, Logging, Profiling};
 use crate::simulation::io::resolve_path;
-use crate::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
 use crate::simulation::profiling::SpanDurationToFileLayer;
+use crate::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
 
 // This is a helper struct to store the logger guards. When they are dropped, logging can be reset.
 #[allow(dead_code)]
@@ -38,7 +38,7 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
 
     let csv_layers = init_tracing(config, part, &file_discriminant, &dir);
     let (log_layer, log_guard) = if Logging::Info == config.output().logging {
-        let log_file_name = format!("log_process_{file_discriminant}.txt");
+        let log_file_name = format!("logs/log_process_{file_discriminant}.txt");
         let log_file_appender = rolling::never(&dir, log_file_name);
         let (log_file, log_guard) = non_blocking(log_file_appender);
         let layer = fmt::Layer::new()
@@ -94,8 +94,7 @@ fn init_tracing(config: &Config, part: u32, file_discriminant: &String, dir: &Pa
             if level.eq(&Level::INFO) && part == 0 || level.eq(&Level::TRACE) {
                 duration_path.set_extension("csv");
                 routing_path.set_extension("csv");
-                let (general, general_guard) =
-                    SpanDurationToFileLayer::new_csv(&duration_path);
+                let (general, general_guard) = SpanDurationToFileLayer::new_csv(&duration_path);
                 let (routing, routing_guard) =
                     RoutingSpanDurationToFileLayer::new_csv(&routing_path);
                 let (routing_filter, general_filter) = create_filter(level);

@@ -1,8 +1,8 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::config::write_config;
+use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
 use crate::simulation::controller::{
-    create_output_filename, insert_number_in_proto_filename, ExternalServices,
-    PartitionArgumentsBuilder,
+    ExternalServices, PartitionArgumentsBuilder, create_output_filename,
+    insert_number_in_proto_filename,
 };
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
@@ -10,6 +10,10 @@ use crate::simulation::framework_events::{
     MobsimListenerRegisterFn,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
+use crate::simulation::population::agent_source::{
+    AgentSource, DynAgentSource, PopulationAgentSource,
+};
+use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
 use crate::simulation::scenario::GlobalPopulation::Full;
 use crate::simulation::scenario::{Scenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
@@ -19,12 +23,21 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
-use std::{fs, thread};
+use std::{fs, mem, thread};
 use tracing::info;
+
+#[derive(Debug)]
+pub enum Scenario {
+    Partitioned,
+    Full(MutableScenario),
+}
 
 #[derive(Debug)]
 pub struct Controller {
     scenario: Scenario,
+    config: Arc<Config>,
+    #[debug(skip)]
+    agent_source: DynAgentSource,
     controller_events_manager: ControllerEventsManager,
     #[debug(skip)]
     event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
@@ -36,7 +49,8 @@ pub struct Controller {
 }
 
 pub struct ControllerBuilder {
-    scenario: Scenario,
+    scenario: MutableScenario,
+    agent_source: DynAgentSource,
     controller_event_register_fn: Vec<Box<ControllerListenerRegisterFn>>,
     event_handler_register_fn: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
     mobsim_event_register_fn: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
@@ -46,9 +60,10 @@ pub struct ControllerBuilder {
 }
 
 impl ControllerBuilder {
-    pub fn default_with_scenario(scenario: Scenario) -> Self {
+    pub fn default_with_scenario(scenario: MutableScenario) -> Self {
         ControllerBuilder {
             scenario,
+            agent_source: Arc::new(PopulationAgentSource),
             controller_event_register_fn: Vec::new(),
             event_handler_register_fn: HashMap::new(),
             mobsim_event_register_fn: HashMap::new(),
@@ -72,8 +87,12 @@ impl ControllerBuilder {
             register_fn(&mut controller_event_manager);
         }
 
+        let config = self.scenario.config.clone();
+
         Ok(Controller {
-            scenario: self.scenario,
+            scenario: Scenario::Full(self.scenario),
+            config,
+            agent_source: self.agent_source,
             controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_register_fn,
             mobsim_event_listener_per_partition: self.mobsim_event_register_fn,
@@ -107,6 +126,14 @@ impl ControllerBuilder {
         self
     }
 
+    pub fn agent_source<T>(mut self, source: impl Into<Arc<T>>) -> Self
+    where
+        T: AgentSource + Send + Sync + 'static,
+    {
+        self.agent_source = source.into();
+        self
+    }
+
     pub fn external_services(mut self, e: ExternalServices) -> Self {
         self.external_services = e;
         self
@@ -129,11 +156,24 @@ impl Controller {
         self.controller_events_manager
             .process_event(ControllerEvent::startup(true));
 
-        let output_path = io::resolve_path(
-            self.scenario.config.context(),
-            &self.scenario.config.output().output_dir,
-        );
-        fs::create_dir_all(&output_path).expect("Failed to create output path");
+        let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
+        let events_path = output_path.join("events");
+
+        prepare_output_directory(&output_path, self.config.output().overwrite_files)
+            .unwrap_or_else(|err| panic!("{err}"));
+        fs::create_dir_all(&events_path).expect("Failed to create events output path");
+
+        if Logging::Info == self.config.output().logging {
+            let log_path = output_path.join("logs");
+            fs::create_dir_all(&log_path).expect("Failed to create logs output path");
+        }
+
+        // TODO This needs to be shifted to the end once we have iterations. Therefore, the threads need the simulation agents. paul, mar '26
+        info!("Writing output files:");
+        info!("    ... Config ...");
+        self.write_output_config(output_path.clone());
+        info!("    ... Network ...");
+        self.write_output_network(output_path.clone());
 
         // TODO is is valid that we're writing output population before the program was run?
         // Afterwards, the population is empty since it was distributed across partitions
@@ -146,7 +186,7 @@ impl Controller {
             .process_event(ControllerEvent::before_mobsim(true));
 
         let handles = self.run_channel();
-        controller::try_join(handles, std::mem::take(&mut self.adapter_handles));
+        controller::try_join(handles, mem::take(&mut self.adapter_handles));
 
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(true));
@@ -157,16 +197,7 @@ impl Controller {
         info!("=========== End Iteration 0 ===========");
 
         info!("Writing output files:");
-        info!("    ... Config ...");
-        self.write_output_config(output_path.clone());
-        info!("    ... Network ...");
-        self.write_output_network(output_path.clone());
-        // info!("    ... Population ...");
-        // self.write_output_population(output_path.clone());
-
-        if self.scenario.config.output().write_events
-            == crate::simulation::config::WriteEvents::Proto
-        {
+        if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
             info!("    ... ID store ...");
             Self::write_output_id_store(&output_path);
         }
@@ -176,15 +207,26 @@ impl Controller {
     }
 
     fn run_channel(&mut self) -> IntMap<u32, JoinHandle<()>> {
+        let scenario = {
+            let s = mem::replace(&mut self.scenario, Scenario::Partitioned);
+            match s {
+                Scenario::Partitioned => {
+                    panic!(
+                        "Wanted to create partitions, but mod is already partitioned. This shouldn't happen."
+                    )
+                }
+                Scenario::Full(s) => s,
+            }
+        };
+
         // Is of type Vec<Option<>> because later we iteratively take the partition builder and construct
         // the actual partitions.
-        let mut partitions: Vec<Option<ScenarioPartition>> =
-            ScenarioPartition::from(&mut self.scenario)
-                .into_iter()
-                .map(Some)
-                .collect();
+        let mut partitions: Vec<Option<ScenarioPartition>> = ScenarioPartition::from(scenario)
+            .into_iter()
+            .map(Some)
+            .collect();
 
-        let num_parts = self.scenario.config.partitioning().num_parts;
+        let num_parts = self.config.partitioning().num_parts;
         info!(
             "Starting multithreaded Simulation with {} partitions.",
             num_parts
@@ -205,6 +247,7 @@ impl Controller {
                     .communicator(comm)
                     .global_barrier(self.global_barrier.clone())
                     .scenario_partition(partition)
+                    .agent_source(self.agent_source.clone())
                     .external_services(self.external_services.clone())
                     .event_handler(
                         self.event_handler_per_partition
@@ -231,39 +274,44 @@ impl Controller {
     }
 
     fn write_output_config(&mut self, output_path: PathBuf) {
-        write_config(self.scenario.config.as_ref(), output_path);
+        write_config(self.config.as_ref(), output_path);
     }
 
     fn write_output_network(&mut self, output_path: PathBuf) {
-        let net_in_path = if let Some(path) = &self.scenario.config.network().path {
-            io::resolve_path(self.scenario.config.context(), path)
+        let net_in_path = if let Some(path) = &self.config.network().path {
+            io::resolve_path(self.config.context(), path)
         } else {
-            io::resolve_path(
-                self.scenario.config.context(),
-                &PathBuf::from("network.xml.gz"),
-            )
+            io::resolve_path(self.config.context(), &PathBuf::from("network.xml.gz"))
         };
         let mut net_out_path = create_output_filename(&output_path, &net_in_path);
-        net_out_path = insert_number_in_proto_filename(
-            &net_out_path,
-            self.scenario.config.partitioning().num_parts,
-        );
-        self.scenario.network.to_file(&net_out_path);
+        net_out_path =
+            insert_number_in_proto_filename(&net_out_path, self.config.partitioning().num_parts);
+
+        match &self.scenario {
+            Scenario::Partitioned => {
+                panic!(
+                    "Tried to write network to file, but mod is partitioned. This shouldn't happen."
+                )
+            }
+            Scenario::Full(s) => {
+                s.network.to_file(&net_out_path);
+            }
+        }
     }
 
     fn write_output_population(&mut self, output_path: impl AsRef<Path>) {
-        let pop_in_path = if let Some(path) = &self.scenario.config.population().path {
-            io::resolve_path(self.scenario.config.context(), path)
+        let pop_in_path = if let Some(path) = &self.config.population().path {
+            io::resolve_path(self.config.context(), path)
         } else {
             io::resolve_path(
-                self.scenario.config.context(),
+                self.config.context(),
                 &PathBuf::from("population.xml.gz"),
             )
         };
         let mut pop_out_path = create_output_filename(output_path, &pop_in_path);
         pop_out_path = insert_number_in_proto_filename(
             &pop_out_path,
-            self.scenario.config.partitioning().num_parts,
+            self.config.partitioning().num_parts,
         );
         println!("pop_out_path: {}", pop_out_path.display());
         if let Full(pop) = &self.scenario.population {
@@ -275,5 +323,88 @@ impl Controller {
 
     fn write_output_id_store(output_path: impl AsRef<Path>) {
         id::store_to_file(&output_path.as_ref().join("output_ids.binpb"));
+    }
+}
+
+fn prepare_output_directory(
+    output_path: &Path,
+    overwrite_files: OverwriteFiles,
+) -> Result<(), String> {
+    if output_path.exists() {
+        match overwrite_files {
+            OverwriteFiles::DeleteDirectoryIfExists => {
+                fs::remove_dir_all(output_path).map_err(|err| {
+                    format!(
+                        "Failed to delete existing output directory {}: {}",
+                        output_path.display(),
+                        err
+                    )
+                })?
+            }
+            OverwriteFiles::FailIfDirectoryExists => {
+                return Err(format!(
+                    "Output directory already exists: {}",
+                    output_path.display()
+                ));
+            }
+            OverwriteFiles::OverwriteExistingFiles => {}
+        }
+    }
+
+    fs::create_dir_all(output_path).map_err(|err| {
+        format!(
+            "Failed to create output path {}: {}",
+            output_path.display(),
+            err
+        )
+    })?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prepare_output_directory;
+    use crate::simulation::config::OverwriteFiles;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn delete_directory_if_exists_recreates_output_dir() {
+        let dir = tempdir().unwrap();
+        let output_dir = dir.path().join("output");
+        fs::create_dir_all(&output_dir).unwrap();
+        let stale_file = output_dir.join("stale.txt");
+        fs::write(&stale_file, "stale").unwrap();
+
+        prepare_output_directory(&output_dir, OverwriteFiles::DeleteDirectoryIfExists).unwrap();
+
+        assert!(output_dir.exists());
+        assert!(!stale_file.exists());
+    }
+
+    #[test]
+    fn fail_if_directory_exists_returns_error() {
+        let dir = tempdir().unwrap();
+        let output_dir = dir.path().join("output");
+        fs::create_dir_all(&output_dir).unwrap();
+
+        let result = prepare_output_directory(&output_dir, OverwriteFiles::FailIfDirectoryExists);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn overwrite_existing_files_keeps_existing_directory_contents() {
+        let dir = tempdir().unwrap();
+        let output_dir = dir.path().join("output");
+        fs::create_dir_all(&output_dir).unwrap();
+        let existing_file = output_dir.join("existing.txt");
+        fs::write(&existing_file, "keep").unwrap();
+
+        prepare_output_directory(&output_dir, OverwriteFiles::OverwriteExistingFiles).unwrap();
+
+        assert!(output_dir.exists());
+        assert!(existing_file.exists());
     }
 }

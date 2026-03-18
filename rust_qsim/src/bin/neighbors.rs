@@ -9,7 +9,7 @@ use tracing::info;
 use rust_qsim::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod, VertexWeight};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::network::sim_network::SimNetworkPartition;
-use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::{config, id};
 
 // I would have expected, that we read already partitioned networks and write the neighbors of each partition to a file.

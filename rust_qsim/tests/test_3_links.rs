@@ -11,7 +11,7 @@ fn execute_3_links_single_part() {
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-1.yml");
 
     TestExecutorBuilder::default()
-        .config(Arc::new(Config::from(config_args)))
+        .config(Arc::new(Config::from_args(config_args)))
         // .expected_events(None)
         // .additional_subscribers(HashMap::from([(
         //     0,
@@ -29,7 +29,7 @@ fn execute_3_links_2_parts() {
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-2.yml");
 
     TestExecutorBuilder::default()
-        .config(Arc::new(Config::from(config_args)))
+        .config(Arc::new(Config::from_args(config_args)))
         .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
         .build()
         .unwrap()

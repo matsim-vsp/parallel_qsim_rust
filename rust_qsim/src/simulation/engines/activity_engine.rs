@@ -5,7 +5,7 @@ use crate::simulation::agents::{
 use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
-use crate::simulation::population::InternalPerson;
+use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
 use tracing::instrument;
 
@@ -73,7 +73,7 @@ impl ActivityEngine {
     }
 
     #[instrument(level = "trace", skip(self, end_after_wake_up))]
-    fn notify_wakeup_all(&mut self, now: u32, end_after_wake_up: &mut Vec<SimulationAgent>) {
+    fn notify_wakeup_all(&mut self, now: u32, end_after_wake_up: &mut [SimulationAgent]) {
         // inform agents about wakeup
         // those are the agents that are woken up and directly end their activity
         end_after_wake_up.iter_mut().for_each(|agent| {
@@ -236,12 +236,12 @@ impl EndTime for AsleepSimulationAgent {
 
 #[cfg(test)]
 mod tests {
+    use crate::external_services::ExternalServiceType;
     use crate::external_services::routing::{
         InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
     };
-    use crate::external_services::ExternalServiceType;
-    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::agents::SimulationAgentLogic;
+    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::config::Config;
     use crate::simulation::controller::{
         RequestSender, ThreadLocalComputationalEnvironment,
@@ -249,7 +249,7 @@ mod tests {
     };
     use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
     use crate::simulation::id::Id;
-    use crate::simulation::population::{
+    use crate::simulation::scenario::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalPlanElement, InternalRoute,
     };
@@ -366,11 +366,13 @@ mod tests {
                 .now(5)
                 .build()
                 .unwrap();
-            assert!(request
-                .as_ref()
-                .unwrap()
-                .payload
-                .equals_ignoring_uuid(&payload));
+            assert!(
+                request
+                    .as_ref()
+                    .unwrap()
+                    .payload
+                    .equals_ignoring_uuid(&payload)
+            );
             request
                 .unwrap()
                 .response_tx
@@ -438,9 +440,10 @@ mod tests {
         let mut plan = InternalPlan::default();
         let mut activity =
             InternalActivity::new(0.0, 0.0, "home", Id::create("start"), None, None, Some(10));
-        activity
-            .attributes
-            .add(crate::simulation::population::PREPLANNING_HORIZON, 5);
+        activity.attributes.add(
+            crate::simulation::scenario::population::PREPLANNING_HORIZON,
+            5,
+        );
         plan.add_act(activity);
         plan.add_leg(InternalLeg::new(
             InternalRoute::Generic(InternalGenericRoute::new(

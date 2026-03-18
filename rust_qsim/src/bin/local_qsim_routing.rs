@@ -2,10 +2,10 @@ use clap::Parser;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::Config;
-use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::controller::ExternalServices;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::scenario::Scenario;
+use rust_qsim::simulation::scenario::MutableScenario;
 use std::sync::{Arc, Barrier};
 use tracing::info;
 
@@ -24,7 +24,7 @@ fn main() {
 
     info!("Starting with args: {:?}", args);
 
-    let config = Arc::new(Config::from(args.delegate));
+    let config = Arc::new(Config::from_args(args.delegate));
 
     // Creating the routing adapter is only one task, so we add 1 and not the number of worker threads!
     let total_thread_count = config.partitioning().num_parts + 1;
@@ -50,18 +50,20 @@ fn main() {
     let (router_handle, send, send_sd) = executor.spawn_thread("router", factory);
 
     // Creating the adapter handle. This is necessary for regulated shutdown of the adapter thread. Otherwise, the adapter might be stuck in a loop.
-    let adapters = vec![AdapterHandleBuilder::default()
-        .shutdown_sender(send_sd)
-        .handle(router_handle)
-        .build()
-        .unwrap()];
+    let adapters = vec![
+        AdapterHandleBuilder::default()
+            .shutdown_sender(send_sd)
+            .handle(router_handle)
+            .build()
+            .unwrap(),
+    ];
 
     // The request sender is passed to the controller.
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    // Load scenario
-    let scenario = Scenario::load(config);
+    // Load mod
+    let scenario = MutableScenario::load(config);
 
     // Create controller
     let controller = ControllerBuilder::default_with_scenario(scenario)

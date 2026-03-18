@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
-use clap::{arg, Parser};
+use clap::Parser;
 use tracing::info;
 
 use rust_qsim::simulation::config::{MetisOptions, PartitionMethod};
 use rust_qsim::simulation::id;
-use rust_qsim::simulation::network::Network;
+use rust_qsim::simulation::scenario::network::Network;
 
 /// This binary partitions a network into a given number of parts.
 /// A new network file is written to the same folder as the input network file.

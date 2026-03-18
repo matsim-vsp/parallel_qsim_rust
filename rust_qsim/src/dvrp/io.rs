@@ -2,12 +2,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename = "vehicles")]
+#[allow(unused)]
 pub struct IODrtVehicles {
     #[serde(rename = "vehicle")]
     pub vehicles: Vec<IODrtVehicle>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[allow(unused)]
 pub struct IODrtVehicle {
     #[serde(rename = "@id")]
     pub id: String,

@@ -1,7 +1,7 @@
 use crate::generated::events::MyEvent;
 use crate::simulation::events::comparision::EventBatch;
-use crate::simulation::events::{comparision, EventsManager};
-use crate::simulation::io::proto::proto_events::{process_events, ProtoEventsReader};
+use crate::simulation::events::{EventsManager, comparision};
+use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::logging::init_std_out_logging_thread_local;
 use std::io::{Read, Seek};
@@ -111,11 +111,11 @@ pub enum EventsFileNotEqualError {
 impl fmt::Display for EventsFileNotEqualError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EventsFileNotEqualError::DifferentEventTimes {} => write!(f, "Event times differ."),
-            EventsFileNotEqualError::NotChronologicalOrder {} => {
+            EventsFileNotEqualError::DifferentEventTimes => write!(f, "Event times differ."),
+            EventsFileNotEqualError::NotChronologicalOrder => {
                 write!(f, "Events in both files are not in chronological order.")
             }
-            EventsFileNotEqualError::DifferentNumberOfEvents {} => {
+            EventsFileNotEqualError::DifferentNumberOfEvents => {
                 write!(f, "Files have different numbers of events.")
             }
             EventsFileNotEqualError::MissingEvent { event } => write!(

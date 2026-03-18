@@ -1,49 +1,46 @@
+pub mod network;
+pub mod population;
+pub mod trip_structure_utils;
+pub mod vehicles;
+
 use crate::simulation::config::Config;
 use crate::simulation::network::sim_network::SimNetworkPartition;
-use crate::simulation::network::Network;
-use crate::simulation::population::Population;
-use crate::simulation::vehicles::garage::Garage;
 use crate::simulation::{id, io};
+use network::Network;
+use population::Population;
 use std::sync::Arc;
 use tracing::info;
+use vehicles::Garage;
 
-/// This enum works as state holder enum for the scenario's population. Either, the scenario is owner
-/// of the Population (e.g. at startup and end) or the population is split among the threads.
+/// The mod contains the full mod data.
 #[derive(Debug)]
-#[allow(dead_code)]
-pub enum GlobalPopulation {
-    Full(Population),
-    Partitioned,
-}
-
-/// The scenario contains the full scenario data.
-#[derive(Debug)]
-pub struct Scenario {
-    pub network: Arc<Network>,
-    pub garage: Arc<Garage>,
-    pub population: GlobalPopulation,
-    // this is deliberately an Arc, as it is shared between all partitions and other threads. Otherwise, cloning would be needed.
+pub struct MutableScenario {
+    pub network: Network,
+    pub garage: Garage,
+    pub population: Population,
     pub config: Arc<Config>,
 }
 
-impl Scenario {
-    pub fn load(config: Arc<Config>) -> Self {
-        info!("Start loading scenario.");
+impl MutableScenario {
+    pub fn load<C: Into<Arc<Config>>>(config: C) -> Self {
+        info!("Start loading mod.");
+
+        let config = config.into();
 
         if let Some(path) = &config.ids().path {
             info!("Loading IDs from {:?}", path);
-            id::load_from_file(&io::resolve_path(config.context(), &path));
+            id::load_from_file(&io::resolve_path(config.context(), path));
         }
 
-        // mandatory content to create a scenario
+        // mandatory content to create a mod
         let network = Self::load_network(&config);
         let mut garage = Self::load_garage(&config);
         let population = Self::load_population(&config, &mut garage);
 
-        Scenario {
-            network: Arc::new(network),
-            garage: Arc::new(garage),
-            population: GlobalPopulation::Full(population),
+        MutableScenario {
+            network,
+            garage,
+            population,
             config,
         }
     }
@@ -77,7 +74,7 @@ impl Scenario {
     }
 }
 
-/// The ScenarioPartition contains the scenario data for a specific partition.
+/// The ScenarioPartition contains the mod data for a specific partition.
 #[derive(Debug)]
 pub struct ScenarioPartition {
     pub(crate) network: Arc<Network>,
@@ -88,40 +85,44 @@ pub struct ScenarioPartition {
 }
 
 impl ScenarioPartition {
-    pub(crate) fn from(scenario: &mut Scenario) -> Vec<Self> {
+    pub(crate) fn from(mut scenario: MutableScenario) -> Vec<Self> {
+        let network = Arc::new(scenario.network);
+
         let mut partitions = Vec::new();
         for i in 0..scenario.config.partitioning().num_parts {
-            let partition = Self::create_partition(i, scenario);
+            let partition = Self::create_partition(
+                i,
+                &mut scenario.population,
+                network.clone(),
+                // this not very nice, since this is a full clone.
+                // but for now we are very liberal about when, where and how often agents can access their vehicles.
+                // Also, we just have an `unpark` method, no counterpart for adding vehicles. paul, feb '26
+                scenario.garage.clone(),
+                scenario.config.clone(),
+            );
             partitions.push(partition);
         }
         partitions
     }
 
-    fn create_partition(partition_num: u32, scenario: &mut Scenario) -> Self {
-        let global_pop = match &mut scenario.population {
-            GlobalPopulation::Full(p) => p,
-            GlobalPopulation::Partitioned => {
-                panic!("Tried to create a partition after the population was already split among the partitions. This is not allowed.")
-            }
-        };
+    fn create_partition(
+        partition_num: u32,
+        population: &mut Population,
+        network: Arc<Network>,
+        garage: Garage,
+        config: Arc<Config>,
+    ) -> Self {
+        let network_partition =
+            Self::create_network_partition(&config, partition_num, &network, population);
 
-        let network_partition = Self::create_network_partition(
-            &scenario.config,
-            partition_num,
-            &scenario.network,
-            global_pop,
-        );
-
-        let population = global_pop.take_from_filtered_part(&scenario.network, partition_num);
+        let population = population.take_from_filtered_part(&network, partition_num);
 
         Self {
-            network: scenario.network.clone(),
-            // this not very nice, but for now we are very liberal about when, where and how often agents can access their vehicles.
-            // Also, we just have an `unpark` method, no counterpart for adding vehicles. paul, feb '26
-            garage: (*scenario.garage).clone(),
+            network: network.clone(),
+            garage,
             population,
             network_partition,
-            config: scenario.config.clone(),
+            config: config.clone(),
         }
     }
 

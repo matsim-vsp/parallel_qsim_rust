@@ -1,5 +1,5 @@
-use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::id::Id;
+use crate::simulation::id::serializable_type::StableTypeId;
 use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -48,14 +48,16 @@ where
     fn cmp(&self, other: &Self) -> Ordering {
         // First compare by end_time (reverse for min-heap)
         // Then use order as secondary sort key (also reverse for FIFO within same time)
-        other.end_time.cmp(&self.end_time)
+        other
+            .end_time
+            .cmp(&self.end_time)
             .then_with(|| other.order.cmp(&self.order))
     }
 }
 
 /// TimeQueue provides a priority queue ordered by time with stable FIFO ordering
 /// for entries with the same time.
-/// 
+///
 /// Note: The internal counter will wrap around after usize::MAX insertions (2^64 on 64-bit systems).
 /// This is acceptable for simulation purposes as it would take an astronomically large number
 /// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
@@ -95,7 +97,11 @@ where
         let order = self.counter;
         // Counter wraps around naturally with usize overflow behavior
         self.counter = self.counter.wrapping_add(1);
-        self.q.push(Entry { end_time, order, value });
+        self.q.push(Entry {
+            end_time,
+            order,
+            value,
+        });
     }
 
     pub fn pop(&mut self, now: u32) -> Vec<T> {
@@ -213,13 +219,13 @@ mod tests {
     #[test]
     fn test_time_queue_stable_ordering() {
         let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
-        
+
         // Add multiple items with the same end time
         // They should be popped in the order they were added (FIFO)
         queue.add(TestItem { id: 1, end: 10 }, 0);
         queue.add(TestItem { id: 2, end: 10 }, 0);
         queue.add(TestItem { id: 3, end: 10 }, 0);
-        
+
         let results = queue.pop(10);
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].id, 1);
@@ -230,24 +236,24 @@ mod tests {
     #[test]
     fn test_time_queue_time_ordering_priority() {
         let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
-        
+
         // Add items with different end times
         // They should be popped in time order first
         queue.add(TestItem { id: 1, end: 15 }, 0);
         queue.add(TestItem { id: 2, end: 10 }, 0);
         queue.add(TestItem { id: 3, end: 20 }, 0);
         queue.add(TestItem { id: 4, end: 10 }, 0); // Same as id:2
-        
+
         let results = queue.pop(10);
         assert_eq!(results.len(), 2);
         // Time 10 items should come out in order they were added
         assert_eq!(results[0].id, 2);
         assert_eq!(results[1].id, 4);
-        
+
         let results = queue.pop(15);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 1);
-        
+
         let results = queue.pop(20);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 3);
