@@ -15,7 +15,7 @@ use std::thread;
 fn main() {
     // read the config
     let args = CommandLineArgs::new_with_path("rust_qsim/assets/test/run_equil_100.config.yml");
-    let mut config = Config::from(args);
+    let config = Config::from(args);
 
     // read the network, the vehicles from the config
     let network_path = io::resolve_path(config.context(), &config.network().path);
@@ -36,7 +36,7 @@ fn main() {
     // start the simulation in a seperate thread
     let _sim_thread = thread::spawn(move || {
         // register event handler
-        let event_handler_fns = HashMap::from([(
+        let event_handler = HashMap::from([(
             0,
             vec![VisualizeEvents::register_fn(
                 event_sender.clone(),
@@ -45,7 +45,7 @@ fn main() {
         )]);
 
         // register mobsim handler
-        let mobsim_listener_fns = HashMap::from([(
+        let mobsim_listener = HashMap::from([(
             0,
             vec![VisualizeEvents::register_mobsim_fn(
                 event_sender,
@@ -55,8 +55,8 @@ fn main() {
 
         // start simulation
         ControllerBuilder::default_with_scenario(Scenario::load(Arc::new(config)))
-            .event_handler_register_fn(event_handler_fns)
-            .mobsim_event_register_fn(mobsim_listener_fns)
+            .event_handler_register_fn(event_handler)
+            .mobsim_event_register_fn(mobsim_listener)
             .build()
             .unwrap()
             .run();

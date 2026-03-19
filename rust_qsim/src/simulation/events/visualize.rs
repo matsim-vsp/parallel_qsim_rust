@@ -49,8 +49,6 @@ pub enum VisualizeEventMessage {
     Done,
 }
 
-// Zustandsdaten für die Echtzeit-Synchronisierung.
-// Speichert den Startpunkt, von dem aus Soll- und Ist-Zeit verglichen werden.
 #[derive(Default)]
 struct RealtimeSyncState {
     // realtime when the sync starts
@@ -145,9 +143,6 @@ impl VisualizeEvents {
                     None
                 };
 
-                // Nachricht nur senden, wenn sie tatsächlich erzeugt wurde.
-                // Fehler beim Senden (z.B. Empfänger schon geschlossen) werden ignoriert,
-                // damit die Simulation auch nach dem Schließen des Fensters weiterläuft.
                 if let Some(message) = viz_message {
                     let _ = event_sender.send(message);
                 }
@@ -193,8 +188,6 @@ impl VisualizeEvents {
         network: Network,
         garage: Garage,
     ) {
-        // Netzwerk- und Fahrzeugdaten einmalig beim Start in schnelle Lookup-Tabellen umwandeln.
-        // Alle Zeichensysteme lesen daraus jedes Frame, ohne die vollen Originaldaten zu brauchen.
         let network_data = NetworkData::from_network(&network);
         let vehicle_data = VehicleData::from_garage(&garage);
 
@@ -208,6 +201,7 @@ impl VisualizeEvents {
             })
             .insert_resource(network_data)
             .insert_resource(vehicle_data)
+            .insert_resource(PlayPauseState::default())
             .insert_non_send_resource(TripsBuilderResource {
                 builder: Rc::new(RefCell::new(TripsBuilder::new())),
             })
@@ -225,11 +219,18 @@ impl VisualizeEvents {
             ))
             .add_systems(
                 Startup,
-                (setup_camera, fit_camera_to_network, setup_time_ui).chain(),
+                (
+                    setup_camera,
+                    fit_camera_to_network,
+                    setup_time_ui,
+                    setup_play_pause_button,
+                )
+                    .chain(),
             )
             .add_systems(
                 Update,
                 (
+                    handle_play_pause_button,
                     process_channel_events,
                     update_all_trips,
                     draw_network,
@@ -261,7 +262,7 @@ struct Trip {
 // bevy ressource with all trips
 #[derive(Resource)]
 struct AllTrips {
-    // vehicle-ID → list with alle trips
+    // vehicle-ID → list with all trips
     per_vehicle: HashMap<String, Vec<Trip>>,
 }
 
@@ -352,6 +353,14 @@ struct TripsBuilderResource {
 
 #[derive(Component)]
 struct SimulationTimeText;
+
+#[derive(Component)]
+struct PlayPauseButton;
+
+#[derive(Resource, Default)]
+struct PlayPauseState {
+    is_paused: bool,
+}
 
 // Builds the current trips
 #[derive(Default)]
@@ -519,14 +528,55 @@ fn setup_time_ui(mut commands: Commands) {
     ));
 }
 
-// Liest alle aktuell im Kanal wartenden Nachrichten aus und verarbeitet sie.
-// Wird jedes Frame aufgerufen, bevor Snapshot und Zeichnung stattfinden.
-//
-// Datenfluss:
-//   Kanal-Nachricht
-//     → Simulationsuhr aktualisieren
-//     → TripsBuilder-Zustand ändern (Fahrt öffnen / Link hinzufügen / Fahrt schließen)
-//     → im nächsten Schritt als Snapshot für die Zeichnung bereitstellen
+fn setup_play_pause_button(mut commands: Commands) {
+    commands
+        .spawn((
+            Button,
+            UiNode {
+                position_type: PositionType::Absolute,
+                top: Val::Px(10.0),
+                left: Val::Px(10.0),
+                padding: UiRect::all(Val::Px(8.0)),
+                ..Default::default()
+            },
+            BackgroundColor(Color::srgb(0.2, 0.2, 0.2)),
+            PlayPauseButton,
+        ))
+        .with_child((
+            Text::new("Pause"),
+            TextFont {
+                font_size: 22.0,
+                ..Default::default()
+            },
+            TextColor(Color::srgb(1.0, 1.0, 1.0)),
+        ));
+}
+
+fn handle_play_pause_button(
+    mut state: ResMut<PlayPauseState>,
+    mut button_query: Query<
+        (&Interaction, &Children),
+        (Changed<Interaction>, With<PlayPauseButton>),
+    >,
+    mut text_query: Query<&mut Text>,
+) {
+    for (interaction, children) in &mut button_query {
+        if *interaction == Interaction::Pressed {
+            state.is_paused = !state.is_paused;
+
+            for &child in children {
+                if let Ok(mut text) = text_query.get_mut(child) {
+                    text.0 = if state.is_paused {
+                        "Play".to_string()
+                    } else {
+                        "Pause".to_string()
+                    };
+                }
+            }
+        }
+    }
+}
+
 fn process_channel_events(
     events_channel: Res<EventsChannel>,
     builder_res: NonSendMut<TripsBuilderResource>,
@@ -537,42 +587,31 @@ fn process_channel_events(
         return;
     }
 
-    // Mutex sperren, um den Empfänger zu nutzen. Bei Fehler diesen Frame überspringen.
     let Ok(receiver) = events_channel.receiver.lock() else {
         return;
     };
 
-    // Alle aktuell verfügbaren Nachrichten ohne Blockierung aus dem Kanal lesen.
-    // So bleibt die UI möglichst aktuell, ohne auf neue Nachrichten zu warten.
     loop {
         match receiver.try_recv() {
             Ok(message) => match &message {
                 VisualizeEventMessage::Done => {
-                    // Simulation abgeschlossen – ab jetzt keine weiteren Nachrichten mehr.
                     *done = true;
                     break;
                 }
                 VisualizeEventMessage::BeforeSimStep { time } => {
-                    // Uhr vorwärts stellen, aber niemals rückwärts
-                    // (Nachrichten können leicht verzögert ankommen).
                     clock.time = clock.time.max(*time as f32);
                 }
-                // Alle vier fahrtbezogenen Nachrichtentypen werden gleich behandelt:
-                // 1) Uhr vorwärts stellen, 2) Statistik aktualisieren,
-                // 3) Nachricht an den TripsBuilder weitergeben, der den Fahrt-Zustand ändert.
                 VisualizeEventMessage::LinkEnter { time, .. }
                 | VisualizeEventMessage::LinkLeave { time, .. }
                 | VisualizeEventMessage::PersonEntersVehicle { time, .. }
                 | VisualizeEventMessage::PersonLeavesVehicle { time, .. } => {
                     clock.time = clock.time.max(*time as f32);
-                    // TripsBuilder aktualisiert seine internen Maps
-                    // (Fahrt öffnen, Link hinzufügen oder Fahrt abschließen).
                     builder_res.builder.borrow_mut().handle_event(&message);
                 }
             },
-            // Kanal ist leer – alle verfügbaren Nachrichten wurden in diesem Frame verarbeitet.
+
             Err(mpsc::TryRecvError::Empty) => break,
-            // Sender wurde fallen gelassen (Simulations-Thread beendet) → als fertig markieren.
+
             Err(mpsc::TryRecvError::Disconnected) => {
                 *done = true;
                 break;
@@ -627,7 +666,6 @@ fn draw_vehicles(
     let current_sim_time = clock.time;
 
     for (vehicle_id, vehicle_trips) in trips.per_vehicle.iter() {
-        // Fahrzeuge ohne Fahrten können keine Position haben.
         if vehicle_trips.is_empty() {
             continue;
         }
