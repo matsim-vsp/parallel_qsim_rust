@@ -350,10 +350,7 @@ mod tests {
 
         manager.process_event(ControllerEvent::startup(false));
 
-        assert_eq!(
-            vec!["high", "high_2", "low"],
-            order.borrow().clone()
-        );
+        assert_eq!(vec!["high", "high_2", "low"], order.borrow().clone());
     }
 
     #[test]
@@ -378,9 +375,6 @@ mod tests {
 
         manager.process_event(MobsimEvent::before_sim_step(10));
 
-        assert_eq!(
-            vec!["high", "default", "low"],
-            order.borrow().clone()
-        );
+        assert_eq!(vec!["high", "default", "low"], order.borrow().clone());
     }
 }

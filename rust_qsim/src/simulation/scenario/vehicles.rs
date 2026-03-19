@@ -1,12 +1,128 @@
-use std::path::Path;
-
+use crate::generated::vehicles::{Vehicle, VehicleType};
+use crate::simulation::InternalAttributes;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
-use crate::simulation::io::xml::vehicles::{IOVehicle, IOVehicleDefinitions, IOVehicleType};
-use crate::simulation::population::InternalPerson;
-use crate::simulation::vehicles::{from_file, to_file, InternalVehicle, InternalVehicleType};
+use crate::simulation::io::proto::proto_vehicles::{load_from_proto, write_to_proto};
+use crate::simulation::io::xml::vehicles::{
+    IOVehicle, IOVehicleDefinitions, IOVehicleType, load_from_xml, write_to_xml,
+};
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::vehicles::SimulationVehicle;
 use nohash_hasher::IntMap;
+use std::path::Path;
 use tracing::info;
+
+pub fn from_file(path: &Path) -> Garage {
+    if path.extension().unwrap().eq("binpb") {
+        load_from_proto(path)
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        load_from_xml(path)
+    } else {
+        panic!(
+            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+        );
+    }
+}
+
+pub fn to_file(garage: &Garage, path: &Path) {
+    if path.extension().unwrap().eq("binpb") {
+        write_to_proto(garage, path);
+    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+        write_to_xml(garage, path);
+    } else {
+        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct InternalVehicleType {
+    pub id: Id<InternalVehicleType>,
+    pub length: f32,
+    pub width: f32,
+    pub max_v: f32,
+    pub pce: f32,
+    pub fef: f32,
+    pub net_mode: Id<String>,
+    pub attributes: InternalAttributes,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct InternalVehicle {
+    pub id: Id<InternalVehicle>,
+    pub max_v: f32,
+    pub pce: f32,
+    pub vehicle_type: Id<InternalVehicleType>,
+    pub attributes: InternalAttributes,
+}
+
+impl From<IOVehicleType> for InternalVehicleType {
+    fn from(io: IOVehicleType) -> Self {
+        InternalVehicleType {
+            id: Id::create(&io.id),
+            length: io.length.unwrap_or_default().meter,
+            width: io.width.unwrap_or_default().meter,
+            max_v: io.maximum_velocity.unwrap_or_default().meter_per_second,
+            pce: io.passenger_car_equivalents.unwrap_or_default().pce,
+            fef: io.flow_efficiency_factor.unwrap_or_default().factor,
+            net_mode: Id::create(&io.network_mode.unwrap_or_default().network_mode),
+            attributes: io.attributes.map(Into::into).unwrap_or_default(),
+        }
+    }
+}
+
+impl From<VehicleType> for InternalVehicleType {
+    fn from(value: VehicleType) -> Self {
+        Self {
+            id: Id::get(value.id),
+            length: value.length,
+            width: value.width,
+            max_v: value.max_v,
+            pce: value.pce,
+            fef: value.fef,
+            net_mode: Id::get(value.net_mode),
+            attributes: InternalAttributes::default(),
+        }
+    }
+}
+
+impl From<Vehicle> for InternalVehicle {
+    fn from(value: Vehicle) -> Self {
+        Self {
+            id: Id::get(value.id),
+            max_v: value.max_v,
+            pce: value.pce,
+            vehicle_type: Id::get(value.r#type),
+            attributes: InternalAttributes::from(&value.attributes),
+        }
+    }
+}
+
+impl InternalVehicle {
+    pub fn from_io(io: IOVehicle, io_veh_type: &InternalVehicleType) -> Self {
+        InternalVehicle {
+            id: Id::create(&io.id),
+            max_v: io_veh_type.max_v,
+            pce: io_veh_type.pce,
+            vehicle_type: Id::create(&io.vehicle_type),
+            attributes: io.attributes.map(Into::into).unwrap_or_default(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32) -> Self {
+        InternalVehicle {
+            id: Id::create(&id.to_string()),
+            max_v,
+            pce,
+            vehicle_type: Id::create(&veh_type.to_string()),
+            attributes: Default::default(),
+        }
+    }
+
+    pub fn id(&self) -> &Id<InternalVehicle> {
+        &self.id
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Garage {
@@ -116,8 +232,6 @@ impl Garage {
 
         let vehicle = InternalVehicle {
             id: veh_id,
-            driver: None,
-            passengers: vec![],
             vehicle_type: veh_type.id.clone(),
             attributes: Default::default(),
             max_v: veh_type.max_v,
@@ -141,9 +255,10 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, mut vehicle: InternalVehicle) -> Vec<SimulationAgent> {
-        let mut agents = std::mem::take(&mut vehicle.passengers);
-        let person = vehicle.driver.take().expect("Vehicle has no driver.");
+    pub(crate) fn park_veh(&mut self, vehicle: SimulationVehicle) -> Vec<SimulationAgent> {
+        let person = vehicle.driver;
+        let mut agents = vehicle.passengers;
+        let person = person.expect("Vehicle has no driver.");
         agents.push(person);
         agents
 
@@ -158,26 +273,16 @@ impl Garage {
         agent: SimulationAgent,
         passengers: Vec<SimulationAgent>,
         id: Id<InternalVehicle>,
-    ) -> InternalVehicle {
-        let veh_type_id = &self
+    ) -> SimulationVehicle {
+        let vehicle = self
             .vehicles
             .get(&id)
             .unwrap_or_else(|| {
                 panic!("Can't unpark vehicle with id {id}. It was not parked in this garage.")
             })
-            .vehicle_type;
+            .clone();
 
-        let veh_type = self.vehicle_types.get(veh_type_id).unwrap();
-
-        InternalVehicle {
-            id: id.clone(),
-            max_v: veh_type.max_v,
-            pce: veh_type.pce,
-            driver: Some(agent),
-            passengers,
-            vehicle_type: veh_type_id.clone(),
-            attributes: Default::default(),
-        }
+        SimulationVehicle::new(vehicle, Some(agent), passengers)
 
         // The following code would be used if mass conservation is enabled. But, there are some pitfalls.
         // One would need to configure for which vehicle types this is allowed.
@@ -196,7 +301,7 @@ impl Garage {
         &mut self,
         agent: SimulationAgent,
         id: Id<InternalVehicle>,
-    ) -> InternalVehicle {
+    ) -> SimulationVehicle {
         self.unpark_veh_with_passengers(agent, vec![], id)
     }
 
@@ -218,10 +323,11 @@ mod tests {
         IODimension, IOFowEfficiencyFactor, IONetworkMode, IOPassengerCarEquivalents,
         IOVehicleType, IOVelocity,
     };
-    use crate::simulation::vehicles::garage::{add_io_veh_type, Garage};
-    use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_vehicle_type;
 
+    use crate::simulation::scenario::vehicles::{
+        Garage, InternalVehicle, InternalVehicleType, add_io_veh_type,
+    };
     use macros::integration_test;
 
     #[integration_test]
@@ -256,8 +362,6 @@ mod tests {
             id: Id::create("0"),
             max_v: 0.0,
             pce: 0.0,
-            driver: None,
-            passengers: vec![],
             vehicle_type: Id::create("0"),
             attributes: Default::default(),
         });
@@ -278,8 +382,6 @@ mod tests {
             id,
             max_v: 0.0,
             pce: 0.0,
-            driver: None,
-            passengers: vec![],
             vehicle_type: veh_type_id,
             attributes: Default::default(),
         });

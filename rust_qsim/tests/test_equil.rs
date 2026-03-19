@@ -14,12 +14,15 @@ mod test_simulation;
 use crate::test_simulation::TestExecutorBuilder;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
-use rust_qsim::simulation::id::{store_to_file, Id};
-use rust_qsim::simulation::network::Network;
-use rust_qsim::simulation::population::{InternalPlanElement, Population, PREPLANNING_HORIZON};
-use rust_qsim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::id::{Id, store_to_file};
+use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
+use rust_qsim::simulation::scenario::network::Network;
+use rust_qsim::simulation::scenario::population::{
+    InternalPlanElement, PREPLANNING_HORIZON, Population,
+};
+use rust_qsim::simulation::scenario::vehicles::Garage;
 
-// in the adaptive scenario we are still using the binpb files
+// in the adaptive mod we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
 where
     F: Fn(&mut Population),
@@ -40,7 +43,7 @@ where
 #[integration_test(rust_qsim)]
 fn execute_equil_single_part() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
-    let config = Arc::new(Config::from(config_args));
+    let config = Arc::new(Config::from_args(config_args));
 
     TestExecutorBuilder::default()
         .config(config)
@@ -53,7 +56,7 @@ fn execute_equil_single_part() {
 #[integration_test(rust_qsim)]
 fn execute_equil_2_parts() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
-    let config = Arc::new(Config::from(config_args));
+    let config = Arc::new(Config::from_args(config_args));
 
     TestExecutorBuilder::default()
         .config(config)
@@ -73,7 +76,7 @@ fn execute_equil_adaptive_planning_single_part_panics() {
     // panics because no external service is provided
     execute_adaptive(
         test_dir,
-        Config::from(CommandLineArgs::new_with_path(config_path)),
+        Config::from_args(CommandLineArgs::new_with_path(config_path)),
         expected_events,
         ExternalServices::default(),
         vec![],
@@ -89,7 +92,7 @@ fn execute_equil_adaptive_planning_single_part() {
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let config = Config::from(CommandLineArgs::new_with_path(config_path));
+    let config = Config::from_args(CommandLineArgs::new_with_path(config_path));
 
     let parts = config.partitioning().num_parts + 1;
     let barrier = Arc::new(Barrier::new(parts as usize));
@@ -108,11 +111,13 @@ fn execute_equil_adaptive_planning_single_part() {
         config,
         expected_events,
         map.into(),
-        vec![AdapterHandleBuilder::default()
-            .handle(handle)
-            .shutdown_sender(shutdown)
-            .build()
-            .unwrap()],
+        vec![
+            AdapterHandleBuilder::default()
+                .handle(handle)
+                .shutdown_sender(shutdown)
+                .build()
+                .unwrap(),
+        ],
         barrier,
     );
 }
@@ -125,7 +130,7 @@ fn execute_equil_adaptive_planning_two_parts() {
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
-    let config = Config::from(CommandLineArgs::new_with_path(config_path));
+    let config = Config::from_args(CommandLineArgs::new_with_path(config_path));
 
     let barrier = Arc::new(Barrier::new((config.partitioning().num_parts + 1) as usize));
     let executor = AsyncExecutor::from_config(&config, barrier.clone());
@@ -143,11 +148,13 @@ fn execute_equil_adaptive_planning_two_parts() {
         config,
         expected_events,
         map.into(),
-        vec![AdapterHandleBuilder::default()
-            .handle(handle)
-            .shutdown_sender(shutdown)
-            .build()
-            .unwrap()],
+        vec![
+            AdapterHandleBuilder::default()
+                .handle(handle)
+                .shutdown_sender(shutdown)
+                .build()
+                .unwrap(),
+        ],
         barrier,
     );
 }
@@ -220,6 +227,7 @@ fn execute_adaptive(
 
     TestExecutorBuilder::default()
         .config(Arc::new(config))
+        .agent_source(Arc::new(PreplanningHorizonAgentSource))
         .expected_events(Some(expected_events))
         .external_services(map)
         .adapter_handles(adapter_handles)

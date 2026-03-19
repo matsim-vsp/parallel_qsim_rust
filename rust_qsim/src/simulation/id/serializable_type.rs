@@ -1,7 +1,6 @@
-use crate::simulation::network::{Link, Node};
-use crate::simulation::population::InternalPerson;
-use crate::simulation::vehicles::{InternalVehicle, InternalVehicleType};
-
+use crate::simulation::scenario::network::{Link, Node};
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
 pub trait StableTypeId {
     fn stable_type_id() -> u64;
 }

@@ -4,11 +4,12 @@ use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
 use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
-use rust_qsim::simulation::scenario::Scenario;
+use rust_qsim::simulation::population::agent_source::PopulationAgentSource;
+use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Barrier};
 use std::thread;
 
@@ -17,6 +18,7 @@ use std::thread;
 use derive_more::Debug;
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::population::agent_source::DynAgentSource;
 
 #[derive(Debug, Builder)]
 #[builder(pattern = "owned")]
@@ -24,6 +26,9 @@ use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 // See https://zerotomastery.io/blog/complete-guide-to-testing-code-in-rust/#Integration-testing
 #[allow(dead_code)]
 pub struct TestExecutor<'s> {
+    #[debug(skip)]
+    #[builder(default = "Arc::new(PopulationAgentSource)")]
+    agent_source: DynAgentSource,
     config: Arc<Config>,
     #[builder(default)]
     expected_events: Option<&'s str>,
@@ -98,12 +103,13 @@ impl TestExecutor<'_> {
     }
 
     fn run(self, subscribers: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>) {
-        let scenario = Scenario::load(self.config.clone());
+        let scenario = MutableScenario::load(self.config);
 
         let controller = ControllerBuilder::default_with_scenario(scenario)
             .event_handler_register_fn(subscribers)
             .external_services(self.external_services.clone())
             .global_barrier(self.global_barrier.clone())
+            .agent_source(self.agent_source)
             .adapter_handles(self.adapter_handles)
             .build()
             .unwrap();
@@ -191,7 +197,9 @@ impl TestSubscriber {
             }
             #[cfg(not(feature = "http"))]
             {
-                panic!("HTTP support is not enabled. Please recompile with the `http` feature enabled.");
+                panic!(
+                    "HTTP support is not enabled. Please recompile with the `http` feature enabled."
+                );
             }
         } else {
             let file = File::open(events_file)

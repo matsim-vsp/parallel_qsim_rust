@@ -99,7 +99,9 @@ impl AsyncExecutor {
             b.worker_threads(self.worker_threads as usize);
             b
         } else {
-            warn!("Starting adapter with current_thread runtime, this might lead to performance drops. Use carefully.");
+            warn!(
+                "Starting adapter with current_thread runtime, this might lead to performance drops. Use carefully."
+            );
             tokio::runtime::Builder::new_current_thread()
         };
 

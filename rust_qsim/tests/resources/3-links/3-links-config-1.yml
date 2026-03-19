@@ -14,8 +14,12 @@ modules:
     method: !Metis
       vertex_weight:
         - Constant
+  simulation:
+    type: Simulation
+    main_modes: [ "car" ]
   output:
     type: Output
+    overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/execute_3_links_single_part
   routing:
     type: Routing

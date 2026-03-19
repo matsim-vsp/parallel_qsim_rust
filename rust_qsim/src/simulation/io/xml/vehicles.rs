@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
-use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::scenario::vehicles::Garage;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -42,7 +42,11 @@ pub(crate) fn write_to_xml(garage: &Garage, path: &Path) {
         vehicles: vec![],
     };
 
-    xml::write_to_file(&io_vehicles, path, "<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd\">")
+    xml::write_to_file(
+        &io_vehicles,
+        path,
+        "<!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v2.0.xsd\">",
+    )
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -174,11 +178,11 @@ impl IOVehicleDefinitions {
 mod test {
     use std::path::PathBuf;
 
+    use crate::simulation::InternalAttributes;
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::vehicles::IOVehicleDefinitions;
-    use crate::simulation::vehicles::garage::Garage;
-    use crate::simulation::vehicles::{from_file, to_file, InternalVehicleType};
-    use crate::simulation::InternalAttributes;
+    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::vehicles::{InternalVehicleType, from_file, to_file};
     use macros::integration_test;
     use quick_xml::de::from_str;
 

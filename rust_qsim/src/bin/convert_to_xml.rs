@@ -4,9 +4,9 @@ use clap::Parser;
 use tracing::info;
 
 use rust_qsim::simulation::config::PartitionMethod;
-use rust_qsim::simulation::network::Network;
-use rust_qsim::simulation::population::Population;
-use rust_qsim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::scenario::network::Network;
+use rust_qsim::simulation::scenario::population::Population;
+use rust_qsim::simulation::scenario::vehicles::Garage;
 
 #[derive(Parser, Debug)]
 struct InputArgs {
@@ -67,6 +67,5 @@ fn replace_filename(path: PathBuf) -> PathBuf {
     let stripped = file_name.strip_suffix(".binpb");
     let new_file_name = format!("{}.xml.gz", stripped.unwrap());
     info!("New file name: {}", new_file_name);
-    let result = path.parent().unwrap().join(new_file_name);
-    result
+    path.parent().unwrap().join(new_file_name)
 }

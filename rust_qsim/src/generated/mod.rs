@@ -1,5 +1,5 @@
-use crate::generated::general::attribute_value::Type;
 use crate::generated::general::AttributeValue;
+use crate::generated::general::attribute_value::Type;
 use crate::simulation::io::xml::attributes::IOAttribute;
 use prost::Message;
 use serde::ser::Error;

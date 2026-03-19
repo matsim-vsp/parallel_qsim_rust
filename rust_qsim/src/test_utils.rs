@@ -1,15 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::SimulationAgentLogic;
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
-use crate::simulation::population::{
+use crate::simulation::scenario::population::{
     InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
     InternalPlan, InternalRoute,
 };
-use crate::simulation::vehicles::InternalVehicleType;
-use crate::simulation::{config, InternalAttributes};
+use crate::simulation::scenario::vehicles::InternalVehicleType;
+use crate::simulation::{InternalAttributes, config};
 
 pub fn create_agent_without_route(id: u64) -> SimulationAgent {
     //inserting a dummy route

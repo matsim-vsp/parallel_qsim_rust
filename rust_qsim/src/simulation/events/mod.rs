@@ -1,24 +1,59 @@
+mod comparision;
 pub mod utils;
 pub mod visualize;
 
 use crate::generated::events::MyEvent;
-use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::InternalPerson;
-use crate::simulation::vehicles::InternalVehicle;
 use crate::simulation::InternalAttributes;
-use derive_builder::Builder;
+use crate::simulation::id::Id;
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::InternalVehicle;
+use macros::event_struct;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 
-pub trait EventTrait: Debug + Any {
+pub trait DynEq: Any {
+    fn as_any(&self) -> &dyn Any;
+    fn dyn_eq(&self, other: &dyn DynEq) -> bool;
+}
+
+pub trait EventTrait: Debug + DynEq + Send {
     //This can't be a const, because traits with const fields are not dyn compatible.
     fn type_(&self) -> &'static str;
-    fn as_any(&self) -> &dyn Any;
+    // fn as_any(&self) -> &dyn Any;
     fn time(&self) -> u32;
     fn attributes(&self) -> &InternalAttributes;
+}
+
+/// Trait for objects that need to be compared, but whose type is not known at compile time. This is
+/// needed for comparing event files, since it is not known which type of event will be read from
+/// the files.
+/// Based on https://users.rust-lang.org/t/how-to-compare-two-trait-objects-for-equality/88063/5,
+/// or specifically, the demo crate https://crates.io/crates/dyn_ord, written by the forum user who
+/// wrote the reply in the link above.
+/// Main idea: when comparing a and b which are both of type &dyn DynEq, try to downcast b to the
+/// type of a. If that works, compare them with the normal equality operator. If not, return false,
+/// since they are of different types and thus not equal.
+impl<T: Any + PartialEq> DynEq for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn dyn_eq(&self, other: &dyn DynEq) -> bool {
+        if let Some(other) = other.as_any().downcast_ref::<T>() {
+            *self == *other
+        } else {
+            false
+        }
+    }
+}
+
+impl PartialEq for dyn EventTrait {
+    fn eq(&self, other: &Self) -> bool {
+        self.dyn_eq(other)
+    }
 }
 
 type HandleEventFn = dyn Fn(&dyn EventTrait) + 'static;
@@ -147,7 +182,7 @@ impl Clone for Box<dyn EventsWriter> {
     }
 }
 
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct GeneralEvent {
     pub time: u32,
     #[builder(default)]
@@ -167,22 +202,7 @@ impl GeneralEvent {
     }
 }
 
-impl EventTrait for GeneralEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct ActivityStartEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -208,22 +228,7 @@ impl ActivityStartEvent {
     }
 }
 
-impl EventTrait for ActivityStartEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct ActivityEndEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -249,22 +254,7 @@ impl ActivityEndEvent {
     }
 }
 
-impl EventTrait for ActivityEndEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct LinkEnterEvent {
     pub time: u32,
     pub link: Id<Link>,
@@ -288,22 +278,7 @@ impl LinkEnterEvent {
     }
 }
 
-impl EventTrait for LinkEnterEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct LinkLeaveEvent {
     pub time: u32,
     pub link: Id<Link>,
@@ -327,30 +302,15 @@ impl LinkLeaveEvent {
     }
 }
 
-impl EventTrait for LinkLeaveEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct VehicleEntersTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
     pub link: Id<Link>,
-    pub driver: Id<InternalPerson>,
-    pub mode: Id<String>,
+    pub person: Id<InternalPerson>,
+    pub network_mode: Id<String>,
     #[builder(default = 1.0)]
-    pub relative_position_on_link: f64,
+    pub relative_position: f64,
     #[builder(default)]
     pub attributes: InternalAttributes,
 }
@@ -364,40 +324,24 @@ impl VehicleEntersTrafficEvent {
             .time(time)
             .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
-            .driver(Id::create(&event.attributes["driver"].as_string()))
-            .mode(Id::create(&event.attributes["mode"].as_string()))
-            .relative_position_on_link(event.attributes["relative_position_on_link"].as_double())
+            .person(Id::create(&event.attributes["person"].as_string()))
+            .network_mode(Id::create(&event.attributes["network_mode"].as_string()))
+            .relative_position(event.attributes["relative_position"].as_double())
             .attributes(attrs)
             .build()
             .unwrap()
     }
 }
 
-impl EventTrait for VehicleEntersTrafficEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct VehicleLeavesTrafficEvent {
     pub time: u32,
     pub vehicle: Id<InternalVehicle>,
     pub link: Id<Link>,
-    pub driver: Id<InternalPerson>,
-    pub mode: Id<String>,
+    pub person: Id<InternalPerson>,
+    pub network_mode: Id<String>,
     #[builder(default = 1.0)]
-    pub relative_position_on_link: f64,
+    pub relative_position: f64,
     #[builder(default)]
     pub attributes: InternalAttributes,
 }
@@ -411,32 +355,16 @@ impl VehicleLeavesTrafficEvent {
             .time(time)
             .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
-            .driver(Id::create(&event.attributes["driver"].as_string()))
-            .mode(Id::create(&event.attributes["mode"].as_string()))
-            .relative_position_on_link(event.attributes["relative_position_on_link"].as_double())
+            .person(Id::create(&event.attributes["person"].as_string()))
+            .network_mode(Id::create(&event.attributes["network_mode"].as_string()))
+            .relative_position(event.attributes["relative_position"].as_double())
             .attributes(attrs)
             .build()
             .unwrap()
     }
 }
 
-impl EventTrait for VehicleLeavesTrafficEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct PersonEntersVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -460,22 +388,7 @@ impl PersonEntersVehicleEvent {
     }
 }
 
-impl EventTrait for PersonEntersVehicleEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct PersonLeavesVehicleEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -499,22 +412,7 @@ impl PersonLeavesVehicleEvent {
     }
 }
 
-impl EventTrait for PersonLeavesVehicleEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct PersonDepartureEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -542,22 +440,7 @@ impl PersonDepartureEvent {
     }
 }
 
-impl EventTrait for PersonDepartureEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct PersonArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -583,22 +466,7 @@ impl PersonArrivalEvent {
     }
 }
 
-impl EventTrait for PersonArrivalEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct TeleportationArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -624,22 +492,7 @@ impl TeleportationArrivalEvent {
     }
 }
 
-impl EventTrait for TeleportationArrivalEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
-    }
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
-    }
-}
-
-#[derive(Builder, Debug)]
+#[event_struct]
 pub struct PtTeleportationArrivalEvent {
     pub time: u32,
     pub person: Id<InternalPerson>,
@@ -669,17 +522,144 @@ impl PtTeleportationArrivalEvent {
     }
 }
 
-impl EventTrait for PtTeleportationArrivalEvent {
-    fn type_(&self) -> &'static str {
-        Self::TYPE
+#[cfg(test)]
+mod tests {
+    use crate::simulation::events::{
+        EventTrait, EventsManager, Id, InternalAttributes, PersonArrivalEvent, PersonDepartureEvent,
+    };
+    use macros::event_struct;
+    use macros::integration_test;
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    // create new event type to make sure it works for new types as well
+    #[event_struct]
+    struct NewSimpleEvent {
+        time: u32,
+        some_field: String,
+        attributes: InternalAttributes,
     }
-    fn as_any(&self) -> &dyn Any {
-        self
+
+    impl NewSimpleEvent {
+        pub const TYPE: &'static str = "new simple event";
     }
-    fn time(&self) -> u32 {
-        self.time
-    }
-    fn attributes(&self) -> &InternalAttributes {
-        &self.attributes
+
+    #[integration_test]
+    fn test_events_manager() {
+        let mut events_manager = EventsManager::new();
+
+        // define vectors that we will make the events manager fill when processing events.
+        let collection_of_person_arrival_events: Rc<RefCell<Vec<PersonArrivalEvent>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let collection_of_new_simple_events: Rc<RefCell<Vec<NewSimpleEvent>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let collection_of_any_event_strings: Rc<RefCell<Vec<String>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        let collection_of_finish_strings: Rc<RefCell<Vec<String>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
+        // clone the pointers, since we need to move them to the event managers
+        let cloned_ptr_to_pa_collection = collection_of_person_arrival_events.clone();
+        let cloned_ptr_to_nse_collection = collection_of_new_simple_events.clone();
+        let cloned_ptr_to_any_collection = collection_of_any_event_strings.clone();
+        let cloned_ptr_to_finish_collection = collection_of_finish_strings.clone();
+
+        // register functions in event manager:
+
+        // this registers a function in the events manager s.t. when a PersonArrivalEvent is
+        // processed, it will be added to the collection_of_person_arrival_events vector.
+        events_manager.on::<PersonArrivalEvent, _>(move |event| {
+            cloned_ptr_to_pa_collection.borrow_mut().push(event.clone());
+        });
+
+        // this does the same for NewSimpleEvent, to make sure that it works for new event types as well.
+        events_manager.on::<NewSimpleEvent, _>(move |event| {
+            cloned_ptr_to_nse_collection
+                .borrow_mut()
+                .push(event.clone());
+        });
+
+        // this registers a function in the events manager s.t. when any event is processed, its
+        // type will be added to the collection_of_any_events vector.
+        events_manager.on_any(move |event: &dyn EventTrait| {
+            cloned_ptr_to_any_collection
+                .borrow_mut()
+                .push(String::from(event.type_())); // cannot clone event without knowing
+            // type, so we just store the type here,
+            // for testing
+        });
+
+        // this registers a function in the events manager s.t. when the finish function is called,
+        // "finished" will be added to the collection_of_finish_strings vector.
+        events_manager.on_finish(move || {
+            cloned_ptr_to_finish_collection
+                .borrow_mut()
+                .push(String::from("finished"));
+        });
+
+        // create example events
+        let event1 = PersonArrivalEvent {
+            time: 10,
+            person: Id::create("person1"),
+            link: Id::create("link1"),
+            leg_mode: Id::create("car"),
+            attributes: InternalAttributes::default(),
+        };
+        let event2 = PersonArrivalEvent {
+            time: 12,
+            person: Id::create("person1"),
+            link: Id::create("link1"),
+            leg_mode: Id::create("car"),
+            attributes: InternalAttributes::default(),
+        };
+        let event3 = PersonDepartureEvent {
+            time: 15,
+            person: Id::create("person1"),
+            link: Id::create("link1"),
+            leg_mode: Id::create("car"),
+            routing_mode: Id::create("fastest"),
+            attributes: InternalAttributes::default(),
+        };
+        let event4 = NewSimpleEvent {
+            time: 20,
+            some_field: String::from("some value"),
+            attributes: InternalAttributes::default(),
+        };
+
+        // process all events and finish
+        events_manager.process_event(&event1);
+        events_manager.process_event(&event2);
+        events_manager.process_event(&event3);
+        events_manager.process_event(&event4);
+        events_manager.finish();
+
+        // verify that the PA collection contains event1 and event2, but not event3 or event4
+        assert_eq!(
+            *collection_of_person_arrival_events.borrow(),
+            vec![event1, event2]
+        );
+
+        // verify that the NewSimpleEvent collection contains event4, but not the other events
+        assert_eq!(*collection_of_new_simple_events.borrow(), vec![event4]);
+
+        // verify that the "any" collection contains the types of all events
+        assert_eq!(
+            *collection_of_any_event_strings.borrow(),
+            vec![
+                String::from("arrival"),
+                String::from("arrival"),
+                String::from("departure"),
+                String::from("new simple event")
+            ]
+        );
+
+        // verify that the finish collection contains "finished"
+        assert_eq!(
+            *collection_of_finish_strings.borrow(),
+            vec![String::from("finished")]
+        );
     }
 }

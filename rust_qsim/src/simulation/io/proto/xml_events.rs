@@ -1,14 +1,14 @@
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Write};
-use std::path::{Path, PathBuf};
+use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Mutex;
 use tracing::info;
+use xml::EventReader;
 use xml::attribute::OwnedAttribute;
 use xml::reader::XmlEvent;
-use xml::EventReader;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
@@ -17,22 +17,23 @@ use crate::simulation::events::{
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
     PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
-    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
+    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder,
+    VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::InternalPerson;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 
 pub struct XmlEventsWriter {
     writer: Mutex<Box<dyn Write + Send>>,
 }
 
 impl XmlEventsWriter {
-    pub fn new(path: PathBuf) -> Self {
-        info!("Creating file: {path:?}");
+    pub fn new(path: impl AsRef<Path>) -> Self {
+        info!("Creating file: {:?}", path.as_ref());
         let file = File::create(&path).expect("Failed to create File.");
-        let mut writer: Box<dyn Write + Send> = if path.extension().unwrap() == "gz" {
+        let mut writer: Box<dyn Write + Send> = if path.as_ref().extension().unwrap() == "gz" {
             Box::new(GzEncoder::new(file, Compression::fast()))
         } else {
             Box::new(BufWriter::new(file))
@@ -139,24 +140,26 @@ impl XmlEventsWriter {
                 ev.route
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
-                    ev.time(),
-                    ev.type_(),
-                    ev.driver,
-                    ev.link,
-                    ev.vehicle,
-                    ev.mode,
-                    ev.relative_position_on_link
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.vehicle,
+                ev.network_mode,
+                ev.relative_position
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            format!("<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
-                    ev.time(),
-                    ev.type_(),
-                    ev.driver,
-                    ev.link,
-                    ev.vehicle,
-                    ev.mode,
-                    ev.relative_position_on_link
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
+                ev.time(),
+                ev.type_(),
+                ev.person,
+                ev.link,
+                ev.vehicle,
+                ev.network_mode,
+                ev.relative_position
             )
         } else {
             panic!("Unknown event type");
@@ -182,7 +185,7 @@ impl XmlEventsWriter {
         writer.flush().expect("Failed to flush events.");
     }
 
-    pub fn register_fn(path: PathBuf) -> Box<EventHandlerRegisterFn> {
+    pub fn register_fn(path: impl AsRef<Path> + Send + 'static) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             let xml = Rc::new(XmlEventsWriter::new(path));
             let xml1 = xml.clone();
@@ -199,14 +202,21 @@ impl XmlEventsWriter {
 }
 
 pub struct XmlEventsReader {
-    parser: EventReader<BufReader<File>>,
+    parser: EventReader<Box<dyn BufRead>>,
 }
 
 impl XmlEventsReader {
-    pub fn new(events_file: &Path) -> Self {
-        let file = File::open(events_file)
-            .unwrap_or_else(|_| panic!("Could not open events file: {:?}", events_file));
-        let buffered_reader = BufReader::new(file);
+    pub fn new(events_file: impl AsRef<Path>) -> Self {
+        let file = File::open(events_file.as_ref())
+            .unwrap_or_else(|_| panic!("Could not open events file: {:?}", events_file.as_ref()));
+        // if events_file is a gz file, read it with a GzDecoder, otherwise read it directly
+        let file_is_gz = events_file.as_ref().extension().unwrap() == "gz";
+        let buffered_reader: Box<dyn BufRead> = if file_is_gz {
+            let gz = flate2::read::GzDecoder::new(file);
+            Box::new(BufReader::new(gz))
+        } else {
+            Box::new(BufReader::new(file))
+        };
         let parser = EventReader::new(buffered_reader);
         Self { parser }
     }
@@ -245,8 +255,50 @@ fn handle(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
         "PersonLeavesVehicle" => handle_person_leaves_veh(attr),
         "entered link" => handle_link_enter(attr),
         "left link" => handle_link_leave(attr),
+        "vehicle enters traffic" => handle_vehicle_enters_traffic(attr),
+        "vehicle leaves traffic" => handle_vehicle_leaves_traffic(attr),
         _ => panic!("Unknown event type {ev_type}"),
     }
+}
+
+fn handle_vehicle_enters_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(4).unwrap().value);
+    let network_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
+    let relative_position: f64 = attr.get(6).unwrap().value.parse().unwrap();
+    Box::new(
+        VehicleEntersTrafficEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .vehicle(vehicle)
+            .network_mode(network_mode)
+            .relative_position(relative_position)
+            .build()
+            .unwrap(),
+    )
+}
+
+fn handle_vehicle_leaves_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time: u32 = attr.first().unwrap().value.parse().unwrap();
+    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
+    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
+    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(4).unwrap().value);
+    let network_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
+    let relative_position: f64 = attr.get(6).unwrap().value.parse().unwrap();
+    Box::new(
+        VehicleLeavesTrafficEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .vehicle(vehicle)
+            .network_mode(network_mode)
+            .relative_position(relative_position)
+            .build()
+            .unwrap(),
+    )
 }
 
 fn handle_act_end(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {

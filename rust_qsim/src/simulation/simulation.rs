@@ -1,14 +1,14 @@
-use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::SimulationAgentLogic;
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
 use crate::simulation::engines::leg_engine::LegEngine;
 use crate::simulation::framework_events::MobsimEvent;
-use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::population::agent_source::{AgentSource, PopulationAgentSource};
+use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::scenario::ScenarioPartition;
-use crate::simulation::vehicles::InternalVehicle;
+use crate::simulation::vehicles::SimulationVehicle;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tracing::info;
@@ -44,7 +44,7 @@ where
                 .mobsim_events_manager_borrow_mut()
                 .process_event(MobsimEvent::before_sim_step(now));
 
-            if now % 3600 == 0 {
+            if now.is_multiple_of(3600) {
                 let _hour = now / 3600;
                 let _min = (now % 3600) / 60;
                 info!(
@@ -84,10 +84,10 @@ where
     }
 
     pub(crate) fn is_local_route(
-        veh: &InternalVehicle,
+        veh: &SimulationVehicle,
         message_broker: &NetMessageBroker<C>,
     ) -> bool {
-        let leg = veh.driver.as_ref().unwrap().curr_leg();
+        let leg = veh.driver().curr_leg();
         let route = leg.route.as_ref().unwrap();
         let to = message_broker.rank_for_link(route.end_link());
         message_broker.rank() == to
@@ -108,6 +108,7 @@ pub struct SimulationBuilder<C: SimCommunicator> {
     scenario: ScenarioPartition,
     net_message_broker: NetMessageBroker<C>,
     comp_env: ThreadLocalComputationalEnvironment,
+    agent_source: DynAgentSource,
 }
 
 impl<C: SimCommunicator> SimulationBuilder<C> {
@@ -115,18 +116,18 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
         scenario: ScenarioPartition,
         net_message_broker: NetMessageBroker<C>,
         comp_env: ThreadLocalComputationalEnvironment,
+        agent_source: DynAgentSource,
     ) -> Self {
         SimulationBuilder {
             scenario,
             net_message_broker,
             comp_env,
+            agent_source,
         }
     }
 
     pub fn build(mut self) -> Simulation<C> {
-        // this needs to be adapted if new agent sources are introduced
-        let agent_source = PopulationAgentSource {};
-        let agents = agent_source.create_agents(&mut self.scenario);
+        let agents = self.agent_source.create_agents(&mut self.scenario);
 
         let activity_engine = ActivityEngineBuilder::new(
             agents.into_values().collect(),
@@ -139,7 +140,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             self.scenario.network_partition,
             self.scenario.garage,
             self.net_message_broker,
-            &self.scenario.config.simulation(),
+            self.scenario.config.simulation(),
             self.comp_env.clone(),
         );
 

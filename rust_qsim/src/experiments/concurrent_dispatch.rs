@@ -127,7 +127,10 @@ impl Dispatcher {
                     println!("Dispatcher {} received {message:#?}", self.node.id);
 
                     if message.counter > 5 {
-                        println!("Dispatcher {} has received message with counter > 5. Breaking out of the loop.", self.node.id);
+                        println!(
+                            "Dispatcher {} has received message with counter > 5. Breaking out of the loop.",
+                            self.node.id
+                        );
                         break;
                     }
 

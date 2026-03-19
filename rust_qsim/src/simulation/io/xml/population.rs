@@ -6,8 +6,8 @@ use tracing::info;
 use crate::simulation::id::Id;
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
-use crate::simulation::population::{InternalPerson, Population};
-use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::scenario::population::{InternalPerson, Population};
+use crate::simulation::scenario::vehicles::Garage;
 
 pub(crate) fn load_from_xml(
     path: &Path,
@@ -249,15 +249,15 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::attributes::IOAttribute;
     use crate::simulation::io::xml::population::{
-        load_from_xml, IOActivity, IOLeg, IOPlanElement, IOPopulation,
+        IOActivity, IOLeg, IOPlanElement, IOPopulation, load_from_xml,
     };
-    use crate::simulation::network::Network;
-    use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::scenario::network::Network;
+    use crate::simulation::scenario::vehicles::Garage;
     use macros::integration_test;
     use quick_xml::de::from_str;
 
     /**
-    This tests against the first person from the equil scenario. Probably this doesn't cover all
+    This tests against the first person from the equil mod. Probably this doesn't cover all
     possibilities and needs to improved later.
      */
     #[test]
@@ -403,7 +403,12 @@ mod tests {
         assert_eq!(route.trav_time, Some(String::from("00:10:01")));
         assert!(route.distance.is_nan());
         assert_eq!(route.vehicle, None);
-        assert_eq!(route.route, Some(String::from("{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}")));
+        assert_eq!(
+            route.route,
+            Some(String::from(
+                "{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}"
+            ))
+        );
     }
 
     #[test]

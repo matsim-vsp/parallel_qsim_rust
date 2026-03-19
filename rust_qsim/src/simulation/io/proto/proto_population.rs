@@ -1,11 +1,11 @@
 use crate::generated;
+use crate::generated::MessageIter;
 use crate::generated::population::leg::Route;
 use crate::generated::population::{
     Activity, GenericRoute, Header, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,
 };
-use crate::generated::MessageIter;
 use crate::simulation::id::Id;
-use crate::simulation::population::{
+use crate::simulation::scenario::population::{
     InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
     InternalPlan, InternalPtRoute, InternalPtRouteDescription, InternalRoute, Population,
 };
@@ -189,10 +189,10 @@ impl PtRouteDescription {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
-    use crate::simulation::network::Network;
-    use crate::simulation::population::InternalPerson;
-    use crate::simulation::population::Population;
-    use crate::simulation::vehicles::garage::Garage;
+    use crate::simulation::scenario::network::Network;
+    use crate::simulation::scenario::population::InternalPerson;
+    use crate::simulation::scenario::population::Population;
+    use crate::simulation::scenario::vehicles::Garage;
     use macros::integration_test;
     use std::path::PathBuf;
 

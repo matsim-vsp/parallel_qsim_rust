@@ -1,18 +1,18 @@
+use crate::external_services::ExternalServiceType;
 use crate::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
-use crate::external_services::ExternalServiceType;
 use crate::simulation::agents::{
     AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
-use crate::simulation::network::Link;
-use crate::simulation::population::trip_structure_utils::{
-    find_trip_starting_at_activity_default, identify_main_mode,
+use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::population::{
+    InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute,
 };
-use crate::simulation::population::{
-    InternalActivity, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement, InternalRoute,
+use crate::simulation::scenario::trip_structure_utils::{
+    find_trip_span_starting_at_activity_default, identify_main_mode,
 };
 use crate::simulation::time_queue::{EndTime, Identifiable};
 use std::fmt::{Debug, Formatter};
@@ -96,7 +96,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     }
 
     fn next_act(&self) -> &InternalActivity {
-        let add = if self.curr_plan_element % 2 == 0 {
+        let add = if self.curr_plan_element.is_multiple_of(2) {
             // If the current plan element is an activity, the next one should be a leg
             2
         } else {
@@ -117,7 +117,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     }
 
     fn next_leg(&self) -> Option<&InternalLeg> {
-        let add = if self.curr_plan_element % 2 == 0 {
+        let add = if self.curr_plan_element.is_multiple_of(2) {
             // If the current plan element is an activity, the next one should be a leg
             1
         } else {
@@ -161,7 +161,10 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
                 0 => Some(g.start_link()),
                 1 => Some(g.end_link()),
                 _ => panic!(
-                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}",
+                    self.curr_plan_element,
+                    self.curr_route_element,
+                    self.basic_agent_delegate.id()
                 ),
             },
             InternalRoute::Network(n) => n.route_element_at(self.curr_route_element),
@@ -169,7 +172,10 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
                 0 => Some(p.start_link()),
                 1 => Some(p.end_link()),
                 _ => panic!(
-                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}", self.curr_plan_element, self.curr_route_element, self.basic_agent_delegate.id()
+                    "A generic route only has two elements. Current plan element {:?}, Current route element {:?}, Current agent {:?}",
+                    self.curr_plan_element,
+                    self.curr_route_element,
+                    self.basic_agent_delegate.id()
                 ),
             },
         }
@@ -259,7 +265,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
             .delegate
             .curr_act()
             .attributes
-            .get(crate::simulation::population::PREPLANNING_HORIZON);
+            .get(crate::simulation::scenario::population::PREPLANNING_HORIZON);
 
         if let Some(h) = horizon {
             if h > end {
@@ -323,7 +329,7 @@ impl AdaptivePlanBasedSimulationLogic {
             && self
                 .curr_act()
                 .attributes
-                .get::<u32>(crate::simulation::population::PREPLANNING_HORIZON)
+                .get::<u32>(crate::simulation::scenario::population::PREPLANNING_HORIZON)
                 .is_some();
 
         if !preplan {
@@ -343,7 +349,7 @@ impl AdaptivePlanBasedSimulationLogic {
     ) {
         let (send, recv) = tokio::sync::oneshot::channel();
 
-        let trip = find_trip_starting_at_activity_default(
+        let trip_span = find_trip_span_starting_at_activity_default(
             &self
                 .delegate
                 .basic_agent_delegate
@@ -361,16 +367,23 @@ impl AdaptivePlanBasedSimulationLogic {
             )
         });
 
-        let origin = trip.origin;
-        let destination = trip.destination;
+        let plan_elements = &self
+            .delegate
+            .basic_agent_delegate
+            .selected_plan()
+            .unwrap()
+            .elements;
+        let origin = trip_span.origin(plan_elements);
+        let destination = trip_span.destination(plan_elements);
 
-        let mode = identify_main_mode(trip.legs).unwrap_or_else(|| {
-            panic!(
-                "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
-                origin,
-                self.delegate.id()
-            )
-        });
+        let mode =
+            identify_main_mode(trip_span.trip_elements(plan_elements)).unwrap_or_else(|| {
+                panic!(
+                    "Could not identify main mode for trip starting at activity {:?} in agent {:?}",
+                    origin,
+                    self.delegate.id()
+                )
+            });
 
         let payload = InternalRoutingRequestPayloadBuilder::default()
             .person_id(self.delegate.id().external().to_string())
@@ -441,25 +454,11 @@ impl AdaptivePlanBasedSimulationLogic {
         let plan = self.delegate.basic_agent_delegate.selected_plan_mut();
         let start_index = self.delegate.curr_plan_element;
 
-        let trip = find_trip_starting_at_activity_default(&plan.elements, start_index)
+        let span = find_trip_span_starting_at_activity_default(&plan.elements, start_index)
             .expect("No trip found starting at the current plan element");
 
-        let origin_ptr = trip.origin as *const _;
-        let dest_ptr = trip.destination as *const _;
-
-        let origin_idx = Self::get_index(plan, origin_ptr);
-        let dest_idx = Self::get_index(plan, dest_ptr);
-
         // Replace the trip elements (legs and intermediate activities) with the new response
-        plan.elements
-            .splice(origin_idx + 1..dest_idx, response.elements);
-    }
-
-    fn get_index(plan: &mut InternalPlan, origin_ptr: *const InternalActivity) -> usize {
-        plan.elements
-            .iter()
-            .position(|e| e.as_activity().map(|a| a as *const _) == Some(origin_ptr))
-            .expect("Didn't find the activity in the plan")
+        span.replace_trip_elements(&mut plan.elements, response.elements);
     }
 }
 
@@ -468,7 +467,7 @@ mod tests {
     use super::*;
     use crate::external_services::routing::InternalRoutingResponse;
     use crate::simulation::id::Id;
-    use crate::simulation::population::{
+    use crate::simulation::scenario::population::{
         InternalActivity, InternalLeg, InternalPlan, InternalRoute,
     };
     use uuid::Uuid;
@@ -493,7 +492,7 @@ mod tests {
             dep_time: None,
             trav_time: Some(10),
             route: Some(InternalRoute::Generic(
-                crate::simulation::population::InternalGenericRoute::new(
+                crate::simulation::scenario::population::InternalGenericRoute::new(
                     Id::create("l1"),
                     Id::create("l2"),
                     Some(10),

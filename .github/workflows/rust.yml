@@ -14,12 +14,21 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.94.0
+        with:
+          components: rustfmt
       - name: Install other libraries
         run: sudo apt -y install libclang-dev llvm-dev libmetis-dev
+      - name: Check formatting
+        run: cargo fmt --all --check
       - name: Build
+        env:
+          RUSTFLAGS: -D warnings
         run: cargo build --release
       - name: Run tests
         env:
           RUST_BACKTRACE: 1
+          RUSTFLAGS: -D warnings
         run: cargo test --release --verbose --features http -- --test-threads=1

@@ -10,15 +10,15 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
-use std::path::PathBuf;
-use tracing::{info, warn, Level};
+use std::path::{Path, PathBuf};
+use tracing::{Level, info, warn};
 
 pub const DEFAULT_RANDOM_SEED: u64 = 4711;
 
 /// Macro to register an override handler for a specific config key
 #[macro_export]
 macro_rules! register_override {
-    ($key:literal, $func:expr) => {
+    ($key:literal, $func:expr_2021) => {
         inventory::submit! {
             $crate::simulation::config::OverrideHandler {
                 key: $key,
@@ -73,54 +73,54 @@ impl Default for Config {
     fn default() -> Self {
         let mut config = Config {
             modules: HashMap::default(),
-            context: None,
+            context: std::env::current_dir().ok(),
         };
         config.ensure_defaults();
         config
     }
 }
 
-impl From<CommandLineArgs> for Config {
-    fn from(args: CommandLineArgs) -> Self {
-        let mut config = Config::from(args.config.parse::<PathBuf>().unwrap());
+impl Config {
+    pub fn from_args(args: CommandLineArgs) -> Self {
+        let mut config = Config::from_path(args.config);
         config.apply_overrides(&args.overrides);
         config
     }
-}
 
-impl From<PathBuf> for Config {
-    fn from(config_path: PathBuf) -> Self {
+    pub fn from_path(config_path: impl AsRef<Path>) -> Self {
+        let path_buf = config_path.as_ref().to_path_buf();
+
         let reader: Box<dyn BufRead>;
 
         // Check if the path is a URL
-        let path = &config_path.to_string_lossy();
-        if is_url(path) {
+        let path = config_path.as_ref().to_string_lossy();
+        if is_url(&path) {
             #[cfg(feature = "http")]
             {
                 reader = Self::url_file_reader(path.parse().unwrap());
             }
             #[cfg(not(feature = "http"))]
             {
-                panic!("HTTP support is not enabled. Please recompile with the `http` feature enabled.");
+                panic!(
+                    "HTTP support is not enabled. Please recompile with the `http` feature enabled."
+                );
             }
         } else {
-            reader = Self::local_file_reader(&config_path);
+            reader = Self::local_file_reader(config_path.as_ref());
         }
 
         // Parse YAML into Config
         let mut config: Config = serde_yaml::from_reader(reader).unwrap_or_else(|e| {
             panic!(
                 "Failed to parse config at {:?}. Original error was: {}",
-                config_path, e
+                path, e
             )
         });
-        config.set_context(Some(config_path.clone()));
+        config.set_context(Some(path_buf));
         config.ensure_defaults();
         config
     }
-}
 
-impl Config {
     /// Ensures that all modules with defaults are present in the config.
     /// Called after deserialization to guarantee that read accessors won't panic
     /// for modules that have sensible defaults.
@@ -130,6 +130,10 @@ impl Config {
         self.simulation_mut();
         self.routing_mut();
         self.computational_setup_mut();
+        self.network_mut();
+        self.population_mut();
+        self.vehicles_mut();
+        self.ids_mut();
     }
 
     pub fn set_context(&mut self, context: Option<PathBuf>) {
@@ -157,8 +161,11 @@ impl Config {
     }
 
     pub fn network_mut(&mut self) -> &mut Network {
-        self.module_mut::<Network>("network")
-            .expect("Network was not set.")
+        if !self.modules.contains_key("network") {
+            self.modules
+                .insert("network".to_string(), Box::new(Network::default()));
+        }
+        self.module_mut::<Network>("network").unwrap()
     }
 
     pub fn set_network(&mut self, network: Network) {
@@ -172,8 +179,11 @@ impl Config {
     }
 
     pub fn population_mut(&mut self) -> &mut Population {
-        self.module_mut::<Population>("population")
-            .expect("Population was not set.")
+        if !self.modules.contains_key("population") {
+            self.modules
+                .insert("population".to_string(), Box::new(Population::default()));
+        }
+        self.module_mut::<Population>("population").unwrap()
     }
 
     pub fn set_population(&mut self, population: Population) {
@@ -187,8 +197,11 @@ impl Config {
     }
 
     pub fn vehicles_mut(&mut self) -> &mut Vehicles {
-        self.module_mut::<Vehicles>("vehicles")
-            .expect("Vehicles was not set.")
+        if !self.modules.contains_key("vehicles") {
+            self.modules
+                .insert("vehicles".to_string(), Box::new(Vehicles::default()));
+        }
+        self.module_mut::<Vehicles>("vehicles").unwrap()
     }
 
     pub fn set_vehicles(&mut self, vehicles: Vehicles) {
@@ -196,12 +209,16 @@ impl Config {
             .insert("vehicles".to_string(), Box::new(vehicles));
     }
 
-    pub fn ids(&self) -> Option<&Ids> {
-        self.module::<Ids>("ids")
+    pub fn ids(&self) -> &Ids {
+        self.module::<Ids>("ids").expect("Ids was not set.")
     }
 
-    pub fn ids_mut(&mut self) -> Option<&mut Ids> {
-        self.module_mut::<Ids>("ids")
+    pub fn ids_mut(&mut self) -> &mut Ids {
+        if !self.modules.contains_key("ids") {
+            self.modules
+                .insert("ids".to_string(), Box::new(Ids::default()));
+        }
+        self.module_mut::<Ids>("ids").unwrap()
     }
 
     pub fn set_ids(&mut self, ids: Ids) {
@@ -259,15 +276,8 @@ impl Config {
 
     pub fn output_mut(&mut self) -> &mut Output {
         if !self.modules.contains_key("output") {
-            self.modules.insert(
-                "output".to_string(),
-                Box::new(Output {
-                    output_dir: "./output".parse().unwrap(),
-                    profiling: Profiling::None,
-                    logging: Logging::Info,
-                    write_events: WriteEvents::None,
-                }),
-            );
+            self.modules
+                .insert("output".to_string(), Box::new(Output::default()));
         }
         self.module_mut::<Output>("output").unwrap()
     }
@@ -336,12 +346,13 @@ impl Config {
         &self.context
     }
 
-    fn local_file_reader(config_path: &PathBuf) -> Box<dyn BufRead> {
+    fn local_file_reader(config_path: impl AsRef<Path>) -> Box<dyn BufRead> {
         // Open the config file from the local file system
         let file = File::open(&config_path).unwrap_or_else(|e| {
             panic!(
                 "Failed to open config file at {:?}. Original error was {}",
-                config_path, e
+                config_path.as_ref(),
+                e
             );
         });
         // Wrap the file in a BufReader for YAML parsing
@@ -365,41 +376,41 @@ pub fn write_config(config: &Config, output_path: PathBuf) {
     serde_yaml::to_writer(writer, config).expect("Failed to write output config file");
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Network {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Population {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Vehicles {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Ids {
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
 register_override!("network.path", |config, value| {
-    config.network_mut().path = PathBuf::from(value);
+    config.network_mut().path = Some(PathBuf::from(value));
 });
 
 register_override!("population.path", |config, value| {
-    config.population_mut().path = PathBuf::from(value);
+    config.population_mut().path = Some(PathBuf::from(value));
 });
 
 register_override!("vehicles.path", |config, value| {
-    config.vehicles_mut().path = PathBuf::from(value);
+    config.vehicles_mut().path = Some(PathBuf::from(value));
 });
 
 register_override!("ids.path", |config, value| {
     config.set_ids(Ids {
-        path: PathBuf::from(value),
+        path: Some(PathBuf::from(value)),
     });
 });
 
@@ -422,6 +433,8 @@ register_override!("partitioning.num_parts", |config, value| {
 pub struct Output {
     pub output_dir: PathBuf,
     #[serde(default)]
+    pub overwrite_files: OverwriteFiles,
+    #[serde(default)]
     pub profiling: Profiling,
     #[serde(default)]
     pub logging: Logging,
@@ -429,8 +442,24 @@ pub struct Output {
     pub write_events: WriteEvents,
 }
 
+impl Default for Output {
+    fn default() -> Self {
+        Self {
+            output_dir: "./output".parse().unwrap(),
+            overwrite_files: OverwriteFiles::FailIfDirectoryExists,
+            profiling: Profiling::None,
+            logging: Logging::None,
+            write_events: WriteEvents::None,
+        }
+    }
+}
+
 register_override!("output.output_dir", |config, value| {
     config.output_mut().output_dir = PathBuf::from(value);
+});
+
+register_override!("output.overwrite_files", |config, value| {
+    config.output_mut().overwrite_files = parse_overwrite_file(value);
 });
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -452,14 +481,6 @@ impl Default for Routing {
             mode: RoutingMode::UsePlans,
         }
     }
-}
-
-fn default_to_3() -> u32 {
-    3
-}
-
-fn default_to_600() -> u64 {
-    600
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -490,32 +511,22 @@ pub struct DrtService {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(default)]
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
     pub sample_size: f32,
-    #[serde(default = "default_to_10")]
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
 }
 
-fn default_to_10() -> u32 {
-    10
-}
-
-fn default_random_seed() -> u64 {
-    DEFAULT_RANDOM_SEED
-}
-
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[serde(default)]
 pub struct ComputationalSetup {
     pub global_sync: bool,
-    #[serde(default = "default_to_3")]
     /// The number of threads to be used for the tokio runtime by the adapter.
     pub adapter_worker_threads: u32,
-    #[serde(default = "default_to_600")]
     pub retry_time_seconds: u64,
-    #[serde(default = "default_random_seed")]
     pub random_seed: u64,
 }
 
@@ -538,9 +549,9 @@ impl Default for ComputationalSetup {
     fn default() -> Self {
         Self {
             global_sync: false,
-            adapter_worker_threads: default_to_3(),
-            retry_time_seconds: default_to_600(),
-            random_seed: default_random_seed(),
+            adapter_worker_threads: 3,
+            retry_time_seconds: 600,
+            random_seed: DEFAULT_RANDOM_SEED,
         }
     }
 }
@@ -660,8 +671,8 @@ impl Default for Simulation {
             start_time: 0,
             end_time: 86400,
             sample_size: 1.0,
-            stuck_threshold: default_to_10(),
-            main_modes: vec!["car".to_string()],
+            stuck_threshold: 10,
+            main_modes: vec![],
         }
     }
 }
@@ -671,6 +682,24 @@ pub enum RoutingMode {
     AdHoc,
     UsePlans,
 }
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum OverwriteFiles {
+    DeleteDirectoryIfExists,
+    #[default]
+    FailIfDirectoryExists,
+    OverwriteExistingFiles,
+}
+
+fn parse_overwrite_file(value: &str) -> OverwriteFiles {
+    match value.to_lowercase().replace(['-', '_'], "").as_str() {
+        "deletedirectoryifexists" => OverwriteFiles::DeleteDirectoryIfExists,
+        "failifdirectoryexists" => OverwriteFiles::FailIfDirectoryExists,
+        "overwriteexistingfiles" => OverwriteFiles::OverwriteExistingFiles,
+        _ => panic!("Invalid overwrite_files mode: {}", value),
+    }
+}
+
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum PartitionMethod {
     Metis(MetisOptions),
@@ -843,13 +872,13 @@ fn default_profiling_level() -> String {
 mod tests {
     use crate::simulation::config;
     use crate::simulation::config::Output;
+    use crate::simulation::config::OverwriteFiles;
     use crate::simulation::config::PathBuf;
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
-        parse_key_val, CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType,
-        DrtService, EdgeWeight, MetisOptions, PartitionMethod, Partitioning, Simulation,
-        VertexWeight,
+        CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight,
+        MetisOptions, PartitionMethod, Partitioning, Simulation, VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
@@ -1070,9 +1099,45 @@ modules:
             overrides: vec![("population.path".to_string(), "new_pop".to_string())],
         };
 
-        let config = Config::from(args);
+        let config = Config::from_args(args);
 
-        assert_eq!(config.population().path.to_str().unwrap(), "new_pop");
+        assert_eq!(
+            config.population().path.as_ref().unwrap().to_str().unwrap(),
+            "new_pop"
+        );
+    }
+
+    #[test]
+    fn test_optional_path() {
+        let yaml = r#"
+modules:
+  population:
+    type: Population
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![],
+        };
+        let config = Config::from_args(args);
+        assert_eq!(config.population().path, None);
+    }
+
+    #[test]
+    fn test_optional_path_null() {
+        let yaml = r#"
+modules:
+  population:
+    type: Population
+    path: null
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![],
+        };
+        let config = Config::from_args(args);
+        assert_eq!(config.population().path, None);
     }
 
     #[test]
@@ -1088,8 +1153,52 @@ modules:
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![("output.output_dir".to_string(), "new_out".to_string())],
         };
-        let config = Config::from(args);
+        let config = Config::from_args(args);
         assert_eq!(config.output().output_dir.to_str().unwrap(), "new_out");
+    }
+
+    #[test]
+    fn test_parse_output_overwrite_files() {
+        let yaml = r#"
+modules:
+  output:
+    type: Output
+    output_dir: out
+    overwrite_files: DeleteDirectoryIfExists
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![],
+        };
+        let config = Config::from_args(args);
+        assert_eq!(
+            config.output().overwrite_files,
+            OverwriteFiles::DeleteDirectoryIfExists
+        );
+    }
+
+    #[test]
+    fn test_override_output_overwrite_files() {
+        let yaml = r#"
+modules:
+  output:
+    type: Output
+    output_dir: out
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![(
+                "output.overwrite_files".to_string(),
+                "FailIfDirectoryExists".to_string(),
+            )],
+        };
+        let config = Config::from_args(args);
+        assert_eq!(
+            config.output().overwrite_files,
+            OverwriteFiles::FailIfDirectoryExists
+        );
     }
 
     #[test]
@@ -1109,7 +1218,7 @@ modules:
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![("partitioning.num_parts".to_string(), "5".to_string())],
         };
-        let config = Config::from(args);
+        let config = Config::from_args(args);
         assert_eq!(config.partitioning().num_parts, 5);
     }
 
@@ -1133,13 +1242,22 @@ modules:
     fn base_config() -> Config {
         let mut config = Config::default();
 
-        config.set_network(Network { path: "net".into() });
-        config.set_population(Population { path: "pop".into() });
-        config.set_vehicles(Vehicles { path: "veh".into() });
-        config.set_ids(Ids { path: "ids".into() });
+        config.set_network(Network {
+            path: Some("net".into()),
+        });
+        config.set_population(Population {
+            path: Some("pop".into()),
+        });
+        config.set_vehicles(Vehicles {
+            path: Some("veh".into()),
+        });
+        config.set_ids(Ids {
+            path: Some("ids".into()),
+        });
 
         config.set_output(Output {
             output_dir: "out".into(),
+            overwrite_files: OverwriteFiles::OverwriteExistingFiles,
             profiling: Profiling::None,
             logging: Logging::Info,
             write_events: WriteEvents::None,
@@ -1158,7 +1276,7 @@ modules:
     fn override_network_path() {
         let mut config = base_config();
         config.apply_overrides(&[("network.path".to_string(), "new_net".to_string())]);
-        assert_eq!(config.network().path, PathBuf::from("new_net"));
+        assert_eq!(config.network().path, Some(PathBuf::from("new_net")));
     }
 
     #[test]

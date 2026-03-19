@@ -1,6 +1,6 @@
 use clap::Parser;
-use rust_qsim::simulation::events::utils::read_proto_events;
 use rust_qsim::simulation::events::EventsManager;
+use rust_qsim::simulation::events::utils::read_proto_events;
 use rust_qsim::simulation::id;
 use rust_qsim::simulation::io::proto::proto_events::ProtoEventsWriter;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;

@@ -16,7 +16,11 @@ modules:
         - Constant
   output:
     type: Output
+    overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/equil_with_channels
   routing:
     type: Routing
     mode: UsePlans
+  simulation:
+    type: Simulation
+    main_modes: [ "car" ]

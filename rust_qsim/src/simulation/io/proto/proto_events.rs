@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 
 impl From<&ActivityEndEvent> for MyEvent {
@@ -243,16 +243,16 @@ impl From<&VehicleEntersTrafficEvent> for MyEvent {
             AttributeValue::from(value.link.external()),
         );
         attributes.insert(
-            "driver".to_string(),
-            AttributeValue::from(value.driver.external()),
+            "person".to_string(),
+            AttributeValue::from(value.person.external()),
         );
         attributes.insert(
-            "mode".to_string(),
-            AttributeValue::from(value.mode.external()),
+            "network_mode".to_string(),
+            AttributeValue::from(value.network_mode.external()),
         );
         attributes.insert(
-            "relative_position_on_link".to_string(),
-            AttributeValue::from(value.relative_position_on_link),
+            "relative_position".to_string(),
+            AttributeValue::from(value.relative_position),
         );
         MyEvent {
             r#type: value.type_().to_string(),
@@ -273,16 +273,16 @@ impl From<&VehicleLeavesTrafficEvent> for MyEvent {
             AttributeValue::from(value.link.external()),
         );
         attributes.insert(
-            "driver".to_string(),
-            AttributeValue::from(value.driver.external()),
+            "person".to_string(),
+            AttributeValue::from(value.person.external()),
         );
         attributes.insert(
-            "mode".to_string(),
-            AttributeValue::from(value.mode.external()),
+            "network_mode".to_string(),
+            AttributeValue::from(value.network_mode.external()),
         );
         attributes.insert(
-            "relative_position_on_link".to_string(),
-            AttributeValue::from(value.relative_position_on_link),
+            "relative_position".to_string(),
+            AttributeValue::from(value.relative_position),
         );
         MyEvent {
             r#type: value.type_().to_string(),
@@ -311,7 +311,7 @@ pub struct ProtoEventsWriter {
 }
 
 impl ProtoEventsWriter {
-    pub fn new(path: &Path) -> Self {
+    pub fn new(path: impl AsRef<Path>) -> Self {
         let file = File::create(path).unwrap();
         let writer = BufWriter::new(file);
         ProtoEventsWriter {
@@ -398,9 +398,9 @@ impl ProtoEventsWriter {
     /// This function takes a file path as an input and returns a boxed [EventHandlerRegisterFn]
     /// which can be used to register specific handlers to an [EventsManager]. The handlers
     /// allow the processing of events and the proper management of their lifecycle.
-    pub fn register_fn(path: PathBuf) -> Box<EventHandlerRegisterFn> {
+    pub fn register_fn(path: impl AsRef<Path> + Send + 'static) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
-            let proto = Rc::new(RefCell::new(ProtoEventsWriter::new(path.as_path())));
+            let proto = Rc::new(RefCell::new(ProtoEventsWriter::new(path)));
             let proto1 = proto.clone();
             let proto2 = proto.clone();
 
@@ -529,18 +529,19 @@ pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsMana
 #[cfg(test)]
 mod tests {
     use crate::generated::events::MyEvent;
+    use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
         ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
         EventTrait, GeneralEvent, GeneralEventBuilder,
     };
     use crate::simulation::id::Id;
     use crate::simulation::io::proto::proto_events::{ProtoEventsReader, ProtoEventsWriter};
-    use crate::simulation::InternalAttributes;
+    use macros::integration_test;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
 
-    #[test]
+    #[integration_test]
     fn write_read_single() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_single/events.pbf");
@@ -566,7 +567,7 @@ mod tests {
         match_events(&event, events.first().unwrap());
     }
 
-    #[test]
+    #[integration_test]
     fn write_read_multiple() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_multiple/events.pbf");
@@ -618,7 +619,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn write_read_multiple_time_steps() {
         let path = create_path_with_prefix(
             "./test_output/io/proto_events/write_read_multiple_time_steps/events.pbf",
