@@ -15,12 +15,44 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 // Define time scale. 1.0 means realtime and 10.0 means 10 times realtime
 const REALTIME_SCALE: f64 = 40.0;
+
+// Shared pause signal between the bevy ui and the simulation thread
+// the simulation calls wait_if_paused() at each BeforeSimStep and blocks
+//  until the UI sets the state back to play.
+#[derive(Clone, Resource)]
+pub struct PauseSignal(Arc<(Mutex<bool>, Condvar)>);
+
+impl PauseSignal {
+    pub fn new() -> Self {
+        Self(Arc::new((Mutex::new(false), Condvar::new())))
+    }
+
+    pub fn wait_if_paused(&self) {
+        let (lock, cvar) = &*self.0;
+        let mut paused = lock.lock().unwrap();
+        while *paused {
+            paused = cvar.wait(paused).unwrap();
+        }
+    }
+
+    pub fn is_paused(&self) -> bool {
+        *self.0 .0.lock().unwrap()
+    }
+
+    pub fn set_paused(&self, paused: bool) {
+        let (lock, cvar) = &*self.0;
+        *lock.lock().unwrap() = paused;
+        if !paused {
+            cvar.notify_all();
+        }
+    }
+}
 
 // Events that come from the simulation
 #[derive(Debug, Clone)]
@@ -160,15 +192,25 @@ impl VisualizeEvents {
     pub fn register_mobsim_fn(
         sender: mpsc::Sender<OTFVizEventMessages>,
         first_link_enter_seen: Arc<AtomicBool>,
+        pause_signal: PauseSignal,
     ) -> Box<MobsimListenerRegisterFn> {
         let sync_state = Arc::new(Mutex::new(RealtimeSyncState::default()));
 
         Box::new(move |mobsim_events: &mut MobsimEventsManager| {
             let first_link_enter_seen = first_link_enter_seen.clone();
             let sync_state = sync_state.clone();
+            let pause_signal = pause_signal.clone();
             mobsim_events.on_event(move |mobsim_event| {
                 // Check if this is a `BeforeSimStep` event
                 if let MobsimEvent::BeforeSimStep(step_info) = &mobsim_event.payload {
+                    // block the simulation here while paused and reset the realtime sync after
+                    // resume so the sim doesnt try to catch up the paused time
+                    let was_paused = pause_signal.is_paused();
+                    pause_signal.wait_if_paused();
+                    if was_paused {
+                        *sync_state.lock().unwrap() = RealtimeSyncState::default();
+                    }
+
                     // time sync only when the first vehicle is on the network
                     if first_link_enter_seen.load(Ordering::Relaxed) {
                         sync_to_realtime(sync_state.as_ref(), step_info.time);
@@ -187,6 +229,7 @@ impl VisualizeEvents {
         receiver: mpsc::Receiver<OTFVizEventMessages>,
         network: Network,
         garage: Garage,
+        pause_signal: PauseSignal,
     ) {
         let network_data = NetworkData::from_network(&network);
         let vehicle_data = VehicleData::from_garage(&garage);
@@ -201,7 +244,7 @@ impl VisualizeEvents {
             })
             .insert_resource(network_data)
             .insert_resource(vehicle_data)
-            .insert_resource(PlayPauseState::default())
+            .insert_resource(pause_signal)
             .insert_non_send_resource(TripsBuilderResource {
                 builder: Rc::new(RefCell::new(TripsBuilder::new())),
             })
@@ -356,11 +399,6 @@ struct SimulationTimeText;
 
 #[derive(Component)]
 struct PlayPauseButton;
-
-#[derive(Resource, Default)]
-struct PlayPauseState {
-    is_paused: bool,
-}
 
 // Builds the current trips
 #[derive(Default)]
@@ -553,7 +591,7 @@ fn setup_play_pause_button(mut commands: Commands) {
 }
 
 fn handle_play_pause_button(
-    mut state: ResMut<PlayPauseState>,
+    pause_signal: Res<PauseSignal>,
     mut button_query: Query<
         (&Interaction, &Children),
         (Changed<Interaction>, With<PlayPauseButton>),
@@ -562,11 +600,12 @@ fn handle_play_pause_button(
 ) {
     for (interaction, children) in &mut button_query {
         if *interaction == Interaction::Pressed {
-            state.is_paused = !state.is_paused;
+            let new_paused = !pause_signal.is_paused();
+            pause_signal.set_paused(new_paused);
 
             for &child in children {
                 if let Ok(mut text) = text_query.get_mut(child) {
-                    text.0 = if state.is_paused {
+                    text.0 = if new_paused {
                         "Play".to_string()
                     } else {
                         "Pause".to_string()

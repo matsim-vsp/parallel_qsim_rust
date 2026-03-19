@@ -1,6 +1,6 @@
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
-use rust_qsim::simulation::events::visualize::{OTFVizEventMessages, VisualizeEvents};
+use rust_qsim::simulation::events::visualize::{OTFVizEventMessages, PauseSignal, VisualizeEvents};
 use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
 use std::process;
@@ -11,7 +11,8 @@ use std::thread;
 
 fn main() {
     // read the config
-    let args = CommandLineArgs::new_with_path("rust_qsim/assets/test/run_viz_test_config.yml");
+    let args =
+        CommandLineArgs::new_with_path("rust_qsim/assets/otf_viz_test/otf_viz_test_config.yml");
     let config = Arc::new(Config::from_args(args));
 
     // load scenario (network + garage + population)
@@ -26,6 +27,10 @@ fn main() {
 
     // is true when the first link enter event arrived (start real time viz after the first event)
     let first_link_enter_seen = Arc::new(AtomicBool::new(false));
+
+    // shared pause signal between the UI and the simulation thread
+    let pause_signal = PauseSignal::new();
+    let pause_signal_for_sim = pause_signal.clone();
 
     // start the simulation in a seperate thread
     let _sim_thread = thread::spawn(move || {
@@ -44,6 +49,7 @@ fn main() {
             vec![VisualizeEvents::register_mobsim_fn(
                 event_sender,
                 first_link_enter_seen,
+                pause_signal_for_sim,
             )],
         )]);
 
@@ -57,7 +63,7 @@ fn main() {
     });
 
     // start bevy viz
-    VisualizeEvents::run_window(event_receiver, network, garage);
+    VisualizeEvents::run_window(event_receiver, network, garage, pause_signal);
 
     // stop when the bevy window is closed
     process::exit(0);
