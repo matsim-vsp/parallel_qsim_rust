@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -42,7 +42,7 @@ impl PauseSignal {
     }
 
     pub fn is_paused(&self) -> bool {
-        *self.0 .0.lock().unwrap()
+        *self.0.0.lock().unwrap()
     }
 
     pub fn set_paused(&self, paused: bool) {

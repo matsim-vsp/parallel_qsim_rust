@@ -4,9 +4,9 @@ use rust_qsim::simulation::events::visualize::{OTFVizEventMessages, PauseSignal,
 use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
 use std::process;
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc;
-use std::sync::Arc;
 use std::thread;
 
 fn main() {
