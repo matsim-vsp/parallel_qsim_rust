@@ -5,8 +5,8 @@ use crate::simulation::events::{
 use crate::simulation::framework_events::{
     MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn,
 };
-use crate::simulation::network::Network;
-use crate::simulation::vehicles::garage::Garage;
+use crate::simulation::scenario::network::Network;
+use crate::simulation::scenario::vehicles::Garage;
 use bevy::prelude::*;
 use bevy::ui::Node as UiNode;
 use bevy::window::PrimaryWindow;
@@ -24,7 +24,7 @@ const REALTIME_SCALE: f64 = 40.0;
 
 // Events that come from the simulation
 #[derive(Debug, Clone)]
-pub enum VisualizeEventMessage {
+pub enum OTFVizEventMessages {
     BeforeSimStep {
         time: u32,
     },
@@ -106,7 +106,7 @@ pub struct VisualizeEvents;
 impl VisualizeEvents {
     // callback for events
     pub fn register_fn(
-        sender: mpsc::Sender<VisualizeEventMessage>,
+        sender: mpsc::Sender<OTFVizEventMessages>,
         first_link_enter_seen: Arc<AtomicBool>,
     ) -> Box<EventHandlerRegisterFn> {
         Box::new(move |event_manager: &mut EventsManager| {
@@ -118,24 +118,24 @@ impl VisualizeEvents {
                 let viz_message = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
                     // store the first link enter event to start real time sync
                     first_link_enter_seen_clone.store(true, Ordering::Relaxed);
-                    Some(VisualizeEventMessage::LinkEnter {
+                    Some(OTFVizEventMessages::LinkEnter {
                         time: e.time,
                         link_id: e.link.external().to_string(),
                         vehicle_id: e.vehicle.external().to_string(),
                     })
                 } else if let Some(e) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
-                    Some(VisualizeEventMessage::LinkLeave {
+                    Some(OTFVizEventMessages::LinkLeave {
                         time: e.time,
                         link_id: e.link.external().to_string(),
                         vehicle_id: e.vehicle.external().to_string(),
                     })
                 } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
-                    Some(VisualizeEventMessage::PersonEntersVehicle {
+                    Some(OTFVizEventMessages::PersonEntersVehicle {
                         time: e.time,
                         vehicle_id: e.vehicle.external().to_string(),
                     })
                 } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
-                    Some(VisualizeEventMessage::PersonLeavesVehicle {
+                    Some(OTFVizEventMessages::PersonLeavesVehicle {
                         time: e.time,
                         vehicle_id: e.vehicle.external().to_string(),
                     })
@@ -151,14 +151,14 @@ impl VisualizeEvents {
             // Send Done when the simulation is done
             let finish_sender = sender.clone();
             event_manager.on_finish(move || {
-                let _ = finish_sender.send(VisualizeEventMessage::Done);
+                let _ = finish_sender.send(OTFVizEventMessages::Done);
             });
         })
     }
 
     // Mobsim callback
     pub fn register_mobsim_fn(
-        sender: mpsc::Sender<VisualizeEventMessage>,
+        sender: mpsc::Sender<OTFVizEventMessages>,
         first_link_enter_seen: Arc<AtomicBool>,
     ) -> Box<MobsimListenerRegisterFn> {
         let sync_state = Arc::new(Mutex::new(RealtimeSyncState::default()));
@@ -175,7 +175,7 @@ impl VisualizeEvents {
                     }
 
                     // send current time to the UI to display the time
-                    let _ = sender.send(VisualizeEventMessage::BeforeSimStep {
+                    let _ = sender.send(OTFVizEventMessages::BeforeSimStep {
                         time: step_info.time,
                     });
                 }
@@ -184,7 +184,7 @@ impl VisualizeEvents {
     }
 
     pub fn run_window(
-        receiver: mpsc::Receiver<VisualizeEventMessage>,
+        receiver: mpsc::Receiver<OTFVizEventMessages>,
         network: Network,
         garage: Garage,
     ) {
@@ -274,7 +274,7 @@ struct SimulationClock {
 
 #[derive(Resource)]
 struct EventsChannel {
-    receiver: Mutex<mpsc::Receiver<VisualizeEventMessage>>,
+    receiver: Mutex<mpsc::Receiver<OTFVizEventMessages>>,
 }
 
 // Bevy-Ressource with network data
@@ -379,26 +379,26 @@ impl TripsBuilder {
     }
 
     // entry point. distribute the events to the corresponding method
-    fn handle_event(&mut self, message: &VisualizeEventMessage) {
+    fn handle_event(&mut self, message: &OTFVizEventMessages) {
         match message {
-            VisualizeEventMessage::BeforeSimStep { .. } => {}
-            VisualizeEventMessage::LinkEnter {
+            OTFVizEventMessages::BeforeSimStep { .. } => {}
+            OTFVizEventMessages::LinkEnter {
                 time,
                 link_id,
                 vehicle_id,
             } => self.on_link_enter(*time, link_id, vehicle_id),
-            VisualizeEventMessage::LinkLeave {
+            OTFVizEventMessages::LinkLeave {
                 time,
                 link_id,
                 vehicle_id,
             } => self.on_link_leave(*time, link_id, vehicle_id),
-            VisualizeEventMessage::PersonEntersVehicle { vehicle_id, .. } => {
+            OTFVizEventMessages::PersonEntersVehicle { vehicle_id, .. } => {
                 self.on_person_enters(vehicle_id)
             }
-            VisualizeEventMessage::PersonLeavesVehicle { time, vehicle_id } => {
+            OTFVizEventMessages::PersonLeavesVehicle { time, vehicle_id } => {
                 self.on_person_leaves(*time, vehicle_id)
             }
-            VisualizeEventMessage::Done => {}
+            OTFVizEventMessages::Done => {}
         }
     }
 
@@ -594,17 +594,17 @@ fn process_channel_events(
     loop {
         match receiver.try_recv() {
             Ok(message) => match &message {
-                VisualizeEventMessage::Done => {
+                OTFVizEventMessages::Done => {
                     *done = true;
                     break;
                 }
-                VisualizeEventMessage::BeforeSimStep { time } => {
+                OTFVizEventMessages::BeforeSimStep { time } => {
                     clock.time = clock.time.max(*time as f32);
                 }
-                VisualizeEventMessage::LinkEnter { time, .. }
-                | VisualizeEventMessage::LinkLeave { time, .. }
-                | VisualizeEventMessage::PersonEntersVehicle { time, .. }
-                | VisualizeEventMessage::PersonLeavesVehicle { time, .. } => {
+                OTFVizEventMessages::LinkEnter { time, .. }
+                | OTFVizEventMessages::LinkLeave { time, .. }
+                | OTFVizEventMessages::PersonEntersVehicle { time, .. }
+                | OTFVizEventMessages::PersonLeavesVehicle { time, .. } => {
                     clock.time = clock.time.max(*time as f32);
                     builder_res.builder.borrow_mut().handle_event(&message);
                 }

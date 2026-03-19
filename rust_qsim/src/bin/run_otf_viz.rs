@@ -1,10 +1,7 @@
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
-use rust_qsim::simulation::events::visualize::{VisualizeEventMessage, VisualizeEvents};
-use rust_qsim::simulation::io;
-use rust_qsim::simulation::network::Network;
-use rust_qsim::simulation::scenario::Scenario;
-use rust_qsim::simulation::vehicles::garage::Garage;
+use rust_qsim::simulation::events::visualize::{OTFVizEventMessages, VisualizeEvents};
+use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
 use std::process;
 use std::sync::atomic::AtomicBool;
@@ -14,21 +11,18 @@ use std::thread;
 
 fn main() {
     // read the config
-    let args = CommandLineArgs::new_with_path("rust_qsim/assets/test/run_equil_100.config.yml");
-    let config = Config::from(args);
+    let args = CommandLineArgs::new_with_path("rust_qsim/assets/test/run_viz_test_config.yml");
+    let config = Arc::new(Config::from_args(args));
 
-    // read the network, the vehicles from the config
-    let network_path = io::resolve_path(config.context(), &config.network().path);
-    let vehicles_path = io::resolve_path(config.context(), &config.vehicles().path);
-    let network = Network::from_file_path(
-        &network_path,
-        config.partitioning().num_parts,
-        &config.partitioning().method,
-    );
-    let garage = Garage::from_file(&vehicles_path);
+    // load scenario (network + garage + population)
+    let scenario = MutableScenario::load(config);
+
+    // clone network and garage for the viz thread
+    let network = scenario.network.clone();
+    let garage = scenario.garage.clone();
 
     // create mpsc channel to communicate between the simulation and the viz
-    let (event_sender, event_receiver) = mpsc::channel::<VisualizeEventMessage>();
+    let (event_sender, event_receiver) = mpsc::channel::<OTFVizEventMessages>();
 
     // is true when the first link enter event arrived (start real time viz after the first event)
     let first_link_enter_seen = Arc::new(AtomicBool::new(false));
@@ -54,7 +48,7 @@ fn main() {
         )]);
 
         // start simulation
-        ControllerBuilder::default_with_scenario(Scenario::load(Arc::new(config)))
+        ControllerBuilder::default_with_scenario(scenario)
             .event_handler_register_fn(event_handler)
             .mobsim_event_register_fn(mobsim_listener)
             .build()
