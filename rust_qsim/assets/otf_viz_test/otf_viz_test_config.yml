@@ -1,20 +1,20 @@
 modules:
   network:
     type: Network
-    path: network.xml
+    path: otf_viz_network.xml
   population:
     type: Population
-    path: plans.xml
+    path: otf_viz_plans.xml
   vehicles:
     type: Vehicles
-    path: vehicles.xml
+    path: otf_viz_vehicles.xml
   partitioning:
     type: Partitioning
     num_parts: 1
     method: None
   output:
     type: Output
-    output_dir: ./rust_qsim/test_output/test
+    output_dir: ./rust_qsim/test_output/otf_viz_test
     write_events: Proto
     overwrite_files: DeleteDirectoryIfExists
   routing:

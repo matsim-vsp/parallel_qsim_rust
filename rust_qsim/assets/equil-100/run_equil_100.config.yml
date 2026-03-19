@@ -16,6 +16,7 @@ modules:
     type: Output
     output_dir: ./rust_qsim/test_output/equil-100
     write_events: Proto
+    overwrite_files: DeleteDirectoryIfExists
   routing:
     type: Routing
     mode: UsePlans
