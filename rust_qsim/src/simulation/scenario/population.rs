@@ -305,7 +305,7 @@ impl InternalActivity {
         }
     }
 
-    pub(crate) fn cmp_end_time(&self, begin: u32) -> u32 {
+    pub fn cmp_end_time(&self, begin: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {

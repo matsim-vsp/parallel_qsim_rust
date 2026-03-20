@@ -32,7 +32,7 @@ pub trait EnvironmentalEventObserver {
 #[non_exhaustive]
 pub enum AgentEvent<'a> {
     // activity-related events
-    ActivityStarted(),
+    ActivityStarted(ActivityStartedEvent<'a>),
     WokeUp(WokeUpEvent<'a>),
     ActivityFinished(),
 
@@ -46,8 +46,13 @@ pub enum AgentEvent<'a> {
     NetworkLegFinished(),
 }
 
+pub struct ActivityStartedEvent<'a> {
+    pub agent: &'a mut ThreadLocalComputationalEnvironment,
+}
+
 pub struct WokeUpEvent<'w> {
     pub comp_env: &'w mut ThreadLocalComputationalEnvironment,
+    // I think we should remove this field. This information comes from the agent to the engines and then goes back to the agent. So, it is redundant. paul, mar'26
     pub end_time: u32,
 }
 

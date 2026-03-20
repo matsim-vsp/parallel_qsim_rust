@@ -1,6 +1,6 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WokeUpEvent,
+    ActivityStartedEvent, AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WokeUpEvent,
 };
 use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
@@ -87,7 +87,7 @@ impl ActivityEngine {
         }
     }
 
-    fn receive_agent(&mut self, now: u32, agent: AsleepSimulationAgent) {
+    fn receive_agent(&mut self, now: u32, mut agent: AsleepSimulationAgent) {
         // emmit act start event
         let act = agent.agent.curr_act();
         self.comp_env.events_manager_borrow_mut().process_event(
@@ -98,6 +98,13 @@ impl ActivityEngine {
                 .act_type(act.act_type.clone())
                 .build()
                 .unwrap(),
+        );
+
+        agent.agent.notify_event(
+            &mut AgentEvent::ActivityStarted(ActivityStartedEvent {
+                agent: &mut self.comp_env,
+            }),
+            now,
         );
         self.asleep_q.add(agent, now);
     }
