@@ -316,6 +316,7 @@ impl InternalActivity {
         }
     }
 
+    // i think this should go into the utils module rather than being here. paul, mar'26
     pub fn is_interaction(&self) -> bool {
         self.act_type.external().contains("interaction")
     }
