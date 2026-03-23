@@ -4,7 +4,7 @@ use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::population::{
-    IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
+    IOActivity, IOLeg, IOPTRouteDescription, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::Garage;
@@ -407,6 +407,39 @@ impl InternalRoute {
                 })
             }
             _ => panic!("Unknown route type: {}", io.r#type),
+        }
+    }
+
+    pub(crate) fn get_route_description(self) -> Option<String> {
+        match self {
+            InternalRoute::Generic(_) => None,
+            InternalRoute::Network(nr) => {
+                // TODO: in Java (https://github.com/matsim-org/matsim-libs/blob/main/matsim/src/main/java/org/matsim/core/population/routes/LinkNetworkRouteImpl.java), the end link id is only included in the string if it is not the same as the start link id, or if the route consiste of only start and end links (and no links inbetwee).
+                // Do we want that behaviour?
+                Some(
+                    nr.route()
+                        .iter()
+                        .map(|id| id.external().to_string())
+                        .collect::<Vec<String>>()
+                        .join(" "),
+                )
+            }
+            InternalRoute::Pt(ptr) => {
+                Some(
+                    serde_json::to_string(&IOPTRouteDescription {
+                        transit_route_id: ptr.description.transit_route_id,
+                        boarding_time: ptr
+                            .description
+                            .boarding_time
+                            .map(|t| write_timestr(t))
+                            .unwrap(), // TODO boarding_time is optional in InternalPtRoute. Should it be?
+                        transit_line_id: ptr.description.transit_line_id,
+                        access_facility_id: ptr.description.access_facility_id,
+                        egress_facility_id: ptr.description.egress_facility_id,
+                    })
+                    .unwrap(),
+                )
+            }
         }
     }
 }

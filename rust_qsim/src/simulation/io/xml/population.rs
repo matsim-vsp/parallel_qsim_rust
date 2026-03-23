@@ -8,7 +8,8 @@ use crate::simulation::io::xml;
 
 use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
 use crate::simulation::scenario::population::{
-    InternalPerson, InternalPlanElement, InternalRoute, Population, write_timestr,
+    InternalActivity, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement,
+    InternalPopulation, InternalRoute, Population, write_timestr,
 };
 use crate::simulation::scenario::vehicles::Garage;
 
@@ -21,110 +22,10 @@ pub(crate) fn load_from_xml(
     create_population(io_pop)
 }
 
-pub(crate) fn write_to_xml(_population: &Population, _path: impl AsRef<Path>) {
-    let mut io_persons = Vec::new();
+pub(crate) fn write_to_xml(population: &Population, _path: impl AsRef<Path>) {
+    let io_population = IOPopulation::from(population);
 
-    // go through all persons in internal population
-    for (ipers_id, internal_person) in _population.persons.clone() {
-        let mut io_plans = Vec::new();
-
-        // for current internal person, go through all internal plans
-        for internal_plan in internal_person.plans() {
-            let mut io_plan_elements = Vec::new();
-            let selected = internal_plan.selected;
-
-            // for current internal plan, go through all internal plan elements and convert to IOPlanElements
-            for internal_plan_element in internal_plan.elements.clone() {
-                // internal plan element can be either an activity or a leg
-                match internal_plan_element {
-                    InternalPlanElement::Activity(activity) => {
-                        let io_activity = IOActivity {
-                            r#type: activity.act_type.external().to_string(),
-                            link: activity.link_id.external().to_string(),
-                            x: activity.x,
-                            y: activity.y,
-                            start_time: activity.start_time.map(|t| write_timestr(t)),
-                            end_time: activity.end_time.map(|t| write_timestr(t)),
-                            max_dur: activity.max_dur.map(|d| write_timestr(d)),
-                            attributes: IOAttributes::from_internal_attr_or_none_if_empty(
-                                activity.attributes,
-                            ),
-                        };
-                        io_plan_elements.push(IOPlanElement::Activity(io_activity));
-                    }
-                    InternalPlanElement::Leg(leg) => {
-                        // verify that routing mode is in IOleg attributes
-                        let io_leg_attributes = match leg.attributes.get::<String>("routingMode") {
-                            Some(routing_mode) => {
-                                if routing_mode
-                                    == leg.routing_mode.clone().unwrap().external().to_string()
-                                {
-                                    // routing mode from internal leg is present in attributes, so
-                                    // we can use the attributes from the leg without modification
-                                    IOAttributes::from(leg.attributes)
-                                } else {
-                                    // routing mode form internal leg is present in IOleg attributes,
-                                    // but incorrect. This should not happen, panic
-                                    panic!(
-                                        "Internal routing mode of leg does not match routing mode \
-                                            in IOleg attributes. {:?} vs {:?}",
-                                        leg.routing_mode.clone().unwrap().external().to_string(),
-                                        routing_mode
-                                    );
-                                }
-                            }
-
-                            None => {
-                                //     routing mode not present in IOleg attribute. Use the one from the
-                                //     internal leg
-                                let mut attrs = IOAttributes::from(leg.attributes);
-                                attrs.attributes.push(IOAttribute::new_with_class(
-                                    "routingMode".to_string(),
-                                    "java.lang.String".to_string(),
-                                    leg.routing_mode.clone().unwrap().external().to_string(),
-                                ));
-                                attrs
-                            }
-                        };
-
-                        let io_leg = IOLeg {
-                            mode: leg.mode.external().to_string(),
-                            dep_time: leg.dep_time.map(|t| write_timestr(t)),
-                            trav_time: leg.trav_time.map(|t| write_timestr(t)),
-                            route: leg.route.map(|r| IORoute::from(r)),
-                            attributes: Some(io_leg_attributes),
-                        };
-                        io_plan_elements.push(IOPlanElement::Leg(io_leg));
-                    }
-                }
-            }
-            // create IOPlan from io_plan_elements
-            let io_plan = IOPlan {
-                selected,
-                elements: io_plan_elements,
-            };
-            // add the io_plan to the plans of the current person
-            io_plans.push(io_plan);
-        }
-
-        let io_person = IOPerson {
-            id: ipers_id.to_string(),
-            plans: io_plans,
-            attributes: IOAttributes::from_internal_attr_or_none_if_empty(
-                internal_person.attributes().clone(),
-            ),
-        };
-
-        io_persons.push(io_person);
-    }
-
-    let result = IOPopulation {
-        persons: io_persons,
-    };
-
-    result.to_file(_path);
-
-    // panic!("Write to xml is not implemented for Population. Only writing to `.binpb` is supported")
+    io_population.to_file(_path);
 }
 
 fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
@@ -180,12 +81,12 @@ fn create_population(io_pop: IOPopulation) -> HashMap<Id<InternalPerson>, Intern
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
-struct PTRoute {
-    transit_route_id: String,
-    boarding_time: String,
-    transit_line_id: String,
-    access_facility_id: String,
-    egress_facility_id: String,
+pub struct IOPTRouteDescription {
+    pub transit_route_id: String,
+    pub boarding_time: String,
+    pub transit_line_id: String,
+    pub access_facility_id: String,
+    pub egress_facility_id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -214,58 +115,33 @@ pub struct IORoute {
 
 impl From<InternalRoute> for IORoute {
     fn from(route: InternalRoute) -> Self {
-        match route {
-            InternalRoute::Generic(gr) => {
-                IORoute {
-                    r#type: "generic".to_string(),
-                    start_link: gr.start_link().external().to_string(),
-                    end_link: gr.end_link().external().to_string(),
-                    trav_time: gr.trav_time().map(|t| write_timestr(t)),
-                    distance: gr.distance().unwrap(), // TODO: For InternalGenericRoute, distance is optional, but in IORoute it's not.
-                    vehicle: gr.vehicle().clone().map(|v| v.external().to_string()),
-                    route: None, // TODO: Generic routes have no "route" field
-                }
-            }
-            InternalRoute::Network(ir) => {
-                IORoute {
-                    r#type: "links".to_string(),
-                    start_link: ir.generic_delegate().start_link().external().to_string(),
-                    end_link: ir.generic_delegate().end_link().external().to_string(),
-                    trav_time: ir.generic_delegate().trav_time().map(|t| write_timestr(t)),
-                    distance: ir.generic_delegate().distance().unwrap(),  // TODO: For InternalNetworkRoute, distance is optional, but in IORoute it's not.
-                    vehicle: ir.generic_delegate().vehicle().clone().map(|v| v.external().to_string()),
-                    route: //TODO how to parse route? it's a vec of link ids in InternalNetworkRoute, but a string in IORoute. Maybe join the link ids with spaces to create the route string?
-                        Some(ir.route().iter().map(|id| id.external().to_string()).collect::<Vec<String>>().join(" ")), // TODO check copilots code
-                }
-            }
-            InternalRoute::Pt(pr) => {
-                IORoute {
-                    r#type: "default_pt".to_string(),
-                    start_link: pr.generic_delegate().start_link().external().to_string(),
-                    end_link: pr.generic_delegate().end_link().external().to_string(),
-                    trav_time: pr.generic_delegate().trav_time().map(|t| t.to_string()),
-                    distance: pr.generic_delegate().distance().unwrap(), // TODO: For InternalPtRoute, distance is optional, but in IORoute it's not.
-                    vehicle: pr
-                        .generic_delegate()
-                        .vehicle()
-                        .clone()
-                        .map(|v| v.external().to_string()),
-                    route: Some(
-                        serde_json::to_string(&PTRoute {
-                            transit_route_id: pr.description.transit_route_id,
-                            boarding_time: pr
-                                .description
-                                .boarding_time
-                                .map(|t| t.to_string())
-                                .unwrap(), // TODO boarding_time is optional in InternalPtRoute
-                            transit_line_id: pr.description.transit_line_id,
-                            access_facility_id: pr.description.access_facility_id,
-                            egress_facility_id: pr.description.egress_facility_id,
-                        })
-                        .unwrap(),
-                    ),
-                }
-            }
+        let generic_internal_route = route.as_generic();
+
+        // TODO: should the distance in InternalGenericRoute even be optional?
+        if generic_internal_route.distance().is_none() {
+            panic!(
+                "Route has no distance. This is required to convert to IORoute. Route: {:?}",
+                route
+            );
+        }
+
+        let r_type = match &route {
+            InternalRoute::Generic(_) => "generic",
+            InternalRoute::Network(_) => "links",
+            InternalRoute::Pt(_) => "default_pt",
+        };
+
+        IORoute {
+            r#type: r_type.to_string(),
+            start_link: generic_internal_route.start_link().external().to_string(),
+            end_link: generic_internal_route.end_link().external().to_string(),
+            trav_time: generic_internal_route.trav_time().map(|t| write_timestr(t)),
+            distance: generic_internal_route.distance().unwrap(),
+            vehicle: generic_internal_route
+                .vehicle()
+                .clone()
+                .map(|v| v.external().to_string()),
+            route: route.get_route_description(),
         }
     }
 }
@@ -307,6 +183,21 @@ impl IOActivity {
     }
 }
 
+impl From<InternalActivity> for IOActivity {
+    fn from(activity: InternalActivity) -> Self {
+        IOActivity {
+            r#type: activity.act_type.external().to_string(),
+            link: activity.link_id.external().to_string(),
+            x: activity.x,
+            y: activity.y,
+            start_time: activity.start_time.map(|t| write_timestr(t)),
+            end_time: activity.end_time.map(|t| write_timestr(t)),
+            max_dur: activity.max_dur.map(|d| write_timestr(d)),
+            attributes: IOAttributes::from_internal_attr_or_none_if_empty(activity.attributes),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOLeg {
     #[serde(rename = "@mode")]
@@ -319,6 +210,49 @@ pub struct IOLeg {
     pub route: Option<IORoute>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub attributes: Option<IOAttributes>,
+}
+
+impl From<InternalLeg> for IOLeg {
+    fn from(leg: InternalLeg) -> Self {
+        // First, verify that routing mode is in IOleg attributes
+        let io_leg_attributes = match leg.attributes.get::<String>("routingMode") {
+            // routing mode is present in IOleg attributes, verify that it matches the one from the internal leg
+            Some(routing_mode) => {
+                if routing_mode == leg.routing_mode.clone().unwrap().external().to_string() {
+                    // routing mode is correct, so we can use the attributes from the leg without modification
+                    IOAttributes::from(leg.attributes)
+                } else {
+                    // routing mode form internal leg is present in IOleg attributes,
+                    // but incorrect. This should not happen, panic
+                    panic!(
+                        "Internal routing mode of leg does not match routing mode \
+                                            in IOleg attributes. {:?} vs {:?}",
+                        leg.routing_mode.clone().unwrap().external().to_string(),
+                        routing_mode
+                    );
+                }
+            }
+            // routing mode not present in IOLeg attributes
+            None => {
+                //     Write routing mode from internal leg into attributes
+                let mut attrs = IOAttributes::from(leg.attributes);
+                attrs.attributes.push(IOAttribute::new_with_class(
+                    "routingMode".to_string(),
+                    "java.lang.String".to_string(),
+                    leg.routing_mode.clone().unwrap().external().to_string(),
+                ));
+                attrs
+            }
+        };
+
+        IOLeg {
+            mode: leg.mode.external().to_string(),
+            dep_time: leg.dep_time.map(|t| write_timestr(t)),
+            trav_time: leg.trav_time.map(|t| write_timestr(t)),
+            route: leg.route.map(|r| IORoute::from(r)),
+            attributes: Some(io_leg_attributes), // TODO why are attributes optional? we will always have at least the routing mode attribute, right?
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -353,6 +287,17 @@ impl IOPlanElement {
     }
 }
 
+impl From<InternalPlanElement> for IOPlanElement {
+    fn from(element: InternalPlanElement) -> Self {
+        match element {
+            InternalPlanElement::Activity(activity) => {
+                IOPlanElement::Activity(IOActivity::from(activity))
+            }
+            InternalPlanElement::Leg(leg) => IOPlanElement::Leg(IOLeg::from(leg)),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct IOPlan {
     #[serde(
@@ -366,6 +311,22 @@ pub struct IOPlan {
     pub elements: Vec<IOPlanElement>,
 }
 
+impl From<&InternalPlan> for IOPlan {
+    fn from(internal_plan: &InternalPlan) -> Self {
+        let mut io_plan_elements = Vec::new();
+        let selected = internal_plan.selected;
+
+        // for current internal plan, go through all internal plan elements and convert to IOPlanElements
+        for internal_plan_element in internal_plan.elements.clone() {
+            io_plan_elements.push(IOPlanElement::from(internal_plan_element));
+        }
+
+        IOPlan {
+            selected,
+            elements: io_plan_elements,
+        }
+    }
+}
 fn bool_from_yes_no<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: Deserializer<'de>,
@@ -421,6 +382,37 @@ impl IOPopulation {
             file_path,
             "<!DOCTYPE network SYSTEM \"https://www.matsim.org/files/dtd/population_v6.dtd\">",
         );
+    }
+}
+
+impl From<&Population> for IOPopulation {
+    fn from(internal_population: &Population) -> Self {
+        let mut io_persons = Vec::new();
+
+        // go through all persons in internal population
+        for (ipers_id, internal_person) in internal_population.persons.clone() {
+            let mut io_plans = Vec::new();
+
+            // for current internal person, go through all internal plans
+            for internal_plan in internal_person.plans() {
+                // convert to io_plan and add to the plans of the current person
+                io_plans.push(IOPlan::from(internal_plan));
+            }
+
+            let io_person = IOPerson {
+                id: ipers_id.to_string(),
+                plans: io_plans,
+                attributes: IOAttributes::from_internal_attr_or_none_if_empty(
+                    internal_person.attributes().clone(),
+                ),
+            };
+
+            io_persons.push(io_person);
+        }
+
+        IOPopulation {
+            persons: io_persons,
+        }
     }
 }
 
