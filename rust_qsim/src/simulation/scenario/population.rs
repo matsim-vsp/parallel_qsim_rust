@@ -242,6 +242,10 @@ impl InternalPerson {
     pub fn selected_plan(&self) -> Option<&InternalPlan> {
         self.plans.iter().find(|&plan| plan.selected)
     }
+
+    pub(crate) fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
+    }
 }
 
 impl Default for InternalPlan {
@@ -570,10 +574,7 @@ impl FromIOPerson<IOLeg> for InternalLeg {
             mode: mode.clone(),
             routing_mode,
             dep_time: parse_time_opt(&io.dep_time),
-            trav_time: parse_trav_time(
-                &io.trav_time,
-                &io.route.as_ref().and_then(|r| r.trav_time.clone()),
-            ),
+            trav_time: parse_time_opt(&io.trav_time),
             route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes
@@ -633,17 +634,6 @@ fn trim_quotes(s: &Value) -> String {
     s.to_string().trim_matches('"').to_string()
 }
 
-fn parse_trav_time(
-    leg_trav_time: &Option<String>,
-    route_trav_time: &Option<String>,
-) -> Option<u32> {
-    if let Some(trav_time) = parse_time_opt(leg_trav_time) {
-        Some(trav_time)
-    } else {
-        parse_time_opt(route_trav_time)
-    }
-}
-
 fn parse_time_opt(value: &Option<String>) -> Option<u32> {
     if let Some(time) = value.as_ref() {
         parse_time(time)
@@ -663,6 +653,14 @@ fn parse_time(value: &str) -> Option<u32> {
     } else {
         None
     }
+}
+
+// FIXME maybe this shouldn't be pub(crate) but just be used where it is
+pub(crate) fn write_timestr(time_secs: u32) -> String {
+    let hours = time_secs / 3600; // rounds towards zero, i.e., floors the result
+    let minutes = (time_secs % 3600) / 60;
+    let seconds = time_secs % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
 impl From<IOPerson> for InternalPerson {

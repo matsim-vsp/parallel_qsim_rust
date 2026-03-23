@@ -14,8 +14,6 @@ use crate::simulation::population::agent_source::{
     AgentSource, DynAgentSource, PopulationAgentSource,
 };
 use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
-use crate::simulation::scenario::GlobalPopulation::Full;
-use crate::simulation::scenario::{Scenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
 use nohash_hasher::IntMap;
@@ -303,21 +301,16 @@ impl Controller {
         let pop_in_path = if let Some(path) = &self.config.population().path {
             io::resolve_path(self.config.context(), path)
         } else {
-            io::resolve_path(
-                self.config.context(),
-                &PathBuf::from("population.xml.gz"),
-            )
+            io::resolve_path(self.config.context(), &PathBuf::from("population.xml.gz"))
         };
         let mut pop_out_path = create_output_filename(output_path, &pop_in_path);
-        pop_out_path = insert_number_in_proto_filename(
-            &pop_out_path,
-            self.config.partitioning().num_parts,
-        );
+        pop_out_path =
+            insert_number_in_proto_filename(&pop_out_path, self.config.partitioning().num_parts);
         println!("pop_out_path: {}", pop_out_path.display());
-        if let Full(pop) = &self.scenario.population {
-            pop.to_file(&pop_out_path);
+        if let Scenario::Full(mut_scen) = &self.scenario {
+            mut_scen.population.to_file(&pop_out_path);
         } else {
-            panic!("Cannot write output population because it split among the threads.");
+            panic!("Cannot write output population because it is split among the threads.");
         }
     }
 

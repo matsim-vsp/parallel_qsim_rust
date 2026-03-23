@@ -7,8 +7,10 @@ use crate::simulation::id::Id;
 use crate::simulation::io::xml;
 
 use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
-use crate::simulation::scenario::population::{write_timestr, InternalPerson, InternalRoute, Population};
-use crate::simulation::scenario::vehicles::garage::Garage;
+use crate::simulation::scenario::population::{
+    InternalPerson, InternalPlanElement, InternalRoute, Population, write_timestr,
+};
+use crate::simulation::scenario::vehicles::Garage;
 
 pub(crate) fn load_from_xml(
     path: &Path,
@@ -35,7 +37,7 @@ pub(crate) fn write_to_xml(_population: &Population, _path: impl AsRef<Path>) {
             for internal_plan_element in internal_plan.elements.clone() {
                 // internal plan element can be either an activity or a leg
                 match internal_plan_element {
-                    crate::simulation::population::InternalPlanElement::Activity(activity) => {
+                    InternalPlanElement::Activity(activity) => {
                         let io_activity = IOActivity {
                             r#type: activity.act_type.external().to_string(),
                             link: activity.link_id.external().to_string(),
@@ -50,7 +52,7 @@ pub(crate) fn write_to_xml(_population: &Population, _path: impl AsRef<Path>) {
                         };
                         io_plan_elements.push(IOPlanElement::Activity(io_activity));
                     }
-                    crate::simulation::population::InternalPlanElement::Leg(leg) => {
+                    InternalPlanElement::Leg(leg) => {
                         // verify that routing mode is in IOleg attributes
                         let io_leg_attributes = match leg.attributes.get::<String>("routingMode") {
                             Some(routing_mode) => {
@@ -430,7 +432,7 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::attributes::IOAttribute;
     use crate::simulation::io::xml::population::{
-        load_from_xml, IOActivity, IOLeg, IOPlanElement, IOPopulation,
+        IOActivity, IOLeg, IOPlanElement, IOPopulation, load_from_xml,
     };
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::vehicles::Garage;
