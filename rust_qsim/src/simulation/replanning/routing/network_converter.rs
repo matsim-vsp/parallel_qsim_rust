@@ -13,6 +13,7 @@ pub struct NetworkConverter {}
 
 #[allow(dead_code)]
 impl NetworkConverter {
+    #[deprecated]
     pub fn convert_network_with_vehicle_types(
         network: &Network,
         vehicle_types: &IntMap<Id<InternalVehicleType>, InternalVehicleType>,

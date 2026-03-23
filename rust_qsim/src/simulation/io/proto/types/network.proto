@@ -5,7 +5,7 @@ package network;
 message Network {
   repeated Node nodes = 1;
   repeated Link links = 2;
-  float effectiveCellSize = 3;
+  double effectiveCellSize = 3;
 }
 
 message Node {
@@ -21,9 +21,9 @@ message Link {
   string from = 2;
   string to = 3;
   double length = 4;
-  float capacity = 5;
-  float freespeed = 6;
-  float permlanes = 7;
+  double capacity = 5;
+  double freespeed = 6;
+  double permlanes = 7;
   repeated string modes = 8;
   uint32 partition = 9;
 }

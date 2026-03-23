@@ -66,7 +66,7 @@ impl SimLink {
         }
     }
 
-    pub fn flow_cap(&self) -> f32 {
+    pub fn flow_cap(&self) -> f64 {
         match self {
             SimLink::Local(l) => l.flow_cap.capacity_per_time_step(),
             SimLink::In(il) => il.local_link.flow_cap.capacity_per_time_step(),
@@ -120,7 +120,7 @@ impl SimLink {
     }
 
     #[cfg(test)]
-    pub fn used_storage(&self) -> f32 {
+    pub fn used_storage(&self) -> f64 {
         match self {
             SimLink::Local(ll) => ll.storage_cap.used(),
             SimLink::In(il) => il.local_link.storage_cap.used(),
@@ -159,7 +159,7 @@ pub struct LocalLink {
     buffer: VecDeque<SimulationVehicle>,
     waiting_list: VecDeque<SimulationVehicle>,
     length: f64,
-    free_speed: f32,
+    free_speed: f64,
     storage_cap: StorageCap,
     flow_cap: Flowcap,
     stuck_timer: StuckTimer,
@@ -174,7 +174,7 @@ struct VehicleQEntry {
 }
 
 impl LocalLink {
-    pub fn from_link(link: &Link, effective_cell_size: f32, config: &config::Simulation) -> Self {
+    pub fn from_link(link: &Link, effective_cell_size: f64, config: &config::Simulation) -> Self {
         LocalLink::build(
             link.id.clone(),
             link.capacity,
@@ -206,11 +206,11 @@ impl LocalLink {
     #[allow(clippy::too_many_arguments)]
     pub fn build(
         id: Id<Link>,
-        capacity_h: f32,
-        free_speed: f32,
-        perm_lanes: f32,
+        capacity_h: f64,
+        free_speed: f64,
+        perm_lanes: f64,
         length: f64,
-        effective_cell_size: f32,
+        effective_cell_size: f64,
         config: &config::Simulation,
         from: Id<Node>,
         to: Id<Node>,
@@ -399,7 +399,7 @@ impl LocalLink {
     }
 
     fn has_flow_capacity_left(&self, _veh: &SimulationVehicle) -> bool {
-        let buffer_cap = self.buffer.iter().map(|v| v.pce()).sum::<f32>();
+        let buffer_cap = self.buffer.iter().map(|v| v.pce()).sum::<f64>();
         self.flow_cap.value() - buffer_cap > 0.0
     }
 
@@ -472,8 +472,8 @@ pub struct SplitOutLink {
 impl SplitOutLink {
     pub fn new(
         link: &Link,
-        effective_cell_size: f32,
-        sample_size: f32,
+        effective_cell_size: f64,
+        sample_size: f64,
         to_part: u32,
     ) -> SplitOutLink {
         let storage_cap = StorageCap::build(
@@ -492,7 +492,7 @@ impl SplitOutLink {
         }
     }
 
-    pub fn apply_storage_cap_update(&mut self, released: f32) {
+    pub fn apply_storage_cap_update(&mut self, released: f64) {
         self.storage_cap.consume(-released);
     }
 
@@ -529,7 +529,7 @@ impl SplitInLink {
         }
     }
 
-    pub(super) fn occupied_storage(&self) -> f32 {
+    pub(super) fn occupied_storage(&self) -> f64 {
         self.local_link.storage_cap.used()
     }
 }
@@ -804,14 +804,14 @@ mod sim_link_tests {
         let vehicle1 = SimulationVehicle::from_parts(
             1,
             0,
-            earliest_exit as f32,
+            earliest_exit as f64,
             1.,
             create_agent_without_route(1),
         );
         let vehicle2 = SimulationVehicle::from_parts(
             2,
             0,
-            earliest_exit as f32,
+            earliest_exit as f64,
             1.,
             create_agent_without_route(2),
         );

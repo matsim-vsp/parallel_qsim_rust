@@ -94,11 +94,11 @@ pub struct IOLink {
     #[serde(rename = "@length")]
     pub length: f64,
     #[serde(rename = "@capacity")]
-    pub capacity: f32,
+    pub capacity: f64,
     #[serde(rename = "@freespeed")]
-    pub freespeed: f32,
+    pub freespeed: f64,
     #[serde(rename = "@permlanes")]
-    pub permlanes: f32,
+    pub permlanes: f64,
     #[serde(default, rename = "@modes")]
     pub modes: String,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
@@ -116,7 +116,7 @@ pub struct Links {
     #[serde(rename = "link", default)]
     pub links: Vec<IOLink>,
     #[serde(rename = "@effectivecellsize")]
-    pub effective_cell_size: Option<f32>,
+    pub effective_cell_size: Option<f64>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -155,7 +155,7 @@ impl IONetwork {
         &mut self.links.links
     }
 
-    pub fn effective_cell_size(&self) -> f32 {
+    pub fn effective_cell_size(&self) -> f64 {
         self.links.effective_cell_size.unwrap_or(7.5)
     }
 

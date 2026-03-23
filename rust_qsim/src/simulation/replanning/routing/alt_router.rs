@@ -1,16 +1,29 @@
-use keyed_priority_queue::Entry;
-
+use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
 use crate::simulation::replanning::routing::dijsktra::{Dijkstra, Distance};
 use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
-use crate::simulation::replanning::routing::router::CustomQueryResult;
+use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    CustomQueryResult, Graph, Time,
+};
+use crate::simulation::scenario::network::Link;
+use keyed_priority_queue::Entry;
+
+pub struct AStarRouter<H> {
+    pub heuristic: H,
+}
+
+pub trait AStarHeuristic {
+    fn estimate(&self, graph: dyn Graph, from: Id<Link>, to: Id<Link>) -> Time;
+}
 
 #[derive(PartialEq, Debug)]
+#[deprecated]
 struct AltQueryResult {
     travel_time: Option<u32>,
     node_path: Option<Vec<usize>>,
 }
 
+#[deprecated]
 impl AltQueryResult {
     fn empty() -> Self {
         Self {
@@ -24,6 +37,7 @@ impl AltQueryResult {
     }
 }
 
+#[deprecated]
 pub struct AltRouter {
     pub landmark_data: AltLandmarkData,
     pub current_graph: ForwardBackwardGraph,

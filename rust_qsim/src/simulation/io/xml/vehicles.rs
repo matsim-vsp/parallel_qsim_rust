@@ -95,7 +95,7 @@ pub struct IOCapacity {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IODimension {
     #[serde(rename = "@meter")]
-    pub(crate) meter: f32,
+    pub(crate) meter: f64,
 }
 
 impl Default for IODimension {
@@ -108,13 +108,13 @@ impl Default for IODimension {
 #[serde(rename_all = "camelCase")]
 pub struct IOVelocity {
     #[serde(rename = "@meterPerSecond")]
-    pub(crate) meter_per_second: f32,
+    pub(crate) meter_per_second: f64,
 }
 
 impl Default for IOVelocity {
     fn default() -> Self {
         Self {
-            meter_per_second: f32::MAX,
+            meter_per_second: f64::MAX,
         }
     }
 }
@@ -122,7 +122,7 @@ impl Default for IOVelocity {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
 pub struct IOPassengerCarEquivalents {
     #[serde(rename = "@pce")]
-    pub(crate) pce: f32,
+    pub(crate) pce: f64,
 }
 
 impl Default for IOPassengerCarEquivalents {
@@ -149,7 +149,7 @@ impl Default for IONetworkMode {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IOFowEfficiencyFactor {
     #[serde(rename = "@factor")]
-    pub(crate) factor: f32,
+    pub(crate) factor: f64,
 }
 
 impl Default for IOFowEfficiencyFactor {

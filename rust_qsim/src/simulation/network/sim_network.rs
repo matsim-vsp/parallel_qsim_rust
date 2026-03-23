@@ -21,7 +21,7 @@ use std::rc::Rc;
 pub struct StorageUpdate {
     pub link_id: Id<Link>,
     pub from_part: u32,
-    pub released: f32,
+    pub released: f64,
 }
 
 #[derive(Debug)]
@@ -145,7 +145,7 @@ impl SimNetworkPartition {
     fn create_sim_link(
         link: &Link,
         partition: u32,
-        effective_cell_size: f32,
+        effective_cell_size: f64,
         config: &config::Simulation,
         global_network: &Network,
     ) -> SimLink {
@@ -444,12 +444,12 @@ impl SimNetworkPartition {
         let (active, mut avail_capacity) =
             Self::get_active_in_links(&node.in_links, &self.active_links, &self.links);
         let mut exhausted_links: Vec<Option<()>> = vec![None; active.len()];
-        let mut sel_cap: f32 = 0.;
+        let mut sel_cap: f64 = 0.;
 
         while avail_capacity > 1e-10 {
             // draw random number between 0 and available capacity
-            let r = self.rng.get_mut(node_id).unwrap().random::<f32>();
-            let rnd_num: f32 = r * avail_capacity;
+            let r = self.rng.get_mut(node_id).unwrap().random::<f64>();
+            let rnd_num: f64 = r * avail_capacity;
 
             #[allow(clippy::needless_range_loop)]
             // go through all in links and fetch one, which is not exhausted yet.
@@ -501,7 +501,7 @@ impl SimNetworkPartition {
         in_links: &Vec<Id<Link>>,
         active_links: &ActiveCache<Link>,
         links: &IntMap<Id<Link>, SimLink>,
-    ) -> (Vec<Id<Link>>, f32) {
+    ) -> (Vec<Id<Link>>, f64) {
         let mut active = Vec::new();
         let mut acc_cap = 0.;
 
