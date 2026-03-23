@@ -3,17 +3,38 @@ use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
 use crate::simulation::replanning::routing::dijsktra::{Dijkstra, Distance};
 use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-    CustomQueryResult, Graph, Time,
+    CustomQueryResult, Graph, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, Time,
 };
 use crate::simulation::scenario::network::Link;
 use keyed_priority_queue::Entry;
 
-pub struct AStarRouter<H> {
-    pub heuristic: H,
+pub struct AStarRouter<H: AStarHeuristic> {
+    heuristic: H,
 }
 
 pub trait AStarHeuristic {
-    fn estimate(&self, graph: dyn Graph, from: Id<Link>, to: Id<Link>) -> Time;
+    fn estimate(&self, graph: &dyn Graph, from: Id<Link>, to: Id<Link>) -> Time;
+}
+
+// with this, the A* collapses into Dijkstra
+pub(crate) struct ZeroHeuristic;
+
+impl AStarHeuristic for ZeroHeuristic {
+    fn estimate(&self, graph: &dyn Graph, from: Id<Link>, to: Id<Link>) -> Time {
+        0.
+    }
+}
+
+impl<H: AStarHeuristic> AStarRouter<H> {
+    pub fn new(heuristic: H) -> Self {
+        AStarRouter { heuristic }
+    }
+}
+
+impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
+    fn calc_route(&mut self, request: LeastCostPathRequest) -> Option<LeastCostPath> {
+        None
+    }
 }
 
 #[derive(PartialEq, Debug)]

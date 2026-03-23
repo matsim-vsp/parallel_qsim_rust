@@ -23,6 +23,9 @@ impl Distance {
     }
 }
 
+#[deprecated]
+// I think this is not needed any more. The functions associated with it should go into the A Star module.
+// However, the A Star might need a Dijkstra implementation.
 pub struct Dijkstra {}
 
 impl Dijkstra {
