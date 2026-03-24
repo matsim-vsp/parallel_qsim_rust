@@ -34,7 +34,8 @@ impl ActivityEngine {
         now: u32,
         agents: Vec<SimulationAgent>,
     ) -> Vec<SimulationAgent> {
-        for agent in agents {
+        for mut agent in agents {
+            agent.advance_plan(now);
             self.receive_agent(now, AsleepSimulationAgent::build(agent, now));
         }
 

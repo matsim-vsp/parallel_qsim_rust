@@ -15,7 +15,7 @@ pub trait SimulationAgentLogic:
     fn next_act(&self) -> &InternalActivity;
     fn curr_leg(&self) -> &InternalLeg;
     fn next_leg(&self) -> Option<&InternalLeg>;
-    fn advance_plan(&mut self);
+    fn advance_plan(&mut self, now: u32);
     fn state(&self) -> SimulationAgentState;
 
     // Having these functions here is not ideal. See https://github.com/matsim-vsp/parallel_qsim_rust/issues/203 for more details.
