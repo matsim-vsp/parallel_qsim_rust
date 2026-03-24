@@ -37,7 +37,7 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
     let person = InternalPerson::new(Id::create(id.to_string().as_str()), plan);
 
     let mut agent = SimulationAgent::new_plan_based(person);
-    agent.advance_plan();
+    agent.advance_plan(0);
 
     agent
 }
