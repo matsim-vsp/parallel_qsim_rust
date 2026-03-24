@@ -24,6 +24,15 @@ impl NetworkConverter {
             .collect()
     }
 
+    pub fn filter_network(mode: String, network: &Network) -> Network {
+        unimplemented!()
+    }
+
+    pub fn convert_network_for_mode(network: &Network, mode: String) -> ForwardBackwardGraph {
+        unimplemented!()
+    }
+
+    #[deprecated(note = "Use the convert_network_for_mode function instead.")]
     pub(crate) fn convert_network(
         network: &Network,
         vehicle_type: Option<&InternalVehicleType>,

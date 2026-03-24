@@ -91,13 +91,15 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::alt_router::AStarRouter;
     use crate::simulation::replanning::routing::alt_router::ZeroHeuristic;
+    use crate::simulation::replanning::routing::least_cost_path_caluclator::FreeSpeedTravelTimeAndDisutility;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
         LeastCostPathCalculator, LeastCostPathRequest,
     };
 
     #[test]
     fn test() {
-        let mut router = AStarRouter::new(ZeroHeuristic);
+        let mut router =
+            AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
         let request = LeastCostPathRequest {
             from: Id::create("from"),
             to: Id::create("to"),

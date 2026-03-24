@@ -95,6 +95,7 @@ impl ForwardBackwardGraph {
 pub struct Graph {
     pub(crate) first_out: Vec<usize>,
     pub(crate) head: Vec<usize>,
+    #[deprecated(note = "Travel time should not be part of the graph anymore.")]
     pub(crate) travel_time: Vec<u32>,
     pub(crate) link_ids: Vec<u64>,
     pub(crate) x: Vec<f64>,

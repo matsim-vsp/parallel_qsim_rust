@@ -4,12 +4,14 @@ use crate::simulation::replanning::routing::dijsktra::{Dijkstra, Distance};
 use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
     CustomQueryResult, Graph, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, Time,
+    TravelDisutility,
 };
 use crate::simulation::scenario::network::Link;
 use keyed_priority_queue::Entry;
 
 pub struct AStarRouter<H: AStarHeuristic> {
     heuristic: H,
+    travel_disutility: Box<dyn TravelDisutility>,
 }
 
 pub trait AStarHeuristic {
@@ -26,14 +28,28 @@ impl AStarHeuristic for ZeroHeuristic {
 }
 
 impl<H: AStarHeuristic> AStarRouter<H> {
-    pub fn new(heuristic: H) -> Self {
-        AStarRouter { heuristic }
+    pub fn new(heuristic: H, travel_disutility: Box<dyn TravelDisutility>) -> Self {
+        AStarRouter {
+            heuristic,
+            travel_disutility,
+        }
     }
 }
 
 impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
     fn calc_route(&mut self, request: LeastCostPathRequest) -> Option<LeastCostPath> {
         None
+    }
+}
+
+/// Heuristic that uses landmarks and triangle inequality to estimate
+struct AltHeuristic {
+    // some internal state
+}
+
+impl AStarHeuristic for AltHeuristic {
+    fn estimate(&self, graph: &dyn Graph, from: Id<Link>, to: Id<Link>) -> Time {
+        todo!()
     }
 }
 
