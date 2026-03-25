@@ -30,6 +30,7 @@ pub mod scenario;
 pub mod simulation;
 pub mod time_queue;
 pub mod vehicles;
+pub mod scoring;
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
 pub struct InternalAttributes {
