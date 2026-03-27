@@ -182,6 +182,9 @@ impl Controller {
             .process_event(ControllerEvent::after_mobsim(true));
 
         self.controller_events_manager
+            .process_event(ControllerEvent::scoring(true));
+
+        self.controller_events_manager
             .process_event(ControllerEvent::iteration_ends(true));
 
         info!("=========== End Iteration 0 ===========");

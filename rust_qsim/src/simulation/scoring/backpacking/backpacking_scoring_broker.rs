@@ -1,25 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
-use crate::simulation::scoring::backpack::Backpack;
-
-pub struct InternalScoringMessage<T> {
-    time: u32,
-    from_process: u32,
-    to_process: u32,
-    message: T
-}
-
-pub trait ScoringMessageBroker{
-    type MessageType;
-    fn send_receive_scoring<F>(
-        &self,
-        messages: HashMap<u32, InternalScoringMessage<Self::MessageType>>,
-        expected_scoring_messages: &mut HashSet<u32>,
-        now: u32,
-        on_msg: F,
-    ) where
-        F: FnMut(InternalScoringMessage<Self::MessageType>);
-}
+use crate::simulation::scoring::backpacking::backpack::Backpack;
+use crate::simulation::scoring::{InternalScoringMessage, ScoringMessageBroker};
 
 pub struct BackpackingMessageBroker{
     receiver: Receiver<InternalScoringMessage<Backpack>>,
@@ -44,11 +26,11 @@ impl ScoringMessageBroker for BackpackingMessageBroker{
             sender
                 .send(msg)
                 .unwrap_or_else(|e| {
-                panic!(
-                    "Error while sending scoring message to rank {} with error {}",
-                    target, e
-                )
-            });
+                    panic!(
+                        "Error while sending scoring message to rank {} with error {}",
+                        target, e
+                    )
+                });
         }
 
         // Receive messages
@@ -70,17 +52,4 @@ impl ScoringMessageBroker for BackpackingMessageBroker{
             on_msg(received_msg);
         }
     }
-}
-
-// TODO These structs are yet to be implemented
-pub struct PlanCollectingMessageBroker {
-
-}
-
-pub struct IntegratedPlanCollectingMessageBroker {
-
-}
-
-pub struct OutsourcedPlanCollectingMessageBroker {
-
 }

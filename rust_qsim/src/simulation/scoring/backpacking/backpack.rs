@@ -1,10 +1,13 @@
-use crate::simulation::events::{EventTrait, GeneralEvent};
+use crate::simulation::events::{EventTrait};
 use crate::simulation::id::Id;
-use crate::simulation::scenario::population::InternalPerson;
-
+use crate::simulation::scenario::population::{InternalPerson};
 
 pub struct BackpackPlan {
     //TODO
+    // plan: InternalPlan
+    // providers: Map<String, BackpackRouteProvider>
+    // currentActivity: ...
+    // currentLeg: ...
 }
 
 impl BackpackPlan {
@@ -12,7 +15,10 @@ impl BackpackPlan {
         Self {}
     }
 
-    // TODO
+    fn extend_backpack(&self, event: &dyn EventTrait){
+        // TODO: Should develop the Plan
+        todo!()
+    }
 }
 
 /// Backpacks store the Events as well as a partial plan ([BackpackPlan]) for each agent.
