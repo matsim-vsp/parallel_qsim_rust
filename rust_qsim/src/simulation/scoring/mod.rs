@@ -3,6 +3,7 @@ use crate::simulation::events::EventHandlerRegisterFn;
 
 mod backpacking;
 
+/// A scoring engine contains a DataCollector and MessageBroker for respective implementation.
 pub trait ScoringEngine {
     fn scoring();
 }
@@ -19,6 +20,7 @@ pub struct InternalScoringMessage<T> {
     message: T
 }
 
+/// The message broker communicates with other partitions
 pub trait ScoringMessageBroker{
     type MessageType;
     fn send_receive_scoring<F>(
