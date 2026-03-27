@@ -7,7 +7,7 @@ use rust_qsim::simulation::config::{CommandLineArgs, Config};
 
 #[integration_test(rust_qsim)]
 fn test_scoring() {
-    let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
+    let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2-scoring.yml");
     let config = Arc::new(Config::from_args(config_args));
 
     TestExecutorBuilder::default()
