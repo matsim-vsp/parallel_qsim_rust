@@ -1,0 +1,30 @@
+modules:
+  network:
+    type: Network
+    path: otf_viz_network.xml
+  population:
+    type: Population
+    path: otf_viz_plans.xml
+  vehicles:
+    type: Vehicles
+    path: otf_viz_vehicles.xml
+  partitioning:
+    type: Partitioning
+    num_parts: 1
+    method: None
+  output:
+    type: Output
+    output_dir: ./rust_qsim/test_output/otf_viz_test
+    write_events: Proto
+    overwrite_files: DeleteDirectoryIfExists
+  routing:
+    type: Routing
+    mode: UsePlans
+  simulation:
+    type: Simulation
+    start_time: 0
+    end_time: 86400
+    sample_size: 1.0
+    stuck_threshold: 1000
+    main_modes:
+      - car

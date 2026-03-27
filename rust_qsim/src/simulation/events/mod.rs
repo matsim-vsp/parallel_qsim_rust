@@ -1,5 +1,6 @@
 mod comparision;
 pub mod utils;
+pub mod visualize;
 
 use crate::generated::events::MyEvent;
 use crate::simulation::InternalAttributes;

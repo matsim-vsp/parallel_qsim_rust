@@ -1,0 +1,90 @@
+<?xml version='1.0' encoding='utf-8'?>
+<network name="bottleneck network">
+    <nodes>
+        <node id="1" x="-2000" y="-4500.0"/>
+        <node id="2" x="-2000" y="-3500.0"/>
+        <node id="3" x="-2000" y="-2500.0"/>
+        <node id="4" x="-2000" y="-1500.0"/>
+        <node id="5" x="-2000" y="-500.0"/>
+        <node id="6" x="-2000" y="500.0"/>
+        <node id="7" x="-2000" y="1500.0"/>
+        <node id="8" x="-2000" y="2500.0"/>
+        <node id="9" x="-2000" y="3500.0"/>
+        <node id="10" x="-2000" y="4500.0"/>
+        <node id="11" x="0" y="-4500.0"/>
+        <node id="12" x="0" y="-3500.0"/>
+        <node id="13" x="0" y="-2500.0"/>
+        <node id="14" x="0" y="-1500.0"/>
+        <node id="15" x="0" y="-500.0"/>
+        <node id="16" x="0" y="500.0"/>
+        <node id="17" x="0" y="1500.0"/>
+        <node id="18" x="0" y="2500.0"/>
+        <node id="19" x="0" y="3500.0"/>
+        <node id="20" x="0" y="4500.0"/>
+        <node id="21" x="10000" y="-4500.0"/>
+        <node id="22" x="10000" y="-3500.0"/>
+        <node id="23" x="10000" y="-2500.0"/>
+        <node id="24" x="10000" y="-1500.0"/>
+        <node id="25" x="10000" y="-500.0"/>
+        <node id="26" x="10000" y="500.0"/>
+        <node id="27" x="10000" y="1500.0"/>
+        <node id="28" x="10000" y="2500.0"/>
+        <node id="29" x="10000" y="3500.0"/>
+        <node id="30" x="10000" y="4500.0"/>
+        <node id="31" x="12000" y="-4500.0"/>
+        <node id="32" x="12000" y="-3500.0"/>
+        <node id="33" x="12000" y="-2500.0"/>
+        <node id="34" x="12000" y="-1500.0"/>
+        <node id="35" x="12000" y="-500.0"/>
+        <node id="36" x="12000" y="500.0"/>
+        <node id="37" x="12000" y="1500.0"/>
+        <node id="38" x="12000" y="2500.0"/>
+        <node id="39" x="12000" y="3500.0"/>
+        <node id="40" x="12000" y="4500.0"/>
+        <node id="41" x="4000" y="0"/>
+        <node id="42" x="6000" y="0"/>
+    </nodes>
+    <links capperiod="01:00:00">
+        <link id="1" from="1" to="11" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="2" from="2" to="12" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="3" from="3" to="13" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="4" from="4" to="14" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="5" from="5" to="15" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="6" from="6" to="16" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="7" from="7" to="17" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="8" from="8" to="18" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="9" from="9" to="19" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="10" from="10" to="20" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="11" from="11" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="12" from="12" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="13" from="13" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="14" from="14" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="15" from="15" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="16" from="16" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="17" from="17" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="18" from="18" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="19" from="19" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="20" from="20" to="41" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="21" from="41" to="42" length="1000" capacity="100" freespeed="13.9" permlanes="1"/>
+        <link id="22" from="42" to="21" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="23" from="42" to="22" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="24" from="42" to="23" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="25" from="42" to="24" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="26" from="42" to="25" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="27" from="42" to="26" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="28" from="42" to="27" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="29" from="42" to="28" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="30" from="42" to="29" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="31" from="42" to="30" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="32" from="21" to="31" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="33" from="22" to="32" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="34" from="23" to="33" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="35" from="24" to="34" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="36" from="25" to="35" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="37" from="26" to="36" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="38" from="27" to="37" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="39" from="28" to="38" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="40" from="29" to="39" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+        <link id="41" from="30" to="40" length="1000" capacity="1000" freespeed="13.9" permlanes="1"/>
+    </links>
+</network>
