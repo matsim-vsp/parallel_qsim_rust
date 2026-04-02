@@ -23,19 +23,24 @@ where
     use quick_xml::de::Deserializer;
 
     // Check if it's a URL or local file and if it's gzipped or not
-    let is_gz = file_path.as_ref().extension().unwrap() == "gz";
-    if is_gz {
-        assert!(
-            file_path
-                .as_ref()
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .ends_with("xml"),
-            "File has .gz extension but the underlying file does not have .xml extension"
-        );
-    }
+
+    let is_gz = match file_path.as_ref().extension() {
+        Some(ext) if ext == "gz" => {
+            assert!(
+                file_path
+                    .as_ref()
+                    .file_stem()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .ends_with("xml"),
+                "File has .gz extension but the underlying file does not have .xml extension"
+            );
+            true
+        }
+        Some(_) => false,
+        _ => false,
+    };
 
     // Build one `BufRead` reader for all cases
     let reader: Box<dyn BufRead> = if is_url(file_path.as_ref()) {
