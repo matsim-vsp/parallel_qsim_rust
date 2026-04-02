@@ -64,7 +64,7 @@ impl IOAttributes {
             .map(|attr| attr.value.as_str())
     }
 
-    pub(crate) fn from_internal_none_if_empty(attrs: InternalAttributes) -> Option<IOAttributes> {
+    pub(crate) fn from_internal_none_if_empty(attrs: &InternalAttributes) -> Option<IOAttributes> {
         if attrs.attributes.is_empty() {
             None
         } else {
@@ -73,8 +73,8 @@ impl IOAttributes {
     }
 }
 
-impl From<InternalAttributes> for IOAttributes {
-    fn from(attrs: InternalAttributes) -> Self {
+impl From<&InternalAttributes> for IOAttributes {
+    fn from(attrs: &InternalAttributes) -> Self {
         let mut res = IOAttributes::default();
         for (key, value) in attrs.iter() {
             match value {

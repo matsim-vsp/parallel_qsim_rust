@@ -115,8 +115,8 @@ pub struct IORoute {
     pub route: Option<String>,
 }
 
-impl From<InternalRoute> for IORoute {
-    fn from(route: InternalRoute) -> Self {
+impl From<&InternalRoute> for IORoute {
+    fn from(route: &InternalRoute) -> Self {
         let generic_internal_route = route.as_generic();
 
         // TODO: should the distance in InternalGenericRoute even be optional?
@@ -143,7 +143,7 @@ impl From<InternalRoute> for IORoute {
                 .vehicle()
                 .clone()
                 .map(|v| v.external().to_string()),
-            route: route.get_route_description(),
+            route: route.clone().get_route_description(),
         }
     }
 }
@@ -185,8 +185,8 @@ impl IOActivity {
     }
 }
 
-impl From<InternalActivity> for IOActivity {
-    fn from(activity: InternalActivity) -> Self {
+impl From<&InternalActivity> for IOActivity {
+    fn from(activity: &InternalActivity) -> Self {
         IOActivity {
             r#type: activity.act_type.external().to_string(),
             link: activity.link_id.external().to_string(),
@@ -195,7 +195,7 @@ impl From<InternalActivity> for IOActivity {
             start_time: activity.start_time.map(|t| write_timestr(t)),
             end_time: activity.end_time.map(|t| write_timestr(t)),
             max_dur: activity.max_dur.map(|d| write_timestr(d)),
-            attributes: IOAttributes::from_internal_none_if_empty(activity.attributes),
+            attributes: IOAttributes::from_internal_none_if_empty(&activity.attributes),
         }
     }
 }
@@ -214,17 +214,17 @@ pub struct IOLeg {
     pub route: Option<IORoute>,
 }
 
-impl From<InternalLeg> for IOLeg {
-    fn from(leg: InternalLeg) -> Self {
+impl From<&InternalLeg> for IOLeg {
+    fn from(leg: &InternalLeg) -> Self {
         // get internal attributes from leg, possibly with added routing mode if currently missing
-        let verified_internal_attrs = verify_internal_attrs(leg.clone());
+        let verified_internal_attrs = verify_internal_attrs(&leg);
 
         IOLeg {
             mode: leg.mode.external().to_string(),
             dep_time: leg.dep_time.map(|t| write_timestr(t)),
             trav_time: leg.trav_time.map(|t| write_timestr(t)),
-            route: leg.route.map(|r| IORoute::from(r)),
-            attributes: IOAttributes::from_internal_none_if_empty(verified_internal_attrs),
+            route: leg.route.clone().map(|r| IORoute::from(&r)),
+            attributes: IOAttributes::from_internal_none_if_empty(&verified_internal_attrs),
         }
     }
 }
@@ -261,8 +261,8 @@ impl IOPlanElement {
     }
 }
 
-impl From<InternalPlanElement> for IOPlanElement {
-    fn from(element: InternalPlanElement) -> Self {
+impl From<&InternalPlanElement> for IOPlanElement {
+    fn from(element: &InternalPlanElement) -> Self {
         match element {
             InternalPlanElement::Activity(activity) => {
                 IOPlanElement::Activity(IOActivity::from(activity))
@@ -291,7 +291,7 @@ impl From<&InternalPlan> for IOPlan {
         let selected = internal_plan.selected;
 
         // for current internal plan, go through all internal plan elements and convert to IOPlanElements
-        for internal_plan_element in internal_plan.elements.clone() {
+        for internal_plan_element in &internal_plan.elements {
             io_plan_elements.push(IOPlanElement::from(internal_plan_element));
         }
 
@@ -336,19 +336,19 @@ where
 ///
 /// To be used when creating IOLegs from internal legs, as IOLegs store routing mode only in the
 /// attributes.
-fn verify_internal_attrs(leg: InternalLeg) -> InternalAttributes {
+fn verify_internal_attrs(leg: &InternalLeg) -> InternalAttributes {
     match (
-        leg.routing_mode,
-        leg.attributes.get::<String>("routingMode"),
+        &leg.routing_mode,
+        &leg.attributes.get::<String>("routingMode"),
     ) {
         // routing mode is not present in leg nor in attributes, return attributes without modification
-        (None, None) => return leg.attributes,
+        (None, None) => leg.attributes.clone(),
 
         // both routing mode field and entry in attributes exist, verify that they match
         (Some(field_routing_mode), Some(attr_routing_mode)) => {
-            if field_routing_mode.external().to_string() == attr_routing_mode {
+            if field_routing_mode.external() == attr_routing_mode {
                 // routing mode in leg and attributes match, return attributes without modification
-                return leg.attributes;
+                leg.attributes.clone()
             } else {
                 // routing mode in leg and attributes don't match, this should not happen, panic
                 panic!(
@@ -365,7 +365,7 @@ fn verify_internal_attrs(leg: InternalLeg) -> InternalAttributes {
             // add routing mode to a copy of the attributes and return it
             let mut attrs = leg.attributes.clone();
             attrs.insert("routingMode", routing_mode.external().to_string());
-            return attrs;
+            attrs
         }
 
         // routing mode is not present in leg but present in attributes, this should not happen, panic
@@ -416,7 +416,7 @@ impl From<&Population> for IOPopulation {
         let mut io_persons = Vec::new();
 
         // go through all persons in internal population
-        for (ipers_id, internal_person) in internal_population.persons.clone() {
+        for (ipers_id, internal_person) in &internal_population.persons {
             let mut io_plans = Vec::new();
 
             // for current internal person, go through all internal plans
@@ -428,9 +428,7 @@ impl From<&Population> for IOPopulation {
             let io_person = IOPerson {
                 id: ipers_id.to_string(),
                 plans: io_plans,
-                attributes: IOAttributes::from_internal_none_if_empty(
-                    internal_person.attributes().clone(),
-                ),
+                attributes: IOAttributes::from_internal_none_if_empty(internal_person.attributes()),
             };
 
             io_persons.push(io_person);
