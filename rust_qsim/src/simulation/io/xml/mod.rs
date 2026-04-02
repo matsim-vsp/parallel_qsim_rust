@@ -46,7 +46,7 @@ where
     let reader: Box<dyn BufRead> = if is_url(file_path.as_ref()) {
         #[cfg(feature = "http")]
         {
-            url_file_reader(file_path, is_gz)
+            url_file_reader(file_path.as_ref().to_str().unwrap(), is_gz)
         }
         #[cfg(not(feature = "http"))]
         {
