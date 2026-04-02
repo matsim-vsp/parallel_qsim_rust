@@ -693,7 +693,7 @@ fn parse_time(value: &str) -> Option<u32> {
     }
 }
 
-/// create a string "hh:mm::ss" from a given number of seconds
+/// create a string "hh:mm:ss" from a given number of seconds
 pub(crate) fn write_timestr(time_secs: u32) -> String {
     let hours = time_secs / 3600; // rounds towards zero, i.e., floors the result
     let minutes = (time_secs % 3600) / 60;
