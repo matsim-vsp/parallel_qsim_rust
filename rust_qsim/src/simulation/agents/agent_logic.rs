@@ -25,6 +25,7 @@ pub struct PlanBasedSimulationLogic {
     pub(super) basic_agent_delegate: InternalPerson,
     pub(super) curr_plan_element: usize,
     pub(super) curr_route_element: usize,
+    activity_end_time: Option<u32>,
 }
 
 pub struct AdaptivePlanBasedSimulationLogic {
@@ -79,10 +80,17 @@ impl PlanBasedSimulationLogic {
     }
 
     pub fn new(basic_agent_delegate: InternalPerson) -> Self {
+        let first_act_end = basic_agent_delegate
+            .plan_element_at(0)
+            .unwrap()
+            .as_activity()
+            .unwrap()
+            .cmp_end_time(0);
         Self {
             basic_agent_delegate,
             curr_plan_element: 0,
             curr_route_element: 0,
+            activity_end_time: Some(first_act_end),
         }
     }
 }
@@ -129,7 +137,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             .and_then(|p| p.as_leg())
     }
 
-    fn advance_plan(&mut self) {
+    fn advance_plan(&mut self, now: u32) {
         self.curr_plan_element += 1;
         self.curr_route_element = 0;
         assert!(
@@ -137,13 +145,21 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             "Cannot advance plan of agents {:?} beyond its last element.",
             self.basic_agent_delegate.id()
         );
+
+        match self.state() {
+            SimulationAgentState::LEG => self.activity_end_time = None,
+            SimulationAgentState::ACTIVITY => {
+                self.activity_end_time = Some(self.curr_act().cmp_end_time(now))
+            }
+            SimulationAgentState::STUCK => {}
+        }
     }
 
     fn state(&self) -> SimulationAgentState {
-        match self.curr_plan_element % 2 {
-            0 => SimulationAgentState::ACTIVITY,
-            1 => SimulationAgentState::LEG,
-            _ => unreachable!(),
+        if self.curr_plan_element.is_multiple_of(2) {
+            SimulationAgentState::ACTIVITY
+        } else {
+            SimulationAgentState::LEG
         }
     }
 
@@ -192,15 +208,8 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             .route_element_at(next_i)
     }
 
-    fn wakeup_time(&self, now: u32) -> u32 {
-        match self
-            .basic_agent_delegate
-            .plan_element_at(self.curr_plan_element)
-            .unwrap()
-        {
-            InternalPlanElement::Activity(a) => a.cmp_end_time(now),
-            InternalPlanElement::Leg(_) => panic!("Cannot wake up on a leg!"),
-        }
+    fn wakeup_time(&self, _: u32) -> u32 {
+        self.activity_end_time.unwrap()
     }
 }
 
@@ -211,7 +220,7 @@ impl EndTime for PlanBasedSimulationLogic {
             .plan_element_at(self.curr_plan_element)
             .unwrap()
         {
-            InternalPlanElement::Activity(a) => a.cmp_end_time(now),
+            InternalPlanElement::Activity(_) => self.activity_end_time.unwrap(),
             InternalPlanElement::Leg(l) => l.travel_time() + now,
         }
     }
@@ -234,8 +243,8 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         self.delegate.next_leg()
     }
 
-    fn advance_plan(&mut self) {
-        self.delegate.advance_plan();
+    fn advance_plan(&mut self, now: u32) {
+        self.delegate.advance_plan(now);
     }
 
     fn state(&self) -> SimulationAgentState {
@@ -255,7 +264,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
     }
 
     fn wakeup_time(&self, now: u32) -> u32 {
-        let mut end = self.delegate.curr_act().cmp_end_time(now);
+        let mut end = self.delegate.wakeup_time(now);
         if self.delegate.next_leg().is_none() {
             // no need to wake up if there is no other leg.
             return end;

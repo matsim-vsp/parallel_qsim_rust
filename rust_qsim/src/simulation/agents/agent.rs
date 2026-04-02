@@ -32,6 +32,10 @@ impl SimulationAgent {
             logic: Box::new(AdaptivePlanBasedSimulationLogic::new(person)),
         }
     }
+
+    pub fn new(logic: Box<dyn SimulationAgentLogic>) -> Self {
+        Self { logic }
+    }
 }
 
 impl EndTime for SimulationAgent {
@@ -65,8 +69,8 @@ impl SimulationAgentLogic for SimulationAgent {
     fn next_leg(&self) -> Option<&InternalLeg> {
         self.logic.next_leg()
     }
-    fn advance_plan(&mut self) {
-        self.logic.advance_plan();
+    fn advance_plan(&mut self, now: u32) {
+        self.logic.advance_plan(now);
     }
     fn state(&self) -> SimulationAgentState {
         self.logic.state()

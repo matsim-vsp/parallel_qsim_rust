@@ -42,7 +42,7 @@ impl InternalAttributes {
         self.attributes.insert(key.into(), json!(value));
     }
 
-    pub(crate) fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
+    pub fn get<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         self.attributes
             .get(key)
             .and_then(|v| serde_json::from_value(v.clone()).ok())

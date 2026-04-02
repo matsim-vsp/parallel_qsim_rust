@@ -312,7 +312,8 @@ impl InternalActivity {
         }
     }
 
-    pub(crate) fn cmp_end_time(&self, begin: u32) -> u32 {
+    // i think this should go into the utils module rather than being here. paul, mar'26
+    pub fn cmp_end_time(&self, begin: u32) -> u32 {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {
@@ -323,6 +324,7 @@ impl InternalActivity {
         }
     }
 
+    // i think this should go into the utils module rather than being here. paul, mar'26
     pub fn is_interaction(&self) -> bool {
         self.act_type.external().contains("interaction")
     }

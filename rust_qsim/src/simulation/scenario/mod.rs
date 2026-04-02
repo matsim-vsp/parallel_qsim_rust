@@ -77,11 +77,11 @@ impl MutableScenario {
 /// The ScenarioPartition contains the mod data for a specific partition.
 #[derive(Debug)]
 pub struct ScenarioPartition {
-    pub(crate) network: Arc<Network>,
-    pub(crate) garage: Garage,
-    pub(crate) population: Population,
-    pub(crate) network_partition: SimNetworkPartition,
-    pub(crate) config: Arc<Config>,
+    pub network: Arc<Network>,
+    pub garage: Garage,
+    pub population: Population,
+    pub network_partition: SimNetworkPartition,
+    pub config: Arc<Config>,
 }
 
 impl ScenarioPartition {
