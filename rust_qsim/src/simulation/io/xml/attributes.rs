@@ -64,9 +64,7 @@ impl IOAttributes {
             .map(|attr| attr.value.as_str())
     }
 
-    pub(crate) fn from_internal_attr_or_none_if_empty(
-        attrs: InternalAttributes,
-    ) -> Option<IOAttributes> {
+    pub(crate) fn from_internal_none_if_empty(attrs: InternalAttributes) -> Option<IOAttributes> {
         if attrs.attributes.is_empty() {
             None
         } else {

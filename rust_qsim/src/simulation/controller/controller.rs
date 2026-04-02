@@ -172,9 +172,6 @@ impl Controller {
         self.write_output_config(output_path.clone());
         info!("    ... Network ...");
         self.write_output_network(output_path.clone());
-
-        // TODO is is valid that we're writing output population before the program was run?
-        // Afterwards, the population is empty since it was distributed across partitions
         info!("    ... Population ...");
         self.write_output_population(output_path.clone());
 

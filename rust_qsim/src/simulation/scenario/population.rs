@@ -22,13 +22,15 @@ trait FromIOPerson<T> {
 }
 
 pub fn from_file<F: Fn(&InternalPerson) -> bool>(
-    path: &Path,
+    path: impl AsRef<Path>,
     garage: &mut Garage,
     filter: F,
 ) -> Population {
-    if path.extension().unwrap().eq("binpb") {
+    if path.as_ref().extension().unwrap().eq("binpb") {
         load_from_proto(path, filter)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.as_ref().extension().unwrap().eq("xml")
+        || path.as_ref().extension().unwrap().eq("gz")
+    {
         let persons = crate::simulation::io::xml::population::load_from_xml(path, garage)
             .into_iter()
             .filter(|(_id, p)| filter(p))
@@ -36,7 +38,8 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
         Population { persons }
     } else {
         panic!(
-            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+            "Tried to load {:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension",
+            path.as_ref()
         );
     }
 }
@@ -63,7 +66,7 @@ impl Population {
         }
     }
 
-    pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
+    pub fn from_file(file_path: impl AsRef<Path>, garage: &mut Garage) -> Self {
         from_file(file_path, garage, |_p| true)
     }
 
@@ -688,7 +691,7 @@ fn parse_time(value: &str) -> Option<u32> {
     }
 }
 
-// FIXME maybe this shouldn't be pub(crate) but just be used where it is
+/// create a string "hh:mm::ss" from a given number of seconds
 pub(crate) fn write_timestr(time_secs: u32) -> String {
     let hours = time_secs / 3600; // rounds towards zero, i.e., floors the result
     let minutes = (time_secs % 3600) / 60;
