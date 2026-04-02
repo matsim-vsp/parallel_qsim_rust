@@ -300,7 +300,7 @@ impl Controller {
         let mut pop_out_path = create_output_filename(output_path, &pop_in_path);
         pop_out_path =
             insert_number_in_proto_filename(&pop_out_path, self.config.partitioning().num_parts);
-        println!("pop_out_path: {}", pop_out_path.display());
+
         if let Scenario::Full(mut_scen) = &self.scenario {
             mut_scen.population.to_file(&pop_out_path);
         } else {
