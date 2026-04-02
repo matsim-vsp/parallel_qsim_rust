@@ -23,10 +23,10 @@ pub(crate) fn load_from_xml(
     create_population(io_pop)
 }
 
-pub(crate) fn write_to_xml(population: &Population, _path: impl AsRef<Path>) {
+pub(crate) fn write_to_xml(population: &Population, path: impl AsRef<Path>) {
     let io_population = IOPopulation::from(population);
 
-    io_population.to_file(_path);
+    io_population.to_file(path);
 }
 
 fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
