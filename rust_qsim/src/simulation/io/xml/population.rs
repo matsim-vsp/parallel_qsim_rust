@@ -101,8 +101,8 @@ pub struct IORoute {
     pub end_link: String,
     #[serde(rename = "@trav_time", skip_serializing_if = "Option::is_none")]
     pub trav_time: Option<String>,
-    #[serde(rename = "@distance")]
-    pub distance: f64,
+    #[serde(rename = "@distance", skip_serializing_if = "Option::is_none")]
+    pub distance: Option<f64>,
     #[serde(
         rename = "@vehicleRefId",
         default,
@@ -119,14 +119,6 @@ impl From<&InternalRoute> for IORoute {
     fn from(route: &InternalRoute) -> Self {
         let generic_internal_route = route.as_generic();
 
-        // TODO: should the distance in InternalGenericRoute even be optional?
-        if generic_internal_route.distance().is_none() {
-            panic!(
-                "Route has no distance. This is required to convert to IORoute. Route: {:?}",
-                route
-            );
-        }
-
         let r_type = match &route {
             InternalRoute::Generic(_) => "generic",
             InternalRoute::Network(_) => "links",
@@ -138,7 +130,7 @@ impl From<&InternalRoute> for IORoute {
             start_link: generic_internal_route.start_link().external().to_string(),
             end_link: generic_internal_route.end_link().external().to_string(),
             trav_time: generic_internal_route.trav_time().map(|t| write_timestr(t)),
-            distance: generic_internal_route.distance().unwrap(),
+            distance: generic_internal_route.distance(),
             vehicle: generic_internal_route
                 .vehicle()
                 .clone()
@@ -539,7 +531,7 @@ mod tests {
                 assert_eq!("1", route.start_link);
                 assert_eq!("20", route.end_link);
                 assert_eq!("undefined", route.trav_time.as_ref().unwrap());
-                assert_eq!(25000.0, route.distance);
+                assert_eq!(25000.0, route.distance.unwrap());
                 assert_eq!("null", route.vehicle.as_ref().unwrap());
                 assert_eq!("1 6 15 20", route.route.as_ref().unwrap())
             }
@@ -581,7 +573,7 @@ mod tests {
         assert_eq!(route.start_link, "4410448#0");
         assert_eq!(route.end_link, "4410448#0");
         assert_eq!(route.trav_time, Some(String::from("00:00:46")));
-        assert_eq!(route.distance, 57.23726831365165);
+        assert_eq!(route.distance.unwrap(), 57.23726831365165);
         assert_eq!(route.vehicle, None);
         assert_eq!(route.route, None);
     }
@@ -603,7 +595,7 @@ mod tests {
         assert_eq!(route.start_link, "33");
         assert_eq!(route.end_link, "11");
         assert_eq!(route.trav_time, Some(String::from("00:10:01")));
-        assert!(route.distance.is_nan());
+        assert!(route.distance.unwrap().is_nan());
         assert_eq!(route.vehicle, None);
         assert_eq!(
             route.route,

@@ -980,7 +980,7 @@ mod tests {
                 start_link: "1".to_string(),
                 end_link: "2".to_string(),
                 trav_time: Some("00:20:00".to_string()),
-                distance: 42.0,
+                distance: Some(42.0),
                 vehicle: None,
                 route: None,
             }),
@@ -1021,7 +1021,7 @@ mod tests {
                 start_link: "1".to_string(),
                 end_link: "2".to_string(),
                 trav_time: Some("00:20:00".to_string()),
-                distance: f64::NAN,
+                distance: Some(f64::NAN),
                 vehicle: None,
                 route: Some(String::from(
                     "{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}",
