@@ -89,7 +89,7 @@ impl From<InternalAttributes> for IOAttributes {
                         res.attributes.push(IOAttribute::new_with_class(
                             key.clone(),
                             "java.lang.Double".to_string(),
-                            num.as_i64().unwrap().to_string(),
+                            num.to_string(),
                         ))
                     } else {
                         panic!(
