@@ -161,6 +161,8 @@ where
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IOActivity {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
     #[serde(rename = "@type")]
     pub r#type: String,
     #[serde(rename = "@link")]
@@ -175,8 +177,6 @@ pub struct IOActivity {
     pub end_time: Option<String>,
     #[serde(rename = "@max_dur", skip_serializing_if = "Option::is_none")]
     pub max_dur: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<IOAttributes>,
 }
 
 impl IOActivity {
@@ -202,6 +202,8 @@ impl From<InternalActivity> for IOActivity {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IOLeg {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
     #[serde(rename = "@mode")]
     pub mode: String,
     #[serde(rename = "@dep_time")]
@@ -210,8 +212,6 @@ pub struct IOLeg {
     pub trav_time: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub route: Option<IORoute>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<IOAttributes>,
 }
 
 impl From<InternalLeg> for IOLeg {
@@ -377,12 +377,12 @@ fn verify_internal_attrs(leg: InternalLeg) -> InternalAttributes {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IOPerson {
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
     #[serde(rename = "@id")]
     pub id: String,
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,
-    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
