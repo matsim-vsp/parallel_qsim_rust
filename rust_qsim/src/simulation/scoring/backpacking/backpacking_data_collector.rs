@@ -8,15 +8,13 @@ use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::DataCollector;
 
 pub struct BackpackingDataCollector {
-    person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
-    events_manager: EventsManager
+    person_id2backpack: HashMap<Id<InternalPerson>, Backpack>
 }
 
 impl BackpackingDataCollector {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             person_id2backpack: Default::default(),
-            events_manager: EventsManager::new(),
         }
     }
 

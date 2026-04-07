@@ -1,11 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::fmt::{Debug};
 use crate::simulation::events::EventHandlerRegisterFn;
+use crate::simulation::messaging::sim_communication::SimCommunicator;
 
-mod backpacking;
+pub mod backpacking;
 
 /// A scoring engine contains a DataCollector and MessageBroker for respective implementation.
-pub trait ScoringEngine {
-    fn scoring();
+pub trait ScoringEngine<C> 
+where
+    C: SimCommunicator,
+{
+    fn scoring(&self);
 }
 
 /// A data collector registers callbacks for events, that are important for the respective ScoringEngine
@@ -13,24 +17,20 @@ pub trait DataCollector {
     fn register_fn() -> Box<EventHandlerRegisterFn>;
 }
 
-pub struct InternalScoringMessage<T> {
+pub trait Message {
+    fn get_message(&self) -> &dyn Message;
+}
+
+pub struct InternalScoringMessage {
     time: u32,
     from_process: u32,
     to_process: u32,
-    message: T
+    message: Box<dyn Message>
 }
 
 /// The message broker communicates with other partitions
 pub trait ScoringMessageBroker{
-    type MessageType;
-    fn send_receive_scoring<F>(
-        &self,
-        messages: HashMap<u32, InternalScoringMessage<Self::MessageType>>,
-        expected_scoring_messages: &mut HashSet<u32>,
-        now: u32,
-        on_msg: F,
-    ) where
-        F: FnMut(InternalScoringMessage<Self::MessageType>);
+
 }
 
 // TODO These structs are yet to be implemented in respective sub-modules
