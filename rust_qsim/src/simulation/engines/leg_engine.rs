@@ -162,7 +162,9 @@ impl<C: SimCommunicator> LegEngine<C> {
         agents
     }
 
-    pub(crate) fn receive_agent(&mut self, now: u32, agent: SimulationAgent) {
+    pub(crate) fn receive_agent(&mut self, now: u32, mut agent: SimulationAgent) {
+        agent.advance_plan(now);
+
         let vehicle = self
             .departure_handler
             .handle_departure(now, agent, &mut self.garage);
