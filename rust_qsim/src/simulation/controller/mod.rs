@@ -162,7 +162,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 
     let events = create_events(&partition.config, rank, subscribers);
 
-    let scoring_broker = BackpackingScoringEngine::new(&comm);
+    let scoring_broker = BackpackingScoringEngine::new(&comm, &mut *events.borrow_mut());
 
     let net_message_broker = NetMessageBroker::new(
         Rc::new(comm),

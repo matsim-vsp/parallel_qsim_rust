@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+use crate::simulation::events::EventsManager;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
 use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessageBroker;
@@ -7,7 +9,7 @@ pub struct BackpackingScoringEngine<'a, C>
 where
     C: SimCommunicator
 {
-    backpacking_data_collector: BackpackingDataCollector,
+    backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
     backpacking_message_broker: BackpackingMessageBroker<'a, C>
 }
 
@@ -15,9 +17,9 @@ impl<'a, C> BackpackingScoringEngine<'a, C>
 where
     C: SimCommunicator
 {
-    pub fn new(communicator: &'a C) -> Self {
+    pub fn new(communicator: &'a C, events_manager: &mut EventsManager) -> Self {
         Self {
-            backpacking_data_collector: BackpackingDataCollector::new(),
+            backpacking_data_collector: BackpackingDataCollector::new(events_manager),
             backpacking_message_broker: BackpackingMessageBroker::new(communicator)
         }
     }

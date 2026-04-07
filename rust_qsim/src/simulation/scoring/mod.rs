@@ -1,5 +1,4 @@
 use std::fmt::{Debug};
-use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 
 pub mod backpacking;
@@ -12,10 +11,10 @@ where
     fn scoring(&self);
 }
 
-/// A data collector registers callbacks for events, that are important for the respective ScoringEngine
-pub trait DataCollector {
-    fn register_fn() -> Box<EventHandlerRegisterFn>;
-}
+// A data collector registers callbacks for events, that are important for the respective ScoringEngine
+// pub trait DataCollector {
+//     fn register_fn(data_collector: Arc<Mutex<dyn DataCollector>>) -> Box<EventHandlerRegisterFn>;
+// }
 
 pub trait Message {
     fn get_message(&self) -> &dyn Message;
