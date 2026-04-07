@@ -1,4 +1,4 @@
-use crate::simulation::messaging::messages::{InternalSimMessage, InternalSyncMessage};
+use crate::simulation::messaging::messages::{InternalMessage, InternalSimMessage, InternalSyncMessage};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -25,6 +25,18 @@ impl SimCommunicator for DummySimCommunicator {
         F: FnMut(InternalSyncMessage),
     {
     }
+
+    fn send_receive_others<F>(
+        &self,
+        _others: HashMap<u32, Box<dyn InternalMessage>>,
+        _expected_other_messages: &mut HashSet<u32>,
+        _now: u32,
+        _on_msg: F
+    ) where
+        F: FnMut(Box<dyn InternalMessage>)
+    {
+    }
+
 
     fn barrier(&self) {
         info!("Barrier was called on DummySimCommunicator, which doesn't do anything.")
@@ -72,6 +84,49 @@ impl SimCommunicator for ChannelSimCommunicator {
             // for
             if received_msg.time() == now {
                 expected_vehicle_messages.remove(&from_rank);
+            }
+
+            // publish the received message to the message broker
+            on_msg(received_msg);
+        }
+    }
+
+    fn send_receive_others<F>(
+        &self,
+        others: HashMap<u32, Box<dyn InternalMessage>>,
+        expected_other_messages: &mut HashSet<u32>,
+        now: u32,
+        mut on_msg: F,
+    ) where
+        F: FnMut(Box<dyn InternalMessage>),
+    {
+        // send messages to everyone
+        for (target, msg) in others {
+            let sender = self.senders.get(target as usize).unwrap();
+            sender
+                .send(InternalSimMessage::from_other_message(msg))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Error while sending message to rank {} with error {}",
+                        target, e
+                    )
+                });
+        }
+
+        // receive messages from everyone
+        while !expected_other_messages.is_empty() {
+            let received_msg = self
+                .receiver
+                .recv()
+                .expect("Error while receiving messages")
+                .other_message();
+            let from_rank = received_msg.from_process();
+
+            // If a message was received from a neighbor partition for this very time step, remove
+            // that partition from expected messages which indicates which partitions we are waiting
+            // for
+            if received_msg.time() == now {
+                expected_other_messages.remove(&from_rank);
             }
 
             // publish the received message to the message broker

@@ -6,6 +6,15 @@ use crate::simulation::vehicles::SimulationVehicle;
 pub enum InternalSimMessage {
     Sync(InternalSyncMessage),
     Barrier,
+    Other(Box<dyn InternalMessage>),
+}
+
+pub trait InternalMessage: Send {
+    fn time(&self) -> u32;
+
+    fn from_process(&self) -> u32;
+
+    fn to_process(&self) -> u32;
 }
 
 #[derive(Debug)]
@@ -25,8 +34,19 @@ impl InternalSimMessage {
         }
     }
 
+    pub fn other_message(self) -> Box<dyn InternalMessage> {
+        match self {
+            InternalSimMessage::Other(m) => m,
+            _ => panic!("That message is no sync message."),
+        }
+    }
+
     pub fn from_sync_message(m: InternalSyncMessage) -> InternalSimMessage {
         InternalSimMessage::Sync(m)
+    }
+
+    pub fn from_other_message(m: Box<dyn InternalMessage>) -> InternalSimMessage {
+        InternalSimMessage::Other(m)
     }
 
     pub fn barrier() -> InternalSimMessage {
