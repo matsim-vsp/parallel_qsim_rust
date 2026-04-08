@@ -29,11 +29,11 @@ pub struct Backpack{
     person_id: Id<InternalPerson>,
     events: Vec<Box<dyn EventTrait>>,
     backpack_plan: BackpackPlan,
-    starting_partition: i32
+    starting_partition: u32
 }
 
 impl Backpack {
-    pub fn new(person_id: Id<InternalPerson>, starting_partition: i32) -> Self {
+    pub fn new(person_id: Id<InternalPerson>, starting_partition: u32) -> Self {
         Self {
             person_id,
             events: Default::default(),
