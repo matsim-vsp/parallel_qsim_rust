@@ -22,10 +22,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::{fs, mem, thread};
-use std::rc::Rc;
 use tracing::info;
-use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
 
 #[derive(Debug)]
 pub enum Scenario {

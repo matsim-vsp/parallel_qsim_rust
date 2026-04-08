@@ -1,10 +1,9 @@
-use std::fmt::{Debug};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 
 pub mod backpacking;
 
 /// A scoring engine contains a DataCollector and MessageBroker for respective implementation.
-pub trait ScoringEngine<C> 
+pub trait ScoringEngine<C>
 where
     C: SimCommunicator,
 {
