@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::simulation::events::EventsManager;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -18,7 +20,7 @@ impl<'a, C> BackpackingScoringEngine<'a, C>
 where
     C: SimCommunicator
 {
-    pub fn new(partition: u32, population: &Population, communicator: &'a C, events_manager: &mut EventsManager) -> Self {
+    pub fn new(partition: u32, population: &Population, communicator: &'a C, events_manager: Rc<RefCell<EventsManager>>) -> Self {
         Self {
             backpacking_data_collector: BackpackingDataCollector::new(partition, population, events_manager),
             backpacking_message_broker: BackpackingMessageBroker::new(communicator)

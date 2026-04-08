@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager};
 use crate::simulation::id::Id;
@@ -11,13 +13,13 @@ pub struct BackpackingDataCollector {
 }
 
 impl BackpackingDataCollector {
-    pub fn new(partition: u32, population: &Population, events_manager: &mut EventsManager) -> Arc<Mutex<Self>> {
+    pub fn new(partition: u32, population: &Population, events_manager: Rc<RefCell<EventsManager>>) -> Arc<Mutex<Self>> {
         let collector = Arc::new(Mutex::new(Self {
             partition,
             person_id2backpack: Default::default(),
         }));
         collector.lock().unwrap().generate_backpacks_for_population(&population);
-        Self::register_fn(Arc::clone(&collector))(events_manager);
+        Self::register_fn(Arc::clone(&collector))(&mut *events_manager.borrow_mut());
         collector
     }
 
