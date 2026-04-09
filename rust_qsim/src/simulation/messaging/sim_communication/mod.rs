@@ -26,10 +26,4 @@ pub trait SimCommunicator {
     fn barrier(&self);
 
     fn rank(&self) -> u32;
-
-    fn register_send_callback(&self, callback: Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>);
-
-    fn register_recv_callback(&self, callback: Box<dyn Fn(&InternalSyncMessage)>);
-    
-    fn register_comm_callback(&self, callback: Box<dyn Fn()>);
 }
