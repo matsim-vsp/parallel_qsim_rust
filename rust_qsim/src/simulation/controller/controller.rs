@@ -270,14 +270,8 @@ impl Controller {
     }
 
     fn write_output_network(&mut self, output_path: PathBuf) {
-        let net_in_path = if let Some(path) = &self.config.network().path {
-            io::resolve_path(self.config.context(), path)
-        } else {
-            io::resolve_path(self.config.context(), &PathBuf::from("network.xml.gz"))
-        };
-        let mut net_out_path = create_output_filename(&output_path, &net_in_path);
-        net_out_path =
-            insert_number_in_proto_filename(&net_out_path, self.config.partitioning().num_parts);
+        let net_out_path =
+            create_output_filename(&output_path, &PathBuf::from("output_network.xml.gz"));
 
         match &self.scenario {
             Scenario::Partitioned => {
@@ -292,14 +286,8 @@ impl Controller {
     }
 
     fn write_output_population(&mut self, output_path: impl AsRef<Path>) {
-        let pop_in_path = if let Some(path) = &self.config.population().path {
-            io::resolve_path(self.config.context(), path)
-        } else {
-            io::resolve_path(self.config.context(), &PathBuf::from("population.xml.gz"))
-        };
-        let mut pop_out_path = create_output_filename(output_path, &pop_in_path);
-        pop_out_path =
-            insert_number_in_proto_filename(&pop_out_path, self.config.partitioning().num_parts);
+        let pop_out_path =
+            create_output_filename(&output_path, &PathBuf::from("output_population.xml.gz"));
 
         if let Scenario::Full(mut_scen) = &self.scenario {
             mut_scen.population.to_file(&pop_out_path);
