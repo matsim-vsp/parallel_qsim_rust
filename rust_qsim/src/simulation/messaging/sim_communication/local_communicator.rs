@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use crate::simulation::messaging::messages::{InternalMessage, InternalSimMessage, InternalSyncMessage};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use std::collections::{HashMap, HashSet};
@@ -12,6 +13,8 @@ pub struct ChannelSimCommunicator {
     senders: Vec<Sender<InternalSimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
+    send_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>>>,
+    recv_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(&InternalSyncMessage)>>>,
 }
 
 impl SimCommunicator for DummySimCommunicator {
@@ -45,6 +48,10 @@ impl SimCommunicator for DummySimCommunicator {
     fn rank(&self) -> u32 {
         0
     }
+
+    fn register_send_callback(&self, _callback: Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>) {}
+
+    fn register_recv_callback(&self, _callback: Box<dyn Fn(&InternalSyncMessage)>) {}
 }
 
 impl SimCommunicator for ChannelSimCommunicator {
@@ -57,6 +64,10 @@ impl SimCommunicator for ChannelSimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage),
     {
+        for callback in self.send_vehicle_callbacks.borrow().iter() {
+            callback(&vehicles);
+        }
+        
         // send messages to everyone
         for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
@@ -84,6 +95,10 @@ impl SimCommunicator for ChannelSimCommunicator {
             // for
             if received_msg.time() == now {
                 expected_vehicle_messages.remove(&from_rank);
+            }
+
+            for callback in self.recv_vehicle_callbacks.borrow().iter() {
+                callback(&received_msg);
             }
 
             // publish the received message to the message broker
@@ -141,6 +156,14 @@ impl SimCommunicator for ChannelSimCommunicator {
     fn rank(&self) -> u32 {
         self.rank
     }
+
+    fn register_send_callback(&self, callback: Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>) {
+        self.send_vehicle_callbacks.borrow_mut().push(callback);
+    }
+
+    fn register_recv_callback(&self, callback: Box<dyn Fn(&InternalSyncMessage)>) {
+        self.recv_vehicle_callbacks.borrow_mut().push(callback);
+    }
 }
 
 impl ChannelSimCommunicator {
@@ -156,6 +179,8 @@ impl ChannelSimCommunicator {
                 senders: vec![],
                 rank,
                 barrier: barrier.clone(),
+                send_vehicle_callbacks: RefCell::new(Vec::default()),
+                recv_vehicle_callbacks: RefCell::new(Vec::default())
             };
             senders.push(sender);
             comms.push(comm);
