@@ -1,5 +1,5 @@
 use crate::simulation::id::Id;
-use crate::simulation::messaging::messages::InternalSyncMessage;
+use crate::simulation::messaging::messages::{InternalSyncMessage};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
 use crate::simulation::scenario::network::{Link, Network};
@@ -19,6 +19,8 @@ where
     link_mapping: HashMap<Id<Link>, u32>,
     neighbors: HashSet<u32>,
     global_sync: bool,
+    send_vehicle_callbacks: Vec<Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>>,
+    recv_vehicle_callbacks: Vec<Box<dyn Fn(&InternalSyncMessage)>>,
 }
 
 impl<C> NetMessageBroker<C>
@@ -45,6 +47,8 @@ where
             link_mapping,
             neighbors,
             global_sync,
+            send_vehicle_callbacks: Vec::default(),
+            recv_vehicle_callbacks: Vec::default()
         }
     }
 
@@ -83,6 +87,10 @@ where
     pub fn send_recv(&mut self, now: u32) -> Vec<InternalSyncMessage> {
         let vehicles = self.prepare_send_recv_vehicles(now);
 
+        for callback in self.send_vehicle_callbacks.iter() {
+            callback(&vehicles);
+        }
+
         let mut result: Vec<InternalSyncMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
 
@@ -101,6 +109,10 @@ where
         }
 
         comm_ref.send_receive_vehicles(vehicles, &mut expected_vehicle_messages, now, |msg| {
+            for callback in self.recv_vehicle_callbacks.iter() {
+                callback(&msg);
+            }
+
             Self::handle_incoming_msg(msg, &mut result, in_msgs_ref, now)
         });
 
@@ -148,6 +160,14 @@ where
                 .or_insert_with(|| InternalSyncMessage::new(now, self.rank(), neighbor_rank));
         }
         messages
+    }
+
+    pub fn register_send_callback(&mut self, callback: Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>) {
+        self.send_vehicle_callbacks.push(callback);
+    }
+
+    pub fn register_recv_callback(&mut self, callback: Box<dyn Fn(&InternalSyncMessage)>) {
+        self.recv_vehicle_callbacks.push(callback);
     }
 }
 
