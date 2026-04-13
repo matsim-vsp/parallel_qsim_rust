@@ -146,7 +146,7 @@ pub struct PartitionArguments<C: SimCommunicator> {
     global_barrier: Arc<Barrier>,
 }
 
-fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
+fn execute_partition<C: SimCommunicator + 'static>(partition_arguments: PartitionArguments<C>) {
     let partition = partition_arguments.scenario_partition;
 
     let config = &partition.config;
@@ -162,12 +162,12 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
 
     let events = create_events(&partition.config, rank, subscribers);
 
-    let rc_comm = Rc::new(comm);
+    let arc_comm = Arc::new(comm);
 
-    let scoring_broker = BackpackingScoringEngine::new(rank, &partition.population, Rc::clone(&rc_comm), events.clone());
+    let scoring_broker = BackpackingScoringEngine::new(rank, &partition.population, Arc::clone(&arc_comm), events.clone());
 
     let net_message_broker = NetMessageBroker::new(
-        Rc::clone(&rc_comm),
+        Arc::clone(&arc_comm),
         &partition.network,
         &partition.network_partition,
         partition.config.computational_setup().global_sync,

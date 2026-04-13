@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::{InternalSyncMessage};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -6,13 +5,13 @@ use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
-    communicator: Rc<C>,
+    communicator: Arc<C>,
     out_messages: HashMap<u32, InternalSyncMessage>,
     in_messages: BinaryHeap<InternalSyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
@@ -27,7 +26,7 @@ where
     C: SimCommunicator,
 {
     pub fn new(
-        comm: Rc<C>,
+        comm: Arc<C>,
         global_network: &Network,
         net: &SimNetworkPartition,
         global_sync: bool,

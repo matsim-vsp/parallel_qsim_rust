@@ -13,8 +13,8 @@ pub struct ChannelSimCommunicator {
     senders: Vec<Sender<InternalSimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
-    send_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>>>,
-    recv_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(&InternalSyncMessage)>>>,
+    send_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>>>,
+    recv_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(Arc<InternalSyncMessage>)>>>,
 }
 
 impl SimCommunicator for DummySimCommunicator {
@@ -49,9 +49,9 @@ impl SimCommunicator for DummySimCommunicator {
         0
     }
 
-    fn register_send_callback(&self, _callback: Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>) {}
+    fn register_send_callback(&self, _callback: Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>) {}
 
-    fn register_recv_callback(&self, _callback: Box<dyn Fn(&InternalSyncMessage)>) {}
+    fn register_recv_callback(&self, _callback: Box<dyn Fn(Arc<InternalSyncMessage>)>) {}
 }
 
 impl SimCommunicator for ChannelSimCommunicator {
@@ -64,12 +64,14 @@ impl SimCommunicator for ChannelSimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage),
     {
+        let arc_vehicles = Arc::new(vehicles);
+
         for callback in self.send_vehicle_callbacks.borrow().iter() {
-            callback(&vehicles);
+            callback(Arc::clone(&arc_vehicles));
         }
         
         // send messages to everyone
-        for (target, msg) in vehicles {
+        for (target, msg) in Arc::try_unwrap(arc_vehicles).unwrap() {
             let sender = self.senders.get(target as usize).unwrap();
             sender
                 .send(InternalSimMessage::from_sync_message(msg))
@@ -97,12 +99,14 @@ impl SimCommunicator for ChannelSimCommunicator {
                 expected_vehicle_messages.remove(&from_rank);
             }
 
+            let arc_received_msg = Arc::new(received_msg);
+
             for callback in self.recv_vehicle_callbacks.borrow().iter() {
-                callback(&received_msg);
+                callback(Arc::clone(&arc_received_msg));
             }
 
             // publish the received message to the message broker
-            on_msg(received_msg);
+            on_msg(Arc::try_unwrap(arc_received_msg).unwrap());
         }
     }
 
@@ -157,11 +161,11 @@ impl SimCommunicator for ChannelSimCommunicator {
         self.rank
     }
 
-    fn register_send_callback(&self, callback: Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>) {
+    fn register_send_callback(&self, callback: Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>) {
         self.send_vehicle_callbacks.borrow_mut().push(callback);
     }
 
-    fn register_recv_callback(&self, callback: Box<dyn Fn(&InternalSyncMessage)>) {
+    fn register_recv_callback(&self, callback: Box<dyn Fn(Arc<InternalSyncMessage>)>) {
         self.recv_vehicle_callbacks.borrow_mut().push(callback);
     }
 }

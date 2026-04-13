@@ -1,5 +1,6 @@
 use crate::simulation::messaging::messages::{InternalMessage, InternalSyncMessage};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 pub mod local_communicator;
 pub mod message_broker;
@@ -27,7 +28,7 @@ pub trait SimCommunicator {
 
     fn rank(&self) -> u32;
 
-    fn register_send_callback(&self, callback: Box<dyn Fn(&HashMap<u32, InternalSyncMessage>)>);
+    fn register_send_callback(&self, callback: Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>);
 
-    fn register_recv_callback(&self, callback: Box<dyn Fn(&InternalSyncMessage)>);
+    fn register_recv_callback(&self, callback: Box<dyn Fn(Arc<InternalSyncMessage>)>);
 }

@@ -14,17 +14,19 @@ where
     C: SimCommunicator
 {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
-    backpacking_message_broker: BackpackingMessageBroker<C>
+    backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker<C>>>
 }
 
 impl<C> BackpackingScoringEngine<C>
 where
-    C: SimCommunicator
+    C: SimCommunicator + 'static
 {
-    pub fn new(partition: u32, population: &Population, communicator: Rc<C>, events_manager: Rc<RefCell<EventsManager>>) -> Self {
+    pub fn new(partition: u32, population: &Population, communicator: Arc<C>, events_manager: Rc<RefCell<EventsManager>>) -> Self {
+        let backpacking_data_collector = BackpackingDataCollector::new(partition, population, events_manager);
+        
         Self {
-            backpacking_data_collector: BackpackingDataCollector::new(partition, population, events_manager),
-            backpacking_message_broker: BackpackingMessageBroker::new(communicator)
+            backpacking_data_collector: Arc::clone(&backpacking_data_collector),
+            backpacking_message_broker: BackpackingMessageBroker::new(communicator, Arc::clone(&backpacking_data_collector))
         }
     }
 }
