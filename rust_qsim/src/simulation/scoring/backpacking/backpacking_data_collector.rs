@@ -6,7 +6,6 @@ use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandl
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scoring::backpacking::backpack::Backpack;
-use crate::simulation::vehicles::SimulationVehicle;
 
 pub struct BackpackingDataCollector {
     partition: u32,
@@ -43,7 +42,7 @@ impl BackpackingDataCollector {
         self.person_id2backpack.extend(arriving_passengers);
     }
 
-    fn remove_leaving_passengers(&mut self, leaving_passengers: Vec<Id<InternalPerson>>) -> HashMap<Id<InternalPerson>, Backpack> {
+    pub fn remove_leaving_passengers(&mut self, leaving_passengers: Vec<Id<InternalPerson>>) -> HashMap<Id<InternalPerson>, Backpack> {
         let mut removed_entries = HashMap::default();
 
         for person in leaving_passengers {

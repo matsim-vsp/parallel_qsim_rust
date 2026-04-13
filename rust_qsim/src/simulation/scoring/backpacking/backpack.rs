@@ -55,5 +55,4 @@ impl Backpack {
         // TODO Serialize function
         String::from("Hello")
     }
-
 }

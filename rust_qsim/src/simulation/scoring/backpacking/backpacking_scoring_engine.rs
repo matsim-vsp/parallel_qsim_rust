@@ -11,7 +11,7 @@ use crate::simulation::scoring::ScoringEngine;
 
 pub struct BackpackingScoringEngine<C>
 where
-    C: SimCommunicator
+    C: SimCommunicator + Send
 {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
     backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker<C>>>
@@ -19,9 +19,9 @@ where
 
 impl<C> BackpackingScoringEngine<C>
 where
-    C: SimCommunicator + 'static
+    C: SimCommunicator + Send + 'static
 {
-    pub fn new(partition: u32, population: &Population, communicator: Arc<C>, events_manager: Rc<RefCell<EventsManager>>) -> Self {
+    pub fn new(partition: u32, population: &Population, communicator: Arc<Mutex<C>>, events_manager: Rc<RefCell<EventsManager>>) -> Self {
         let backpacking_data_collector = BackpackingDataCollector::new(partition, population, events_manager);
         
         Self {
@@ -33,7 +33,7 @@ where
 
 impl<'a, C> ScoringEngine<C> for BackpackingScoringEngine<C>
 where
-    C: SimCommunicator
+    C: SimCommunicator + Send
 {
     fn scoring(&self) {
         // TODO

@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cmp::Ordering;
 
 use crate::simulation::network::sim_network::StorageUpdate;
@@ -9,12 +10,14 @@ pub enum InternalSimMessage {
     Other(Box<dyn InternalMessage>),
 }
 
-pub trait InternalMessage: Send {
+pub trait InternalMessage: Send + Any{
     fn time(&self) -> u32;
 
     fn from_process(&self) -> u32;
 
     fn to_process(&self) -> u32;
+    
+    fn as_any(&self) -> &dyn Any;
 }
 
 #[derive(Debug)]

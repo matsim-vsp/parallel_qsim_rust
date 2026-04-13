@@ -21,7 +21,7 @@ use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
 use std::thread::{JoinHandle, sleep};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
@@ -146,7 +146,7 @@ pub struct PartitionArguments<C: SimCommunicator> {
     global_barrier: Arc<Barrier>,
 }
 
-fn execute_partition<C: SimCommunicator + 'static>(partition_arguments: PartitionArguments<C>) {
+fn execute_partition<C: SimCommunicator + Send + 'static>(partition_arguments: PartitionArguments<C>) {
     let partition = partition_arguments.scenario_partition;
 
     let config = &partition.config;
@@ -162,7 +162,7 @@ fn execute_partition<C: SimCommunicator + 'static>(partition_arguments: Partitio
 
     let events = create_events(&partition.config, rank, subscribers);
 
-    let arc_comm = Arc::new(comm);
+    let arc_comm = Arc::new(Mutex::new(comm));
 
     let scoring_broker = BackpackingScoringEngine::new(rank, &partition.population, Arc::clone(&arc_comm), events.clone());
 

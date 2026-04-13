@@ -5,13 +5,13 @@ use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub struct NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
-    communicator: Arc<C>,
+    communicator: Arc<Mutex<C>>,
     out_messages: HashMap<u32, InternalSyncMessage>,
     in_messages: BinaryHeap<InternalSyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
@@ -26,7 +26,7 @@ where
     C: SimCommunicator,
 {
     pub fn new(
-        comm: Arc<C>,
+        comm: Arc<Mutex<C>>,
         global_network: &Network,
         net: &SimNetworkPartition,
         global_sync: bool,
@@ -49,7 +49,7 @@ where
     }
 
     pub fn rank(&self) -> u32 {
-        self.communicator.rank()
+        self.communicator.lock().unwrap().rank()
     }
 
     pub fn rank_for_link(&self, link_id: &Id<Link>) -> u32 {
@@ -97,10 +97,10 @@ where
         // With external functionality like a DRT service, this makes it much easier to produce deterministic results.
         // However, it also means that the simulation will be slower.
         if self.global_sync {
-            comm_ref.barrier();
+            comm_ref.lock().unwrap().barrier();
         }
 
-        comm_ref.send_receive_vehicles(vehicles, &mut expected_vehicle_messages, now, |msg| {
+        comm_ref.lock().unwrap().send_receive_vehicles(vehicles, &mut expected_vehicle_messages, now, |msg| {
             Self::handle_incoming_msg(msg, &mut result, in_msgs_ref, now)
         });
 
@@ -370,7 +370,7 @@ mod tests {
             assert_eq!(partition.get_link_ids().len(), 1);
         }
 
-        NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false)
+        NetMessageBroker::new(Arc::new(Mutex::new(communicator)), &create_network(), &partition, false)
     }
 
     #[integration_test]
