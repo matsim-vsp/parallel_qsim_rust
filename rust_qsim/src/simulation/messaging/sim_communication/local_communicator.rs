@@ -3,8 +3,11 @@ use crate::simulation::messaging::messages::{InternalMessage, InternalSimMessage
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
 use tracing::info;
+use crate::simulation::id::Id;
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::time_queue::Identifiable;
 
 pub struct DummySimCommunicator();
 
@@ -13,8 +16,7 @@ pub struct ChannelSimCommunicator {
     senders: Vec<Sender<InternalSimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
-    send_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>>>,
-    recv_vehicle_callbacks: RefCell<Vec<Box<dyn Fn(Arc<InternalSyncMessage>)>>>,
+    scoring_callbacks: Mutex<Vec<Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>>>,
 }
 
 impl SimCommunicator for DummySimCommunicator {
@@ -49,9 +51,9 @@ impl SimCommunicator for DummySimCommunicator {
         0
     }
 
-    fn register_send_callback(&self, _callback: Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>) {}
+    fn extract_leaving_agents(vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>> {HashMap::default()}
 
-    fn register_recv_callback(&self, _callback: Box<dyn Fn(Arc<InternalSyncMessage>)>) {}
+    fn register_scoring_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send + Sync>) {}
 }
 
 impl SimCommunicator for ChannelSimCommunicator {
@@ -64,14 +66,12 @@ impl SimCommunicator for ChannelSimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage),
     {
-        let arc_vehicles = Arc::new(vehicles);
-
-        for callback in self.send_vehicle_callbacks.borrow().iter() {
-            callback(Arc::clone(&arc_vehicles));
+        for callback in self.scoring_callbacks.lock().unwrap().iter() {
+            callback(Self::extract_leaving_agents(&vehicles));
         }
-        
+
         // send messages to everyone
-        for (target, msg) in Arc::try_unwrap(arc_vehicles).unwrap() {
+        for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
             sender
                 .send(InternalSimMessage::from_sync_message(msg))
@@ -99,14 +99,8 @@ impl SimCommunicator for ChannelSimCommunicator {
                 expected_vehicle_messages.remove(&from_rank);
             }
 
-            let arc_received_msg = Arc::new(received_msg);
-
-            for callback in self.recv_vehicle_callbacks.borrow().iter() {
-                callback(Arc::clone(&arc_received_msg));
-            }
-
             // publish the received message to the message broker
-            on_msg(Arc::try_unwrap(arc_received_msg).unwrap());
+            on_msg(received_msg);
         }
     }
 
@@ -161,12 +155,19 @@ impl SimCommunicator for ChannelSimCommunicator {
         self.rank
     }
 
-    fn register_send_callback(&self, callback: Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>) {
-        self.send_vehicle_callbacks.borrow_mut().push(callback);
+    fn extract_leaving_agents(vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>>{
+        let mut agents: HashMap<u32, Vec<Id<InternalPerson>>> = HashMap::default();
+
+        for (k, v) in vehicles.iter() {
+            agents.insert(*k, v.vehicles().iter().map(|v| v.passengers.iter().map(|p| p.id().clone())).flatten().collect());
+        }
+        
+        agents
     }
 
-    fn register_recv_callback(&self, callback: Box<dyn Fn(Arc<InternalSyncMessage>)>) {
-        self.recv_vehicle_callbacks.borrow_mut().push(callback);
+    fn register_scoring_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send + Sync>)
+    {
+        self.scoring_callbacks.lock().unwrap().push(f);
     }
 }
 
@@ -183,8 +184,7 @@ impl ChannelSimCommunicator {
                 senders: vec![],
                 rank,
                 barrier: barrier.clone(),
-                send_vehicle_callbacks: RefCell::new(Vec::default()),
-                recv_vehicle_callbacks: RefCell::new(Vec::default())
+                scoring_callbacks: Mutex::new(Vec::default())
             };
             senders.push(sender);
             comms.push(comm);

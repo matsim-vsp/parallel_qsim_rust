@@ -1,12 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
-use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
-use crate::simulation::time_queue::Identifiable;
 
 //TODO currently, the only way of realising an independent message broker was to reference the original
 // simcommunicator with a lifetime. A unified and modular solution should be discussed. aleks Apr'26
@@ -27,25 +22,7 @@ where
             communicator: communicator.clone(),
             data_collector
         }));
-        ret.lock().unwrap().communicator.register_recv_callback(Box::new(|msg| {
-            // TODO Probably unnecessary
-        }));
-        ret.lock().unwrap().communicator.register_send_callback(Box::new( move |msg| {
-            let mut send_map: HashMap<u32, Vec<Id<InternalPerson>>> = HashMap::default();
-
-            for (k, v) in msg.iter() {
-                send_map.insert(*k, v.vehicles().iter().map(|v| v.passengers.iter().map(|p| p.id().clone())).flatten().collect());
-            }
-
-            // TODO code below only temporary, delete later
-
-            let mut tmp: HashMap<u32, Box<dyn InternalMessage>> = HashMap::default();
-            for (k, v) in send_map {
-                tmp.insert(k, Box::new(BackpackingMessage::new()));
-            }
-
-            communicator.clone().send_receive_others(tmp, &mut HashSet::new(), 0, |x| {});
-        }));
+        // TODO register callback
         ret
     }
 

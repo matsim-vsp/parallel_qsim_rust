@@ -1,6 +1,7 @@
 use crate::simulation::messaging::messages::{InternalMessage, InternalSyncMessage};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
+use crate::simulation::id::Id;
+use crate::simulation::scenario::population::InternalPerson;
 
 pub mod local_communicator;
 pub mod message_broker;
@@ -27,8 +28,7 @@ pub trait SimCommunicator {
     fn barrier(&self);
 
     fn rank(&self) -> u32;
+    fn extract_leaving_agents(vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>>;
 
-    fn register_send_callback(&self, callback: Box<dyn Fn(Arc<HashMap<u32, InternalSyncMessage>>)>);
-
-    fn register_recv_callback(&self, callback: Box<dyn Fn(Arc<InternalSyncMessage>)>);
+    fn register_scoring_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send + Sync>);
 }
