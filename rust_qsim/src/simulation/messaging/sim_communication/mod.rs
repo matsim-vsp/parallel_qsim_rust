@@ -1,4 +1,4 @@
-use crate::simulation::messaging::messages::{InternalMessage, InternalSyncMessage};
+use crate::simulation::messaging::messages::{InternalSyncMessage};
 use std::collections::{HashMap, HashSet};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;

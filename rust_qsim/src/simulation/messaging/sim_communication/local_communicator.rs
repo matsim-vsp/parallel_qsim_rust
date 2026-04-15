@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use crate::simulation::messaging::messages::{InternalMessage, InternalSimMessage, InternalSyncMessage};
+use crate::simulation::messaging::messages::{InternalSimMessage, InternalSyncMessage};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};

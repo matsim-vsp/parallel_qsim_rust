@@ -10,16 +10,6 @@ pub enum InternalSimMessage {
     Backpacking(BackpackingMessage),
 }
 
-pub trait InternalMessage: Send + Any {
-    fn time(&self) -> u32;
-
-    fn from_process(&self) -> u32;
-
-    fn to_process(&self) -> u32;
-
-    fn as_any(&self) -> &dyn Any;
-}
-
 #[derive(Debug)]
 pub struct InternalSyncMessage {
     time: u32,

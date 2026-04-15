@@ -1,8 +1,6 @@
-use std::any::Any;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::sync::{Arc, Mutex};
 use crate::simulation::id::Id;
-use crate::simulation::messaging::messages::InternalMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
@@ -63,23 +61,5 @@ pub struct BackpackingMessage {
 impl BackpackingMessage {
     pub fn new(payload: HashMap<Id<InternalPerson>, Backpack>) -> Self {
         Self { payload }
-    }
-}
-
-impl InternalMessage for BackpackingMessage {
-    fn time(&self) -> u32 {
-        todo!()
-    }
-
-    fn from_process(&self) -> u32 {
-        todo!()
-    }
-
-    fn to_process(&self) -> u32 {
-        todo!()
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        todo!()
     }
 }
