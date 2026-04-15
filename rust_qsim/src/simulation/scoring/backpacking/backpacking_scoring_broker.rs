@@ -8,8 +8,6 @@ use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
 
-//TODO currently, the only way of realising an independent message broker was to reference the original
-// simcommunicator with a lifetime. A unified and modular solution should be discussed. aleks Apr'26
 pub struct BackpackingMessageBroker<C>
 where
     C: SimCommunicator + Send
@@ -27,18 +25,32 @@ where
             communicator: communicator.clone(),
             data_collector: Arc::clone(&data_collector)
         }));
-        ret.lock().unwrap().communicator.lock().unwrap().register_scoring_callback(Box::new(move |agent_map| {
-            let mut scoring_msg: HashMap<u32, Box<dyn InternalMessage>>= HashMap::default();
+
+        ret.lock().unwrap().communicator.lock().unwrap().register_send_callback(Box::new(move |agent_map| {
+            let mut scoring_msg: HashMap<u32, BackpackingMessage>= HashMap::default();
 
             for (k, v) in agent_map.iter() {
-                scoring_msg.insert(*k, Box::new(BackpackingMessage::new(data_collector.lock().unwrap().remove_leaving_passengers(v.clone()))));
+                scoring_msg.insert(*k, BackpackingMessage::new(data_collector.lock().unwrap().remove_leaving_passengers(v.clone())));
             }
 
-            communicator.lock().unwrap().send_receive_others(scoring_msg, &mut HashSet::default(), 0, |msg| {
-                // TODO Receive function
-                // data_collector.lock().unwrap().add_arriving_passengers(msg.as_any().downcast_ref::<BackpackingMessage>().unwrap().payload);
+            println!("Sending Message of length {}", scoring_msg.len());
+
+            let communicator_cb= communicator.clone();
+
+            //TODO This thread implementation poses the risk of losing messages.
+            // Adding a join is however not possible as it would cause a deadlock.
+            // An external sending thread handler would be a good workaround for this project.
+            std::thread::spawn(move || {
+                communicator_cb.lock().unwrap().send_backpacks(scoring_msg);
             });
         }));
+
+        let data_collector_cb= ret.lock().unwrap().data_collector.clone();
+
+        ret.lock().unwrap().communicator.lock().unwrap().register_recv_callback(Box::new(move |msg| {
+            data_collector_cb.lock().unwrap().add_arriving_passengers(msg.payload)
+        }));
+
         ret
     }
 

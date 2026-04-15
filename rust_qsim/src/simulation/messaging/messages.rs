@@ -1,22 +1,22 @@
 use std::any::Any;
 use std::cmp::Ordering;
-
 use crate::simulation::network::sim_network::StorageUpdate;
+use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessage;
 use crate::simulation::vehicles::SimulationVehicle;
 
 pub enum InternalSimMessage {
     Sync(InternalSyncMessage),
     Barrier,
-    Other(Box<dyn InternalMessage>),
+    Backpacking(BackpackingMessage),
 }
 
-pub trait InternalMessage: Send + Any{
+pub trait InternalMessage: Send + Any {
     fn time(&self) -> u32;
 
     fn from_process(&self) -> u32;
 
     fn to_process(&self) -> u32;
-    
+
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -30,6 +30,14 @@ pub struct InternalSyncMessage {
 }
 
 impl InternalSimMessage {
+
+    pub fn is_sync_message(&self) -> bool {
+        match self {
+            InternalSimMessage::Sync(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn sync_message(self) -> InternalSyncMessage {
         match self {
             InternalSimMessage::Sync(m) => m,
@@ -37,10 +45,10 @@ impl InternalSimMessage {
         }
     }
 
-    pub fn other_message(self) -> Box<dyn InternalMessage> {
+    pub fn backpacking_message(self) -> BackpackingMessage {
         match self {
-            InternalSimMessage::Other(m) => m,
-            _ => panic!("That message is no sync message."),
+            InternalSimMessage::Backpacking(m) => m,
+            _ => panic!("That message is no backpacking message."),
         }
     }
 
@@ -48,8 +56,8 @@ impl InternalSimMessage {
         InternalSimMessage::Sync(m)
     }
 
-    pub fn from_other_message(m: Box<dyn InternalMessage>) -> InternalSimMessage {
-        InternalSimMessage::Other(m)
+    pub fn from_backpacking_message(m: BackpackingMessage) -> InternalSimMessage {
+        InternalSimMessage::Backpacking(m)
     }
 
     pub fn barrier() -> InternalSimMessage {

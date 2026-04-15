@@ -2,6 +2,7 @@ use crate::simulation::messaging::messages::{InternalMessage, InternalSyncMessag
 use std::collections::{HashMap, HashSet};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessage;
 
 pub mod local_communicator;
 pub mod message_broker;
@@ -16,19 +17,17 @@ pub trait SimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage);
 
-    fn send_receive_others<F>(
+    fn send_backpacks(
         &self,
-        others: HashMap<u32, Box<dyn InternalMessage>>,
-        expected_other_messages: &mut HashSet<u32>,
-        now: u32,
-        on_msg: F,
-    ) where
-        F: FnMut(Box<dyn InternalMessage>);
+        others: HashMap<u32, BackpackingMessage>,
+    );
 
     fn barrier(&self);
 
     fn rank(&self) -> u32;
     fn extract_leaving_agents(vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>>;
 
-    fn register_scoring_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send + Sync>);
+    fn register_send_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>);
+
+    fn register_recv_callback(&self, f: Box<dyn Fn(BackpackingMessage) + Send>);
 }

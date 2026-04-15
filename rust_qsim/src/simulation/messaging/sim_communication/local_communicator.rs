@@ -7,6 +7,7 @@ use std::sync::{Arc, Barrier, Mutex};
 use tracing::info;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessage;
 use crate::simulation::time_queue::Identifiable;
 
 pub struct DummySimCommunicator();
@@ -16,7 +17,8 @@ pub struct ChannelSimCommunicator {
     senders: Vec<Sender<InternalSimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
-    scoring_callbacks: Mutex<Vec<Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>>>,
+    send_callback: Mutex<Option<Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>>>,
+    recv_callback: Mutex<Option<Box<dyn Fn(BackpackingMessage) + Send>>>
 }
 
 impl SimCommunicator for DummySimCommunicator {
@@ -31,17 +33,7 @@ impl SimCommunicator for DummySimCommunicator {
     {
     }
 
-    fn send_receive_others<F>(
-        &self,
-        _others: HashMap<u32, Box<dyn InternalMessage>>,
-        _expected_other_messages: &mut HashSet<u32>,
-        _now: u32,
-        _on_msg: F
-    ) where
-        F: FnMut(Box<dyn InternalMessage>)
-    {
-    }
-
+    fn send_backpacks(&self, _others: HashMap<u32, BackpackingMessage>) {}
 
     fn barrier(&self) {
         info!("Barrier was called on DummySimCommunicator, which doesn't do anything.")
@@ -51,9 +43,11 @@ impl SimCommunicator for DummySimCommunicator {
         0
     }
 
-    fn extract_leaving_agents(vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>> {HashMap::default()}
+    fn extract_leaving_agents(_vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>> {HashMap::default()}
 
-    fn register_scoring_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send + Sync>) {}
+    fn register_send_callback(&self, _f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>) {}
+
+    fn register_recv_callback(&self, f: Box<dyn Fn(BackpackingMessage) + Send>) {}
 }
 
 impl SimCommunicator for ChannelSimCommunicator {
@@ -66,7 +60,7 @@ impl SimCommunicator for ChannelSimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage),
     {
-        for callback in self.scoring_callbacks.lock().unwrap().iter() {
+        for callback in self.send_callback.lock().unwrap().iter() {
             callback(Self::extract_leaving_agents(&vehicles));
         }
 
@@ -85,65 +79,50 @@ impl SimCommunicator for ChannelSimCommunicator {
 
         // receive messages from everyone
         while !expected_vehicle_messages.is_empty() {
-            let received_msg = self
+            let internal_msg = self
                 .receiver
                 .recv()
-                .expect("Error while receiving messages")
-                .sync_message();
-            let from_rank = received_msg.from_process();
+                .expect("Error while receiving messages");
 
-            // If a message was received from a neighbor partition for this very time step, remove
-            // that partition from expected messages which indicates which partitions we are waiting
-            // for
-            if received_msg.time() == now {
-                expected_vehicle_messages.remove(&from_rank);
+            if internal_msg.is_sync_message() {
+                let received_msg = internal_msg.sync_message();
+                let from_rank = received_msg.from_process();
+
+                // If a message was received from a neighbor partition for this very time step, remove
+                // that partition from expected messages which indicates which partitions we are waiting
+                // for
+                if received_msg.time() == now {
+                    expected_vehicle_messages.remove(&from_rank);
+                }
+
+                // publish the received message to the message broker
+                on_msg(received_msg);
+            } else {
+                // scoring message arrived, pass it to the callback
+                let received_msg = internal_msg.backpacking_message();
+
+                if let Some(callback) = self.recv_callback.lock().unwrap().as_ref() {
+                    callback(received_msg);
+                }
             }
-
-            // publish the received message to the message broker
-            on_msg(received_msg);
         }
     }
 
-    fn send_receive_others<F>(
+    fn send_backpacks(
         &self,
-        others: HashMap<u32, Box<dyn InternalMessage>>,
-        expected_other_messages: &mut HashSet<u32>,
-        now: u32,
-        mut on_msg: F,
-    ) where
-        F: FnMut(Box<dyn InternalMessage>),
-    {
+        others: HashMap<u32, BackpackingMessage>
+    ) {
         // send messages to everyone
         for (target, msg) in others {
             let sender = self.senders.get(target as usize).unwrap();
             sender
-                .send(InternalSimMessage::from_other_message(msg))
+                .send(InternalSimMessage::from_backpacking_message(msg))
                 .unwrap_or_else(|e| {
                     panic!(
                         "Error while sending message to rank {} with error {}",
                         target, e
                     )
                 });
-        }
-
-        // receive messages from everyone
-        while !expected_other_messages.is_empty() {
-            let received_msg = self
-                .receiver
-                .recv()
-                .expect("Error while receiving messages")
-                .other_message();
-            let from_rank = received_msg.from_process();
-
-            // If a message was received from a neighbor partition for this very time step, remove
-            // that partition from expected messages which indicates which partitions we are waiting
-            // for
-            if received_msg.time() == now {
-                expected_other_messages.remove(&from_rank);
-            }
-
-            // publish the received message to the message broker
-            on_msg(received_msg);
         }
     }
 
@@ -165,9 +144,22 @@ impl SimCommunicator for ChannelSimCommunicator {
         agents
     }
 
-    fn register_scoring_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send + Sync>)
+    fn register_send_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>)
     {
-        self.scoring_callbacks.lock().unwrap().push(f);
+        let mut guard = self.send_callback.lock().unwrap();
+        if guard.is_some() {
+            panic!("Send callback already registered for this channel.");
+        }
+        *guard = Some(f)
+    }
+
+    fn register_recv_callback(&self, f: Box<dyn Fn(BackpackingMessage) + Send>)
+    {
+        let mut guard = self.recv_callback.lock().unwrap();
+        if guard.is_some() {
+            panic!("Send callback already registered for this channel.");
+        }
+        *guard = Some(f)
     }
 }
 
@@ -184,7 +176,8 @@ impl ChannelSimCommunicator {
                 senders: vec![],
                 rank,
                 barrier: barrier.clone(),
-                scoring_callbacks: Mutex::new(Vec::default())
+                send_callback: Mutex::new(None),
+                recv_callback: Mutex::new(None)
             };
             senders.push(sender);
             comms.push(comm);

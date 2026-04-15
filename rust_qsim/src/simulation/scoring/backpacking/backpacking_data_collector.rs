@@ -38,7 +38,10 @@ impl BackpackingDataCollector {
             .add_special_scoring_event(event);
     }
 
-    fn add_arriving_passengers(&mut self, arriving_passengers: HashMap<Id<InternalPerson>, Backpack>){
+    pub fn add_arriving_passengers(&mut self, arriving_passengers: HashMap<Id<InternalPerson>, Backpack>){
+        for k in arriving_passengers.keys(){
+            println!("Partition #{}: Adding arriving passenger {}", self.partition, k);
+        }
         self.person_id2backpack.extend(arriving_passengers);
     }
 
@@ -66,4 +69,3 @@ impl BackpackingDataCollector {
         })
     }
 }
-
