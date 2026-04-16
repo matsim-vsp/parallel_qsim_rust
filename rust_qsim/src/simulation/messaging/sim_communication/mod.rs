@@ -17,17 +17,12 @@ pub trait SimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage);
 
-    fn send_backpacks(
-        &self,
-        others: HashMap<u32, BackpackingMessage>,
-    );
-
     fn barrier(&self);
 
     fn rank(&self) -> u32;
     fn extract_leaving_agents(vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>>;
 
-    fn register_send_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>);
+    fn register_send_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>);
 
     fn register_recv_callback(&self, f: Box<dyn Fn(BackpackingMessage) + Send>);
 }

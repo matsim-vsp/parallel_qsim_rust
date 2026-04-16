@@ -24,23 +24,14 @@ where
             data_collector: Arc::clone(&data_collector)
         }));
 
-        ret.lock().unwrap().communicator.lock().unwrap().register_send_callback(Box::new(move |agent_map| {
-            let mut scoring_msg: HashMap<u32, BackpackingMessage>= HashMap::default();
+        ret.lock().unwrap().communicator.lock().unwrap().register_send_callback(Box::new(move |agent_map: HashMap<u32, Vec<Id<InternalPerson>>>| -> HashMap<u32, BackpackingMessage> {
+            let mut scoring_msg: HashMap<u32, BackpackingMessage> = HashMap::default();
 
             for (k, v) in agent_map.iter() {
                 scoring_msg.insert(*k, BackpackingMessage::new(data_collector.lock().unwrap().remove_leaving_passengers(v.clone())));
             }
 
-            println!("Sending Message of length {}", scoring_msg.len());
-
-            let communicator_cb= communicator.clone();
-
-            //TODO This thread implementation poses the risk of losing messages.
-            // Adding a join is however not possible as it would cause a deadlock.
-            // An external sending thread handler would be a good workaround for this project.
-            std::thread::spawn(move || {
-                communicator_cb.lock().unwrap().send_backpacks(scoring_msg);
-            });
+            scoring_msg
         }));
 
         let data_collector_cb= ret.lock().unwrap().data_collector.clone();

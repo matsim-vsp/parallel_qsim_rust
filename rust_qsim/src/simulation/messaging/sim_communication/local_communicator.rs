@@ -1,9 +1,9 @@
-use std::cell::RefCell;
 use crate::simulation::messaging::messages::{InternalSimMessage, InternalSyncMessage};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Barrier, Mutex};
+use itertools::Itertools;
 use tracing::info;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
@@ -17,7 +17,7 @@ pub struct ChannelSimCommunicator {
     senders: Vec<Sender<InternalSimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
-    send_callback: Mutex<Option<Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>>>,
+    send_callback: Mutex<Option<Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>>>,
     recv_callback: Mutex<Option<Box<dyn Fn(BackpackingMessage) + Send>>>
 }
 
@@ -33,8 +33,6 @@ impl SimCommunicator for DummySimCommunicator {
     {
     }
 
-    fn send_backpacks(&self, _others: HashMap<u32, BackpackingMessage>) {}
-
     fn barrier(&self) {
         info!("Barrier was called on DummySimCommunicator, which doesn't do anything.")
     }
@@ -45,7 +43,7 @@ impl SimCommunicator for DummySimCommunicator {
 
     fn extract_leaving_agents(_vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>> {HashMap::default()}
 
-    fn register_send_callback(&self, _f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>) {}
+    fn register_send_callback(&self, _f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>) {}
 
     fn register_recv_callback(&self, f: Box<dyn Fn(BackpackingMessage) + Send>) {}
 }
@@ -60,8 +58,23 @@ impl SimCommunicator for ChannelSimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage),
     {
-        for callback in self.send_callback.lock().unwrap().iter() {
-            callback(Self::extract_leaving_agents(&vehicles));
+        let scoring_msg = if let Some(callback) = self.send_callback.lock().unwrap().as_ref() {
+             callback(Self::extract_leaving_agents(&vehicles))
+        } else {
+            HashMap::default()
+        };
+
+        // send scoring messages to everyone
+        for(target, msg) in scoring_msg {
+            let sender = self.senders.get(target as usize).unwrap();
+            sender
+                .send(InternalSimMessage::from_backpacking_message(msg))
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Error while sending message to rank {} with error {}",
+                        target, e
+                    )
+                });
         }
 
         // send messages to everyone
@@ -108,24 +121,6 @@ impl SimCommunicator for ChannelSimCommunicator {
         }
     }
 
-    fn send_backpacks(
-        &self,
-        others: HashMap<u32, BackpackingMessage>
-    ) {
-        // send messages to everyone
-        for (target, msg) in others {
-            let sender = self.senders.get(target as usize).unwrap();
-            sender
-                .send(InternalSimMessage::from_backpacking_message(msg))
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Error while sending message to rank {} with error {}",
-                        target, e
-                    )
-                });
-        }
-    }
-
     fn barrier(&self) {
         self.barrier.wait();
     }
@@ -134,17 +129,35 @@ impl SimCommunicator for ChannelSimCommunicator {
         self.rank
     }
 
-    fn extract_leaving_agents(vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>>{
+    fn extract_leaving_agents(vehicles_msg: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>>{
         let mut agents: HashMap<u32, Vec<Id<InternalPerson>>> = HashMap::default();
 
-        for (k, v) in vehicles.iter() {
-            agents.insert(*k, v.vehicles().iter().map(|v| v.passengers.iter().map(|p| p.id().clone())).flatten().collect());
+
+        for (k, v) in vehicles_msg.iter() {
+            let mut passengers: Vec<Id<InternalPerson>> = v.vehicles()
+                .iter()
+                .flat_map(|v| v.passengers.iter().map(|p| p.id().clone()))
+                .collect();
+
+            let mut drivers = v.vehicles()
+                .iter()
+                .filter_map(|v| v.driver.as_ref().map(|d| d.id().clone()))
+                .collect();
+
+            passengers.append(&mut drivers);
+            agents.insert(*k, passengers);
         }
-        
+
+        // TODO Debug
+        // print!(".");
+        if agents.iter().map(|(k, v)| v.len() > 0).reduce(|a, b| a || b).unwrap() {
+            println!("Sending non-empty message!")
+        }
+
         agents
     }
 
-    fn register_send_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) + Send>)
+    fn register_send_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>)
     {
         let mut guard = self.send_callback.lock().unwrap();
         if guard.is_some() {
