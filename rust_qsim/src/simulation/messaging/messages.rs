@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cmp::Ordering;
 use crate::simulation::network::sim_network::StorageUpdate;
 use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessage;

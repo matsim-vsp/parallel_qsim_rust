@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::simulation::events::EventsManager;
-use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;

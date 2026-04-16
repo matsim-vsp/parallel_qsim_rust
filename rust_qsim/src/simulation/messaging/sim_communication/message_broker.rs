@@ -153,6 +153,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::messaging::sim_communication::message_broker::Mutex;
     use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
     use crate::simulation::config;
     use crate::simulation::id::Id;
@@ -164,7 +165,6 @@ mod tests {
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils::create_agent;
     use macros::integration_test;
-    use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;

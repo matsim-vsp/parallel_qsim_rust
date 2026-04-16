@@ -3,7 +3,6 @@ use crate::simulation::messaging::sim_communication::SimCommunicator;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Barrier, Mutex};
-use itertools::Itertools;
 use tracing::info;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
@@ -45,7 +44,7 @@ impl SimCommunicator for DummySimCommunicator {
 
     fn register_send_callback(&self, _f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>) {}
 
-    fn register_recv_callback(&self, f: Box<dyn Fn(BackpackingMessage) + Send>) {}
+    fn register_recv_callback(&self, _f: Box<dyn Fn(BackpackingMessage) + Send>) {}
 }
 
 impl SimCommunicator for ChannelSimCommunicator {
@@ -146,12 +145,6 @@ impl SimCommunicator for ChannelSimCommunicator {
 
             passengers.append(&mut drivers);
             agents.insert(*k, passengers);
-        }
-
-        // TODO Debug
-        // print!(".");
-        if agents.iter().map(|(k, v)| v.len() > 0).reduce(|a, b| a || b).unwrap() {
-            println!("Sending non-empty message!")
         }
 
         agents
