@@ -2,7 +2,9 @@ use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::alt_router::{
     AStarHeuristic, AStarRouter, ZeroHeuristic,
 };
-use crate::simulation::replanning::routing::dijsktra::{Dijkstra, DijkstraActions, Distance};
+use crate::simulation::replanning::routing::dijsktra::{
+    Dijkstra, DijkstraActions, DijkstraRequest, DijkstraRequestBuilder, Distance,
+};
 use crate::simulation::replanning::routing::graph::{
     ForwardBackwardGraph, NodeIndex, RoutingGraph,
 };
@@ -30,17 +32,18 @@ pub struct AltLandmarkData {
     travel_times_to_all: Vec<Vec<ForwardBackwardTravelTime>>,
 }
 
-pub struct DistanceToAllRequest<'r, G: IntNodeGraph + ?Sized> {
+pub struct DistanceToAllRequest<'r, G: IntNodeGraph + ?Sized, T: TravelDisutility> {
     pub from: Id<Node>,
     pub graph: &'r G, // contains the graph of the network
     pub departure_time: Time,
     pub person: Option<&'r InternalPerson>,
     pub vehicle: Option<&'r InternalVehicle>,
-    pub travel_time: Box<dyn TravelTime>, // TODO should this be travel disutility?
+    pub travel_disutility: T,
     pub backward: bool, // if true, calculates distance from all other nodes to the "from"-node
 }
 
-pub(crate) struct DistanceToManyOptions {}
+#[derive(Clone)]
+pub(crate) struct DistanceToManyOptions;
 
 impl DijkstraActions for DistanceToManyOptions {
     fn get_parents_opt(&self) -> Option<Vec<Option<NodeIndex>>> {
@@ -94,28 +97,15 @@ impl AltLandmarkData {
 
     /// Calculates the distance from one node to all other nodes in the graph using Dijkstra
     /// Uses the shared dijkstra_main_loop core with travel_time cost function
-    fn distance_one_2_many<G: IntNodeGraph>(
+    fn distance_one_2_many<G: IntNodeGraph, T: TravelDisutility>(
         //from: NodeIndex, graph: impl IntNodeGraph, travel_time: Box<dyn TravelTime>, backward: bool
-        request: DistanceToAllRequest<G>,
+        request: DistanceToAllRequest<G, T>,
     ) -> Vec<f64> {
-        let (distances, _) = Dijkstra::dijkstra_core(
-            ZeroHeuristic {},
-            request.travel_time,
-            request.from,
-            None,
-            request.graph,
-            DistanceToManyOptions {},
-            request.departure_time,
-            request.person,
-            request.vehicle,
-        );
-        //
-        // // TODO should we use travel time or travel disutility?
-        //
-        // // TODO maybe don't merge the code with calc_route. Since it is tracking parents, the logic
-        // // is different. The benefit might be small, and the code less readable, if we force them
-        // // to use the same core function.
-        // // But think about if there is some part that could be merged.
+        let dijkstra_request = DijkstraRequest::from(request);
+
+        // TODO maybe also change name "distances" here
+        let (distances, _) = Dijkstra::dijkstra_core(dijkstra_request);
+
         // let from_idx = request.graph.get_node_idx_from_id(request.from);
         //
         // let (mut queue, mut distances) =

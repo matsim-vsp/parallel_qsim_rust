@@ -130,8 +130,10 @@ pub trait AStarHeuristic {
 }
 
 // with this, the A* collapses into Dijkstra
+#[derive(Clone)]
 pub(crate) struct ZeroHeuristic;
 
+// FIXME something is no longer dyn compatible, I think because I derived clone
 impl AStarHeuristic for ZeroHeuristic {
     fn estimate(&self, graph: &dyn IntNodeGraph, from: Id<Node>, to: Id<Node>) -> Time {
         0.

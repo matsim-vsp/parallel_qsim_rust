@@ -7,6 +7,7 @@ use crate::simulation::scenario::network::{Link, Network, Node};
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
+use std::fmt::Debug;
 
 // "normal" time representation is u32 for now, but we might want to use f64 for the future
 pub type Time = f64;
@@ -18,7 +19,7 @@ pub struct CustomQueryResult {
     pub path: Option<Vec<u64>>,
 }
 
-pub trait Graph {
+pub trait Graph: Clone + Debug {
     fn node(&self, id: Id<Node>) -> &Node;
     fn edge(&self, id: Id<Link>) -> &Link;
     fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>];
@@ -46,7 +47,7 @@ pub trait LeastCostPathCalculator {
     ) -> Option<LeastCostPath>;
 }
 
-pub trait TravelTime {
+pub trait TravelTime: Clone + Debug {
     fn travel_time(
         &self,
         link: &Link,
@@ -56,7 +57,7 @@ pub trait TravelTime {
     ) -> Time;
 }
 
-pub trait TravelDisutility {
+pub trait TravelDisutility: Clone + Debug {
     fn travel_disutility(
         &self,
         link: &Link,
@@ -65,7 +66,7 @@ pub trait TravelDisutility {
         vehicle: Option<&InternalVehicle>,
     ) -> Utility;
 }
-
+// TODO use builder here as well maybe?
 // From and to are deliberately not nodes but links. This allows considering those links as well during routing.
 pub struct LeastCostPathRequest<'r, G: IntNodeGraph + ?Sized> {
     pub from: Id<Link>,
@@ -81,6 +82,7 @@ pub struct LeastCostPath {
     pub travel_time: f64,
 }
 
+#[derive(Clone)]
 pub struct FreeSpeedTravelTimeAndDisutility;
 
 impl TravelTime for FreeSpeedTravelTimeAndDisutility {

@@ -1,8 +1,11 @@
 use crate::generated::vehicles::Vehicle;
 use crate::scenario::network::Link;
 use crate::simulation::id::Id;
+use crate::simulation::replanning::routing::alt_landmark_data::{
+    DistanceToAllRequest, DistanceToManyOptions,
+};
 use crate::simulation::replanning::routing::alt_router::{
-    AStarHeuristic, AStarRouter, NodePriority,
+    AStarHeuristic, AStarRouter, NodePriority, ZeroHeuristic,
 };
 use crate::simulation::replanning::routing::graph::{LinkIndex, NodeIndex, RoutingGraph};
 use crate::simulation::replanning::routing::least_cost_path_caluclator::Time;
@@ -11,6 +14,7 @@ use crate::simulation::replanning::routing::least_cost_path_caluclator::{
 };
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use derive_builder::Builder;
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use std::cmp::Ordering;
 
@@ -72,6 +76,44 @@ pub(crate) trait DijkstraActions {
     fn get_parents_opt(&self) -> Option<Vec<Option<NodeIndex>>>;
 }
 
+#[derive(Builder, Debug)]
+pub(crate) struct DijkstraRequest<
+    'a,
+    H: AStarHeuristic,
+    T: TravelDisutility, // TODO use this again
+    // D: Fn(&Link) -> f64,
+    G: IntNodeGraph + Sized,
+    O: DijkstraActions,
+> {
+    heuristic: H,
+    travel_disutility: T,
+    from: Id<Link>,
+    to: Option<Id<Link>>,
+    graph: &'a G,
+    options: O,
+    departure_time: Time,               // TODO set default to 0
+    person: Option<&'a InternalPerson>, // TODO set default to none in builder
+    vehicle: Option<&'a InternalVehicle>,
+}
+
+impl<G: IntNodeGraph, T: TravelDisutility> From<DistanceToAllRequest<'_, G, T>>
+    for DijkstraRequest<'_, ZeroHeuristic, T, G, DistanceToManyOptions>
+{
+    fn from(request: DistanceToAllRequest<'_, G, T>) -> Self {
+        DijkstraRequestBuilder::default()
+            .travel_disutility(request.travel_disutility)
+            .graph(request.graph)
+            .options(DistanceToManyOptions)
+            .departure_time(request.departure_time)
+            .person(request.person)
+            .vehicle(request.vehicle)
+            .from(request.from)
+            // .to(None) // TODO make sure this can be left out due to default
+            .heuristic(ZeroHeuristic)
+            .build()
+            .unwrap()
+    }
+}
 #[deprecated]
 // I think this is not needed any more. The functions associated with it should go into the A Star module.
 // However, the A Star might need a Dijkstra implementation.
@@ -123,26 +165,28 @@ impl Dijkstra {
     // TODO use builder (derive(builder))
     pub(crate) fn dijkstra_core<
         H: AStarHeuristic,
-        T: TravelDisutility, // TODO use this again
-        D: Fn(&Link) -> f64,
+        T: TravelDisutility,
         G: IntNodeGraph + Sized,
         O: DijkstraActions,
     >(
-        heuristic: H,
-        // travel_disutility: T,
-        distance_per_link: D,
-        from: Id<Link>,
-        to: Option<Id<Link>>,
-        graph: &G,
-        options: O,
-        // departure_time: Time, // TODO set default to 0
-        // person: Option<&InternalPerson>, // TODO set default to none in builder
-        // vehicle: Option<&InternalVehicle>,
+        request: DijkstraRequest<H, T, G, O>, // heuristic: H,
+                                              // travel_disutility: T,
+                                              // from: Id<Link>,
+                                              // to: Option<Id<Link>>,
+                                              // graph: &G,
+                                              // options: O,
+                                              // departure_time: Time,            // TODO set default to 0
+                                              // person: Option<&InternalPerson>, // TODO set default to none in builder
+                                              // vehicle: Option<&InternalVehicle>,
     ) -> (Vec<f64>, Option<Vec<Option<NodeIndex>>>) {
-        let number_of_nodes = graph.num_nodes();
+        let number_of_nodes = request.graph.num_nodes();
 
-        let from_node = graph.get_node_idx_from_id(graph.get_end_node(from));
-        let to_node = graph.get_node_idx_from_id(graph.get_start_node(to));
+        let from_node = request
+            .graph
+            .get_node_idx_from_id(request.graph.get_end_node(request.from));
+        let to_node = request
+            .graph
+            .get_node_idx_from_id(request.graph.get_start_node(request.to));
 
         // TODO possibly rename distances to priorities?
         // TODO is it reasonable to take the distances separately as f64? wouldn't it be nicer to extract them from the queue?
@@ -158,33 +202,31 @@ impl Dijkstra {
                 return (distances, None);
             }
 
-            if options.reached_end(current_id) == true {
-                return (distances, options.get_parents_opt()); //TODO maybe return something else
+            if request.options.reached_end(current_id) == true {
+                return (distances, request.options.get_parents_opt()); //TODO maybe return something else
             }
 
-            for i in graph.outgoing_edges_as_idx(current_id) {
+            for i in request.graph.outgoing_edges_as_idx(current_id) {
                 //we need an update_or_insert + parent update here instead of push always.
 
                 // let neighbour = request.graph.forward_graph.head[i];
-                let neighbour = graph.get_end_node_as_idx(i);
+                let neighbour = request.graph.get_end_node_as_idx(i);
 
                 if let Entry::Vacant(_) = queue.entry(neighbour) {
                     continue;
                 }
 
-                let link_i = graph.get_link_from_idx(i);
+                let link_i = request.graph.get_link_from_idx(i);
 
                 // TODO is it correct to use the departure time from the request here? -> NO!
                 // or could it be later by now?
                 let neighbour_distance = current_distance
-                    // FIXME this is where we should use travel disutility and not the other fct
-                    + distance_per_link(link_i);
-                // + travel_disutility.travel_disutility(
-                // link_i,
-                // departure_time,
-                // person,
-                // vehicle,
-                // ); // (request.graph.forward_graph.travel_time[i] as f64);
+                    + request.travel_disutility.travel_disutility(
+                        link_i,
+                        request.departure_time,
+                        request.person,
+                        request.vehicle,
+                    ); // (request.graph.forward_graph.travel_time[i] as f64);
 
                 if distances[neighbour] > neighbour_distance {
                     //perform update
@@ -194,10 +236,10 @@ impl Dijkstra {
                         Entry::Occupied(e) => {
                             e.set_priority(NodePriority::new(
                                 neighbour_distance
-                                    + heuristic.estimate(
-                                        graph,
-                                        graph.get_node_id_from_idx(neighbour),
-                                        graph.get_node_id_from_idx(to_node),
+                                    + request.heuristic.estimate(
+                                        request.graph,
+                                        request.graph.get_node_id_from_idx(neighbour),
+                                        request.graph.get_node_id_from_idx(to_node),
                                     ), // TODO remove when sure that not needed: &self.landmark_data),
                             ));
                         }
@@ -205,12 +247,12 @@ impl Dijkstra {
                             unreachable!()
                         }
                     }
-                    options.set_parent_opt(neighbour, current_id);
+                    request.options.set_parent_opt(neighbour, current_id);
                     //     TODO need to make sure (all) distances are tracked as well
                 }
             }
         }
-        return (distances, options.get_parents_opt());
+        return (distances, request.options.get_parents_opt());
     }
 
     pub fn get_initial_queue(
