@@ -1,28 +1,139 @@
 use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
-use crate::simulation::replanning::routing::dijsktra::{Dijkstra, Distance};
-use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
+use crate::simulation::replanning::routing::dijsktra::{Dijkstra, DijkstraActions, Distance};
+use crate::simulation::replanning::routing::graph;
+use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, LinkIndex, NodeIndex};
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-    CustomQueryResult, Graph, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, Time,
-    TravelDisutility,
+    CustomQueryResult, Graph, IntNodeGraph, LeastCostPath, LeastCostPathCalculator,
+    LeastCostPathRequest, Time, TravelDisutility,
 };
-use crate::simulation::scenario::network::Link;
-use keyed_priority_queue::Entry;
+use crate::simulation::scenario::network::{Link, Node};
+use keyed_priority_queue::{Entry, KeyedPriorityQueue};
+use ordered_float::OrderedFloat;
+use std::cmp::Reverse;
+
+/// Shorthand for `Reverse<OrderedFloat<f64>>`, i.e., an ordered float (implements Eq and Ord,
+/// unlike f64) which is sorted in reverse order.
+/// To be used in KeyedPriorityQueues in Dijkstra, since the queue prefers large values while we
+/// prefer small values.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct NodePriority {
+    priority: Reverse<OrderedFloat<f64>>,
+}
+
+impl NodePriority {
+    pub fn new(priority: f64) -> Self {
+        NodePriority {
+            priority: Reverse(OrderedFloat(priority)),
+        }
+    }
+
+    pub fn get(&self) -> f64 {
+        self.priority.0.into_inner()
+    }
+}
+
+pub(crate) struct AltOptions {
+    to_node: NodeIndex,
+    parents: Vec<Option<NodeIndex>>,
+}
+
+impl DijkstraActions for AltOptions {
+    fn reached_end(&self, current_node: NodeIndex) -> bool {
+        self.to_node == current_node
+    }
+    fn set_parent_opt(&mut self, child: NodeIndex, parent: NodeIndex) {
+        self.parents[child] = Some(parent);
+    }
+    fn get_parents_opt(&self) -> Option<Vec<Option<NodeIndex>>> {
+        Some(self.parents.clone())
+    }
+}
+
+/// Initialize the priority queue and distances vector for Dijkstra/A* search
+pub(crate) fn create_initial_queue(
+    node_count: usize,
+    from: NodeIndex,
+) -> (KeyedPriorityQueue<NodeIndex, NodePriority>, Vec<f64>) {
+    let mut queue = KeyedPriorityQueue::new();
+    let mut node_priorities = Vec::new();
+    for node in 0..node_count {
+        let node_index: NodeIndex = node;
+        let node_priority = if node_index == from {
+            NodePriority::new(0f64)
+        } else {
+            NodePriority::new(f64::INFINITY)
+        };
+        node_priorities.push(node_priority.0);
+        queue.push(node_index, node_priority);
+    }
+    (queue, node_priorities)
+}
 
 pub struct AStarRouter<H: AStarHeuristic> {
     heuristic: H,
     travel_disutility: Box<dyn TravelDisutility>,
 }
 
+impl<H: AStarHeuristic> AStarRouter<H> {
+    pub(crate) fn get_initial_queue(
+        node_count: usize,
+        from: NodeIndex,
+    ) -> (KeyedPriorityQueue<NodeIndex, NodePriority>, Vec<f64>) {
+        create_initial_queue(node_count, from)
+    }
+
+    fn extract_node_path(to: NodeIndex, parent: Vec<Option<NodeIndex>>) -> Vec<NodeIndex> {
+        let mut node_path = Vec::new();
+        let mut current = to;
+
+        node_path.push(to);
+        while let Some(father) = parent[current] {
+            node_path.push(father);
+            current = father;
+        }
+
+        node_path.reverse();
+
+        node_path
+    }
+
+    fn extract_link_path(
+        to: NodeIndex,
+        parent: Vec<Option<NodeIndex>>,
+        graph: &(impl IntNodeGraph + ?Sized),
+    ) -> Vec<Id<Link>> {
+        let node_path = Self::extract_node_path(to, parent);
+
+        let mut link_path = Vec::new();
+
+        // look for link connecting node i and node i+1
+        for i in 0..node_path.len() - 1 {
+            let from_node = node_path[i];
+            let to_node = node_path[i + 1];
+
+            // go through outgoing edges of "from_node" and find the one that has to_node as head
+            for j in graph.outgoing_edges_as_idx(from_node) {
+                if graph.get_end_node_as_idx(j) == to_node {
+                    // get actual Id<Link> of the link connecting from_node and to_node
+                    link_path.push(graph.get_link_id_from_idx(j));
+                    break;
+                }
+            }
+        }
+        link_path
+    }
+}
+
 pub trait AStarHeuristic {
-    fn estimate(&self, graph: &dyn Graph, from: Id<Link>, to: Id<Link>) -> Time;
+    fn estimate(&self, graph: &dyn IntNodeGraph, from: Id<Node>, to: Id<Node>) -> Time;
 }
 
 // with this, the A* collapses into Dijkstra
 pub(crate) struct ZeroHeuristic;
 
 impl AStarHeuristic for ZeroHeuristic {
-    fn estimate(&self, graph: &dyn Graph, from: Id<Link>, to: Id<Link>) -> Time {
+    fn estimate(&self, graph: &dyn IntNodeGraph, from: Id<Node>, to: Id<Node>) -> Time {
         0.
     }
 }
@@ -37,19 +148,152 @@ impl<H: AStarHeuristic> AStarRouter<H> {
 }
 
 impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
-    fn calc_route(&mut self, request: LeastCostPathRequest) -> Option<LeastCostPath> {
+    fn calc_route<G: IntNodeGraph>(
+        &mut self,
+        request: LeastCostPathRequest<G>,
+    ) -> Option<LeastCostPath> {
+        let from_node = request
+            .graph
+            .get_node_idx_from_id(request.graph.get_end_node(request.from));
+        let to_node = request
+            .graph
+            .get_node_idx_from_id(request.graph.get_start_node(request.to));
+
+        let mut parents = Vec::new();
+
+        let distance_fn = |i: &Link| {
+            self.travel_disutility(i, request.departure_time, request.person, request.vehicle)
+        };
+
+        (_, Some(parents)) = Dijkstra::dijkstra_core(
+            self.heuristic,
+            self.travel_disutility, // FIXME this shouldn't work
+            request.from,
+            request.to,
+            request.graph,
+            AltOptions { to_node, parents },
+        );
+
+        let number_of_nodes = request.graph.num_nodes();
+
+        // TODO think about how I want the graph interface with the trait and so on
+        // the algorithm should work with indices I guess, so that it is fast
+        // but that means, if the request allows any dyn Graph, then the trait must somehow include
+        // methods for that.
+        // TODO continue by checking where the indices are actually used here
+
+        // Note: possibly, one could define another trait (subtrait of Graph), specific to the
+        // storage structure, so that the A* can rely on the methods of that trait, and then require that the graph in the request implements that trait.
+
+        let (mut queue, mut distances) = Self::get_initial_queue(number_of_nodes, from_node);
+        let mut parents: Vec<Option<NodeIndex>> = (0..number_of_nodes).map(|_| None).collect();
+
+        while let Some((current_id, _)) = queue.pop() {
+            // TODO should it still be called current distance? what do we want to name it?
+            // TODO Note: it is in practive always a travel disutility, because that's what we require in the request.
+            // However, it could be argued that distance is a good name because that's what is usually said in the context of A*
+            let current_distance = distances[current_id];
+
+            if current_distance == f64::INFINITY || current_distance == f64::NAN {
+                // TODO do we want this? Or is there a better way?
+                //The smallest value in queue was unreachable. So abort here.
+                return None;
+            }
+
+            if current_id == to_node {
+                return Some(LeastCostPath {
+                    path: Self::extract_link_path(to_node, parents, request.graph),
+                    travel_time: current_distance,
+                });
+            }
+
+            // let begin_index_adjacent_nodes = request.graph.forward_graph.first_out[current_id];
+            // let end_index_adjacent_nodes = request.graph.forward_graph.first_out[current_id + 1];
+
+            // for i in begin_index_adjacent_nodes..end_index_adjacent_nodes {
+            for i in request.graph.outgoing_edges_as_idx(current_id) {
+                //we need an update_or_insert + parent update here instead of push always.
+
+                // let neighbour = request.graph.forward_graph.head[i];
+                let neighbour = request.graph.get_end_node_as_idx(i);
+
+                if let Entry::Vacant(_) = queue.entry(neighbour) {
+                    continue;
+                }
+
+                let link_id_i = request.graph.get_link_id_from_idx(i);
+                let link_i = request.graph.edge(link_id_i);
+
+                // TODO is it correct to use the departure time from the request here? -> NO!
+                // or could it be later by now?
+                let neighbour_distance = current_distance
+                    + self.travel_disutility.travel_disutility(
+                        link_i,
+                        request.departure_time,
+                        request.person,
+                        request.vehicle,
+                    ); // (request.graph.forward_graph.travel_time[i] as f64);
+
+                if distances[neighbour] > neighbour_distance {
+                    //perform update
+                    distances[neighbour] = neighbour_distance;
+
+                    match queue.entry(neighbour) {
+                        Entry::Occupied(e) => {
+                            e.set_priority(NodePriority::new(
+                                neighbour_distance
+                                    + self.heuristic.estimate(
+                                        request.graph,
+                                        request.graph.get_node_id_from_idx(neighbour),
+                                        request.graph.get_node_id_from_idx(to_node),
+                                    ), // TODO remove when sure that not needed: &self.landmark_data),
+                            ));
+                        }
+                        Entry::Vacant(_) => {
+                            unreachable!()
+                        }
+                    }
+
+                    parents[neighbour] = Some(current_id);
+                }
+            }
+        }
+        // AltQueryResult::empty()
         None
     }
 }
 
 /// Heuristic that uses landmarks and triangle inequality to estimate
 struct AltHeuristic {
+    landmark_data: AltLandmarkData,
     // some internal state
 }
 
 impl AStarHeuristic for AltHeuristic {
-    fn estimate(&self, graph: &dyn Graph, from: Id<Link>, to: Id<Link>) -> Time {
-        todo!()
+    fn estimate(&self, graph: &dyn IntNodeGraph, from: Id<Node>, to: Id<Node>) -> Time {
+        /* The ALT algorithm uses two lower bounds for each Landmark:
+         * given: source node S, target node T, landmark L
+         * then, due to the triangle inequality:
+         *  1) ST + TL >= SL --> ST >= SL - TL (forward estimate)
+         *  2) LS + ST >= LT --> ST >= LT - LS (backward estimate)
+         * The algorithm is interested in the largest possible value of (SL-TL) and (LT-LS),
+         * as this gives the closest approximation for the minimal travel time required to
+         * go from S to T.
+         */
+        let from_idx = graph.get_node_idx_from_id(from);
+        let to_idx = graph.get_node_idx_from_id(to);
+
+        let mut h = 0;
+        for l in self.landmark_data.travel_times_to_all() {
+            let from_distance = l[from_idx]; // (SL,LS)
+            let to_distance = l[to_idx]; // (LT,TL)
+
+            let forward_estimate = from_distance.0 as i32 - to_distance.1 as i32;
+            let backward_estimate = to_distance.0 as i32 - from_distance.1 as i32;
+
+            h = h.max(forward_estimate.max(backward_estimate))
+        }
+        if h < 0 { 0 as Time } else { h as Time }
     }
 }
 
@@ -309,6 +553,70 @@ impl AltRouter {
             }
         }
         result.expect("No outgoing edge found!")
+    }
+
+    fn distance_one_2_many(
+        from: usize,
+        graph: &crate::simulation::replanning::routing::graph::RoutingGraph,
+    ) -> Vec<u32> {
+        let (mut queue, mut distances) = get_initial_queue(graph.first_out.len() - 1, from);
+
+        while let Some((current_id, current_distance)) = queue.pop() {
+            if current_distance.get() == u32::MAX {
+                //The smallest value in queue was unreachable. So abort here.
+                return distances;
+            }
+
+            let begin_index_adjacent_nodes = graph.first_out[current_id];
+            let end_index_adjacent_nodes = graph.first_out[current_id + 1];
+
+            for i in begin_index_adjacent_nodes..end_index_adjacent_nodes {
+                //we need an update_or_insert + parent update here instead of push always.
+                let neighbour = graph.head[i];
+
+                if let Entry::Vacant(_) = queue.entry(neighbour) {
+                    continue;
+                }
+
+                if queue.get_priority(&neighbour).unwrap().get()
+                    > current_distance.get() + graph.travel_time[i]
+                {
+                    //perform update
+                    match queue.entry(neighbour) {
+                        Entry::Occupied(e) => {
+                            e.set_priority(Distance(current_distance.get() + graph.travel_time[i]));
+                        }
+                        Entry::Vacant(_) => {
+                            unreachable!();
+                        }
+                    }
+                    //store in distance vec to return
+                    distances[neighbour] = current_distance.get() + graph.travel_time[i];
+                }
+            }
+        }
+        distances
+    }
+
+    pub fn get_initial_queue(
+        nodes: Vec<Id<Node>>, // : usize, TODO remove commented
+        from: Id<Node>,       // usize,
+    ) -> (KeyedPriorityQueue<Id<Node>, NodePriority>, Vec<u32>) {
+        let mut queue = KeyedPriorityQueue::new();
+        let mut distances = Vec::new();
+        for node in nodes {
+            // in 0..node_count {
+            let distance = if node == from {
+                //update start node
+                NodePriority(0)
+                // Distance(0)
+            } else {
+                Distance(u32::MAX)
+            };
+            distances.push(distance.0);
+            queue.push(node, distance);
+        }
+        (queue, distances)
     }
 }
 

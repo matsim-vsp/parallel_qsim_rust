@@ -5,7 +5,9 @@ use nohash_hasher::IntMap;
 use tracing::info;
 
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
+use crate::simulation::replanning::routing::graph::{
+    ForwardBackwardGraph, LinkIndex, NodeIndex, RoutingGraph,
+};
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::InternalVehicleType;
 
@@ -42,12 +44,17 @@ impl NetworkConverter {
             vehicle_type
         );
 
+        // TODO remove old commented-out things
         let mut forward_first_out = Vec::new();
-        let mut forward_head = Vec::new();
+        let mut forward_node_index_by_id = IntMap::default();
+        let mut forward_node_id_by_index = Vec::new();
+        let mut forward_head = Vec::new(); // TODO is this fixed
         let mut forward_travel_time = Vec::new();
         let mut forward_link_ids = Vec::new();
 
         let mut backward_first_out = Vec::new();
+        let mut backward_node_index_by_id = IntMap::default();
+        let mut backward_node_id_by_index = Vec::new();
         let mut backward_head = Vec::new();
         let mut backward_travel_time = Vec::new();
         let mut backward_link_ids = Vec::new();
@@ -65,13 +72,19 @@ impl NetworkConverter {
         let mut forward_links_before = 0;
         let mut backward_links_before = 0;
 
-        for node in nodes.iter() {
+        for (i, node) in nodes.iter().enumerate() {
             //set x and y
             y.push(node.x);
             x.push(node.y);
 
-            forward_first_out.push(forward_links_before);
-            backward_first_out.push(backward_links_before);
+            forward_first_out.push(forward_links_before as LinkIndex);
+            backward_first_out.push(backward_links_before as LinkIndex);
+
+            // keep track of which node id has which index in first_out
+            forward_node_index_by_id.insert(node.id.clone(), i as NodeIndex);
+            forward_node_id_by_index.push(node.id.clone());
+            backward_node_index_by_id.insert(node.id.clone(), i as NodeIndex);
+            backward_node_id_by_index.push(node.id.clone());
 
             //calculate adjacent links
             let outgoing_links = Self::get_links(&node.out_links, network, vehicle_type);
@@ -82,7 +95,7 @@ impl NetworkConverter {
 
             //process outgoing links
             for link in outgoing_links {
-                let to_node_index = *node_indices.get(&link.to).unwrap();
+                let to_node_index = *node_indices.get(&link.to).unwrap() as NodeIndex;
 
                 forward_head.push(to_node_index);
 
@@ -93,13 +106,13 @@ impl NetworkConverter {
                 };
                 forward_travel_time.push((link.length / max_speed as f64) as u32);
 
-                forward_link_ids.push(link.id.internal());
+                forward_link_ids.push(link.id.clone());
             }
 
             //process ingoing links
             for link in ingoing_links {
                 //Watch out: This is in the backward graph
-                let to_node_index = *node_indices.get(&link.from).unwrap();
+                let to_node_index = *node_indices.get(&link.from).unwrap() as NodeIndex;
 
                 backward_head.push(to_node_index);
 
@@ -110,25 +123,27 @@ impl NetworkConverter {
                 };
                 backward_travel_time.push((link.length / max_speed as f64) as u32);
 
-                backward_link_ids.push(link.id.internal());
+                backward_link_ids.push(link.id.clone());
             }
         }
-        forward_first_out.push(forward_head.len());
-        backward_first_out.push(backward_head.len());
+        forward_first_out.push(forward_head.len() as LinkIndex);
+        backward_first_out.push(backward_head.len() as LinkIndex);
 
         let forward_link_id_pos = forward_link_ids
             .iter()
             .enumerate()
-            .map(|(i, id)| (*id, i))
+            .map(|(i, id)| (id.clone(), i as LinkIndex))
             .collect::<HashMap<_, _>>();
         let backward_link_id_pos = backward_link_ids
             .iter()
             .enumerate()
-            .map(|(i, id)| (*id, i))
+            .map(|(i, id)| (id.clone(), i as LinkIndex))
             .collect::<HashMap<_, _>>();
 
-        let forward_graph = Graph {
+        let forward_graph = RoutingGraph {
             first_out: forward_first_out,
+            node_index_by_id: forward_node_index_by_id,
+            node_id_by_index: forward_node_id_by_index,
             head: forward_head,
             travel_time: forward_travel_time,
             link_ids: forward_link_ids,
@@ -137,8 +152,10 @@ impl NetworkConverter {
             link_id_pos: forward_link_id_pos,
         };
 
-        let backward_graph = Graph {
+        let backward_graph = RoutingGraph {
             first_out: backward_first_out,
+            node_index_by_id: backward_node_index_by_id,
+            node_id_by_index: backward_node_id_by_index,
             head: backward_head,
             travel_time: backward_travel_time,
             link_ids: backward_link_ids,
@@ -152,7 +169,12 @@ impl NetworkConverter {
             vehicle_type
         );
 
-        ForwardBackwardGraph::new(forward_graph, backward_graph)
+        ForwardBackwardGraph::new(
+            forward_graph,
+            backward_graph,
+            network.nodes_with_ids().clone(),
+            network.links_with_ids().clone(),
+        )
     }
 
     fn get_links<'net>(
@@ -177,6 +199,7 @@ impl NetworkConverter {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
     use std::path::PathBuf;
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};

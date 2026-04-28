@@ -20,7 +20,7 @@ pub struct Network {
     effective_cell_size: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     pub x: f64,
     pub y: f64,
@@ -31,7 +31,7 @@ pub struct Node {
     pub cmp_weight: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Link {
     pub id: Id<Link>,
     pub from: Id<Node>,
@@ -237,6 +237,14 @@ impl Network {
 
     pub fn links(&self) -> Vec<&Link> {
         self.links.values().collect::<Vec<&Link>>()
+    }
+
+    pub fn nodes_with_ids(&self) -> &IntMap<Id<Node>, Node> {
+        &self.nodes
+    }
+
+    pub fn links_with_ids(&self) -> &IntMap<Id<Link>, Link> {
+        &self.links
     }
 }
 

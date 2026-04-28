@@ -1,9 +1,24 @@
+use crate::simulation::id::Id;
+use crate::simulation::replanning::routing::alt_router::{
+    AStarHeuristic, AStarRouter, ZeroHeuristic,
+};
+use crate::simulation::replanning::routing::dijsktra::{Dijkstra, DijkstraActions, Distance};
+use crate::simulation::replanning::routing::graph::{
+    ForwardBackwardGraph, NodeIndex, RoutingGraph,
+};
+use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    IntNodeGraph, TravelDisutility,
+};
+use crate::simulation::replanning::routing::least_cost_path_caluclator::{Time, TravelTime};
+use crate::simulation::scenario::network::Node;
+use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::InternalVehicle;
+use itertools::Itertools;
+use keyed_priority_queue::Entry;
 use rand::SeedableRng;
 use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
-
-use crate::simulation::replanning::routing::dijsktra::Dijkstra;
-use crate::simulation::replanning::routing::graph::ForwardBackwardGraph;
+use std::f64;
 
 pub type ForwardBackwardTravelTime = (u32, u32);
 
@@ -13,6 +28,28 @@ const DEFAULT_NUMBER_OF_LANDMARKS: usize = 16;
 pub struct AltLandmarkData {
     landmarks: Vec<usize>,
     travel_times_to_all: Vec<Vec<ForwardBackwardTravelTime>>,
+}
+
+pub struct DistanceToAllRequest<'r, G: IntNodeGraph + ?Sized> {
+    pub from: Id<Node>,
+    pub graph: &'r G, // contains the graph of the network
+    pub departure_time: Time,
+    pub person: Option<&'r InternalPerson>,
+    pub vehicle: Option<&'r InternalVehicle>,
+    pub travel_time: Box<dyn TravelTime>, // TODO should this be travel disutility?
+    pub backward: bool, // if true, calculates distance from all other nodes to the "from"-node
+}
+
+pub(crate) struct DistanceToManyOptions {}
+
+impl DijkstraActions for DistanceToManyOptions {
+    fn get_parents_opt(&self) -> Option<Vec<Option<NodeIndex>>> {
+        None
+    }
+    fn set_parent_opt(&mut self, _child: NodeIndex, _parent: NodeIndex) {}
+    fn reached_end(&self, _current_node: NodeIndex) -> bool {
+        false
+    }
 }
 
 impl AltLandmarkData {
@@ -47,12 +84,90 @@ impl AltLandmarkData {
         landmarks
             .iter()
             .map(|l| {
-                Dijkstra::distance_one_2_many(*l, &graph.forward_graph)
+                distance_one_2_many(*l, &graph.forward_graph, false)
                     .into_iter()
-                    .zip(Dijkstra::distance_one_2_many(*l, &graph.backward_graph))
+                    .zip(distance_one_2_many(*l, &graph.backward_graph, true))
                     .collect::<Vec<ForwardBackwardTravelTime>>()
             })
             .collect()
+    }
+
+    /// Calculates the distance from one node to all other nodes in the graph using Dijkstra
+    /// Uses the shared dijkstra_main_loop core with travel_time cost function
+    fn distance_one_2_many<G: IntNodeGraph>(
+        //from: NodeIndex, graph: impl IntNodeGraph, travel_time: Box<dyn TravelTime>, backward: bool
+        request: DistanceToAllRequest<G>,
+    ) -> Vec<f64> {
+        let (distances, _) = Dijkstra::dijkstra_core(
+            ZeroHeuristic {},
+            request.travel_time,
+            request.from,
+            None,
+            request.graph,
+            DistanceToManyOptions {},
+            request.departure_time,
+            request.person,
+            request.vehicle,
+        );
+        //
+        // // TODO should we use travel time or travel disutility?
+        //
+        // // TODO maybe don't merge the code with calc_route. Since it is tracking parents, the logic
+        // // is different. The benefit might be small, and the code less readable, if we force them
+        // // to use the same core function.
+        // // But think about if there is some part that could be merged.
+        // let from_idx = request.graph.get_node_idx_from_id(request.from);
+        //
+        // let (mut queue, mut distances) =
+        //     AStarRouter::get_initial_queue(request.graph.num_nodes(), from_idx);
+        //
+        // while let Some((current_id, current_distance)) = queue.pop() {
+        //     if current_distance.get() == f64::INFINITY || current_distance.get() == f64::NAN {
+        //         //The smallest value in queue was unreachable. So abort here.
+        //         return distances;
+        //     }
+        //
+        //     // let begin_index_adjacent_nodes = graph.first_out[current_id];
+        //     // let end_index_adjacent_nodes = graph.first_out[current_id + 1];
+        //
+        //     for i in request.graph.outgoing_edges_as_idx(current_id) {
+        //         //we need an update_or_insert + parent update here instead of push always.
+        //         let neighbour = request.graph.get_end_node_as_idx(i);
+        //
+        //         if let Entry::Vacant(_) = queue.entry(neighbour) {
+        //             continue;
+        //         }
+        //
+        //         // let link_id_i = graph.get_link_id_from_idx(i);
+        //         // let link_i = graph.edge(link_id_i);
+        //
+        //         let link_i = request.graph.get_link_from_idx(i);
+        //
+        //         let travel_time_i = request.travel_time.travel_time(
+        //             link_i,
+        //             request.departure_time,
+        //             request.person,
+        //             request.vehicle,
+        //         );
+        //
+        //         if queue.get_priority(&neighbour).unwrap().get()
+        //             > current_distance.get() + travel_time_i
+        //         {
+        //             //perform update
+        //             match queue.entry(neighbour) {
+        //                 Entry::Occupied(e) => {
+        //                     e.set_priority(Distance(current_distance.get() + travel_time_i));
+        //                 }
+        //                 Entry::Vacant(_) => {
+        //                     unreachable!();
+        //                 }
+        //             }
+        //             //store in distance vec to return
+        //             distances[neighbour] = current_distance.get() + travel_time_i;
+        //         }
+        //     }
+        // }
+        distances
     }
 }
 
