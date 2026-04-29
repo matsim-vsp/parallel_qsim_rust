@@ -30,7 +30,7 @@ impl BackpackingDataCollector {
     }
 
     fn add_special_scoring_event(&mut self, person: &Id<InternalPerson>, event: Box<dyn EventTrait>) {
-        println!("Partition #{}: Adding special scoring event for id {}", self.partition, person);
+        // println!("Partition #{}: Adding special scoring event for id {}", self.partition, person);
 
         self.person_id2backpack
             .get_mut(person)
@@ -40,7 +40,7 @@ impl BackpackingDataCollector {
 
     pub fn add_arriving_passengers(&mut self, arriving_passengers: HashMap<Id<InternalPerson>, Backpack>){
         for k in arriving_passengers.keys(){
-            println!("Partition #{}: Adding arriving passenger {}", self.partition, k);
+            // println!("Partition #{}: Adding arriving passenger {}", self.partition, k);
         }
         self.person_id2backpack.extend(arriving_passengers);
     }
