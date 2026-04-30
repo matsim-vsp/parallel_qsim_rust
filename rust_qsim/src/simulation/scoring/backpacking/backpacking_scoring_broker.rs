@@ -1,56 +1,117 @@
-use std::collections::{HashMap};
+use std::cell::RefCell;
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{Receiver, Sender};
+use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
-use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
+use crate::simulation::scoring::{InternalScoringMessage, Message};
 
-pub struct BackpackingMessageBroker<C>
-where
-    C: SimCommunicator + Send
+pub struct BackpackingMessageBroker
 {
-    communicator: Arc<Mutex<C>>,
+    receiver: Receiver<InternalScoringMessage>,
+    senders: Vec<Sender<InternalScoringMessage>>,
+    rank: u32,
+
     data_collector: Arc<Mutex<BackpackingDataCollector>>,
 }
 
-impl<C> BackpackingMessageBroker<C>
-where
-    C: SimCommunicator + Send + 'static,
+impl BackpackingMessageBroker
 {
-    pub fn new(communicator: Arc<Mutex<C>>, data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Arc<Mutex<Self>> {
-        let ret = Arc::new(Mutex::new(Self {
-            communicator: communicator.clone(),
-            data_collector: Arc::clone(&data_collector)
+    pub fn new(
+        events_manager: Rc<RefCell<MobsimEventsManager>>,
+        receiver: Receiver<InternalScoringMessage>,
+        senders: Vec<Sender<InternalScoringMessage>>,
+        rank: u32,
+        data_collector: Arc<Mutex<BackpackingDataCollector>>
+    ) -> Arc<Mutex<Self>> {
+        let message_broker = Arc::new(Mutex::new(Self {
+            receiver,
+            senders,
+            rank,
+            data_collector
         }));
-
-        ret.lock().unwrap().communicator.lock().unwrap().register_send_callback(Box::new(move |agent_map: HashMap<u32, Vec<Id<InternalPerson>>>| -> HashMap<u32, BackpackingMessage> {
-            let mut scoring_msg: HashMap<u32, BackpackingMessage> = HashMap::default();
-
-            for (k, v) in agent_map.iter() {
-                scoring_msg.insert(*k, BackpackingMessage::new(data_collector.lock().unwrap().remove_leaving_passengers(v.clone())));
-            }
-
-            scoring_msg
-        }));
-
-        let data_collector_cb= ret.lock().unwrap().data_collector.clone();
-
-        ret.lock().unwrap().communicator.lock().unwrap().register_recv_callback(Box::new(move |msg| {
-            data_collector_cb.lock().unwrap().add_arriving_passengers(msg.payload)
-        }));
-
-        ret
+        Self::register_fn(Arc::clone(&message_broker))(&mut *events_manager.borrow_mut());
+        message_broker
     }
 
+    fn register_fn(scoring_broker: Arc<Mutex<BackpackingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
+        Box::new(move |events: &mut MobsimEventsManager| {
+            let bsb = Arc::clone(&scoring_broker);
+            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
+                match e.payload {
+                    MobsimEvent::AfterSimStep(_) => {
+                        bsb.lock().unwrap().recv();
+                    }
+                    _ => {}
+                }
+            });
+        })
+    }
+
+    pub(crate) fn send_leaving_vehicle(&mut self, target: u32, vehicle_id: Id<InternalVehicle>, passengers: HashSet<Id<InternalPerson>>) {
+        let msg = InternalScoringMessage {
+            from_process: self.rank,
+            to_process: target,
+            message: Box::new(VehicleMessage { vehicle_id, passengers }),
+        };
+        let sender = self.senders.get_mut(target as usize).unwrap();
+        sender.send(msg)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Error while sending message to rank {} with error {}",
+                    target, e
+                )
+            });
+    }
+
+    pub(crate) fn send_leaving_backpacks(&mut self, target: u32, backpacks: HashMap<Id<InternalPerson>, Backpack>) {
+        let msg = InternalScoringMessage {
+            from_process: self.rank,
+            to_process: target,
+            message: Box::new(BackpackingMessage { backpacks }),
+        };
+        let sender = self.senders.get_mut(target as usize).unwrap();
+        sender.send(msg)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Error while sending message to rank {} with error {}",
+                    target, e
+                )
+            });
+    }
+
+    fn recv(&mut self) {
+        while let Ok(received_msg) = self.receiver.try_recv() {
+            let boxed_any = received_msg.message.into_any();
+
+            match () {
+                _ if boxed_any.is::<BackpackingMessage>() => {
+                    let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
+                    self.data_collector.lock().unwrap().add_arriving_backpacks(m.backpacks);
+                }
+                _ if boxed_any.is::<VehicleMessage>() => {
+                    let m = boxed_any.downcast::<VehicleMessage>().unwrap();
+                    self.data_collector.lock().unwrap().add_arriving_vehicle(m.vehicle_id, m.passengers);
+                }
+                _ => {
+                    panic!("Received unknown message type!");
+                }
+
+            }
+        }
+    }
 }
 
 pub struct BackpackingMessage {
-    payload: HashMap<Id<InternalPerson>, Backpack>
+    backpacks: HashMap<Id<InternalPerson>, Backpack>
 }
 
-impl BackpackingMessage {
-    pub fn new(payload: HashMap<Id<InternalPerson>, Backpack>) -> Self {
-        Self { payload }
-    }
+pub struct VehicleMessage {
+    vehicle_id: Id<InternalVehicle>,
+    passengers: HashSet<Id<InternalPerson>>
 }
