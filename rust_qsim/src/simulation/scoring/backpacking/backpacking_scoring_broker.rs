@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::rc::{Rc};
+use std::sync::{Arc, Mutex, Weak};
 use std::sync::mpsc::{Receiver, Sender};
 use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
@@ -17,26 +17,27 @@ pub struct BackpackingMessageBroker
     senders: Vec<Sender<InternalScoringMessage>>,
     rank: u32,
 
-    data_collector: Arc<Mutex<BackpackingDataCollector>>,
+    data_collector: Weak<Mutex<BackpackingDataCollector>>,
 }
 
 impl BackpackingMessageBroker
 {
-    pub fn new(
-        events_manager: Rc<RefCell<MobsimEventsManager>>,
+    pub(crate) fn new(
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
         rank: u32,
-        data_collector: Arc<Mutex<BackpackingDataCollector>>
     ) -> Arc<Mutex<Self>> {
-        let message_broker = Arc::new(Mutex::new(Self {
+        Arc::new(Mutex::new(Self {
             receiver,
             senders,
             rank,
-            data_collector
-        }));
-        Self::register_fn(Arc::clone(&message_broker))(&mut *events_manager.borrow_mut());
-        message_broker
+            data_collector: Weak::new()
+        }))
+    }
+
+    pub(crate) fn finish(message_broker: &Arc<Mutex<Self>>, mobsim_events_manager: Rc<RefCell<MobsimEventsManager>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){
+        message_broker.lock().unwrap().data_collector = data_collector;
+        Self::register_fn(Arc::clone(message_broker))(&mut *mobsim_events_manager.borrow_mut());
     }
 
     fn register_fn(scoring_broker: Arc<Mutex<BackpackingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
@@ -92,11 +93,11 @@ impl BackpackingMessageBroker
             match () {
                 _ if boxed_any.is::<BackpackingMessage>() => {
                     let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
-                    self.data_collector.lock().unwrap().add_arriving_backpacks(m.backpacks);
+                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_backpacks(m.backpacks);
                 }
                 _ if boxed_any.is::<VehicleMessage>() => {
                     let m = boxed_any.downcast::<VehicleMessage>().unwrap();
-                    self.data_collector.lock().unwrap().add_arriving_vehicle(m.vehicle_id, m.passengers);
+                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_vehicle(m.vehicle_id, m.passengers);
                 }
                 _ => {
                     panic!("Received unknown message type!");

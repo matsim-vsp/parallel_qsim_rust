@@ -23,14 +23,13 @@ impl BackpackingDataCollector {
     pub fn new(
         population: &Population,
         events_manager: Rc<RefCell<EventsManager>>,
-        person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
         link_id2target_partition: HashMap<Id<Link>, u32>,
         rank: u32,
         message_broker: Arc<Mutex<BackpackingMessageBroker>>
     ) -> Arc<Mutex<Self>>
     {
         let data_collector = Arc::new(Mutex::new(Self {
-            person_id2backpack,
+            person_id2backpack: Default::default(),
             vehicle_id2person_ids: Default::default(),
             link_id2target_partition,
             rank,

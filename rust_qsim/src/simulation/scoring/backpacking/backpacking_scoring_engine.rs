@@ -1,40 +1,51 @@
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::collections::HashMap;
+use std::rc::{Rc};
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{Receiver, Sender};
 use crate::simulation::events::EventsManager;
-use crate::simulation::messaging::sim_communication::SimCommunicator;
+use crate::simulation::framework_events::MobsimEventsManager;
+use crate::simulation::id::Id;
+use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
 use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessageBroker;
-use crate::simulation::scoring::ScoringEngine;
+use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
 
-pub struct BackpackingScoringEngine<C>
-where
-    C: SimCommunicator + Send
+pub struct BackpackingScoringEngine
 {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
-    backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker<C>>>
+    backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker>>
 }
 
-impl<C> BackpackingScoringEngine<C>
-where
-    C: SimCommunicator + Send + 'static
+impl BackpackingScoringEngine
 {
-    pub fn new(partition: u32, population: &Population, communicator: Arc<Mutex<C>>, events_manager: Rc<RefCell<EventsManager>>) -> Self {
-        let backpacking_data_collector = BackpackingDataCollector::new(partition, population, events_manager);
-        
+    pub fn new(rank: u32,
+               population: &Population,
+               events_manager: Rc<RefCell<EventsManager>>,
+               mobsim_events_manager: Rc<RefCell<MobsimEventsManager>>,
+               link_id2target_partition: HashMap<Id<Link>, u32>,
+               receiver: Receiver<InternalScoringMessage>,
+               senders: Vec<Sender<InternalScoringMessage>>,
+    ) -> Self {
+        let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, rank);
+        let backpacking_data_collector = BackpackingDataCollector::new(population, events_manager, link_id2target_partition, rank, Arc::clone(&backpacking_message_broker));
+        BackpackingMessageBroker::finish(&backpacking_message_broker, mobsim_events_manager, Arc::downgrade(&backpacking_data_collector));
+
         Self {
-            backpacking_data_collector: Arc::clone(&backpacking_data_collector),
-            backpacking_message_broker: BackpackingMessageBroker::new(communicator, Arc::clone(&backpacking_data_collector))
+            backpacking_data_collector,
+            backpacking_message_broker
         }
     }
 }
 
-impl<'a, C> ScoringEngine<C> for BackpackingScoringEngine<C>
-where
-    C: SimCommunicator + Send
+impl ScoringEngine for BackpackingScoringEngine
 {
+    fn create_for_n_partitions(n: u32) {
+
+    }
+
     fn scoring(&self) {
-        // TODO
+        todo!()
     }
 }
