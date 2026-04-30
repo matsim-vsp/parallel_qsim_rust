@@ -162,12 +162,8 @@ fn execute_partition<C: SimCommunicator + Send + 'static>(partition_arguments: P
 
     let events = create_events(&partition.config, rank, subscribers);
 
-    let arc_comm = Arc::new(Mutex::new(comm));
-
-    let scoring_broker = BackpackingScoringEngine::new(rank, &partition.population, Arc::clone(&arc_comm), events.clone());
-
     let net_message_broker = NetMessageBroker::new(
-        Arc::clone(&arc_comm),
+        Rc::new(comm),
         &partition.network,
         &partition.network_partition,
         partition.config.computational_setup().global_sync,

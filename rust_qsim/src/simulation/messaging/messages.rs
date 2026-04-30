@@ -1,12 +1,10 @@
 use std::cmp::Ordering;
 use crate::simulation::network::sim_network::StorageUpdate;
-use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessage;
 use crate::simulation::vehicles::SimulationVehicle;
 
 pub enum InternalSimMessage {
     Sync(InternalSyncMessage),
     Barrier,
-    Backpacking(BackpackingMessage),
 }
 
 #[derive(Debug)]
@@ -19,14 +17,7 @@ pub struct InternalSyncMessage {
 }
 
 impl InternalSimMessage {
-
-    pub fn is_sync_message(&self) -> bool {
-        match self {
-            InternalSimMessage::Sync(_) => true,
-            _ => false,
-        }
-    }
-
+    
     pub fn sync_message(self) -> InternalSyncMessage {
         match self {
             InternalSimMessage::Sync(m) => m,
@@ -34,21 +25,9 @@ impl InternalSimMessage {
         }
     }
 
-    pub fn backpacking_message(self) -> BackpackingMessage {
-        match self {
-            InternalSimMessage::Backpacking(m) => m,
-            _ => panic!("That message is no backpacking message."),
-        }
-    }
-
     pub fn from_sync_message(m: InternalSyncMessage) -> InternalSimMessage {
         InternalSimMessage::Sync(m)
     }
-
-    pub fn from_backpacking_message(m: BackpackingMessage) -> InternalSimMessage {
-        InternalSimMessage::Backpacking(m)
-    }
-
     pub fn barrier() -> InternalSimMessage {
         InternalSimMessage::Barrier
     }

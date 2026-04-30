@@ -2,12 +2,8 @@ use crate::simulation::messaging::messages::{InternalSimMessage, InternalSyncMes
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Barrier};
 use tracing::info;
-use crate::simulation::id::Id;
-use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessage;
-use crate::simulation::time_queue::Identifiable;
 
 pub struct DummySimCommunicator();
 
@@ -16,8 +12,6 @@ pub struct ChannelSimCommunicator {
     senders: Vec<Sender<InternalSimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
-    send_callback: Mutex<Option<Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>>>,
-    recv_callback: Mutex<Option<Box<dyn Fn(BackpackingMessage) + Send>>>
 }
 
 impl SimCommunicator for DummySimCommunicator {
@@ -39,12 +33,6 @@ impl SimCommunicator for DummySimCommunicator {
     fn rank(&self) -> u32 {
         0
     }
-
-    fn extract_leaving_agents(_vehicles: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>> {HashMap::default()}
-
-    fn register_send_callback(&self, _f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>) {}
-
-    fn register_recv_callback(&self, _f: Box<dyn Fn(BackpackingMessage) + Send>) {}
 }
 
 impl SimCommunicator for ChannelSimCommunicator {
@@ -57,25 +45,6 @@ impl SimCommunicator for ChannelSimCommunicator {
     ) where
         F: FnMut(InternalSyncMessage),
     {
-        let scoring_msg = if let Some(callback) = self.send_callback.lock().unwrap().as_ref() {
-             callback(Self::extract_leaving_agents(&vehicles))
-        } else {
-            HashMap::default()
-        };
-
-        // send scoring messages to everyone
-        for(target, msg) in scoring_msg {
-            let sender = self.senders.get(target as usize).unwrap();
-            sender
-                .send(InternalSimMessage::from_backpacking_message(msg))
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Error while sending message to rank {} with error {}",
-                        target, e
-                    )
-                });
-        }
-
         // send messages to everyone
         for (target, msg) in vehicles {
             let sender = self.senders.get(target as usize).unwrap();
@@ -91,32 +60,23 @@ impl SimCommunicator for ChannelSimCommunicator {
 
         // receive messages from everyone
         while !expected_vehicle_messages.is_empty() {
-            let internal_msg = self
+            let received_msg = self
                 .receiver
                 .recv()
-                .expect("Error while receiving messages");
+                .expect("Error while receiving messages")
+                .sync_message();
 
-            if internal_msg.is_sync_message() {
-                let received_msg = internal_msg.sync_message();
-                let from_rank = received_msg.from_process();
+            let from_rank = received_msg.from_process();
 
-                // If a message was received from a neighbor partition for this very time step, remove
-                // that partition from expected messages which indicates which partitions we are waiting
-                // for
-                if received_msg.time() == now {
-                    expected_vehicle_messages.remove(&from_rank);
-                }
-
-                // publish the received message to the message broker
-                on_msg(received_msg);
-            } else {
-                // scoring message arrived, pass it to the callback
-                let received_msg = internal_msg.backpacking_message();
-
-                if let Some(callback) = self.recv_callback.lock().unwrap().as_ref() {
-                    callback(received_msg);
-                }
+            // If a message was received from a neighbor partition for this very time step, remove
+            // that partition from expected messages which indicates which partitions we are waiting
+            // for
+            if received_msg.time() == now {
+                expected_vehicle_messages.remove(&from_rank);
             }
+
+            // publish the received message to the message broker
+            on_msg(received_msg);
         }
     }
 
@@ -126,46 +86,6 @@ impl SimCommunicator for ChannelSimCommunicator {
 
     fn rank(&self) -> u32 {
         self.rank
-    }
-
-    fn extract_leaving_agents(vehicles_msg: &HashMap<u32, InternalSyncMessage>) -> HashMap<u32, Vec<Id<InternalPerson>>>{
-        let mut agents: HashMap<u32, Vec<Id<InternalPerson>>> = HashMap::default();
-
-
-        for (k, v) in vehicles_msg.iter() {
-            let mut passengers: Vec<Id<InternalPerson>> = v.vehicles()
-                .iter()
-                .flat_map(|v| v.passengers.iter().map(|p| p.id().clone()))
-                .collect();
-
-            let mut drivers = v.vehicles()
-                .iter()
-                .filter_map(|v| v.driver.as_ref().map(|d| d.id().clone()))
-                .collect();
-
-            passengers.append(&mut drivers);
-            agents.insert(*k, passengers);
-        }
-
-        agents
-    }
-
-    fn register_send_callback(&self, f: Box<dyn Fn(HashMap<u32, Vec<Id<InternalPerson>>>) -> HashMap<u32, BackpackingMessage> + Send>)
-    {
-        let mut guard = self.send_callback.lock().unwrap();
-        if guard.is_some() {
-            panic!("Send callback already registered for this channel.");
-        }
-        *guard = Some(f)
-    }
-
-    fn register_recv_callback(&self, f: Box<dyn Fn(BackpackingMessage) + Send>)
-    {
-        let mut guard = self.recv_callback.lock().unwrap();
-        if guard.is_some() {
-            panic!("Send callback already registered for this channel.");
-        }
-        *guard = Some(f)
     }
 }
 
@@ -182,8 +102,6 @@ impl ChannelSimCommunicator {
                 senders: vec![],
                 rank,
                 barrier: barrier.clone(),
-                send_callback: Mutex::new(None),
-                recv_callback: Mutex::new(None)
             };
             senders.push(sender);
             comms.push(comm);

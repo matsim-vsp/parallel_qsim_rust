@@ -5,13 +5,13 @@ use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
 pub struct NetMessageBroker<C>
 where
     C: SimCommunicator,
 {
-    communicator: Arc<Mutex<C>>,
+    communicator: Rc<C>,
     out_messages: HashMap<u32, InternalSyncMessage>,
     in_messages: BinaryHeap<InternalSyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
@@ -26,7 +26,7 @@ where
     C: SimCommunicator,
 {
     pub fn new(
-        comm: Arc<Mutex<C>>,
+        comm: Rc<C>,
         global_network: &Network,
         net: &SimNetworkPartition,
         global_sync: bool,
@@ -49,7 +49,7 @@ where
     }
 
     pub fn rank(&self) -> u32 {
-        self.communicator.lock().unwrap().rank()
+        self.communicator.rank()
     }
 
     pub fn rank_for_link(&self, link_id: &Id<Link>) -> u32 {
@@ -99,10 +99,10 @@ where
         // With external functionality like a DRT service, this makes it much easier to produce deterministic results.
         // However, it also means that the simulation will be slower.
         if self.global_sync {
-            comm_ref.lock().unwrap().barrier();
+            comm_ref.barrier();
         }
 
-        comm_ref.lock().unwrap().send_receive_vehicles(vehicles, &mut expected_vehicle_messages, now, |msg| {
+        comm_ref.send_receive_vehicles(vehicles, &mut expected_vehicle_messages, now, |msg| {
             Self::handle_incoming_msg(msg, &mut result, in_msgs_ref, now)
         });
 
@@ -155,7 +155,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::messaging::sim_communication::message_broker::Mutex;
     use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
     use crate::simulation::config;
     use crate::simulation::id::Id;
@@ -167,6 +166,7 @@ mod tests {
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils::create_agent;
     use macros::integration_test;
+    use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
@@ -372,7 +372,7 @@ mod tests {
             assert_eq!(partition.get_link_ids().len(), 1);
         }
 
-        NetMessageBroker::new(Arc::new(Mutex::new(communicator)), &create_network(), &partition, false)
+        NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false)
     }
 
     #[integration_test]
