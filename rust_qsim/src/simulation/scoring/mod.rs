@@ -1,4 +1,6 @@
 use std::any::{Any, TypeId};
+use crate::simulation::events::EventHandlerRegisterFn;
+use crate::simulation::framework_events::MobsimListenerRegisterFn;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 
 pub mod backpacking;
@@ -6,7 +8,7 @@ pub mod backpacking;
 /// A scoring engine contains a DataCollector and MessageBroker for respective implementation.
 pub trait ScoringEngine
 {
-    fn create_for_n_partitions(n: u32);
+    fn create_for_n_partitions(n: u32) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>);
     fn scoring(&self);
 }
 

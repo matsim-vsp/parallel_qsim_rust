@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent};
 use crate::simulation::id::Id;
@@ -13,7 +12,7 @@ use crate::simulation::scoring::backpacking::backpacking_scoring_broker::Backpac
 pub struct BackpackingDataCollector {
     person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
     vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
-    link_id2target_partition: HashMap<Id<Link>, u32>,
+    cut_link_id2target_partition: HashMap<Id<Link>, u32>,
     rank: u32,
 
     message_broker: Arc<Mutex<BackpackingMessageBroker>>,
@@ -22,8 +21,7 @@ pub struct BackpackingDataCollector {
 impl BackpackingDataCollector {
     pub fn new(
         population: &Population,
-        events_manager: Rc<RefCell<EventsManager>>,
-        link_id2target_partition: HashMap<Id<Link>, u32>,
+        cut_link_id2target_partition: HashMap<Id<Link>, u32>,
         rank: u32,
         message_broker: Arc<Mutex<BackpackingMessageBroker>>
     ) -> Arc<Mutex<Self>>
@@ -31,12 +29,11 @@ impl BackpackingDataCollector {
         let data_collector = Arc::new(Mutex::new(Self {
             person_id2backpack: Default::default(),
             vehicle_id2person_ids: Default::default(),
-            link_id2target_partition,
+            cut_link_id2target_partition,
             rank,
             message_broker
         }));
         data_collector.lock().unwrap().generate_backpacks_for_population(&population);
-        Self::register_fn(Arc::clone(&data_collector))(&mut *events_manager.borrow_mut());
         data_collector
     }
 
@@ -54,7 +51,7 @@ impl BackpackingDataCollector {
             .unwrap()
             .add_special_scoring_event(event);
     }
-    
+
     pub(crate) fn add_arriving_vehicle(&mut self, vehicle_id: Id<InternalVehicle>, arriving_passengers: HashSet<Id<InternalPerson>>) {
         self.vehicle_id2person_ids.insert(vehicle_id, arriving_passengers);
     }
@@ -87,7 +84,7 @@ impl BackpackingDataCollector {
         &self.person_id2backpack
     }
 
-    fn register_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<EventHandlerRegisterFn> {
+    pub(crate) fn register_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             let bdc1 = Arc::clone(&data_collector);
             events.on::<ActivityStartEvent, _>(move |e: &ActivityStartEvent| {
@@ -101,7 +98,8 @@ impl BackpackingDataCollector {
 
             let bdc3 = Arc::clone(&data_collector);
             events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                if bdc3.lock().unwrap().vehicle_id2person_ids.get(&e.vehicle).is_none() {
+                // println!("Person {} enters vehicle {}", e.person.clone(), e.vehicle.clone());
+                if !bdc3.lock().unwrap().vehicle_id2person_ids.contains_key(&e.vehicle) {
                     bdc3.lock().unwrap().vehicle_id2person_ids.insert(e.vehicle.clone(), HashSet::new());
                 }
                 bdc3.lock().unwrap().vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().insert(e.person.clone());
@@ -109,14 +107,15 @@ impl BackpackingDataCollector {
 
             let bdc4 = Arc::clone(&data_collector);
             events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
+                // println!("Person {} leaves vehicle {}", e.person.clone(), e.vehicle.clone());
                 bdc4.lock().unwrap().vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().remove(&e.person);
             });
 
             let bdc5 = Arc::clone(&data_collector);
             events.on::<LinkEnterEvent, _>(move |e: &LinkEnterEvent| {
-                let target_rank = *bdc5.lock().unwrap().link_id2target_partition.get(&e.link).unwrap();
-                
-                if target_rank != bdc5.lock().unwrap().rank {
+                if bdc5.lock().unwrap().cut_link_id2target_partition.contains_key(&e.link) {
+                    let target_rank = *bdc5.lock().unwrap().cut_link_id2target_partition.get(&e.link).unwrap();
+
                     let leaving_vehicle = bdc5.lock().unwrap().remove_leaving_vehicle(&e.vehicle);
                     let leaving_backpacks = bdc5.lock().unwrap().remove_leaving_backpacks(&leaving_vehicle);
 

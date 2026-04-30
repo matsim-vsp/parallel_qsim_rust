@@ -23,6 +23,7 @@ use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::{fs, mem, thread};
 use tracing::info;
+use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
 
 #[derive(Debug)]
 pub enum Scenario {
@@ -181,10 +182,6 @@ impl Controller {
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(true));
 
-        self.controller_events_manager
-            .process_event(ControllerEvent::scoring(true));
-
-        // TODO something like self.scoring.scoring();
 
         self.controller_events_manager
             .process_event(ControllerEvent::iteration_ends(true));
@@ -227,6 +224,20 @@ impl Controller {
             num_parts
         );
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
+
+        let (scoring_event_fn, scoring_mobsim_fn) = BackpackingScoringEngine::create_for_n_partitions(num_parts, &partitions);
+        for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
+            if !self.event_handler_per_partition.contains_key(&(i as u32)) {
+                self.event_handler_per_partition.insert(i as u32, Vec::new());
+            }
+            self.event_handler_per_partition.get_mut(&(i as u32)).unwrap().push(e_fn);
+        }
+        for (i, m_fn) in scoring_mobsim_fn.into_iter().enumerate() {
+            if !self.mobsim_event_listener_per_partition.contains_key(&(i as u32)) {
+                self.mobsim_event_listener_per_partition.insert(i as u32, Vec::new());
+            }
+            self.mobsim_event_listener_per_partition.get_mut(&(i as u32)).unwrap().push(m_fn);
+        }
 
         let handles: IntMap<u32, JoinHandle<()>> = comms
             .into_iter()

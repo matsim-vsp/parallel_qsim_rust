@@ -14,7 +14,7 @@ use crate::simulation::scoring::{InternalScoringMessage, Message};
 pub struct BackpackingMessageBroker
 {
     receiver: Receiver<InternalScoringMessage>,
-    senders: Vec<Sender<InternalScoringMessage>>,
+    pub(crate) senders: Vec<Sender<InternalScoringMessage>>,
     rank: u32,
 
     data_collector: Weak<Mutex<BackpackingDataCollector>>,
@@ -35,12 +35,11 @@ impl BackpackingMessageBroker
         }))
     }
 
-    pub(crate) fn finish(message_broker: &Arc<Mutex<Self>>, mobsim_events_manager: Rc<RefCell<MobsimEventsManager>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){
+    pub(crate) fn finish(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){
         message_broker.lock().unwrap().data_collector = data_collector;
-        Self::register_fn(Arc::clone(message_broker))(&mut *mobsim_events_manager.borrow_mut());
     }
 
-    fn register_fn(scoring_broker: Arc<Mutex<BackpackingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
+    pub(crate) fn register_fn(scoring_broker: Arc<Mutex<BackpackingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
         Box::new(move |events: &mut MobsimEventsManager| {
             let bsb = Arc::clone(&scoring_broker);
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
