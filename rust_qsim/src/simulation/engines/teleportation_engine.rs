@@ -1,6 +1,7 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::engines::emit_partition_leave_events;
 use crate::simulation::events::{
     PtTeleportationArrivalEventBuilder, TeleportationArrivalEventBuilder,
 };
@@ -37,6 +38,12 @@ impl TeleportationEngine {
         if Simulation::is_local_route(&vehicle, net_message_broker) {
             self.queue.add(vehicle, now);
         } else {
+            let to = net_message_broker.rank_for_link(
+                vehicle
+                    .curr_link_id()
+                    .expect("Remote teleported vehicles must have a destination link"),
+            );
+            emit_partition_leave_events(&mut self.comp_env, &vehicle, to, now);
             net_message_broker.add_veh(vehicle, now);
         }
     }

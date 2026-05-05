@@ -4,7 +4,10 @@ pub mod controller;
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
 use crate::simulation::config::{Config, WriteEvents};
 use crate::simulation::events::{EventHandlerRegisterFn, EventsManager};
-use crate::simulation::framework_events::{MobsimEventsManager, MobsimListenerRegisterFn};
+use crate::simulation::framework_events::{
+    MobsimEventsManager, MobsimListenerRegisterFn, PartitionEventsManager,
+    PartitionListenerRegisterFn,
+};
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::proto::xml_events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -88,16 +91,18 @@ pub struct ThreadLocalComputationalEnvironment {
     // The value is of type Rc as this is a thread-local events manager.
     #[builder(default)]
     events_manager: Rc<RefCell<EventsManager>>,
-    #[builder(default)]
     mobsim_events_manager: Rc<RefCell<MobsimEventsManager>>,
+    partition_events_manager: Rc<RefCell<PartitionEventsManager>>,
 }
 
+#[cfg(test)]
 impl Default for ThreadLocalComputationalEnvironment {
     fn default() -> Self {
         ThreadLocalComputationalEnvironment {
             services: ExternalServices::default(),
             events_manager: Rc::new(RefCell::new(EventsManager::new())),
             mobsim_events_manager: Rc::new(RefCell::new(MobsimEventsManager::default())),
+            partition_events_manager: Rc::new(RefCell::new(PartitionEventsManager::default())),
         }
     }
 }
@@ -125,6 +130,14 @@ impl ThreadLocalComputationalEnvironment {
     pub fn mobsim_event_bus(&self) -> Rc<RefCell<MobsimEventsManager>> {
         self.mobsim_events_manager.clone()
     }
+
+    pub fn partition_events_manager_borrow_mut(&mut self) -> RefMut<'_, PartitionEventsManager> {
+        self.partition_events_manager.borrow_mut()
+    }
+
+    pub fn partition_event_bus(&self) -> Rc<RefCell<PartitionEventsManager>> {
+        self.partition_events_manager.clone()
+    }
 }
 
 #[derive(Debug, Builder)]
@@ -142,6 +155,9 @@ pub struct PartitionArguments<C: SimCommunicator> {
     #[builder(default)]
     #[debug(skip)]
     mobsim_event_listener: Vec<Box<MobsimListenerRegisterFn>>,
+    #[builder(default)]
+    #[debug(skip)]
+    partition_event_listener: Vec<Box<PartitionListenerRegisterFn>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -155,6 +171,7 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
     let external_services = partition_arguments.external_services;
     let subscribers = partition_arguments.event_handler;
     let mobsim_subscribers = partition_arguments.mobsim_event_listener;
+    let partition_subscribers = partition_arguments.partition_event_listener;
 
     let rank = comm.rank();
     let size = config.partitioning().num_parts;
@@ -174,12 +191,22 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
         .mobsim_events_manager(Rc::new(RefCell::new(MobsimEventsManager::for_partition(
             rank, 0,
         ))))
+        .partition_events_manager(Rc::new(RefCell::new(
+            PartitionEventsManager::for_partition(rank, 0),
+        )))
         .build()
         .unwrap();
 
     {
         let mut bus = comp_env.mobsim_events_manager_borrow_mut();
         for subscriber in mobsim_subscribers {
+            subscriber(&mut bus);
+        }
+    }
+
+    {
+        let mut bus = comp_env.partition_events_manager_borrow_mut();
+        for subscriber in partition_subscribers {
             subscriber(&mut bus);
         }
     }

@@ -1,4 +1,5 @@
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::engines::emit_partition_leave_events;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -44,6 +45,11 @@ impl NetworkEngine {
         let move_links_result = self.network.move_links(&mut self.comp_env, now);
 
         for veh in move_links_result.vehicles_exit_partition {
+            let to = net_message_broker.rank_for_link(
+                veh.curr_link_id()
+                    .expect("Vehicles leaving a partition must have a destination link"),
+            );
+            emit_partition_leave_events(&mut self.comp_env, &veh, to, now);
             net_message_broker.add_veh(veh, now);
         }
 
