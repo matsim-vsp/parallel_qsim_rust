@@ -16,24 +16,28 @@ pub enum PartitionEvent {
 pub struct AgentEntersPartitionEvent {
     pub agent_id: Id<InternalPerson>,
     pub from: QSimId,
+    pub time: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentLeavesPartitionEvent {
     pub agent_id: Id<InternalPerson>,
     pub to: QSimId,
+    pub time: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VehicleEntersPartitionEvent {
     pub vehicle_id: Id<InternalVehicle>,
     pub from: QSimId,
+    pub time: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VehicleLeavesPartitionEvent {
     pub vehicle_id: Id<InternalVehicle>,
     pub to: QSimId,
+    pub time: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -445,12 +449,14 @@ mod tests {
             VehicleLeavesPartitionEvent {
                 vehicle_id: Id::create("veh-1"),
                 to: 9,
+                time: 42,
             },
         ));
         manager.process_event(PartitionEvent::AgentEntersPartition(
             AgentEntersPartitionEvent {
                 agent_id: Id::create("agent-1"),
                 from: 2,
+                time: 43,
             },
         ));
 
@@ -464,6 +470,7 @@ mod tests {
             PartitionEvent::VehicleLeavesPartition(VehicleLeavesPartitionEvent {
                 vehicle_id: Id::create("veh-1"),
                 to: 9,
+                time: 42,
             }),
             events[0].payload.clone()
         );
@@ -475,6 +482,7 @@ mod tests {
             PartitionEvent::AgentEntersPartition(AgentEntersPartitionEvent {
                 agent_id: Id::create("agent-1"),
                 from: 2,
+                time: 43,
             }),
             events[1].payload.clone()
         );
@@ -488,6 +496,7 @@ mod tests {
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-2"),
                 from: 6,
+                time: 10,
             },
         ));
         assert_eq!(8, first.meta.iteration);
@@ -499,6 +508,7 @@ mod tests {
             AgentLeavesPartitionEvent {
                 agent_id: Id::create("agent-2"),
                 to: 7,
+                time: 20,
             },
         ));
         assert_eq!(9, second.meta.iteration);
@@ -529,6 +539,7 @@ mod tests {
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-3"),
                 from: 1,
+                time: 5,
             },
         ));
 

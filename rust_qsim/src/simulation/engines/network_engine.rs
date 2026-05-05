@@ -49,7 +49,7 @@ impl NetworkEngine {
                 veh.curr_link_id()
                     .expect("Vehicles leaving a partition must have a destination link"),
             );
-            emit_partition_leave_events(&mut self.comp_env, &veh, to);
+            emit_partition_leave_events(&mut self.comp_env, &veh, to, now);
             net_message_broker.add_veh(veh, now);
         }
 

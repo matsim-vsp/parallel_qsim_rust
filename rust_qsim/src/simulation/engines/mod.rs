@@ -14,6 +14,7 @@ fn emit_partition_leave_events(
     comp_env: &mut ThreadLocalComputationalEnvironment,
     vehicle: &SimulationVehicle,
     to: u32,
+    now: u32,
 ) {
     comp_env
         .partition_events_manager_borrow_mut()
@@ -21,6 +22,7 @@ fn emit_partition_leave_events(
             VehicleLeavesPartitionEvent {
                 vehicle_id: vehicle.id().clone(),
                 to,
+                time: now,
             },
         ));
     comp_env
@@ -29,6 +31,7 @@ fn emit_partition_leave_events(
             AgentLeavesPartitionEvent {
                 agent_id: vehicle.driver().id().clone(),
                 to,
+                time: now,
             },
         ));
     for passenger in vehicle.passengers() {
@@ -38,6 +41,7 @@ fn emit_partition_leave_events(
                 AgentLeavesPartitionEvent {
                     agent_id: passenger.id().clone(),
                     to,
+                    time: now,
                 },
             ));
     }
