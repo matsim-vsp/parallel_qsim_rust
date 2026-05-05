@@ -90,12 +90,13 @@ impl<C: SimCommunicator> LegEngine<C> {
         let sync_messages = self.send_recv(now);
 
         for mut msg in sync_messages {
+            let from = msg.from_process();
             self.network_engine
                 .network
                 .apply_storage_cap_updates(msg.take_storage_capacities());
 
             for veh in msg.take_vehicles() {
-                self.emit_partition_enter_events(&veh);
+                self.emit_partition_enter_events(&veh, from);
                 self.pass_vehicle_to_engine(now, veh, false);
             }
         }
@@ -212,12 +213,13 @@ impl<C: SimCommunicator> LegEngine<C> {
         &self.network_engine.network
     }
 
-    fn emit_partition_enter_events(&mut self, vehicle: &SimulationVehicle) {
+    fn emit_partition_enter_events(&mut self, vehicle: &SimulationVehicle, from: u32) {
         self.comp_env
             .partition_events_manager_borrow_mut()
             .process_event(PartitionEvent::VehicleEntersPartition(
                 VehicleEntersPartitionEvent {
                     vehicle_id: vehicle.id().clone(),
+                    from,
                 },
             ));
         self.comp_env
@@ -225,6 +227,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             .process_event(PartitionEvent::AgentEntersPartition(
                 AgentEntersPartitionEvent {
                     agent_id: vehicle.driver().id().clone(),
+                    from,
                 },
             ));
         for passenger in vehicle.passengers() {
@@ -233,6 +236,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                 .process_event(PartitionEvent::AgentEntersPartition(
                     AgentEntersPartitionEvent {
                         agent_id: passenger.id().clone(),
+                        from,
                     },
                 ));
         }

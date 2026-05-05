@@ -15,6 +15,7 @@ pub enum PartitionEvent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AgentEntersPartitionEvent {
     pub agent_id: Id<InternalPerson>,
+    pub from: QSimId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,6 +27,7 @@ pub struct AgentLeavesPartitionEvent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VehicleEntersPartitionEvent {
     pub vehicle_id: Id<InternalVehicle>,
+    pub from: QSimId,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -448,6 +450,7 @@ mod tests {
         manager.process_event(PartitionEvent::AgentEntersPartition(
             AgentEntersPartitionEvent {
                 agent_id: Id::create("agent-1"),
+                from: 2,
             },
         ));
 
@@ -471,6 +474,7 @@ mod tests {
         assert_eq!(
             PartitionEvent::AgentEntersPartition(AgentEntersPartitionEvent {
                 agent_id: Id::create("agent-1"),
+                from: 2,
             }),
             events[1].payload.clone()
         );
@@ -483,6 +487,7 @@ mod tests {
         let first = manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-2"),
+                from: 6,
             },
         ));
         assert_eq!(8, first.meta.iteration);
@@ -523,6 +528,7 @@ mod tests {
         manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-3"),
+                from: 1,
             },
         ));
 
