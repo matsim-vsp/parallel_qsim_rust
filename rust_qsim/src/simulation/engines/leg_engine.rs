@@ -227,6 +227,15 @@ impl<C: SimCommunicator> LegEngine<C> {
                     agent_id: vehicle.driver().id().clone(),
                 },
             ));
+        for passenger in vehicle.passengers() {
+            self.comp_env
+                .partition_events_manager_borrow_mut()
+                .process_event(PartitionEvent::AgentEntersPartition(
+                    AgentEntersPartitionEvent {
+                        agent_id: passenger.id().clone(),
+                    },
+                ));
+        }
     }
 }
 

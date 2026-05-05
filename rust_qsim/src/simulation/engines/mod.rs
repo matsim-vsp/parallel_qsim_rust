@@ -31,4 +31,14 @@ fn emit_partition_leave_events(
                 to,
             },
         ));
+    for passenger in vehicle.passengers() {
+        comp_env
+            .partition_events_manager_borrow_mut()
+            .process_event(PartitionEvent::AgentLeavesPartition(
+                AgentLeavesPartitionEvent {
+                    agent_id: passenger.id().clone(),
+                    to,
+                },
+            ));
+    }
 }
