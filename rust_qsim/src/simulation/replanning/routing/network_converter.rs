@@ -49,14 +49,14 @@ impl NetworkConverter {
         let mut forward_node_index_by_id = IntMap::default();
         let mut forward_node_id_by_index = Vec::new();
         let mut forward_head = Vec::new(); // TODO is this fixed
-        let mut forward_travel_time = Vec::new();
+        // let mut forward_travel_time = Vec::new();
         let mut forward_link_ids = Vec::new();
 
         let mut backward_first_out = Vec::new();
         let mut backward_node_index_by_id = IntMap::default();
         let mut backward_node_id_by_index = Vec::new();
         let mut backward_head = Vec::new();
-        let mut backward_travel_time = Vec::new();
+        // let mut backward_travel_time = Vec::new();
         let mut backward_link_ids = Vec::new();
 
         let mut x = Vec::new();
@@ -99,12 +99,12 @@ impl NetworkConverter {
 
                 forward_head.push(to_node_index);
 
-                let max_speed = if let Some(vt) = vehicle_type {
-                    vt.max_v.min(link.freespeed)
-                } else {
-                    link.freespeed
-                };
-                forward_travel_time.push((link.length / max_speed as f64) as u32);
+                // let max_speed = if let Some(vt) = vehicle_type {
+                //     vt.max_v.min(link.freespeed)
+                // } else {
+                //     link.freespeed
+                // };
+                // forward_travel_time.push((link.length / max_speed as f64) as u32);
 
                 forward_link_ids.push(link.id.clone());
             }
@@ -116,12 +116,12 @@ impl NetworkConverter {
 
                 backward_head.push(to_node_index);
 
-                let max_speed = if let Some(vt) = vehicle_type {
-                    vt.max_v.min(link.freespeed)
-                } else {
-                    link.freespeed
-                };
-                backward_travel_time.push((link.length / max_speed as f64) as u32);
+                // let max_speed = if let Some(vt) = vehicle_type {
+                //     vt.max_v.min(link.freespeed)
+                // } else {
+                //     link.freespeed
+                // };
+                // backward_travel_time.push((link.length / max_speed as f64) as u32);
 
                 backward_link_ids.push(link.id.clone());
             }
@@ -145,7 +145,7 @@ impl NetworkConverter {
             node_index_by_id: forward_node_index_by_id,
             node_id_by_index: forward_node_id_by_index,
             head: forward_head,
-            travel_time: forward_travel_time,
+            // travel_time: forward_travel_time,
             link_ids: forward_link_ids,
             x: x.clone(),
             y: y.clone(),
@@ -157,7 +157,7 @@ impl NetworkConverter {
             node_index_by_id: backward_node_index_by_id,
             node_id_by_index: backward_node_id_by_index,
             head: backward_head,
-            travel_time: backward_travel_time,
+            // travel_time: backward_travel_time,
             link_ids: backward_link_ids,
             x,
             y,
@@ -222,12 +222,12 @@ mod test {
 
         assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
         assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
-        assert_eq!(graph.forward_travel_time(), &vec![1, 2, 1, 4, 2, 5]);
+        // assert_eq!(graph.forward_travel_time(), &vec![1, 2, 1, 4, 2, 5]);
         assert_eq!(graph.forward_link_ids().len(), 6);
 
         assert_eq!(graph.backward_graph.first_out, vec![0usize, 0, 1, 4, 6]);
         assert_eq!(graph.backward_graph.head, vec![3usize, 1, 2, 3, 1, 2]);
-        assert_eq!(graph.backward_graph.travel_time, vec![2, 1, 1, 5, 2, 4]);
+        // assert_eq!(graph.backward_graph.travel_time, vec![2, 1, 1, 5, 2, 4]);
         assert_eq!(graph.backward_graph.link_ids.len(), 6);
         // we don't check y and y so far
     }
@@ -263,13 +263,13 @@ mod test {
         let car_network = graph_by_mode.remove(&car_type_id).unwrap();
         assert_eq!(car_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(car_network.forward_head(), &vec![3, 2, 1, 2]);
-        assert_eq!(car_network.forward_travel_time(), &vec![2, 2, 5, 5]);
+        // assert_eq!(car_network.forward_travel_time(), &vec![2, 2, 5, 5]);
         assert_eq!(car_network.forward_link_ids().len(), 4);
 
         let bike_network = graph_by_mode.remove(&bike_type_id).unwrap();
         assert_eq!(bike_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
         assert_eq!(bike_network.forward_head(), &vec![2, 2, 3, 1]);
-        assert_eq!(bike_network.forward_travel_time(), &vec![5, 5, 5, 5]);
+        // assert_eq!(bike_network.forward_travel_time(), &vec![5, 5, 5, 5]);
         assert_eq!(bike_network.forward_link_ids().len(), 4);
     }
 
@@ -298,18 +298,24 @@ mod test {
                 .is_empty()
         );
 
-        // Test for mode "car"
-        let car_id = &Id::<InternalVehicleType>::get_from_ext("car");
-        let car_graph = vehicle_type2graph.get(car_id).unwrap();
-        let link2_index = car_graph.forward_graph.first_out[2];
-        assert_eq!(car_graph.forward_graph.travel_time[link2_index], 100);
+        // // Test for mode "car"
+        // let car_id = &Id::<InternalVehicleType>::get_from_ext("car");
+        // let car_graph = vehicle_type2graph.get(car_id).unwrap();
+        // let link2_index = car_graph.forward_graph.first_out[2];
+        // // assert_eq!(car_graph.forward_graph.travel_time[link2_index], 100);
+        //
+        // // Test for mode "bike"
+        // let bike_id = &Id::<InternalVehicleType>::get_from_ext("bike");
+        // let bike_graph = vehicle_type2graph.get(bike_id).unwrap();
+        // let link2_index = bike_graph.forward_graph.first_out[2];
+        // assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
 
-        // Test for mode "bike"
-        let bike_id = &Id::<InternalVehicleType>::get_from_ext("bike");
-        let bike_graph = vehicle_type2graph.get(bike_id).unwrap();
-        let link2_index = bike_graph.forward_graph.first_out[2];
-        assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
+        // todo Find out what this was supposed to test. Especially the last part was just checking
+        // some travel times, which are no longer supposed to be a part of the graph
     }
+
+    // TODO in general, check if I am using IDs correctly. I guess that mostly applies to the tests,
+    // where I actually create some ids. E.g., is it correct that I always just call create?
 
     #[test]
     #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
@@ -328,22 +334,25 @@ mod test {
 
         assert_eq!(vehicle_type2graph.keys().len(), 2);
 
-        assert_eq!(
-            vehicle_type2graph
-                .get(&Id::<InternalVehicleType>::get_from_ext("car"))
-                .unwrap()
-                .forward_graph
-                .travel_time,
-            vec![10, 10, 50, 100, 10, 10, 50]
-        );
+        // assert_eq!(
+        //     vehicle_type2graph
+        //         .get(&Id::<InternalVehicleType>::get_from_ext("car"))
+        //         .unwrap()
+        //         .forward_graph
+        //         .travel_time,
+        //     vec![10, 10, 50, 100, 10, 10, 50]
+        // );
+        //
+        // assert_eq!(
+        //     vehicle_type2graph
+        //         .get(&Id::<InternalVehicleType>::get_from_ext("bike"))
+        //         .unwrap()
+        //         .forward_graph
+        //         .travel_time,
+        //     vec![20, 20, 200, 200, 20, 20, 200]
+        // );
 
-        assert_eq!(
-            vehicle_type2graph
-                .get(&Id::<InternalVehicleType>::get_from_ext("bike"))
-                .unwrap()
-                .forward_graph
-                .travel_time,
-            vec![20, 20, 200, 200, 20, 20, 200]
-        );
+        // Todo Find out if this test was important. It's no longer testing much, since its main
+        // test was travel time, which is no longer part of the graph.
     }
 }
