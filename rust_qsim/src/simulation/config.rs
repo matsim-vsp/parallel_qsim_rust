@@ -94,7 +94,7 @@ impl Config {
 
         // Check if the path is a URL
         let path = config_path.as_ref().to_string_lossy();
-        if is_url(&path) {
+        if is_url(path.as_ref()) {
             #[cfg(feature = "http")]
             {
                 reader = Self::url_file_reader(path.parse().unwrap());

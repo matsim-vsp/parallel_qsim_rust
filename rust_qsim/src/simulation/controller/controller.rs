@@ -2,7 +2,6 @@ use crate::external_services::AdapterHandle;
 use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
 use crate::simulation::controller::{
     ExternalServices, PartitionArgumentsBuilder, create_output_filename,
-    insert_number_in_proto_filename,
 };
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
@@ -182,6 +181,8 @@ impl Controller {
         self.write_output_config(output_path.clone());
         info!("    ... Network ...");
         self.write_output_network(output_path.clone());
+        info!("    ... Population ...");
+        self.write_output_population(output_path.clone());
 
         info!("=========== Start Iteration 0 ===========");
 
@@ -286,14 +287,8 @@ impl Controller {
     }
 
     fn write_output_network(&mut self, output_path: PathBuf) {
-        let net_in_path = if let Some(path) = &self.config.network().path {
-            io::resolve_path(self.config.context(), path)
-        } else {
-            io::resolve_path(self.config.context(), &PathBuf::from("network.xml.gz"))
-        };
-        let mut net_out_path = create_output_filename(&output_path, &net_in_path);
-        net_out_path =
-            insert_number_in_proto_filename(&net_out_path, self.config.partitioning().num_parts);
+        let net_out_path =
+            create_output_filename(&output_path, &PathBuf::from("output_network.xml.gz"));
 
         match &self.scenario {
             Scenario::Partitioned => {
@@ -307,8 +302,19 @@ impl Controller {
         }
     }
 
-    fn write_output_id_store(output_path: &Path) {
-        id::store_to_file(&output_path.join("output_ids.binpb"));
+    fn write_output_population(&mut self, output_path: impl AsRef<Path>) {
+        let pop_out_path =
+            create_output_filename(&output_path, &PathBuf::from("output_population.xml.gz"));
+
+        if let Scenario::Full(mut_scen) = &self.scenario {
+            mut_scen.population.to_file(&pop_out_path);
+        } else {
+            panic!("Cannot write output population because it is split among the threads.");
+        }
+    }
+
+    fn write_output_id_store(output_path: impl AsRef<Path>) {
+        id::store_to_file(&output_path.as_ref().join("output_ids.binpb"));
     }
 }
 

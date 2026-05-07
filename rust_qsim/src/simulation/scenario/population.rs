@@ -4,7 +4,7 @@ use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::population::{
-    IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
+    IOActivity, IOLeg, IOPTRouteDescription, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::Garage;
@@ -22,13 +22,15 @@ trait FromIOPerson<T> {
 }
 
 pub fn from_file<F: Fn(&InternalPerson) -> bool>(
-    path: &Path,
+    path: impl AsRef<Path>,
     garage: &mut Garage,
     filter: F,
 ) -> Population {
-    if path.extension().unwrap().eq("binpb") {
+    if path.as_ref().extension().unwrap().eq("binpb") {
         load_from_proto(path, filter)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.as_ref().extension().unwrap().eq("xml")
+        || path.as_ref().extension().unwrap().eq("gz")
+    {
         let persons = crate::simulation::io::xml::population::load_from_xml(path, garage)
             .into_iter()
             .filter(|(_id, p)| filter(p))
@@ -36,7 +38,8 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
         Population { persons }
     } else {
         panic!(
-            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+            "Tried to load {:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension",
+            path.as_ref()
         );
     }
 }
@@ -63,7 +66,7 @@ impl Population {
         }
     }
 
-    pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
+    pub fn from_file(file_path: impl AsRef<Path>, garage: &mut Garage) -> Self {
         from_file(file_path, garage, |_p| true)
     }
 
@@ -242,6 +245,10 @@ impl InternalPerson {
     pub fn selected_plan(&self) -> Option<&InternalPlan> {
         self.plans.iter().find(|&plan| plan.selected)
     }
+
+    pub(crate) fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
+    }
 }
 
 impl Default for InternalPlan {
@@ -405,6 +412,39 @@ impl InternalRoute {
                 })
             }
             _ => panic!("Unknown route type: {}", io.r#type),
+        }
+    }
+
+    pub(crate) fn get_route_description(self) -> Option<String> {
+        match self {
+            InternalRoute::Generic(_) => None,
+            InternalRoute::Network(nr) => {
+                // TODO: in Java (https://github.com/matsim-org/matsim-libs/blob/main/matsim/src/main/java/org/matsim/core/population/routes/LinkNetworkRouteImpl.java), the end link id is only included in the string if it is not the same as the start link id, or if the route consiste of only start and end links (and no links inbetwee).
+                // Do we want that behaviour?
+                Some(
+                    nr.route()
+                        .iter()
+                        .map(|id| id.external().to_string())
+                        .collect::<Vec<String>>()
+                        .join(" "),
+                )
+            }
+            InternalRoute::Pt(ptr) => {
+                Some(
+                    serde_json::to_string(&IOPTRouteDescription {
+                        transit_route_id: ptr.description.transit_route_id,
+                        boarding_time: ptr
+                            .description
+                            .boarding_time
+                            .map(|t| write_timestr(t))
+                            .unwrap(), // TODO boarding_time is optional in InternalPtRoute. Should it be?
+                        transit_line_id: ptr.description.transit_line_id,
+                        access_facility_id: ptr.description.access_facility_id,
+                        egress_facility_id: ptr.description.egress_facility_id,
+                    })
+                    .unwrap(),
+                )
+            }
         }
     }
 }
@@ -572,10 +612,7 @@ impl FromIOPerson<IOLeg> for InternalLeg {
             mode: mode.clone(),
             routing_mode,
             dep_time: parse_time_opt(&io.dep_time),
-            trav_time: parse_trav_time(
-                &io.trav_time,
-                &io.route.as_ref().and_then(|r| r.trav_time.clone()),
-            ),
+            trav_time: parse_time_opt(&io.trav_time),
             route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes
@@ -635,17 +672,6 @@ fn trim_quotes(s: &Value) -> String {
     s.to_string().trim_matches('"').to_string()
 }
 
-fn parse_trav_time(
-    leg_trav_time: &Option<String>,
-    route_trav_time: &Option<String>,
-) -> Option<u32> {
-    if let Some(trav_time) = parse_time_opt(leg_trav_time) {
-        Some(trav_time)
-    } else {
-        parse_time_opt(route_trav_time)
-    }
-}
-
 fn parse_time_opt(value: &Option<String>) -> Option<u32> {
     if let Some(time) = value.as_ref() {
         parse_time(time)
@@ -665,6 +691,14 @@ fn parse_time(value: &str) -> Option<u32> {
     } else {
         None
     }
+}
+
+/// create a string "hh:mm:ss" from a given number of seconds
+pub(crate) fn write_timestr(time_secs: u32) -> String {
+    let hours = time_secs / 3600; // rounds towards zero, i.e., floors the result
+    let minutes = (time_secs % 3600) / 60;
+    let seconds = time_secs % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
 impl From<IOPerson> for InternalPerson {
@@ -946,7 +980,7 @@ mod tests {
                 start_link: "1".to_string(),
                 end_link: "2".to_string(),
                 trav_time: Some("00:20:00".to_string()),
-                distance: 42.0,
+                distance: Some(42.0),
                 vehicle: None,
                 route: None,
             }),
@@ -987,7 +1021,7 @@ mod tests {
                 start_link: "1".to_string(),
                 end_link: "2".to_string(),
                 trav_time: Some("00:20:00".to_string()),
-                distance: f64::NAN,
+                distance: Some(f64::NAN),
                 vehicle: None,
                 route: Some(String::from(
                     "{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}",

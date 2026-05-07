@@ -17,12 +17,13 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use tracing::info;
 
-pub fn load_from_proto<F>(path: &Path, filter: F) -> Population
+pub fn load_from_proto<F>(path: impl AsRef<Path>, filter: F) -> Population
 where
     F: Fn(&InternalPerson) -> bool,
 {
-    info!("Loading population from file at: {path:?}");
-    let file = File::open(path).unwrap_or_else(|_| panic!("Could not open File at {path:?}"));
+    info!("Loading population from file at: {:?}", path.as_ref());
+    let file = File::open(path.as_ref())
+        .unwrap_or_else(|_| panic!("Could not open File at {:?}", path.as_ref()));
     let mut reader = BufReader::new(file);
 
     if let Some(header_delim) = generated::read_delimiter(&mut reader) {

@@ -3,23 +3,30 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::info;
 
+use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::io::xml;
+
 use crate::simulation::io::xml::attributes::IOAttributes;
-use crate::simulation::scenario::population::{InternalPerson, Population};
+use crate::simulation::scenario::population::{
+    InternalActivity, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement,
+    InternalRoute, Population, write_timestr,
+};
 use crate::simulation::scenario::vehicles::Garage;
 
 pub(crate) fn load_from_xml(
-    path: &Path,
+    path: impl AsRef<Path>,
     garage: &mut Garage,
 ) -> HashMap<Id<InternalPerson>, InternalPerson> {
-    let io_pop = IOPopulation::from_file(path.to_str().unwrap());
+    let io_pop = IOPopulation::from_file(path);
     create_ids(&io_pop, garage);
     create_population(io_pop)
 }
 
-pub(crate) fn write_to_xml(_population: &Population, _path: &Path) {
-    panic!("Write to xml is not implemented for Population. Only writing to `.binpb` is supported")
+pub(crate) fn write_to_xml(population: &Population, path: impl AsRef<Path>) {
+    let io_population = IOPopulation::from(population);
+
+    io_population.to_file(path);
 }
 
 fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
@@ -75,6 +82,16 @@ fn create_population(io_pop: IOPopulation) -> HashMap<Id<InternalPerson>, Intern
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct IOPTRouteDescription {
+    pub transit_route_id: String,
+    pub boarding_time: String,
+    pub transit_line_id: String,
+    pub access_facility_id: String,
+    pub egress_facility_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IORoute {
     #[serde(rename = "@type")]
     pub r#type: String,
@@ -82,10 +99,10 @@ pub struct IORoute {
     pub start_link: String,
     #[serde(rename = "@end_link")]
     pub end_link: String,
-    #[serde(rename = "@trav_time")]
+    #[serde(rename = "@trav_time", skip_serializing_if = "Option::is_none")]
     pub trav_time: Option<String>,
-    #[serde(rename = "@distance")]
-    pub distance: f64,
+    #[serde(rename = "@distance", skip_serializing_if = "Option::is_none")]
+    pub distance: Option<f64>,
     #[serde(
         rename = "@vehicleRefId",
         default,
@@ -96,6 +113,31 @@ pub struct IORoute {
     // this needs to be parsed later
     #[serde(rename = "$value")]
     pub route: Option<String>,
+}
+
+impl From<&InternalRoute> for IORoute {
+    fn from(route: &InternalRoute) -> Self {
+        let generic_internal_route = route.as_generic();
+
+        let r_type = match &route {
+            InternalRoute::Generic(_) => "generic",
+            InternalRoute::Network(_) => "links",
+            InternalRoute::Pt(_) => "default_pt",
+        };
+
+        IORoute {
+            r#type: r_type.to_string(),
+            start_link: generic_internal_route.start_link().external().to_string(),
+            end_link: generic_internal_route.end_link().external().to_string(),
+            trav_time: generic_internal_route.trav_time().map(|t| write_timestr(t)),
+            distance: generic_internal_route.distance(),
+            vehicle: generic_internal_route
+                .vehicle()
+                .clone()
+                .map(|v| v.external().to_string()),
+            route: route.clone().get_route_description(),
+        }
+    }
 }
 
 fn option_string_preserve_null<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
@@ -109,8 +151,10 @@ where
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IOActivity {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
     #[serde(rename = "@type")]
     pub r#type: String,
     #[serde(rename = "@link")]
@@ -119,13 +163,12 @@ pub struct IOActivity {
     pub x: f64,
     #[serde(rename = "@y")]
     pub y: f64,
-    #[serde(rename = "@start_time")]
+    #[serde(rename = "@start_time", skip_serializing_if = "Option::is_none")]
     pub start_time: Option<String>,
-    #[serde(rename = "@end_time")]
+    #[serde(rename = "@end_time", skip_serializing_if = "Option::is_none")]
     pub end_time: Option<String>,
-    #[serde(rename = "@max_dur")]
+    #[serde(rename = "@max_dur", skip_serializing_if = "Option::is_none")]
     pub max_dur: Option<String>,
-    pub attributes: Option<IOAttributes>,
 }
 
 impl IOActivity {
@@ -134,19 +177,51 @@ impl IOActivity {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+impl From<&InternalActivity> for IOActivity {
+    fn from(activity: &InternalActivity) -> Self {
+        IOActivity {
+            r#type: activity.act_type.external().to_string(),
+            link: activity.link_id.external().to_string(),
+            x: activity.x,
+            y: activity.y,
+            start_time: activity.start_time.map(|t| write_timestr(t)),
+            end_time: activity.end_time.map(|t| write_timestr(t)),
+            max_dur: activity.max_dur.map(|d| write_timestr(d)),
+            attributes: IOAttributes::from_internal_none_if_empty(&activity.attributes),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IOLeg {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
     #[serde(rename = "@mode")]
     pub mode: String,
     #[serde(rename = "@dep_time")]
     pub dep_time: Option<String>,
-    #[serde(rename = "@trav_time")]
+    #[serde(rename = "@trav_time", skip_serializing_if = "Option::is_none")]
     pub trav_time: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub route: Option<IORoute>,
-    pub attributes: Option<IOAttributes>,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+impl From<&InternalLeg> for IOLeg {
+    fn from(leg: &InternalLeg) -> Self {
+        // get internal attributes from leg, possibly with added routing mode if currently missing
+        let verified_internal_attrs = verify_internal_attrs(&leg);
+
+        IOLeg {
+            mode: leg.mode.external().to_string(),
+            dep_time: leg.dep_time.map(|t| write_timestr(t)),
+            trav_time: leg.trav_time.map(|t| write_timestr(t)),
+            route: leg.route.clone().map(|r| IORoute::from(&r)),
+            attributes: IOAttributes::from_internal_none_if_empty(&verified_internal_attrs),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum IOPlanElement {
     // the current matsim implementation has more logic with facility-id, link-id and coord.
@@ -178,7 +253,18 @@ impl IOPlanElement {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+impl From<&InternalPlanElement> for IOPlanElement {
+    fn from(element: &InternalPlanElement) -> Self {
+        match element {
+            InternalPlanElement::Activity(activity) => {
+                IOPlanElement::Activity(IOActivity::from(activity))
+            }
+            InternalPlanElement::Leg(leg) => IOPlanElement::Leg(IOLeg::from(leg)),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IOPlan {
     #[serde(
         rename = "@selected",
@@ -191,6 +277,22 @@ pub struct IOPlan {
     pub elements: Vec<IOPlanElement>,
 }
 
+impl From<&InternalPlan> for IOPlan {
+    fn from(internal_plan: &InternalPlan) -> Self {
+        let mut io_plan_elements = Vec::new();
+        let selected = internal_plan.selected;
+
+        // for current internal plan, go through all internal plan elements and convert to IOPlanElements
+        for internal_plan_element in &internal_plan.elements {
+            io_plan_elements.push(IOPlanElement::from(internal_plan_element));
+        }
+
+        IOPlan {
+            selected,
+            elements: io_plan_elements,
+        }
+    }
+}
 fn bool_from_yes_no<'de, D>(deserializer: D) -> Result<bool, D::Error>
 where
     D: Deserializer<'de>,
@@ -213,14 +315,66 @@ where
     serializer.serialize_str(s)
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+/// when creating internal legs from io, we store the (optional) routing mode attribute separately
+/// in the field leg.routing_mode. In principle, the routing mode is still also contained in the
+/// attributes of the (internal) leg.
+/// This function verifies that this is (still) the case:
+///     - If routing mode field and "routing mode" entry in leg.attributes match (or are both
+///         empty/not existing), return leg.attributes without modification
+///     - If both exist but they don't match in value, panic
+///     - If routing mode field is not None, but no "routing mode" entry is present in
+///         leg.attributes, add the former to a copy of leg.attributes and return it
+///     - If routing mode field is None, but "routing mode" entry is present in leg.attributes, panic
+///
+/// To be used when creating IOLegs from internal legs, as IOLegs store routing mode only in the
+/// attributes.
+fn verify_internal_attrs(leg: &InternalLeg) -> InternalAttributes {
+    match (
+        &leg.routing_mode,
+        &leg.attributes.get::<String>("routingMode"),
+    ) {
+        // routing mode is not present in leg nor in attributes, return attributes without modification
+        (None, None) => leg.attributes.clone(),
+
+        // both routing mode field and entry in attributes exist, verify that they match
+        (Some(field_routing_mode), Some(attr_routing_mode)) => {
+            if field_routing_mode.external() == attr_routing_mode {
+                // routing mode in leg and attributes match, return attributes without modification
+                leg.attributes.clone()
+            } else {
+                // routing mode in leg and attributes don't match, this should not happen, panic
+                panic!(
+                    "Routing mode in leg and attributes don't match. Routing mode in leg: {:?}, \
+                    routing mode in attributes: {:?}",
+                    field_routing_mode.external().to_string(),
+                    attr_routing_mode
+                );
+            }
+        }
+
+        // routing mode field exists but no entry in attributes
+        (Some(routing_mode), None) => {
+            // add routing mode to a copy of the attributes and return it
+            let mut attrs = leg.attributes.clone();
+            attrs.insert("routingMode", routing_mode.external().to_string());
+            attrs
+        }
+
+        // routing mode is not present in leg but present in attributes, this should not happen, panic
+        (None, Some(_)) => {
+            panic!("Routing mode is not present in leg but present in attributes.");
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IOPerson {
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
     #[serde(rename = "@id")]
     pub id: String,
     #[serde(rename = "plan")]
     pub plans: Vec<IOPlan>,
-    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
-    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -231,7 +385,7 @@ pub struct IOPopulation {
 }
 
 impl IOPopulation {
-    pub fn from_file(file_path: &str) -> IOPopulation {
+    pub fn from_file(file_path: impl AsRef<Path>) -> IOPopulation {
         let population: IOPopulation = xml::read_from_file(file_path);
         info!(
             "IOPopulation: Finished reading population. Population contains {} persons",
@@ -239,19 +393,59 @@ impl IOPopulation {
         );
         population
     }
+
+    pub fn to_file(&self, file_path: impl AsRef<Path>) {
+        xml::write_to_file(
+            self,
+            file_path,
+            "<!DOCTYPE population SYSTEM \"https://www.matsim.org/files/dtd/population_v6.dtd\">",
+        );
+    }
+}
+
+impl From<&Population> for IOPopulation {
+    fn from(internal_population: &Population) -> Self {
+        let mut io_persons = Vec::new();
+
+        // go through all persons in internal population
+        for (ipers_id, internal_person) in &internal_population.persons {
+            let mut io_plans = Vec::new();
+
+            // for current internal person, go through all internal plans
+            for internal_plan in internal_person.plans() {
+                // convert to io_plan and add to the plans of the current person
+                io_plans.push(IOPlan::from(internal_plan));
+            }
+
+            let io_person = IOPerson {
+                id: ipers_id.to_string(),
+                plans: io_plans,
+                attributes: IOAttributes::from_internal_none_if_empty(internal_person.attributes()),
+            };
+
+            io_persons.push(io_person);
+        }
+
+        IOPopulation {
+            persons: io_persons,
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs::create_dir_all;
     use std::path::PathBuf;
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::io::xml::attributes::IOAttribute;
+    use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
     use crate::simulation::io::xml::population::{
-        IOActivity, IOLeg, IOPlanElement, IOPopulation, load_from_xml,
+        IOActivity, IOLeg, IOPerson, IOPlanElement, IOPopulation, load_from_xml, write_to_xml,
     };
+    use crate::simulation::logging::init_std_out_logging_thread_local;
     use crate::simulation::scenario::network::Network;
+    use crate::simulation::scenario::population::Population;
     use crate::simulation::scenario::vehicles::Garage;
     use macros::integration_test;
     use quick_xml::de::from_str;
@@ -337,7 +531,7 @@ mod tests {
                 assert_eq!("1", route.start_link);
                 assert_eq!("20", route.end_link);
                 assert_eq!("undefined", route.trav_time.as_ref().unwrap());
-                assert_eq!(25000.0, route.distance);
+                assert_eq!(25000.0, route.distance.unwrap());
                 assert_eq!("null", route.vehicle.as_ref().unwrap());
                 assert_eq!("1 6 15 20", route.route.as_ref().unwrap())
             }
@@ -379,7 +573,7 @@ mod tests {
         assert_eq!(route.start_link, "4410448#0");
         assert_eq!(route.end_link, "4410448#0");
         assert_eq!(route.trav_time, Some(String::from("00:00:46")));
-        assert_eq!(route.distance, 57.23726831365165);
+        assert_eq!(route.distance.unwrap(), 57.23726831365165);
         assert_eq!(route.vehicle, None);
         assert_eq!(route.route, None);
     }
@@ -401,7 +595,7 @@ mod tests {
         assert_eq!(route.start_link, "33");
         assert_eq!(route.end_link, "11");
         assert_eq!(route.trav_time, Some(String::from("00:10:01")));
-        assert!(route.distance.is_nan());
+        assert!(route.distance.unwrap().is_nan());
         assert_eq!(route.vehicle, None);
         assert_eq!(
             route.route,
@@ -473,5 +667,100 @@ mod tests {
                 String::from("0.0")
             )
         );
+    }
+
+    /// Sorts given (optional) IOAttributes by name and changes any attribute class "Integer" to
+    /// "Long"
+    fn canonicalize_attributes(attrs: &mut Option<IOAttributes>) -> &Option<IOAttributes> {
+        match attrs {
+            Some(attrs) => {
+                // sort attributes by name
+                attrs.attributes.sort_by(|a, b| a.name.cmp(&b.name));
+
+                // change any attribute class "Integer" to "Long"
+                // (since when writing, we always write integers as "Long")
+                for attr in attrs.attributes.iter_mut() {
+                    if attr.class == "java.lang.Integer" {
+                        attr.class = "java.lang.Long".to_string();
+                    }
+                }
+            }
+            None => {} // if no attributes present, do nothing
+        }
+
+        attrs
+    }
+
+    /// goes through all plans of the given person and looks for legs containing routes with
+    /// vehicle=None.
+    /// For those, generates a vehicle id based on the person id and the mode of transport of the
+    /// leg, and sets that as the vehicle of the route.
+    /// This matches the approach done when creating (internal) populations.
+    fn replace_none_vehicles_with_default(person: &mut IOPerson) -> &mut IOPerson {
+        for plan in person.plans.iter_mut() {
+            for element in plan.elements.iter_mut() {
+                // if plan element is a leg
+                if let IOPlanElement::Leg(leg) = element {
+                    // and it has a route
+                    if let Some(ref mut route) = leg.route {
+                        // which has vehicle=None
+                        if route.vehicle.is_none() {
+                            // generate vehicle id based on person id and mode of transport
+                            let generated_vehicle_id = format!("{}_{}", person.id, leg.mode);
+                            route.vehicle = Some(generated_vehicle_id);
+                        }
+                    }
+                }
+            }
+        }
+        person
+    }
+
+    /// compare input population XML to result of writing the same population to XML.
+    /// Works via parsing both XMLs into IOPopulations and comparing those.
+    #[integration_test]
+    fn test_xml_writer() {
+        let _guard = init_std_out_logging_thread_local();
+
+        // Load example population from XML, convert to internal and write to xml again:
+
+        let input_pop_file = PathBuf::from("./assets/population-v6-34-persons.xml");
+        let internal_pop = Population::from_file(&input_pop_file, &mut Garage::default());
+        let output_pop_file =
+            PathBuf::from("./test_output/io/population/34-persons-xml_output.xml");
+        create_dir_all(output_pop_file.parent().unwrap()).unwrap();
+        // write internal population to output XML file
+        write_to_xml(&internal_pop, &output_pop_file);
+
+        // read the written XML population file as IOPopulation
+        let mut io_pop_from_written_output = IOPopulation::from_file(&output_pop_file);
+
+        // read the original XML data as IOPopulation as well, to compare with the written XML
+        let mut io_pop = IOPopulation::from_file(&input_pop_file);
+
+        // Before comparing the two IOPopulations, we need to perform some minor modifications,
+        // to remove possible differences that we don't want to catch:
+
+        // sort persons by id in both files
+        io_pop.persons.sort_by(|p1, p2| p1.id.cmp(&p2.id));
+        io_pop_from_written_output
+            .persons
+            .sort_by(|p1, p2| p1.id.cmp(&p2.id));
+
+        // for each person in both files...
+        for person in io_pop
+            .persons
+            .iter_mut()
+            .chain(io_pop_from_written_output.persons.iter_mut())
+        {
+            // canonicalize attributes if present
+            canonicalize_attributes(&mut person.attributes);
+
+            // when vehicle is None in an IORoute, generate a vehicle id based on the person id and
+            // the mode of transport, as is done when generating (internal) Routes from IORoutes with
+            // vehicle=None.
+            replace_none_vehicles_with_default(person);
+        }
+        assert_eq!(io_pop, io_pop_from_written_output);
     }
 }
