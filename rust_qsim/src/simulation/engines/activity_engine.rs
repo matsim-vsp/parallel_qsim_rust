@@ -1,13 +1,14 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{
-    ActivityStartedEvent, AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, WokeUpEvent,
+    ActivityStartedEvent, AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic,
+    WokeUpEvent,
 };
 use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::time::{SimClock, Tick};
-use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
+use crate::simulation::time_queue::{EndTick, Identifiable, TimeQueue};
 use tracing::instrument;
 
 pub struct ActivityEngine {
@@ -91,7 +92,7 @@ impl ActivityEngine {
 
         // inform all awake agents about wakeup
         for agent in &mut self.awake_q {
-            let end_time = agent.end_time(now);
+            let end_time = agent.end_time;
             ActivityEngine::notify_wakeup(
                 &mut self.comp_env,
                 &mut agent.agent,
@@ -132,8 +133,8 @@ impl ActivityEngine {
 
         // for fast turnaround, agents whose end time is already reached are directly returned and not put into the awake queue
         for agent in wake_up {
-            let awake: AwakeSimulationAgent = agent.into();
-            let end_time = awake.end_time(now);
+            let awake = AwakeSimulationAgent::build(agent.agent, agent.begin_time, self.clock);
+            let end_time = awake.end_time;
             if end_time <= now {
                 end_agents.push(awake.agent);
             } else {
@@ -150,7 +151,7 @@ impl ActivityEngine {
         let mut i = 0;
         while i < self.awake_q.len() {
             let agent = &self.awake_q[i];
-            if agent.end_time(now) <= now {
+            if agent.end_time <= now {
                 let removed = self.awake_q.swap_remove(i);
                 agents.push(removed.agent);
             } else {
@@ -216,22 +217,22 @@ impl<'c> ActivityEngineBuilder<'c> {
 
 struct AwakeSimulationAgent {
     agent: SimulationAgent,
-    begin_time: Tick,
+    end_time: Tick,
 }
 
-impl From<AsleepSimulationAgent> for AwakeSimulationAgent {
-    fn from(value: AsleepSimulationAgent) -> Self {
+impl AwakeSimulationAgent {
+    fn build(agent: SimulationAgent, begin_time: Tick, clock: SimClock) -> Self {
+        let begin_time = clock.tick_to_time(begin_time);
         Self {
-            agent: value.agent,
-            begin_time: value.begin_time,
+            end_time: clock.time_to_tick(agent.end_time(begin_time)),
+            agent,
         }
     }
 }
 
-impl EndTime for AwakeSimulationAgent {
-    fn end_time(&self, _now: Tick) -> Tick {
-        // Using begin_time as reference because if only max_dur is set for activity, the agent assumes that the argument of end_time is the time when the activity started.
-        self.agent.end_time(self.begin_time)
+impl EndTick for AwakeSimulationAgent {
+    fn end_tick(&self, _now: Tick) -> Tick {
+        self.end_time
     }
 }
 
@@ -243,7 +244,7 @@ struct AsleepSimulationAgent {
 
 impl AsleepSimulationAgent {
     fn build(agent: SimulationAgent, now: Tick, clock: SimClock) -> Self {
-        let wakeup_time = clock.u32_seconds_to_tick(agent.wakeup_time(clock.tick_to_u32_seconds(now)));
+        let wakeup_time = clock.time_to_tick(agent.wakeup_time(clock.tick_to_time(now)));
         AsleepSimulationAgent {
             agent,
             wakeup_time,
@@ -252,8 +253,8 @@ impl AsleepSimulationAgent {
     }
 }
 
-impl EndTime for AsleepSimulationAgent {
-    fn end_time(&self, _now: Tick) -> Tick {
+impl EndTick for AsleepSimulationAgent {
+    fn end_tick(&self, _now: Tick) -> Tick {
         // end_time is used for the wake-up queue, so it should return the time when the agent is supposed to wake up.
         self.wakeup_time
     }

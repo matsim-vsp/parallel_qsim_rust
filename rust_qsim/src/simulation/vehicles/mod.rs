@@ -4,8 +4,7 @@ use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::time::Tick;
-use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::time_queue::Identifiable;
 
 #[derive(Debug)]
 pub struct SimulationVehicle {
@@ -89,12 +88,6 @@ impl EnvironmentalEventObserver for SimulationVehicle {
         self.passengers.iter_mut().for_each(|p| {
             p.notify_event(event, now);
         });
-    }
-}
-
-impl EndTime for SimulationVehicle {
-    fn end_time(&self, now: Tick) -> Tick {
-        self.driver().end_time(now)
     }
 }
 

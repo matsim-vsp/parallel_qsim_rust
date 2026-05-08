@@ -5,8 +5,8 @@ use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-pub trait EndTime {
-    fn end_time(&self, now: Tick) -> Tick;
+pub(crate) trait EndTick {
+    fn end_tick(&self, now: Tick) -> Tick;
 }
 
 pub trait Identifiable<I: StableTypeId> {
@@ -15,7 +15,7 @@ pub trait Identifiable<I: StableTypeId> {
 
 struct Entry<T>
 where
-    T: EndTime,
+    T: EndTick,
 {
     end_time: Tick,
     order: usize,
@@ -24,18 +24,18 @@ where
 
 impl<T> PartialEq<Self> for Entry<T>
 where
-    T: EndTime,
+    T: EndTick,
 {
     fn eq(&self, other: &Self) -> bool {
         self.end_time == other.end_time && self.order == other.order
     }
 }
 
-impl<T> Eq for Entry<T> where T: EndTime {}
+impl<T> Eq for Entry<T> where T: EndTick {}
 
 impl<T> PartialOrd<Self> for Entry<T>
 where
-    T: EndTime,
+    T: EndTick,
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -44,7 +44,7 @@ where
 
 impl<T> Ord for Entry<T>
 where
-    T: EndTime,
+    T: EndTick,
 {
     fn cmp(&self, other: &Self) -> Ordering {
         // First compare by end_time (reverse for min-heap)
@@ -63,9 +63,9 @@ where
 /// This is acceptable for simulation purposes as it would take an astronomically large number
 /// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
 /// of having entries with both the same time and counter values after overflow.
-pub struct TimeQueue<T, I>
+pub(crate) struct TimeQueue<T, I>
 where
-    T: EndTime,
+    T: EndTick,
 {
     q: BinaryHeap<Entry<T>>,
     counter: usize,
@@ -74,7 +74,7 @@ where
 
 impl<T, I> Default for TimeQueue<T, I>
 where
-    T: EndTime,
+    T: EndTick,
 {
     fn default() -> Self {
         Self::new()
@@ -83,9 +83,9 @@ where
 
 impl<T, I> TimeQueue<T, I>
 where
-    T: EndTime,
+    T: EndTick,
 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         TimeQueue {
             q: BinaryHeap::new(),
             counter: 0,
@@ -93,8 +93,8 @@ where
         }
     }
 
-    pub fn add(&mut self, value: T, now: Tick) {
-        let end_time = value.end_time(now);
+    pub(crate) fn add(&mut self, value: T, now: Tick) {
+        let end_time = value.end_tick(now);
         let order = self.counter;
         self.counter = self.counter.wrapping_add(1);
         self.q.push(Entry {
@@ -104,7 +104,7 @@ where
         });
     }
 
-    pub fn pop(&mut self, now: Tick) -> Vec<T> {
+    pub(crate) fn pop(&mut self, now: Tick) -> Vec<T> {
         let mut result: Vec<T> = Vec::new();
 
         while let Some(entry_ref) = self.q.peek() {
@@ -119,6 +119,7 @@ where
         result
     }
 
+    #[cfg(test)]
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.q.len()
@@ -136,8 +137,8 @@ impl<I: StableTypeId> ValueWrap<I> {
     }
 }
 
-impl<I: StableTypeId> EndTime for ValueWrap<I> {
-    fn end_time(&self, _: Tick) -> Tick {
+impl<I: StableTypeId> EndTick for ValueWrap<I> {
+    fn end_tick(&self, _: Tick) -> Tick {
         self.end_time
     }
 }
@@ -145,9 +146,9 @@ impl<I: StableTypeId> EndTime for ValueWrap<I> {
 /// This is a mutable version of TimeQueue. It allows to mutate the values in the queue.
 /// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
 /// TODO taxi driver needs to be able to change his end_time such that order is changed
-pub struct MutTimeQueue<T, I>
+pub(crate) struct MutTimeQueue<T, I>
 where
-    T: EndTime + Identifiable<I>,
+    T: EndTick + Identifiable<I>,
     I: StableTypeId,
 {
     q: TimeQueue<ValueWrap<I>, I>,
@@ -156,7 +157,7 @@ where
 
 impl<T, I> Default for MutTimeQueue<T, I>
 where
-    T: EndTime + Identifiable<I>,
+    T: EndTick + Identifiable<I>,
     I: StableTypeId + 'static,
 {
     fn default() -> Self {
@@ -166,24 +167,24 @@ where
 
 impl<T, I> MutTimeQueue<T, I>
 where
-    T: EndTime + Identifiable<I>,
+    T: EndTick + Identifiable<I>,
     I: StableTypeId + 'static,
 {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         MutTimeQueue {
             q: TimeQueue::new(),
             cache: IntMap::default(),
         }
     }
 
-    pub fn add(&mut self, value: T, now: Tick) {
+    pub(crate) fn add(&mut self, value: T, now: Tick) {
         let id = value.id();
         self.q
-            .add(ValueWrap::new(id.clone(), value.end_time(now)), now);
+            .add(ValueWrap::new(id.clone(), value.end_tick(now)), now);
         self.cache.insert(id.clone(), value);
     }
 
-    pub fn pop(&mut self, now: Tick) -> Vec<T> {
+    pub(crate) fn pop(&mut self, now: Tick) -> Vec<T> {
         let ids = self.q.pop(now);
         let mut result: Vec<T> = Vec::new();
 
@@ -195,7 +196,7 @@ where
         result
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.cache.values_mut()
     }
 }
@@ -210,8 +211,8 @@ mod tests {
         end: Tick,
     }
 
-    impl EndTime for TestItem {
-        fn end_time(&self, _now: Tick) -> Tick {
+    impl EndTick for TestItem {
+        fn end_tick(&self, _now: Tick) -> Tick {
             self.end
         }
     }

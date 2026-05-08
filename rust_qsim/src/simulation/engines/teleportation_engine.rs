@@ -1,5 +1,7 @@
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
+use crate::simulation::agents::{
+    AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic,
+};
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::emit_partition_leave_events;
 use crate::simulation::events::{
@@ -12,11 +14,11 @@ use crate::simulation::scenario::population::InternalRoute;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::time::{SimClock, Tick};
-use crate::simulation::time_queue::{Identifiable, TimeQueue};
+use crate::simulation::time_queue::{EndTick, Identifiable, TimeQueue};
 use crate::simulation::vehicles::SimulationVehicle;
 
 pub(crate) struct TeleportationEngine {
-    queue: TimeQueue<SimulationVehicle, InternalVehicle>,
+    queue: TimeQueue<TeleportingVehicle, InternalVehicle>,
     comp_env: ThreadLocalComputationalEnvironment,
     clock: SimClock,
 }
@@ -40,7 +42,10 @@ impl TeleportationEngine {
         vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), outward_now);
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
-            self.queue.add(vehicle, now);
+            self.queue.add(
+                TeleportingVehicle::build(vehicle, self.clock.tick_to_time(now), self.clock),
+                now,
+            );
         } else {
             let to = net_message_broker.rank_for_link(
                 vehicle
@@ -59,8 +64,8 @@ impl TeleportationEngine {
 
     pub fn do_step(&mut self, now: Tick) -> Vec<SimulationVehicle> {
         let mut teleportation_vehicles = self.queue.pop(now);
-        for vehicle in &mut teleportation_vehicles {
-            let agent = vehicle.driver();
+        for teleporting_vehicle in &mut teleportation_vehicles {
+            let agent = teleporting_vehicle.vehicle.driver();
 
             match agent.curr_leg().route.as_ref().unwrap() {
                 InternalRoute::Generic(_) => self.emit_travelled(now, agent),
@@ -69,6 +74,9 @@ impl TeleportationEngine {
             }
         }
         teleportation_vehicles
+            .into_iter()
+            .map(|vehicle| vehicle.vehicle)
+            .collect()
     }
 
     fn emit_travelled(&mut self, now: Tick, agent: &SimulationAgent) {
@@ -116,5 +124,32 @@ impl TeleportationEngine {
                 .build()
                 .unwrap(),
         );
+    }
+}
+
+struct TeleportingVehicle {
+    vehicle: SimulationVehicle,
+    arrival_tick: Tick,
+}
+
+impl TeleportingVehicle {
+    fn build(vehicle: SimulationVehicle, now: crate::simulation::time::SimTime, clock: SimClock) -> Self {
+        let arrival_tick = clock.time_to_tick(vehicle.driver().end_time(now));
+        Self {
+            vehicle,
+            arrival_tick,
+        }
+    }
+}
+
+impl EndTick for TeleportingVehicle {
+    fn end_tick(&self, _now: Tick) -> Tick {
+        self.arrival_tick
+    }
+}
+
+impl Identifiable<InternalVehicle> for TeleportingVehicle {
+    fn id(&self) -> &Id<InternalVehicle> {
+        self.vehicle.id()
     }
 }

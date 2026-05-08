@@ -2,14 +2,13 @@ use crate::simulation::agents::agent_logic::{
     AdaptivePlanBasedSimulationLogic, PlanBasedSimulationLogic,
 };
 use crate::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+    AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
-use crate::simulation::time::SimClock;
-use crate::simulation::time_queue::{EndTime, Identifiable};
-use crate::simulation::time::Tick;
+use crate::simulation::time::SimTime;
+use crate::simulation::time_queue::Identifiable;
 
 #[derive(Debug)]
 pub struct SimulationAgent {
@@ -24,22 +23,14 @@ impl PartialEq for SimulationAgent {
 
 impl SimulationAgent {
     pub fn new_plan_based(person: InternalPerson) -> Self {
-        Self::new_plan_based_with_clock(person, SimClock::new(1))
-    }
-
-    pub(crate) fn new_plan_based_with_clock(person: InternalPerson, clock: SimClock) -> Self {
         Self {
-            logic: Box::new(PlanBasedSimulationLogic::new_with_clock(person, clock)),
+            logic: Box::new(PlanBasedSimulationLogic::new(person)),
         }
     }
 
     pub fn new_adaptive_plan_based(person: InternalPerson) -> Self {
-        Self::new_adaptive_plan_based_with_clock(person, SimClock::new(1))
-    }
-
-    pub(crate) fn new_adaptive_plan_based_with_clock(person: InternalPerson, clock: SimClock) -> Self {
         Self {
-            logic: Box::new(AdaptivePlanBasedSimulationLogic::new_with_clock(person, clock)),
+            logic: Box::new(AdaptivePlanBasedSimulationLogic::new(person)),
         }
     }
 
@@ -49,7 +40,7 @@ impl SimulationAgent {
 }
 
 impl EndTime for SimulationAgent {
-    fn end_time(&self, now: Tick) -> Tick {
+    fn end_time(&self, now: SimTime) -> SimTime {
         self.logic.end_time(now)
     }
 }
@@ -94,7 +85,7 @@ impl SimulationAgentLogic for SimulationAgent {
     fn peek_next_link_id(&self) -> Option<&Id<Link>> {
         self.logic.peek_next_link_id()
     }
-    fn wakeup_time(&self, now: u32) -> u32 {
+    fn wakeup_time(&self, now: SimTime) -> SimTime {
         self.logic.wakeup_time(now)
     }
 }

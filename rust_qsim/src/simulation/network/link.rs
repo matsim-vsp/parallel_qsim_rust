@@ -10,7 +10,7 @@ use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::network::Node;
-use crate::simulation::time::{SimClock, SimTime, Tick};
+use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::VecDeque;

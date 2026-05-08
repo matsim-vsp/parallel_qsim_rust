@@ -5,8 +5,13 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
-use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::time::SimTime;
+use crate::simulation::time_queue::Identifiable;
 use std::fmt::Debug;
+
+pub trait EndTime {
+    fn end_time(&self, now: SimTime) -> SimTime;
+}
 
 pub trait SimulationAgentLogic:
     EndTime + Identifiable<InternalPerson> + EnvironmentalEventObserver + Send
@@ -22,7 +27,7 @@ pub trait SimulationAgentLogic:
     fn is_wanting_to_arrive_on_current_link(&self) -> bool;
     fn curr_link_id(&self) -> Option<&Id<Link>>;
     fn peek_next_link_id(&self) -> Option<&Id<Link>>;
-    fn wakeup_time(&self, now: u32) -> u32;
+    fn wakeup_time(&self, now: SimTime) -> SimTime;
 }
 
 pub trait EnvironmentalEventObserver {

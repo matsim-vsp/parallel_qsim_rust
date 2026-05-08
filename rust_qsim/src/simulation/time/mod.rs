@@ -108,36 +108,44 @@ impl Sub for Tick {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) struct SimTime(Duration);
+pub struct SimTime(Duration);
 
 impl SimTime {
     #[cfg(test)]
-    pub(crate) fn from_duration(duration: Duration) -> Self {
+    pub fn from_duration(duration: Duration) -> Self {
         Self(duration)
     }
 
-    pub(crate) fn from_nanos(nanos: u64) -> Self {
+    pub fn from_nanos(nanos: u64) -> Self {
         Self(Duration::from_nanos(nanos))
     }
 
-    pub(crate) fn from_u32_seconds(seconds: u32) -> Self {
+    pub fn from_u32_seconds(seconds: u32) -> Self {
         Self(Duration::from_secs(seconds as u64))
     }
 
-    pub(crate) fn as_nanos(self) -> u128 {
+    pub fn as_nanos(self) -> u128 {
         self.0.as_nanos()
     }
 
-    pub(crate) fn as_u32_seconds(self) -> u32 {
+    pub fn as_u32_seconds(self) -> u32 {
         self.0.as_secs().try_into().unwrap_or(u32::MAX)
     }
 
-    pub(crate) fn duration_since(self, earlier: SimTime) -> Duration {
+    pub fn duration_since(self, earlier: SimTime) -> Duration {
         self.0.saturating_sub(earlier.0)
     }
 
+    pub fn saturating_add(self, duration: Duration) -> Self {
+        Self(self.0.saturating_add(duration))
+    }
+
+    pub fn saturating_sub(self, duration: Duration) -> Self {
+        Self(self.0.saturating_sub(duration))
+    }
+
     #[allow(unused)]
-    pub(crate) fn parse_hh_mm_ss(input: &str) -> Result<Self, String> {
+    pub fn parse_hh_mm_ss(input: &str) -> Result<Self, String> {
         let mut parts = input.split(':');
         let hours = parts
             .next()

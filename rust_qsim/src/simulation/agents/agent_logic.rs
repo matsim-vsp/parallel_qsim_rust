@@ -3,7 +3,7 @@ use crate::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
 use crate::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+    AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
@@ -14,9 +14,10 @@ use crate::simulation::scenario::population::{
 use crate::simulation::scenario::trip_structure_utils::{
     find_trip_span_starting_at_activity_default, identify_main_mode,
 };
-use crate::simulation::time::{SimClock, Tick};
-use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::time::SimTime;
+use crate::simulation::time_queue::Identifiable;
 use std::fmt::{Debug, Formatter};
+use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot::Receiver;
 use tracing::trace;
@@ -26,8 +27,7 @@ pub struct PlanBasedSimulationLogic {
     pub(super) basic_agent_delegate: InternalPerson,
     pub(super) curr_plan_element: usize,
     pub(super) curr_route_element: usize,
-    activity_end_time: Option<Tick>,
-    clock: SimClock,
+    activity_end_time: Option<SimTime>,
 }
 
 pub struct AdaptivePlanBasedSimulationLogic {
@@ -82,10 +82,6 @@ impl PlanBasedSimulationLogic {
     }
 
     pub fn new(basic_agent_delegate: InternalPerson) -> Self {
-        Self::new_with_clock(basic_agent_delegate, SimClock::new(1))
-    }
-
-    pub(crate) fn new_with_clock(basic_agent_delegate: InternalPerson, clock: SimClock) -> Self {
         let first_act_end = basic_agent_delegate
             .plan_element_at(0)
             .unwrap()
@@ -96,8 +92,7 @@ impl PlanBasedSimulationLogic {
             basic_agent_delegate,
             curr_plan_element: 0,
             curr_route_element: 0,
-            activity_end_time: Some(clock.u32_seconds_to_tick(first_act_end)),
-            clock,
+            activity_end_time: Some(SimTime::from_u32_seconds(first_act_end)),
         }
     }
 }
@@ -156,8 +151,9 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
         match self.state() {
             SimulationAgentState::LEG => self.activity_end_time = None,
             SimulationAgentState::ACTIVITY => {
-                self.activity_end_time =
-                    Some(self.clock.u32_seconds_to_tick(self.curr_act().cmp_end_time(now)))
+                self.activity_end_time = Some(SimTime::from_u32_seconds(
+                    self.curr_act().cmp_end_time(now),
+                ))
             }
             SimulationAgentState::STUCK => {}
         }
@@ -216,20 +212,22 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             .route_element_at(next_i)
     }
 
-    fn wakeup_time(&self, _: u32) -> u32 {
-        self.clock.tick_to_u32_seconds(self.activity_end_time.unwrap())
+    fn wakeup_time(&self, _: SimTime) -> SimTime {
+        self.activity_end_time.unwrap()
     }
 }
 
 impl EndTime for PlanBasedSimulationLogic {
-    fn end_time(&self, now: Tick) -> Tick {
+    fn end_time(&self, now: SimTime) -> SimTime {
         match self
             .basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
             .unwrap()
         {
             InternalPlanElement::Activity(_) => self.activity_end_time.unwrap(),
-            InternalPlanElement::Leg(l) => now + self.clock.u32_seconds_to_tick(l.travel_time()),
+            InternalPlanElement::Leg(l) => {
+                now.saturating_add(Duration::from_secs(l.travel_time() as u64))
+            }
         }
     }
 }
@@ -271,7 +269,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         self.delegate.peek_next_link_id()
     }
 
-    fn wakeup_time(&self, now: u32) -> u32 {
+    fn wakeup_time(&self, now: SimTime) -> SimTime {
         let mut end = self.delegate.wakeup_time(now);
         if self.delegate.next_leg().is_none() {
             // no need to wake up if there is no other leg.
@@ -285,12 +283,12 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
             .get(crate::simulation::scenario::population::PREPLANNING_HORIZON);
 
         if let Some(h) = horizon {
-            if h > end {
+            if SimTime::from_u32_seconds(h) > end {
                 // if horizon is larger than the current end time, then end - h would be negative (might be the case at the very beginning of the simulation)
                 // and thus there would be an error.
-                end = 0;
+                end = SimTime::default();
             } else {
-                end -= h;
+                end = end.saturating_sub(Duration::from_secs(h as u64));
             }
         }
 
@@ -299,7 +297,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
 }
 
 impl EndTime for AdaptivePlanBasedSimulationLogic {
-    fn end_time(&self, now: Tick) -> Tick {
+    fn end_time(&self, now: SimTime) -> SimTime {
         self.delegate.end_time(now)
     }
 }
@@ -325,12 +323,8 @@ impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
 
 impl AdaptivePlanBasedSimulationLogic {
     pub fn new(person: InternalPerson) -> Self {
-        Self::new_with_clock(person, SimClock::new(1))
-    }
-
-    pub(crate) fn new_with_clock(person: InternalPerson, clock: SimClock) -> Self {
         Self {
-            delegate: PlanBasedSimulationLogic::new_with_clock(person, clock),
+            delegate: PlanBasedSimulationLogic::new(person),
             route_receiver: None,
         }
     }
