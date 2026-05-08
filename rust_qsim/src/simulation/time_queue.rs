@@ -126,12 +126,14 @@ where
     }
 }
 
+#[allow(dead_code)]
 struct ValueWrap<I: StableTypeId> {
     id: Id<I>,
     end_time: Tick,
 }
 
 impl<I: StableTypeId> ValueWrap<I> {
+    #[allow(dead_code)]
     fn new(id: Id<I>, end_time: Tick) -> Self {
         ValueWrap { id, end_time }
     }
@@ -146,6 +148,7 @@ impl<I: StableTypeId> EndTick for ValueWrap<I> {
 /// This is a mutable version of TimeQueue. It allows to mutate the values in the queue.
 /// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
 /// TODO taxi driver needs to be able to change his end_time such that order is changed
+#[allow(dead_code)]
 pub(crate) struct MutTimeQueue<T, I>
 where
     T: EndTick + Identifiable<I>,
@@ -165,6 +168,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 impl<T, I> MutTimeQueue<T, I>
 where
     T: EndTick + Identifiable<I>,
