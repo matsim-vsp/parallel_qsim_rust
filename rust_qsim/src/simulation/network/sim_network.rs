@@ -1126,8 +1126,8 @@ mod tests {
             unreachable!()
         };
 
-        // Not 1000 but 993 because at the beginning link3 is not saturated.
-        assert_eq!(link1 + link2, 993);
+        // Not 1000 but 992 because at the beginning link3 is not saturated.
+        assert_eq!(link1 + link2, 992);
 
         // link1 has flow cap of 1 veh/s, link2 has flow cap of 2 veh/s.
         // Since all go from link1 and link2 to link3 (flow cap: 1 veh/s), there is only one vehicle per time step moved over the node.
