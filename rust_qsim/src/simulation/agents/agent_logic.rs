@@ -151,9 +151,8 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
         match self.state() {
             SimulationAgentState::LEG => self.activity_end_time = None,
             SimulationAgentState::ACTIVITY => {
-                self.activity_end_time = Some(SimTime::from_u32_seconds(
-                    self.curr_act().cmp_end_time(now),
-                ))
+                self.activity_end_time =
+                    Some(SimTime::from_u32_seconds(self.curr_act().cmp_end_time(now)))
             }
             SimulationAgentState::STUCK => {}
         }

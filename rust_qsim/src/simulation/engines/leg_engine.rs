@@ -185,12 +185,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
-    fn pass_vehicle_to_engine(
-        &mut self,
-        now: Tick,
-        vehicle: SimulationVehicle,
-        route_begin: bool,
-    ) {
+    fn pass_vehicle_to_engine(&mut self, now: Tick, vehicle: SimulationVehicle, route_begin: bool) {
         let leg = vehicle.driver().curr_leg();
 
         // If mode of leg is not main mode, teleport vehicle in every case

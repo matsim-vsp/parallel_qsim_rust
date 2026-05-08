@@ -133,7 +133,11 @@ struct TeleportingVehicle {
 }
 
 impl TeleportingVehicle {
-    fn build(vehicle: SimulationVehicle, now: crate::simulation::time::SimTime, clock: SimClock) -> Self {
+    fn build(
+        vehicle: SimulationVehicle,
+        now: crate::simulation::time::SimTime,
+        clock: SimClock,
+    ) -> Self {
         let arrival_tick = clock.time_to_tick(vehicle.driver().end_time(now));
         Self {
             vehicle,

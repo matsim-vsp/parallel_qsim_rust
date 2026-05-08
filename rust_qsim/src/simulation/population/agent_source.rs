@@ -83,10 +83,10 @@ impl AgentSource for PreplanningHorizonAgentSource {
 }
 
 fn identify_logic_and_insert(
-        agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
-        id: Id<InternalPerson>,
-        person: InternalPerson,
-        config: &Config,
+    agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
+    id: Id<InternalPerson>,
+    person: InternalPerson,
+    config: &Config,
 ) {
     if config.routing().mode == RoutingMode::UsePlans {
         agents.insert(id, SimulationAgent::new_plan_based(person));

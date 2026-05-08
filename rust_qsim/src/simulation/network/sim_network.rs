@@ -541,11 +541,7 @@ impl SimNetworkPartition {
             .any(|link| link.offers_veh(time).is_some())
     }
 
-    fn should_veh_move_out(
-        in_id: &Id<Link>,
-        links: &IntMap<Id<Link>, SimLink>,
-        now: Tick,
-    ) -> bool {
+    fn should_veh_move_out(in_id: &Id<Link>, links: &IntMap<Id<Link>, SimLink>, now: Tick) -> bool {
         let in_link = links.get(in_id).unwrap();
         if let Some(veh_ref) = in_link.offers_veh(now) {
             return if let Some(next_id) = veh_ref.peek_next_route_element() {
