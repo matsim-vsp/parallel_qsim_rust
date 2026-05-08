@@ -11,29 +11,33 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::scenario::population::InternalRoute;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::simulation::Simulation;
+use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::time_queue::{Identifiable, TimeQueue};
 use crate::simulation::vehicles::SimulationVehicle;
 
-pub struct TeleportationEngine {
+pub(crate) struct TeleportationEngine {
     queue: TimeQueue<SimulationVehicle, InternalVehicle>,
     comp_env: ThreadLocalComputationalEnvironment,
+    clock: SimClock,
 }
 
 impl TeleportationEngine {
-    pub fn new(comp_env: ThreadLocalComputationalEnvironment) -> Self {
+    pub fn new(comp_env: ThreadLocalComputationalEnvironment, clock: SimClock) -> Self {
         TeleportationEngine {
             queue: TimeQueue::new(),
             comp_env,
+            clock,
         }
     }
 
     pub fn receive_vehicle<C: SimCommunicator>(
         &mut self,
-        now: u32,
+        now: Tick,
         mut vehicle: SimulationVehicle,
         net_message_broker: &mut NetMessageBroker<C>,
     ) {
-        vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), now);
+        let outward_now = self.clock.tick_to_u32_seconds(now);
+        vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), outward_now);
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
             self.queue.add(vehicle, now);
@@ -43,12 +47,17 @@ impl TeleportationEngine {
                     .curr_link_id()
                     .expect("Remote teleported vehicles must have a destination link"),
             );
-            emit_partition_leave_events(&mut self.comp_env, &vehicle, to, now);
+            emit_partition_leave_events(
+                &mut self.comp_env,
+                &vehicle,
+                to,
+                self.clock.tick_to_u32_seconds(now),
+            );
             net_message_broker.add_veh(vehicle, now);
         }
     }
 
-    pub fn do_step(&mut self, now: u32) -> Vec<SimulationVehicle> {
+    pub fn do_step(&mut self, now: Tick) -> Vec<SimulationVehicle> {
         let mut teleportation_vehicles = self.queue.pop(now);
         for vehicle in &mut teleportation_vehicles {
             let agent = vehicle.driver();
@@ -62,12 +71,13 @@ impl TeleportationEngine {
         teleportation_vehicles
     }
 
-    fn emit_travelled(&mut self, now: u32, agent: &SimulationAgent) {
+    fn emit_travelled(&mut self, now: Tick, agent: &SimulationAgent) {
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         self.comp_env.events_manager_borrow_mut().process_event(
             &TeleportationArrivalEventBuilder::default()
-                .time(now)
+                .time(outward_now)
                 .person(agent.id().clone())
                 .mode(leg.mode.clone())
                 .distance(
@@ -81,7 +91,8 @@ impl TeleportationEngine {
         );
     }
 
-    fn emit_travelled_with_pt(&mut self, now: u32, agent: &SimulationAgent) {
+    fn emit_travelled_with_pt(&mut self, now: Tick, agent: &SimulationAgent) {
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let transit_line_id =
@@ -91,7 +102,7 @@ impl TeleportationEngine {
         );
         self.comp_env.events_manager_borrow_mut().process_event(
             &PtTeleportationArrivalEventBuilder::default()
-                .time(now)
+                .time(outward_now)
                 .person(agent.id().clone())
                 .mode(leg.mode.clone())
                 .distance(

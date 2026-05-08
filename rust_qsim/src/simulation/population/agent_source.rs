@@ -3,6 +3,7 @@ use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::time::SimClock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -56,8 +57,9 @@ impl AgentSource for PopulationAgentSource {
         let persons = std::mem::take(&mut scenario.population.persons);
         let mut agents = HashMap::with_capacity(persons.len());
 
+        let clock = SimClock::new(scenario.config.simulation().ticks_per_second);
         for (id, person) in persons {
-            agents.insert(id, SimulationAgent::new_plan_based(person));
+            agents.insert(id, SimulationAgent::new_plan_based_with_clock(person, clock));
         }
         agents
     }
@@ -75,21 +77,23 @@ impl AgentSource for PreplanningHorizonAgentSource {
         let persons = std::mem::take(&mut scenario.population.persons);
         let mut agents = HashMap::with_capacity(persons.len());
 
+        let clock = SimClock::new(scenario.config.simulation().ticks_per_second);
         for (id, person) in persons {
-            identify_logic_and_insert(&mut agents, id, person, &scenario.config);
+            identify_logic_and_insert(&mut agents, id, person, &scenario.config, clock);
         }
         agents
     }
 }
 
 fn identify_logic_and_insert(
-    agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
-    id: Id<InternalPerson>,
-    person: InternalPerson,
-    config: &Config,
+        agents: &mut HashMap<Id<InternalPerson>, SimulationAgent>,
+        id: Id<InternalPerson>,
+        person: InternalPerson,
+        config: &Config,
+        clock: SimClock,
 ) {
     if config.routing().mode == RoutingMode::UsePlans {
-        agents.insert(id, SimulationAgent::new_plan_based(person));
+        agents.insert(id, SimulationAgent::new_plan_based_with_clock(person, clock));
         return;
     }
 
@@ -107,11 +111,11 @@ fn identify_logic_and_insert(
         });
 
     if has_at_least_one_preplanning_horizon {
-        agents.insert(id, SimulationAgent::new_adaptive_plan_based(person));
+        agents.insert(id, SimulationAgent::new_adaptive_plan_based_with_clock(person, clock));
     } else {
         // if there is no rolling horizon logic, we assume that the person has a plan logic
         // and we create a InternalSimulationAgent with plan logic
-        agents.insert(id, SimulationAgent::new_plan_based(person));
+        agents.insert(id, SimulationAgent::new_plan_based_with_clock(person, clock));
     }
 }
 

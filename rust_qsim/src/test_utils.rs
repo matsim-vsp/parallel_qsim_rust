@@ -68,6 +68,7 @@ pub fn config() -> config::Simulation {
     config::Simulation {
         start_time: 0,
         end_time: 0,
+        ticks_per_second: 1,
         sample_size: 1.0,
         stuck_threshold: u32::MAX,
         main_modes: vec![String::from("car")],

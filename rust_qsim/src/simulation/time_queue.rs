@@ -1,11 +1,12 @@
 use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
+use crate::simulation::time::Tick;
 use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 pub trait EndTime {
-    fn end_time(&self, now: u32) -> u32;
+    fn end_time(&self, now: Tick) -> Tick;
 }
 
 pub trait Identifiable<I: StableTypeId> {
@@ -16,7 +17,7 @@ struct Entry<T>
 where
     T: EndTime,
 {
-    end_time: u32,
+    end_time: Tick,
     order: usize,
     value: T,
 }
@@ -92,10 +93,9 @@ where
         }
     }
 
-    pub fn add(&mut self, value: T, now: u32) {
+    pub fn add(&mut self, value: T, now: Tick) {
         let end_time = value.end_time(now);
         let order = self.counter;
-        // Counter wraps around naturally with usize overflow behavior
         self.counter = self.counter.wrapping_add(1);
         self.q.push(Entry {
             end_time,
@@ -104,7 +104,7 @@ where
         });
     }
 
-    pub fn pop(&mut self, now: u32) -> Vec<T> {
+    pub fn pop(&mut self, now: Tick) -> Vec<T> {
         let mut result: Vec<T> = Vec::new();
 
         while let Some(entry_ref) = self.q.peek() {
@@ -127,17 +127,17 @@ where
 
 struct ValueWrap<I: StableTypeId> {
     id: Id<I>,
-    end_time: u32,
+    end_time: Tick,
 }
 
 impl<I: StableTypeId> ValueWrap<I> {
-    fn new(id: Id<I>, end_time: u32) -> Self {
+    fn new(id: Id<I>, end_time: Tick) -> Self {
         ValueWrap { id, end_time }
     }
 }
 
 impl<I: StableTypeId> EndTime for ValueWrap<I> {
-    fn end_time(&self, _: u32) -> u32 {
+    fn end_time(&self, _: Tick) -> Tick {
         self.end_time
     }
 }
@@ -176,14 +176,14 @@ where
         }
     }
 
-    pub fn add(&mut self, value: T, now: u32) {
+    pub fn add(&mut self, value: T, now: Tick) {
         let id = value.id();
         self.q
             .add(ValueWrap::new(id.clone(), value.end_time(now)), now);
         self.cache.insert(id.clone(), value);
     }
 
-    pub fn pop(&mut self, now: u32) -> Vec<T> {
+    pub fn pop(&mut self, now: Tick) -> Vec<T> {
         let ids = self.q.pop(now);
         let mut result: Vec<T> = Vec::new();
 
@@ -207,11 +207,11 @@ mod tests {
     #[derive(Debug, Clone)]
     struct TestItem {
         id: u32,
-        end: u32,
+        end: Tick,
     }
 
     impl EndTime for TestItem {
-        fn end_time(&self, _now: u32) -> u32 {
+        fn end_time(&self, _now: Tick) -> Tick {
             self.end
         }
     }
@@ -219,14 +219,29 @@ mod tests {
     #[test]
     fn test_time_queue_stable_ordering() {
         let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        queue.add(
+            TestItem {
+                id: 1,
+                end: Tick::new(10),
+            },
+            Tick::zero(),
+        );
+        queue.add(
+            TestItem {
+                id: 2,
+                end: Tick::new(10),
+            },
+            Tick::zero(),
+        );
+        queue.add(
+            TestItem {
+                id: 3,
+                end: Tick::new(10),
+            },
+            Tick::zero(),
+        );
 
-        // Add multiple items with the same end time
-        // They should be popped in the order they were added (FIFO)
-        queue.add(TestItem { id: 1, end: 10 }, 0);
-        queue.add(TestItem { id: 2, end: 10 }, 0);
-        queue.add(TestItem { id: 3, end: 10 }, 0);
-
-        let results = queue.pop(10);
+        let results = queue.pop(Tick::new(10));
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].id, 1);
         assert_eq!(results[1].id, 2);
@@ -236,25 +251,45 @@ mod tests {
     #[test]
     fn test_time_queue_time_ordering_priority() {
         let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        queue.add(
+            TestItem {
+                id: 1,
+                end: Tick::new(15),
+            },
+            Tick::zero(),
+        );
+        queue.add(
+            TestItem {
+                id: 2,
+                end: Tick::new(10),
+            },
+            Tick::zero(),
+        );
+        queue.add(
+            TestItem {
+                id: 3,
+                end: Tick::new(20),
+            },
+            Tick::zero(),
+        );
+        queue.add(
+            TestItem {
+                id: 4,
+                end: Tick::new(10),
+            },
+            Tick::zero(),
+        );
 
-        // Add items with different end times
-        // They should be popped in time order first
-        queue.add(TestItem { id: 1, end: 15 }, 0);
-        queue.add(TestItem { id: 2, end: 10 }, 0);
-        queue.add(TestItem { id: 3, end: 20 }, 0);
-        queue.add(TestItem { id: 4, end: 10 }, 0); // Same as id:2
-
-        let results = queue.pop(10);
+        let results = queue.pop(Tick::new(10));
         assert_eq!(results.len(), 2);
-        // Time 10 items should come out in order they were added
         assert_eq!(results[0].id, 2);
         assert_eq!(results[1].id, 4);
 
-        let results = queue.pop(15);
+        let results = queue.pop(Tick::new(15));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 1);
 
-        let results = queue.pop(20);
+        let results = queue.pop(Tick::new(20));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 3);
     }

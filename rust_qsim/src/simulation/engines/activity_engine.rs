@@ -6,6 +6,7 @@ use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::time_queue::{EndTime, Identifiable, TimeQueue};
 use tracing::instrument;
 
@@ -13,6 +14,7 @@ pub struct ActivityEngine {
     asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
     awake_q: Vec<AwakeSimulationAgent>,
     comp_env: ThreadLocalComputationalEnvironment,
+    clock: SimClock,
 }
 
 impl ActivityEngine {
@@ -20,23 +22,27 @@ impl ActivityEngine {
         asleep_q: TimeQueue<AsleepSimulationAgent, InternalPerson>,
         awake_q: Vec<AwakeSimulationAgent>,
         comp_env: ThreadLocalComputationalEnvironment,
+        clock: SimClock,
     ) -> Self {
         ActivityEngine {
             asleep_q,
             awake_q,
             comp_env,
+            clock,
         }
     }
 
-    #[instrument(level = "trace", skip(self, agents))]
+    #[instrument(level = "trace", skip(self, now, agents))]
     pub(crate) fn do_step(
         &mut self,
-        now: u32,
+        now: impl Into<Tick>,
         agents: Vec<SimulationAgent>,
     ) -> Vec<SimulationAgent> {
+        let now = now.into();
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         for mut agent in agents {
-            agent.advance_plan(now);
-            self.receive_agent(now, AsleepSimulationAgent::build(agent, now));
+            agent.advance_plan(outward_now);
+            self.receive_agent(now, AsleepSimulationAgent::build(agent, now, self.clock));
         }
 
         let mut end_after_wake_up = self.wake_up(now);
@@ -49,10 +55,11 @@ impl ActivityEngine {
     #[instrument(level = "trace", skip(self, end_after_wake_up, end_from_awake))]
     fn notify_end_all(
         &mut self,
-        now: u32,
+        now: Tick,
         end_after_wake_up: Vec<SimulationAgent>,
         end_from_awake: Vec<SimulationAgent>,
     ) -> Vec<SimulationAgent> {
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         let mut res = Vec::with_capacity(end_after_wake_up.len() + end_from_awake.len());
         for mut agent in end_after_wake_up
             .into_iter()
@@ -60,40 +67,47 @@ impl ActivityEngine {
         {
             self.comp_env.events_manager_borrow_mut().process_event(
                 &ActivityEndEventBuilder::default()
-                    .time(now)
+                    .time(outward_now)
                     .person(agent.id().clone())
                     .link(agent.curr_act().link_id.clone())
                     .act_type(agent.curr_act().act_type.clone())
                     .build()
                     .unwrap(),
             );
-            ActivityEngine::notify_act_end(&mut agent, now);
+            ActivityEngine::notify_act_end(&mut agent, outward_now);
             res.push(agent);
         }
         res
     }
 
     #[instrument(level = "trace", skip(self, end_after_wake_up))]
-    fn notify_wakeup_all(&mut self, now: u32, end_after_wake_up: &mut [SimulationAgent]) {
+    fn notify_wakeup_all(&mut self, now: Tick, end_after_wake_up: &mut [SimulationAgent]) {
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         // inform agents about wakeup
         // those are the agents that are woken up and directly end their activity
         end_after_wake_up.iter_mut().for_each(|agent| {
-            ActivityEngine::notify_wakeup(&mut self.comp_env, agent, now, now);
+            ActivityEngine::notify_wakeup(&mut self.comp_env, agent, outward_now, outward_now);
         });
 
         // inform all awake agents about wakeup
         for agent in &mut self.awake_q {
             let end_time = agent.end_time(now);
-            ActivityEngine::notify_wakeup(&mut self.comp_env, &mut agent.agent, end_time, now);
+            ActivityEngine::notify_wakeup(
+                &mut self.comp_env,
+                &mut agent.agent,
+                self.clock.tick_to_u32_seconds(end_time),
+                outward_now,
+            );
         }
     }
 
-    fn receive_agent(&mut self, now: u32, mut agent: AsleepSimulationAgent) {
+    fn receive_agent(&mut self, now: Tick, mut agent: AsleepSimulationAgent) {
         // emmit act start event
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         let act = agent.agent.curr_act();
         self.comp_env.events_manager_borrow_mut().process_event(
             &ActivityStartEventBuilder::default()
-                .time(now)
+                .time(outward_now)
                 .person(agent.agent.id().clone())
                 .link(act.link_id.clone())
                 .act_type(act.act_type.clone())
@@ -105,13 +119,14 @@ impl ActivityEngine {
             &mut AgentEvent::ActivityStarted(ActivityStartedEvent {
                 agent: &mut self.comp_env,
             }),
-            now,
+            outward_now,
         );
         self.asleep_q.add(agent, now);
     }
 
     /// Pushes agents whose wakeup time is reached into the awake queue and returns agents whose end time is already reached.
-    fn wake_up(&mut self, now: u32) -> Vec<SimulationAgent> {
+    fn wake_up(&mut self, now: impl Into<Tick>) -> Vec<SimulationAgent> {
+        let now = now.into();
         let mut end_agents = Vec::new();
         let wake_up = self.asleep_q.pop(now);
 
@@ -128,7 +143,8 @@ impl ActivityEngine {
         end_agents
     }
 
-    fn end(&mut self, now: u32) -> Vec<SimulationAgent> {
+    fn end(&mut self, now: impl Into<Tick>) -> Vec<SimulationAgent> {
+        let now = now.into();
         let mut agents = Vec::new();
 
         let mut i = 0;
@@ -186,20 +202,21 @@ impl<'c> ActivityEngineBuilder<'c> {
     }
 
     pub fn build(self) -> ActivityEngine {
-        let now = self.config.simulation().start_time;
+        let clock = SimClock::new(self.config.simulation().ticks_per_second);
+        let now = clock.u32_seconds_to_tick(self.config.simulation().start_time);
 
         let mut asleep = TimeQueue::new();
         for agent in self.agents {
-            asleep.add(AsleepSimulationAgent::build(agent, now), now);
+            asleep.add(AsleepSimulationAgent::build(agent, now, clock), now);
         }
         let awake_q = Vec::new();
-        ActivityEngine::new(asleep, awake_q, self.comp_env)
+        ActivityEngine::new(asleep, awake_q, self.comp_env, clock)
     }
 }
 
 struct AwakeSimulationAgent {
     agent: SimulationAgent,
-    begin_time: u32,
+    begin_time: Tick,
 }
 
 impl From<AsleepSimulationAgent> for AwakeSimulationAgent {
@@ -212,7 +229,7 @@ impl From<AsleepSimulationAgent> for AwakeSimulationAgent {
 }
 
 impl EndTime for AwakeSimulationAgent {
-    fn end_time(&self, _now: u32) -> u32 {
+    fn end_time(&self, _now: Tick) -> Tick {
         // Using begin_time as reference because if only max_dur is set for activity, the agent assumes that the argument of end_time is the time when the activity started.
         self.agent.end_time(self.begin_time)
     }
@@ -220,13 +237,13 @@ impl EndTime for AwakeSimulationAgent {
 
 struct AsleepSimulationAgent {
     agent: SimulationAgent,
-    wakeup_time: u32,
-    begin_time: u32,
+    wakeup_time: Tick,
+    begin_time: Tick,
 }
 
 impl AsleepSimulationAgent {
-    fn build(agent: SimulationAgent, now: u32) -> Self {
-        let wakeup_time = agent.wakeup_time(now);
+    fn build(agent: SimulationAgent, now: Tick, clock: SimClock) -> Self {
+        let wakeup_time = clock.u32_seconds_to_tick(agent.wakeup_time(clock.tick_to_u32_seconds(now)));
         AsleepSimulationAgent {
             agent,
             wakeup_time,
@@ -236,7 +253,7 @@ impl AsleepSimulationAgent {
 }
 
 impl EndTime for AsleepSimulationAgent {
-    fn end_time(&self, _now: u32) -> u32 {
+    fn end_time(&self, _now: Tick) -> Tick {
         // end_time is used for the wake-up queue, so it should return the time when the agent is supposed to wake up.
         self.wakeup_time
     }

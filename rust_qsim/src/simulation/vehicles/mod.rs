@@ -4,6 +4,7 @@ use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::time::Tick;
 use crate::simulation::time_queue::{EndTime, Identifiable};
 
 #[derive(Debug)]
@@ -92,7 +93,7 @@ impl EnvironmentalEventObserver for SimulationVehicle {
 }
 
 impl EndTime for SimulationVehicle {
-    fn end_time(&self, now: u32) -> u32 {
+    fn end_time(&self, now: Tick) -> Tick {
         self.driver().end_time(now)
     }
 }

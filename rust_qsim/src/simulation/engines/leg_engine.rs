@@ -18,6 +18,7 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::scenario::population::InternalRoute;
 use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 use nohash_hasher::IntSet;
@@ -31,6 +32,7 @@ pub struct LegEngine<C: SimCommunicator> {
     departure_handler: VehicularDepartureHandler,
     main_modes: IntSet<Id<String>>,
     comp_env: ThreadLocalComputationalEnvironment,
+    clock: SimClock,
 }
 
 impl<C: SimCommunicator> LegEngine<C> {
@@ -41,6 +43,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         config: &Simulation,
         comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
+        let clock = SimClock::new(config.ticks_per_second);
         let main_modes: IntSet<Id<String>> = config
             .main_modes
             .iter()
@@ -53,13 +56,14 @@ impl<C: SimCommunicator> LegEngine<C> {
         };
 
         LegEngine {
-            teleportation_engine: TeleportationEngine::new(comp_env.clone()),
-            network_engine: NetworkEngine::new(network, comp_env.clone()),
+            teleportation_engine: TeleportationEngine::new(comp_env.clone(), clock),
+            network_engine: NetworkEngine::new(network, comp_env.clone(), clock),
             garage,
             net_message_broker,
             departure_handler,
             main_modes,
             comp_env,
+            clock,
         }
     }
 
@@ -75,7 +79,7 @@ impl<C: SimCommunicator> LegEngine<C> {
     #[instrument(level = "trace", skip(self, agents), fields(rank=self.net_message_broker.rank()))]
     pub(crate) fn do_step(
         &mut self,
-        now: u32,
+        now: Tick,
         agents: Vec<SimulationAgent>,
     ) -> Vec<SimulationAgent> {
         self.receive_agents(now, agents);
@@ -108,11 +112,11 @@ impl<C: SimCommunicator> LegEngine<C> {
     }
 
     #[instrument(level = "trace", skip(self), fields(rank=self.net_message_broker.rank()))]
-    fn send_recv(&mut self, now: u32) -> Vec<InternalSyncMessage> {
+    fn send_recv(&mut self, now: Tick) -> Vec<InternalSyncMessage> {
         self.net_message_broker.send_recv(now)
     }
 
-    fn receive_agents(&mut self, now: u32, agents: Vec<SimulationAgent>) {
+    fn receive_agents(&mut self, now: Tick, agents: Vec<SimulationAgent>) {
         for agent in agents {
             self.receive_agent(now, agent);
         }
@@ -120,17 +124,18 @@ impl<C: SimCommunicator> LegEngine<C> {
 
     fn publish_end_events(
         &mut self,
-        now: u32,
+        now: Tick,
         vehicles: Vec<SimulationVehicle>,
         publish_leave_vehicle: bool,
     ) -> Vec<SimulationAgent> {
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         let mut agents = vec![];
         for veh in vehicles {
             //in case of teleportation, do not publish leave vehicle events
             if publish_leave_vehicle {
                 self.comp_env.events_manager_borrow_mut().process_event(
                     &PersonLeavesVehicleEventBuilder::default()
-                        .time(now)
+                        .time(outward_now)
                         .vehicle(veh.id().clone())
                         .person(veh.driver().id().clone())
                         .build()
@@ -142,7 +147,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                 if publish_leave_vehicle {
                     self.comp_env.events_manager_borrow_mut().process_event(
                         &PersonLeavesVehicleEventBuilder::default()
-                            .time(now)
+                            .time(outward_now)
                             .vehicle(veh.id().clone())
                             .person(passenger.id().clone())
                             .build()
@@ -154,7 +159,7 @@ impl<C: SimCommunicator> LegEngine<C> {
             let leg = veh.driver().curr_leg();
             self.comp_env.events_manager_borrow_mut().process_event(
                 &PersonArrivalEventBuilder::default()
-                    .time(now)
+                    .time(outward_now)
                     .person(veh.driver().id().clone())
                     .link(veh.curr_link_id().unwrap().clone())
                     .leg_mode(leg.mode.clone())
@@ -167,19 +172,25 @@ impl<C: SimCommunicator> LegEngine<C> {
         agents
     }
 
-    pub(crate) fn receive_agent(&mut self, now: u32, mut agent: SimulationAgent) {
-        agent.advance_plan(now);
+    pub(crate) fn receive_agent(&mut self, now: Tick, mut agent: SimulationAgent) {
+        let outward_now = self.clock.tick_to_u32_seconds(now);
+        agent.advance_plan(outward_now);
 
         let vehicle = self
             .departure_handler
-            .handle_departure(now, agent, &mut self.garage);
+            .handle_departure(outward_now, agent, &mut self.garage);
 
         if let Some(vehicle) = vehicle {
             self.pass_vehicle_to_engine(now, vehicle, true);
         }
     }
 
-    fn pass_vehicle_to_engine(&mut self, now: u32, vehicle: SimulationVehicle, route_begin: bool) {
+    fn pass_vehicle_to_engine(
+        &mut self,
+        now: Tick,
+        vehicle: SimulationVehicle,
+        route_begin: bool,
+    ) {
         let leg = vehicle.driver().curr_leg();
 
         // If mode of leg is not main mode, teleport vehicle in every case
@@ -213,14 +224,15 @@ impl<C: SimCommunicator> LegEngine<C> {
         &self.network_engine.network
     }
 
-    fn emit_partition_enter_events(&mut self, now: u32, vehicle: &SimulationVehicle, from: u32) {
+    fn emit_partition_enter_events(&mut self, now: Tick, vehicle: &SimulationVehicle, from: u32) {
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         self.comp_env
             .partition_events_manager_borrow_mut()
             .process_event(PartitionEvent::VehicleEntersPartition(
                 VehicleEntersPartitionEvent {
                     vehicle_id: vehicle.id().clone(),
                     from,
-                    time: now,
+                    time: outward_now,
                 },
             ));
         self.comp_env
@@ -229,7 +241,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                 AgentEntersPartitionEvent {
                     agent_id: vehicle.driver().id().clone(),
                     from,
-                    time: now,
+                    time: outward_now,
                 },
             ));
         for passenger in vehicle.passengers() {
@@ -239,7 +251,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                     AgentEntersPartitionEvent {
                         agent_id: passenger.id().clone(),
                         from,
-                        time: now,
+                        time: outward_now,
                     },
                 ));
         }

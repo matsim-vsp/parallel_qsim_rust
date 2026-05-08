@@ -10,6 +10,7 @@ use crate::simulation::network::storage_cap::StorageCap;
 use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::network::Node;
+use crate::simulation::time::{SimClock, SimTime, Tick};
 use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::VecDeque;
@@ -68,15 +69,16 @@ impl SimLink {
 
     pub fn flow_cap(&self) -> f32 {
         match self {
-            SimLink::Local(l) => l.flow_cap.capacity_per_time_step(),
-            SimLink::In(il) => il.local_link.flow_cap.capacity_per_time_step(),
+            SimLink::Local(l) => l.flow_cap.capacity_per_tick(),
+            SimLink::In(il) => il.local_link.flow_cap.capacity_per_tick(),
             SimLink::Out(_) => {
                 panic!("no flow cap for out links")
             }
         }
     }
 
-    pub fn offers_veh(&self, now: u32) -> Option<&SimulationVehicle> {
+    pub fn offers_veh(&self, now: impl Into<Tick>) -> Option<&SimulationVehicle> {
+        let now = now.into();
         match self {
             SimLink::Local(ll) => ll.offers_veh(now),
             SimLink::In(il) => il.local_link.offers_veh(now),
@@ -86,7 +88,8 @@ impl SimLink {
         }
     }
 
-    pub fn is_veh_stuck(&self, now: u32) -> bool {
+    pub fn is_veh_stuck(&self, now: impl Into<Tick>) -> bool {
+        let now = now.into();
         match self {
             SimLink::Local(ll) => ll.stuck_timer.is_stuck(now),
             SimLink::In(il) => il.local_link.stuck_timer.is_stuck(now),
@@ -132,8 +135,9 @@ impl SimLink {
         &mut self,
         vehicle: SimulationVehicle,
         position: LinkPosition,
-        now: u32,
+        now: impl Into<Tick>,
     ) {
+        let now = now.into();
         match self {
             SimLink::Local(l) => l.push_veh(vehicle, now, position),
             SimLink::In(il) => il.local_link.push_veh(vehicle, now, position),
@@ -163,6 +167,7 @@ pub struct LocalLink {
     storage_cap: StorageCap,
     flow_cap: Flowcap,
     stuck_timer: StuckTimer,
+    clock: SimClock,
     pub from: Id<Node>,
     pub to: Id<Node>,
 }
@@ -170,7 +175,7 @@ pub struct LocalLink {
 #[derive(Debug)]
 struct VehicleQEntry {
     vehicle: SimulationVehicle,
-    earliest_exit_time: u32,
+    earliest_exit_time: Tick,
 }
 
 impl LocalLink {
@@ -189,6 +194,7 @@ impl LocalLink {
     }
 
     pub fn new_with_defaults(id: Id<Link>, from: Id<Node>, to: Id<Node>) -> Self {
+        let clock = SimClock::new(1);
         LocalLink {
             id,
             q: VecDeque::new(),
@@ -197,8 +203,9 @@ impl LocalLink {
             length: 1.0,
             free_speed: 1.0,
             storage_cap: StorageCap::build(0., 1., 1., 1.0, 7.5),
-            flow_cap: Flowcap::new(3600., 1.0),
-            stuck_timer: StuckTimer::new(u32::MAX),
+            flow_cap: Flowcap::new(3600., 1.0, 1.0),
+            stuck_timer: StuckTimer::new(Tick::new(u32::MAX as u64)),
+            clock,
             from,
             to,
         }
@@ -215,6 +222,9 @@ impl LocalLink {
         from: Id<Node>,
         to: Id<Node>,
     ) -> Self {
+        let clock = SimClock::new(config.ticks_per_second);
+        let max_available =
+            (capacity_h * config.sample_size / 3600.) * clock.tick_length().as_secs_f32();
         let storage_cap = StorageCap::build(
             length,
             perm_lanes,
@@ -231,24 +241,33 @@ impl LocalLink {
             length,
             free_speed,
             storage_cap,
-            flow_cap: Flowcap::new(capacity_h, config.sample_size),
-            stuck_timer: StuckTimer::new(config.stuck_threshold),
+            flow_cap: Flowcap::new(capacity_h, config.sample_size, max_available),
+            stuck_timer: StuckTimer::new(clock.u32_seconds_to_tick(config.stuck_threshold)),
+            clock,
             from,
             to,
         }
     }
 
-    pub fn push_veh(&mut self, vehicle: SimulationVehicle, now: u32, position: LinkPosition) {
+    pub fn push_veh(
+        &mut self,
+        vehicle: SimulationVehicle,
+        now: impl Into<Tick>,
+        position: LinkPosition,
+    ) {
+        let now = now.into();
         match position {
             LinkPosition::QStart => self.push_veh_to_queue(vehicle, now),
             LinkPosition::Waiting => self.push_veh_to_waiting_list(vehicle),
         }
     }
 
-    fn push_veh_to_queue(&mut self, vehicle: SimulationVehicle, now: u32) {
+    fn push_veh_to_queue(&mut self, vehicle: SimulationVehicle, now: Tick) {
         let speed = self.free_speed.min(vehicle.max_v());
-        let duration = 1.max((self.length / speed as f64) as u32); // at least 1 second per link
-        let earliest_exit_time = now + duration;
+        let duration = self
+            .clock
+            .seconds_to_travel_ticks(self.length / speed as f64);
+        let earliest_exit_time = now.saturating_add(duration);
 
         // update state
         self.storage_cap.consume(vehicle.pce());
@@ -272,9 +291,11 @@ impl LocalLink {
     /// Returns the vehicles that end their leg on the link
     pub fn do_sim_step(
         &mut self,
-        now: u32,
+        now: impl Into<Tick>,
         comp_env: &mut ThreadLocalComputationalEnvironment,
     ) -> Vec<SimulationVehicle> {
+        let now = now.into();
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         self.update_flow_cap(now);
         let mut ending_vehicles = self.add_waiting_to_buffer(comp_env, now);
         ending_vehicles.append(&mut self.add_queue_to_buffer(now));
@@ -285,7 +306,7 @@ impl LocalLink {
                     .vehicle(v.id().clone())
                     .link(self.id.clone())
                     .person(v.driver().id().clone())
-                    .time(now)
+                    .time(outward_now)
                     .network_mode(v.driver().curr_leg().mode.clone())
                     .build()
                     .unwrap(),
@@ -295,7 +316,7 @@ impl LocalLink {
         ending_vehicles
     }
 
-    fn add_queue_to_buffer(&mut self, now: u32) -> Vec<SimulationVehicle> {
+    fn add_queue_to_buffer(&mut self, now: Tick) -> Vec<SimulationVehicle> {
         let mut released_vehicles = vec![];
 
         loop {
@@ -341,7 +362,7 @@ impl LocalLink {
     fn add_waiting_to_buffer(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        now: u32,
+        now: Tick,
     ) -> Vec<SimulationVehicle> {
         let mut released_vehicles = vec![];
 
@@ -378,15 +399,16 @@ impl LocalLink {
     fn pop_from_waiting(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        now: u32,
+        now: Tick,
     ) -> SimulationVehicle {
         let vehicle = self.waiting_list.pop_front().unwrap();
+        let outward_now = self.clock.tick_to_u32_seconds(now);
         comp_env.events_manager_borrow_mut().process_event(
             &VehicleEntersTrafficEventBuilder::default()
                 .vehicle(vehicle.id().clone())
                 .link(self.id.clone())
                 .person(vehicle.driver().id().clone())
-                .time(now)
+                .time(outward_now)
                 .network_mode(vehicle.driver().curr_leg().mode.clone())
                 .build()
                 .unwrap(),
@@ -414,14 +436,15 @@ impl LocalLink {
         None
     }
 
-    fn update_flow_cap(&mut self, now: u32) {
+    fn update_flow_cap(&mut self, now: Tick) {
         // increase flow cap if new time step
-        self.flow_cap.update_capacity(now);
+        self.flow_cap.update_capacity(self.clock.tick_to_time(now));
     }
 
     /// This method returns the next vehicle allowed to leave the connection and checks
     /// whether flow capacity is available.
-    fn offers_veh(&self, now: u32) -> Option<&SimulationVehicle> {
+    fn offers_veh(&self, now: impl Into<Tick>) -> Option<&SimulationVehicle> {
+        let now = now.into();
         if let Some(entry) = self.buffer.front()
             && self.flow_cap.has_capacity_left()
         {
@@ -454,10 +477,11 @@ impl LocalLink {
         &self.to
     }
 
-    pub fn to_nodes_active(&self, now: u32) -> bool {
+    pub fn to_nodes_active(&self, now: impl Into<Tick>) -> bool {
+        let now = now.into();
         // the node will only look at the vehicle at the at the top of the queue in the next timestep
         // therefore, peek whether vehicles are available for the next timestep.
-        self.offers_veh(now + 1).is_some()
+        self.offers_veh(now.next()).is_some()
     }
 }
 
@@ -735,6 +759,7 @@ mod sim_link_tests {
         let config = config::Simulation {
             start_time: 0,
             end_time: 0,
+            ticks_per_second: 1,
             sample_size: 1.0,
             stuck_threshold,
             main_modes: vec![],
@@ -785,6 +810,7 @@ mod sim_link_tests {
         let config = config::Simulation {
             start_time: 0,
             end_time: 0,
+            ticks_per_second: 1,
             sample_size: 1.0,
             stuck_threshold,
             main_modes: vec![],

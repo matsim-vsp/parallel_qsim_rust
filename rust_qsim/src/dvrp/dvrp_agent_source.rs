@@ -5,6 +5,7 @@ use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::time::SimClock;
 use std::collections::HashMap;
 use tracing::info;
 
@@ -31,6 +32,7 @@ impl DrtAgentSource {
         scenario: &mut ScenarioPartition,
     ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         info!("Creating DRT drivers");
+        let clock = SimClock::new(scenario.config.simulation().ticks_per_second);
 
         let drt_modes = scenario
             .config
@@ -96,7 +98,7 @@ impl DrtAgentSource {
 
             let agent_id = Id::<InternalPerson>::create(veh_id.external());
             //TODO
-            result.insert(agent_id, SimulationAgent::new_plan_based(person));
+            result.insert(agent_id, SimulationAgent::new_plan_based_with_clock(person, clock));
         }
         result
     }

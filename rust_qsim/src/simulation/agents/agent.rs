@@ -7,7 +7,9 @@ use crate::simulation::agents::{
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
+use crate::simulation::time::SimClock;
 use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::time::Tick;
 
 #[derive(Debug)]
 pub struct SimulationAgent {
@@ -22,14 +24,22 @@ impl PartialEq for SimulationAgent {
 
 impl SimulationAgent {
     pub fn new_plan_based(person: InternalPerson) -> Self {
+        Self::new_plan_based_with_clock(person, SimClock::new(1))
+    }
+
+    pub(crate) fn new_plan_based_with_clock(person: InternalPerson, clock: SimClock) -> Self {
         Self {
-            logic: Box::new(PlanBasedSimulationLogic::new(person)),
+            logic: Box::new(PlanBasedSimulationLogic::new_with_clock(person, clock)),
         }
     }
 
     pub fn new_adaptive_plan_based(person: InternalPerson) -> Self {
+        Self::new_adaptive_plan_based_with_clock(person, SimClock::new(1))
+    }
+
+    pub(crate) fn new_adaptive_plan_based_with_clock(person: InternalPerson, clock: SimClock) -> Self {
         Self {
-            logic: Box::new(AdaptivePlanBasedSimulationLogic::new(person)),
+            logic: Box::new(AdaptivePlanBasedSimulationLogic::new_with_clock(person, clock)),
         }
     }
 
@@ -39,7 +49,7 @@ impl SimulationAgent {
 }
 
 impl EndTime for SimulationAgent {
-    fn end_time(&self, now: u32) -> u32 {
+    fn end_time(&self, now: Tick) -> Tick {
         self.logic.end_time(now)
     }
 }

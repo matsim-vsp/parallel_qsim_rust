@@ -3,23 +3,30 @@ use crate::simulation::engines::emit_partition_leave_events;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::network::sim_network::SimNetworkPartition;
+use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::vehicles::SimulationVehicle;
 use tracing::instrument;
 
-pub struct NetworkEngine {
+pub(crate) struct NetworkEngine {
     pub(crate) network: SimNetworkPartition,
     comp_env: ThreadLocalComputationalEnvironment,
+    clock: SimClock,
 }
 
 impl NetworkEngine {
     pub fn new(
         network: SimNetworkPartition,
         comp_env: ThreadLocalComputationalEnvironment,
+        clock: SimClock,
     ) -> Self {
-        NetworkEngine { network, comp_env }
+        NetworkEngine {
+            network,
+            comp_env,
+            clock,
+        }
     }
 
-    pub fn receive_vehicle(&mut self, now: u32, vehicle: SimulationVehicle, route_begin: bool) {
+    pub fn receive_vehicle(&mut self, now: Tick, vehicle: SimulationVehicle, route_begin: bool) {
         let events = if route_begin {
             //if route has just begun, no link enter event should be published
             None
@@ -32,24 +39,25 @@ impl NetworkEngine {
     }
 
     #[instrument(level = "trace", skip(self), fields(rank = self.network.partition()))]
-    pub(super) fn move_nodes(&mut self, now: u32) {
+    pub(super) fn move_nodes(&mut self, now: Tick) {
         self.network.move_nodes(&mut self.comp_env, now)
     }
 
     #[instrument(level = "trace", skip(self, net_message_broker), fields(rank = self.network.partition()))]
     pub(super) fn move_links<C: SimCommunicator>(
         &mut self,
-        now: u32,
+        now: Tick,
         net_message_broker: &mut NetMessageBroker<C>,
     ) -> Vec<SimulationVehicle> {
         let move_links_result = self.network.move_links(&mut self.comp_env, now);
+        let outward_now = self.clock.tick_to_u32_seconds(now);
 
         for veh in move_links_result.vehicles_exit_partition {
             let to = net_message_broker.rank_for_link(
                 veh.curr_link_id()
                     .expect("Vehicles leaving a partition must have a destination link"),
             );
-            emit_partition_leave_events(&mut self.comp_env, &veh, to, now);
+            emit_partition_leave_events(&mut self.comp_env, &veh, to, outward_now);
             net_message_broker.add_veh(veh, now);
         }
 
