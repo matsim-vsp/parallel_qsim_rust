@@ -1,10 +1,13 @@
 use crate::simulation::replanning::routing::alt_router::ZeroHeuristic;
-use crate::simulation::replanning::routing::dijsktra::NodeIdxOptions;
 use crate::simulation::replanning::routing::dijsktra::{
     Dijkstra, DijkstraActions, DijkstraRequestBuilder, DijkstraResult,
 };
-use crate::simulation::replanning::routing::graph::NodeIndex;
-use crate::simulation::replanning::routing::least_cost_path_caluclator::IntNodeGraph;
+use crate::simulation::replanning::routing::graph::NodeIdxOptions;
+use crate::simulation::replanning::routing::graph::{GraphError, NodeIndex};
+use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelDisutility;
+use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    FreeSpeedTravelTimeAndDisutility, IntNodeGraph,
+};
 use rand::SeedableRng;
 use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
@@ -41,16 +44,15 @@ impl DijkstraActions for DistanceToManyOptions {
 }
 
 impl AltLandmarkData {
-    pub fn new(
-        // request: &LandmarkCreationRequest,
-        graph: &Box<dyn IntNodeGraph>,
-    ) -> AltLandmarkData {
+    pub fn new(graph: &Box<dyn IntNodeGraph>) -> Result<AltLandmarkData, GraphError> {
         let landmarks: Vec<NodeIndex> = Self::choose_landmarks(graph);
-        let travel_disutilities_to_all = Self::calculate_distances(graph, &landmarks);
-        AltLandmarkData {
+
+        let travel_disutilities_to_all = Self::calculate_distances(graph, &landmarks)?;
+
+        Ok(AltLandmarkData {
             landmarks,
             travel_disutilities_to_all,
-        }
+        })
     }
 
     pub fn travel_disutilities_to_all(&self) -> &Vec<Vec<ForwardBackwardTravelDisutility>> {
@@ -74,112 +76,64 @@ impl AltLandmarkData {
         graph: &Box<dyn IntNodeGraph>, // &ForwardBackwardGraph,
         // request: &LandmarkCreationRequest,
         landmarks: &[NodeIndex],
-    ) -> Vec<Vec<ForwardBackwardTravelDisutility>> {
+    ) -> Result<Vec<Vec<ForwardBackwardTravelDisutility>>, GraphError> {
         landmarks
             .iter()
-            .map(|landmark_node| {
-                Self::distance_one_2_many(graph, *landmark_node, false)
-                    .into_iter()
-                    .zip(Self::distance_one_2_many(graph, *landmark_node, true))
-                    .collect::<Vec<ForwardBackwardTravelDisutility>>()
+            .map(
+                |landmark_node| -> Result<Vec<ForwardBackwardTravelDisutility>, GraphError> {
+                    let forward_distances =
+                        Self::distance_one_2_many(graph, *landmark_node, false)?;
+                    let backward_distances =
+                        Self::distance_one_2_many(graph, *landmark_node, true)?;
 
-                // Self::distance_one_2_many(*l, &graph.forward_graph, false)
-                //     .into_iter()
-                //     .zip(distance_one_2_many(*l, &graph.backward_graph, true))
-                //     .collect::<Vec<ForwardBackwardTravelDisutility>>()
-            })
+                    Ok(forward_distances
+                        .into_iter()
+                        .zip(backward_distances.into_iter())
+                        .collect::<Vec<ForwardBackwardTravelDisutility>>())
+
+                    // Self::distance_one_2_many(*l, &graph.forward_graph, false)
+                    //     .into_iter()
+                    //     .zip(distance_one_2_many(*l, &graph.backward_graph, true))
+                    //     .collect::<Vec<ForwardBackwardTravelDisutility>>()
+                },
+            )
             .collect()
     }
 
     /// Calculates the distance from one node to all other nodes in the graph using Dijkstra
     /// Uses the shared dijkstra_main_loop core with travel_time cost function
+    /// Note: we use "distance" even though we mean travel disutility, to be consistent with the
+    /// naming in Dijkstra.
     fn distance_one_2_many(
-        //<G: IntNodeGraph, T: TravelDisutility>(
-        //from: NodeIndex, graph: impl IntNodeGraph, travel_time: Box<dyn TravelTime>, backward: bool
-        // request: &LandmarkCreationRequest,
         graph: &Box<dyn IntNodeGraph>,
         from: NodeIndex,
         backward: bool, // if true, calculates distances from all other nodes to the "from"-node
-    ) -> Vec<f64> {
-        // FIXME the landmarks are nodes, but we need to pass a from-link to dijkstra!
+    ) -> Result<Vec<f64>, GraphError> {
+        let td_boxed: Box<dyn TravelDisutility> = Box::new(FreeSpeedTravelTimeAndDisutility);
 
-        // let from_link =
-        // todo change this to make it a function of the builder I think
-        // let dijkstra_request = DijkstraRequest::from_landmark_request_old(request, from, backward);
+        // FIXME: right now, the distance_one_2_many function never passes a vehicle to dijkstra.
+        // Thus, always freespeed will be used. Previously, since the travel time was part of the graph, and was calculated for specific vehicles, this was not the case.
+        // need to decide if that is what we want
         let dijkstra_request = DijkstraRequestBuilder::default()
-            // this sets travel_disutility, graph, departure_time, person and vehicle from the landmark creation request
-            // .from_landmark_request(request)
             .graph(graph)
+            .travel_disutility(&td_boxed)
             // makes Dijkstra calculate the distance to all other nodes, without tracking parents
             .options(DistanceToManyOptions)
             .from(NodeIdxOptions::One(from))
-            // .to(None) // TODO make sure this can be left out due to default
             .heuristic(&ZeroHeuristic)
             .backward(backward)
             .build()
             .unwrap();
 
-        // TODO maybe also change name "distances" here
-        let distances = match Dijkstra::dijkstra_core(dijkstra_request) {
-            DijkstraResult::DistanceToAllWithoutParents(distances) => distances,
+        let distances_result = match Dijkstra::dijkstra_core(dijkstra_request) {
+            Err(e) => Err(e), // some graph error occurred in dijkstra (link or node not found)
+            Ok(DijkstraResult::DistanceToAllWithoutParents(distances)) => Ok(distances),
             _ => panic!(
                 "dijkstra with DistanceToManyOptions should return DistanceToAllWithoutParents \
                 result."
             ),
         };
-
-        // let from_idx = request.graph.get_node_idx_from_id(request.from);
-        //
-        // let (mut queue, mut distances) =
-        //     AStarRouter::get_initial_queue(request.graph.num_nodes(), from_idx);
-        //
-        // while let Some((current_id, current_distance)) = queue.pop() {
-        //     if current_distance.get() == f64::INFINITY || current_distance.get() == f64::NAN {
-        //         //The smallest value in queue was unreachable. So abort here.
-        //         return distances;
-        //     }
-        //
-        //     // let begin_index_adjacent_nodes = graph.first_out[current_id];
-        //     // let end_index_adjacent_nodes = graph.first_out[current_id + 1];
-        //
-        //     for i in request.graph.outgoing_edges_as_idx(current_id) {
-        //         //we need an update_or_insert + parent update here instead of push always.
-        //         let neighbour = request.graph.get_end_node_as_idx(i);
-        //
-        //         if let Entry::Vacant(_) = queue.entry(neighbour) {
-        //             continue;
-        //         }
-        //
-        //         // let link_id_i = graph.get_link_id_from_idx(i);
-        //         // let link_i = graph.edge(link_id_i);
-        //
-        //         let link_i = request.graph.get_link_from_idx(i);
-        //
-        //         let travel_time_i = request.travel_time.travel_time(
-        //             link_i,
-        //             request.departure_time,
-        //             request.person,
-        //             request.vehicle,
-        //         );
-        //
-        //         if queue.get_priority(&neighbour).unwrap().get()
-        //             > current_distance.get() + travel_time_i
-        //         {
-        //             //perform update
-        //             match queue.entry(neighbour) {
-        //                 Entry::Occupied(e) => {
-        //                     e.set_priority(Distance(current_distance.get() + travel_time_i));
-        //                 }
-        //                 Entry::Vacant(_) => {
-        //                     unreachable!();
-        //                 }
-        //             }
-        //             //store in distance vec to return
-        //             distances[neighbour] = current_distance.get() + travel_time_i;
-        //         }
-        //     }
-        // }
-        distances
+        distances_result
     }
 }
 
@@ -190,14 +144,17 @@ mod tests {
     use crate::simulation::replanning::routing::least_cost_path_caluclator::IntNodeGraph;
 
     #[test]
-    #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore
+    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO still not sure if this is true
     fn test_landmark_choice() {
         let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
-        let alt_data = AltLandmarkData::new(&graph_boxed);
+        let alt_data = AltLandmarkData::new(&graph_boxed).unwrap();
 
-        //selection so far by random seed
+        //selection is so far random, but with fixed seed (chooses node with index 3 as landmark)
+
+        // verify that exactly one landmark was chosen, namely node with index 3
         assert_eq!(alt_data.landmarks.len(), 1);
         assert_eq!(alt_data.landmarks[0], 3);
+        // verify the travel disutilities explicitly
         assert_eq!(
             alt_data.travel_disutilities_to_all,
             vec![vec![

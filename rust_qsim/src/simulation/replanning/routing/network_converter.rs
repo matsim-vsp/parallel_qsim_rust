@@ -44,19 +44,16 @@ impl NetworkConverter {
             vehicle_type
         );
 
-        // TODO remove old commented-out things
         let mut forward_first_out = Vec::new();
         let mut forward_node_index_by_id = IntMap::default();
         let mut forward_node_id_by_index = Vec::new();
-        let mut forward_head = Vec::new(); // TODO is this fixed
-        // let mut forward_travel_time = Vec::new();
+        let mut forward_head = Vec::new();
         let mut forward_link_ids = Vec::new();
 
         let mut backward_first_out = Vec::new();
         let mut backward_node_index_by_id = IntMap::default();
         let mut backward_node_id_by_index = Vec::new();
         let mut backward_head = Vec::new();
-        // let mut backward_travel_time = Vec::new();
         let mut backward_link_ids = Vec::new();
 
         let mut x = Vec::new();
@@ -99,13 +96,6 @@ impl NetworkConverter {
 
                 forward_head.push(to_node_index);
 
-                // let max_speed = if let Some(vt) = vehicle_type {
-                //     vt.max_v.min(link.freespeed)
-                // } else {
-                //     link.freespeed
-                // };
-                // forward_travel_time.push((link.length / max_speed as f64) as u32);
-
                 forward_link_ids.push(link.id.clone());
             }
 
@@ -115,13 +105,6 @@ impl NetworkConverter {
                 let to_node_index = *node_indices.get(&link.from).unwrap() as NodeIndex;
 
                 backward_head.push(to_node_index);
-
-                // let max_speed = if let Some(vt) = vehicle_type {
-                //     vt.max_v.min(link.freespeed)
-                // } else {
-                //     link.freespeed
-                // };
-                // backward_travel_time.push((link.length / max_speed as f64) as u32);
 
                 backward_link_ids.push(link.id.clone());
             }
@@ -133,19 +116,18 @@ impl NetworkConverter {
             .iter()
             .enumerate()
             .map(|(i, id)| (id.clone(), i as LinkIndex))
-            .collect::<HashMap<_, _>>();
+            .collect::<IntMap<Id<Link>, LinkIndex>>();
         let backward_link_id_pos = backward_link_ids
             .iter()
             .enumerate()
             .map(|(i, id)| (id.clone(), i as LinkIndex))
-            .collect::<HashMap<_, _>>();
+            .collect::<IntMap<Id<Link>, LinkIndex>>();
 
         let forward_graph = RoutingGraph {
             first_out: forward_first_out,
             node_index_by_id: forward_node_index_by_id,
             node_id_by_index: forward_node_id_by_index,
             head: forward_head,
-            // travel_time: forward_travel_time,
             link_ids: forward_link_ids,
             x: x.clone(),
             y: y.clone(),
@@ -157,7 +139,6 @@ impl NetworkConverter {
             node_index_by_id: backward_node_index_by_id,
             node_id_by_index: backward_node_id_by_index,
             head: backward_head,
-            // travel_time: backward_travel_time,
             link_ids: backward_link_ids,
             x,
             y,
@@ -204,6 +185,7 @@ mod test {
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
+    use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::vehicles::Garage;
@@ -211,7 +193,7 @@ mod test {
     use crate::test_utils::create_vehicle_type;
 
     #[test]
-    #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore
+    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore  TODO is this still true? seems to work for me
     fn test_simple_network() {
         let network = Network::from_file(
             "./assets/routing_tests/triangle-network.xml",
@@ -222,18 +204,16 @@ mod test {
 
         assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
         assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
-        // assert_eq!(graph.forward_travel_time(), &vec![1, 2, 1, 4, 2, 5]);
         assert_eq!(graph.forward_link_ids().len(), 6);
 
         assert_eq!(graph.backward_graph.first_out, vec![0usize, 0, 1, 4, 6]);
         assert_eq!(graph.backward_graph.head, vec![3usize, 1, 2, 3, 1, 2]);
-        // assert_eq!(graph.backward_graph.travel_time, vec![2, 1, 1, 5, 2, 4]);
         assert_eq!(graph.backward_graph.link_ids.len(), 6);
         // we don't check y and y so far
     }
 
     #[test]
-    #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore
+    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore  // TODO again, still valid? works for me
     fn test_simple_network_with_modes() {
         let network = Network::from_file(
             "./assets/routing_tests/network_different_modes.xml",
@@ -273,6 +253,31 @@ mod test {
         assert_eq!(bike_network.forward_link_ids().len(), 4);
     }
 
+    /// Test that all links exist in both forward and backward directions
+    #[test]
+    fn test_all_links_in_both_directions() {
+        let graph = get_triangle_test_graph();
+
+        // Every link should exist in forward_link_ids
+        // and also in backward_link_ids (possibly at different position)
+        let forward_links = graph.forward_link_ids();
+        let backward_links = graph.backward_link_ids();
+
+        assert_eq!(
+            forward_links.len(),
+            backward_links.len(),
+            "Should have same number of links in both directions"
+        );
+
+        for forward_link in forward_links {
+            let found_in_backward = backward_links.iter().any(|bl| bl == forward_link);
+            assert!(
+                found_in_backward,
+                "Every forward link should exist in backward links"
+            );
+        }
+    }
+
     #[test]
     #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
     fn test_mode_filter() {
@@ -298,6 +303,9 @@ mod test {
                 .is_empty()
         );
 
+        // Note: the part below was commented out because we no longer store travel time in the
+        // graph.
+
         // // Test for mode "car"
         // let car_id = &Id::<InternalVehicleType>::get_from_ext("car");
         // let car_graph = vehicle_type2graph.get(car_id).unwrap();
@@ -309,13 +317,7 @@ mod test {
         // let bike_graph = vehicle_type2graph.get(bike_id).unwrap();
         // let link2_index = bike_graph.forward_graph.first_out[2];
         // assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
-
-        // todo Find out what this was supposed to test. Especially the last part was just checking
-        // some travel times, which are no longer supposed to be a part of the graph
     }
-
-    // TODO in general, check if I am using IDs correctly. I guess that mostly applies to the tests,
-    // where I actually create some ids. E.g., is it correct that I always just call create?
 
     #[test]
     #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
@@ -334,6 +336,9 @@ mod test {
 
         assert_eq!(vehicle_type2graph.keys().len(), 2);
 
+        // Note: the part below was commented out since we no longer store travel times in the
+        // graph
+
         // assert_eq!(
         //     vehicle_type2graph
         //         .get(&Id::<InternalVehicleType>::get_from_ext("car"))
@@ -351,8 +356,5 @@ mod test {
         //         .travel_time,
         //     vec![20, 20, 200, 200, 20, 20, 200]
         // );
-
-        // Todo Find out if this test was important. It's no longer testing much, since its main
-        // test was travel time, which is no longer part of the graph.
     }
 }

@@ -1,5 +1,5 @@
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::graph::{LinkIndex, NodeIndex};
+use crate::simulation::replanning::routing::graph::{GraphError, LinkIndex, NodeIndex};
 use crate::simulation::scenario::network::{Link, Node};
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -29,9 +29,11 @@ pub trait Graph: Debug {
     fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>];
     fn num_nodes(&self) -> usize;
     /// get the end node (head) of a given link, given as link id
-    fn get_end_node(&self, link_id: Id<Link>) -> Id<Node>;
+    /// Returns an error if the link does not exist in the graph
+    fn get_end_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
     /// get the start node of a given link, given as link id
-    fn get_start_node(&self, link_id: Id<Link>) -> Id<Node>;
+    /// Returns an error if the link does not exist in the graph
+    fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
     // needed to allow cloning of Box<dyn Graph>
     fn clone_box(&self) -> Box<dyn Graph>;
 }
@@ -55,7 +57,8 @@ pub trait IntNodeGraph: Graph {
     fn get_link_from_idx(&self, idx: LinkIndex) -> &Link;
     fn outgoing_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
     fn incoming_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
-    fn get_end_node_as_idx(&self, edge: LinkIndex) -> NodeIndex;
+    fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
+    fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
 }
 
 pub trait LeastCostPathCalculator {
@@ -84,13 +87,16 @@ pub trait TravelDisutility: Debug {
     fn clone_box(&self) -> Box<dyn TravelDisutility>;
 }
 // From and to are deliberately not nodes but links. This allows considering those links as well during routing.
-#[derive(Builder)]
+#[derive(Builder, Clone)]
 pub struct LeastCostPathRequest<'r> {
     pub from: Id<Link>,
     pub to: Id<Link>,
     pub graph: &'r Box<dyn IntNodeGraph>, // contains the graph of the network
+    #[builder(default)]
     pub departure_time: Time,
+    #[builder(default)]
     pub person: Option<&'r InternalPerson>,
+    #[builder(default)]
     pub vehicle: Option<&'r InternalVehicle>,
 }
 
@@ -111,6 +117,8 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
         _person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Time {
+        // TODO do we want this? or should freespeed be truly freespeed, and we add another implementation of TravelTime that considers the vehicle's max speed?
+
         // respect the given vehicle type, if provided
         let max_speed = if let Some(v) = vehicle {
             v.max_v.min(link.freespeed)
@@ -147,50 +155,63 @@ mod tests {
     use crate::simulation::replanning::routing::alt_router::{AStarRouter, AltHeuristic};
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        FreeSpeedTravelTimeAndDisutility, IntNodeGraph, LeastCostPathRequestBuilder,
+        FreeSpeedTravelTimeAndDisutility, IntNodeGraph, LeastCostPath, LeastCostPathRequestBuilder,
     };
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        LeastCostPathCalculator, LeastCostPathRequest,
+        LeastCostPathCalculator, LeastCostPathRequest, TravelDisutility, TravelTime,
     };
+    use crate::simulation::scenario::network::Link;
+    use crate::simulation::scenario::vehicles::InternalVehicle;
 
+    /// simple test just to make sure that the interface works. More precise testing is done
+    /// in the respective files where implementations of LeastCostPathCaltulator are defined.
     #[test]
-    fn test() {
+    fn test_interface() {
+        // simple A*-Router with zero heuristic => is Dijkstra.
         let router = AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
+        // triangle graph
         let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
+
+        dbg!(&graph_boxed);
+
         let request = LeastCostPathRequestBuilder::default()
-            .from(Id::create("from"))
-            .to(Id::create("to"))
+            .from(Id::create("1")) // these links are connected via
+            .to(Id::create("5")) // link "4", which takes 4 secs
             .graph(&graph_boxed)
             .build()
             .unwrap();
 
-        let option = router.calc_route(request);
-        matches!(option, None);
+        let expected_path: Vec<Id<Link>> = [Id::<Link>::create("4")].into_iter().collect();
+
+        let result = router.calc_route(request);
+        assert_eq!(
+            result,
+            Some(LeastCostPath {
+                travel_time: 4.0,
+                path: expected_path,
+            })
+        );
     }
 
-    // todo need test for AltHeuristic as well. So far, that would require a manual construction
-    // of that request as well (even though it uses a builder, but that hardly makes it less large)
-    // also, the two requests are clearly related, so I need to think about how to handle that.
-
-    // TODO maybe this test is supposed to live in AltRouter? that's where the tests have been
-    // so far.
     #[test]
-    fn test_alt_heuristic() {
+    fn test_free_speed_travel_time_and_disutility() {
+        let fpttad = FreeSpeedTravelTimeAndDisutility;
+
         let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
+        let link = graph_boxed.edge(Id::create("4"));
 
-        let landmark_data = AltLandmarkData::new(&graph_boxed);
+        assert_eq!(fpttad.travel_time(link, 0.0, None, None), 4.0);
+        assert_eq!(fpttad.travel_disutility(link, 0.0, None, None), 4.0);
 
-        let heuristic = AltHeuristic::new(landmark_data);
+        // also test that the vehicle's max speed is respected
 
-        let lcp_request = LeastCostPathRequestBuilder::default()
-            .from(Id::create("from"))
-            .to(Id::create("to"))
-            .graph(&graph_boxed)
-            .build()
-            .unwrap();
+        // vehicle max_v is lower than freespeed, so travel time will be longer
+        let vehicle = InternalVehicle::new(0, 0, 1000.0, 0.0);
 
-        let router = AStarRouter::new(heuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
-        // FIXME complete or remove test
-        // assert_eq!(router.calc_route(lcp_request),);
+        assert_eq!(fpttad.travel_time(link, 0.0, None, Some(&vehicle)), 10.0);
+        assert_eq!(
+            fpttad.travel_disutility(link, 0.0, None, Some(&vehicle)),
+            10.0
+        );
     }
 }

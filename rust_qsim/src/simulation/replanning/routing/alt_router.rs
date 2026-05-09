@@ -1,10 +1,11 @@
 use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
 use crate::simulation::replanning::routing::dijsktra::{
-    Dijkstra, DijkstraActions, DijkstraRequestBuilder, DijkstraResult, NodeIdOptions,
-    NodeIdxOptions,
+    Dijkstra, DijkstraActions, DijkstraRequestBuilder, DijkstraResult,
 };
-use crate::simulation::replanning::routing::graph::NodeIndex;
+use crate::simulation::replanning::routing::graph::{
+    GraphError, NodeIdOptions, NodeIdxOptions, NodeIndex,
+};
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
     IntNodeGraph, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, Time,
     TravelDisutility,
@@ -13,6 +14,8 @@ use crate::simulation::scenario::network::Link;
 use keyed_priority_queue::KeyedPriorityQueue;
 use ordered_float::OrderedFloat;
 use std::cmp::Reverse;
+use tracing::warn;
+// use serde::de::Unexpected::Option;
 
 /// Shorthand for `Reverse<OrderedFloat<f64>>`, i.e., an ordered float (implements Eq and Ord,
 /// unlike f64) which is sorted in reverse order.
@@ -54,15 +57,12 @@ impl DijkstraActions for AltOptions {
     fn set_parent_opt(&mut self, child: NodeIndex, parent: NodeIndex) {
         self.parents[child] = Some(parent);
     }
-    // fn get_parents_opt(&self) -> Option<Vec<Option<NodeIndex>>> {
-    //     Some(self.parents.clone()) // TODO check if this method is still needed
-    // }
 
     // Consumes self, so parents can be moved without cloning
     fn build_result(self, current_distance: Option<f64>, _distances: Vec<f64>) -> DijkstraResult {
         DijkstraResult::SingleDistWithParents(
             current_distance.expect("Dijkstra 1to1 requires that current distance is given"),
-            self.parents, // ← No clone! Ownership is moved
+            self.parents,
         )
     }
     fn get_to_node_opt(&self) -> NodeIdxOptions {
@@ -120,7 +120,6 @@ impl<H: AStarHeuristic> AStarRouter<H> {
         }
 
         node_path.reverse();
-
         node_path
     }
 
@@ -128,7 +127,7 @@ impl<H: AStarHeuristic> AStarRouter<H> {
         to: NodeIndex,
         parent: Vec<Option<NodeIndex>>,
         graph: &Box<dyn IntNodeGraph>,
-    ) -> Vec<Id<Link>> {
+    ) -> Result<Vec<Id<Link>>, GraphError> {
         let node_path = Self::extract_node_path(to, parent);
 
         let mut link_path = Vec::new();
@@ -140,14 +139,14 @@ impl<H: AStarHeuristic> AStarRouter<H> {
 
             // go through outgoing edges of "from_node" and find the one that has to_node as head
             for j in graph.outgoing_edges_as_idx(from_node) {
-                if graph.get_end_node_as_idx(j) == to_node {
+                if graph.get_end_node_as_idx(j)? == to_node {
                     // get actual Id<Link> of the link connecting from_node and to_node
                     link_path.push(graph.get_link_id_from_idx(j));
                     break;
                 }
             }
         }
-        link_path
+        Ok(link_path)
     }
 }
 
@@ -181,17 +180,34 @@ impl<H: AStarHeuristic> AStarRouter<H> {
 
 impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
     fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath> {
-        let to_node_idx = request
-            .graph
-            .get_node_idx_from_id(request.graph.get_start_node(request.to.clone()));
+        // convert given "to" link id to node id, by looking for the start node of the link
+        let to_node_id = match request.graph.get_start_node(request.to.clone()).ok() {
+            Some(node_id) => node_id, // the link was found as expected
+            None => {
+                // if the to link is not in the graph, we cannot calculate a path, so return None
+                warn!(
+                    "To link {} not found in graph, cannot calculate path",
+                    request.to
+                );
+                return None;
+            }
+        };
 
-        // TODO need to make sure that this works, that this variable is passed around correctly
-        let mut parents = vec![None; request.graph.num_nodes()]; // FIXME I think this is wrong,num_parents != num_nodes
+        let to_node_idx = request.graph.get_node_idx_from_id(to_node_id);
+
+        let mut parents = vec![None; request.graph.num_nodes()];
         let distance_to_goal: f64;
 
-        let dijkstra_request = DijkstraRequestBuilder::default()
+        let dijkstra_request = match DijkstraRequestBuilder::default()
             // copies graph, from, to, departure time, person, vehicle values from the lcp request
-            .from_least_cost_path_request(&request)
+            .from_least_cost_path_request(&request) {
+            Ok(builder) => builder,  // if succesful, continue
+            Err(err) => {  // else, likely the given from- or to-links do not exist
+                warn!("Error building Dijkstra request from least cost path request: {}, cannot calculate path", err);
+                return None;
+                }
+            }
+            // continue building
             .heuristic(&self.heuristic)
             .travel_disutility(&self.travel_disutility)
             .options(AltOptions::new(to_node_idx, parents))
@@ -199,107 +215,38 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
             .unwrap();
 
         (distance_to_goal, parents) = match Dijkstra::dijkstra_core(dijkstra_request) {
-            DijkstraResult::SingleDistWithParents(current_distance, parents) => {
+            Ok(DijkstraResult::SingleDistWithParents(current_distance, parents)) => {
                 (current_distance, parents)
+            }
+            Err(e) => {
+                warn!("Error during Dijkstra: {} cannot calculate path.", e);
+                return None;
             }
             _ => panic!("Dijkstra with AltOptions should return SingleDistWithParents result"),
         };
-
-        // FIXME I think from here on, there is still old code that duplicates the dijkstra core
-
-        // FIXME think about how to handle the previous case of the entire queue being run through
-        // and nothing having been returned. We should in this case return None, instead of a
-        // LeastCostPath. But how get this information now, since the loop is inside of DijkstraCore?
 
         // if the returned distance to the target is infinity, it is unreachable, so we return None
         if distance_to_goal == f64::INFINITY || distance_to_goal.is_nan() {
             return None;
         }
 
+        // TODO it's correct that we return the link path here? and not node path as apparently before?
+        // NOTE: it's both in Java, do we need that? Nodes are of course easy to get when you have the graph
+        let link_path = match Self::extract_link_path(to_node_idx, parents, request.graph) {
+            Ok(link_path) => link_path,
+            Err(err) => {
+                warn!(
+                    "Error extracting link path from node path: {}, cannot calculate path",
+                    err
+                );
+                return None;
+            }
+        };
+
         return Some(LeastCostPath {
-            path: Self::extract_link_path(to_node_idx, parents, request.graph),
+            path: link_path,
             travel_time: distance_to_goal,
         });
-
-        //     let number_of_nodes = request.graph.num_nodes();
-        //
-        //     let (mut queue, mut distances) = Self::get_initial_queue(number_of_nodes, from_node);
-        //     let mut parents: Vec<Option<NodeIndex>> = (0..number_of_nodes).map(|_| None).collect();
-        //
-        //     while let Some((current_id, _)) = queue.pop() {
-        //         // TODO should it still be called current distance? what do we want to name it?
-        //         // TODO Note: it is in practive always a travel disutility, because that's what we require in the request.
-        //         // However, it could be argued that distance is a good name because that's what is usually said in the context of A*
-        //         let current_distance = distances[current_id];
-        //         // TODO why do we use distances[current_id] and not the result from the queue?
-        //         // maybe because that priority is not the same as total distance?
-        //
-        //         if current_distance == f64::INFINITY || current_distance.is_nan() {
-        //             // TODO do we want this? Or is there a better way?
-        //             //The smallest value in queue was unreachable. So abort here.
-        //             return None;
-        //         }
-        //
-        //         if current_id == to_node {
-        //             return Some(LeastCostPath {
-        //                 path: Self::extract_link_path(to_node, parents, request.graph),
-        //                 travel_time: current_distance,
-        //             });
-        //         }
-        //
-        //         // let begin_index_adjacent_nodes = request.graph.forward_graph.first_out[current_id];
-        //         // let end_index_adjacent_nodes = request.graph.forward_graph.first_out[current_id + 1];
-        //
-        //         // for i in begin_index_adjacent_nodes..end_index_adjacent_nodes {
-        //         for i in request.graph.outgoing_edges_as_idx(current_id) {
-        //             //we need an update_or_insert + parent update here instead of push always.
-        //
-        //             // let neighbour = request.graph.forward_graph.head[i];
-        //             let neighbour = request.graph.get_end_node_as_idx(i);
-        //
-        //             if let Entry::Vacant(_) = queue.entry(neighbour) {
-        //                 continue;
-        //             }
-        //
-        //             let link_id_i = request.graph.get_link_id_from_idx(i);
-        //             let link_i = request.graph.edge(link_id_i);
-        //
-        //             // TODO is it correct to use the departure time from the request here? -> NO!
-        //             // or could it be later by now?
-        //             let neighbour_distance = current_distance
-        //                 + self.travel_disutility.travel_disutility(
-        //                     link_i,
-        //                     request.departure_time,
-        //                     request.person,
-        //                     request.vehicle,
-        //                 ); // (request.graph.forward_graph.travel_time[i] as f64);
-        //
-        //             if distances[neighbour] > neighbour_distance {
-        //                 //perform update
-        //                 distances[neighbour] = neighbour_distance;
-        //
-        //                 match queue.entry(neighbour) {
-        //                     Entry::Occupied(e) => {
-        //                         e.set_priority(NodePriority::new(
-        //                             neighbour_distance
-        //                                 + self.heuristic.estimate(
-        //                                     request.graph,
-        //                                     request.graph.get_node_id_from_idx(neighbour),
-        //                                     request.graph.get_node_id_from_idx(to_node),
-        //                                 ), // TODO remove when sure that not needed: &self.landmark_data),
-        //                         ));
-        //                     }
-        //                     Entry::Vacant(_) => {
-        //                         unreachable!()
-        //                     }
-        //                 }
-        //
-        //                 parents[neighbour] = Some(current_id);
-        //             }
-        //         }
-        //     }
-        //     // AltQueryResult::empty()
-        //     None
     }
 }
 
@@ -331,381 +278,91 @@ impl AStarHeuristic for AltHeuristic {
         let from_idx = graph.get_node_idx_from_id(from.get_node_or_panic());
         let to_idx = graph.get_node_idx_from_id(to.get_node_or_panic());
 
-        let mut h = 0;
-        for l in self.landmark_data.travel_disutilities_to_all() {
-            let from_distance = l[from_idx]; // (SL,LS)
-            let to_distance = l[to_idx]; // (LT,TL)
+        let mut h: f64 = 0.0;
+        for (_landmark_idx, lm_travel_disutility) in self
+            .landmark_data
+            .travel_disutilities_to_all()
+            .iter()
+            .enumerate()
+        {
+            let from_distance = lm_travel_disutility[from_idx]; // (SL,LS)
+            let to_distance = lm_travel_disutility[to_idx]; // (LT,TL)
 
-            let forward_estimate = from_distance.0 as i32 - to_distance.1 as i32;
-            let backward_estimate = to_distance.0 as i32 - from_distance.1 as i32;
+            let forward_estimate = from_distance.0 - to_distance.1;
+            let backward_estimate = to_distance.0 - from_distance.1;
 
             h = h.max(forward_estimate.max(backward_estimate))
         }
-        if h < 0 { 0 as Time } else { h as Time }
+
+        let result = if h < 0.0 { 0.0 as Time } else { h as Time };
+
+        result
     }
 }
 
-// #[derive(PartialEq, Debug)]
-// #[deprecated]
-// struct AltQueryResult {
-//     travel_time: Option<u32>,
-//     node_path: Option<Vec<usize>>,
-// }
-//
-// #[deprecated]
-// impl AltQueryResult {
-//     fn empty() -> Self {
-//         Self {
-//             travel_time: None,
-//             node_path: None,
-//         }
-//     }
-//
-//     fn node_path(self) -> Option<Vec<usize>> {
-//         self.node_path
-//     }
-// }
-
-// #[deprecated]
-// pub struct AltRouter {
-//     pub landmark_data: AltLandmarkData,
-//     pub current_graph: ForwardBackwardGraph,
-//     pub initial_graph: ForwardBackwardGraph,
-// }
-//
-// impl AltRouter {
-// pub fn new(graph: ForwardBackwardGraph) -> Self {
-//     let landmark_data = AltLandmarkData::new(&graph);
-//     AltRouter {
-//         landmark_data,
-//         current_graph: graph.clone(),
-//         initial_graph: graph,
-//     }
-// }
-
-// pub fn query_links(&self, from_link: u64, to_link: u64) -> CustomQueryResult {
-//     let travel_time;
-//     let result_edge_path;
-//     {
-//         let result = self.query(self.get_end_node(from_link), self.get_start_node(to_link));
-//         travel_time = result.travel_time;
-//         result_edge_path = result.node_path();
-//     }
-//     let edge_path = result_edge_path
-//         .map(|node_path| Self::get_edge_path(node_path, &self.current_graph))
-//         .map(|mut path| {
-//             //add from link at the beginning and to link at the end
-//             path.insert(0, from_link);
-//             path.push(to_link);
-//             path
-//         });
-//
-//     CustomQueryResult {
-//         travel_time,
-//         path: edge_path,
-//     }
-// }
-
-// fn query(&self, from: usize, to: usize) -> AltQueryResult {
-//     let number_of_nodes = self.current_graph.forward_first_out().len() - 1;
-//     let (mut queue, mut distances) = Dijkstra::get_initial_queue(number_of_nodes, from);
-//     let mut parents: Vec<Option<usize>> = (0..number_of_nodes).map(|_| None).collect();
-//
-//     while let Some((current_id, _)) = queue.pop() {
-//         let current_distance = distances[current_id];
-//
-//         if current_distance == u32::MAX {
-//             //The smallest value in queue was unreachable. So abort here.
-//             return AltQueryResult::empty();
-//         }
-//
-//         if current_id == to {
-//             return AltQueryResult {
-//                 travel_time: Some(current_distance),
-//                 node_path: Some(Self::extract_path(to, parents)),
-//             };
-//         }
-//
-//         let begin_index_adjacent_nodes = self.current_graph.forward_graph.first_out[current_id];
-//         let end_index_adjacent_nodes =
-//             self.current_graph.forward_graph.first_out[current_id + 1];
-//
-//         for i in begin_index_adjacent_nodes..end_index_adjacent_nodes {
-//             //we need an update_or_insert + parent update here instead of push always.
-//             let neighbour = self.current_graph.forward_graph.head[i];
-//
-//             if let Entry::Vacant(_) = queue.entry(neighbour) {
-//                 continue;
-//             }
-//
-//             let neighbour_distance =
-//                 current_distance + self.current_graph.forward_graph.travel_time[i];
-//
-//             if distances[neighbour] > neighbour_distance {
-//                 //perform update
-//                 distances[neighbour] = neighbour_distance;
-//
-//                 match queue.entry(neighbour) {
-//                     Entry::Occupied(e) => {
-//                         e.set_priority(Distance(
-//                             neighbour_distance
-//                                 + Self::heuristic(neighbour, to, &self.landmark_data),
-//                         ));
-//                     }
-//                     Entry::Vacant(_) => {
-//                         unreachable!()
-//                     }
-//                 }
-//
-//                 parents[neighbour] = Some(current_id);
-//             }
-//         }
-//     }
-//     AltQueryResult::empty()
-// }
-
-// fn heuristic(node: usize, goal: usize, landmark_data: &AltLandmarkData) -> u32 {
-//     /* The ALT algorithm uses two lower bounds for each Landmark:
-//      * given: source node S, target node T, landmark L
-//      * then, due to the triangle inequality:
-//      *  1) ST + TL >= SL --> ST >= SL - TL (forward estimate)
-//      *  2) LS + ST >= LT --> ST >= LT - LS (backward estimate)
-//      * The algorithm is interested in the largest possible value of (SL-TL) and (LT-LS),
-//      * as this gives the closest approximation for the minimal travel time required to
-//      * go from S to T.
-//      */
-//     let mut h = 0;
-//     for l in landmark_data.travel_disutilities_to_all() {
-//         let node_distance = l[node]; // (SL,LS)
-//         let goal_distance = l[goal]; // (LT,TL)
-//
-//         let forward_estimate = node_distance.0 as i32 - goal_distance.1 as i32;
-//         let backward_estimate = goal_distance.0 as i32 - node_distance.1 as i32;
-//
-//         h = h.max(forward_estimate.max(backward_estimate))
-//     }
-//     if h < 0 { 0 } else { h as u32 }
-// }
-//
-// fn extract_path(to: usize, parent: Vec<Option<usize>>) -> Vec<usize> {
-//     let mut path = Vec::new();
-//     let mut current = to;
-//
-//     path.push(to);
-//     while let Some(father) = parent[current] {
-//         path.push(father);
-//         current = father;
-//     }
-//
-//     path.reverse();
-//     path
-// }
-//
-// pub fn update(&mut self, new_graph: ForwardBackwardGraph) {
-//     self.current_graph = new_graph;
-// }
-//
-// fn get_end_node(&self, link_id: u64) -> usize {
-//     let link_id_index = *self
-//         .current_graph
-//         .forward_link_id_pos()
-//         .get(&link_id)
-//         .unwrap_or_else(|| {
-//             panic!(
-//                 "There is no link with id {} in the current mode graph.",
-//                 link_id
-//             )
-//         });
-//     *self
-//         .current_graph
-//         .forward_head()
-//         .get(link_id_index)
-//         .unwrap()
-// }
-//
-// fn get_start_node(&self, link_id: u64) -> usize {
-//     let link_id_index = *self
-//         .current_graph
-//         .forward_link_id_pos()
-//         .get(&link_id)
-//         .unwrap_or_else(|| {
-//             panic!(
-//                 "There is no link with id {} in the current mode graph.",
-//                 link_id
-//             )
-//         });
-//
-//     let mut result = None;
-//     for i in 0..self.current_graph.forward_first_out().len() {
-//         if link_id_index >= *self.current_graph.forward_first_out().get(i).unwrap()
-//             && link_id_index < *self.current_graph.forward_first_out().get(i + 1).unwrap()
-//         {
-//             result = Some(i);
-//         }
-//     }
-//
-//     result.unwrap()
-// }
-//
-// pub fn current_graph(&self) -> &ForwardBackwardGraph {
-//     &self.current_graph
-// }
-//
-// pub fn get_initial_travel_time(&self, link_id: u64) -> Option<u32> {
-//     self.initial_graph
-//         .get_forward_travel_time_by_link_id(link_id)
-// }
-//
-// pub fn get_current_travel_time(&self, link_id: u64) -> Option<u32> {
-//     self.current_graph
-//         .get_forward_travel_time_by_link_id(link_id)
-// }
-//
-// fn get_edge_path(path: Vec<usize>, graph: &ForwardBackwardGraph) -> Vec<u64> {
-//     let mut res = Vec::new();
-//     let mut last_node: Option<usize> = None;
-//     for node in path {
-//         match last_node {
-//             None => last_node = Some(node),
-//             Some(n) => {
-//                 let first_out_index = *graph.forward_first_out().get(n).unwrap();
-//                 let last_out_index = graph.forward_first_out().get(n + 1).unwrap() - 1;
-//                 res.push(Self::find_edge_id_of_outgoing(
-//                     first_out_index,
-//                     last_out_index,
-//                     node,
-//                     graph,
-//                 ));
-//                 last_node = Some(node)
-//             }
-//         }
-//     }
-//     res
-// }
-//
-// fn find_edge_id_of_outgoing(
-//     first_out_index: usize,
-//     last_out_index: usize,
-//     next_node: usize,
-//     graph: &ForwardBackwardGraph,
-// ) -> u64 {
-//     assert!(
-//         last_out_index as i64 - first_out_index as i64 >= 0,
-//         "No outgoing edges!"
-//     );
-//     let mut result = None;
-//     for i in first_out_index..=last_out_index {
-//         if *graph.forward_head().get(i).unwrap() == next_node {
-//             result = Some(*graph.forward_link_ids().get(i).unwrap());
-//             break;
-//         }
-//     }
-//     result.expect("No outgoing edge found!")
-// }
-//
-// fn distance_one_2_many(
-//     from: usize,
-//     graph: &crate::simulation::replanning::routing::graph::RoutingGraph,
-// ) -> Vec<u32> {
-//     let (mut queue, mut distances) = get_initial_queue(graph.first_out.len() - 1, from);
-//
-//     while let Some((current_id, current_distance)) = queue.pop() {
-//         if current_distance.get() == u32::MAX {
-//             //The smallest value in queue was unreachable. So abort here.
-//             return distances;
-//         }
-//
-//         let begin_index_adjacent_nodes = graph.first_out[current_id];
-//         let end_index_adjacent_nodes = graph.first_out[current_id + 1];
-//
-//         for i in begin_index_adjacent_nodes..end_index_adjacent_nodes {
-//             //we need an update_or_insert + parent update here instead of push always.
-//             let neighbour = graph.head[i];
-//
-//             if let Entry::Vacant(_) = queue.entry(neighbour) {
-//                 continue;
-//             }
-//
-//             if queue.get_priority(&neighbour).unwrap().get()
-//                 > current_distance.get() + graph.travel_time[i]
-//             {
-//                 //perform update
-//                 match queue.entry(neighbour) {
-//                     Entry::Occupied(e) => {
-//                         e.set_priority(Distance(current_distance.get() + graph.travel_time[i]));
-//                     }
-//                     Entry::Vacant(_) => {
-//                         unreachable!();
-//                     }
-//                 }
-//                 //store in distance vec to return
-//                 distances[neighbour] = current_distance.get() + graph.travel_time[i];
-//             }
-//         }
-//     }
-//     distances
-// }
-//
-// pub fn get_initial_queue(
-//     nodes: Vec<Id<Node>>, // : usize, TODO remove commented
-//     from: Id<Node>,       // usize,
-// ) -> (KeyedPriorityQueue<Id<Node>, NodePriority>, Vec<u32>) {
-//     let mut queue = KeyedPriorityQueue::new();
-//     let mut distances = Vec::new();
-//     for node in nodes {
-//         // in 0..node_count {
-//         let distance = if node == from {
-//             //update start node
-//             NodePriority(0)
-//             // Distance(0)
-//         } else {
-//             Distance(u32::MAX)
-//         };
-//         distances.push(distance.0);
-//         queue.push(node, distance);
-//     }
-//     (queue, distances)
-// }
-// }
-
 #[cfg(test)]
 mod tests {
-    use crate::simulation::replanning::routing::alt_router::AStarHeuristic;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::LeastCostPathCalculator;
-    use crate::simulation::scenario::network::Link;
-    use std::collections::HashMap;
-    use std::path::PathBuf;
+    use crate::simulation::replanning::routing::alt_router::{
+        AStarHeuristic, AltHeuristic, ZeroHeuristic,
+    };
+
+    use crate::simulation::replanning::routing::least_cost_path_caluclator::Time;
+    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+        FreeSpeedTravelTimeAndDisutility, LeastCostPathCalculator,
+    };
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
+    use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
     use crate::simulation::replanning::routing::alt_router::AStarRouter;
+    use crate::simulation::replanning::routing::graph::NodeIdOptions;
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        IntNodeGraph, LeastCostPath, LeastCostPathRequest, LeastCostPathRequestBuilder,
+        IntNodeGraph, LeastCostPath, LeastCostPathRequestBuilder,
     };
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
-    use crate::simulation::scenario::network::Network;
-    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::network::{Network, Node};
     use crate::simulation::scenario::vehicles::InternalVehicleType;
+    use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
+    use macros::integration_test;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
 
-    fn query_and_check<H: AStarHeuristic>(
+    /// Runs an A* least cost path run based on the given input and compares to expected output.
+    fn calc_route_and_check<H: AStarHeuristic>(
         router: &AStarRouter<H>, // &AltRouter,
         graph: &Box<dyn IntNodeGraph>,
-        from: Id<Link>, // usize,
-        to: Id<Link>,   // usize,
-        expected_result: Option<LeastCostPath>,
-        // expected_travel_time: Option<u32>,
-        // expected_path: Option<Vec<usize>>,
+        from: &str, // usize,
+        to: &str,   // usize,
+        vehicle: Option<&InternalVehicle>,
+        // expected_result: Option<LeastCostPath>,
+        expected_travel_time: Option<Time>,
+        expected_path: Option<Vec<&str>>,
     ) {
         // let result = router.query(from, to);
         let request = LeastCostPathRequestBuilder::default()
             .graph(graph)
-            .from(from)
-            .to(to)
+            .from(Id::create(from))
+            .to(Id::create(to))
+            .vehicle(vehicle)
             .build()
             .unwrap();
 
         let result = router.calc_route(request);
+        let expected_result = match (expected_travel_time, expected_path) {
+            (Some(expected_travel_time), Some(expected_path)) => Some(LeastCostPath {
+                travel_time: expected_travel_time,
+                path: expected_path
+                    .iter()
+                    .map(|link_id_str| Id::create(link_id_str))
+                    .collect(),
+            }),
+            (None, None) => None,
+            (None, Some(_)) | (Some(_), None) => panic!(
+                "Expected travel time and expected path \
+            should either both be None or both be Some"
+            ),
+        };
 
         assert_eq!(
             result,
@@ -716,60 +373,290 @@ mod tests {
         )
     }
 
+    /// simple test of Dijkstra (ALT with zero heuristic) and free speed travel disutility
     #[test]
-    #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore
+    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO I don't understand this message really. Seems to work for me?
     fn test_simple_alt_routing() {
-        let graph = get_triangle_test_graph();
-        dbg!(graph);
-        // let router = AltRouter::new(graph);
+        let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
 
-        // let router = AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
-        //
-        // query_and_check(&router, graph, 2, 1, Some(6), Some(vec![2, 3, 1]));
-        // query_and_check(&router, graph, 3, 2, Some(3), Some(vec![3, 1, 2]));
-        // query_and_check(&router, graph, 2, 3, Some(4), Some(vec![2, 3]));
-        // query_and_check(&router, graph. 0, 1, None, None);
+        let router = AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
+
+        calc_route_and_check(
+            &router,
+            &graph_boxed,
+            "1",
+            "2",
+            None, // vehicle
+            Some(6.0),
+            Some(vec!["4", "5"]),
+        ); // previously, the node path was returned, which is [2, 3, 1]
+        calc_route_and_check(
+            &router,
+            &graph_boxed,
+            "2",
+            "3",
+            None, // vehicle
+            Some(3.0),
+            Some(vec!["5", "1"]),
+        ); // previously, the node path was returned, which is [3, 1, 2]
+        calc_route_and_check(
+            &router,
+            &graph_boxed,
+            "1",
+            "5",
+            None, // vehicle
+            Some(4.0),
+            Some(vec!["4"]),
+        ); // previously, the node path was returned, which is [2, 3]
     }
 
-    // #[test]
-    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore
-    // fn test_mode_alt_routing() {
-    //     let network = Network::from_file(
-    //         "./assets/adhoc_routing/no_updates/network.xml",
-    //         1,
-    //         &PartitionMethod::Metis(MetisOptions::default()),
-    //     );
-    //     let garage = Garage::from_file(&PathBuf::from(
-    //         "./assets/adhoc_routing/no_updates/vehicles.xml",
-    //     ));
-    //
-    //     let graph_by_vehicle_type =
-    //         NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
-    //
-    //     let bike_id = &Id::<InternalVehicleType>::get_from_ext("bike");
-    //     let car_id = &Id::<InternalVehicleType>::get_from_ext("car");
-    //
-    //     let router_by_vehicle_type = graph_by_vehicle_type
-    //         .into_iter()
-    //         .map(|(id, g)| (id, AltRouter::new(g)))
-    //         .collect::<HashMap<_, _>>();
-    //
-    //     // check routing for bike
-    //     query_and_check(
-    //         router_by_vehicle_type.get(bike_id).unwrap(),
-    //         0,
-    //         5,
-    //         Some(280),
-    //         Some(vec![0, 1, 2, 3, 4, 5]),
-    //     );
-    //
-    //     // check routing for car
-    //     query_and_check(
-    //         router_by_vehicle_type.get(car_id).unwrap(),
-    //         0,
-    //         5,
-    //         Some(120),
-    //         Some(vec![0, 1, 6, 4, 5]),
-    //     )
-    // }
+    #[integration_test]
+    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO see above, is this still valid?
+    fn test_mode_alt_routing() {
+        let network = Network::from_file(
+            "./assets/adhoc_routing/no_updates/network.xml",
+            1,
+            &PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let mut garage = Garage::from_file(&PathBuf::from(
+            "./assets/adhoc_routing/no_updates/vehicles.xml",
+        ));
+
+        let bike_type_id = &Id::<InternalVehicleType>::get_from_ext("bike");
+        let car_type_id = &Id::<InternalVehicleType>::get_from_ext("car");
+
+        // Add vehicles for each vehicle type (since the garage file only contains vehicle types)
+        garage.add_veh_by_type(
+            &Id::create("bike_person"), // create some person
+            bike_type_id,               // vehicle type
+        );
+        garage.add_veh_by_type(&Id::create("car_person"), car_type_id);
+
+        let graph_by_vehicle_type =
+            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+
+        let graph_boxed_by_vehicle_type = graph_by_vehicle_type
+            .clone()
+            .into_iter()
+            .map(|(id, g)| (id, Box::new(g) as Box<dyn IntNodeGraph>))
+            .collect::<HashMap<_, _>>();
+
+        let router_by_vehicle_type = graph_by_vehicle_type
+            .into_iter()
+            .map(|(id, g)| {
+                let g_boxed: Box<dyn IntNodeGraph> = Box::new(g);
+                let landmark_data = AltLandmarkData::new(&g_boxed).unwrap();
+
+                (
+                    id,
+                    AStarRouter::new(
+                        // create new heuristic, based on the graph for the vehicle type. TODO note: so far, the travel time for the landmarks is truly freespeed, while previously, it was maxspeed = min(max_v, freespeed).
+                        AltHeuristic::new(landmark_data),
+                        // ZeroHeuristic,
+                        Box::new(FreeSpeedTravelTimeAndDisutility),
+                    ),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        // check routing for bike
+        let bike_vehicle_id = garage.veh_id(
+            &Id::create("bike_person"),
+            &Id::<InternalVehicleType>::get_from_ext("bike"),
+        );
+
+        calc_route_and_check(
+            router_by_vehicle_type.get(bike_type_id).unwrap(),
+            &graph_boxed_by_vehicle_type.get(bike_type_id).unwrap(),
+            "link0", // 0,
+            "link4", // 5,
+            garage.vehicles.get(&bike_vehicle_id),
+            Some(240.0),                           // Some(280.0),
+            Some(vec!["link1", "link2", "link3"]), // Some(vec![0, 1, 2, 3, 4, 5]),
+        );
+
+        // check routing for car
+        let car_vehicle_id = garage.veh_id(
+            &Id::create("car_person"),
+            &Id::<InternalVehicleType>::get_from_ext("car"),
+        );
+
+        calc_route_and_check(
+            router_by_vehicle_type.get(car_type_id).unwrap(),
+            &graph_boxed_by_vehicle_type.get(car_type_id).unwrap(),
+            "link0", // 0,
+            "link4", // 5,
+            garage.vehicles.get(&car_vehicle_id),
+            Some(100.0),
+            Some(vec!["link5", "link6"]), // Some(vec![0, 1, 6, 4, 5]),
+        )
+    }
+
+    /// Test that ALT heuristic and zero heuristic find the same optimal path
+    #[test]
+    fn test_alt_vs_zero_heuristic_same_result() {
+        let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
+
+        // Router with zero heuristic (pure Dijkstra)
+        let zero_router =
+            AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
+
+        // Router with ALT heuristic
+        let landmark_data = AltLandmarkData::new(&graph_boxed).unwrap();
+        let alt_router = AStarRouter::new(
+            AltHeuristic::new(landmark_data),
+            Box::new(FreeSpeedTravelTimeAndDisutility),
+        );
+
+        // Both should find the same optimal path
+        let request_zero = LeastCostPathRequestBuilder::default()
+            .graph(&graph_boxed)
+            .from(Id::create("1"))
+            .to(Id::create("2"))
+            .build()
+            .unwrap();
+
+        let request_alt = LeastCostPathRequestBuilder::default()
+            .graph(&graph_boxed)
+            .from(Id::create("1"))
+            .to(Id::create("2"))
+            .build()
+            .unwrap();
+
+        let zero_result = zero_router.calc_route(request_zero);
+        let alt_result = alt_router.calc_route(request_alt);
+
+        assert_eq!(
+            zero_result, alt_result,
+            "ALT and ZeroHeuristic should find the same optimal path"
+        );
+    }
+
+    /// Test routing when start and destination are the same (zero distance)
+    #[test]
+    fn test_same_start_and_destination() {
+        let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
+        let router = AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
+
+        let request = LeastCostPathRequestBuilder::default()
+            .graph(&graph_boxed)
+            .from(Id::create("1")) // link 1 ends in node 2
+            .to(Id::create("4")) // link 4 starts in node 2
+            .build()
+            .unwrap();
+
+        let result = router.calc_route(request);
+
+        // Route from node to itself should have zero distance and empty path, since we are routing
+        // from node 2 to node 2
+        assert!(result.is_some());
+        let path = result.unwrap();
+        assert_eq!(path.travel_time, 0.0);
+        assert!(path.path.is_empty());
+    }
+
+    /// Test routing with non-existing or disconnected links, should return None
+    #[test]
+    fn test_nonexisting_or_disconnected_links() {
+        let network = Network::from_file(
+            "./assets/adhoc_routing/no_updates/network.xml",
+            1,
+            &PartitionMethod::Metis(MetisOptions::default()),
+        );
+        let graph_boxed: Box<dyn IntNodeGraph> =
+            Box::new(NetworkConverter::convert_network(&network, None));
+
+        let router = AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
+
+        // Verify the behaviour when the from-link or to-link doesn't exist, and when they exist but
+        // are not connected
+
+        let nonexisting_from_link_request = LeastCostPathRequestBuilder::default()
+            .graph(&graph_boxed)
+            .from(Id::create("link100"))
+            .to(Id::create("link4")) // Non-existent node ID
+            .build()
+            .unwrap();
+        let nonexisting_to_link_request = LeastCostPathRequestBuilder::default()
+            .graph(&graph_boxed)
+            .from(Id::create("link0"))
+            .to(Id::create("link999")) // Non-existent node ID
+            .build()
+            .unwrap();
+        let unreachable_request = LeastCostPathRequestBuilder::default()
+            .graph(&graph_boxed)
+            .from(Id::create("link6"))
+            .to(Id::create("link0")) // Non-existent node ID
+            .build()
+            .unwrap();
+
+        for request in [
+            nonexisting_from_link_request,
+            nonexisting_to_link_request,
+            unreachable_request,
+        ]
+        .iter()
+        {
+            let result = router.calc_route((*request).clone());
+            // In all cases, should return none
+            assert!(result.is_none());
+        }
+    }
+
+    /// Test that ALT heuristic provides a valid admissible lower bound
+    /// (never overestimates the actual distance)
+    #[test]
+    fn test_alt_heuristic_admissibility() {
+        let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
+
+        let landmark_data = AltLandmarkData::new(&graph_boxed).unwrap();
+        let alt_heuristic = AltHeuristic::new(landmark_data);
+
+        // Test heuristic estimates for various node pairs
+        let test_pairs = vec![("1", "2"), ("2", "3"), ("1", "3"), ("2", "1")];
+
+        // These are the true "distances" between the node pairs based on the triangle test graph
+        // and free speed travel disutilities.
+        // Note that any travel disutility that is not freespeed-based should return higher or
+        // equal travel disutilities, compared to freespeed. For instance, considering
+        // maxspeed-based travel disutility, the true distances would be higher, since maxspeed is
+        // upper bounded by freespeed. So if the heuristic lower bounds this disutility, then it
+        // lower bounds any travel disutility.
+        // TODO in theory, one could imagine settings where this doesn't hold, i.e., we have travel
+        // disutilities that are lower than pure freespeed-based. This could be if we for instance
+        // add negative disutilities for some "comfort" along certain routes. As of now, the ALT
+        // would no longer be an admissible heuristic in this case.
+        let test_pair_true_distances_freespeed = vec![1.0, 4.0, 2.0, 6.0];
+
+        for (i, (from_str, to_str)) in test_pairs.iter().enumerate() {
+            let heuristic_estimate = alt_heuristic.estimate(
+                &*graph_boxed,
+                NodeIdOptions::One(Id::<Node>::create(from_str)),
+                NodeIdOptions::One(Id::<Node>::create(to_str)),
+            );
+
+            // Heuristic should not be NaN
+            assert!(
+                !heuristic_estimate.is_nan(),
+                "Heuristic estimate should not be NaN for {} to {}",
+                from_str,
+                to_str
+            );
+
+            // Heuristic should be non-negative
+            assert!(
+                heuristic_estimate >= 0.0,
+                "Heuristic estimate should be non-negative for {} to {}, got {}",
+                from_str,
+                to_str,
+                heuristic_estimate
+            );
+
+            // Heuristic must be lower or equal to the true distance
+            assert!(
+                heuristic_estimate <= test_pair_true_distances_freespeed[i],
+                "Heuristic estimate should always be lower or equal to the true distance"
+            );
+        }
+    }
 }
