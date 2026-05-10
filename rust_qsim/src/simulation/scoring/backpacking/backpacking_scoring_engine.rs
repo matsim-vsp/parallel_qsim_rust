@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
-use futures::TryFutureExt;
 use crate::simulation::events::{EventHandlerRegisterFn};
 use crate::simulation::framework_events::{MobsimListenerRegisterFn, PartitionListenerRegisterFn};
 use crate::simulation::id::Id;
 use crate::simulation::network::link::SimLink;
-use crate::simulation::scenario::network::{Link, Network};
+use crate::simulation::scenario::network::{Link};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;

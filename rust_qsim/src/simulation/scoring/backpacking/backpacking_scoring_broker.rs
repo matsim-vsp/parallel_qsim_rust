@@ -1,12 +1,9 @@
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::rc::{Rc};
+use std::collections::{HashMap};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::mpsc::{Receiver, Sender};
 use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
 use crate::simulation::scoring::{InternalScoringMessage, Message};

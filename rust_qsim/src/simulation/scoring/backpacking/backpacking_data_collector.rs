@@ -1,8 +1,7 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent};
-use crate::simulation::framework_events::{AgentLeavesPartitionEvent, PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
+use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager};
+use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, Population};
