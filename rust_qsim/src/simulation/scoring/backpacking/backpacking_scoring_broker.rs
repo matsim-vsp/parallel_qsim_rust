@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::{Rc};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::mpsc::{Receiver, Sender};
-use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, RuntimeEvent};
+use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -14,9 +14,10 @@ use crate::simulation::scoring::{InternalScoringMessage, Message};
 pub struct BackpackingMessageBroker
 {
     receiver: Receiver<InternalScoringMessage>,
-    pub(crate) senders: Vec<Sender<InternalScoringMessage>>,
+    senders: Vec<Sender<InternalScoringMessage>>,
     rank: u32,
 
+    buffer: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
     data_collector: Weak<Mutex<BackpackingDataCollector>>,
 }
 
@@ -31,8 +32,13 @@ impl BackpackingMessageBroker
             receiver,
             senders,
             rank,
+            buffer: HashMap::new(),
             data_collector: Weak::new()
         }))
+    }
+    
+    pub(crate) fn add_sender(&mut self, sender: Sender<InternalScoringMessage>) {
+        self.senders.push(sender);
     }
 
     pub(crate) fn finish(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){
@@ -45,7 +51,7 @@ impl BackpackingMessageBroker
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
                 match e.payload {
                     MobsimEvent::AfterSimStep(_) => {
-                        bsb.lock().unwrap().recv();
+                        bsb.lock().unwrap().send_recv();
                     }
                     _ => {}
                 }
@@ -53,39 +59,28 @@ impl BackpackingMessageBroker
         })
     }
 
-    pub(crate) fn send_leaving_vehicle(&mut self, target: u32, vehicle_id: Id<InternalVehicle>, passengers: HashSet<Id<InternalPerson>>) {
-        let msg = InternalScoringMessage {
-            from_process: self.rank,
-            to_process: target,
-            message: Box::new(VehicleMessage { vehicle_id, passengers }),
-        };
-        let sender = self.senders.get_mut(target as usize).unwrap();
-        sender.send(msg)
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Error while sending message to rank {} with error {}",
-                    target, e
-                )
-            });
+    pub(crate) fn add_leaving_backpack(&mut self, target: QSimId, agent_id: Id<InternalPerson>, backpack: Backpack) {
+        self.buffer.entry(target).or_insert_with(|| HashMap::new()).insert(agent_id, backpack);
     }
 
-    pub(crate) fn send_leaving_backpacks(&mut self, target: u32, backpacks: HashMap<Id<InternalPerson>, Backpack>) {
-        let msg = InternalScoringMessage {
-            from_process: self.rank,
-            to_process: target,
-            message: Box::new(BackpackingMessage { backpacks }),
-        };
-        let sender = self.senders.get_mut(target as usize).unwrap();
-        sender.send(msg)
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Error while sending message to rank {} with error {}",
-                    target, e
-                )
-            });
-    }
+    fn send_recv(&mut self) {
+        for (target, backpacks) in self.buffer.drain() {
+            let msg = InternalScoringMessage {
+                from_process: self.rank,
+                to_process: target,
+                message: Box::new(BackpackingMessage { backpacks }),
+            };
 
-    fn recv(&mut self) {
+            let sender = self.senders.get_mut(target as usize).unwrap();
+            sender.send(msg)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Error while sending message to rank {} with error {}",
+                        target, e
+                    )
+                });
+        }
+
         while let Ok(received_msg) = self.receiver.try_recv() {
             let boxed_any = received_msg.message.into_any();
 
@@ -93,10 +88,6 @@ impl BackpackingMessageBroker
                 _ if boxed_any.is::<BackpackingMessage>() => {
                     let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
                     self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_backpacks(m.backpacks);
-                }
-                _ if boxed_any.is::<VehicleMessage>() => {
-                    let m = boxed_any.downcast::<VehicleMessage>().unwrap();
-                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_vehicle(m.vehicle_id, m.passengers);
                 }
                 _ => {
                     panic!("Received unknown message type!");
@@ -109,9 +100,4 @@ impl BackpackingMessageBroker
 
 pub struct BackpackingMessage {
     backpacks: HashMap<Id<InternalPerson>, Backpack>
-}
-
-pub struct VehicleMessage {
-    vehicle_id: Id<InternalVehicle>,
-    passengers: HashSet<Id<InternalPerson>>
 }

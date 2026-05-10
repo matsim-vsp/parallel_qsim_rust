@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use futures::TryFutureExt;
 use crate::simulation::events::{EventHandlerRegisterFn};
-use crate::simulation::framework_events::{MobsimListenerRegisterFn};
+use crate::simulation::framework_events::{MobsimListenerRegisterFn, PartitionListenerRegisterFn};
 use crate::simulation::id::Id;
 use crate::simulation::network::link::SimLink;
 use crate::simulation::scenario::network::{Link, Network};
@@ -42,7 +42,7 @@ impl BackpackingScoringEngine
 
 impl BackpackingScoringEngine
 {
-    pub fn create_for_n_partitions(num_parts: u32, partitions: &Vec<Option<ScenarioPartition>>) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>){
+    pub fn create_for_n_partitions(num_parts: u32, partitions: &Vec<Option<ScenarioPartition>>) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<PartitionListenerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>){
         // Create ScoringEngines with channels
         let mut senders: Vec<_> = Vec::new();
         let mut scorings: Vec<_> = Vec::new();
@@ -74,17 +74,19 @@ impl BackpackingScoringEngine
         }
 
         let mut event_register_functions = Vec::new();
+        let mut partition_register_functions = Vec::new();
         let mut mobsim_register_functions = Vec::new();
 
         for scoring in &mut scorings {
             for sender in &senders {
-                scoring.backpacking_message_broker.lock().unwrap().senders.push(sender.clone());
+                scoring.backpacking_message_broker.lock().unwrap().add_sender(sender.clone());
             }
-            event_register_functions.push(BackpackingDataCollector::register_fn(Arc::clone(&scoring.backpacking_data_collector)));
+            event_register_functions.push(BackpackingDataCollector::register_event_fn(Arc::clone(&scoring.backpacking_data_collector)));
+            partition_register_functions.push(BackpackingDataCollector::register_partition_fn(Arc::clone(&scoring.backpacking_data_collector)));
             mobsim_register_functions.push(BackpackingMessageBroker::register_fn(Arc::clone(&scoring.backpacking_message_broker)));
         }
 
-        (event_register_functions, mobsim_register_functions)
+        (event_register_functions, partition_register_functions, mobsim_register_functions)
     }
 
     fn scoring(&self) {

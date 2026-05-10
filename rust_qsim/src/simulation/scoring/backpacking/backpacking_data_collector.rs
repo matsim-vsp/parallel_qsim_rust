@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent};
+use crate::simulation::framework_events::{AgentLeavesPartitionEvent, PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, Population};
@@ -52,10 +53,6 @@ impl BackpackingDataCollector {
             .add_special_scoring_event(event);
     }
 
-    pub(crate) fn add_arriving_vehicle(&mut self, vehicle_id: Id<InternalVehicle>, arriving_passengers: HashSet<Id<InternalPerson>>) {
-        self.vehicle_id2person_ids.insert(vehicle_id, arriving_passengers);
-    }
-
     pub(crate) fn add_arriving_backpacks(&mut self, arriving_passengers: HashMap<Id<InternalPerson>, Backpack>) {
         for k in arriving_passengers.keys(){
             println!("Partition #{}: Adding arriving passenger {}", self.rank, k); // TODO Debug only, remove when working
@@ -63,28 +60,15 @@ impl BackpackingDataCollector {
         self.person_id2backpack.extend(arriving_passengers);
     }
 
-
-    fn remove_leaving_vehicle(&mut self, leaving_vehicle: &Id<InternalVehicle>) -> HashSet<Id<InternalPerson>> {
-        self.vehicle_id2person_ids.remove(leaving_vehicle).unwrap_or_else(|| {
-            panic!("Tried to remove a vehicle, for which no passenger protocol is available!")
-        })
-    }
-
-    fn remove_leaving_backpacks(&mut self, leaving_passengers: &HashSet<Id<InternalPerson>>) -> HashMap<Id<InternalPerson>, Backpack> {
-        let mut leaving_backpacks = HashMap::default();
-
-        for person in leaving_passengers {
-            leaving_backpacks.insert(person.clone(), self.person_id2backpack.remove(&person).unwrap());
-        }
-
-        leaving_backpacks
+    fn remove_leaving_backpack(&mut self, person_id: Id<InternalPerson>) -> Backpack {
+        self.person_id2backpack.remove(&person_id).unwrap_or_else(|| {panic!("Tried to remove an agent, for which no backpack is available")})
     }
 
     pub fn get_backpacks(&self) -> &HashMap<Id<InternalPerson>, Backpack> {
         &self.person_id2backpack
     }
 
-    pub(crate) fn register_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<EventHandlerRegisterFn> {
+    pub(crate) fn register_event_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             let bdc1 = Arc::clone(&data_collector);
             events.on::<ActivityStartEvent, _>(move |e: &ActivityStartEvent| {
@@ -99,47 +83,19 @@ impl BackpackingDataCollector {
                 println!("Partition #{}: Person {} ends activity {}", bdc.rank, e.person.clone(), e.act_type.clone());
                 bdc.add_special_scoring_event(&e.person, Box::new(e.clone()));
             });
+        })
+    }
 
-            let bdc3 = Arc::clone(&data_collector);
-            events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                let mut bdc = bdc3.lock().unwrap();
-                println!("Partition #{}: Person {} enters vehicle {}", bdc.rank, e.person.clone(), e.vehicle.clone());
-                if !bdc.vehicle_id2person_ids.contains_key(&e.vehicle) {
-                    bdc.vehicle_id2person_ids.insert(e.vehicle.clone(), HashSet::new());
-                }
-                bdc.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().insert(e.person.clone());
-            });
-
-            let bdc4 = Arc::clone(&data_collector);
-            events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
-                let mut bdc = bdc4.lock().unwrap();
-                println!("Partition #{}: Person {} leaves vehicle {}", bdc.rank, e.person.clone(), e.vehicle.clone());
-                bdc.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().remove(&e.person);
-            });
-
-            let bdc5 = Arc::clone(&data_collector);
-            events.on::<LinkEnterEvent, _>(move |e: &LinkEnterEvent| {
-                let mut bdc = bdc5.lock().unwrap();
-
-                for key in bdc.cut_link_id2target_partition.keys() {
-                    println!(
-                        "Equal? {} | event: {:?} | key: {:?}",
-                        *key == e.link,
-                        e.link,
-                        key
-                    );
-                }
-
-                println!("#{}: Link {} entered", bdc.rank, e.link.clone());
-                if bdc.cut_link_id2target_partition.contains_key(&e.link) {
-                    println!("Partition #{}: Vehicle {} is about to leave the partition via link {}", bdc.rank, e.vehicle.clone(), e.link.clone());
-                    let target_rank = *bdc.cut_link_id2target_partition.get(&e.link).unwrap();
-
-                    let leaving_vehicle = bdc.remove_leaving_vehicle(&e.vehicle);
-                    let leaving_backpacks = bdc.remove_leaving_backpacks(&leaving_vehicle);
-
-                    bdc.message_broker.lock().unwrap().send_leaving_vehicle(target_rank, e.vehicle.clone(), leaving_vehicle);
-                    bdc.message_broker.lock().unwrap().send_leaving_backpacks(target_rank, leaving_backpacks);
+    pub(crate) fn register_partition_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<PartitionListenerRegisterFn> {
+        Box::new(move |events| {
+            let bdc = Arc::clone(&data_collector);
+            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| {
+                match &e.payload {
+                    PartitionEvent::AgentLeavesPartition(i) => {
+                        let leaving_backpack = bdc.lock().unwrap().remove_leaving_backpack(i.agent_id.clone());
+                        bdc.lock().unwrap().message_broker.lock().unwrap().add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
+                    },
+                    _ => {}
                 }
             });
         })
