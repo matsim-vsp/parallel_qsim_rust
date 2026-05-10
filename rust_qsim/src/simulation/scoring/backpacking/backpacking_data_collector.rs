@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent};
+use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, LinkLeaveEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, Population};
@@ -88,39 +88,58 @@ impl BackpackingDataCollector {
         Box::new(move |events: &mut EventsManager| {
             let bdc1 = Arc::clone(&data_collector);
             events.on::<ActivityStartEvent, _>(move |e: &ActivityStartEvent| {
-                bdc1.lock().unwrap().add_special_scoring_event(&e.person, Box::new(e.clone()));
+                let mut bdc = bdc1.lock().unwrap();
+                println!("Partition #{}: Person {} starts activity {}", bdc.rank, e.person.clone(), e.act_type.clone());
+                bdc.add_special_scoring_event(&e.person, Box::new(e.clone()));
             });
 
             let bdc2 = Arc::clone(&data_collector);
             events.on::<ActivityEndEvent, _>(move |e: &ActivityEndEvent| {
-                bdc2.lock().unwrap().add_special_scoring_event(&e.person, Box::new(e.clone()));
+                let mut bdc = bdc2.lock().unwrap();
+                println!("Partition #{}: Person {} ends activity {}", bdc.rank, e.person.clone(), e.act_type.clone());
+                bdc.add_special_scoring_event(&e.person, Box::new(e.clone()));
             });
 
             let bdc3 = Arc::clone(&data_collector);
             events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                // println!("Person {} enters vehicle {}", e.person.clone(), e.vehicle.clone());
-                if !bdc3.lock().unwrap().vehicle_id2person_ids.contains_key(&e.vehicle) {
-                    bdc3.lock().unwrap().vehicle_id2person_ids.insert(e.vehicle.clone(), HashSet::new());
+                let mut bdc = bdc3.lock().unwrap();
+                println!("Partition #{}: Person {} enters vehicle {}", bdc.rank, e.person.clone(), e.vehicle.clone());
+                if !bdc.vehicle_id2person_ids.contains_key(&e.vehicle) {
+                    bdc.vehicle_id2person_ids.insert(e.vehicle.clone(), HashSet::new());
                 }
-                bdc3.lock().unwrap().vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().insert(e.person.clone());
+                bdc.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().insert(e.person.clone());
             });
 
             let bdc4 = Arc::clone(&data_collector);
             events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
-                // println!("Person {} leaves vehicle {}", e.person.clone(), e.vehicle.clone());
-                bdc4.lock().unwrap().vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().remove(&e.person);
+                let mut bdc = bdc4.lock().unwrap();
+                println!("Partition #{}: Person {} leaves vehicle {}", bdc.rank, e.person.clone(), e.vehicle.clone());
+                bdc.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().remove(&e.person);
             });
 
             let bdc5 = Arc::clone(&data_collector);
             events.on::<LinkEnterEvent, _>(move |e: &LinkEnterEvent| {
-                if bdc5.lock().unwrap().cut_link_id2target_partition.contains_key(&e.link) {
-                    let target_rank = *bdc5.lock().unwrap().cut_link_id2target_partition.get(&e.link).unwrap();
+                let mut bdc = bdc5.lock().unwrap();
 
-                    let leaving_vehicle = bdc5.lock().unwrap().remove_leaving_vehicle(&e.vehicle);
-                    let leaving_backpacks = bdc5.lock().unwrap().remove_leaving_backpacks(&leaving_vehicle);
+                for key in bdc.cut_link_id2target_partition.keys() {
+                    println!(
+                        "Equal? {} | event: {:?} | key: {:?}",
+                        *key == e.link,
+                        e.link,
+                        key
+                    );
+                }
 
-                    bdc5.lock().unwrap().message_broker.lock().unwrap().send_leaving_vehicle(target_rank, e.vehicle.clone(), leaving_vehicle);
-                    bdc5.lock().unwrap().message_broker.lock().unwrap().send_leaving_backpacks(target_rank, leaving_backpacks);
+                println!("#{}: Link {} entered", bdc.rank, e.link.clone());
+                if bdc.cut_link_id2target_partition.contains_key(&e.link) {
+                    println!("Partition #{}: Vehicle {} is about to leave the partition via link {}", bdc.rank, e.vehicle.clone(), e.link.clone());
+                    let target_rank = *bdc.cut_link_id2target_partition.get(&e.link).unwrap();
+
+                    let leaving_vehicle = bdc.remove_leaving_vehicle(&e.vehicle);
+                    let leaving_backpacks = bdc.remove_leaving_backpacks(&leaving_vehicle);
+
+                    bdc.message_broker.lock().unwrap().send_leaving_vehicle(target_rank, e.vehicle.clone(), leaving_vehicle);
+                    bdc.message_broker.lock().unwrap().send_leaving_backpacks(target_rank, leaving_backpacks);
                 }
             });
         })
