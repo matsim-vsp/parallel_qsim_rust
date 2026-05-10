@@ -332,6 +332,8 @@ mod tests {
 
         let env = ThreadLocalComputationalEnvironmentBuilder::default()
             .services(map.into())
+            .mobsim_events_manager(Default::default())
+            .partition_events_manager(Default::default())
             .build()
             .unwrap();
 

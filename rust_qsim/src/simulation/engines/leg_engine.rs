@@ -8,6 +8,9 @@ use crate::simulation::events::{
     PersonArrivalEventBuilder, PersonDepartureEventBuilder, PersonEntersVehicleEventBuilder,
     PersonLeavesVehicleEventBuilder,
 };
+use crate::simulation::framework_events::{
+    AgentEntersPartitionEvent, PartitionEvent, VehicleEntersPartitionEvent,
+};
 use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -87,11 +90,13 @@ impl<C: SimCommunicator> LegEngine<C> {
         let sync_messages = self.send_recv(now);
 
         for mut msg in sync_messages {
+            let from = msg.from_process();
             self.network_engine
                 .network
                 .apply_storage_cap_updates(msg.take_storage_capacities());
 
             for veh in msg.take_vehicles() {
+                self.emit_partition_enter_events(now, &veh, from);
                 self.pass_vehicle_to_engine(now, veh, false);
             }
         }
@@ -206,6 +211,38 @@ impl<C: SimCommunicator> LegEngine<C> {
 
     pub fn network(&self) -> &SimNetworkPartition {
         &self.network_engine.network
+    }
+
+    fn emit_partition_enter_events(&mut self, now: u32, vehicle: &SimulationVehicle, from: u32) {
+        self.comp_env
+            .partition_events_manager_borrow_mut()
+            .process_event(PartitionEvent::VehicleEntersPartition(
+                VehicleEntersPartitionEvent {
+                    vehicle_id: vehicle.id().clone(),
+                    from,
+                    time: now,
+                },
+            ));
+        self.comp_env
+            .partition_events_manager_borrow_mut()
+            .process_event(PartitionEvent::AgentEntersPartition(
+                AgentEntersPartitionEvent {
+                    agent_id: vehicle.driver().id().clone(),
+                    from,
+                    time: now,
+                },
+            ));
+        for passenger in vehicle.passengers() {
+            self.comp_env
+                .partition_events_manager_borrow_mut()
+                .process_event(PartitionEvent::AgentEntersPartition(
+                    AgentEntersPartitionEvent {
+                        agent_id: passenger.id().clone(),
+                        from,
+                        time: now,
+                    },
+                ));
+        }
     }
 }
 
