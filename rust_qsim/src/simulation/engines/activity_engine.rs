@@ -133,7 +133,7 @@ impl ActivityEngine {
 
         // for fast turnaround, agents whose end time is already reached are directly returned and not put into the awake queue
         for agent in wake_up {
-            let awake = AwakeSimulationAgent::build(agent.agent, agent.begin_time);
+            let awake = AwakeSimulationAgent::build(agent.agent, now);
             let end_time = awake.end_time;
             if end_time <= now {
                 end_agents.push(awake.agent);
@@ -255,6 +255,7 @@ impl AsleepSimulationAgent {
 
 impl EndTime for AsleepSimulationAgent {
     fn end_time(&self, _now: SimTime) -> SimTime {
+        // end_time is used for the wake-up queue, so it should return the time when the agent is supposed to wake up.
         self.wakeup_time
     }
 }
