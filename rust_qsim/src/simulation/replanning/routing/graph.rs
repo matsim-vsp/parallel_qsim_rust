@@ -1,26 +1,27 @@
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::least_cost_path_caluclator::{Graph, IntNodeGraph};
+use crate::simulation::replanning::routing::least_cost_path_caluclator::{Graph, IndexableGraph};
 use crate::simulation::scenario::network::{Link, Node};
 use nohash_hasher::IntMap;
-use std::collections::HashMap;
 use std::fmt;
 
-/// Error type for graph operations
+/// Error type for graph operations. Has variants for when node ids or indices, or link ids or
+/// indices, are passed to be used in some operation but are not found in the graph on which the
+/// operation takes place.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GraphError {
-    LinkNotFound(Id<Link>),
+    LinkIdNotFound(Id<Link>),
     LinkIndexNotFound(LinkIndex),
-    NodeNotFound(Id<Node>),
+    NodeIdNotFound(Id<Node>),
     NodeIndexNotFound(NodeIndex),
 }
 
 impl fmt::Display for GraphError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            GraphError::LinkNotFound(link_id) => {
+            GraphError::LinkIdNotFound(link_id) => {
                 write!(f, "There is no link with id {} in the graph.", link_id)
             }
-            GraphError::NodeNotFound(node_id) => {
+            GraphError::NodeIdNotFound(node_id) => {
                 write!(f, "There is no node with id {} in the graph.", node_id)
             }
             GraphError::LinkIndexNotFound(link_index) => {
@@ -43,6 +44,15 @@ impl fmt::Display for GraphError {
 
 impl std::error::Error for GraphError {}
 
+/// An implementation of `Graph` and `IndexableGraph`, i.e., a directed graph with network node ids
+/// as nodes, and network link ids as edges.
+/// The implementation works by storing two directed `RoutingGraph`s internally, a forward and a
+/// backward graph, with flipped directions on the edges, respectively. The forward graph has the
+/// true directions and the backward graph the reversed directions of the edges.
+/// This allows easy retrieval of incoming edges, even though the internally stored graphs are
+/// stored in a way optimized for retrieving outgoing edges.
+/// Also contains maps from node and link ids to the actual network nodes and links.
+/// TODO add info about forward and backward graph/labeling/indexing of the edges etc, once I have figured that out
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForwardBackwardGraph {
     pub forward_graph: RoutingGraph,
@@ -69,35 +79,18 @@ impl ForwardBackwardGraph {
     }
 
     fn validate_else_panic(&self) {
+        // ensure forward and backward graphs have same amount of edges
         assert_eq!(
             self.forward_graph.head.len(),
             self.backward_graph.head.len()
         );
-        // assert_eq!(
-        //     self.forward_graph.travel_time.len(),
-        //     self.backward_graph.travel_time.len()
-        // );
-        // assert_eq!(
-        //     self.forward_graph.head.len(),
-        //     self.backward_graph.travel_time.len()
-        // );
+        // ensure forward and backward graphs have same amount of nodes
         assert_eq!(
             self.forward_graph.first_out.len(),
             self.backward_graph.first_out.len()
         );
     }
 
-    // pub fn get_forward_travel_time_by_link_id(&self, link_id: Id<Link>) -> Option<u32> {
-    //     let index = self.forward_link_id_pos().get(&link_id);
-    //
-    //     //if index is None, then there is no link with link id in graph
-    //     index.map(|i| {
-    //         *self
-    //             .forward_travel_time()
-    //             .get(*i)
-    //             .unwrap_or_else(|| panic!("There is no travel time for link {:?}", link_id))
-    //     })
-    // }
     pub fn forward_first_out(&self) -> &Vec<LinkIndex> {
         &self.forward_graph.first_out
     }
@@ -113,10 +106,6 @@ impl ForwardBackwardGraph {
     pub fn backward_head(&self) -> &Vec<NodeIndex> {
         &self.backward_graph.head
     }
-
-    // pub fn forward_travel_time(&self) -> &Vec<u32> {
-    //     &self.forward_graph.travel_time
-    // }
 
     pub fn forward_link_ids(&self) -> &Vec<Id<Link>> {
         &self.forward_graph.link_ids
@@ -160,6 +149,7 @@ impl Graph for ForwardBackwardGraph {
         &self.forward_link_ids()[link_indices]
     }
 
+    // TODO is this correct? it is tested, but doesn't seem to be used anywhere else
     fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>] {
         let node_idx = self.backward_graph.node_index_by_id[&node];
         let link_indices =
@@ -172,23 +162,26 @@ impl Graph for ForwardBackwardGraph {
     }
 
     fn get_end_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError> {
+        // TODO this shoudl be the get_link_idx_from_id function actually
         let link_id_index = self
             .forward_link_id_pos()
             .get(&link_id)
-            .ok_or_else(|| GraphError::LinkNotFound(link_id.clone()))?;
+            .ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))?;
 
         let node_idx = self.forward_head().get(*link_id_index).unwrap().clone();
         Ok(self.forward_graph.node_id_by_index[node_idx].clone())
     }
 
     fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError> {
+        // TODO should be get_link_idx_from_id
         let link_id_index = self
             .forward_link_id_pos()
             .get(&link_id)
-            .ok_or_else(|| GraphError::LinkNotFound(link_id.clone()))?;
+            .ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))?;
 
         let mut result = None;
 
+        // FIXME this can't be the optimal way to handle this, when we in fact have a backward graph!
         for i in 0..self.forward_first_out().len() {
             if link_id_index >= self.forward_first_out().get(i).unwrap()
                 && link_id_index < self.forward_first_out().get(i + 1).unwrap()
@@ -197,15 +190,12 @@ impl Graph for ForwardBackwardGraph {
             }
         }
 
-        let node_idx = result.ok_or_else(|| GraphError::LinkNotFound(link_id.clone()))?;
+        let node_idx = result.ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))?;
         Ok(self.forward_graph.node_id_by_index[node_idx].clone())
     }
-    // fn clone_box(&self) -> Box<dyn Graph> {
-    //     Box::new(self.clone())
-    // }
 }
 
-impl IntNodeGraph for ForwardBackwardGraph {
+impl IndexableGraph for ForwardBackwardGraph {
     fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
         match self.forward_head().get(edge) {
             Some(node_idx) => Ok(*node_idx),
@@ -214,6 +204,7 @@ impl IntNodeGraph for ForwardBackwardGraph {
     }
 
     fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
+        // FIXME again, I can't imagine this to be optimal when we have a backward graph?
         // Find which node owns this edge as an outgoing edge by searching first_out
         for i in 0..self.forward_first_out().len() - 1 {
             if edge >= self.forward_first_out()[i] && edge < self.forward_first_out()[i + 1] {
@@ -241,6 +232,7 @@ impl IntNodeGraph for ForwardBackwardGraph {
         (self.forward_first_out()[node]..self.forward_first_out()[node + 1]).collect()
     }
     fn incoming_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex> {
+        // TODO check if this function makes sense as well
         // Get the link ids from backward structure
         let backward_range = self.backward_first_out()[node]..self.backward_first_out()[node + 1];
         let backward_link_ids: Vec<_> = backward_range
@@ -261,17 +253,37 @@ impl IntNodeGraph for ForwardBackwardGraph {
     }
 }
 
+/// An index of a node in an `IndexableGraph`
 pub type NodeIndex = usize;
 
+/// An index of a link in an `IndexableGraph`
 pub type LinkIndex = usize;
 
+/// A directed graph with network node ids as nodes, and network link ids as edges, used for routing
+/// on the network.
+///
+/// Stored in a way optimized for retrieving outgoing edges. Namely:
+/// - `first_out` is a vector such that `first_out[i]` is the index of the first outgoing edge of
+///     node i in `head`, and `first_out[i+1]` is the index of the first outgoing edge of node i+1,
+///     so that the outgoing edges of node i are exactly those in
+///     `head[first_out[i]..first_out[i+1]]`.
+/// - `head` is a vector such that `head[j]` is the node index of the end node of the edge with
+///     index j
+/// The graph also contains vectors and maps allowing to go from node index to network node id, and
+/// from link index to network link id, and vice versa.
+/// Also contains x and y coordinates, that are not used in routing.
 #[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct RoutingGraph {
-    pub(crate) first_out: Vec<LinkIndex>, // interpret this as a map NodeIndex->LinkIndex, where firstout[i] is the (Link)Index of the first outgoing link of node i, in 'head'
-    pub(crate) node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps nodes to indices (in first_out, x, y etc.)
-    pub(crate) node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to nodes
-    pub(crate) head: Vec<NodeIndex>, // heads are NodeIndices, that can be transformed to Id<Node> using node_id_by_index
+    /// a vector such that `first_out[i]` is the index of the first outgoing edge of
+    /// node i in `head`, and `first_out[i+1]` is the index of the first outgoing edge of node i+1,
+    /// so that the outgoing edges of node i are exactly those in
+    /// `head[first_out[i]..first_out[i+1]]`.
+    pub(crate) first_out: Vec<LinkIndex>,
+    pub(crate) node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to indices (in first_out, x, y etc.)
+    pub(crate) node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to node ids
+    /// a vector such that `head[j]` is the node index of the end node of the edge with index j
+    pub(crate) head: Vec<NodeIndex>,
     pub(crate) link_ids: Vec<Id<Link>>,
     pub(crate) x: Vec<f64>,
     pub(crate) y: Vec<f64>,
@@ -291,7 +303,6 @@ impl RoutingGraph {
             node_index_by_id,
             node_id_by_index,
             head,
-            // travel_time,
             link_ids: vec![],
             x: vec![],
             y: vec![],
@@ -306,7 +317,9 @@ pub(crate) mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::graph::GraphError;
     use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, RoutingGraph};
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::{Graph, IntNodeGraph};
+    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+        Graph, IndexableGraph,
+    };
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::scenario::network::{Network, Node};
     use macros::integration_test;
@@ -396,9 +409,9 @@ pub(crate) mod tests {
         let graph = get_triangle_test_graph();
 
         let node_id = Id::create("3");
-        let outgoing_edges = graph.incoming_edges(node_id);
+        let incoming_edges = graph.incoming_edges(node_id);
         // verify that the found edges are the true ones for this specific graph
-        assert_eq!(outgoing_edges, [Id::create("2"), Id::create("4")]);
+        assert_eq!(incoming_edges, [Id::create("2"), Id::create("4")]);
     }
 
     /// Test if outgoing_edges_as_idx yields results consistent with outgoing_edges
@@ -484,7 +497,7 @@ pub(crate) mod tests {
             "get_end_node should return error for invalid link"
         );
         match result.unwrap_err() {
-            GraphError::LinkNotFound(_) => {} // Expected
+            GraphError::LinkIdNotFound(_) => {} // Expected
             _ => panic!("Expected LinkNotFound error"),
         }
     }
@@ -614,33 +627,3 @@ pub(crate) mod tests {
         }
     }
 }
-//
-// #[derive(Debug, Clone)]
-// pub enum NodeIdxOptions {
-//     One(NodeIndex), // one specific node in the graph
-//     Any,            // any node
-// }
-//
-// impl NodeIdxOptions {
-//     pub(crate) fn get_node_or_panic(&self) -> NodeIndex {
-//         match self {
-//             NodeIdxOptions::One(node_idx) => *node_idx,
-//             NodeIdxOptions::Any => panic!("NodeIdxOptions::Any does not contain a specific node."),
-//         }
-//     }
-// }
-//
-// #[derive(Debug)]
-// pub enum NodeIdOptions {
-//     One(Id<Node>), // one specific node in the graph
-//     Any,           // any node
-// }
-//
-// impl NodeIdOptions {
-//     pub(crate) fn get_node_or_panic(&self) -> Id<Node> {
-//         match self {
-//             NodeIdOptions::One(node_id) => node_id.clone(),
-//             NodeIdOptions::Any => panic!("NodeIdOptions::Any does not contain a specific node."),
-//         }
-//     }
-// }

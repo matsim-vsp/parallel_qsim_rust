@@ -1,11 +1,10 @@
-use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::alt_router::{
     AStarHeuristic, AStarRouter, NodePriority, ZeroHeuristic,
 };
 use crate::simulation::replanning::routing::graph::{GraphError, NodeIndex};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelTime;
+use crate::simulation::replanning::routing::least_cost_path_caluclator::{Disutility, TravelTime};
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-    IntNodeGraph, TravelDisutility,
+    IndexableGraph, TravelDisutility,
 };
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
     LeastCostPathRequest, Time,
@@ -39,43 +38,44 @@ impl<'a> HeuristicMode<'a, ZeroHeuristic> {
     }
 }
 
+/// Implementations of this trait are used in dijkstra to use the same algorithm for different use
+/// cases.
+/// Namely, the implementations can make the algorithm stop early when a certain node has been
+/// reached, they handle parent tracking and they construct the result returned by Dijkstra.
+/// Specifically, this allows the implementation to turn parent tracking on or off, and whether
+/// to calculate distances to all nodes or just to one target node.
 pub(crate) trait DijkstraActions: Clone {
     fn reached_end(&self, current_node: NodeIndex) -> bool;
     fn set_parent_opt(&mut self, child: NodeIndex, parent: NodeIndex);
-    // fn get_parents_opt(&self) -> Option<Vec<Option<NodeIndex>>>;
     /// Creates a Dijkstra result, the trait implementation chooses the result enum variant.
     /// Consumes self to allow moving values without cloning.
     /// This is okay, since the method is called when Dijkstra finishes.
-    fn build_result(self, current_distance: Option<f64>, distances: Vec<f64>) -> DijkstraResult;
+    fn build_result(
+        self,
+        current_distance: Option<f64>,
+        current_travel_time: Option<Time>,
+        distances: Vec<f64>,
+    ) -> DijkstraResult;
     fn get_to_node_opt(&self) -> Option<NodeIndex>; // NodeIdxOptions;
 }
 
-// #[derive(Debug, Clone)]
-// pub(crate) enum GraphNodeOrLink {
-//     Node(Id<Node>),
-//     Link(Id<Link>),
-// }
-//
-// impl From<Id<Node>> for GraphNodeOrLink {
-//     fn from(id: Id<Node>) -> Self {
-//         GraphNodeOrLink::Node(id)
-//     }
-// }
-//
-// impl From<Id<Link>> for GraphNodeOrLink {
-//     fn from(id: Id<Link>) -> Self {
-//         GraphNodeOrLink::Link(id)
-//     }
-// }
-
+/// Request for dijkstra runs. Contains
+/// - data needed for calculation, that is the graph, the travel time and travel disutility
+///     functions, the from-node, the departure time, the person and vehicle (if applicable)
+/// - a `DijkstraActions` implementation that determines the use case (parent tracking or not,
+///     one to many or not), which also contains the to-node when applicable
+/// - the `HeuristicMode`: a heuristic to be used, or the information that none is to be used
+/// - a bool specifying whether the search is to be performed forwards or backwards. In the
+///     latter case, paths using incoming edges, i.e., paths leading going to the from-node,
+///     are searched.
 #[derive(Builder, Debug)]
 pub(crate) struct DijkstraRequest<'a, H: AStarHeuristic, O: DijkstraActions> {
     heuristic_mode: HeuristicMode<'a, H>,
     travel_time: &'a dyn TravelTime, // used to update the time when a certain node is reached
     travel_disutility: &'a dyn TravelDisutility, // used as "distance" in dijkstra, i.e., we find the shortest path wrt this
-    from: NodeIndex,                             // NodeIdxOptions,
-    // to: Option<NodeIndex>,  // this is now part of the options, since it is only used in certain dijkstra cases (1to1)
-    graph: &'a dyn IntNodeGraph,
+    from: NodeIndex,
+    // Note: the to-node is stored in the options, when applicable, since it is only used in certain use cases (1to1)
+    graph: &'a dyn IndexableGraph,
     options: O,
     #[builder(default)]
     departure_time: Time,
@@ -88,6 +88,7 @@ pub(crate) struct DijkstraRequest<'a, H: AStarHeuristic, O: DijkstraActions> {
 }
 
 impl<'a, H: AStarHeuristic, O: DijkstraActions> DijkstraRequestBuilder<'a, H, O> {
+    /// partially builds a dijkstra request using data from a given least cost path request
     pub(crate) fn from_least_cost_path_request(
         &mut self,
         request: &LeastCostPathRequest<'a>,
@@ -106,10 +107,14 @@ impl<'a, H: AStarHeuristic, O: DijkstraActions> DijkstraRequestBuilder<'a, H, O>
     }
 }
 
+/// Result of a Dijkstra run. Has two versions for different use cases (One2Many w/o parent tracking
+/// and One2One with parent tracking)
 pub(crate) enum DijkstraResult {
-    DistanceToAllWithoutParents(Vec<f64>), // vector of "distances" from one node to all others
-    // shortest distance from one node to another, with the generated list of parents
-    SingleDistWithParents(f64, Vec<Option<NodeIndex>>),
+    /// Distance (=travel disutility) from one node to all other nodes in the graph
+    DistanceToAllWithoutParents(Vec<Disutility>),
+    /// Shortest distance (=travel disutility) from one node to another, with the associated travel
+    /// time and generated list of parents
+    SingleDistWithParents(Disutility, Time, Vec<Option<NodeIndex>>),
 }
 
 /// Core Dijkstra implementation. Can be used to calculate distances from one to all other nodes
@@ -118,20 +123,23 @@ pub(crate) enum DijkstraResult {
 pub struct Dijkstra {}
 
 impl Dijkstra {
-    /// TODO needs docstring
+    /// Core Dijkstra logic. Can be used with or without parent tracking, and for One2One or
+    /// One2Many.
+    /// Takes a `DijkstraRequest` containing all necessary data for the Dijkstra run.
     pub(crate) fn dijkstra_core<H: AStarHeuristic, O: DijkstraActions>(
         mut request: DijkstraRequest<H, O>,
     ) -> Result<DijkstraResult, GraphError> {
         let number_of_nodes = request.graph.num_nodes();
 
-        let from_node = request.from; // request.from.get_node_or_panic();
+        let from_node = request.from;
 
         // TODO possibly rename distances? But it could also be okay because it's Dijstra terminology
+        // initialize queue: from_node gets distance and priority 0, all others infinity
         let (mut queue, mut distances) =
             AStarRouter::<H>::get_initial_queue(number_of_nodes, from_node);
 
         // Initialize arrival_times to track when each node is reached
-        let mut arrival_times = vec![request.departure_time; number_of_nodes];
+        let mut arrival_times = vec![f64::INFINITY as Time; number_of_nodes];
         arrival_times[from_node] = request.departure_time;
 
         // Not initializing parents here, since they are contained in the options
@@ -146,9 +154,11 @@ impl Dijkstra {
                     //The smallest value in queue was unreachable. So abort here.
 
                     // this chooses the correct result enum variant automatically
-                    return Ok(request
-                        .options
-                        .build_result(Some(current_distance), distances));
+                    return Ok(request.options.build_result(
+                        Some(current_distance),
+                        Some(current_arrival_time),
+                        distances,
+                    ));
                 }
                 f64::NEG_INFINITY => {
                     warn!("Distance of negative infinity encountered in dijkstra.");
@@ -159,21 +169,29 @@ impl Dijkstra {
                         "Queue in dijkstra only contains entries with distance NaN, which are\
                     treated as unreachable. Aborting dijkstra."
                     );
-                    return Ok(request.options.build_result(Some(nan_dist), distances));
+                    return Ok(request.options.build_result(
+                        Some(nan_dist),
+                        Some(current_arrival_time),
+                        distances,
+                    ));
                 }
                 _ => {}
             }
 
+            // check if the target node has been reached, if applicable, in that case return early
             if request.options.reached_end(current_id) == true {
                 // this chooses the correct result enum variant automatically
-                return Ok(request
-                    .options
-                    .build_result(Some(current_distance), distances));
+                return Ok(request.options.build_result(
+                    Some(current_distance),
+                    Some(current_arrival_time),
+                    distances,
+                ));
             }
 
-            // if request.backward=true, we consider the incoming edges, i.e., the path from other nodes to the "from"-node
+            // if request.backward=true, we consider the incoming edges, to consider paths from
+            // other nodes to the "from"-node
             let neighbour_edges = if request.backward {
-                request.graph.incoming_edges_as_idx(current_id)
+                request.graph.incoming_edges_as_idx(current_id) // TODO check if the implementation of incoming_edges, get_link_from_idx and everything is correct, specifically, if the backward graph is treated correctly. The results are correct, but maybe two errors cancel out
             } else {
                 request.graph.outgoing_edges_as_idx(current_id)
             };
@@ -182,8 +200,9 @@ impl Dijkstra {
                 //we need an update_or_insert + parent update here instead of push always.
 
                 // When backward=true, incoming_edges return edges TO the current node,
-                // so we need the start node. When backward=false, outgoing_edges return
-                // edges FROM the current node, so we need the end node.
+                // so we need the start node to get the neighbours.
+                // When backward=false, outgoing_edges return edges FROM the current node, so we
+                // need the end node.
                 let neighbour = if request.backward {
                     request.graph.get_start_node_as_idx(i)
                 } else {
@@ -242,8 +261,9 @@ impl Dijkstra {
                                     )
                                 }
                                 HeuristicMode::WithoutHeuristic => {
-                                    // For One-to-Many (landmark calculation), use zero heuristic
-                                    // This collapses A* to pure Dijkstra
+                                    // In WithoutHeuristic-mode, set heuristic to 0.0. This is the
+                                    // case in For One-to-Many (landmark calculation).
+                                    // This collapses A* to pure Dijkstra.
                                     // (We don't use the ZeroHeuristic.estimate function here, since
                                     // it would require unnecessary calls to the graph and in particular
                                     // that we pass a to-node, which doesn't exist in one-to-many).
@@ -251,6 +271,7 @@ impl Dijkstra {
                                 }
                             };
 
+                            // update priority of the neighbour
                             e.set_priority(NodePriority::new(
                                 neighbour_distance + heuristic_estimate,
                             ));
@@ -259,41 +280,22 @@ impl Dijkstra {
                             unreachable!()
                         }
                     }
-
+                    // update parents if applicable
                     request.options.set_parent_opt(neighbour, current_id);
                 }
             }
         }
-        // will panic if options are AltOptions, since then, a current_distance must be provided.
+        // will panic if options are AltOptions, since then, a current_distance and
+        // current_arrival_time must be provided.
         // But this is okay, since we should not reach this point (all points in queue visited) in
         // this case: either, the to_node was reached and the function returned already, or the
         // to_node is unreachable, in which case, at some point the smallest distance in the queue
         // will be infinity or NaN and the function will also return.
-        return Ok(request.options.build_result(None, distances));
+        return Ok(request.options.build_result(None, None, distances));
     }
-
-    // pub fn get_initial_queue(
-    //     node_count: usize,
-    //     from: usize,
-    // ) -> (KeyedPriorityQueue<usize, Distance>, Vec<u32>) {
-    //     let mut queue = KeyedPriorityQueue::new();
-    //     let mut distances = Vec::new();
-    //     for i in 0..node_count {
-    //         let distance = if i == from {
-    //             //update start node
-    //             Distance(0)
-    //         } else {
-    //             Distance(u32::MAX)
-    //         };
-    //         distances.push(distance.0);
-    //         queue.push(i, distance);
-    //     }
-    //     (queue, distances)
-    // }
 }
 
 // Note: dijkstra_core is not tested here as of now, since it is implicitly tested by the tests of
 // AStarRouter and AltLandmarkData, which use dijkstra_core for their implementations
 // However, it might be good to add explicit tests for dijkstra_core at some point, to make sure
 // that it works correctly in the various cases (1to1, 1tomany, with and without parents).
-

@@ -5,15 +5,14 @@ use crate::simulation::replanning::routing::dijsktra::{
 };
 use crate::simulation::replanning::routing::graph::{GraphError, NodeIndex};
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-    IntNodeGraph, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, Time,
+    Disutility, IndexableGraph, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, Time,
     TravelDisutility, TravelTime,
 };
 use crate::simulation::scenario::network::{Link, Node};
 use keyed_priority_queue::KeyedPriorityQueue;
 use ordered_float::OrderedFloat;
 use std::cmp::Reverse;
-use tracing::warn;
-// use serde::de::Unexpected::Option;
+use tracing::{error, warn};
 
 /// Shorthand for `Reverse<OrderedFloat<f64>>`, i.e., an ordered float (implements Eq and Ord,
 /// unlike f64) which is sorted in reverse order.
@@ -36,19 +35,26 @@ impl NodePriority {
     }
 }
 
+/// These objects represent the dijkstra use case One to One with parent tracking, i.e., finding
+/// single shortest paths.
+/// That is, when called in dijkstra_core to determine whether the target was reached, they return
+/// true when the current node is the to-node.
+/// When called in the context of parent tracking, they update the parents, which they own.
+/// When called to build the dijkstra result, they return the distance from the from-node to the to-
+/// node, together with the parents vector, which can be used to extract the path.
 #[derive(Clone)]
-pub(crate) struct AltOptions {
+pub(crate) struct One2OneWithParentsDijkstraActions {
     to_node: NodeIndex,
     parents: Vec<Option<NodeIndex>>,
 }
 
-impl AltOptions {
+impl One2OneWithParentsDijkstraActions {
     pub fn new(to_node: NodeIndex, parents: Vec<Option<NodeIndex>>) -> Self {
         Self { to_node, parents }
     }
 }
 
-impl DijkstraActions for AltOptions {
+impl DijkstraActions for One2OneWithParentsDijkstraActions {
     fn reached_end(&self, current_node: NodeIndex) -> bool {
         self.to_node == current_node
     }
@@ -56,49 +62,73 @@ impl DijkstraActions for AltOptions {
         self.parents[child] = Some(parent);
     }
 
+    // constructs a "single distance with parent tracking" result, containing the distance from the
+    // from-node to the to-node and the tracked parents.
     // Consumes self, so parents can be moved without cloning
-    fn build_result(self, current_distance: Option<f64>, _distances: Vec<f64>) -> DijkstraResult {
+    fn build_result(
+        self,
+        current_distance: Option<Disutility>,
+        current_travel_time: Option<Time>,
+        _distances: Vec<f64>,
+    ) -> DijkstraResult {
+        // note that current_distance and current_travel_time is given as an option, since the
+        // trait also allows implementations of one2many, where only the distances vector is needed,
+        // not current dist and current time.
+
+        // But the below should not panic, since dijkstra_core only passes current_distance=None
+        // in the case where the entire queue has been visited and the to_node has neither been
+        // found nor been determined to be unreachable, which only happens in one2many (where no to-
+        // node exists)
         DijkstraResult::SingleDistWithParents(
             current_distance.expect("Dijkstra 1to1 requires that current distance is given"),
+            current_travel_time.expect("Dijkstra 1to1 requires that travel time is given"),
             self.parents,
         )
     }
     fn get_to_node_opt(&self) -> Option<NodeIndex> {
-        // NodeIdxOptions {
-        Some(self.to_node) // NodeIdxOptions::One(self.to_node)
+        Some(self.to_node)
     }
 }
 
-/// Initialize the priority queue and distances vector for Dijkstra/A* search
+/// Initialize the priority queue and distances vector for Dijkstra/A* search. The from-node gets
+/// priority and distance 0.0, all others infinity
 pub(crate) fn create_initial_queue(
     node_count: usize,
     from: NodeIndex,
 ) -> (KeyedPriorityQueue<NodeIndex, NodePriority>, Vec<f64>) {
+    // queue contains node indices and their priority (of type NodePriority, i.e., OrderedFloats
+    // that are sorted in reverse order (=> queue prefers small numbers))
     let mut queue = KeyedPriorityQueue::new();
-    let mut node_priorities = Vec::new();
+
+    // We will also return distances as f64 separately, since we need them as standard floats with
+    // normal sorting.
+    // Also, in A*, node priority and distance will not stay the same, since priorities also contain
+    // the heuristic values.
+    let mut distances = Vec::new();
+
     for node in 0..node_count {
-        let node_index: NodeIndex = node;
+        let node_index = node as NodeIndex;
+        // the from node gets priority 0, all others infinity
         let node_priority = if node_index == from {
             NodePriority::new(0f64)
         } else {
             NodePriority::new(f64::INFINITY)
         };
-        node_priorities.push(node_priority.get());
+        // track f64 distances
+        distances.push(node_priority.get());
+        // save entry to queue
         queue.push(node_index, node_priority);
     }
-    (queue, node_priorities)
-}
-impl Clone for Box<dyn TravelTime> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
-impl Clone for Box<dyn TravelDisutility> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
+    (queue, distances)
 }
 
+/// A* router, an implementation of the LeastCostPathCalculator trait.
+/// Owns a heuristic, a travel time calculator and a travel disutility calculator, which are used
+/// in the A* search.
+/// The heuristic is used to estimate the remaining travel time to the destination, and should be
+/// admissible (i.e., never overestimate the actual remaining travel time).
+/// The travel time is used to track the arrival time at the nodes along the path, while the travel
+/// disutility is used as cost, i.e., this is what the A* search minimizes.
 pub struct AStarRouter<H: AStarHeuristic> {
     heuristic: H,
     travel_time: Box<dyn TravelTime>,
@@ -113,38 +143,53 @@ impl<H: AStarHeuristic> AStarRouter<H> {
         create_initial_queue(node_count, from)
     }
 
-    fn extract_node_path(to: NodeIndex, parent: Vec<Option<NodeIndex>>) -> Vec<NodeIndex> {
+    /// Given a to-node and a vector of parents, extracts the path to the to-node by recursing
+    /// through the list of parents.
+    /// Stops when a node with no parent is found, which should be the from-node. But this is not
+    /// verified here, since this function doesn't know the from-node.
+    /// Use the below method verify_path for such a check.
+    fn extract_node_path(to: NodeIndex, parents: Vec<Option<NodeIndex>>) -> Vec<NodeIndex> {
         let mut node_path = Vec::new();
         let mut current = to;
 
         node_path.push(to);
-        while let Some(father) = parent[current] {
-            node_path.push(father);
-            current = father;
+        while let Some(father) = parents[current] {
+            // while a parent node exists
+            node_path.push(father); // add it to the path
+            current = father; // and continue with that node, i.e., look for its parent next
         }
 
         node_path.reverse();
         node_path
     }
 
+    /// Given a to-node, a vector parents and the graph, extracts the path of links to the to-node.
+    /// Uses the above extract_node_path to get the path of nodes, and then looks up the
+    /// corresponding links in the graph.
+    /// Since this uses extract_node_path, there is no check that the path starts at the from-link,
+    /// instead the node path search stops when no parent is found (which should be the from-node).
+    /// Use the below method verify_path for such a check.
     fn extract_link_path(
         to: NodeIndex,
-        parent: Vec<Option<NodeIndex>>,
-        graph: &dyn IntNodeGraph,
+        parents: Vec<Option<NodeIndex>>,
+        graph: &dyn IndexableGraph,
     ) -> Result<Vec<Id<Link>>, GraphError> {
-        let node_path = Self::extract_node_path(to, parent);
+        // get node path
+        let node_path = Self::extract_node_path(to, parents);
 
         let mut link_path = Vec::new();
 
         // look for link connecting node i and node i+1
         for i in 0..node_path.len() - 1 {
-            let from_node = node_path[i];
-            let to_node = node_path[i + 1];
+            let start_node = node_path[i];
+            let end_node = node_path[i + 1];
 
-            // go through outgoing edges of "from_node" and find the one that has to_node as head
-            for j in graph.outgoing_edges_as_idx(from_node) {
-                if graph.get_end_node_as_idx(j)? == to_node {
-                    // get actual Id<Link> of the link connecting from_node and to_node
+            // go through outgoing edges of the start node, and find the one that has the end node
+            // as head
+            for j in graph.outgoing_edges_as_idx(start_node) {
+                if graph.get_end_node_as_idx(j)? == end_node {
+                    // a link connecting the start node and the end node was found, now get the
+                    // actual Id<Link> of the link
                     link_path.push(graph.get_link_id_from_idx(j));
                     break;
                 }
@@ -152,18 +197,47 @@ impl<H: AStarHeuristic> AStarRouter<H> {
         }
         Ok(link_path)
     }
+
+    /// Given a path, graph from- and to-link, verifies that the path starts at the end node of the
+    /// from-link and ends at the start node of the to-link.
+    fn verify_path(
+        path: &Vec<Id<Link>>,
+        graph: &dyn IndexableGraph,
+        from_link: Id<Link>,
+        to_link: Id<Link>,
+    ) -> Result<bool, GraphError> {
+        let end_node_of_from_link = graph.get_end_node(from_link)?;
+        let start_node_of_to_link = graph.get_start_node(to_link)?;
+
+        let last_index = match path.len() {
+            0 => return Ok(end_node_of_from_link == start_node_of_to_link),
+            path_length => path_length - 1,
+        };
+
+        let first_node_of_path = graph.get_start_node(path[0].clone())?;
+        let last_node_of_path = graph.get_end_node(path[last_index].clone())?;
+
+        // verify if path starts at end node of from-link and ends at start node of to-link
+        Ok(first_node_of_path == end_node_of_from_link
+            && last_node_of_path == start_node_of_to_link)
+    }
 }
 
+/// A heuristic to be used in A*. Given a from and to-node, estimates the distance, that is,
+/// disutility, between them.
+/// Is not allowed to overestimate distances. It is expected of implementations to respect this.
 pub trait AStarHeuristic: Clone {
-    fn estimate(&self, graph: &dyn IntNodeGraph, from: Id<Node>, to: Id<Node>) -> Time;
+    /// Estimate distance, i.e., travel disutility, between from-node and to-node in the given
+    /// graph. Never overestimates the disutilility.
+    fn estimate(&self, graph: &dyn IndexableGraph, from: Id<Node>, to: Id<Node>) -> Disutility;
 }
 
-// with this, the A* collapses into Dijkstra
+/// Zero heuristic estimates all distances to be zero. With this, the A* collapses into Dijkstra.
 #[derive(Clone)]
 pub(crate) struct ZeroHeuristic;
 
 impl AStarHeuristic for ZeroHeuristic {
-    fn estimate(&self, _graph: &dyn IntNodeGraph, _from: Id<Node>, _to: Id<Node>) -> Time {
+    fn estimate(&self, _graph: &dyn IndexableGraph, _from: Id<Node>, _to: Id<Node>) -> Disutility {
         0.
     }
 }
@@ -197,50 +271,110 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
             }
         };
 
+        // convert to-node id to node index
         let to_node_idx = request.graph.get_node_idx_from_id(to_node_id);
 
+        // initialize parents vector and the disutility from the from-node to the to-node.
+        // owned by this function but filled by dijkstra_core
         let mut parents = vec![None; request.graph.num_nodes()];
-        let distance_to_goal: f64;
+        let optimal_disutility: f64;
+        let associated_travel_time: f64;
 
+        // create request for dijkstra_core
         let dijkstra_request = match DijkstraRequestBuilder::default()
             // copies graph, from, to, departure time, person, vehicle values from the lcp request
-            .from_least_cost_path_request(&request) {
-            Ok(builder) => builder,  // if succesful, continue
-            Err(err) => {  // else, likely the given from- or to-links do not exist
-                warn!("Error building Dijkstra request from least cost path request: {}, cannot calculate path", err);
+            .from_least_cost_path_request(&request)
+        {
+            Ok(builder) => builder, // if succesful, continue
+            Err(err) => {
+                // else, likely the given from- or to-links do not exist
+                warn!(
+                    "Error building Dijkstra request from least cost path request: {}, \
+                    cannot calculate path",
+                    err
+                );
                 return None;
             }
         }
-            // continue building
-            .heuristic_mode(HeuristicMode::with_heuristic(&self.heuristic))
-            .travel_time(self.travel_time.as_ref())
-            .travel_disutility(self.travel_disutility.as_ref())
-            .options(AltOptions::new(to_node_idx, parents))
-            .build()
-            .unwrap();
+        // continue building
+        // set heuristic to the heuristic of the router
+        .heuristic_mode(HeuristicMode::with_heuristic(&self.heuristic))
+        .travel_time(self.travel_time.as_ref())
+        .travel_disutility(self.travel_disutility.as_ref())
+        // set dijkstra actions to the use case One to One with parent tracking
+        .options(One2OneWithParentsDijkstraActions::new(to_node_idx, parents))
+        .build()
+        .unwrap();
 
-        (distance_to_goal, parents) = match Dijkstra::dijkstra_core(dijkstra_request) {
-            Ok(DijkstraResult::SingleDistWithParents(current_distance, parents)) => {
-                (current_distance, parents)
-            }
-            Err(e) => {
-                warn!("Error during Dijkstra: {} cannot calculate path.", e);
-                return None;
-            }
-            _ => panic!("Dijkstra with AltOptions should return SingleDistWithParents result"),
-        };
-
-        // if the returned distance to the target is infinity, it is unreachable, so we return None
-        if distance_to_goal == f64::INFINITY || distance_to_goal.is_nan() {
-            return None;
-        }
+        // call dijkstra_core with the request, and extract the distance to the goal and the
+        // parents vector from the result
+        (optimal_disutility, associated_travel_time, parents) =
+            match Dijkstra::dijkstra_core(dijkstra_request) {
+                // Standard case: dijkstra returned a valid result.
+                // Note: the distance may be infinite, if the to-link is unreachable from the from-link.
+                Ok(DijkstraResult::SingleDistWithParents(distance, time, parents)) => {
+                    // if the returned distance to the target is infinity or NaN, it is unreachable, so
+                    // we return None
+                    if distance == f64::INFINITY || distance.is_nan() {
+                        warn!(
+                            "To link {} is unreachable from from link {}, cannot calculate path",
+                            request.to, request.from
+                        );
+                        return None;
+                    }
+                    // else, we take the found shortest "distance" as the optimal disutility
+                    (distance, time, parents)
+                }
+                // Unsuccesful case: Some error occurred in dijkstra, e.g., a given link or node was not
+                // found, so we cannot calculate a path. Return None
+                Err(e) => {
+                    warn!("Error during Dijkstra: {} cannot calculate path.", e);
+                    return None;
+                }
+                // Unrecoverable error: Dijkstra returned the wrong result type. This should not happen,
+                // since we use the Dijkstra use case OneToOneWithParents, which always builds results
+                // of type SingleDistWithParents.
+                _ => panic!(
+                    "Dijkstra with One2OneWithParentsDijkstraActions should return \
+                SingleDistWithParents result"
+                ),
+            };
 
         // TODO it's correct that we return the link path here? and not node path as apparently before?
         // NOTE: it's both in Java, do we need that? Nodes are of course easy to get when you have the graph
         let link_path = match Self::extract_link_path(to_node_idx, parents, request.graph) {
-            Ok(link_path) => link_path,
+            Ok(link_path) => {
+                // If a link path was found, verify that it starts where the from-link ends, since
+                // extract_link_path does not check this
+                match Self::verify_path(&link_path, request.graph, request.from, request.to) {
+                    Ok(true) => {} // all good, we can use the extracted link path
+                    // verification negative: incorrect path was found
+                    Ok(false) => {
+                        error!(
+                            "Path search unsuccesful: A path was found, but it does not connect \
+                        the given from- and to-links. Something went wrong in Dijkstra or path \
+                        extraction."
+                        );
+                        return None;
+                    }
+                    // from- or to-link not found in the graph. Note: this case should never occur,
+                    // since an invalid from- or to-link would have been detected already during
+                    // dijkstra
+                    Err(e) => {
+                        error!(
+                            "Path search unsuccessful: A path was found, but when verifying its\
+                            correctness, an error occured: {}",
+                            e
+                        );
+                        return None;
+                    }
+                }
+
+                link_path
+            }
+
             Err(err) => {
-                warn!(
+                error!(
                     "Error extracting link path from node path: {}, cannot calculate path",
                     err
                 );
@@ -250,16 +384,16 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
 
         return Some(LeastCostPath {
             path: link_path,
-            travel_time: distance_to_goal,
+            travel_time: associated_travel_time,
+            travel_disutility: optimal_disutility,
         });
     }
 }
 
-/// Heuristic that uses landmarks and triangle inequality to estimate
+/// Heuristic that uses landmarks and triangle inequality to estimate distance between two nodes
 #[derive(Clone, Debug)]
 pub(crate) struct AltHeuristic {
     landmark_data: AltLandmarkData,
-    // some internal state
 }
 
 impl AltHeuristic {
@@ -269,14 +403,15 @@ impl AltHeuristic {
 }
 
 impl AStarHeuristic for AltHeuristic {
-    fn estimate(&self, graph: &dyn IntNodeGraph, from: Id<Node>, to: Id<Node>) -> Time {
+    /// Estimate the distance between the from- and to-node in the given graph by using landmarks.
+    fn estimate(&self, graph: &dyn IndexableGraph, from: Id<Node>, to: Id<Node>) -> Disutility {
         /* The ALT algorithm uses two lower bounds for each Landmark:
          * given: source node S, target node T, landmark L
          * then, due to the triangle inequality:
          *  1) ST + TL >= SL --> ST >= SL - TL (forward estimate)
          *  2) LS + ST >= LT --> ST >= LT - LS (backward estimate)
          * The algorithm is interested in the largest possible value of (SL-TL) and (LT-LS),
-         * as this gives the closest approximation for the minimal travel time required to
+         * as this gives the closest approximation for the minimal travel disutility required to
          * go from S to T.
          */
 
@@ -299,7 +434,7 @@ impl AStarHeuristic for AltHeuristic {
             h = h.max(forward_estimate.max(backward_estimate))
         }
 
-        let result = if h < 0.0 { 0.0 as Time } else { h as Time };
+        let result: Disutility = if h < 0.0 { 0.0 } else { h };
 
         result
     }
@@ -310,9 +445,9 @@ mod tests {
     use crate::simulation::replanning::routing::alt_router::{
         AStarHeuristic, AltHeuristic, ZeroHeuristic,
     };
+    use crate::simulation::replanning::routing::least_cost_path_caluclator::Disutility;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelDisutility;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelTime;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::Utility;
     use crate::simulation::scenario::population::InternalPerson;
 
     use crate::simulation::replanning::routing::least_cost_path_caluclator::Time;
@@ -326,7 +461,7 @@ mod tests {
     use crate::simulation::replanning::routing::alt_router::AStarRouter;
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        IntNodeGraph, LeastCostPath, LeastCostPathRequestBuilder,
+        IndexableGraph, LeastCostPath, LeastCostPathRequestBuilder,
     };
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::scenario::network::{Link, Network, Node};
@@ -338,12 +473,13 @@ mod tests {
 
     /// Runs an A* least cost path run based on the given input and compares to expected output.
     fn calc_route_and_check<H: AStarHeuristic>(
-        router: &AStarRouter<H>, // &AltRouter,
-        graph: &dyn IntNodeGraph,
-        from: &str, // usize,
-        to: &str,   // usize,
+        router: &AStarRouter<H>,
+        graph: &dyn IndexableGraph,
+        from: &str,
+        to: &str,
         vehicle: Option<&InternalVehicle>,
         expected_travel_time: Option<Time>,
+        expexted_travel_disutility: Option<Disutility>,
         expected_path: Option<Vec<&str>>,
     ) {
         let request = LeastCostPathRequestBuilder::default()
@@ -355,34 +491,33 @@ mod tests {
             .unwrap();
 
         let result = router.calc_route(request);
-        let expected_result = match (expected_travel_time, expected_path) {
-            (Some(expected_travel_time), Some(expected_path)) => Some(LeastCostPath {
-                travel_time: expected_travel_time,
+        let expected_result = match (
+            expected_travel_time,
+            expexted_travel_disutility,
+            expected_path,
+        ) {
+            (Some(tt), Some(td), Some(expected_path)) => Some(LeastCostPath {
+                travel_time: tt,
+                travel_disutility: td,
                 path: expected_path
                     .iter()
                     .map(|link_id_str| Id::create(link_id_str))
                     .collect(),
             }),
-            (None, None) => None,
-            (None, Some(_)) | (Some(_), None) => panic!(
-                "Expected travel time and expected path \
-            should either both be None or both be Some"
+            (None, None, None) => None,
+            _ => panic!(
+                "Expected travel time, expected travel disutility and expected path \
+            should either all be None or both be Some"
             ),
         };
 
-        assert_eq!(
-            result,
-            expected_result // AltQueryResult {
-                            //     travel_time: expected_travel_time,
-                            //     node_path: expected_path,
-                            // }
-        )
+        assert_eq!(result, expected_result)
     }
 
-    // Define a time-dependent travel disutility for testing
-    // Disutility = (freespeed) travel_time * (1 + 10 * departure time)
-    // Very high increase in disutility with time, to ensure that we see a difference also for
-    // very short routes, such as in the triangle test graph
+    /// Time-dependent travel disutility for testing.
+    /// Disutility = (freespeed) travel_time * (1 + 10 * departure time)
+    /// Very fast increase in disutility with time, to ensure that we see a difference also for
+    /// very short routes, such as in the triangle test graph.
     #[derive(Clone, Debug)]
     struct TimeDependentDisutility;
 
@@ -393,26 +528,22 @@ mod tests {
             departure_time: Time,
             _person: Option<&InternalPerson>,
             vehicle: Option<&InternalVehicle>,
-        ) -> Utility {
+        ) -> Disutility {
             // Get base travel time using free speed
             let free_speed_calc = FreeSpeedTravelTimeAndDisutility;
             let travel_time = free_speed_calc.travel_time(link, departure_time, None, vehicle);
 
             // Apply time-dependent factor: increases with time (minimal congestion at time 0)
-            let time_factor = 1.0 + 10.0 * departure_time;
+            let time_dep_factor = 1.0 + 10.0 * departure_time;
 
-            travel_time * time_factor
-        }
-
-        fn clone_box(&self) -> Box<dyn TravelDisutility> {
-            Box::new(self.clone())
+            travel_time * time_dep_factor
         }
     }
 
-    /// simple test of Dijkstra (ALT with zero heuristic) and free speed travel disutility
+    /// simple test of Dijkstra (A* with zero heuristic) and free speed travel disutility
     #[test]
     // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO I don't understand this message really. Seems to work for me?
-    fn test_simple_alt_routing() {
+    fn test_simple_dijkstra_routing() {
         let graph = get_triangle_test_graph();
 
         let router = AStarRouter::new(
@@ -426,8 +557,9 @@ mod tests {
             &graph,
             "1",
             "2",
-            None, // vehicle
-            Some(6.0),
+            None,      // vehicle
+            Some(6.0), // tt
+            Some(6.0), // td
             Some(vec!["4", "5"]),
         ); // previously, the node path was returned, which is [2, 3, 1]
         calc_route_and_check(
@@ -435,8 +567,9 @@ mod tests {
             &graph,
             "2",
             "3",
-            None, // vehicle
-            Some(3.0),
+            None,      // vehicle
+            Some(3.0), // tt
+            Some(3.0), // td
             Some(vec!["5", "1"]),
         ); // previously, the node path was returned, which is [3, 1, 2]
         calc_route_and_check(
@@ -444,12 +577,15 @@ mod tests {
             &graph,
             "1",
             "5",
-            None, // vehicle
-            Some(4.0),
+            None,      // vehicle
+            Some(4.0), // tt
+            Some(4.0), // td
             Some(vec!["4"]),
         ); // previously, the node path was returned, which is [2, 3]
     }
 
+    /// Test routing with ALT heuristic, with two different vehicle types (car and bike) that have
+    /// different travel times on the same links, and thus different optimal paths.
     #[integration_test]
     // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO see above, is this still valid?
     fn test_mode_alt_routing() {
@@ -506,6 +642,7 @@ mod tests {
             "link4", // 5,
             garage.vehicles.get(&bike_vehicle_id),
             Some(240.0),                           // Some(280.0),
+            Some(240.0),                           // Some(280.0),
             Some(vec!["link1", "link2", "link3"]), // Some(vec![0, 1, 2, 3, 4, 5]),
         );
 
@@ -521,7 +658,8 @@ mod tests {
             "link0", // 0,
             "link4", // 5,
             garage.vehicles.get(&car_vehicle_id),
-            Some(100.0),
+            Some(100.0),                  // tt
+            Some(100.0),                  // td
             Some(vec!["link5", "link6"]), // Some(vec![0, 1, 6, 4, 5]),
         )
     }
@@ -594,11 +732,12 @@ mod tests {
         assert!(result.is_some());
         let path = result.unwrap();
         assert_eq!(path.travel_time, 0.0);
+        assert_eq!(path.travel_disutility, 0.0);
         assert!(path.path.is_empty());
     }
 
-    /// Test time-dependent routing: different departure times produce different routes
-    /// when travel disutility varies with time (e.g., congestion patterns)
+    /// Test time-dependent routing: when travel disutility varies with time, the returned travel
+    /// disutility differs from the time-independent case, even if the travel times are the same.
     #[test]
     fn test_time_dependent_routing() {
         let graph = get_triangle_test_graph();
@@ -612,11 +751,11 @@ mod tests {
         );
 
         // Create a router with time-dependent disutility
-        // disutility = freespeed travel_time * (1 + 0.5 * sin(departure_time / 3600))
+        // disutility = freespeed travel_time * (1 + 10 * departure_time)
         // Note that at departure_time=0, the disutility coincides with the time-independent router
         // from above.
         // Therefore, if both routers start at the same time, if they return different disutilities,
-        // this implies that time-dependent routing is working
+        // this implies that time-dependent routing is working (or is at least doing something)
         let router_time_dep = AStarRouter::new(
             ZeroHeuristic,
             Box::new(FreeSpeedTravelTimeAndDisutility),
@@ -632,19 +771,25 @@ mod tests {
             .build()
             .unwrap();
 
-        let result_time_indep = router_time_indep.calc_route(request.clone());
-        let result_time_dep = router_time_dep.calc_route(request);
+        let result_time_indep = router_time_indep.calc_route(request.clone()).unwrap();
+        let result_time_dep = router_time_dep.calc_route(request).unwrap();
 
-        let disutility_time_indep = result_time_indep.unwrap().travel_time;
-        let disutility_time_dep = result_time_dep.unwrap().travel_time; // TODO note: the field travel time here is acually the disutility, this should be fixed/renamed
+        let tt_time_indep = result_time_indep.travel_time;
+        let tt_time_dep = result_time_dep.travel_time; // TODO note: the field travel time here is acually the disutility, this should be fixed/renamed
 
-        let ratio = disutility_time_indep / disutility_time_dep;
-        dbg!(ratio);
+        let td_time_indep = result_time_indep.travel_disutility;
+        let td_time_dep = result_time_dep.travel_disutility;
+
+        let td_ratio = td_time_indep / td_time_dep;
+
+        // travel times should be the same, since only the disutility is time dependent in our case
+        assert_eq!(tt_time_indep, tt_time_dep);
+        // travel disutilities should not be the same
         assert!(
-            ratio < 1.0,
+            td_ratio < 1.0,
             "Ratio of time independent disutility to time dependent disutility should be less \
             than 1.0, since the time dependent disutility increases with time, but got {}",
-            ratio
+            td_ratio
         );
     }
 
@@ -670,19 +815,19 @@ mod tests {
         let nonexisting_from_link_request = LeastCostPathRequestBuilder::default()
             .graph(&graph)
             .from(Id::create("link100"))
-            .to(Id::create("link4")) // Non-existent node ID
+            .to(Id::create("link4")) // Non-existent link ID
             .build()
             .unwrap();
         let nonexisting_to_link_request = LeastCostPathRequestBuilder::default()
             .graph(&graph)
             .from(Id::create("link0"))
-            .to(Id::create("link999")) // Non-existent node ID
+            .to(Id::create("link999")) // Non-existent link ID
             .build()
             .unwrap();
         let unreachable_request = LeastCostPathRequestBuilder::default()
             .graph(&graph)
             .from(Id::create("link6"))
-            .to(Id::create("link0")) // Non-existent node ID
+            .to(Id::create("link0")) // Link is not reachable
             .build()
             .unwrap();
 

@@ -8,13 +8,7 @@ use std::fmt::Debug;
 
 // "normal" time representation is u32 for now, but we might want to use f64 for the future
 pub type Time = f64;
-pub type Utility = f64;
-
-#[deprecated]
-pub struct CustomQueryResult {
-    pub travel_time: Option<u32>,
-    pub path: Option<Vec<u64>>,
-}
+pub type Disutility = f64;
 
 /// A (directed) graph whose nodes are Ids of network nodes, and edges are Ids of network links.
 /// The graph is used for routing, and the nodes and links can be accessed by their id.
@@ -34,21 +28,13 @@ pub trait Graph: Debug {
     /// get the start node of a given link, given as link id
     /// Returns an error if the link does not exist in the graph
     fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
-    // needed to allow cloning of Box<dyn Graph>
-    // fn clone_box(&self) -> Box<dyn Graph>;
 }
-//
-// impl Clone for Box<dyn Graph> {
-//     fn clone(&self) -> Box<dyn Graph> {
-//         self.clone_box()
-//     }
-// }
 
 /// A (directed) graph where nodes and links can be accessed by both their id and their index.
 /// Mirrors many trait methods from its supertrait "Graph", but using indices instead of ids.
 /// This is used to keep the routing algorithms efficient, while still being able to use the ids in
 /// the rest of the code.
-pub trait IntNodeGraph: Graph {
+pub trait IndexableGraph: Graph {
     fn get_node_idx_from_id(&self, id: Id<Node>) -> NodeIndex;
     fn get_link_idx_from_id(&self, id: Id<Link>) -> LinkIndex;
     fn get_node_id_from_idx(&self, idx: NodeIndex) -> Id<Node>;
@@ -61,11 +47,20 @@ pub trait IntNodeGraph: Graph {
     fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
 }
 
+/// Router that calculates a least cost path between given from- and to-links on a given graph.
 pub trait LeastCostPathCalculator {
-    // todo QUESTION previously, we had &mut self here, but I don't see why. Do we need it?
+    /// Calculate the least cost path as defined in the request. Requests contain from- and
+    /// to-links, a reference to the graph to route on as well as the departure time and an optional
+    /// person and vehicle.
+    /// If no path is found, either because the to-link is unreachable or because the from- or
+    /// to-link do not exist in the graph, None is returned.
+    /// Otherwise, the path is returned together with its travel time and disutility.
+    // todo QUESTION: previously, we had &mut self here, but I don't see why. Do we need it?
     fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath>;
 }
 
+/// Travel time function, mapping any network link to a travel time, depending on the departure time
+/// and optionally the person and vehicle.
 pub trait TravelTime: Debug {
     fn travel_time(
         &self,
@@ -74,9 +69,10 @@ pub trait TravelTime: Debug {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Time;
-    fn clone_box(&self) -> Box<dyn TravelTime>;
 }
 
+/// Travel disutility function, mapping any network link to a travel disutility, depending on the
+/// departure time and optionally the person and vehicle.
 pub trait TravelDisutility: Debug {
     fn travel_disutility(
         &self,
@@ -84,15 +80,22 @@ pub trait TravelDisutility: Debug {
         departure_time: Time,
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
-    ) -> Utility;
-    fn clone_box(&self) -> Box<dyn TravelDisutility>;
+    ) -> Disutility;
 }
+
 // From and to are deliberately not nodes but links. This allows considering those links as well during routing.
+/// A request for the calculation of least cost paths. Contain all relevant data for the
+/// calculation, that is
+/// - from- and to-links, and a reference to the graph representing the network (must be an
+///     `IndexableGraph` so that the routing algorithms can be efficient)
+/// - the departure time at the from-node and optionally a person and vehicle. These are passed to
+///     travel time and disutility functions in routing (the latter being used as cost, and the
+///     former used to determine the arrival times at specific nodes)
 #[derive(Builder, Clone)]
 pub struct LeastCostPathRequest<'r> {
     pub from: Id<Link>,
     pub to: Id<Link>,
-    pub graph: &'r dyn IntNodeGraph, // contains the graph of the network
+    pub graph: &'r dyn IndexableGraph, // contains the graph of the network
     #[builder(default)]
     pub departure_time: Time,
     #[builder(default)]
@@ -101,13 +104,21 @@ pub struct LeastCostPathRequest<'r> {
     pub vehicle: Option<&'r InternalVehicle>,
 }
 
-// FIXME do we actually want the travel time, or the disutility, or both? Currently, it's the latter but named the former...
+/// A least cost path, given as a vector of network link ids, together with the travel time needed
+/// to take the path and the corresponding travel disutility (it's the latter which is optimal, so
+/// it's truly a least-disutility path).
 #[derive(PartialEq, Debug)]
 pub struct LeastCostPath {
     pub path: Vec<Id<Link>>,
-    pub travel_time: f64,
+    pub travel_time: Time,
+    pub travel_disutility: Disutility,
 }
 
+/// An implementation of both `TravelTime` and `TravelDisutility`, mostly based on freespeed travel
+/// times. However, when a vehicle is given, it's max speed is respected, with min(freespeed, v_max)
+/// being used to determine the travel time.
+/// The travel disutility is equal to the travel time.
+/// TODO Is this desired, or should the max-speed-respecting travel time be a separate implementation?
 #[derive(Clone, Debug)]
 pub struct FreeSpeedTravelTimeAndDisutility;
 
@@ -119,8 +130,6 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
         _person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Time {
-        // TODO do we want this? or should freespeed be truly freespeed, and we add another implementation of TravelTime that considers the vehicle's max speed?
-
         // respect the given vehicle type, if provided
         let max_speed = if let Some(v) = vehicle {
             v.max_v.min(link.freespeed)
@@ -129,9 +138,6 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
         };
 
         link.length / max_speed
-    }
-    fn clone_box(&self) -> Box<dyn TravelTime> {
-        Box::new(self.clone())
     }
 }
 
@@ -142,13 +148,10 @@ impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
         departure_time: Time,
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
-    ) -> Utility {
+    ) -> Disutility {
         // TODO: Adapt the factor for the Disutility
         self.travel_time(link, departure_time, person, vehicle) * 1.0
         // travel DISutility is simply the travel time here, since higher time corresponds to lower utility
-    }
-    fn clone_box(&self) -> Box<dyn TravelDisutility> {
-        Box::new(self.clone())
     }
 }
 
@@ -196,11 +199,13 @@ mod tests {
             result,
             Some(LeastCostPath {
                 travel_time: 4.0,
+                travel_disutility: 4.0,
                 path: expected_path,
             })
         );
     }
 
+    /// Test the FreeSpeedTravelTimeAndDisutility implementation of TravelTime and TravelDisutility
     #[test]
     fn test_free_speed_travel_time_and_disutility() {
         let fpttad = FreeSpeedTravelTimeAndDisutility;
