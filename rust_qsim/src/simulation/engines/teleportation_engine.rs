@@ -43,7 +43,8 @@ impl TeleportationEngine {
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
             let now_time = self.clock.tick_to_time(now);
-            self.queue.add(TeleportingVehicle::build(vehicle, now_time), now_time);
+            self.queue
+                .add(TeleportingVehicle::build(vehicle, now_time), now_time);
         } else {
             let to = net_message_broker.rank_for_link(
                 vehicle
@@ -155,8 +156,8 @@ impl Identifiable<InternalVehicle> for TeleportingVehicle {
 #[cfg(test)]
 mod tests {
     use super::{TeleportationEngine, TeleportingVehicle};
-    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::agents::SimulationAgentLogic;
+    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::id::Id;
     use crate::simulation::scenario::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
@@ -173,9 +174,13 @@ mod tests {
         let vehicle = SimulationVehicle::from_parts(1, 0, 10.0, 1.0, create_generic_route_agent(1));
         let due_time = SimTime::from_nanos(350_000_000);
 
-        engine
-            .queue
-            .add(TeleportingVehicle { vehicle, arrival_time: due_time }, SimTime::from_nanos(0));
+        engine.queue.add(
+            TeleportingVehicle {
+                vehicle,
+                arrival_time: due_time,
+            },
+            SimTime::from_nanos(0),
+        );
 
         let early = engine.do_step(Tick::new(3));
         assert!(early.is_empty());
