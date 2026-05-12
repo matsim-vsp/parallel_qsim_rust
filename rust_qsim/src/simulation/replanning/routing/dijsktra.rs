@@ -1,22 +1,43 @@
 use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::alt_router::{
-    AStarHeuristic, AStarRouter, NodePriority,
+    AStarHeuristic, AStarRouter, NodePriority, ZeroHeuristic,
 };
-use crate::simulation::replanning::routing::graph::{
-    GraphError, NodeIdOptions, NodeIdxOptions, NodeIndex,
-};
+use crate::simulation::replanning::routing::graph::{GraphError, NodeIndex};
+use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelTime;
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
     IntNodeGraph, TravelDisutility,
 };
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
     LeastCostPathRequest, Time,
 };
-use crate::simulation::scenario::network::Node;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use derive_builder::Builder;
 use keyed_priority_queue::Entry;
 use tracing::warn;
+
+/// Specifies which heuristic to use for A* search
+///
+/// - `WithHeuristic(&'a H)`: Use the provided heuristic for One-to-One routing with A*
+/// - `WithoutHeuristic`: Use zero heuristic (collapses A* to pure Dijkstra)
+///   for One-to-Many landmark distance calculations
+#[derive(Clone, Debug)]
+pub enum HeuristicMode<'a, H: AStarHeuristic = ZeroHeuristic> {
+    WithHeuristic(&'a H),
+    WithoutHeuristic,
+}
+
+impl<'a, H: AStarHeuristic> HeuristicMode<'a, H> {
+    pub fn with_heuristic(heuristic: &'a H) -> Self {
+        HeuristicMode::WithHeuristic(heuristic)
+    }
+}
+
+impl<'a> HeuristicMode<'a, ZeroHeuristic> {
+    pub fn without_heuristic() -> Self {
+        HeuristicMode::WithoutHeuristic
+    }
+}
 
 pub(crate) trait DijkstraActions: Clone {
     fn reached_end(&self, current_node: NodeIndex) -> bool;
@@ -26,7 +47,7 @@ pub(crate) trait DijkstraActions: Clone {
     /// Consumes self to allow moving values without cloning.
     /// This is okay, since the method is called when Dijkstra finishes.
     fn build_result(self, current_distance: Option<f64>, distances: Vec<f64>) -> DijkstraResult;
-    fn get_to_node_opt(&self) -> NodeIdxOptions;
+    fn get_to_node_opt(&self) -> Option<NodeIndex>; // NodeIdxOptions;
 }
 
 // #[derive(Debug, Clone)]
@@ -49,11 +70,12 @@ pub(crate) trait DijkstraActions: Clone {
 
 #[derive(Builder, Debug)]
 pub(crate) struct DijkstraRequest<'a, H: AStarHeuristic, O: DijkstraActions> {
-    heuristic: &'a H,
-    travel_disutility: &'a Box<dyn TravelDisutility>,
-    from: NodeIdxOptions,
+    heuristic_mode: HeuristicMode<'a, H>,
+    travel_time: &'a dyn TravelTime, // used to update the time when a certain node is reached
+    travel_disutility: &'a dyn TravelDisutility, // used as "distance" in dijkstra, i.e., we find the shortest path wrt this
+    from: NodeIndex,                             // NodeIdxOptions,
     // to: Option<NodeIndex>,  // this is now part of the options, since it is only used in certain dijkstra cases (1to1)
-    graph: &'a Box<dyn IntNodeGraph>,
+    graph: &'a dyn IntNodeGraph,
     options: O,
     #[builder(default)]
     departure_time: Time,
@@ -80,7 +102,7 @@ impl<'a, H: AStarHeuristic, O: DijkstraActions> DijkstraRequestBuilder<'a, H, O>
             .departure_time(request.departure_time)
             .person(request.person)
             .vehicle(request.vehicle)
-            .from(NodeIdxOptions::One(from_idx)))
+            .from(from_idx))
     }
 }
 
@@ -102,14 +124,21 @@ impl Dijkstra {
     ) -> Result<DijkstraResult, GraphError> {
         let number_of_nodes = request.graph.num_nodes();
 
-        let from_node = request.from.get_node_or_panic();
+        let from_node = request.from; // request.from.get_node_or_panic();
 
         // TODO possibly rename distances? But it could also be okay because it's Dijstra terminology
         let (mut queue, mut distances) =
             AStarRouter::<H>::get_initial_queue(number_of_nodes, from_node);
+
+        // Initialize arrival_times to track when each node is reached
+        let mut arrival_times = vec![request.departure_time; number_of_nodes];
+        arrival_times[from_node] = request.departure_time;
+
         // Not initializing parents here, since they are contained in the options
         while let Some((current_id, _)) = queue.pop() {
+            // distance from "from"-node to the current_id node
             let current_distance = distances[current_id];
+            let current_arrival_time = arrival_times[current_id];
 
             // checking "unusual" values of current_distance // TODO is this the handling that we want?
             match current_distance {
@@ -167,12 +196,11 @@ impl Dijkstra {
 
                 let link_i = request.graph.get_link_from_idx(i);
 
-                // TODO is it correct to use the departure time from the request here? -> NO!
-                // or could it be later by now?
+                // Use the actual arrival time at the current node, not the departure time from the request
                 let neighbour_distance = current_distance
                     + request.travel_disutility.travel_disutility(
                         link_i,
-                        request.departure_time,
+                        current_arrival_time,
                         request.person,
                         request.vehicle,
                     );
@@ -181,27 +209,50 @@ impl Dijkstra {
                     //perform update
                     distances[neighbour] = neighbour_distance;
 
+                    // Calculate arrival time at the neighbour node
+                    let link_travel_time = request.travel_time.travel_time(
+                        link_i,
+                        current_arrival_time,
+                        request.person,
+                        request.vehicle,
+                    );
+                    arrival_times[neighbour] = current_arrival_time + link_travel_time;
+
                     match queue.entry(neighbour) {
                         Entry::Occupied(e) => {
-                            // TODO could this be skipped, and I just use NodeIdOptions or smth?
-                            // if to_node index present, convert to to_node id. Else keep "Any".
-                            let to_node_id_opt = match request.options.get_to_node_opt() {
-                                NodeIdxOptions::One(to_node) => {
-                                    NodeIdOptions::One(request.graph.get_node_id_from_idx(to_node))
+                            // Compute heuristic estimate based on the heuristic mode
+                            let heuristic_estimate = match &request.heuristic_mode {
+                                HeuristicMode::WithHeuristic(h) => {
+                                    // For One-to-One routing, use the provided heuristic
+                                    let to_node_idx = request.options.get_to_node_opt().expect(
+                                        "Heuristic mode is WithHeuristic, but no to_node \
+                                        provided in Dijkstra options.",
+                                    );
+                                    // panic is okay here, since it is a programming error if
+                                    // someone uses WithHeuristic but does not provide a to_node in
+                                    // the options
+
+                                    let to_node_id =
+                                        request.graph.get_node_id_from_idx(to_node_idx);
+
+                                    h.estimate(
+                                        request.graph,
+                                        request.graph.get_node_id_from_idx(neighbour),
+                                        to_node_id,
+                                    )
                                 }
-                                NodeIdxOptions::Any => NodeIdOptions::Any,
+                                HeuristicMode::WithoutHeuristic => {
+                                    // For One-to-Many (landmark calculation), use zero heuristic
+                                    // This collapses A* to pure Dijkstra
+                                    // (We don't use the ZeroHeuristic.estimate function here, since
+                                    // it would require unnecessary calls to the graph and in particular
+                                    // that we pass a to-node, which doesn't exist in one-to-many).
+                                    0.0
+                                }
                             };
 
-                            // set priority to distance to neighbour + heuristic from there to the to_node
                             e.set_priority(NodePriority::new(
-                                neighbour_distance
-                                    + request.heuristic.estimate(
-                                        request.graph.as_ref(),
-                                        NodeIdOptions::One(
-                                            request.graph.get_node_id_from_idx(neighbour),
-                                        ),
-                                        to_node_id_opt,
-                                    ),
+                                neighbour_distance + heuristic_estimate,
                             ));
                         }
                         Entry::Vacant(_) => {
@@ -245,3 +296,4 @@ impl Dijkstra {
 // AStarRouter and AltLandmarkData, which use dijkstra_core for their implementations
 // However, it might be good to add explicit tests for dijkstra_core at some point, to make sure
 // that it works correctly in the various cases (1to1, 1tomany, with and without parents).
+

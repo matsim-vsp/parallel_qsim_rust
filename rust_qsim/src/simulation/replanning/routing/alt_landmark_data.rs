@@ -1,8 +1,6 @@
-use crate::simulation::replanning::routing::alt_router::ZeroHeuristic;
 use crate::simulation::replanning::routing::dijsktra::{
-    Dijkstra, DijkstraActions, DijkstraRequestBuilder, DijkstraResult,
+    Dijkstra, DijkstraActions, DijkstraRequestBuilder, DijkstraResult, HeuristicMode,
 };
-use crate::simulation::replanning::routing::graph::NodeIdxOptions;
 use crate::simulation::replanning::routing::graph::{GraphError, NodeIndex};
 use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelDisutility;
 use crate::simulation::replanning::routing::least_cost_path_caluclator::{
@@ -38,13 +36,14 @@ impl DijkstraActions for DistanceToManyOptions {
     fn build_result(self, _current_distance: Option<f64>, distances: Vec<f64>) -> DijkstraResult {
         DijkstraResult::DistanceToAllWithoutParents(distances)
     }
-    fn get_to_node_opt(&self) -> NodeIdxOptions {
-        NodeIdxOptions::Any
+    fn get_to_node_opt(&self) -> Option<NodeIndex> {
+        // NodeIdxOptions {
+        None // NodeIdxOptions::Any
     }
 }
 
 impl AltLandmarkData {
-    pub fn new(graph: &Box<dyn IntNodeGraph>) -> Result<AltLandmarkData, GraphError> {
+    pub fn new(graph: &dyn IntNodeGraph) -> Result<AltLandmarkData, GraphError> {
         let landmarks: Vec<NodeIndex> = Self::choose_landmarks(graph);
 
         let travel_disutilities_to_all = Self::calculate_distances(graph, &landmarks)?;
@@ -60,7 +59,7 @@ impl AltLandmarkData {
     }
 
     fn choose_landmarks(
-        graph: &Box<dyn IntNodeGraph>,
+        graph: &dyn IntNodeGraph,
         // graph: &ForwardBackwardGraph
     ) -> Vec<NodeIndex> {
         let number_of_landmarks = if graph.num_nodes() < DEFAULT_NUMBER_OF_LANDMARKS.pow(2) {
@@ -73,7 +72,7 @@ impl AltLandmarkData {
     }
 
     fn calculate_distances(
-        graph: &Box<dyn IntNodeGraph>, // &ForwardBackwardGraph,
+        graph: &dyn IntNodeGraph, // &ForwardBackwardGraph,
         // request: &LandmarkCreationRequest,
         landmarks: &[NodeIndex],
     ) -> Result<Vec<Vec<ForwardBackwardTravelDisutility>>, GraphError> {
@@ -105,22 +104,23 @@ impl AltLandmarkData {
     /// Note: we use "distance" even though we mean travel disutility, to be consistent with the
     /// naming in Dijkstra.
     fn distance_one_2_many(
-        graph: &Box<dyn IntNodeGraph>,
+        graph: &dyn IntNodeGraph,
         from: NodeIndex,
         backward: bool, // if true, calculates distances from all other nodes to the "from"-node
     ) -> Result<Vec<f64>, GraphError> {
-        let td_boxed: Box<dyn TravelDisutility> = Box::new(FreeSpeedTravelTimeAndDisutility);
+        let tt_td = FreeSpeedTravelTimeAndDisutility;
 
         // FIXME: right now, the distance_one_2_many function never passes a vehicle to dijkstra.
         // Thus, always freespeed will be used. Previously, since the travel time was part of the graph, and was calculated for specific vehicles, this was not the case.
         // need to decide if that is what we want
         let dijkstra_request = DijkstraRequestBuilder::default()
             .graph(graph)
-            .travel_disutility(&td_boxed)
+            .travel_time(&tt_td)
+            .travel_disutility(&tt_td)
             // makes Dijkstra calculate the distance to all other nodes, without tracking parents
             .options(DistanceToManyOptions)
-            .from(NodeIdxOptions::One(from))
-            .heuristic(&ZeroHeuristic)
+            .from(from)
+            .heuristic_mode(HeuristicMode::without_heuristic())
             .backward(backward)
             .build()
             .unwrap();
@@ -146,8 +146,8 @@ mod tests {
     #[test]
     // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO still not sure if this is true
     fn test_landmark_choice() {
-        let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
-        let alt_data = AltLandmarkData::new(&graph_boxed).unwrap();
+        let graph = get_triangle_test_graph();
+        let alt_data = AltLandmarkData::new(&graph).unwrap();
 
         //selection is so far random, but with fixed seed (chooses node with index 3 as landmark)
 

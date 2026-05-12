@@ -35,14 +35,14 @@ pub trait Graph: Debug {
     /// Returns an error if the link does not exist in the graph
     fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
     // needed to allow cloning of Box<dyn Graph>
-    fn clone_box(&self) -> Box<dyn Graph>;
+    // fn clone_box(&self) -> Box<dyn Graph>;
 }
-
-impl Clone for Box<dyn Graph> {
-    fn clone(&self) -> Box<dyn Graph> {
-        self.clone_box()
-    }
-}
+//
+// impl Clone for Box<dyn Graph> {
+//     fn clone(&self) -> Box<dyn Graph> {
+//         self.clone_box()
+//     }
+// }
 
 /// A (directed) graph where nodes and links can be accessed by both their id and their index.
 /// Mirrors many trait methods from its supertrait "Graph", but using indices instead of ids.
@@ -66,7 +66,7 @@ pub trait LeastCostPathCalculator {
     fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath>;
 }
 
-pub trait TravelTime: Clone + Debug {
+pub trait TravelTime: Debug {
     fn travel_time(
         &self,
         link: &Link,
@@ -74,6 +74,7 @@ pub trait TravelTime: Clone + Debug {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Time;
+    fn clone_box(&self) -> Box<dyn TravelTime>;
 }
 
 pub trait TravelDisutility: Debug {
@@ -91,7 +92,7 @@ pub trait TravelDisutility: Debug {
 pub struct LeastCostPathRequest<'r> {
     pub from: Id<Link>,
     pub to: Id<Link>,
-    pub graph: &'r Box<dyn IntNodeGraph>, // contains the graph of the network
+    pub graph: &'r dyn IntNodeGraph, // contains the graph of the network
     #[builder(default)]
     pub departure_time: Time,
     #[builder(default)]
@@ -100,6 +101,7 @@ pub struct LeastCostPathRequest<'r> {
     pub vehicle: Option<&'r InternalVehicle>,
 }
 
+// FIXME do we actually want the travel time, or the disutility, or both? Currently, it's the latter but named the former...
 #[derive(PartialEq, Debug)]
 pub struct LeastCostPath {
     pub path: Vec<Id<Link>>,
@@ -128,6 +130,9 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
 
         link.length / max_speed
     }
+    fn clone_box(&self) -> Box<dyn TravelTime> {
+        Box::new(self.clone())
+    }
 }
 
 impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
@@ -150,15 +155,16 @@ impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
-    use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
+
+    use crate::simulation::replanning::routing::alt_router::AStarRouter;
     use crate::simulation::replanning::routing::alt_router::ZeroHeuristic;
-    use crate::simulation::replanning::routing::alt_router::{AStarRouter, AltHeuristic};
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::replanning::routing::least_cost_path_caluclator::Graph;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        FreeSpeedTravelTimeAndDisutility, IntNodeGraph, LeastCostPath, LeastCostPathRequestBuilder,
+        FreeSpeedTravelTimeAndDisutility, LeastCostPath, LeastCostPathRequestBuilder,
     };
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        LeastCostPathCalculator, LeastCostPathRequest, TravelDisutility, TravelTime,
+        LeastCostPathCalculator, TravelDisutility, TravelTime,
     };
     use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -166,18 +172,20 @@ mod tests {
     /// simple test just to make sure that the interface works. More precise testing is done
     /// in the respective files where implementations of LeastCostPathCaltulator are defined.
     #[test]
-    fn test_interface() {
+    fn test_least_cost_path_interface() {
         // simple A*-Router with zero heuristic => is Dijkstra.
-        let router = AStarRouter::new(ZeroHeuristic, Box::new(FreeSpeedTravelTimeAndDisutility));
+        let router = AStarRouter::new(
+            ZeroHeuristic,
+            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeSpeedTravelTimeAndDisutility),
+        );
         // triangle graph
-        let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
-
-        dbg!(&graph_boxed);
+        let graph = get_triangle_test_graph();
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::create("1")) // these links are connected via
             .to(Id::create("5")) // link "4", which takes 4 secs
-            .graph(&graph_boxed)
+            .graph(&graph)
             .build()
             .unwrap();
 
@@ -197,8 +205,8 @@ mod tests {
     fn test_free_speed_travel_time_and_disutility() {
         let fpttad = FreeSpeedTravelTimeAndDisutility;
 
-        let graph_boxed: Box<dyn IntNodeGraph> = Box::new(get_triangle_test_graph());
-        let link = graph_boxed.edge(Id::create("4"));
+        let graph = get_triangle_test_graph();
+        let link = graph.edge(Id::create("4"));
 
         assert_eq!(fpttad.travel_time(link, 0.0, None, None), 4.0);
         assert_eq!(fpttad.travel_disutility(link, 0.0, None, None), 4.0);

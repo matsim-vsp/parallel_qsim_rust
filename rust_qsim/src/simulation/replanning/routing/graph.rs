@@ -200,9 +200,9 @@ impl Graph for ForwardBackwardGraph {
         let node_idx = result.ok_or_else(|| GraphError::LinkNotFound(link_id.clone()))?;
         Ok(self.forward_graph.node_id_by_index[node_idx].clone())
     }
-    fn clone_box(&self) -> Box<dyn Graph> {
-        Box::new(self.clone())
-    }
+    // fn clone_box(&self) -> Box<dyn Graph> {
+    //     Box::new(self.clone())
+    // }
 }
 
 impl IntNodeGraph for ForwardBackwardGraph {
@@ -614,33 +614,33 @@ pub(crate) mod tests {
         }
     }
 }
-
-#[derive(Debug, Clone)]
-pub enum NodeIdxOptions {
-    One(NodeIndex), // one specific node in the graph
-    Any,            // any node
-}
-
-impl NodeIdxOptions {
-    pub(crate) fn get_node_or_panic(&self) -> NodeIndex {
-        match self {
-            NodeIdxOptions::One(node_idx) => *node_idx,
-            NodeIdxOptions::Any => panic!("NodeIdxOptions::Any does not contain a specific node."),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum NodeIdOptions {
-    One(Id<Node>), // one specific node in the graph
-    Any,           // any node
-}
-
-impl NodeIdOptions {
-    pub(crate) fn get_node_or_panic(&self) -> Id<Node> {
-        match self {
-            NodeIdOptions::One(node_id) => node_id.clone(),
-            NodeIdOptions::Any => panic!("NodeIdOptions::Any does not contain a specific node."),
-        }
-    }
-}
+//
+// #[derive(Debug, Clone)]
+// pub enum NodeIdxOptions {
+//     One(NodeIndex), // one specific node in the graph
+//     Any,            // any node
+// }
+//
+// impl NodeIdxOptions {
+//     pub(crate) fn get_node_or_panic(&self) -> NodeIndex {
+//         match self {
+//             NodeIdxOptions::One(node_idx) => *node_idx,
+//             NodeIdxOptions::Any => panic!("NodeIdxOptions::Any does not contain a specific node."),
+//         }
+//     }
+// }
+//
+// #[derive(Debug)]
+// pub enum NodeIdOptions {
+//     One(Id<Node>), // one specific node in the graph
+//     Any,           // any node
+// }
+//
+// impl NodeIdOptions {
+//     pub(crate) fn get_node_or_panic(&self) -> Id<Node> {
+//         match self {
+//             NodeIdOptions::One(node_id) => node_id.clone(),
+//             NodeIdOptions::Any => panic!("NodeIdOptions::Any does not contain a specific node."),
+//         }
+//     }
+// }
