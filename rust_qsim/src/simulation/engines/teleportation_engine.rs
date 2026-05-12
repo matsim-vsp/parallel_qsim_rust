@@ -13,8 +13,8 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::scenario::population::InternalRoute;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::simulation::Simulation;
-use crate::simulation::time::{SimClock, Tick};
-use crate::simulation::time_queue::{EndTick, Identifiable, TimeQueue};
+use crate::simulation::time::{SimClock, SimTime, Tick};
+use crate::simulation::time_queue::{Identifiable, TimeQueue};
 use crate::simulation::vehicles::SimulationVehicle;
 
 pub(crate) struct TeleportationEngine {
@@ -42,10 +42,8 @@ impl TeleportationEngine {
         vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), outward_now);
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
-            self.queue.add(
-                TeleportingVehicle::build(vehicle, self.clock.tick_to_time(now), self.clock),
-                now,
-            );
+            let due_time = vehicle.driver().end_time(self.clock.tick_to_time(now));
+            self.queue.add(TeleportingVehicle::build(vehicle, due_time), due_time);
         } else {
             let to = net_message_broker.rank_for_link(
                 vehicle
@@ -63,7 +61,7 @@ impl TeleportationEngine {
     }
 
     pub fn do_step(&mut self, now: Tick) -> Vec<SimulationVehicle> {
-        let mut teleportation_vehicles = self.queue.pop(now);
+        let mut teleportation_vehicles = self.queue.pop(self.clock.tick_to_time(now));
         for teleporting_vehicle in &mut teleportation_vehicles {
             let agent = teleporting_vehicle.vehicle.driver();
 
@@ -129,31 +127,68 @@ impl TeleportationEngine {
 
 struct TeleportingVehicle {
     vehicle: SimulationVehicle,
-    arrival_tick: Tick,
 }
 
 impl TeleportingVehicle {
-    fn build(
-        vehicle: SimulationVehicle,
-        now: crate::simulation::time::SimTime,
-        clock: SimClock,
-    ) -> Self {
-        let arrival_tick = clock.time_to_tick(vehicle.driver().end_time(now));
-        Self {
-            vehicle,
-            arrival_tick,
-        }
-    }
-}
-
-impl EndTick for TeleportingVehicle {
-    fn end_tick(&self, _now: Tick) -> Tick {
-        self.arrival_tick
+    fn build(vehicle: SimulationVehicle, _arrival_time: SimTime) -> Self {
+        Self { vehicle }
     }
 }
 
 impl Identifiable<InternalVehicle> for TeleportingVehicle {
     fn id(&self) -> &Id<InternalVehicle> {
         self.vehicle.id()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{TeleportationEngine, TeleportingVehicle};
+    use crate::simulation::agents::agent::SimulationAgent;
+    use crate::simulation::agents::SimulationAgentLogic;
+    use crate::simulation::id::Id;
+    use crate::simulation::scenario::population::{
+        InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
+        InternalRoute,
+    };
+    use crate::simulation::time::{SimClock, SimTime, Tick};
+    use crate::simulation::vehicles::SimulationVehicle;
+    use macros::integration_test;
+
+    #[integration_test]
+    fn do_step_releases_subsecond_due_vehicle() {
+        let clock = SimClock::new(10);
+        let mut engine = TeleportationEngine::new(Default::default(), clock);
+        let vehicle = SimulationVehicle::from_parts(1, 0, 10.0, 1.0, create_generic_route_agent(1));
+        let due_time = SimTime::from_nanos(350_000_000);
+
+        engine
+            .queue
+            .add(TeleportingVehicle::build(vehicle, due_time), due_time);
+
+        let early = engine.do_step(Tick::new(3));
+        assert!(early.is_empty());
+
+        let ready = engine.do_step(Tick::new(4));
+        assert_eq!(ready.len(), 1);
+    }
+
+    fn create_generic_route_agent(id: u64) -> SimulationAgent {
+        let route = InternalRoute::Generic(InternalGenericRoute::new(
+            Id::create("start"),
+            Id::create("end"),
+            None,
+            Some(123.0),
+            None,
+        ));
+        let leg = InternalLeg::new(route, "walk", 0, Some(1));
+        let act = InternalActivity::new(0.0, 0.0, "home", Id::create("start"), None, None, None);
+        let mut plan = InternalPlan::default();
+        plan.add_act(act);
+        plan.add_leg(leg);
+        let person = InternalPerson::new(Id::create(id.to_string().as_str()), plan);
+        let mut agent = SimulationAgent::new_plan_based(person);
+        agent.advance_plan(0);
+        agent
     }
 }

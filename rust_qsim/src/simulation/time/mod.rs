@@ -254,7 +254,6 @@ impl SimClock {
         self.tick_to_time(tick).as_u32_seconds()
     }
 
-    #[cfg(test)]
     pub(crate) fn time_to_u32_seconds(self, time: SimTime) -> u32 {
         time.as_u32_seconds()
     }

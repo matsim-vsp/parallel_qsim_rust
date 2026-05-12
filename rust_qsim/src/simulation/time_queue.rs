@@ -1,51 +1,35 @@
 use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
-use crate::simulation::time::Tick;
+use crate::simulation::time::SimTime;
 use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-
-pub(crate) trait EndTick {
-    fn end_tick(&self, now: Tick) -> Tick;
-}
 
 pub trait Identifiable<I: StableTypeId> {
     fn id(&self) -> &Id<I>;
 }
 
-struct Entry<T>
-where
-    T: EndTick,
-{
-    end_time: Tick,
+struct Entry<T> {
+    end_time: SimTime,
     order: usize,
     value: T,
 }
 
-impl<T> PartialEq<Self> for Entry<T>
-where
-    T: EndTick,
-{
+impl<T> PartialEq<Self> for Entry<T> {
     fn eq(&self, other: &Self) -> bool {
         self.end_time == other.end_time && self.order == other.order
     }
 }
 
-impl<T> Eq for Entry<T> where T: EndTick {}
+impl<T> Eq for Entry<T> {}
 
-impl<T> PartialOrd<Self> for Entry<T>
-where
-    T: EndTick,
-{
+impl<T> PartialOrd<Self> for Entry<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T> Ord for Entry<T>
-where
-    T: EndTick,
-{
+impl<T> Ord for Entry<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // First compare by end_time (reverse for min-heap)
         // Then use order as secondary sort key (also reverse for FIFO within same time)
@@ -64,27 +48,19 @@ where
 /// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
 /// of having entries with both the same time and counter values after overflow.
 pub(crate) struct TimeQueue<T, I>
-where
-    T: EndTick,
 {
     q: BinaryHeap<Entry<T>>,
     counter: usize,
     _phantom: std::marker::PhantomData<I>,
 }
 
-impl<T, I> Default for TimeQueue<T, I>
-where
-    T: EndTick,
-{
+impl<T, I> Default for TimeQueue<T, I> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T, I> TimeQueue<T, I>
-where
-    T: EndTick,
-{
+impl<T, I> TimeQueue<T, I> {
     pub(crate) fn new() -> Self {
         TimeQueue {
             q: BinaryHeap::new(),
@@ -93,8 +69,7 @@ where
         }
     }
 
-    pub(crate) fn add(&mut self, value: T, now: Tick) {
-        let end_time = value.end_tick(now);
+    pub(crate) fn add(&mut self, value: T, end_time: SimTime) {
         let order = self.counter;
         self.counter = self.counter.wrapping_add(1);
         self.q.push(Entry {
@@ -104,7 +79,7 @@ where
         });
     }
 
-    pub(crate) fn pop(&mut self, now: Tick) -> Vec<T> {
+    pub(crate) fn pop(&mut self, now: SimTime) -> Vec<T> {
         let mut result: Vec<T> = Vec::new();
 
         while let Some(entry_ref) = self.q.peek() {
@@ -129,19 +104,13 @@ where
 #[allow(dead_code)]
 struct ValueWrap<I: StableTypeId> {
     id: Id<I>,
-    end_time: Tick,
+    end_time: SimTime,
 }
 
 impl<I: StableTypeId> ValueWrap<I> {
     #[allow(dead_code)]
-    fn new(id: Id<I>, end_time: Tick) -> Self {
+    fn new(id: Id<I>, end_time: SimTime) -> Self {
         ValueWrap { id, end_time }
-    }
-}
-
-impl<I: StableTypeId> EndTick for ValueWrap<I> {
-    fn end_tick(&self, _: Tick) -> Tick {
-        self.end_time
     }
 }
 
@@ -151,7 +120,7 @@ impl<I: StableTypeId> EndTick for ValueWrap<I> {
 #[allow(dead_code)]
 pub(crate) struct MutTimeQueue<T, I>
 where
-    T: EndTick + Identifiable<I>,
+    T: Identifiable<I>,
     I: StableTypeId,
 {
     q: TimeQueue<ValueWrap<I>, I>,
@@ -160,7 +129,7 @@ where
 
 impl<T, I> Default for MutTimeQueue<T, I>
 where
-    T: EndTick + Identifiable<I>,
+    T: Identifiable<I>,
     I: StableTypeId + 'static,
 {
     fn default() -> Self {
@@ -171,7 +140,7 @@ where
 #[allow(dead_code)]
 impl<T, I> MutTimeQueue<T, I>
 where
-    T: EndTick + Identifiable<I>,
+    T: Identifiable<I>,
     I: StableTypeId + 'static,
 {
     pub(crate) fn new() -> Self {
@@ -181,14 +150,13 @@ where
         }
     }
 
-    pub(crate) fn add(&mut self, value: T, now: Tick) {
+    pub(crate) fn add(&mut self, value: T, end_time: SimTime) {
         let id = value.id();
-        self.q
-            .add(ValueWrap::new(id.clone(), value.end_tick(now)), now);
+        self.q.add(ValueWrap::new(id.clone(), end_time), end_time);
         self.cache.insert(id.clone(), value);
     }
 
-    pub(crate) fn pop(&mut self, now: Tick) -> Vec<T> {
+    pub(crate) fn pop(&mut self, now: SimTime) -> Vec<T> {
         let ids = self.q.pop(now);
         let mut result: Vec<T> = Vec::new();
 
@@ -212,13 +180,6 @@ mod tests {
     #[derive(Debug, Clone)]
     struct TestItem {
         id: u32,
-        end: Tick,
-    }
-
-    impl EndTick for TestItem {
-        fn end_tick(&self, _now: Tick) -> Tick {
-            self.end
-        }
     }
 
     #[test]
@@ -227,26 +188,23 @@ mod tests {
         queue.add(
             TestItem {
                 id: 1,
-                end: Tick::new(10),
             },
-            Tick::zero(),
+            SimTime::from_u32_seconds(10),
         );
         queue.add(
             TestItem {
                 id: 2,
-                end: Tick::new(10),
             },
-            Tick::zero(),
+            SimTime::from_u32_seconds(10),
         );
         queue.add(
             TestItem {
                 id: 3,
-                end: Tick::new(10),
             },
-            Tick::zero(),
+            SimTime::from_u32_seconds(10),
         );
 
-        let results = queue.pop(Tick::new(10));
+        let results = queue.pop(SimTime::from_u32_seconds(10));
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].id, 1);
         assert_eq!(results[1].id, 2);
@@ -259,43 +217,58 @@ mod tests {
         queue.add(
             TestItem {
                 id: 1,
-                end: Tick::new(15),
             },
-            Tick::zero(),
+            SimTime::from_u32_seconds(15),
         );
         queue.add(
             TestItem {
                 id: 2,
-                end: Tick::new(10),
             },
-            Tick::zero(),
+            SimTime::from_u32_seconds(10),
         );
         queue.add(
             TestItem {
                 id: 3,
-                end: Tick::new(20),
             },
-            Tick::zero(),
+            SimTime::from_u32_seconds(20),
         );
         queue.add(
             TestItem {
                 id: 4,
-                end: Tick::new(10),
             },
-            Tick::zero(),
+            SimTime::from_u32_seconds(10),
         );
 
-        let results = queue.pop(Tick::new(10));
+        let results = queue.pop(SimTime::from_u32_seconds(10));
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].id, 2);
         assert_eq!(results[1].id, 4);
 
-        let results = queue.pop(Tick::new(15));
+        let results = queue.pop(SimTime::from_u32_seconds(15));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 1);
 
-        let results = queue.pop(Tick::new(20));
+        let results = queue.pop(SimTime::from_u32_seconds(20));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 3);
+    }
+
+    #[test]
+    fn test_time_queue_subsecond_due_time() {
+        let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        let due_time = SimTime::from_nanos(350_000_000);
+        queue.add(
+            TestItem {
+                id: 1,
+            },
+            due_time,
+        );
+
+        let early = queue.pop(SimTime::from_nanos(349_000_000));
+        assert!(early.is_empty());
+
+        let ready = queue.pop(due_time);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, 1);
     }
 }

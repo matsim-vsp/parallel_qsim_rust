@@ -7,8 +7,8 @@ use crate::simulation::config::Config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
 use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::time::{SimClock, Tick};
-use crate::simulation::time_queue::{EndTick, Identifiable, TimeQueue};
+use crate::simulation::time::{SimClock, SimTime, Tick};
+use crate::simulation::time_queue::{Identifiable, TimeQueue};
 use tracing::instrument;
 
 pub struct ActivityEngine {
@@ -40,16 +40,17 @@ impl ActivityEngine {
         agents: Vec<SimulationAgent>,
     ) -> Vec<SimulationAgent> {
         let now = now.into();
+        let now_time = self.clock.tick_to_time(now);
         let outward_now = self.clock.tick_to_u32_seconds(now);
         for mut agent in agents {
             agent.advance_plan(outward_now);
-            self.receive_agent(now, AsleepSimulationAgent::build(agent, now, self.clock));
+            self.receive_agent(now, AsleepSimulationAgent::build(agent, now_time));
         }
 
-        let mut end_after_wake_up = self.wake_up(now);
-        self.notify_wakeup_all(now, &mut end_after_wake_up);
+        let mut end_after_wake_up = self.wake_up(now_time);
+        self.notify_wakeup_all(outward_now, &mut end_after_wake_up);
 
-        let end_from_awake = self.end(now);
+        let end_from_awake = self.end(now_time);
         self.notify_end_all(now, end_after_wake_up, end_from_awake)
     }
 
@@ -82,8 +83,7 @@ impl ActivityEngine {
     }
 
     #[instrument(level = "trace", skip(self, end_after_wake_up))]
-    fn notify_wakeup_all(&mut self, now: Tick, end_after_wake_up: &mut [SimulationAgent]) {
-        let outward_now = self.clock.tick_to_u32_seconds(now);
+    fn notify_wakeup_all(&mut self, outward_now: u32, end_after_wake_up: &mut [SimulationAgent]) {
         // inform agents about wakeup
         // those are the agents that are woken up and directly end their activity
         end_after_wake_up.iter_mut().for_each(|agent| {
@@ -96,7 +96,7 @@ impl ActivityEngine {
             ActivityEngine::notify_wakeup(
                 &mut self.comp_env,
                 &mut agent.agent,
-                self.clock.tick_to_u32_seconds(end_time),
+                self.clock.time_to_u32_seconds(end_time),
                 outward_now,
             );
         }
@@ -122,18 +122,18 @@ impl ActivityEngine {
             }),
             outward_now,
         );
-        self.asleep_q.add(agent, now);
+        let wakeup_time = agent.wakeup_time;
+        self.asleep_q.add(agent, wakeup_time);
     }
 
     /// Pushes agents whose wakeup time is reached into the awake queue and returns agents whose end time is already reached.
-    fn wake_up(&mut self, now: impl Into<Tick>) -> Vec<SimulationAgent> {
-        let now = now.into();
+    fn wake_up(&mut self, now: SimTime) -> Vec<SimulationAgent> {
         let mut end_agents = Vec::new();
         let wake_up = self.asleep_q.pop(now);
 
         // for fast turnaround, agents whose end time is already reached are directly returned and not put into the awake queue
         for agent in wake_up {
-            let awake = AwakeSimulationAgent::build(agent.agent, agent.begin_time, self.clock);
+            let awake = AwakeSimulationAgent::build(agent.agent, agent.begin_time);
             let end_time = awake.end_time;
             if end_time <= now {
                 end_agents.push(awake.agent);
@@ -144,8 +144,7 @@ impl ActivityEngine {
         end_agents
     }
 
-    fn end(&mut self, now: impl Into<Tick>) -> Vec<SimulationAgent> {
-        let now = now.into();
+    fn end(&mut self, now: SimTime) -> Vec<SimulationAgent> {
         let mut agents = Vec::new();
 
         let mut i = 0;
@@ -205,10 +204,13 @@ impl<'c> ActivityEngineBuilder<'c> {
     pub fn build(self) -> ActivityEngine {
         let clock = SimClock::new(self.config.simulation().ticks_per_second);
         let now = clock.u32_seconds_to_tick(self.config.simulation().start_time);
+        let now_time = clock.tick_to_time(now);
 
         let mut asleep = TimeQueue::new();
         for agent in self.agents {
-            asleep.add(AsleepSimulationAgent::build(agent, now, clock), now);
+            let asleep_agent = AsleepSimulationAgent::build(agent, now_time);
+            let wakeup_time = asleep_agent.wakeup_time;
+            asleep.add(asleep_agent, wakeup_time);
         }
         let awake_q = Vec::new();
         ActivityEngine::new(asleep, awake_q, self.comp_env, clock)
@@ -217,46 +219,32 @@ impl<'c> ActivityEngineBuilder<'c> {
 
 struct AwakeSimulationAgent {
     agent: SimulationAgent,
-    end_time: Tick,
+    end_time: SimTime,
 }
 
 impl AwakeSimulationAgent {
-    fn build(agent: SimulationAgent, begin_time: Tick, clock: SimClock) -> Self {
-        let begin_time = clock.tick_to_time(begin_time);
+    fn build(agent: SimulationAgent, begin_time: SimTime) -> Self {
         Self {
-            end_time: clock.time_to_tick(agent.end_time(begin_time)),
+            end_time: agent.end_time(begin_time),
             agent,
         }
-    }
-}
-
-impl EndTick for AwakeSimulationAgent {
-    fn end_tick(&self, _now: Tick) -> Tick {
-        self.end_time
     }
 }
 
 struct AsleepSimulationAgent {
     agent: SimulationAgent,
-    wakeup_time: Tick,
-    begin_time: Tick,
+    wakeup_time: SimTime,
+    begin_time: SimTime,
 }
 
 impl AsleepSimulationAgent {
-    fn build(agent: SimulationAgent, now: Tick, clock: SimClock) -> Self {
-        let wakeup_time = clock.time_to_tick(agent.wakeup_time(clock.tick_to_time(now)));
+    fn build(agent: SimulationAgent, now: SimTime) -> Self {
+        let wakeup_time = agent.wakeup_time(now);
         AsleepSimulationAgent {
             agent,
             wakeup_time,
             begin_time: now,
         }
-    }
-}
-
-impl EndTick for AsleepSimulationAgent {
-    fn end_tick(&self, _now: Tick) -> Tick {
-        // end_time is used for the wake-up queue, so it should return the time when the agent is supposed to wake up.
-        self.wakeup_time
     }
 }
 
@@ -273,12 +261,15 @@ mod tests {
         RequestSender, ThreadLocalComputationalEnvironment,
         ThreadLocalComputationalEnvironmentBuilder,
     };
-    use crate::simulation::engines::activity_engine::{ActivityEngine, ActivityEngineBuilder};
+    use crate::simulation::engines::activity_engine::{
+        ActivityEngine, ActivityEngineBuilder, AsleepSimulationAgent,
+    };
     use crate::simulation::id::Id;
     use crate::simulation::scenario::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalPlanElement, InternalRoute,
     };
+    use crate::simulation::time::SimTime;
     use crate::simulation::time_queue::Identifiable;
     use macros::integration_test;
     use std::collections::HashMap;
@@ -293,7 +284,7 @@ mod tests {
 
         assert_eq!(engine.awake_q.len(), 0);
         assert_eq!(engine.asleep_q.len(), 0);
-        engine.end(0);
+        engine.end(SimTime::from_u32_seconds(0));
     }
 
     #[integration_test]
@@ -306,13 +297,35 @@ mod tests {
         let mut engine = create_engine(agents, Default::default());
 
         {
-            let agents = engine.wake_up(0);
+            let agents = engine.wake_up(SimTime::from_u32_seconds(0));
             assert!(agents.is_empty());
         }
         {
-            let agents = engine.wake_up(10);
+            let agents = engine.wake_up(SimTime::from_u32_seconds(10));
             assert_eq!(agents.len(), 1);
         }
+    }
+
+    #[integration_test]
+    fn test_activity_engine_wake_up_subsecond_due_time() {
+        let plan = create_plan();
+        let agent = SimulationAgent::new_plan_based(InternalPerson::new(Id::create("1"), plan));
+        let mut engine = create_engine(vec![], Default::default());
+        let asleep_agent = AsleepSimulationAgent {
+            agent,
+            wakeup_time: SimTime::from_nanos(350_000_000),
+            begin_time: SimTime::from_nanos(100_000_000),
+        };
+        let wakeup_time = asleep_agent.wakeup_time;
+        engine.asleep_q.add(asleep_agent, wakeup_time);
+
+        let early = engine.wake_up(SimTime::from_nanos(300_000_000));
+        assert!(early.is_empty());
+        assert_eq!(engine.awake_q.len(), 0);
+
+        let ready = engine.wake_up(SimTime::from_nanos(400_000_000));
+        assert!(ready.is_empty());
+        assert_eq!(engine.awake_q.len(), 1);
     }
 
     #[integration_test]
