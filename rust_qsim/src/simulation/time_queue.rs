@@ -48,7 +48,7 @@ impl<T> Ord for Entry<T> {
 /// This is acceptable for simulation purposes as it would take an astronomically large number
 /// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
 /// of having entries with both the same time and counter values after overflow.
-pub(crate) struct TimeQueue<T, I>
+pub struct TimeQueue<T, I>
 where
     T: EndTime,
 {
@@ -70,7 +70,7 @@ impl<T, I> TimeQueue<T, I>
 where
     T: EndTime,
 {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         TimeQueue {
             q: BinaryHeap::new(),
             counter: 0,
@@ -78,7 +78,7 @@ where
         }
     }
 
-    pub(crate) fn add(&mut self, value: T, now: SimTime) {
+    pub fn add(&mut self, value: T, now: SimTime) {
         let end_time = value.end_time(now);
         let order = self.counter;
         self.counter = self.counter.wrapping_add(1);
@@ -89,7 +89,7 @@ where
         });
     }
 
-    pub(crate) fn pop(&mut self, now: SimTime) -> Vec<T> {
+    pub fn pop(&mut self, now: SimTime) -> Vec<T> {
         let mut result: Vec<T> = Vec::new();
 
         while let Some(entry_ref) = self.q.peek() {
@@ -134,7 +134,7 @@ impl<I: StableTypeId> EndTime for ValueWrap<I> {
 /// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
 /// TODO taxi driver needs to be able to change his end_time such that order is changed
 #[allow(dead_code)]
-pub(crate) struct MutTimeQueue<T, I>
+pub struct MutTimeQueue<T, I>
 where
     T: EndTime + Identifiable<I>,
     I: StableTypeId,
@@ -159,20 +159,21 @@ where
     T: EndTime + Identifiable<I>,
     I: StableTypeId + 'static,
 {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         MutTimeQueue {
             q: TimeQueue::new(),
             cache: IntMap::default(),
         }
     }
 
-    pub(crate) fn add(&mut self, value: T, now: SimTime) {
+    pub fn add(&mut self, value: T, now: SimTime) {
         let id = value.id();
-        self.q.add(ValueWrap::new(id.clone(), value.end_time(now)), now);
+        self.q
+            .add(ValueWrap::new(id.clone(), value.end_time(now)), now);
         self.cache.insert(id.clone(), value);
     }
 
-    pub(crate) fn pop(&mut self, now: SimTime) -> Vec<T> {
+    pub fn pop(&mut self, now: SimTime) -> Vec<T> {
         let ids = self.q.pop(now);
         let mut result: Vec<T> = Vec::new();
 
