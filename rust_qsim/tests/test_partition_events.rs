@@ -1,5 +1,5 @@
 use macros::integration_test;
-use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::framework_events::{
     AgentEntersPartitionEvent, AgentLeavesPartitionEvent, EventOrigin, PartitionEvent,
@@ -99,9 +99,10 @@ fn teleported_route_emits_partition_events() {
 }
 
 fn collect_partition_events(config_path: &str) -> Vec<PartitionRuntimeEvent> {
-    let config = Arc::new(Config::from_args(CommandLineArgs::new_with_path(
-        config_path,
-    )));
+    let mut cc = Config::from_args(CommandLineArgs::new_with_path(config_path));
+    cc.partitioning_mut().method = PartitionMethod::None;
+
+    let config = Arc::new(cc);
     let scenario = MutableScenario::load(config.clone());
     let (sender, receiver) = channel::<PartitionRuntimeEvent>();
 
