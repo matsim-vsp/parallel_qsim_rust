@@ -1,3 +1,4 @@
+use crate::simulation::agents::EndTime;
 use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::time::SimTime;
@@ -48,19 +49,27 @@ impl<T> Ord for Entry<T> {
 /// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
 /// of having entries with both the same time and counter values after overflow.
 pub(crate) struct TimeQueue<T, I>
+where
+    T: EndTime,
 {
     q: BinaryHeap<Entry<T>>,
     counter: usize,
     _phantom: std::marker::PhantomData<I>,
 }
 
-impl<T, I> Default for TimeQueue<T, I> {
+impl<T, I> Default for TimeQueue<T, I>
+where
+    T: EndTime,
+{
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T, I> TimeQueue<T, I> {
+impl<T, I> TimeQueue<T, I>
+where
+    T: EndTime,
+{
     pub(crate) fn new() -> Self {
         TimeQueue {
             q: BinaryHeap::new(),
@@ -69,7 +78,8 @@ impl<T, I> TimeQueue<T, I> {
         }
     }
 
-    pub(crate) fn add(&mut self, value: T, end_time: SimTime) {
+    pub(crate) fn add(&mut self, value: T, now: SimTime) {
+        let end_time = value.end_time(now);
         let order = self.counter;
         self.counter = self.counter.wrapping_add(1);
         self.q.push(Entry {
@@ -114,13 +124,19 @@ impl<I: StableTypeId> ValueWrap<I> {
     }
 }
 
+impl<I: StableTypeId> EndTime for ValueWrap<I> {
+    fn end_time(&self, _now: SimTime) -> SimTime {
+        self.end_time
+    }
+}
+
 /// This is a mutable version of TimeQueue. It allows to mutate the values in the queue.
 /// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
 /// TODO taxi driver needs to be able to change his end_time such that order is changed
 #[allow(dead_code)]
 pub(crate) struct MutTimeQueue<T, I>
 where
-    T: Identifiable<I>,
+    T: EndTime + Identifiable<I>,
     I: StableTypeId,
 {
     q: TimeQueue<ValueWrap<I>, I>,
@@ -129,7 +145,7 @@ where
 
 impl<T, I> Default for MutTimeQueue<T, I>
 where
-    T: Identifiable<I>,
+    T: EndTime + Identifiable<I>,
     I: StableTypeId + 'static,
 {
     fn default() -> Self {
@@ -140,7 +156,7 @@ where
 #[allow(dead_code)]
 impl<T, I> MutTimeQueue<T, I>
 where
-    T: Identifiable<I>,
+    T: EndTime + Identifiable<I>,
     I: StableTypeId + 'static,
 {
     pub(crate) fn new() -> Self {
@@ -150,9 +166,9 @@ where
         }
     }
 
-    pub(crate) fn add(&mut self, value: T, end_time: SimTime) {
+    pub(crate) fn add(&mut self, value: T, now: SimTime) {
         let id = value.id();
-        self.q.add(ValueWrap::new(id.clone(), end_time), end_time);
+        self.q.add(ValueWrap::new(id.clone(), value.end_time(now)), now);
         self.cache.insert(id.clone(), value);
     }
 
@@ -180,6 +196,13 @@ mod tests {
     #[derive(Debug, Clone)]
     struct TestItem {
         id: u32,
+        end: SimTime,
+    }
+
+    impl EndTime for TestItem {
+        fn end_time(&self, _now: SimTime) -> SimTime {
+            self.end
+        }
     }
 
     #[test]
@@ -188,20 +211,23 @@ mod tests {
         queue.add(
             TestItem {
                 id: 1,
+                end: SimTime::from_u32_seconds(10),
             },
-            SimTime::from_u32_seconds(10),
+            SimTime::from_u32_seconds(0),
         );
         queue.add(
             TestItem {
                 id: 2,
+                end: SimTime::from_u32_seconds(10),
             },
-            SimTime::from_u32_seconds(10),
+            SimTime::from_u32_seconds(0),
         );
         queue.add(
             TestItem {
                 id: 3,
+                end: SimTime::from_u32_seconds(10),
             },
-            SimTime::from_u32_seconds(10),
+            SimTime::from_u32_seconds(0),
         );
 
         let results = queue.pop(SimTime::from_u32_seconds(10));
@@ -217,26 +243,30 @@ mod tests {
         queue.add(
             TestItem {
                 id: 1,
+                end: SimTime::from_u32_seconds(15),
             },
-            SimTime::from_u32_seconds(15),
+            SimTime::from_u32_seconds(0),
         );
         queue.add(
             TestItem {
                 id: 2,
+                end: SimTime::from_u32_seconds(10),
             },
-            SimTime::from_u32_seconds(10),
+            SimTime::from_u32_seconds(0),
         );
         queue.add(
             TestItem {
                 id: 3,
+                end: SimTime::from_u32_seconds(20),
             },
-            SimTime::from_u32_seconds(20),
+            SimTime::from_u32_seconds(0),
         );
         queue.add(
             TestItem {
                 id: 4,
+                end: SimTime::from_u32_seconds(10),
             },
-            SimTime::from_u32_seconds(10),
+            SimTime::from_u32_seconds(0),
         );
 
         let results = queue.pop(SimTime::from_u32_seconds(10));
@@ -260,8 +290,9 @@ mod tests {
         queue.add(
             TestItem {
                 id: 1,
+                end: due_time,
             },
-            due_time,
+            SimTime::from_nanos(0),
         );
 
         let early = queue.pop(SimTime::from_nanos(349_000_000));

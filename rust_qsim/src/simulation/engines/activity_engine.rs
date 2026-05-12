@@ -122,8 +122,8 @@ impl ActivityEngine {
             }),
             outward_now,
         );
-        let wakeup_time = agent.wakeup_time;
-        self.asleep_q.add(agent, wakeup_time);
+        let now_time = agent.begin_time;
+        self.asleep_q.add(agent, now_time);
     }
 
     /// Pushes agents whose wakeup time is reached into the awake queue and returns agents whose end time is already reached.
@@ -209,8 +209,7 @@ impl<'c> ActivityEngineBuilder<'c> {
         let mut asleep = TimeQueue::new();
         for agent in self.agents {
             let asleep_agent = AsleepSimulationAgent::build(agent, now_time);
-            let wakeup_time = asleep_agent.wakeup_time;
-            asleep.add(asleep_agent, wakeup_time);
+            asleep.add(asleep_agent, now_time);
         }
         let awake_q = Vec::new();
         ActivityEngine::new(asleep, awake_q, self.comp_env, clock)
@@ -231,6 +230,12 @@ impl AwakeSimulationAgent {
     }
 }
 
+impl EndTime for AwakeSimulationAgent {
+    fn end_time(&self, _now: SimTime) -> SimTime {
+        self.end_time
+    }
+}
+
 struct AsleepSimulationAgent {
     agent: SimulationAgent,
     wakeup_time: SimTime,
@@ -245,6 +250,12 @@ impl AsleepSimulationAgent {
             wakeup_time,
             begin_time: now,
         }
+    }
+}
+
+impl EndTime for AsleepSimulationAgent {
+    fn end_time(&self, _now: SimTime) -> SimTime {
+        self.wakeup_time
     }
 }
 
@@ -316,8 +327,8 @@ mod tests {
             wakeup_time: SimTime::from_nanos(350_000_000),
             begin_time: SimTime::from_nanos(100_000_000),
         };
-        let wakeup_time = asleep_agent.wakeup_time;
-        engine.asleep_q.add(asleep_agent, wakeup_time);
+        let now = asleep_agent.begin_time;
+        engine.asleep_q.add(asleep_agent, now);
 
         let early = engine.wake_up(SimTime::from_nanos(300_000_000));
         assert!(early.is_empty());

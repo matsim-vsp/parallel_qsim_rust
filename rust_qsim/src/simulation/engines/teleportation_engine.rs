@@ -42,8 +42,8 @@ impl TeleportationEngine {
         vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), outward_now);
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
-            let due_time = vehicle.driver().end_time(self.clock.tick_to_time(now));
-            self.queue.add(TeleportingVehicle::build(vehicle, due_time), due_time);
+            let now_time = self.clock.tick_to_time(now);
+            self.queue.add(TeleportingVehicle::build(vehicle, now_time), now_time);
         } else {
             let to = net_message_broker.rank_for_link(
                 vehicle
@@ -127,11 +127,22 @@ impl TeleportationEngine {
 
 struct TeleportingVehicle {
     vehicle: SimulationVehicle,
+    arrival_time: SimTime,
 }
 
 impl TeleportingVehicle {
-    fn build(vehicle: SimulationVehicle, _arrival_time: SimTime) -> Self {
-        Self { vehicle }
+    fn build(vehicle: SimulationVehicle, now: SimTime) -> Self {
+        let arrival_time = vehicle.driver().end_time(now);
+        Self {
+            vehicle,
+            arrival_time,
+        }
+    }
+}
+
+impl EndTime for TeleportingVehicle {
+    fn end_time(&self, _now: SimTime) -> SimTime {
+        self.arrival_time
     }
 }
 
@@ -164,7 +175,7 @@ mod tests {
 
         engine
             .queue
-            .add(TeleportingVehicle::build(vehicle, due_time), due_time);
+            .add(TeleportingVehicle { vehicle, arrival_time: due_time }, SimTime::from_nanos(0));
 
         let early = engine.do_step(Tick::new(3));
         assert!(early.is_empty());
