@@ -52,7 +52,7 @@ impl Identifiable<InternalPerson> for SimulationAgent {
 }
 
 impl EnvironmentalEventObserver for SimulationAgent {
-    fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
+    fn notify_event(&mut self, event: &mut AgentEvent, now: SimTime) {
         self.logic.notify_event(event, now)
     }
 }
@@ -70,7 +70,7 @@ impl SimulationAgentLogic for SimulationAgent {
     fn next_leg(&self) -> Option<&InternalLeg> {
         self.logic.next_leg()
     }
-    fn advance_plan(&mut self, now: u32) {
+    fn advance_plan(&mut self, now: SimTime) {
         self.logic.advance_plan(now);
     }
     fn state(&self) -> SimulationAgentState {

@@ -2,6 +2,7 @@ use crate::simulation::events::EventTrait;
 use crate::simulation::events::utils::EventsFileNotEqualError;
 use crate::simulation::io::proto::xml_events::XmlEventsReader;
 use crate::simulation::logging::init_std_out_logging_thread_local;
+use crate::simulation::time::SimTime;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, Barrier, Mutex};
@@ -39,7 +40,7 @@ fn read_file_with_barrier(
     should_stop: Arc<AtomicBool>,
 ) {
     let mut reader = XmlEventsReader::new(&file_path);
-    let mut current_time: Option<u32> = None;
+    let mut current_time: Option<SimTime> = None;
     let mut current_events: Vec<Box<dyn EventTrait>> = Vec::new();
 
     loop {
@@ -104,7 +105,7 @@ fn read_file_with_barrier(
 /// Structure to hold a batch of events with the same timestamp from one file
 #[derive(Debug)]
 pub(super) struct EventBatch {
-    time: Option<u32>,
+    time: Option<SimTime>,
     events: Vec<Box<dyn EventTrait>>,
     finished: bool, // indicates if the reader has reached EOF
 }
@@ -122,7 +123,7 @@ impl EventBatch {
 /// Updates a given batch with the current time and events.
 fn update_batch(
     batch: &Arc<Mutex<EventBatch>>,
-    current_time: &mut Option<u32>,
+    current_time: &mut Option<SimTime>,
     current_events: &mut Vec<Box<dyn EventTrait>>,
     finished: bool,
 ) {
@@ -150,7 +151,7 @@ pub fn comparator_thread(
     file2: PathBuf,
 ) {
     let mut event_count = 0;
-    let mut last_time: Option<u32> = None;
+    let mut last_time: Option<SimTime> = None;
 
     loop {
         // start by waiting for both readers to publish their batches
@@ -320,7 +321,9 @@ fn handle_different_event_times(
     should_stop.store(true, AtomicOrdering::Relaxed);
 }
 
-fn extract_events(batch1: Arc<Mutex<EventBatch>>) -> (Option<u32>, Vec<Box<dyn EventTrait>>, bool) {
+fn extract_events(
+    batch1: Arc<Mutex<EventBatch>>,
+) -> (Option<SimTime>, Vec<Box<dyn EventTrait>>, bool) {
     let (time1, events1, finished1) = {
         let mut b = batch1.lock().unwrap();
         let time = b.time;
@@ -457,7 +460,7 @@ mod tests {
                     assert_eq!(
                         event,
                         String::from(
-                            "PersonEntersVehicleEvent { time: 32409, person: 100, vehicle: 100_car, attributes: InternalAttributes { attributes: {} } }"
+                            "PersonEntersVehicleEvent { time: SimTime(32409s), person: 100, vehicle: 100_car, attributes: InternalAttributes { attributes: {} } }"
                         )
                     );
                 }

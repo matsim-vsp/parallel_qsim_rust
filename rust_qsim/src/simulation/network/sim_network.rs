@@ -284,10 +284,9 @@ impl SimNetworkPartition {
         let is_route_begin = events_manager.is_none();
 
         if let Some(manager) = events_manager {
-            let outward_now = self.clock.tick_to_u32_seconds(now);
             manager.borrow_mut().process_event(
                 &LinkEnterEventBuilder::default()
-                    .time(outward_now)
+                    .time(self.clock.tick_to_time(now))
                     .link(link.id().clone())
                     .vehicle(vehicle.id().clone())
                     .build()
@@ -578,17 +577,17 @@ impl SimNetworkPartition {
         now: Tick,
     ) {
         let old_link_id = vehicle.curr_link_id().unwrap().clone();
-        let outward_now = clock.tick_to_u32_seconds(now);
+        let now_time = clock.tick_to_time(now);
 
         comp_env.events_manager_borrow_mut().process_event(
             &LinkLeaveEventBuilder::default()
                 .vehicle(vehicle.id().clone())
                 .link(old_link_id.clone())
-                .time(outward_now)
+                .time(now_time)
                 .build()
                 .unwrap(),
         );
-        vehicle.notify_event(&mut AgentEvent::LeftLink(), outward_now);
+        vehicle.notify_event(&mut AgentEvent::LeftLink(), now_time);
         let new_link_id = vehicle.curr_link_id().unwrap().clone();
         let new_link = links.get_mut(&new_link_id).unwrap();
 
@@ -596,7 +595,7 @@ impl SimNetworkPartition {
         if let SimLink::Local(_) = new_link {
             comp_env.events_manager_borrow_mut().process_event(
                 &LinkEnterEventBuilder::default()
-                    .time(outward_now)
+                    .time(now_time)
                     .link(new_link.id().clone())
                     .vehicle(vehicle.id().clone())
                     .build()

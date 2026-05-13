@@ -18,8 +18,8 @@ message Request {
   double to_y = 6;
   string to_link_id = 7;
   string mode = 8;
-  uint32 departure_time = 9;
-  uint32 now = 10;
+  uint64 departure_time = 9;
+  uint64 now = 10;
   bytes request_id = 11;
 }
 

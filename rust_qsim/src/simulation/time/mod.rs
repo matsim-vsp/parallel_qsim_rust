@@ -111,9 +111,12 @@ impl Sub for Tick {
 pub struct SimTime(Duration);
 
 impl SimTime {
-    #[cfg(test)]
     pub fn from_duration(duration: Duration) -> Self {
         Self(duration)
+    }
+
+    pub fn from_millis(millis: u64) -> Self {
+        Self(Duration::from_millis(millis))
     }
 
     pub fn from_nanos(nanos: u64) -> Self {
@@ -128,8 +131,16 @@ impl SimTime {
         self.0.as_nanos()
     }
 
+    pub fn as_millis(self) -> u128 {
+        self.0.as_millis()
+    }
+
     pub fn as_u32_seconds(self) -> u32 {
         self.0.as_secs().try_into().unwrap_or(u32::MAX)
+    }
+
+    pub fn as_duration(self) -> Duration {
+        self.0
     }
 
     pub fn duration_since(self, earlier: SimTime) -> Duration {
@@ -144,7 +155,6 @@ impl SimTime {
         Self(self.0.saturating_sub(duration))
     }
 
-    #[allow(unused)]
     pub fn parse_hh_mm_ss(input: &str) -> Result<Self, String> {
         let mut parts = input.split(':');
         let hours = parts
@@ -181,10 +191,43 @@ impl SimTime {
         let total_millis = (((hours * 60) + minutes) * 60 + seconds) * 1000 + millis;
         Ok(Self(Duration::from_millis(total_millis)))
     }
-}
 
-impl Display for SimTime {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    pub fn parse_decimal_seconds(input: &str) -> Result<Self, String> {
+        let (seconds, millis) = match input.split_once('.') {
+            Some((seconds, millis)) => {
+                let seconds = seconds
+                    .parse::<u64>()
+                    .map_err(|_| "invalid seconds".to_string())?;
+                let millis = normalize_millis_truncate(millis)?;
+                (seconds, millis)
+            }
+            None => (
+                input
+                    .parse::<u64>()
+                    .map_err(|_| "invalid seconds".to_string())?,
+                0,
+            ),
+        };
+
+        Ok(Self::from_millis(
+            seconds.saturating_mul(1000).saturating_add(millis),
+        ))
+    }
+
+    pub fn format_decimal_seconds(self) -> String {
+        let total_millis = self.0.as_millis() as u64;
+        let seconds = total_millis / 1000;
+        let millis = total_millis % 1000;
+        if millis == 0 {
+            seconds.to_string()
+        } else {
+            format!("{seconds}.{millis:03}")
+                .trim_end_matches('0')
+                .to_string()
+        }
+    }
+
+    pub fn format_hh_mm_ss_trimmed(self) -> String {
         let total_millis = self.0.as_millis() as u64;
         let total_seconds = total_millis / 1000;
         let millis = total_millis % 1000;
@@ -192,7 +235,19 @@ impl Display for SimTime {
         let minutes = (total_seconds % 3600) / 60;
         let seconds = total_seconds % 60;
 
-        write!(f, "{hours:02}:{minutes:02}:{seconds:02}.{millis:03}")
+        if millis == 0 {
+            format!("{hours:02}:{minutes:02}:{seconds:02}")
+        } else {
+            format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}")
+                .trim_end_matches('0')
+                .to_string()
+        }
+    }
+}
+
+impl Display for SimTime {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.format_hh_mm_ss_trimmed())
     }
 }
 
@@ -210,6 +265,20 @@ fn normalize_millis(input: &str) -> Result<u64, String> {
         2 => raw * 10,
         _ => raw,
     })
+}
+
+fn normalize_millis_truncate(input: &str) -> Result<u64, String> {
+    if input.is_empty() || !input.chars().all(|c| c.is_ascii_digit()) {
+        return Err("expected decimal digits for milliseconds".to_string());
+    }
+
+    let mut millis = input.chars().take(3).collect::<String>();
+    while millis.len() < 3 {
+        millis.push('0');
+    }
+    millis
+        .parse::<u64>()
+        .map_err(|_| "invalid milliseconds".to_string())
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -254,6 +323,7 @@ impl SimClock {
         self.tick_to_time(tick).as_u32_seconds()
     }
 
+    #[cfg(test)]
     pub(crate) fn time_to_u32_seconds(self, time: SimTime) -> u32 {
         time.as_u32_seconds()
     }

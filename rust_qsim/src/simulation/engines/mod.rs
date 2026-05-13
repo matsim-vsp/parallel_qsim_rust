@@ -2,6 +2,7 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::framework_events::{
     AgentLeavesPartitionEvent, PartitionEvent, VehicleLeavesPartitionEvent,
 };
+use crate::simulation::time::SimTime;
 use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 
@@ -14,7 +15,7 @@ fn emit_partition_leave_events(
     comp_env: &mut ThreadLocalComputationalEnvironment,
     vehicle: &SimulationVehicle,
     to: u32,
-    now: u32,
+    now: SimTime,
 ) {
     comp_env
         .partition_events_manager_borrow_mut()

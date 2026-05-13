@@ -1,13 +1,20 @@
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
+use std::time::Duration;
 use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
-use crate::simulation::scenario::population::{InternalPerson, Population};
+use crate::simulation::scenario::population::{
+    InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
+    InternalPlan, InternalPlanElement, InternalPtRoute, InternalPtRouteDescription, InternalRoute,
+    Population,
+};
 use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::time::SimTime;
 
 pub(crate) fn load_from_xml(
     path: &Path,
@@ -18,8 +25,15 @@ pub(crate) fn load_from_xml(
     create_population(io_pop)
 }
 
-pub(crate) fn write_to_xml(_population: &Population, _path: &Path) {
-    panic!("Write to xml is not implemented for Population. Only writing to `.binpb` is supported")
+pub(crate) fn write_to_xml(population: &Population, path: &Path) {
+    let io_population = IOPopulation {
+        persons: population.persons.values().map(IOPerson::from).collect(),
+    };
+    xml::write_to_file(
+        &io_population,
+        path,
+        "<!DOCTYPE population SYSTEM \"http://www.matsim.org/files/dtd/population_v6.dtd\">",
+    )
 }
 
 fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
@@ -238,6 +252,145 @@ impl IOPopulation {
             population.persons.len()
         );
         population
+    }
+}
+
+fn format_time(value: SimTime) -> String {
+    value.format_hh_mm_ss_trimmed()
+}
+
+fn format_duration(value: Duration) -> String {
+    SimTime::from_duration(value).format_hh_mm_ss_trimmed()
+}
+
+fn format_optional_time(value: Option<SimTime>) -> Option<String> {
+    value.map(format_time)
+}
+
+fn format_optional_duration(value: Option<Duration>) -> Option<String> {
+    value.map(format_duration)
+}
+
+impl From<&InternalActivity> for IOActivity {
+    fn from(value: &InternalActivity) -> Self {
+        Self {
+            r#type: value.act_type.external().to_string(),
+            link: value.link_id.external().to_string(),
+            x: value.x,
+            y: value.y,
+            start_time: format_optional_time(value.start_time),
+            end_time: format_optional_time(value.end_time),
+            max_dur: format_optional_duration(value.max_dur),
+            attributes: None,
+        }
+    }
+}
+
+impl From<&InternalGenericRoute> for IORoute {
+    fn from(value: &InternalGenericRoute) -> Self {
+        Self {
+            r#type: "generic".to_string(),
+            start_link: value.start_link().external().to_string(),
+            end_link: value.end_link().external().to_string(),
+            trav_time: format_optional_duration(value.trav_time()),
+            distance: value.distance().unwrap_or(f64::NAN),
+            vehicle: Some(
+                value
+                    .vehicle()
+                    .as_ref()
+                    .map(|v| v.external().to_string())
+                    .unwrap_or_else(|| "null".to_string()),
+            ),
+            route: None,
+        }
+    }
+}
+
+impl From<&InternalNetworkRoute> for IORoute {
+    fn from(value: &InternalNetworkRoute) -> Self {
+        let mut route = IORoute::from(value.generic_delegate());
+        route.r#type = "links".to_string();
+        route.route = Some(
+            value
+                .route()
+                .iter()
+                .map(|id| id.external().to_string())
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+        route
+    }
+}
+
+impl From<&InternalPtRouteDescription> for String {
+    fn from(value: &InternalPtRouteDescription) -> Self {
+        json!({
+            "transitRouteId": value.transit_route_id,
+            "boardingTime": value.boarding_time.map(format_duration).unwrap_or_else(|| "undefined".to_string()),
+            "transitLineId": value.transit_line_id,
+            "accessFacilityId": value.access_facility_id,
+            "egressFacilityId": value.egress_facility_id,
+        })
+        .to_string()
+    }
+}
+
+impl From<&InternalPtRoute> for IORoute {
+    fn from(value: &InternalPtRoute) -> Self {
+        let mut route = IORoute::from(value.generic_delegate());
+        route.r#type = "default_pt".to_string();
+        route.route = Some(String::from(value.description()));
+        route
+    }
+}
+
+impl From<&InternalRoute> for IORoute {
+    fn from(value: &InternalRoute) -> Self {
+        match value {
+            InternalRoute::Generic(route) => IORoute::from(route),
+            InternalRoute::Network(route) => IORoute::from(route),
+            InternalRoute::Pt(route) => IORoute::from(route),
+        }
+    }
+}
+
+impl From<&InternalLeg> for IOLeg {
+    fn from(value: &InternalLeg) -> Self {
+        Self {
+            mode: value.mode.external().to_string(),
+            dep_time: format_optional_time(value.dep_time),
+            trav_time: format_optional_duration(value.trav_time),
+            route: value.route.as_ref().map(IORoute::from),
+            attributes: None,
+        }
+    }
+}
+
+impl From<&InternalPlanElement> for IOPlanElement {
+    fn from(value: &InternalPlanElement) -> Self {
+        match value {
+            InternalPlanElement::Activity(activity) => IOPlanElement::Activity(IOActivity::from(activity)),
+            InternalPlanElement::Leg(leg) => IOPlanElement::Leg(IOLeg::from(leg)),
+        }
+    }
+}
+
+impl From<&InternalPlan> for IOPlan {
+    fn from(value: &InternalPlan) -> Self {
+        Self {
+            selected: value.selected,
+            elements: value.elements.iter().map(IOPlanElement::from).collect(),
+        }
+    }
+}
+
+impl From<&InternalPerson> for IOPerson {
+    fn from(value: &InternalPerson) -> Self {
+        Self {
+            id: value.id().external().to_string(),
+            plans: value.plans().iter().map(IOPlan::from).collect(),
+            attributes: None,
+        }
     }
 }
 

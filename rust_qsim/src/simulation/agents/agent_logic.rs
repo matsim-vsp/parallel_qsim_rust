@@ -53,7 +53,7 @@ impl Identifiable<InternalPerson> for PlanBasedSimulationLogic {
 }
 
 impl EnvironmentalEventObserver for PlanBasedSimulationLogic {
-    fn notify_event(&mut self, event: &mut AgentEvent, _now: u32) {
+    fn notify_event(&mut self, event: &mut AgentEvent, _now: SimTime) {
         match event {
             AgentEvent::TeleportationStarted { .. } => {
                 self.set_curr_route_element_to_last();
@@ -87,12 +87,12 @@ impl PlanBasedSimulationLogic {
             .unwrap()
             .as_activity()
             .unwrap()
-            .cmp_end_time(0);
+            .cmp_end_time(SimTime::default());
         Self {
             basic_agent_delegate,
             curr_plan_element: 0,
             curr_route_element: 0,
-            activity_end_time: Some(SimTime::from_u32_seconds(first_act_end)),
+            activity_end_time: Some(first_act_end),
         }
     }
 }
@@ -139,7 +139,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             .and_then(|p| p.as_leg())
     }
 
-    fn advance_plan(&mut self, now: u32) {
+    fn advance_plan(&mut self, now: SimTime) {
         self.curr_plan_element += 1;
         self.curr_route_element = 0;
         assert!(
@@ -151,8 +151,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
         match self.state() {
             SimulationAgentState::LEG => self.activity_end_time = None,
             SimulationAgentState::ACTIVITY => {
-                self.activity_end_time =
-                    Some(SimTime::from_u32_seconds(self.curr_act().cmp_end_time(now)))
+                self.activity_end_time = Some(self.curr_act().cmp_end_time(now))
             }
             SimulationAgentState::STUCK => {}
         }
@@ -225,7 +224,7 @@ impl EndTime for PlanBasedSimulationLogic {
         {
             InternalPlanElement::Activity(_) => self.activity_end_time.unwrap(),
             InternalPlanElement::Leg(l) => {
-                now.saturating_add(Duration::from_secs(l.travel_time() as u64))
+                now.saturating_add(l.travel_time())
             }
         }
     }
@@ -248,7 +247,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         self.delegate.next_leg()
     }
 
-    fn advance_plan(&mut self, now: u32) {
+    fn advance_plan(&mut self, now: SimTime) {
         self.delegate.advance_plan(now);
     }
 
@@ -308,7 +307,7 @@ impl Identifiable<InternalPerson> for AdaptivePlanBasedSimulationLogic {
 }
 
 impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
-    fn notify_event(&mut self, mut event: &mut AgentEvent, now: u32) {
+    fn notify_event(&mut self, mut event: &mut AgentEvent, now: SimTime) {
         match &mut event {
             AgentEvent::WokeUp(w) => {
                 self.react_to_woke_up(w.comp_env, w.end_time, now);
@@ -331,8 +330,8 @@ impl AdaptivePlanBasedSimulationLogic {
     fn react_to_woke_up(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        departure_time: u32,
-        now: u32,
+        departure_time: SimTime,
+        now: SimTime,
     ) {
         if self.route_receiver.is_some() {
             // If we already have a route request in progress, we do not call the router again.
@@ -358,8 +357,8 @@ impl AdaptivePlanBasedSimulationLogic {
     fn call_router(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        departure_time: u32,
-        now: u32,
+        departure_time: SimTime,
+        now: SimTime,
     ) {
         let (send, recv) = tokio::sync::oneshot::channel();
 
@@ -430,7 +429,7 @@ impl AdaptivePlanBasedSimulationLogic {
     }
 
     #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
-    fn replace_route(&mut self, _now: u32) {
+    fn replace_route(&mut self, _now: SimTime) {
         if self.route_receiver.is_none() {
             // No route request in progress, nothing to replace.
             return;
@@ -444,7 +443,7 @@ impl AdaptivePlanBasedSimulationLogic {
     }
 
     #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
-    fn blocking_recv(&mut self, _now: u32) -> InternalRoutingResponse {
+    fn blocking_recv(&mut self, _now: SimTime) -> InternalRoutingResponse {
         let receiver = self.route_receiver.take().unwrap();
         let response = receiver
             .blocking_recv()
@@ -457,7 +456,7 @@ impl AdaptivePlanBasedSimulationLogic {
 
     /// Replaces the next trip in the plan with the legs and activities from the given InternalRoutingResponse.
     #[tracing::instrument(level = "trace", skip(response), fields(person_id = self.delegate.id().external()))]
-    fn replace_next_trip(&mut self, response: InternalRoutingResponse, _now: u32) {
+    fn replace_next_trip(&mut self, response: InternalRoutingResponse, _now: SimTime) {
         trace!(uuid = response.request_id.as_u128());
 
         if response.elements.is_empty() {
@@ -504,12 +503,12 @@ mod tests {
             mode: Id::create(mode),
             routing_mode: Some(Id::create(mode)),
             dep_time: None,
-            trav_time: Some(10),
+            trav_time: Some(Duration::from_secs(10)),
             route: Some(InternalRoute::Generic(
                 crate::simulation::scenario::population::InternalGenericRoute::new(
                     Id::create("l1"),
                     Id::create("l2"),
-                    Some(10),
+                    Some(Duration::from_secs(10)),
                     Some(100.0),
                     None,
                 ),
@@ -536,7 +535,7 @@ mod tests {
             request_id: Uuid::now_v7(),
         };
 
-        logic.replace_next_trip(response.clone(), 0);
+        logic.replace_next_trip(response.clone(), SimTime::default());
         let elements = &logic
             .delegate
             .basic_agent_delegate

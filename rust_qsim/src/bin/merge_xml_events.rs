@@ -4,11 +4,12 @@ use clap::Parser;
 use rust_qsim::simulation::events::EventsManager;
 use rust_qsim::simulation::io::proto::xml_events::{XmlEventsReader, XmlEventsWriter};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::time::SimTime;
 use tracing::info;
 
 struct StatefulReader {
     reader: XmlEventsReader,
-    curr_time_step: u32,
+    curr_time_step: SimTime,
 }
 
 #[derive(Parser, Debug)]
@@ -30,7 +31,7 @@ fn main() {
         let reader = XmlEventsReader::new(&file_path);
         readers.push(StatefulReader {
             reader,
-            curr_time_step: 0,
+            curr_time_step: SimTime::default(),
         });
     }
 
@@ -46,8 +47,8 @@ fn main() {
                 readers.remove(0);
             }
             Some((time, event)) => {
-                if time % 3600 == 0 {
-                    info!("Starting time step: {time}");
+                if time.as_u32_seconds().is_multiple_of(3600) {
+                    info!("Starting time step: {}", time.format_decimal_seconds());
                 }
                 manager.process_event(event.as_ref());
                 reader.curr_time_step = event.time();

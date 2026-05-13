@@ -20,7 +20,7 @@ pub trait SimulationAgentLogic:
     fn next_act(&self) -> &InternalActivity;
     fn curr_leg(&self) -> &InternalLeg;
     fn next_leg(&self) -> Option<&InternalLeg>;
-    fn advance_plan(&mut self, now: u32);
+    fn advance_plan(&mut self, now: SimTime);
     fn state(&self) -> SimulationAgentState;
 
     // Having these functions here is not ideal. See https://github.com/matsim-vsp/parallel_qsim_rust/issues/203 for more details.
@@ -31,7 +31,7 @@ pub trait SimulationAgentLogic:
 }
 
 pub trait EnvironmentalEventObserver {
-    fn notify_event(&mut self, event: &mut AgentEvent, now: u32);
+    fn notify_event(&mut self, event: &mut AgentEvent, now: SimTime);
 }
 
 #[non_exhaustive]
@@ -58,7 +58,7 @@ pub struct ActivityStartedEvent<'a> {
 pub struct WokeUpEvent<'w> {
     pub comp_env: &'w mut ThreadLocalComputationalEnvironment,
     // I think we should remove this field. This information comes from the agent to the engines and then goes back to the agent. So, it is redundant. paul, mar'26
-    pub end_time: u32,
+    pub end_time: SimTime,
 }
 
 impl Debug for dyn SimulationAgentLogic {

@@ -295,7 +295,7 @@ impl LocalLink {
         comp_env: &mut ThreadLocalComputationalEnvironment,
     ) -> Vec<SimulationVehicle> {
         let now = now.into();
-        let outward_now = self.clock.tick_to_u32_seconds(now);
+        let now_time = self.clock.tick_to_time(now);
         self.update_flow_cap(now);
         let mut ending_vehicles = self.add_waiting_to_buffer(comp_env, now);
         ending_vehicles.append(&mut self.add_queue_to_buffer(now));
@@ -306,7 +306,7 @@ impl LocalLink {
                     .vehicle(v.id().clone())
                     .link(self.id.clone())
                     .person(v.driver().id().clone())
-                    .time(outward_now)
+                    .time(now_time)
                     .network_mode(v.driver().curr_leg().mode.clone())
                     .build()
                     .unwrap(),
@@ -402,13 +402,13 @@ impl LocalLink {
         now: Tick,
     ) -> SimulationVehicle {
         let vehicle = self.waiting_list.pop_front().unwrap();
-        let outward_now = self.clock.tick_to_u32_seconds(now);
+        let now_time = self.clock.tick_to_time(now);
         comp_env.events_manager_borrow_mut().process_event(
             &VehicleEntersTrafficEventBuilder::default()
                 .vehicle(vehicle.id().clone())
                 .link(self.id.clone())
                 .person(vehicle.driver().id().clone())
-                .time(outward_now)
+                .time(now_time)
                 .network_mode(vehicle.driver().curr_leg().mode.clone())
                 .build()
                 .unwrap(),

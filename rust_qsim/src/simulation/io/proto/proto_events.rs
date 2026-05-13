@@ -6,6 +6,7 @@ use crate::simulation::events::{
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PtTeleportationArrivalEvent,
     TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
+use crate::simulation::time::SimTime;
 use prost::Message;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -306,7 +307,7 @@ impl From<&GeneralEvent> for MyEvent {
 
 pub struct ProtoEventsWriter {
     encoded_events: Vec<u8>,
-    curr_time_step: u32,
+    curr_time_step: u64,
     writer: BufWriter<File>,
 }
 
@@ -321,7 +322,8 @@ impl ProtoEventsWriter {
         }
     }
 
-    fn update_time_step(&mut self, time: u32) {
+    fn update_time_step(&mut self, time: SimTime) {
+        let time = time.as_millis().try_into().unwrap_or(u64::MAX);
         if self.curr_time_step != time {
             if !self.encoded_events.is_empty() {
                 self.write_time_step();
@@ -483,12 +485,12 @@ impl<R: Read + Seek> ProtoEventsReader<R> {
 }
 
 impl<R: Read + Seek> Iterator for ProtoEventsReader<R> {
-    type Item = (u32, Vec<MyEvent>);
+    type Item = (SimTime, Vec<MyEvent>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let delimiter = self.read_delim()?;
         let time_step = self.read_time_step(delimiter);
-        let time = time_step.time;
+        let time = SimTime::from_millis(time_step.time);
         let events = self.read_events(time_step);
 
         Some((time, events))
@@ -503,7 +505,7 @@ impl ProtoEventsReader<File> {
 }
 
 #[rustfmt::skip]
-pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsManager) {
+pub fn process_events(time: SimTime, events: &Vec<MyEvent>, manager: &mut EventsManager) {
     for proto_event in events {
         let type_ = proto_event.r#type.as_str();
         let internal_event: Box<dyn EventTrait> = match type_ {
@@ -536,6 +538,7 @@ mod tests {
     };
     use crate::simulation::id::Id;
     use crate::simulation::io::proto::proto_events::{ProtoEventsReader, ProtoEventsWriter};
+    use crate::simulation::time::SimTime;
     use macros::integration_test;
     use std::collections::HashMap;
     use std::fs;
@@ -548,7 +551,7 @@ mod tests {
         let mut writer = ProtoEventsWriter::new(&path);
         let event: Box<dyn EventTrait> = Box::new(
             GeneralEventBuilder::default()
-                .time(1)
+                .time(SimTime::from_u32_seconds(1))
                 .attributes(InternalAttributes::from(HashMap::from([(
                     String::from("attr1"),
                     String::from("value1"),
@@ -562,7 +565,7 @@ mod tests {
         // now read in
         let mut reader = ProtoEventsReader::from_file(&path);
         let (time, events) = reader.next().expect("Couldn't read timestep.");
-        assert_eq!(1, time);
+        assert_eq!(SimTime::from_u32_seconds(1), time);
         assert_eq!(1, events.len());
         match_events(&event, events.first().unwrap());
     }
@@ -575,7 +578,7 @@ mod tests {
         let issued_events: Vec<Box<dyn EventTrait>> = vec![
             Box::new(
                 GeneralEventBuilder::default()
-                    .time(103)
+                    .time(SimTime::from_u32_seconds(103))
                     .attributes(InternalAttributes::from(HashMap::from([(
                         String::from("attr1"),
                         String::from("value1"),
@@ -585,7 +588,7 @@ mod tests {
             ),
             Box::new(
                 ActivityStartEventBuilder::default()
-                    .time(103)
+                    .time(SimTime::from_u32_seconds(103))
                     .person(Id::create("1"))
                     .link(Id::create("1"))
                     .act_type(Id::create("1"))
@@ -594,7 +597,7 @@ mod tests {
             ),
             Box::new(
                 ActivityEndEventBuilder::default()
-                    .time(103)
+                    .time(SimTime::from_u32_seconds(103))
                     .person(Id::create("1"))
                     .link(Id::create("1"))
                     .act_type(Id::create("1"))
@@ -611,7 +614,7 @@ mod tests {
         // now read in
         let mut reader = ProtoEventsReader::from_file(&path);
         let (time, events) = reader.next().expect("Couldn't read timestep.");
-        assert_eq!(103, time);
+        assert_eq!(SimTime::from_u32_seconds(103), time);
         assert_eq!(issued_events.len(), events.len());
 
         for (i, expected_event) in issued_events.iter().enumerate() {
@@ -633,7 +636,7 @@ mod tests {
             let mut v: Vec<Box<dyn EventTrait>> = vec![
                 Box::new(
                     GeneralEventBuilder::default()
-                        .time(time_step)
+                        .time(SimTime::from_u32_seconds(time_step))
                         .attributes(InternalAttributes::from(HashMap::from([(
                             String::from("attr1"),
                             String::from("value1"),
@@ -643,7 +646,7 @@ mod tests {
                 ),
                 Box::new(
                     ActivityStartEventBuilder::default()
-                        .time(time_step)
+                        .time(SimTime::from_u32_seconds(time_step))
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
@@ -652,7 +655,7 @@ mod tests {
                 ),
                 Box::new(
                     ActivityEndEventBuilder::default()
-                        .time(time_step)
+                        .time(SimTime::from_u32_seconds(time_step))
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
@@ -670,9 +673,9 @@ mod tests {
         writer.finish();
 
         let reader = ProtoEventsReader::from_file(&path);
-        let start_time = 43;
-        let end_time = 109;
-        let mut last_time_step = 42;
+        let start_time = SimTime::from_u32_seconds(43);
+        let end_time = SimTime::from_u32_seconds(109);
+        let mut last_time_step = SimTime::from_u32_seconds(42);
         for (time, events) in reader {
             // make sure times are in the correct range and order
             assert!(time >= start_time);
@@ -682,7 +685,8 @@ mod tests {
 
             assert_eq!(3, events.len());
             for (i, event) in events.iter().enumerate() {
-                let index = ((time - start_time) * 3) as usize + i;
+                let index =
+                    ((time.as_u32_seconds() - start_time.as_u32_seconds()) * 3) as usize + i;
                 match_events(issued_events.get(index).unwrap(), event);
             }
         }

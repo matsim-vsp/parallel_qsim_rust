@@ -50,14 +50,13 @@ impl NetworkEngine {
         net_message_broker: &mut NetMessageBroker<C>,
     ) -> Vec<SimulationVehicle> {
         let move_links_result = self.network.move_links(&mut self.comp_env, now);
-        let outward_now = self.clock.tick_to_u32_seconds(now);
 
         for veh in move_links_result.vehicles_exit_partition {
             let to = net_message_broker.rank_for_link(
                 veh.curr_link_id()
                     .expect("Vehicles leaving a partition must have a destination link"),
             );
-            emit_partition_leave_events(&mut self.comp_env, &veh, to, outward_now);
+            emit_partition_leave_events(&mut self.comp_env, &veh, to, self.clock.tick_to_time(now));
             net_message_broker.add_veh(veh, now);
         }
 

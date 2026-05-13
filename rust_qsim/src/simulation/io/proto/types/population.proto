@@ -25,17 +25,17 @@ message Activity {
   string link_id = 2;
   double x = 3;
   double y = 4;
-  optional uint32 start_time = 5;
-  optional uint32 end_time = 6;
-  optional uint32 max_dur = 7;
+  optional uint64 start_time = 5;
+  optional uint64 end_time = 6;
+  optional uint64 max_dur = 7;
   map<string, general.AttributeValue> attributes = 8;
 }
 
 message Leg {
   string mode = 1;
   optional string routing_mode = 2;
-  optional uint32 dep_time = 3;
-  optional uint32 trav_time = 4;
+  optional uint64 dep_time = 3;
+  optional uint64 trav_time = 4;
   map<string, general.AttributeValue> attributes = 6;
   oneof route {
     GenericRoute generic_route = 7;
@@ -47,7 +47,7 @@ message Leg {
 message GenericRoute {
   string start_link = 1;
   string end_link = 2;
-  optional uint32 trav_time = 3;
+  optional uint64 trav_time = 3;
   optional double distance = 4;
   optional string veh_id = 5;
 }
@@ -64,7 +64,7 @@ message PtRoute {
 
 message PtRouteDescription {
   string transit_route_id = 1;
-  optional uint32 boarding_time = 2;
+  optional uint64 boarding_time = 2;
   string transit_line_id = 3;
   string access_facility_id = 4;
   string egress_facility_id = 5;

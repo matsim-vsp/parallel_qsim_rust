@@ -7,6 +7,7 @@ use rust_qsim::simulation::framework_events::{
     VehicleLeavesPartitionEvent,
 };
 use rust_qsim::simulation::scenario::MutableScenario;
+use rust_qsim::simulation::time::SimTime;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
@@ -22,7 +23,7 @@ fn network_route_emits_partition_events() {
         PartitionEvent::VehicleLeavesPartition(VehicleLeavesPartitionEvent {
             vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_car"),
             to: 1,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
     assert_has_partition_handoff(
@@ -31,7 +32,7 @@ fn network_route_emits_partition_events() {
         PartitionEvent::AgentLeavesPartition(AgentLeavesPartitionEvent {
             agent_id: rust_qsim::simulation::id::Id::get_from_ext("100"),
             to: 1,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
     assert_has_partition_handoff(
@@ -40,7 +41,7 @@ fn network_route_emits_partition_events() {
         PartitionEvent::VehicleEntersPartition(VehicleEntersPartitionEvent {
             vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_car"),
             from: 0,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
     assert_has_partition_handoff(
@@ -49,7 +50,7 @@ fn network_route_emits_partition_events() {
         PartitionEvent::AgentEntersPartition(AgentEntersPartitionEvent {
             agent_id: rust_qsim::simulation::id::Id::get_from_ext("100"),
             from: 0,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
 }
@@ -66,7 +67,7 @@ fn teleported_route_emits_partition_events() {
         PartitionEvent::VehicleLeavesPartition(VehicleLeavesPartitionEvent {
             vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_walk"),
             to: 1,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
     assert_has_partition_handoff(
@@ -75,7 +76,7 @@ fn teleported_route_emits_partition_events() {
         PartitionEvent::AgentLeavesPartition(AgentLeavesPartitionEvent {
             agent_id: rust_qsim::simulation::id::Id::get_from_ext("100"),
             to: 1,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
     assert_has_partition_handoff(
@@ -84,7 +85,7 @@ fn teleported_route_emits_partition_events() {
         PartitionEvent::VehicleEntersPartition(VehicleEntersPartitionEvent {
             vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_walk"),
             from: 0,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
     assert_has_partition_handoff(
@@ -93,7 +94,7 @@ fn teleported_route_emits_partition_events() {
         PartitionEvent::AgentEntersPartition(AgentEntersPartitionEvent {
             agent_id: rust_qsim::simulation::id::Id::get_from_ext("100"),
             from: 0,
-            time: 0,
+            time: SimTime::default(),
         }),
     );
 }

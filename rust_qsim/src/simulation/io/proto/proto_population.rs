@@ -106,9 +106,15 @@ impl Activity {
             link_id: value.link_id.external().to_string(),
             x: value.x,
             y: value.y,
-            start_time: value.start_time,
-            end_time: value.end_time,
-            max_dur: value.max_dur,
+            start_time: value
+                .start_time
+                .map(|t| t.as_millis().try_into().unwrap_or(u64::MAX)),
+            end_time: value
+                .end_time
+                .map(|t| t.as_millis().try_into().unwrap_or(u64::MAX)),
+            max_dur: value
+                .max_dur
+                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
             attributes: value.attributes.as_cloned_map(),
         }
     }
@@ -122,8 +128,12 @@ impl Leg {
                 .routing_mode
                 .as_ref()
                 .map(|r| r.external().to_string()),
-            dep_time: value.dep_time,
-            trav_time: value.trav_time,
+            dep_time: value
+                .dep_time
+                .map(|t| t.as_millis().try_into().unwrap_or(u64::MAX)),
+            trav_time: value
+                .trav_time
+                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
             attributes: value.attributes.as_cloned_map(),
             route: value.route.as_ref().map(Route::from),
         }
@@ -145,7 +155,9 @@ impl GenericRoute {
         Self {
             start_link: value.start_link().external().to_string(),
             end_link: value.end_link().external().to_string(),
-            trav_time: value.trav_time(),
+            trav_time: value
+                .trav_time()
+                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
             distance: value.distance(),
             veh_id: value.vehicle().as_ref().map(|v| v.external().to_string()),
         }
@@ -178,7 +190,9 @@ impl PtRouteDescription {
     fn from(value: &InternalPtRouteDescription) -> Self {
         Self {
             transit_route_id: value.transit_route_id.clone(),
-            boarding_time: value.boarding_time,
+            boarding_time: value
+                .boarding_time
+                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
             transit_line_id: value.transit_line_id.clone(),
             access_facility_id: value.access_facility_id.clone(),
             egress_facility_id: value.egress_facility_id.clone(),

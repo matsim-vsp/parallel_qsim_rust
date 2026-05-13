@@ -44,10 +44,11 @@ where
         let mut agents_changing_engine = vec![];
 
         while now <= self.end_tick {
+            let now_time = self.clock.tick_to_time(now);
             let outward_now = self.clock.tick_to_u32_seconds(now);
             self.comp_env
                 .mobsim_events_manager_borrow_mut()
-                .process_event(MobsimEvent::before_sim_step(outward_now));
+                .process_event(MobsimEvent::before_sim_step(now_time));
 
             if outward_now.is_multiple_of(3600) {
                 let _hour = outward_now / 3600;
@@ -65,7 +66,7 @@ where
 
             self.comp_env
                 .mobsim_events_manager_borrow_mut()
-                .process_event(MobsimEvent::after_sim_step(outward_now));
+                .process_event(MobsimEvent::after_sim_step(now_time));
 
             now = now.next();
         }

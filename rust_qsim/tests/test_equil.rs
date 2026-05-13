@@ -21,6 +21,7 @@ use rust_qsim::simulation::scenario::population::{
     InternalPlanElement, PREPLANNING_HORIZON, Population,
 };
 use rust_qsim::simulation::scenario::vehicles::Garage;
+use rust_qsim::simulation::time::SimTime;
 
 // in the adaptive mod we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
@@ -193,8 +194,8 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
                 to_x: 3456.,
                 to_y: 4242.,
                 mode: "car".to_string(),
-                departure_time: 21600,
-                now: 21000,
+                departure_time: SimTime::from_u32_seconds(21600),
+                now: SimTime::from_u32_seconds(21000),
                 uuid: Default::default(),
             })
         );

@@ -38,11 +38,10 @@ impl TeleportationEngine {
         mut vehicle: SimulationVehicle,
         net_message_broker: &mut NetMessageBroker<C>,
     ) {
-        let outward_now = self.clock.tick_to_u32_seconds(now);
-        vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), outward_now);
+        let now_time = self.clock.tick_to_time(now);
+        vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), now_time);
 
         if Simulation::is_local_route(&vehicle, net_message_broker) {
-            let now_time = self.clock.tick_to_time(now);
             self.queue
                 .add(TeleportingVehicle::build(vehicle, now_time), now_time);
         } else {
@@ -55,7 +54,7 @@ impl TeleportationEngine {
                 &mut self.comp_env,
                 &vehicle,
                 to,
-                self.clock.tick_to_u32_seconds(now),
+                now_time,
             );
             net_message_broker.add_veh(vehicle, now);
         }
@@ -79,12 +78,12 @@ impl TeleportationEngine {
     }
 
     fn emit_travelled(&mut self, now: Tick, agent: &SimulationAgent) {
-        let outward_now = self.clock.tick_to_u32_seconds(now);
+        let now_time = self.clock.tick_to_time(now);
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         self.comp_env.events_manager_borrow_mut().process_event(
             &TeleportationArrivalEventBuilder::default()
-                .time(outward_now)
+                .time(now_time)
                 .person(agent.id().clone())
                 .mode(leg.mode.clone())
                 .distance(
@@ -99,7 +98,7 @@ impl TeleportationEngine {
     }
 
     fn emit_travelled_with_pt(&mut self, now: Tick, agent: &SimulationAgent) {
-        let outward_now = self.clock.tick_to_u32_seconds(now);
+        let now_time = self.clock.tick_to_time(now);
         let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let transit_line_id =
@@ -109,7 +108,7 @@ impl TeleportationEngine {
         );
         self.comp_env.events_manager_borrow_mut().process_event(
             &PtTeleportationArrivalEventBuilder::default()
-                .time(outward_now)
+                .time(now_time)
                 .person(agent.id().clone())
                 .mode(leg.mode.clone())
                 .distance(
@@ -197,14 +196,19 @@ mod tests {
             Some(123.0),
             None,
         ));
-        let leg = InternalLeg::new(route, "walk", 0, Some(1));
+        let leg = InternalLeg::new(
+            route,
+            "walk",
+            std::time::Duration::default(),
+            Some(SimTime::from_u32_seconds(1)),
+        );
         let act = InternalActivity::new(0.0, 0.0, "home", Id::create("start"), None, None, None);
         let mut plan = InternalPlan::default();
         plan.add_act(act);
         plan.add_leg(leg);
         let person = InternalPerson::new(Id::create(id.to_string().as_str()), plan);
         let mut agent = SimulationAgent::new_plan_based(person);
-        agent.advance_plan(0);
+        agent.advance_plan(SimTime::default());
         agent
     }
 }

@@ -4,6 +4,7 @@ use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
 use crate::simulation::data_structures::RingIter;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPlanElement};
+use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
 use std::sync::{Arc, Mutex};
@@ -35,8 +36,8 @@ pub struct InternalRoutingRequestPayload {
     pub to_x: f64,
     pub to_y: f64,
     pub mode: String,
-    pub departure_time: u32,
-    pub now: u32,
+    pub departure_time: SimTime,
+    pub now: SimTime,
     #[builder(default = "Uuid::now_v7()")]
     pub uuid: Uuid,
 }
@@ -73,8 +74,12 @@ impl From<InternalRoutingRequestPayload> for Request {
             to_x: req.to_x,
             to_y: req.to_y,
             mode: req.mode,
-            departure_time: req.departure_time,
-            now: req.now,
+            departure_time: req
+                .departure_time
+                .as_millis()
+                .try_into()
+                .unwrap_or(u64::MAX),
+            now: req.now.as_millis().try_into().unwrap_or(u64::MAX),
             request_id: req.uuid.as_bytes().to_vec(),
         }
     }

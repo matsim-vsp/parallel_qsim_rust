@@ -165,6 +165,7 @@ mod tests {
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::network::sim_network::StorageUpdate;
     use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::time::SimTime;
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils::create_agent;
     use macros::integration_test;
@@ -234,7 +235,7 @@ mod tests {
                 assert_eq!(0, msg.time());
                 assert_eq!(1, msg.vehicles().len());
                 let mut vehicle = msg.vehicles_mut().remove(0);
-                vehicle.notify_event(&mut AgentEvent::LeftLink(), 0);
+                vehicle.notify_event(&mut AgentEvent::LeftLink(), SimTime::default());
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {
