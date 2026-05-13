@@ -5,6 +5,7 @@ use crate::simulation::io::proto::proto_network::{load_from_proto, write_to_prot
 use crate::simulation::io::xml::attributes::IOAttributes;
 use crate::simulation::io::xml::network;
 use crate::simulation::io::xml::network::{IOLink, IONetwork, IONode, write_to_xml};
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::network::metis_partitioning;
 use itertools::Itertools;
 use nohash_hasher::{IntMap, IntSet};
@@ -22,8 +23,7 @@ pub struct Network {
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    pub x: f64,
-    pub y: f64,
+    pub coord: Coordinate,
     pub id: Id<Node>,
     pub in_links: Vec<Id<Link>>,
     pub out_links: Vec<Id<Link>>,
@@ -264,8 +264,11 @@ impl From<crate::generated::network::Network> for Network {
         for wn in &value.nodes {
             let node = Node::new(
                 Id::get_from_ext(&wn.id),
-                wn.x,
-                wn.y,
+                Coordinate::with_z(
+                    wn.coordinate.as_ref().unwrap().x,
+                    wn.coordinate.as_ref().unwrap().y,
+                    wn.coordinate.as_ref().unwrap().z,
+                ),
                 wn.partition,
                 wn.cmp_weight,
             );
@@ -300,7 +303,7 @@ fn add_io_node(network: &mut Network, io_node: &IONode) {
     let partition = u32::from_str(part_attr).unwrap();
     let cmp_weight = u32::from_str(cmp_weight_attr).unwrap();
 
-    let mut node = Node::new(id, io_node.x, io_node.y, partition, cmp_weight);
+    let mut node = Node::new(id, Coordinate::new(io_node.x, io_node.y), partition, cmp_weight);
     node.partition = partition;
     network.add_node(node);
 }
@@ -333,11 +336,10 @@ fn add_io_link(network: &mut Network, io_link: &IOLink) {
 }
 
 impl Node {
-    pub fn new(id: Id<Node>, x: f64, y: f64, part: u32, cmp_weight: u32) -> Self {
+    pub fn new(id: Id<Node>, coord: Coordinate, part: u32, cmp_weight: u32) -> Self {
         Node {
             id,
-            x,
-            y,
+            coord,
             in_links: Vec::new(),
             out_links: Vec::new(),
             partition: part,
@@ -379,7 +381,8 @@ impl Link {
 
     pub fn new_with_default(id: Id<Link>, from: &Node, to: &Node) -> Self {
         // compute eucledean distance between from and to node
-        let length = ((from.x - to.x).powi(2) + (from.y - to.y).powi(2)).sqrt();
+        let length = ((from.coord.x - to.coord.x).powi(2) + (from.coord.y - to.coord.y).powi(2))
+            .sqrt();
         Link::new(
             id,
             from.id.clone(),
@@ -427,14 +430,19 @@ mod tests {
     use crate::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::network::{IOLink, IONode};
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network, Node, add_io_link, add_io_node};
     use macros::integration_test;
+
+    fn coord(x: f64, y: f64) -> Coordinate {
+        Coordinate::new(x, y)
+    }
 
     #[integration_test]
     fn add_node() {
         let mut network = Network::new();
         let id = Id::create("node-id");
-        let node = Node::new(id.clone(), 1., 1., 0, 1);
+        let node = Node::new(id.clone(), coord(1., 1.), 0, 1);
 
         assert_eq!(0, network.nodes.len());
         network.add_node(node);
@@ -447,8 +455,8 @@ mod tests {
     fn add_node_reject_duplicate() {
         let mut network = Network::new();
         let id = Id::create("node-id");
-        let node = Node::new(id.clone(), 1., 1., 0, 1);
-        let duplicate = Node::new(id.clone(), 2., 2., 0, 1);
+        let node = Node::new(id.clone(), coord(1., 1.), 0, 1);
+        let duplicate = Node::new(id.clone(), coord(2., 2.), 0, 1);
 
         assert_eq!(0, network.nodes.len());
         network.add_node(node);
@@ -458,8 +466,8 @@ mod tests {
     #[integration_test]
     fn add_link() {
         let mut network = Network::new();
-        let from = Node::new(Id::create("from"), 0., 0., 0, 1);
-        let to = Node::new(Id::create("to"), 3., 4., 0, 1);
+        let from = Node::new(Id::create("from"), coord(0., 0.), 0, 1);
+        let to = Node::new(Id::create("to"), coord(3., 4.), 0, 1);
         let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
 
@@ -488,8 +496,8 @@ mod tests {
     #[should_panic]
     fn add_link_reject_duplicate() {
         let mut network = Network::new();
-        let from = Node::new(Id::create("from"), 0., 0., 0, 1);
-        let to = Node::new(Id::create("to"), 3., 4., 0, 1);
+        let from = Node::new(Id::create("from"), coord(0., 0.), 0, 1);
+        let to = Node::new(Id::create("to"), coord(3., 4.), 0, 1);
         let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
         let duplicate = Link::new_with_default(id.clone(), &from, &to);
@@ -506,8 +514,8 @@ mod tests {
         let from_id = Id::create("from");
         let to_id = Id::create("to");
         let link_id = Id::create("link-id");
-        let from = Node::new(from_id.clone(), 0., 0., 0, 1);
-        let to = Node::new(to_id.clone(), 3., 4., 0, 1);
+        let from = Node::new(from_id.clone(), coord(0., 0.), 0, 1);
+        let to = Node::new(to_id.clone(), coord(3., 4.), 0, 1);
         let link = Link::new_with_default(link_id.clone(), &from, &to);
 
         network.add_node(from);
@@ -537,9 +545,9 @@ mod tests {
         let ab_id = Id::create("ab");
         let bc_id = Id::create("bc");
         let bb_id = Id::create("bb");
-        let a = Node::new(a_id.clone(), 0., 0., 0, 1);
-        let b = Node::new(b_id.clone(), 1., 0., 0, 1);
-        let c = Node::new(c_id.clone(), 2., 0., 0, 1);
+        let a = Node::new(a_id.clone(), coord(0., 0.), 0, 1);
+        let b = Node::new(b_id.clone(), coord(1., 0.), 0, 1);
+        let c = Node::new(c_id.clone(), coord(2., 0.), 0, 1);
         let ab = Link::new_with_default(ab_id.clone(), &a, &b);
         let bc = Link::new_with_default(bc_id.clone(), &b, &c);
         let bb = Link::new_with_default(bb_id.clone(), &b, &b);
@@ -612,8 +620,8 @@ mod tests {
 
     #[integration_test]
     fn link_new_with_default() {
-        let from = Node::new(Id::create("from"), 0., 0., 0, 1);
-        let to = Node::new(Id::create("to"), 3., 4., 0, 1);
+        let from = Node::new(Id::create("from"), coord(0., 0.), 0, 1);
+        let to = Node::new(Id::create("to"), coord(3., 4.), 0, 1);
         let id = Id::create("link-id");
         let link = Link::new_with_default(id.clone(), &from, &to);
 
@@ -646,8 +654,8 @@ mod tests {
         assert_eq!(external_id, id.external());
 
         let node = network.get_node(&id);
-        assert_eq!(x, node.x);
-        assert_eq!(y, node.y);
+        assert_eq!(x, node.coord.x);
+        assert_eq!(y, node.coord.y);
         assert_eq!(id, node.id);
     }
 

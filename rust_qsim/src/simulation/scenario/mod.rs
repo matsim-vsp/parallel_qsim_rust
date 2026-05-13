@@ -12,6 +12,29 @@ use std::sync::Arc;
 use tracing::info;
 use vehicles::Garage;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Coordinate {
+    pub x: f64,
+    pub y: f64,
+    pub z: Option<f64>,
+}
+
+impl Coordinate {
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y, z: None }
+    }
+
+    pub fn with_z(x: f64, y: f64, z: Option<f64>) -> Self {
+        Self { x, y, z }
+    }
+}
+
+impl Default for Coordinate {
+    fn default() -> Self {
+        Self::new(0.0, 0.0)
+    }
+}
+
 /// The mod contains the full mod data.
 #[derive(Debug)]
 pub struct MutableScenario {

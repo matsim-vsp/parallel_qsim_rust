@@ -7,6 +7,7 @@ use crate::simulation::io::xml::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::scenario::network::{Link, Network};
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use itertools::{EitherOrBoth, Itertools};
@@ -126,8 +127,7 @@ impl Population {
 pub struct InternalActivity {
     pub act_type: Id<String>,
     pub link_id: Id<Link>,
-    pub x: f64,
-    pub y: f64,
+    pub coord: Coordinate,
     pub start_time: Option<u32>,
     pub end_time: Option<u32>,
     pub max_dur: Option<u32>,
@@ -285,8 +285,7 @@ impl InternalPlan {
 
 impl InternalActivity {
     pub fn new(
-        x: f64,
-        y: f64,
+        coord: Coordinate,
         act_type: &str,
         link_id: Id<Link>,
         start_time: Option<u32>,
@@ -294,8 +293,7 @@ impl InternalActivity {
         max_dur: Option<u32>,
     ) -> Self {
         InternalActivity {
-            x,
-            y,
+            coord,
             act_type: Id::create(act_type),
             link_id,
             start_time,
@@ -603,8 +601,7 @@ impl From<IOActivity> for InternalActivity {
         InternalActivity {
             act_type: Id::create(&io.r#type),
             link_id: Id::create(&io.link),
-            x: io.x,
-            y: io.y,
+            coord: Coordinate::new(io.x, io.y),
             start_time: parse_time_opt(&io.start_time),
             end_time: parse_time_opt(&io.end_time),
             max_dur: parse_time_opt(&io.max_dur),
@@ -621,8 +618,11 @@ impl From<Activity> for InternalActivity {
         InternalActivity {
             act_type: Id::get_from_ext(&value.act_type),
             link_id: Id::get_from_ext(&value.link_id),
-            x: value.x,
-            y: value.y,
+            coord: Coordinate::with_z(
+                value.coordinate.as_ref().unwrap().x,
+                value.coordinate.as_ref().unwrap().y,
+                value.coordinate.as_ref().unwrap().z,
+            ),
             start_time: value.start_time,
             end_time: value.end_time,
             max_dur: value.max_dur,
@@ -811,8 +811,8 @@ mod tests {
         let home_act = binding.first().unwrap();
         assert_eq!("h", home_act.act_type.external());
         assert_eq!(Id::<Link>::get_from_ext("1"), home_act.link_id);
-        assert_eq!(-25000., home_act.x);
-        assert_eq!(0., home_act.y);
+        assert_eq!(-25000., home_act.coord.x);
+        assert_eq!(0., home_act.coord.y);
         assert_eq!(Some(6 * 3600), home_act.end_time);
         assert_eq!(None, home_act.start_time);
         assert_eq!(None, home_act.max_dur);

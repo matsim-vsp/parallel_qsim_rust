@@ -16,6 +16,7 @@ use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
 use rust_qsim::simulation::id::{Id, store_to_file};
 use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
+use rust_qsim::simulation::scenario::Coordinate;
 use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::scenario::population::{
     InternalPlanElement, PREPLANNING_HORIZON, Population,
@@ -187,11 +188,9 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
             self.requests[0].equals_ignoring_uuid(&InternalRoutingRequestPayload {
                 person_id: "1".to_string(),
                 from_link: "1".to_string(),
-                from_x: -25000.,
-                from_y: 0.,
+                from: Coordinate::new(-25000., 0.),
                 to_link: "20".to_string(),
-                to_x: 3456.,
-                to_y: 4242.,
+                to: Coordinate::new(3456., 4242.),
                 mode: "car".to_string(),
                 departure_time: 21600,
                 now: 21000,
