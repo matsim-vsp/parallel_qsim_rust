@@ -1,18 +1,14 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::sync::{Arc, Mutex};
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager};
 use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
-use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, Population};
-use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessageBroker;
 
 pub struct BackpackingDataCollector {
     person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
-    vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
-    cut_link_id2target_partition: HashMap<Id<Link>, u32>,
     rank: u32,
 
     message_broker: Arc<Mutex<BackpackingMessageBroker>>,
@@ -21,15 +17,12 @@ pub struct BackpackingDataCollector {
 impl BackpackingDataCollector {
     pub fn new(
         population: &Population,
-        cut_link_id2target_partition: HashMap<Id<Link>, u32>,
         rank: u32,
         message_broker: Arc<Mutex<BackpackingMessageBroker>>
     ) -> Arc<Mutex<Self>>
     {
         let data_collector = Arc::new(Mutex::new(Self {
             person_id2backpack: Default::default(),
-            vehicle_id2person_ids: Default::default(),
-            cut_link_id2target_partition,
             rank,
             message_broker
         }));
