@@ -71,6 +71,7 @@ impl ActivityEngine {
                     .person(agent.id().clone())
                     .link(agent.curr_act().link_id.clone())
                     .act_type(agent.curr_act().act_type.clone())
+                    .coordinate(agent.curr_act().coord.clone())
                     .build()
                     .unwrap(),
             );
@@ -105,6 +106,7 @@ impl ActivityEngine {
                 .person(agent.agent.id().clone())
                 .link(act.link_id.clone())
                 .act_type(act.act_type.clone())
+                .coordinate(act.coord.clone())
                 .build()
                 .unwrap(),
         );
@@ -271,6 +273,7 @@ mod tests {
         ActivityEngine, ActivityEngineBuilder, AsleepSimulationAgent,
     };
     use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalPlanElement, InternalRoute,
@@ -404,10 +407,8 @@ mod tests {
             let payload = InternalRoutingRequestPayloadBuilder::default()
                 .person_id("1".to_string())
                 .from_link("start".to_string())
-                .from_x(0.0)
-                .from_y(0.0)
-                .to_x(0.0)
-                .to_y(0.0)
+                .from(Coordinate::default())
+                .to(Coordinate::default())
                 .to_link("end".to_string())
                 .mode("mode".to_string())
                 .departure_time(SimTime::from_u32_seconds(10))
@@ -487,8 +488,7 @@ mod tests {
     fn create_plan() -> InternalPlan {
         let mut plan = InternalPlan::default();
         let mut activity = InternalActivity::new(
-            0.0,
-            0.0,
+            Coordinate::default(),
             "home",
             Id::create("start"),
             None,
@@ -513,8 +513,7 @@ mod tests {
             Some(SimTime::from_u32_seconds(2)),
         ));
         plan.add_act(InternalActivity::new(
-            0.0,
-            0.0,
+            Coordinate::default(),
             "work",
             Id::create("end"),
             None,

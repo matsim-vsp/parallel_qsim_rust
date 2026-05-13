@@ -1,8 +1,8 @@
-use crate::generated::events::MyEvent;
-use crate::simulation::events::comparision::EventBatch;
-use crate::simulation::events::{EventsManager, comparision};
+use crate::generated::events::GenericEvent;
+use crate::simulation::events::comparison::EventBatch;
+use crate::simulation::events::{EventsManager, comparison};
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
-use crate::simulation::io::proto::xml_events::XmlEventsWriter;
+use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::logging::init_std_out_logging_thread_local;
 use crate::simulation::time::SimTime;
 use std::io::{Read, Seek};
@@ -14,7 +14,7 @@ use tracing::info;
 
 struct StatefulReader<R: Read + Seek> {
     reader: ProtoEventsReader<R>,
-    curr_time_step: (SimTime, Vec<MyEvent>),
+    curr_time_step: (SimTime, Vec<GenericEvent>),
 }
 
 impl<R: Read + Seek> StatefulReader<R> {
@@ -149,15 +149,15 @@ pub fn compare_xml_event_files(
     let barrier = Arc::new(Barrier::new(3));
 
     // Spawn reader threads
-    let handle1 = comparision::spawn_event_reader(&file1_path, &batch1, &should_stop, &barrier);
-    let handle2 = comparision::spawn_event_reader(&file2_path, &batch2, &should_stop, &barrier);
+    let handle1 = comparison::spawn_event_reader(&file1_path, &batch1, &should_stop, &barrier);
+    let handle2 = comparison::spawn_event_reader(&file2_path, &batch2, &should_stop, &barrier);
 
     let comparison_result_cmp = Arc::clone(&comparison_result);
 
     // Comparator thread
     let handle_cmp = thread::spawn(move || {
         let _guard = init_std_out_logging_thread_local();
-        comparision::comparator_thread(
+        comparison::comparator_thread(
             batch1,
             batch2,
             barrier,

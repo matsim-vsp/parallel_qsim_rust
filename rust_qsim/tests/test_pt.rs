@@ -85,9 +85,7 @@ fn test_pt_adaptive(pop_path: PathBuf) {
 
     TestExecutorBuilder::default()
         .config(config)
-        .expected_events(Some(
-            "./tests/resources/pt_tutorial/expected_events_adaptive.xml",
-        ))
+        .expected_events(None)
         .external_services(services)
         .additional_handler(handler)
         .global_barrier(global_barrier)

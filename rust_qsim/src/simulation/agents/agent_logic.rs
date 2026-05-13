@@ -399,11 +399,9 @@ impl AdaptivePlanBasedSimulationLogic {
         let payload = InternalRoutingRequestPayloadBuilder::default()
             .person_id(self.delegate.id().external().to_string())
             .from_link(origin.link_id.external().to_string())
-            .from_x(origin.x)
-            .from_y(origin.y)
+            .from(origin.coord.clone())
             .to_link(destination.link_id.external().to_string())
-            .to_x(destination.x)
-            .to_y(destination.y)
+            .to(destination.coord.clone())
             .mode(mode.clone())
             .departure_time(departure_time)
             .now(now)
@@ -478,6 +476,7 @@ mod tests {
     use super::*;
     use crate::external_services::routing::InternalRoutingResponse;
     use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::population::{
         InternalActivity, InternalLeg, InternalPlan, InternalRoute,
     };
@@ -487,8 +486,7 @@ mod tests {
         InternalActivity {
             act_type: Id::create(act_type),
             link_id: Id::create(link),
-            x: 0.0,
-            y: 0.0,
+            coord: Coordinate::default(),
             start_time: None,
             end_time: None,
             max_dur: None,

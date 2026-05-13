@@ -1,6 +1,6 @@
 use crate::simulation::events::EventTrait;
 use crate::simulation::events::utils::EventsFileNotEqualError;
-use crate::simulation::io::proto::xml_events::XmlEventsReader;
+use crate::simulation::io::xml::events::XmlEventsReader;
 use crate::simulation::logging::init_std_out_logging_thread_local;
 use crate::simulation::time::SimTime;
 use std::path::{Path, PathBuf};

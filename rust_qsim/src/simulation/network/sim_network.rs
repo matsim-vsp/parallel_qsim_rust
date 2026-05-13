@@ -634,10 +634,11 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::controller::ThreadLocalComputationalEnvironment;
     use crate::simulation::id::Id;
-    use crate::simulation::io::proto::xml_events::XmlEventsWriter;
+    use crate::simulation::io::xml::events::XmlEventsWriter;
     use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::SimLink;
     use crate::simulation::network::link::SimLink::Local;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils;
@@ -1001,8 +1002,7 @@ mod tests {
     fn move_nodes_transition_logic() {
         let mut net = Network::new();
         let node1 = Node {
-            x: 0.0,
-            y: 0.0,
+            coord: Coordinate::default(),
             id: Id::create("node1"),
             in_links: vec![],
             out_links: vec![],
@@ -1186,13 +1186,13 @@ mod tests {
     #[integration_test]
     fn neighbors() {
         let mut net = Network::new();
-        let node = Node::new(Id::create("node-1"), -0., 0., 0, 1);
-        let node_1_1 = Node::new(Id::create("node-1-1"), -0., 0., 1, 1);
-        let node_1_2 = Node::new(Id::create("node-1-2"), -0., 0., 1, 1);
+        let node = Node::new(Id::create("node-1"), Coordinate::default(), 0, 1);
+        let node_1_1 = Node::new(Id::create("node-1-1"), Coordinate::default(), 1, 1);
+        let node_1_2 = Node::new(Id::create("node-1-2"), Coordinate::default(), 1, 1);
 
-        let node_2_1 = Node::new(Id::create("node-2-1"), -0., 0., 2, 1);
-        let node_3_1 = Node::new(Id::create("node-3-1"), -0., 0., 3, 1);
-        let node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0., 4, 1);
+        let node_2_1 = Node::new(Id::create("node-2-1"), Coordinate::default(), 2, 1);
+        let node_3_1 = Node::new(Id::create("node-3-1"), Coordinate::default(), 3, 1);
+        let node_4_1 = Node::new(Id::create("not-a-neighbor"), Coordinate::default(), 4, 1);
 
         // create in links from partitions 1 and 2. 2 incoming links from partition 1, one incoming from
         // partition 2
@@ -1236,9 +1236,9 @@ mod tests {
     fn create_three_node_sim_network_with_partition(
         network: &mut Network,
     ) -> Vec<SimNetworkPartition> {
-        let node1 = Node::new(Id::create("node1"), -100., 0., 0, 1);
-        let node2 = Node::new(Id::create("node2"), 0., 0., 0, 1);
-        let mut node3 = Node::new(Id::create("node3"), 100., 0., 0, 1);
+        let node1 = Node::new(Id::create("node1"), Coordinate::new(-100., 0.), 0, 1);
+        let node2 = Node::new(Id::create("node2"), Coordinate::new(0., 0.), 0, 1);
+        let mut node3 = Node::new(Id::create("node3"), Coordinate::new(100., 0.), 0, 1);
         node3.partition = 1;
         let mut link1 = Link::new_with_default(Id::create("link1"), &node1, &node2);
         link1.capacity = 3600.;

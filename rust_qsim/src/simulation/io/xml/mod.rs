@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 use tracing::info;
 
 pub mod attributes;
+pub mod events;
 pub mod network;
 pub mod population;
 pub mod vehicles;

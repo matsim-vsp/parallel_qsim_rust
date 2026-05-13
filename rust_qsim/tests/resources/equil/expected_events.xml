@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <events version="1.0">
-<event time="21600" type="actend" person="1" link="1" actType="h"/>
+<event time="21600" type="actend" person="1" link="1" x="-25000" y="0" actType="h"/>
 <event time="21600" type="departure" person="1" link="1" legMode="car" computationalRoutingMode="car"/>
 <event time="21600" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
 <event time="21600" type="vehicle enters traffic" person="1" link="1" vehicle="1_car" networkMode="car" relativePosition="1"/>
@@ -13,16 +13,16 @@
 <event time="22500" type="vehicle leaves traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
 <event time="22500" type="PersonLeavesVehicle" person="1" vehicle="1_car"/>
 <event time="22500" type="arrival" person="1" link="20" legMode="car"/>
-<event time="22501" type="actstart" person="1" link="20" actType="w"/>
-<event time="23101" type="actend" person="1" link="20" actType="w"/>
+<event time="22501" type="actstart" person="1" link="20" x="3456" y="4242" actType="w"/>
+<event time="23101" type="actend" person="1" link="20" x="3456" y="4242" actType="w"/>
 <event time="23101" type="departure" person="1" link="20" legMode="car" computationalRoutingMode="car"/>
 <event time="23101" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
 <event time="23101" type="vehicle enters traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
 <event time="23101" type="vehicle leaves traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
 <event time="23101" type="PersonLeavesVehicle" person="1" vehicle="1_car"/>
 <event time="23101" type="arrival" person="1" link="20" legMode="car"/>
-<event time="23102" type="actstart" person="1" link="20" actType="w"/>
-<event time="35702" type="actend" person="1" link="20" actType="w"/>
+<event time="23102" type="actstart" person="1" link="20" x="10000" y="0" actType="w"/>
+<event time="35702" type="actend" person="1" link="20" x="10000" y="0" actType="w"/>
 <event time="35702" type="departure" person="1" link="20" legMode="car" computationalRoutingMode="car"/>
 <event time="35702" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
 <event time="35702" type="vehicle enters traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
@@ -37,5 +37,5 @@
 <event time="38042" type="vehicle leaves traffic" person="1" link="1" vehicle="1_car" networkMode="car" relativePosition="1"/>
 <event time="38042" type="PersonLeavesVehicle" person="1" vehicle="1_car"/>
 <event time="38042" type="arrival" person="1" link="1" legMode="car"/>
-<event time="38043" type="actstart" person="1" link="1" actType="h"/>
+<event time="38043" type="actstart" person="1" link="1" x="-25000" y="0" actType="h"/>
 </events>

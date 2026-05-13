@@ -164,6 +164,7 @@ mod tests {
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::network::sim_network::StorageUpdate;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::time::SimTime;
     use crate::simulation::vehicles::SimulationVehicle;
@@ -464,7 +465,12 @@ mod tests {
     }
 
     fn create_node(id: u64, partition: u32) -> Node {
-        Node::new(Id::create(&id.to_string()), 0., 0., partition, 1)
+        Node::new(
+            Id::create(&id.to_string()),
+            Coordinate::default(),
+            partition,
+            1,
+        )
     }
 
     fn create_link(id: u64, from: u64, to: u64, partition: u32) -> Link {
