@@ -223,9 +223,7 @@ impl EndTime for PlanBasedSimulationLogic {
             .unwrap()
         {
             InternalPlanElement::Activity(_) => self.activity_end_time.unwrap(),
-            InternalPlanElement::Leg(l) => {
-                now.saturating_add(l.travel_time())
-            }
+            InternalPlanElement::Leg(l) => now.saturating_add(l.travel_time()),
         }
     }
 }

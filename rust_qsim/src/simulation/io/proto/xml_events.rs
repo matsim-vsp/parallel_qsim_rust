@@ -233,8 +233,9 @@ impl XmlEventsReader {
                     name, attributes, ..
                 }) => {
                     if name.local_name.eq("event") {
-                        let time = SimTime::parse_decimal_seconds(&attributes.first().unwrap().value)
-                            .unwrap_or_else(|e| panic!("Could not parse event time: {e}"));
+                        let time =
+                            SimTime::parse_decimal_seconds(&attributes.first().unwrap().value)
+                                .unwrap_or_else(|e| panic!("Could not parse event time: {e}"));
                         let event = handle(attributes);
                         return Some((time, event));
                     }

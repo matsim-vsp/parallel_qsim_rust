@@ -979,7 +979,10 @@ mod tests {
         assert!(matches!(route, InternalRoute::Generic(_)));
         assert_eq!(route.as_generic().start_link.external(), "1");
         assert_eq!(route.as_generic().end_link.external(), "2");
-        assert_eq!(route.as_generic().trav_time, Some(Duration::from_secs(1200)));
+        assert_eq!(
+            route.as_generic().trav_time,
+            Some(Duration::from_secs(1200))
+        );
         assert_eq!(route.as_generic().distance, Some(42.0));
         assert_eq!(
             route.as_generic().vehicle.as_ref().unwrap().external(),

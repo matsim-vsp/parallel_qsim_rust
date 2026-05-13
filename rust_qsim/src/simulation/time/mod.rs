@@ -436,7 +436,10 @@ mod tests {
     #[test]
     fn parses_and_truncates_decimal_seconds_to_millis() {
         let parsed = SimTime::parse_decimal_seconds("42.1239").unwrap();
-        assert_eq!(parsed, SimTime::from_duration(Duration::from_millis(42_123)));
+        assert_eq!(
+            parsed,
+            SimTime::from_duration(Duration::from_millis(42_123))
+        );
     }
 
     #[test]

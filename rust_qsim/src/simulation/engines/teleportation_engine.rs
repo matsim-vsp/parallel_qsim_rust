@@ -50,12 +50,7 @@ impl TeleportationEngine {
                     .curr_link_id()
                     .expect("Remote teleported vehicles must have a destination link"),
             );
-            emit_partition_leave_events(
-                &mut self.comp_env,
-                &vehicle,
-                to,
-                now_time,
-            );
+            emit_partition_leave_events(&mut self.comp_env, &vehicle, to, now_time);
             net_message_broker.add_veh(vehicle, now);
         }
     }

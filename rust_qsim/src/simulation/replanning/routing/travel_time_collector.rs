@@ -159,9 +159,21 @@ mod test {
         let vehicle1 = Id::create("1");
 
         let mut collector = TravelTimeCollector::new();
-        collector.process_link_leave_event(&link_leave_event(SimTime::from_u32_seconds(1), &link1, &vehicle1));
-        collector.process_link_enter_event(&link_enter_event(SimTime::from_u32_seconds(2), &link2, &vehicle1));
-        collector.process_link_leave_event(&link_leave_event(SimTime::from_u32_seconds(4), &link2, &vehicle1));
+        collector.process_link_leave_event(&link_leave_event(
+            SimTime::from_u32_seconds(1),
+            &link1,
+            &vehicle1,
+        ));
+        collector.process_link_enter_event(&link_enter_event(
+            SimTime::from_u32_seconds(2),
+            &link2,
+            &vehicle1,
+        ));
+        collector.process_link_leave_event(&link_leave_event(
+            SimTime::from_u32_seconds(4),
+            &link2,
+            &vehicle1,
+        ));
 
         assert_eq!(collector.get_travel_time_of_link(&link2), Some(2));
         assert_eq!(collector.get_travel_time_of_link(&link1), None);
@@ -182,12 +194,36 @@ mod test {
         let vehicle3 = Id::create("3");
 
         let mut collector = TravelTimeCollector::new();
-        collector.process_link_leave_event(&link_leave_event(SimTime::from_u32_seconds(1), &link1, &vehicle1));
-        collector.process_link_enter_event(&link_enter_event(SimTime::from_u32_seconds(2), &link2, &vehicle1));
-        collector.process_link_enter_event(&link_enter_event(SimTime::from_u32_seconds(3), &link2, &vehicle2));
-        collector.process_link_leave_event(&link_leave_event(SimTime::from_u32_seconds(4), &link2, &vehicle1));
-        collector.process_link_enter_event(&link_enter_event(SimTime::from_u32_seconds(5), &link2, &vehicle3));
-        collector.process_link_leave_event(&link_leave_event(SimTime::from_u32_seconds(7), &link2, &vehicle2));
+        collector.process_link_leave_event(&link_leave_event(
+            SimTime::from_u32_seconds(1),
+            &link1,
+            &vehicle1,
+        ));
+        collector.process_link_enter_event(&link_enter_event(
+            SimTime::from_u32_seconds(2),
+            &link2,
+            &vehicle1,
+        ));
+        collector.process_link_enter_event(&link_enter_event(
+            SimTime::from_u32_seconds(3),
+            &link2,
+            &vehicle2,
+        ));
+        collector.process_link_leave_event(&link_leave_event(
+            SimTime::from_u32_seconds(4),
+            &link2,
+            &vehicle1,
+        ));
+        collector.process_link_enter_event(&link_enter_event(
+            SimTime::from_u32_seconds(5),
+            &link2,
+            &vehicle3,
+        ));
+        collector.process_link_leave_event(&link_leave_event(
+            SimTime::from_u32_seconds(7),
+            &link2,
+            &vehicle2,
+        ));
 
         // The average travel time on link 2 is 3
         assert_eq!(Some(3), collector.get_travel_time_of_link(&link2));
@@ -218,9 +254,15 @@ mod test {
         let person1 = Id::create("p1");
 
         let mut collector = TravelTimeCollector::new();
-        collector.process_link_enter_event(&link_enter_event(SimTime::default(), &link1, &vehicle1));
+        collector.process_link_enter_event(&link_enter_event(
+            SimTime::default(),
+            &link1,
+            &vehicle1,
+        ));
         collector.process_person_leaves_vehicle_event(&person_leaves_vehicle_event(
-            SimTime::from_u32_seconds(2), &person1, &vehicle1,
+            SimTime::from_u32_seconds(2),
+            &person1,
+            &vehicle1,
         ));
         collector.process_link_leave_event(&link_leave_event(
             SimTime::from_u32_seconds(4),
