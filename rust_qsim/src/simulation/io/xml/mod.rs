@@ -12,6 +12,7 @@ pub mod attributes;
 pub mod events;
 pub mod network;
 pub mod population;
+pub mod transit;
 pub mod vehicles;
 
 use crate::simulation::io::is_url;
