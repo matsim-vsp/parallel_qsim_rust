@@ -264,11 +264,10 @@ impl From<crate::generated::network::Network> for Network {
         for wn in &value.nodes {
             let node = Node::new(
                 Id::get_from_ext(&wn.id),
-                Coordinate::with_z(
-                    wn.coordinate.as_ref().unwrap().x,
-                    wn.coordinate.as_ref().unwrap().y,
-                    wn.coordinate.as_ref().unwrap().z,
-                ),
+                wn.coordinate
+                    .as_ref()
+                    .map(|coordinate| Coordinate::with_z(coordinate.x, coordinate.y, coordinate.z))
+                    .unwrap(),
                 wn.partition,
                 wn.cmp_weight,
             );
