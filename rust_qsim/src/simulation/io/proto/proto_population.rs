@@ -1,6 +1,6 @@
 use crate::generated;
-use crate::generated::general::Coordinate;
 use crate::generated::MessageIter;
+use crate::generated::general::Coordinate;
 use crate::generated::population::leg::Route;
 use crate::generated::population::{
     Activity, GenericRoute, Header, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,

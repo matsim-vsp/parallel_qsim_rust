@@ -6,8 +6,8 @@ use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_p
 use crate::simulation::io::xml::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
-use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::Coordinate;
+use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use itertools::{EitherOrBoth, Itertools};

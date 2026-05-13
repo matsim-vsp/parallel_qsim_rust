@@ -5,8 +5,8 @@ use crate::simulation::io::proto::proto_network::{load_from_proto, write_to_prot
 use crate::simulation::io::xml::attributes::IOAttributes;
 use crate::simulation::io::xml::network;
 use crate::simulation::io::xml::network::{IOLink, IONetwork, IONode, write_to_xml};
-use crate::simulation::scenario::Coordinate;
 use crate::simulation::network::metis_partitioning;
+use crate::simulation::scenario::Coordinate;
 use itertools::Itertools;
 use nohash_hasher::{IntMap, IntSet};
 use std::collections::HashSet;
@@ -303,7 +303,12 @@ fn add_io_node(network: &mut Network, io_node: &IONode) {
     let partition = u32::from_str(part_attr).unwrap();
     let cmp_weight = u32::from_str(cmp_weight_attr).unwrap();
 
-    let mut node = Node::new(id, Coordinate::new(io_node.x, io_node.y), partition, cmp_weight);
+    let mut node = Node::new(
+        id,
+        Coordinate::new(io_node.x, io_node.y),
+        partition,
+        cmp_weight,
+    );
     node.partition = partition;
     network.add_node(node);
 }
@@ -381,8 +386,8 @@ impl Link {
 
     pub fn new_with_default(id: Id<Link>, from: &Node, to: &Node) -> Self {
         // compute eucledean distance between from and to node
-        let length = ((from.coord.x - to.coord.x).powi(2) + (from.coord.y - to.coord.y).powi(2))
-            .sqrt();
+        let length =
+            ((from.coord.x - to.coord.x).powi(2) + (from.coord.y - to.coord.y).powi(2)).sqrt();
         Link::new(
             id,
             from.id.clone(),
