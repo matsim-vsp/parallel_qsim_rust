@@ -1,8 +1,8 @@
-use crate::generated::events::{MyEvent, TimeStep};
+use crate::generated::events::{GenericEvent, TimeStep};
 use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
     ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
-    GeneralEvent, LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
+    LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PtTeleportationArrivalEvent,
     TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
@@ -14,7 +14,7 @@ use std::io::{BufReader, BufWriter, Cursor, ErrorKind, Read, Seek, Write};
 use std::path::Path;
 use std::rc::Rc;
 
-impl From<&ActivityEndEvent> for MyEvent {
+impl From<&ActivityEndEvent> for GenericEvent {
     fn from(value: &ActivityEndEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -29,15 +29,17 @@ impl From<&ActivityEndEvent> for MyEvent {
             String::from("act_type"),
             AttributeValue::from(value.act_type.external()),
         );
+        attributes.insert(String::from("x"), AttributeValue::from(value.coordinate.x));
+        attributes.insert(String::from("y"), AttributeValue::from(value.coordinate.y));
 
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&ActivityStartEvent> for MyEvent {
+impl From<&ActivityStartEvent> for GenericEvent {
     fn from(value: &ActivityStartEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -52,14 +54,17 @@ impl From<&ActivityStartEvent> for MyEvent {
             "act_type".to_string(),
             AttributeValue::from(value.act_type.external()),
         );
-        MyEvent {
+        attributes.insert(String::from("x"), AttributeValue::from(value.coordinate.x));
+        attributes.insert(String::from("y"), AttributeValue::from(value.coordinate.y));
+
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&LinkEnterEvent> for MyEvent {
+impl From<&LinkEnterEvent> for GenericEvent {
     fn from(value: &LinkEnterEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -70,14 +75,14 @@ impl From<&LinkEnterEvent> for MyEvent {
             "vehicle".to_string(),
             AttributeValue::from(value.vehicle.external()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&LinkLeaveEvent> for MyEvent {
+impl From<&LinkLeaveEvent> for GenericEvent {
     fn from(value: &LinkLeaveEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -88,14 +93,14 @@ impl From<&LinkLeaveEvent> for MyEvent {
             "vehicle".to_string(),
             AttributeValue::from(value.vehicle.external()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&PersonEntersVehicleEvent> for MyEvent {
+impl From<&PersonEntersVehicleEvent> for GenericEvent {
     fn from(value: &PersonEntersVehicleEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -106,14 +111,14 @@ impl From<&PersonEntersVehicleEvent> for MyEvent {
             "vehicle".to_string(),
             AttributeValue::from(value.vehicle.external()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&PersonLeavesVehicleEvent> for MyEvent {
+impl From<&PersonLeavesVehicleEvent> for GenericEvent {
     fn from(value: &PersonLeavesVehicleEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -124,14 +129,14 @@ impl From<&PersonLeavesVehicleEvent> for MyEvent {
             "vehicle".to_string(),
             AttributeValue::from(value.vehicle.external()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&PersonDepartureEvent> for MyEvent {
+impl From<&PersonDepartureEvent> for GenericEvent {
     fn from(value: &PersonDepartureEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -150,14 +155,14 @@ impl From<&PersonDepartureEvent> for MyEvent {
             "routing_mode".to_string(),
             AttributeValue::from(value.routing_mode.external()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&PersonArrivalEvent> for MyEvent {
+impl From<&PersonArrivalEvent> for GenericEvent {
     fn from(value: &PersonArrivalEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -172,14 +177,14 @@ impl From<&PersonArrivalEvent> for MyEvent {
             "mode".to_string(),
             AttributeValue::from(value.leg_mode.external()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&TeleportationArrivalEvent> for MyEvent {
+impl From<&TeleportationArrivalEvent> for GenericEvent {
     fn from(value: &TeleportationArrivalEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -194,14 +199,14 @@ impl From<&TeleportationArrivalEvent> for MyEvent {
             "distance".to_string(),
             AttributeValue::from(value.distance.to_string()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&PtTeleportationArrivalEvent> for MyEvent {
+impl From<&PtTeleportationArrivalEvent> for GenericEvent {
     fn from(value: &PtTeleportationArrivalEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -224,14 +229,14 @@ impl From<&PtTeleportationArrivalEvent> for MyEvent {
             "line".to_string(),
             AttributeValue::from(value.line.external()),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&VehicleEntersTrafficEvent> for MyEvent {
+impl From<&VehicleEntersTrafficEvent> for GenericEvent {
     fn from(value: &VehicleEntersTrafficEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -254,14 +259,14 @@ impl From<&VehicleEntersTrafficEvent> for MyEvent {
             "relative_position".to_string(),
             AttributeValue::from(value.relative_position),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&VehicleLeavesTrafficEvent> for MyEvent {
+impl From<&VehicleLeavesTrafficEvent> for GenericEvent {
     fn from(value: &VehicleLeavesTrafficEvent) -> Self {
         let mut attributes = HashMap::new();
         attributes.insert(
@@ -284,20 +289,20 @@ impl From<&VehicleLeavesTrafficEvent> for MyEvent {
             "relative_position".to_string(),
             AttributeValue::from(value.relative_position),
         );
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
     }
 }
 
-impl From<&GeneralEvent> for MyEvent {
-    fn from(value: &GeneralEvent) -> Self {
+impl From<&crate::simulation::events::GenericEvent> for GenericEvent {
+    fn from(value: &crate::simulation::events::GenericEvent) -> Self {
         let mut attributes = HashMap::new();
         for (k, v) in value.attributes.iter() {
             attributes.insert(k.clone(), AttributeValue::from(v.to_string()));
         }
-        MyEvent {
+        GenericEvent {
             r#type: value.type_().to_string(),
             attributes,
         }
@@ -345,33 +350,36 @@ impl ProtoEventsWriter {
             .expect("Failed to write all bytes");
     }
 
-    fn convert_to_proto(&mut self, event: &dyn EventTrait) -> MyEvent {
-        if let Some(event) = event.as_any().downcast_ref::<GeneralEvent>() {
-            MyEvent::from(event)
+    fn convert_to_proto(&mut self, event: &dyn EventTrait) -> GenericEvent {
+        if let Some(event) = event
+            .as_any()
+            .downcast_ref::<crate::simulation::events::GenericEvent>()
+        {
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<ActivityStartEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<ActivityEndEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<LinkEnterEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            MyEvent::from(event)
+            GenericEvent::from(event)
         } else {
             // TODO use general event here and log warning
             panic!("Unknown event type: {:?}", event);
@@ -466,7 +474,7 @@ impl<R: Read + Seek> ProtoEventsReader<R> {
         TimeStep::decode(msg_buffer.as_slice()).expect("Could not decode TimeStep message")
     }
 
-    fn read_events(&mut self, time_step: TimeStep) -> Vec<MyEvent> {
+    fn read_events(&mut self, time_step: TimeStep) -> Vec<GenericEvent> {
         let data_len = time_step.data.len() as u64;
 
         let mut cursor = Cursor::new(time_step.data);
@@ -474,7 +482,7 @@ impl<R: Read + Seek> ProtoEventsReader<R> {
 
         while cursor.position() < data_len {
             let event =
-                MyEvent::decode_length_delimited(&mut cursor).expect("Error decoding event");
+                GenericEvent::decode_length_delimited(&mut cursor).expect("Error decoding event");
             result.push(event);
         }
 
@@ -483,7 +491,7 @@ impl<R: Read + Seek> ProtoEventsReader<R> {
 }
 
 impl<R: Read + Seek> Iterator for ProtoEventsReader<R> {
-    type Item = (u32, Vec<MyEvent>);
+    type Item = (u32, Vec<GenericEvent>);
 
     fn next(&mut self) -> Option<Self::Item> {
         let delimiter = self.read_delim()?;
@@ -503,11 +511,11 @@ impl ProtoEventsReader<File> {
 }
 
 #[rustfmt::skip]
-pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsManager) {
+pub fn process_events(time: u32, events: &Vec<GenericEvent>, manager: &mut EventsManager) {
     for proto_event in events {
         let type_ = proto_event.r#type.as_str();
         let internal_event: Box<dyn EventTrait> = match type_ {
-            GeneralEvent::TYPE => Box::new(GeneralEvent::from_proto_event(proto_event, time)),
+            crate::simulation::events::GenericEvent::TYPE => Box::new(crate::simulation::events::GenericEvent::from_proto_event(proto_event, time)),
             ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
             ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
             LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
@@ -528,14 +536,15 @@ pub fn process_events(time: u32, events: &Vec<MyEvent>, manager: &mut EventsMana
 
 #[cfg(test)]
 mod tests {
-    use crate::generated::events::MyEvent;
+    use crate::generated::events::GenericEvent;
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
         ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
-        EventTrait, GeneralEvent, GeneralEventBuilder,
+        EventTrait, GenericEventBuilder,
     };
     use crate::simulation::id::Id;
     use crate::simulation::io::proto::proto_events::{ProtoEventsReader, ProtoEventsWriter};
+    use crate::simulation::scenario::Coordinate;
     use macros::integration_test;
     use std::collections::HashMap;
     use std::fs;
@@ -547,7 +556,7 @@ mod tests {
             create_path_with_prefix("./test_output/io/proto_events/write_read_single/events.pbf");
         let mut writer = ProtoEventsWriter::new(&path);
         let event: Box<dyn EventTrait> = Box::new(
-            GeneralEventBuilder::default()
+            GenericEventBuilder::default()
                 .time(1)
                 .attributes(InternalAttributes::from(HashMap::from([(
                     String::from("attr1"),
@@ -574,7 +583,7 @@ mod tests {
         let mut writer = ProtoEventsWriter::new(&path);
         let issued_events: Vec<Box<dyn EventTrait>> = vec![
             Box::new(
-                GeneralEventBuilder::default()
+                GenericEventBuilder::default()
                     .time(103)
                     .attributes(InternalAttributes::from(HashMap::from([(
                         String::from("attr1"),
@@ -589,6 +598,7 @@ mod tests {
                     .person(Id::create("1"))
                     .link(Id::create("1"))
                     .act_type(Id::create("1"))
+                    .coordinate(Coordinate::default())
                     .build()
                     .unwrap(),
             ),
@@ -597,6 +607,7 @@ mod tests {
                     .time(103)
                     .person(Id::create("1"))
                     .link(Id::create("1"))
+                    .coordinate(Coordinate::default())
                     .act_type(Id::create("1"))
                     .build()
                     .unwrap(),
@@ -632,7 +643,7 @@ mod tests {
         for time_step in 43..109 {
             let mut v: Vec<Box<dyn EventTrait>> = vec![
                 Box::new(
-                    GeneralEventBuilder::default()
+                    GenericEventBuilder::default()
                         .time(time_step)
                         .attributes(InternalAttributes::from(HashMap::from([(
                             String::from("attr1"),
@@ -647,6 +658,7 @@ mod tests {
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
+                        .coordinate(Coordinate::default())
                         .build()
                         .unwrap(),
                 ),
@@ -656,6 +668,7 @@ mod tests {
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
+                        .coordinate(Coordinate::default())
                         .build()
                         .unwrap(),
                 ),
@@ -696,13 +709,16 @@ mod tests {
         path_buf
     }
 
-    fn match_events(event: &Box<dyn EventTrait>, other: &MyEvent) {
+    fn match_events(event: &Box<dyn EventTrait>, other: &GenericEvent) {
         let type_ = event.type_();
         assert_eq!(type_, other.r#type);
 
         match type_ {
-            GeneralEvent::TYPE => {
-                let _typed_event = event.as_any().downcast_ref::<GeneralEvent>().unwrap();
+            crate::simulation::events::GenericEvent::TYPE => {
+                let _typed_event = event
+                    .as_any()
+                    .downcast_ref::<crate::simulation::events::GenericEvent>()
+                    .unwrap();
             }
             ActivityStartEvent::TYPE => {
                 let typed_event = event.as_any().downcast_ref::<ActivityStartEvent>().unwrap();

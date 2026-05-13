@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use rust_qsim::simulation::events::EventsManager;
-use rust_qsim::simulation::io::proto::xml_events::{XmlEventsReader, XmlEventsWriter};
+use rust_qsim::simulation::io::xml::events::{XmlEventsReader, XmlEventsWriter};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use tracing::info;
 

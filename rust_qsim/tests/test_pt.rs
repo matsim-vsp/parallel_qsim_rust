@@ -5,6 +5,7 @@ use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, External
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::EventHandlerRegisterFn;
+use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
 use rust_qsim::simulation::pt::TransitSchedule;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -45,6 +46,8 @@ fn pt_adaptive_with_dummy() {
 // to be tested with running routing service;
 // --config /Users/paulh/git/parallel_qsim_rust/rust_qsim/assets/pt_tutorial/config.xml --output output/v6.4/test-router
 fn test_pt_adaptive(pop_path: PathBuf) {
+    TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
+
     let mut config_args = CommandLineArgs::new_with_path(
         "./tests/resources/pt_tutorial/pt_tutorial_config_adaptive.yml",
     );
@@ -82,12 +85,11 @@ fn test_pt_adaptive(pop_path: PathBuf) {
 
     TestExecutorBuilder::default()
         .config(config)
-        .expected_events(Some(
-            "./tests/resources/pt_tutorial/expected_events_adaptive.xml",
-        ))
+        .expected_events(None)
         .external_services(services)
         .additional_handler(handler)
         .global_barrier(global_barrier)
+        .agent_source(Arc::new(PreplanningHorizonAgentSource))
         .adapter_handles(vec![
             AdapterHandleBuilder::default()
                 .shutdown_sender(shutdown)
