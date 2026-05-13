@@ -396,4 +396,57 @@ mod tests {
         );
         assert_eq!(subsecond_clock.seconds_to_travel_ticks(0.3), Tick::new(3));
     }
+
+    #[test]
+    fn formats_decimal_seconds_without_fraction_for_full_seconds() {
+        let time = SimTime::from_u32_seconds(42);
+        assert_eq!(time.format_decimal_seconds(), "42");
+    }
+
+    #[test]
+    fn formats_decimal_seconds_with_trimmed_millis() {
+        let half = SimTime::from_duration(Duration::from_millis(42_500));
+        let precise = SimTime::from_duration(Duration::from_millis(42_125));
+        let trailing_zero = SimTime::from_duration(Duration::from_millis(42_120));
+
+        assert_eq!(half.format_decimal_seconds(), "42.5");
+        assert_eq!(precise.format_decimal_seconds(), "42.125");
+        assert_eq!(trailing_zero.format_decimal_seconds(), "42.12");
+    }
+
+    #[test]
+    fn formats_hh_mm_ss_without_fraction_for_full_seconds() {
+        let time = SimTime::from_u32_seconds(7 * 3600 + 30 * 60 + 15);
+        assert_eq!(time.format_hh_mm_ss_trimmed(), "07:30:15");
+    }
+
+    #[test]
+    fn formats_hh_mm_ss_with_trimmed_millis() {
+        let half = SimTime::from_duration(Duration::from_millis(
+            (7 * 3600 + 30 * 60 + 15) * 1000 + 250,
+        ));
+        let trailing_zero = SimTime::from_duration(Duration::from_millis(
+            (7 * 3600 + 30 * 60 + 15) * 1000 + 120,
+        ));
+
+        assert_eq!(half.format_hh_mm_ss_trimmed(), "07:30:15.25");
+        assert_eq!(trailing_zero.format_hh_mm_ss_trimmed(), "07:30:15.12");
+    }
+
+    #[test]
+    fn parses_and_truncates_decimal_seconds_to_millis() {
+        let parsed = SimTime::parse_decimal_seconds("42.1239").unwrap();
+        assert_eq!(parsed, SimTime::from_duration(Duration::from_millis(42_123)));
+    }
+
+    #[test]
+    fn parses_hh_mm_ss_with_subseconds() {
+        let parsed = SimTime::parse_hh_mm_ss("07:30:15.250").unwrap();
+        assert_eq!(
+            parsed,
+            SimTime::from_duration(Duration::from_millis(
+                (7 * 3600 + 30 * 60 + 15) * 1000 + 250,
+            ))
+        );
+    }
 }

@@ -1,20 +1,13 @@
 use serde::{Deserialize, Deserializer, Serialize};
-use serde_json::json;
 use std::collections::HashMap;
 use std::path::Path;
-use std::time::Duration;
 use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
-use crate::simulation::scenario::population::{
-    InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
-    InternalPlan, InternalPlanElement, InternalPtRoute, InternalPtRouteDescription, InternalRoute,
-    Population,
-};
+use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::Garage;
-use crate::simulation::time::SimTime;
 
 pub(crate) fn load_from_xml(
     path: &Path,
