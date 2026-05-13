@@ -9,7 +9,7 @@ use crate::simulation::framework_events::{
     PartitionListenerRegisterFn,
 };
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
-use crate::simulation::io::proto::xml_events::XmlEventsWriter;
+use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;

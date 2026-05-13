@@ -3,6 +3,7 @@ use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
 use crate::simulation::data_structures::RingIter;
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPlanElement};
 use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
@@ -29,11 +30,9 @@ impl RequestToAdapter for InternalRoutingRequest {}
 pub struct InternalRoutingRequestPayload {
     pub person_id: String,
     pub from_link: String,
-    pub from_x: f64,
-    pub from_y: f64,
+    pub from: Coordinate,
     pub to_link: String,
-    pub to_x: f64,
-    pub to_y: f64,
+    pub to: Coordinate,
     pub mode: String,
     pub departure_time: u32,
     pub now: u32,
@@ -45,11 +44,9 @@ impl InternalRoutingRequestPayload {
     pub fn equals_ignoring_uuid(&self, other: &Self) -> bool {
         self.person_id == other.person_id
             && self.from_link == other.from_link
-            && self.from_x == other.from_x
-            && self.from_y == other.from_y
+            && self.from == other.from
             && self.to_link == other.to_link
-            && self.to_x == other.to_x
-            && self.to_y == other.to_y
+            && self.to == other.to
             && self.mode == other.mode
             && self.departure_time == other.departure_time
             && self.now == other.now
@@ -67,11 +64,9 @@ impl From<InternalRoutingRequestPayload> for Request {
         Request {
             person_id: req.person_id,
             from_link_id: req.from_link,
-            from_x: req.from_x,
-            from_y: req.from_y,
+            from: Some(req.from.into()),
             to_link_id: req.to_link,
-            to_x: req.to_x,
-            to_y: req.to_y,
+            to: Some(req.to.into()),
             mode: req.mode,
             departure_time: req.departure_time,
             now: req.now,
@@ -113,6 +108,26 @@ impl From<Response> for InternalRoutingResponse {
         Self {
             elements,
             request_id: Uuid::from_bytes(value.request_id.try_into().unwrap()),
+        }
+    }
+}
+
+impl From<Coordinate> for crate::generated::general::Coordinate {
+    fn from(c: Coordinate) -> Self {
+        crate::generated::general::Coordinate {
+            x: c.x,
+            y: c.y,
+            z: c.z,
+        }
+    }
+}
+
+impl From<crate::generated::general::Coordinate> for Coordinate {
+    fn from(c: crate::generated::general::Coordinate) -> Self {
+        Coordinate {
+            x: c.x,
+            y: c.y,
+            z: c.z,
         }
     }
 }

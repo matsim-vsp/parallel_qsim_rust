@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::population::{
     InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
     InternalPlan, InternalRoute,
@@ -30,7 +31,14 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
     let net_route = InternalNetworkRoute::new(generic_route, vec);
 
     let leg = InternalLeg::new(InternalRoute::Network(net_route), "car", 0, None);
-    let act = InternalActivity::new(0., 0., "act", Id::create("1"), None, None, None);
+    let act = InternalActivity::new(
+        Coordinate::default(),
+        "act",
+        Id::create("1"),
+        None,
+        None,
+        None,
+    );
     let mut plan = InternalPlan::default();
     plan.add_act(act);
     plan.add_leg(leg);

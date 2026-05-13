@@ -1,5 +1,6 @@
 use crate::generated;
 use crate::generated::MessageIter;
+use crate::generated::general::Coordinate;
 use crate::generated::population::leg::Route;
 use crate::generated::population::{
     Activity, GenericRoute, Header, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,
@@ -104,8 +105,11 @@ impl Activity {
         Self {
             act_type: value.act_type.external().to_string(),
             link_id: value.link_id.external().to_string(),
-            x: value.x,
-            y: value.y,
+            coordinate: Some(Coordinate {
+                x: value.coord.x,
+                y: value.coord.y,
+                z: value.coord.z,
+            }),
             start_time: value.start_time,
             end_time: value.end_time,
             max_dur: value.max_dur,
@@ -188,13 +192,33 @@ impl PtRouteDescription {
 
 #[cfg(test)]
 mod tests {
+    use crate::generated::population::Activity;
     use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::Network;
-    use crate::simulation::scenario::population::InternalPerson;
-    use crate::simulation::scenario::population::Population;
+    use crate::simulation::scenario::population::{InternalActivity, InternalPerson, Population};
     use crate::simulation::scenario::vehicles::Garage;
     use macros::integration_test;
     use std::path::PathBuf;
+
+    #[test]
+    fn activity_coordinate_round_trip_preserves_none_z() {
+        let activity = InternalActivity::new(
+            Coordinate::new(10.0, 20.0),
+            "home",
+            Id::create("1"),
+            Some(1),
+            Some(2),
+            Some(3),
+        );
+
+        let wire = Activity::from(&activity);
+        let round_trip = InternalActivity::from(wire);
+
+        assert_eq!(10.0, round_trip.coord.x);
+        assert_eq!(20.0, round_trip.coord.y);
+        assert_eq!(None, round_trip.coord.z);
+    }
 
     #[integration_test]
     fn test_proto() {
