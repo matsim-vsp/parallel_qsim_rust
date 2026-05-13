@@ -57,8 +57,8 @@ impl NetworkConverter {
 
         for node in nodes.iter() {
             //set x and y
-            y.push(node.coord.x);
-            x.push(node.coord.y);
+            x.push(node.coord.x);
+            y.push(node.coord.y);
 
             forward_first_out.push(forward_links_before);
             backward_first_out.push(backward_links_before);
