@@ -3,43 +3,26 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::simulation::id::Id;
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
-use crate::simulation::pt::TransitSchedule;
 
-pub fn load_from_xml(path: &Path) -> TransitSchedule {
+pub fn load_from_xml(path: &Path) -> IOTransitSchedule {
     let io_schedule = IOTransitSchedule::from_file(path.to_str().unwrap());
 
-    let lines: Vec<_> = io_schedule
-        .transit_lines
-        .iter()
-        .map(|line| line.id.clone())
-        .collect();
-
-    let routes: Vec<_> = io_schedule
+    let routes = io_schedule
         .transit_lines
         .iter()
         .flat_map(|line| line.transit_routes.iter())
-        .map(|route| route.id.clone())
-        .collect();
+        .count();
 
     info!(
         "Finished reading transit schedule. It contains {} stops, {} lines and {} routes.",
         io_schedule.transit_stops.stop_facilities.len(),
-        lines.len(),
-        routes.len()
+        io_schedule.transit_lines.len(),
+        routes
     );
 
-    for line in &lines {
-        Id::<String>::create(line);
-    }
-
-    for route in &routes {
-        Id::<String>::create(route);
-    }
-
-    TransitSchedule::new(routes, lines)
+    io_schedule
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -152,8 +135,10 @@ pub struct IORouteStop {
     pub arrival_offset: Option<String>,
     #[serde(rename = "@departureOffset")]
     pub departure_offset: Option<String>,
-    #[serde(rename = "@awaitDepartureTime")]
-    pub await_departure_time: Option<bool>,
+    #[serde(rename = "@awaitDepartureTime", alias = "@awaitDeparture")]
+    pub await_departure: Option<bool>,
+    #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
+    pub attributes: Option<IOAttributes>,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -230,6 +215,40 @@ mod tests {
     }
 
     #[test]
+    fn parse_route_stop_await_departure_alias() {
+        let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
+                    <!DOCTYPE transitSchedule SYSTEM \"http://www.matsim.org/files/dtd/transitSchedule_v2.dtd\">\
+                    <transitSchedule>\
+                        <transitStops>\
+                            <stopFacility id=\"s1\" x=\"1.0\" y=\"2.0\"/>\
+                        </transitStops>\
+                        <transitLine id=\"l1\">\
+                            <transitRoute id=\"r1\">\
+                                <transportMode>pt</transportMode>\
+                                <routeProfile>\
+                                    <stop refId=\"s1\" departureOffset=\"00:00:00\" awaitDeparture=\"true\"/>\
+                                </routeProfile>\
+                                <route>\
+                                    <link refId=\"link-1\"/>\
+                                </route>\
+                                <departures>\
+                                    <departure id=\"d1\" departureTime=\"06:00:00\"/>\
+                                </departures>\
+                            </transitRoute>\
+                        </transitLine>\
+                    </transitSchedule>";
+
+        let schedule: IOTransitSchedule = from_str(xml).unwrap();
+        assert_eq!(
+            Some(true),
+            schedule.transit_lines[0].transit_routes[0]
+                .route_profile
+                .stops[0]
+                .await_departure
+        );
+    }
+
+    #[test]
     fn parse_fuller_v2_schedule_with_optional_fields() {
         let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\
                     <!DOCTYPE transitSchedule SYSTEM \"http://www.matsim.org/files/dtd/transitSchedule_v2.dtd\">\
@@ -302,10 +321,7 @@ mod tests {
         assert_eq!(Some("Blue"), line.name.as_deref());
         assert_eq!(Some("test route"), route.description.as_deref());
         assert_eq!("train", route.transport_mode);
-        assert_eq!(
-            Some(true),
-            route.route_profile.stops[0].await_departure_time
-        );
+        assert_eq!(Some(true), route.route_profile.stops[0].await_departure);
         assert_eq!(2, route.route.links.len());
         assert_eq!("veh-1", departure.vehicle_ref_id.as_deref().unwrap());
         assert_eq!(
@@ -424,6 +440,7 @@ mod tests {
             Some("00:00:00"),
             route.route_profile.stops[0].departure_offset.as_deref()
         );
+        assert_eq!(Some(true), route.route_profile.stops[0].await_departure);
         assert_eq!(15, route.route.links.len());
         assert_eq!("pt_0", route.route.links[0].ref_id);
         assert_eq!(1, route.departures.departures.len());
