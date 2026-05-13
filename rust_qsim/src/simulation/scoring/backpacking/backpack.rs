@@ -1,7 +1,9 @@
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventTrait, PersonArrivalEvent, PersonDepartureEvent};
 use crate::simulation::id::Id;
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson, InternalPlanElement, InternalRoute};
+use crate::simulation::scenario::population::InternalPlanElement::Activity;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 
 pub struct BackpackPlan {
@@ -37,14 +39,32 @@ impl BackpackPlan {
         }
 
         self.current_leg.as_mut().unwrap().handle_person_arrival(event);
+        self.elements.push(Activity(self.current_activity.take().unwrap().finish()));
     }
 
     fn handle_activity_start(&mut self, event: ActivityStartEvent) {
+        if self.current_leg.is_some() {
+            panic!("Illegal state: Person starts activity while doing an activity!");
+        }
 
+        self.current_activity = Some(BackpackActivity::default());
+        self.current_activity.as_mut().unwrap().handle_activity_start(event);
     }
 
     fn handle_activity_end(&mut self, event: ActivityEndEvent) {
+        if self.current_leg.is_none() {
+            panic!("Illegal state: Person ends activity while not doing an activity!");
+        }
 
+        self.current_activity.as_mut().unwrap().handle_activity_end(event);
+        self.elements.push(InternalPlanElement::Leg(self.current_leg.take().unwrap().finish()))
+    }
+
+    /// This function is only used to pass events to the BackpackRoute event handlers
+    fn handle_event(&mut self, event: Box<dyn EventTrait>){
+        if self.current_leg.is_some() {
+            self.current_leg.as_mut().unwrap().handle_event(event);
+        }
     }
 }
 
@@ -53,7 +73,7 @@ impl BackpackPlan {
 
 struct BackpackLeg {
     pub mode: Option<Id<String>>,
-    pub routing_mode: Option<Id<String>>,
+    pub routing_mode: Option<Id<String>>, // TODO Seems like this var is not needed
     pub dep_time: Option<u32>,
     pub trav_time: Option<u32>,
     pub backpack_route: BackpackRoute,
@@ -89,15 +109,28 @@ impl BackpackLeg {
         // self.backpack_route.handle_person_arrival(); TODO
     }
 
+    fn handle_event(&mut self, event: Box<dyn EventTrait>) {
+        self.backpack_route.handle_event(event);
+    }
+
     fn finish(self) -> InternalLeg {
         InternalLeg::new(
-            self.backpack_route.finish(),
-            self.mode.unwrap().external(),
-            self.trav_time.unwrap(),
+            self.backpack_route
+                .finish(),
+            self.mode
+                .unwrap_or_else(|| panic!("Tried to finish BackpackLeg without mode!"))
+                .external(),
+            self.trav_time
+                .unwrap_or_else(|| panic!("Tried to finish BackpackLeg without trav_time!")),
             self.dep_time
         )
     }
 
+}
+
+enum BackpackRouteTypes{
+    Generic,
+    Network,
 }
 
 struct BackpackRoute {
@@ -112,11 +145,6 @@ struct BackpackRoute {
 
     // Network Route Type
     route: Option<Vec<Id<Link>>>
-}
-
-enum BackpackRouteTypes{
-    Generic,
-    Network,
 }
 
 impl Default for BackpackRoute {
@@ -135,7 +163,9 @@ impl Default for BackpackRoute {
 
 impl BackpackRoute {
 
-
+    fn handle_event(&mut self, event: Box<dyn EventTrait>) {
+        todo!()
+    }
 
     fn finish(self) -> InternalRoute {
         todo!()
@@ -145,8 +175,7 @@ impl BackpackRoute {
 struct BackpackActivity {
     pub act_type: Option<Id<String>>,
     pub link_id: Option<Id<Link>>,
-    pub x: Option<f64>,
-    pub y: Option<f64>,
+    pub coordinate: Option<Coordinate>,
     pub start_time: Option<u32>,
     pub end_time: Option<u32>,
     // pub max_dur: Option<u32>, (not meant to be set in the experienced plans)
@@ -157,8 +186,7 @@ impl Default for BackpackActivity {
         Self {
             act_type: None,
             link_id: None,
-            x: None,
-            y: None,
+            coordinate: None,
             start_time: None,
             end_time: None,
         }
@@ -166,12 +194,10 @@ impl Default for BackpackActivity {
 }
 
 impl BackpackActivity {
-
-    //TODO Event handlers currently skip: x, y => PH will implement new Coords soon
-
     fn handle_activity_start(&mut self, event: ActivityStartEvent) {
         self.act_type = Some(event.act_type);
         self.link_id = Some(event.link);
+        self.coordinate = Some(event.coordinate);
         self.start_time = Some(event.time);
     }
 
@@ -182,10 +208,13 @@ impl BackpackActivity {
     /// Consuming function turning BackpackActivity into an InternalActivity
     fn finish(self) -> InternalActivity {
         InternalActivity::new(
-            0.,
-            0.,
-            self.act_type.unwrap().external(),
-            self.link_id.unwrap(),
+            self.coordinate
+                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without coordinate!")),
+            self.act_type
+                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without act type!"))
+                .external(),
+            self.link_id
+                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without link!")),
             self.start_time,
             self.end_time,
             None
