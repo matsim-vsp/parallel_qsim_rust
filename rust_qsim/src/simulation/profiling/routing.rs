@@ -1,7 +1,7 @@
 use crate::simulation::profiling::{
     BYTE_WIDTH_U128, Mode, PersonId, SimTime, SpanDuration, Uuid,
-    convert_u128_to_fixed_size_binary, create_file, end_timing, extract_entries, start_timing,
-    write_parquet,
+    convert_u128_to_fixed_size_binary, create_file, end_timing, extract_entries,
+    sim_time_from_field, start_timing, write_parquet,
 };
 use std::fmt::Debug;
 use std::path::Path;
@@ -397,8 +397,8 @@ struct RoutingMetadataVisitor {
 
 impl Visit for RoutingMetadataVisitor {
     fn record_u64(&mut self, field: &Field, value: u64) {
-        if field.name().eq("sim_time") || field.name().contains("now") {
-            self.sim_time = Some(SimTime(value));
+        if let Some(sim_time) = sim_time_from_field(field.name(), value) {
+            self.sim_time = Some(SimTime(sim_time));
         }
     }
 

@@ -8,8 +8,10 @@ use crate::simulation::io::xml::transit::{
 };
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
+use crate::simulation::time::SimTime;
 use nohash_hasher::IntMap;
 use std::path::Path;
+use std::time::Duration;
 use tracing::info;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -34,18 +36,18 @@ pub struct TransitRoute {
 #[derive(Debug, PartialEq, Clone)]
 pub struct TransitRouteStop {
     pub facility_id: Id<TransitStopFacility>,
-    pub arrival_offset: Option<u32>,
-    pub departure_offset: Option<u32>,
+    pub arrival_offset: Option<Duration>,
+    pub departure_offset: Option<Duration>,
     pub await_departure: Option<bool>,
     pub allow_boarding: bool,
     pub allow_alighting: bool,
-    pub minimum_stop_duration: u32, //TODO set to duration
+    pub minimum_stop_duration: Duration,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct TransitDeparture {
     pub id: Id<TransitDeparture>,
-    pub departure_time: u32,
+    pub departure_time: SimTime,
     pub vehicle_ref_id: Option<Id<String>>,
     pub attributes: InternalAttributes,
     // TODO in java there are chainedDepartures. Not sure, if we need this.
@@ -213,13 +215,13 @@ impl From<IORouteStop> for TransitRouteStop {
 
         TransitRouteStop {
             facility_id: Id::create(&io.ref_id),
-            arrival_offset: parse_time_opt(&io.arrival_offset),
-            departure_offset: parse_time_opt(&io.departure_offset),
+            arrival_offset: parse_duration_opt(&io.arrival_offset),
+            departure_offset: parse_duration_opt(&io.departure_offset),
             await_departure,
             allow_boarding: find_bool_attr(&io.attributes, "allowBoarding").unwrap_or(true),
             allow_alighting: find_bool_attr(&io.attributes, "allowAlighting").unwrap_or(true),
             minimum_stop_duration: find_duration_attr(&io.attributes, "minimumStopDuration")
-                .unwrap_or(0),
+                .unwrap_or_default(),
         }
     }
 }
@@ -247,13 +249,13 @@ impl From<&TransitRouteStop> for IORouteStop {
         attributes.push(IOAttribute::new_with_class(
             "minimumStopDuration".to_string(),
             "java.lang.Integer".to_string(),
-            stop.minimum_stop_duration.to_string(),
+            stop.minimum_stop_duration.as_secs().to_string(),
         ));
 
         IORouteStop {
             ref_id: stop.facility_id.external().to_string(),
-            arrival_offset: format_time_opt(stop.arrival_offset),
-            departure_offset: format_time_opt(stop.departure_offset),
+            arrival_offset: format_duration_opt(stop.arrival_offset),
+            departure_offset: format_duration_opt(stop.departure_offset),
             await_departure: stop.await_departure,
             attributes: Some(IOAttributes { attributes }),
         }
@@ -296,36 +298,34 @@ impl From<IOStopFacility> for TransitStopFacility {
     }
 }
 
-fn parse_time_opt(value: &Option<String>) -> Option<u32> {
-    value.as_deref().and_then(parse_time)
+fn parse_duration_opt(value: &Option<String>) -> Option<Duration> {
+    value.as_deref().and_then(parse_duration)
 }
 
-fn format_time_opt(value: Option<u32>) -> Option<String> {
-    value.map(format_time)
+fn format_duration_opt(value: Option<Duration>) -> Option<String> {
+    value.map(format_duration)
 }
 
-fn parse_time_required(value: &str, field_name: &str) -> u32 {
+fn parse_time_required(value: &str, field_name: &str) -> SimTime {
     parse_time(value)
         .unwrap_or_else(|| panic!("Invalid transit time value for {field_name}: {value}"))
 }
 
-fn parse_time(value: &str) -> Option<u32> {
-    let split: Vec<_> = value.split(':').collect();
-    if split.len() != 3 {
-        return None;
-    }
-
-    let hour = split.first()?.parse::<u32>().ok()?;
-    let minutes = split.get(1)?.parse::<u32>().ok()?;
-    let seconds = split.get(2)?.parse::<u32>().ok()?;
-    Some(hour * 3600 + minutes * 60 + seconds)
+fn parse_time(value: &str) -> Option<SimTime> {
+    SimTime::parse(value).ok()
 }
 
-fn format_time(value: u32) -> String {
-    let hours = value / 3600;
-    let minutes = (value % 3600) / 60;
-    let seconds = value % 60;
-    format!("{hours:02}:{minutes:02}:{seconds:02}")
+#[allow(dead_code)]
+fn format_time(value: SimTime) -> String {
+    value.format_hh_mm_ss_trimmed()
+}
+
+fn parse_duration(value: &str) -> Option<Duration> {
+    parse_time(value).map(SimTime::as_duration)
+}
+
+fn format_duration(value: Duration) -> String {
+    SimTime::from_duration(value).format_hh_mm_ss_trimmed()
 }
 
 fn find_bool_attr(attributes: &Option<IOAttributes>, name: &str) -> Option<bool> {
@@ -335,25 +335,35 @@ fn find_bool_attr(attributes: &Option<IOAttributes>, name: &str) -> Option<bool>
         .and_then(|value| value.parse::<bool>().ok())
 }
 
-fn find_duration_attr(attributes: &Option<IOAttributes>, name: &str) -> Option<u32> {
+fn find_duration_attr(attributes: &Option<IOAttributes>, name: &str) -> Option<Duration> {
     let value = attributes.as_ref()?.find(name)?;
-    parse_time(value).or_else(|| {
+    parse_duration(value).or_else(|| {
         value
-            .parse::<u32>()
+            .parse::<u64>()
             .ok()
-            .or_else(|| value.parse::<f64>().ok().map(|v| v as u32))
+            .map(Duration::from_secs)
+            .or_else(|| {
+                value
+                    .parse::<f64>()
+                    .ok()
+                    .map(|v| Duration::from_secs_f64(v))
+            })
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{format_duration, format_time, parse_duration, parse_time};
     use crate::simulation::id::Id;
     use crate::simulation::pt::{
         TransitDeparture, TransitLine, TransitRoute, TransitSchedule, TransitStopFacility,
     };
     use crate::simulation::scenario::network::Link;
+    use crate::simulation::time::SimTime;
+    use macros::integration_test;
+    use std::time::Duration;
 
-    #[test]
+    #[integration_test]
     fn tutorial_schedule_is_loaded_as_domain_model() {
         let schedule =
             TransitSchedule::from_file("./assets/pt_tutorial/transitschedule.xml".as_ref());
@@ -378,7 +388,7 @@ mod tests {
         assert_eq!(50, route_1to3.departures.len());
     }
 
-    #[test]
+    #[integration_test]
     fn dresden_schedule_is_loaded_as_domain_model() {
         let schedule = TransitSchedule::from_file(
             "./assets/dresden/dresden-v1.0-transitSchedule.xml.gz".as_ref(),
@@ -435,18 +445,39 @@ mod tests {
             Id::<TransitStopFacility>::get_from_ext("long_630"),
             route.stops[0].facility_id
         );
-        assert_eq!(Some(0), route.stops[0].arrival_offset);
-        assert_eq!(Some(0), route.stops[0].departure_offset);
+        assert_eq!(Some(Duration::from_secs(0)), route.stops[0].arrival_offset);
+        assert_eq!(
+            Some(Duration::from_secs(0)),
+            route.stops[0].departure_offset
+        );
         assert_eq!(Some(true), route.stops[0].await_departure);
+        assert_eq!(Duration::from_secs(0), route.stops[0].minimum_stop_duration);
         assert_eq!(Id::<Link>::get_from_ext("pt_0"), route.network_route[0]);
         assert_eq!(
             Id::<TransitDeparture>::get_from_ext("long_1882_0"),
             route.departures[0].id
         );
-        assert_eq!(20 * 3600 + 10 * 60, route.departures[0].departure_time);
+        assert_eq!(
+            SimTime::from_secs(20 * 3600 + 10 * 60),
+            route.departures[0].departure_time
+        );
         assert_eq!(
             Some(Id::<String>::get_from_ext("pt_long_EC 12---27_0_0")),
             route.departures[0].vehicle_ref_id.clone()
         );
+    }
+
+    #[test]
+    fn transit_time_parsing_and_formatting_preserves_subseconds() {
+        let parsed = parse_time("20:10:00.123456789").unwrap();
+        assert_eq!(SimTime::from_nanos(72_600_123_456_789), parsed);
+        assert_eq!("20:10:00.123456789", format_time(parsed));
+    }
+
+    #[test]
+    fn transit_duration_parsing_and_formatting_preserves_subseconds() {
+        let parsed = parse_duration("00:05:00.123456789").unwrap();
+        assert_eq!(Duration::from_nanos(300_123_456_789), parsed);
+        assert_eq!("00:05:00.123456789", format_duration(parsed));
     }
 }

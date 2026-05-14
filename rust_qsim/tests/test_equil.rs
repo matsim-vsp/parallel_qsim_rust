@@ -22,6 +22,7 @@ use rust_qsim::simulation::scenario::population::{
     InternalPlanElement, PREPLANNING_HORIZON, Population,
 };
 use rust_qsim::simulation::scenario::vehicles::Garage;
+use rust_qsim::simulation::time::SimTime;
 
 // in the adaptive mod we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
@@ -49,6 +50,23 @@ fn execute_equil_single_part() {
     TestExecutorBuilder::default()
         .config(config)
         .expected_events(Some("./tests/resources/equil/expected_events.xml"))
+        .build()
+        .unwrap()
+        .execute();
+}
+
+#[integration_test(rust_qsim)]
+fn execute_equil_single_part_with_10_ticks_per_second() {
+    let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
+    let mut config = Config::from_args(config_args);
+    config.simulation_mut().ticks_per_second = 10;
+    config.output_mut().output_dir =
+        PathBuf::from("./test_output/simulation/equil_single_part_10_ticks_per_second");
+    let config = Arc::new(config);
+
+    TestExecutorBuilder::default()
+        .config(config)
+        .expected_events(Some("./tests/resources/equil/expected_events_10_ticks.xml"))
         .build()
         .unwrap()
         .execute();
@@ -192,8 +210,8 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
                 to_link: "20".to_string(),
                 to: Coordinate::new(3456., 4242.),
                 mode: "car".to_string(),
-                departure_time: 21600,
-                now: 21000,
+                departure_time: SimTime::from_secs(21600),
+                now: SimTime::from_secs(21000),
                 uuid: Default::default(),
             })
         );

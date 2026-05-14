@@ -4,6 +4,7 @@ use crate::simulation::events::{EventsManager, comparison};
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::logging::init_std_out_logging_thread_local;
+use crate::simulation::time::SimTime;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -13,7 +14,7 @@ use tracing::info;
 
 struct StatefulReader<R: Read + Seek> {
     reader: ProtoEventsReader<R>,
-    curr_time_step: (u32, Vec<GenericEvent>),
+    curr_time_step: (SimTime, Vec<GenericEvent>),
 }
 
 impl<R: Read + Seek> StatefulReader<R> {
@@ -44,7 +45,7 @@ pub fn read_proto_events(
         let reader = ProtoEventsReader::from_file(&path);
         let wrapper = StatefulReader {
             reader,
-            curr_time_step: (0, Vec::new()),
+            curr_time_step: (SimTime::default(), Vec::new()),
         };
         readers.push(wrapper);
     }
@@ -57,8 +58,9 @@ pub fn read_proto_events(
         // get the reader with the smallest curr time step and process its events
         let reader = readers.first_mut().unwrap();
 
-        let hour = reader.curr_time_step.0 / 3600;
-        if hour > last_reported_time_step && reader.curr_time_step.0 % 3600 == 0 {
+        let secs = reader.curr_time_step.0.as_secs();
+        let hour = secs / 3600;
+        if hour > last_reported_time_step && secs.is_multiple_of(3600) {
             info!("Reading time step: {:?}h", hour);
             last_reported_time_step = hour;
         }

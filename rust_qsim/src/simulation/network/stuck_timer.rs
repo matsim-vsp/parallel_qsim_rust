@@ -1,20 +1,22 @@
+use crate::simulation::time::Tick;
 use std::cell::Cell;
 
 #[derive(Debug, Clone)]
 pub struct StuckTimer {
-    timer_started: Cell<Option<u32>>,
-    stuck_threshold: u32,
+    timer_started: Cell<Option<Tick>>,
+    stuck_threshold: Tick,
 }
 
 impl StuckTimer {
-    pub fn new(stuck_threshold: u32) -> Self {
+    pub fn new(stuck_threshold: Tick) -> Self {
         StuckTimer {
             timer_started: Cell::new(None),
             stuck_threshold,
         }
     }
 
-    pub fn start(&self, now: u32) {
+    pub fn start(&self, now: impl Into<Tick>) {
+        let now = now.into();
         if self.timer_started.get().is_none() {
             self.timer_started.replace(Some(now));
         }
@@ -24,7 +26,8 @@ impl StuckTimer {
         self.timer_started.replace(None);
     }
 
-    pub fn is_stuck(&self, now: u32) -> bool {
+    pub fn is_stuck(&self, now: impl Into<Tick>) -> bool {
+        let now = now.into();
         if let Some(time) = self.timer_started.get() {
             now - time >= self.stuck_threshold
         } else {
@@ -36,30 +39,31 @@ impl StuckTimer {
 #[cfg(test)]
 mod tests {
     use crate::simulation::network::stuck_timer::StuckTimer;
+    use crate::simulation::time::Tick;
 
     #[test]
     fn init() {
-        let timer = StuckTimer::new(42);
+        let timer = StuckTimer::new(Tick::new(42));
         assert!(timer.timer_started.get().is_none());
-        assert_eq!(42, timer.stuck_threshold);
+        assert_eq!(Tick::new(42), timer.stuck_threshold);
     }
 
     #[test]
     fn start() {
-        let timer = StuckTimer::new(42);
+        let timer = StuckTimer::new(Tick::new(42));
 
-        timer.start(1);
-        timer.start(2);
+        timer.start(Tick::new(1));
+        timer.start(Tick::new(2));
 
         assert!(timer.timer_started.get().is_some());
-        assert_eq!(1, timer.timer_started.get().unwrap());
+        assert_eq!(Tick::new(1), timer.timer_started.get().unwrap());
     }
 
     #[test]
     fn reset() {
-        let timer = StuckTimer::new(42);
+        let timer = StuckTimer::new(Tick::new(42));
 
-        timer.start(17);
+        timer.start(Tick::new(17));
         assert!(timer.timer_started.get().is_some());
 
         timer.reset();
@@ -68,13 +72,13 @@ mod tests {
 
     #[test]
     fn is_stuck() {
-        let timer = StuckTimer::new(42);
+        let timer = StuckTimer::new(Tick::new(42));
 
-        timer.start(17);
-        assert!(!timer.is_stuck(18));
-        assert!(timer.is_stuck(17 + 42));
+        timer.start(Tick::new(17));
+        assert!(!timer.is_stuck(Tick::new(18)));
+        assert!(timer.is_stuck(Tick::new(17 + 42)));
 
         timer.reset();
-        assert!(!timer.is_stuck(17 + 42));
+        assert!(!timer.is_stuck(Tick::new(17 + 42)));
     }
 }

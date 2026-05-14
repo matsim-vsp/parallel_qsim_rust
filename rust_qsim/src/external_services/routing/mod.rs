@@ -5,6 +5,7 @@ use crate::simulation::config::Config;
 use crate::simulation::data_structures::RingIter;
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPlanElement};
+use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
 use std::sync::{Arc, Mutex};
@@ -34,8 +35,8 @@ pub struct InternalRoutingRequestPayload {
     pub to_link: String,
     pub to: Coordinate,
     pub mode: String,
-    pub departure_time: u32,
-    pub now: u32,
+    pub departure_time: SimTime,
+    pub now: SimTime,
     #[builder(default = "Uuid::now_v7()")]
     pub uuid: Uuid,
 }
@@ -68,8 +69,8 @@ impl From<InternalRoutingRequestPayload> for Request {
             to_link_id: req.to_link,
             to: Some(req.to.into()),
             mode: req.mode,
-            departure_time: req.departure_time,
-            now: req.now,
+            departure_time_ns: req.departure_time.as_nanos(),
+            now_ns: req.now.as_nanos(),
             request_id: req.uuid.as_bytes().to_vec(),
         }
     }
@@ -225,5 +226,33 @@ impl RoutingServiceAdapter {
             clients: RingIter::new(clients),
             shutdown_handles,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InternalRoutingRequestPayloadBuilder;
+    use crate::generated::routing::Request;
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::time::SimTime;
+
+    #[test]
+    fn request_conversion_uses_nanoseconds() {
+        let request = Request::from(
+            InternalRoutingRequestPayloadBuilder::default()
+                .person_id("person-1".to_string())
+                .from_link("from-link".to_string())
+                .from(Coordinate::new(1.0, 2.0))
+                .to_link("to-link".to_string())
+                .to(Coordinate::new(3.0, 4.0))
+                .mode("car".to_string())
+                .departure_time(SimTime::from_nanos(1_500_000))
+                .now(SimTime::from_nanos(2_750_000))
+                .build()
+                .unwrap(),
+        );
+
+        assert_eq!(1_500_000, request.departure_time_ns);
+        assert_eq!(2_750_000, request.now_ns);
     }
 }

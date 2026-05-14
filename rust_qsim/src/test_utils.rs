@@ -10,7 +10,9 @@ use crate::simulation::scenario::population::{
     InternalPlan, InternalRoute,
 };
 use crate::simulation::scenario::vehicles::InternalVehicleType;
+use crate::simulation::time::SimTime;
 use crate::simulation::{InternalAttributes, config};
+use std::time::Duration;
 
 pub fn create_agent_without_route(id: u64) -> SimulationAgent {
     //inserting a dummy route
@@ -30,7 +32,12 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
 
     let net_route = InternalNetworkRoute::new(generic_route, vec);
 
-    let leg = InternalLeg::new(InternalRoute::Network(net_route), "car", 0, None);
+    let leg = InternalLeg::new(
+        InternalRoute::Network(net_route),
+        "car",
+        Duration::default(),
+        None,
+    );
     let act = InternalActivity::new(
         Coordinate::default(),
         "act",
@@ -45,7 +52,7 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
     let person = InternalPerson::new(Id::create(id.to_string().as_str()), plan);
 
     let mut agent = SimulationAgent::new_plan_based(person);
-    agent.advance_plan(0);
+    agent.advance_plan(SimTime::default());
 
     agent
 }
@@ -76,6 +83,7 @@ pub fn config() -> config::Simulation {
     config::Simulation {
         start_time: 0,
         end_time: 0,
+        ticks_per_second: 1,
         sample_size: 1.0,
         stuck_threshold: u32::MAX,
         main_modes: vec![String::from("car")],
