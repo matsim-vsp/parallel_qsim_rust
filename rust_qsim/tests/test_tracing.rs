@@ -382,10 +382,7 @@ pub(crate) mod foo {
     use std::time::Duration;
     use tracing::{info, instrument};
 
-    #[instrument(
-        level = "trace",
-        fields(sim_time_ns = sim_time.as_nanos().min(u64::MAX as u128) as u64)
-    )]
+    #[instrument(level = "trace", fields(sim_time_ns = sim_time.as_nanos()))]
     pub(crate) fn f(sim_time: SimTime, uuid: u128, person_id: &str, mode: &str) {
         info!("some_function");
         bar::b(
@@ -400,10 +397,7 @@ pub(crate) mod foo {
         use tracing::{info, instrument};
         use uuid::{NoContext, Timestamp, Uuid};
 
-        #[instrument(
-            level = "info",
-            fields(now_ns = now.as_nanos().min(u64::MAX as u128) as u64)
-        )]
+        #[instrument(level = "info", fields(now_ns = now.as_nanos()))]
         pub(crate) fn b(now: SimTime, person_id: &str, mode: &str) {
             info!("some_function");
             let ts = Timestamp::from_unix(NoContext, 2, 2);

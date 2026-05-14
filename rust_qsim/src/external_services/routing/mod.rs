@@ -69,8 +69,8 @@ impl From<InternalRoutingRequestPayload> for Request {
             to_link_id: req.to_link,
             to: Some(req.to.into()),
             mode: req.mode,
-            departure_time_ns: req.departure_time.as_nanos().try_into().unwrap_or(u64::MAX),
-            now_ns: req.now.as_nanos().try_into().unwrap_or(u64::MAX),
+            departure_time_ns: req.departure_time.as_nanos(),
+            now_ns: req.now.as_nanos(),
             request_id: req.uuid.as_bytes().to_vec(),
         }
     }

@@ -56,7 +56,7 @@ impl ActivityEngine {
     #[instrument(
         level = "trace",
         skip(self, end_after_wake_up, end_from_awake),
-        fields(now_ns = crate::simulation::profiling::sim_time_to_trace_nanos(now))
+        fields(now_ns = now.as_nanos())
     )]
     fn notify_end_all(
         &mut self,
@@ -88,7 +88,7 @@ impl ActivityEngine {
     #[instrument(
         level = "trace",
         skip(self, end_after_wake_up),
-        fields(now_ns = crate::simulation::profiling::sim_time_to_trace_nanos(now))
+        fields(now_ns = now.as_nanos())
     )]
     fn notify_wakeup_all(&mut self, now: SimTime, end_after_wake_up: &mut [SimulationAgent]) {
         // Keep `now` as a regular span field for readability and add `now_ns` so the profiling

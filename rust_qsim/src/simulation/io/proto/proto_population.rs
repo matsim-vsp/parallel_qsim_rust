@@ -10,6 +10,7 @@ use crate::simulation::scenario::population::{
     InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
     InternalPlan, InternalPtRoute, InternalPtRouteDescription, InternalRoute, Population,
 };
+use crate::simulation::time::SimTime;
 use prost::Message;
 use std::collections::HashMap;
 use std::fs;
@@ -18,12 +19,11 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use tracing::info;
 
-fn nanos_to_u64(nanos: u128) -> u64 {
-    nanos.try_into().unwrap_or(u64::MAX)
-}
-
 fn duration_to_u64_nanos(duration: std::time::Duration) -> u64 {
-    nanos_to_u64(duration.as_nanos())
+    duration
+        .as_nanos()
+        .try_into()
+        .expect("duration exceeds u64::MAX nanoseconds for proto encoding")
 }
 
 pub fn load_from_proto<F>(path: &Path, filter: F) -> Population
@@ -118,8 +118,8 @@ impl Activity {
                 y: value.coord.y,
                 z: value.coord.z,
             }),
-            start_time_ns: value.start_time.map(|t| nanos_to_u64(t.as_nanos())),
-            end_time_ns: value.end_time.map(|t| nanos_to_u64(t.as_nanos())),
+            start_time_ns: value.start_time.map(SimTime::as_nanos),
+            end_time_ns: value.end_time.map(SimTime::as_nanos),
             max_dur_ns: value.max_dur.map(duration_to_u64_nanos),
             attributes: value.attributes.as_cloned_map(),
         }
@@ -134,7 +134,7 @@ impl Leg {
                 .routing_mode
                 .as_ref()
                 .map(|r| r.external().to_string()),
-            dep_time_ns: value.dep_time.map(|t| nanos_to_u64(t.as_nanos())),
+            dep_time_ns: value.dep_time.map(SimTime::as_nanos),
             trav_time_ns: value.trav_time.map(duration_to_u64_nanos),
             attributes: value.attributes.as_cloned_map(),
             route: value.route.as_ref().map(Route::from),

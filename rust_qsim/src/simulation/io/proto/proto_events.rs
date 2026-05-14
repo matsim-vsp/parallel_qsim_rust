@@ -328,7 +328,7 @@ impl ProtoEventsWriter {
     }
 
     fn update_time_step(&mut self, time: SimTime) {
-        let time = time.as_nanos().try_into().unwrap_or(u64::MAX);
+        let time = time.as_nanos();
         if self.curr_time_step != time {
             if !self.encoded_events.is_empty() {
                 self.write_time_step();

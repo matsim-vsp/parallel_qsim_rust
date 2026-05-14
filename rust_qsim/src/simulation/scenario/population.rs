@@ -312,8 +312,8 @@ impl InternalActivity {
         } else if let Some(max_dur) = self.max_dur {
             begin.saturating_add(max_dur)
         } else {
-            // supposed to be an equivalent for OptionalTime.undefined() in the java code
-            SimTime::from_duration(Duration::MAX)
+            // Bounded replacement for OptionalTime.undefined(): even the maximum representable
+            SimTime::from_nanos(u64::MAX)
         }
     }
 
@@ -795,7 +795,7 @@ mod tests {
     use crate::simulation::io::xml::population::{IOLeg, IORoute};
     use crate::simulation::scenario::network::{Link, Network};
     use crate::simulation::scenario::population::{
-        FromIOPerson, InternalLeg, InternalPerson, InternalRoute, Population,
+        FromIOPerson, InternalActivity, InternalLeg, InternalPerson, InternalRoute, Population,
     };
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -804,6 +804,23 @@ mod tests {
     use std::collections::HashSet;
     use std::path::PathBuf;
     use std::time::Duration;
+
+    #[test]
+    fn cmp_end_time_uses_bounded_open_ended_sentinel() {
+        let activity = InternalActivity::new(
+            crate::simulation::scenario::Coordinate::new(0.0, 0.0),
+            "home",
+            Id::create("1"),
+            None,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            SimTime::from_nanos(u64::MAX),
+            activity.cmp_end_time(SimTime::default())
+        );
+    }
 
     #[integration_test]
     fn from_io_1_plan() {

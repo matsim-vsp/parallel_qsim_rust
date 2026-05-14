@@ -401,10 +401,6 @@ pub(crate) fn sim_time_from_field(field_name: &str, value: u64) -> Option<Simula
     }
 }
 
-pub(crate) fn sim_time_to_trace_nanos(sim_time: SimulationTime) -> u64 {
-    sim_time.as_nanos().min(u64::MAX as u128) as u64
-}
-
 fn sim_time_to_output_seconds(sim_time: SimulationTime) -> i64 {
     sim_time.as_secs().min(i64::MAX as u64) as i64
 }
@@ -539,7 +535,7 @@ mod tests {
         level = "trace",
         fields(
             rank = 42u32,
-            now_ns = crate::simulation::profiling::sim_time_to_trace_nanos(now)
+            now_ns = now.as_nanos()
         )
     )]
     fn some_other_function(now: SimTime, b: f32) {

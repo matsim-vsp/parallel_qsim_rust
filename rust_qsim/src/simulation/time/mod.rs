@@ -5,6 +5,7 @@ use std::time::Duration;
 
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
 const NANOS_PER_SECOND_U64: u64 = 1_000_000_000;
+const MAX_SIMTIME_NANOS: u64 = u64::MAX;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Tick(u64);
@@ -109,15 +110,21 @@ impl Sub for Tick {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
+/// `SimTime` is intentionally bounded to `u64` nanoseconds.
+///
+/// Even at nanosecond precision that still covers roughly 584 years of simulated time, which
+/// is far beyond any scenario we expect to support while keeping the rest of the simulation on
+/// a single integer time representation.
 pub struct SimTime(Duration);
 
 impl SimTime {
     pub fn from_duration(duration: Duration) -> Self {
+        assert_duration_fits_simtime(duration);
         Self(duration)
     }
 
     pub fn from_millis(millis: u64) -> Self {
-        Self(Duration::from_millis(millis))
+        Self::from_duration(Duration::from_millis(millis))
     }
 
     pub fn from_nanos(nanos: u64) -> Self {
@@ -125,15 +132,21 @@ impl SimTime {
     }
 
     pub fn from_secs(seconds: u64) -> Self {
-        Self(Duration::from_secs(seconds))
+        Self::from_duration(Duration::from_secs(seconds))
     }
 
-    pub fn as_nanos(self) -> u128 {
-        self.0.as_nanos()
+    pub fn as_nanos(self) -> u64 {
+        self.0
+            .as_nanos()
+            .try_into()
+            .expect("SimTime invariant violated: nanoseconds exceed u64::MAX")
     }
 
-    pub fn as_millis(self) -> u128 {
-        self.0.as_millis()
+    pub fn as_millis(self) -> u64 {
+        self.0
+            .as_millis()
+            .try_into()
+            .expect("SimTime invariant violated: milliseconds exceed u64::MAX")
     }
 
     pub fn as_secs(self) -> u64 {
@@ -149,11 +162,11 @@ impl SimTime {
     }
 
     pub fn saturating_add(self, duration: Duration) -> Self {
-        Self(self.0.saturating_add(duration))
+        Self::from_duration(self.0.saturating_add(duration))
     }
 
     pub fn saturating_sub(self, duration: Duration) -> Self {
-        Self(self.0.saturating_sub(duration))
+        Self::from_duration(self.0.saturating_sub(duration))
     }
 
     /// Parses a time string in the format "HH:MM:SS" or "HH:MM:SS.<up to 9 digits>" into a SimTime.
@@ -174,7 +187,7 @@ impl SimTime {
             return Err("too many ':' separators".to_string());
         }
 
-        let (seconds, millis) = match seconds_part.split_once('.') {
+        let (seconds, nanos) = match seconds_part.split_once('.') {
             Some((seconds, nanos)) => {
                 let seconds = seconds
                     .parse::<u64>()
@@ -191,14 +204,13 @@ impl SimTime {
         };
 
         let total_seconds = hours
-            .saturating_mul(60)
-            .saturating_add(minutes)
-            .saturating_mul(60)
-            .saturating_add(seconds);
-        let total_nanos = total_seconds
-            .saturating_mul(NANOS_PER_SECOND_U64)
-            .saturating_add(millis);
-        Ok(Self(Duration::from_nanos(total_nanos)))
+            .checked_mul(60)
+            .and_then(|total_minutes| total_minutes.checked_add(minutes))
+            .and_then(|total_minutes| total_minutes.checked_mul(60))
+            .and_then(|whole_seconds| whole_seconds.checked_add(seconds))
+            .ok_or_else(|| simtime_overflow_error("time components"))?;
+        let total_nanos = checked_total_nanos(total_seconds, nanos)?;
+        Ok(Self::from_nanos(total_nanos))
     }
 
     pub fn parse_decimal_seconds(input: &str) -> Result<Self, String> {
@@ -218,17 +230,13 @@ impl SimTime {
             ),
         };
 
-        Ok(Self::from_nanos(
-            seconds
-                .saturating_mul(NANOS_PER_SECOND_U64)
-                .saturating_add(nanos),
-        ))
+        Ok(Self::from_nanos(checked_total_nanos(seconds, nanos)?))
     }
 
     pub fn format_decimal_seconds(self) -> String {
-        let total_nanos = self.0.as_nanos();
-        let seconds = total_nanos / NANOS_PER_SECOND;
-        let nanos = total_nanos % NANOS_PER_SECOND;
+        let total_nanos = self.as_nanos();
+        let seconds = total_nanos / NANOS_PER_SECOND_U64;
+        let nanos = total_nanos % NANOS_PER_SECOND_U64;
         if nanos == 0 {
             seconds.to_string()
         } else {
@@ -239,9 +247,9 @@ impl SimTime {
     }
 
     pub fn format_hh_mm_ss_trimmed(self) -> String {
-        let total_nanos = self.0.as_nanos();
-        let total_seconds = total_nanos / NANOS_PER_SECOND;
-        let nanos = total_nanos % NANOS_PER_SECOND;
+        let total_nanos = self.as_nanos();
+        let total_seconds = total_nanos / NANOS_PER_SECOND_U64;
+        let nanos = total_nanos % NANOS_PER_SECOND_U64;
         let hours = total_seconds / 3600;
         let minutes = (total_seconds % 3600) / 60;
         let seconds = total_seconds % 60;
@@ -260,6 +268,26 @@ impl Display for SimTime {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.format_hh_mm_ss_trimmed())
     }
+}
+
+fn assert_duration_fits_simtime(duration: Duration) {
+    assert!(
+        duration.as_nanos() <= MAX_SIMTIME_NANOS as u128,
+        "SimTime supports at most u64::MAX nanoseconds (about 584 years)"
+    );
+}
+
+fn checked_total_nanos(seconds: u64, nanos: u64) -> Result<u64, String> {
+    seconds
+        .checked_mul(NANOS_PER_SECOND_U64)
+        .and_then(|whole_nanos| whole_nanos.checked_add(nanos))
+        .ok_or_else(|| simtime_overflow_error("nanoseconds"))
+}
+
+fn simtime_overflow_error(source: &str) -> String {
+    format!(
+        "SimTime overflow while converting {source}: values above u64::MAX nanoseconds are unsupported"
+    )
 }
 
 /// Normalizes a string of 1-9 decimal digits to a nanosecond value by padding with zeros and parsing as u64.
@@ -315,15 +343,23 @@ impl SimClock {
 
     pub(crate) fn time_to_tick(self, time: SimTime) -> Tick {
         let ticks = div_ceil(
-            time.as_nanos() * self.ticks_per_second() as u128,
+            u128::from(time.as_nanos()) * self.ticks_per_second() as u128,
             NANOS_PER_SECOND,
         );
-        Tick(ticks as u64)
+        Tick(
+            ticks
+                .try_into()
+                .expect("tick overflow while converting bounded SimTime"),
+        )
     }
 
     pub(crate) fn tick_to_time(self, tick: Tick) -> SimTime {
         let nanos = tick.value() as u128 * NANOS_PER_SECOND / self.ticks_per_second() as u128;
-        SimTime::from_nanos(nanos as u64)
+        SimTime::from_nanos(
+            nanos
+                .try_into()
+                .expect("simulation time overflow while converting tick to SimTime"),
+        )
     }
 
     pub(crate) fn secs_to_tick(self, seconds: u64) -> Tick {
@@ -469,5 +505,43 @@ mod tests {
                 (7 * 3600 + 30 * 60 + 15) as u64 * NANOS_PER_SECOND_U64 + 250_000_001,
             )
         );
+    }
+
+    #[test]
+    fn parses_max_decimal_seconds() {
+        let parsed = SimTime::parse_decimal_seconds("18446744073.709551615").unwrap();
+        assert_eq!(parsed, SimTime::from_nanos(u64::MAX));
+        assert_eq!(parsed.format_decimal_seconds(), "18446744073.709551615");
+    }
+
+    #[test]
+    fn parses_max_hh_mm_ss() {
+        let parsed = SimTime::parse("5124095:34:33.709551615").unwrap();
+        assert_eq!(parsed, SimTime::from_nanos(u64::MAX));
+        assert_eq!(parsed.format_hh_mm_ss_trimmed(), "5124095:34:33.709551615");
+    }
+
+    #[test]
+    fn rejects_decimal_seconds_beyond_u64_nanos() {
+        let err = SimTime::parse_decimal_seconds("18446744073.709551616").unwrap_err();
+        assert!(err.contains("u64::MAX nanoseconds"));
+    }
+
+    #[test]
+    fn rejects_hh_mm_ss_beyond_u64_nanos() {
+        let err = SimTime::parse("5124095:34:33.709551616").unwrap_err();
+        assert!(err.contains("u64::MAX nanoseconds"));
+    }
+
+    #[test]
+    #[should_panic(expected = "SimTime supports at most u64::MAX nanoseconds")]
+    fn rejects_duration_larger_than_u64_nanos() {
+        SimTime::from_duration(Duration::MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "SimTime supports at most u64::MAX nanoseconds")]
+    fn rejects_milliseconds_larger_than_u64_nanos() {
+        SimTime::from_millis(u64::MAX);
     }
 }
