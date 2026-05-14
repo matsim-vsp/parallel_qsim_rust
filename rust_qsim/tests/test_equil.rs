@@ -56,6 +56,23 @@ fn execute_equil_single_part() {
 }
 
 #[integration_test(rust_qsim)]
+fn execute_equil_single_part_with_10_ticks_per_second() {
+    let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
+    let mut config = Config::from_args(config_args);
+    config.simulation_mut().ticks_per_second = 10;
+    config.output_mut().output_dir =
+        PathBuf::from("./test_output/simulation/equil_single_part_10_ticks_per_second");
+    let config = Arc::new(config);
+
+    TestExecutorBuilder::default()
+        .config(config)
+        .expected_events(Some("./tests/resources/equil/expected_events_10_ticks.xml"))
+        .build()
+        .unwrap()
+        .execute();
+}
+
+#[integration_test(rust_qsim)]
 fn execute_equil_2_parts() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
     let config = Arc::new(Config::from_args(config_args));
