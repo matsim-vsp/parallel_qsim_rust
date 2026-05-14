@@ -4,6 +4,7 @@ use macros::integration_test;
 use rust_qsim::simulation::profiling::routing::{
     RoutingSpanDurationToFileLayer, RoutingWriterGuard,
 };
+use rust_qsim::simulation::time::SimTime;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -76,7 +77,7 @@ fn test_all_events(mode: Mode) {
     let (layer, guard) = mode.layer(path);
 
     let filtered = layer.with_filter(EnvFilter::new("test_tracing=trace"));
-    run_test(filtered.boxed());
+    run_test(filtered.boxed(), SimTime::from_secs(42));
     drop(guard);
 
     let rows = mode.read_rows(path);
@@ -101,7 +102,7 @@ fn test_info_events(mode: Mode) {
     let (layer, guard) = mode.layer(path);
 
     let filtered = layer.with_filter(EnvFilter::new("test_tracing=info"));
-    run_test(filtered.boxed());
+    run_test(filtered.boxed(), SimTime::from_secs(42));
     drop(guard);
 
     let rows = mode.read_rows(path);
@@ -127,7 +128,7 @@ fn test_module_filtering(mode: Mode) {
     let filtered = layer
         .with_filter(EnvFilter::new("test_tracing::foo::bar=info"))
         .boxed();
-    run_test(filtered);
+    run_test(filtered, SimTime::from_secs(42));
 
     drop(guard);
 
@@ -156,21 +157,46 @@ fn test_module_filtering_with_level(mode: Mode) {
         .with_filter(EnvFilter::new("test_tracing::foo::bar=warn"))
         .boxed();
 
-    run_test(filtered.boxed());
+    run_test(filtered.boxed(), SimTime::from_secs(42));
     drop(guard);
 
     let rows = mode.read_rows(path);
     assert_eq!(rows.len(), 0);
 }
 
-fn run_test(layer: Box<dyn Layer<Registry> + Send + Sync>) {
+#[integration_test(rust_qsim)]
+fn test_subsecond_sim_time_csv() {
+    test_subsecond_sim_time(Mode::Csv);
+}
+
+#[integration_test(rust_qsim)]
+fn test_subsecond_sim_time_parquet() {
+    test_subsecond_sim_time(Mode::Parquet);
+}
+
+fn test_subsecond_sim_time(mode: Mode) {
+    let path = Path::new("./test_output/simulation/profiling/routing/test_subsecond_sim_time");
+    let (layer, guard) = mode.layer(path);
+
+    let filtered = layer.with_filter(EnvFilter::new("test_tracing=trace"));
+    run_test(filtered.boxed(), SimTime::from_nanos(1_500_000));
+    drop(guard);
+
+    let rows = mode.read_rows(path);
+    assert_eq!(rows.len(), 2);
+    let expected = get_subsecond_expected();
+    assert_eq!(rows.first(), Some(&expected[0]));
+    assert_eq!(rows.get(1), Some(&expected[1]));
+}
+
+fn run_test(layer: Box<dyn Layer<Registry> + Send + Sync>, sim_time: SimTime) {
     let layered = tracing_subscriber::registry().with(layer);
     // this default is set thread-wise, which is why serial tests are required
     let guard = tracing::subscriber::set_default(layered);
     let ts = Timestamp::from_unix(NoContext, 1, 1);
     let uuid = Uuid::new_v7(ts);
 
-    foo::f(42, uuid.as_u128(), "person1", "car");
+    foo::f(sim_time, uuid.as_u128(), "person1", "car");
     drop(guard);
 }
 
@@ -188,6 +214,28 @@ fn get_expected() -> Vec<RoutingRow> {
         target: "test_tracing::foo".to_string(),
         func_name: "f".to_string(),
         sim_time: 42,
+        request_uuid: "1209464644267738956154342694".parse().unwrap(),
+        person_id: "person1".to_string(),
+        mode: "car".to_string(),
+    };
+
+    vec![e1, e2]
+}
+
+fn get_subsecond_expected() -> Vec<RoutingRow> {
+    let e1 = RoutingRow {
+        target: "test_tracing::foo::bar".to_string(),
+        func_name: "b".to_string(),
+        sim_time: 1,
+        request_uuid: "2418384578988518367448237822".parse().unwrap(),
+        person_id: "person2".to_string(),
+        mode: "bike".to_string(),
+    };
+
+    let e2 = RoutingRow {
+        target: "test_tracing::foo".to_string(),
+        func_name: "f".to_string(),
+        sim_time: 0,
         request_uuid: "1209464644267738956154342694".parse().unwrap(),
         person_id: "person1".to_string(),
         mode: "car".to_string(),
@@ -330,20 +378,33 @@ impl ComparableUuid {
 }
 
 pub(crate) mod foo {
+    use rust_qsim::simulation::time::SimTime;
+    use std::time::Duration;
     use tracing::{info, instrument};
 
-    #[instrument(level = "trace")]
-    pub(crate) fn f(sim_time: u64, uuid: u128, person_id: &str, mode: &str) {
+    #[instrument(
+        level = "trace",
+        fields(sim_time_ns = sim_time.as_nanos().min(u64::MAX as u128) as u64)
+    )]
+    pub(crate) fn f(sim_time: SimTime, uuid: u128, person_id: &str, mode: &str) {
         info!("some_function");
-        bar::b(sim_time + 1, "person2", "bike");
+        bar::b(
+            sim_time.saturating_add(Duration::from_secs(1)),
+            "person2",
+            "bike",
+        );
     }
 
     pub(crate) mod bar {
+        use rust_qsim::simulation::time::SimTime;
         use tracing::{info, instrument};
         use uuid::{NoContext, Timestamp, Uuid};
 
-        #[instrument(level = "info")]
-        pub(crate) fn b(now: u64, person_id: &str, mode: &str) {
+        #[instrument(
+            level = "info",
+            fields(now_ns = now.as_nanos().min(u64::MAX as u128) as u64)
+        )]
+        pub(crate) fn b(now: SimTime, person_id: &str, mode: &str) {
             info!("some_function");
             let ts = Timestamp::from_unix(NoContext, 2, 2);
             let new_uuid = Uuid::new_v7(ts);

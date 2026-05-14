@@ -1,5 +1,6 @@
 pub mod routing;
 
+use crate::simulation::time::SimTime as SimulationTime;
 use arrow2::array::{FixedSizeBinaryArray, UInt64Array};
 use std::error::Error;
 use std::fmt::Debug;
@@ -62,11 +63,13 @@ struct Uuid(pub u128);
 struct PersonId(pub String);
 struct Mode(pub String);
 struct Rank(pub u64);
-struct SimTime(pub u64);
+struct SimTime(pub SimulationTime);
+
+const MISSING_SIM_TIME: i64 = -1;
 
 struct MetadataVisitor {
     rank: Option<u64>,
-    sim_time: Option<u64>,
+    sim_time: Option<SimulationTime>,
 }
 
 impl MetadataVisitor {
@@ -85,9 +88,8 @@ impl Visit for MetadataVisitor {
             self.rank = Some(value);
         }
 
-        //fetch now (in some cases, the field name is "now" and in others "_now")
-        if field.name().contains("now") {
-            self.sim_time = Some(value);
+        if let Some(sim_time) = sim_time_from_field(field.name(), value) {
+            self.sim_time = Some(sim_time);
         }
     }
 
@@ -382,8 +384,29 @@ fn extract_entries<'a>(
     let span_duration = extensions.get::<SpanDuration>().unwrap().elapsed;
     let sim_time = extensions
         .get::<SimTime>()
-        .map_or(-1, |sim_time| sim_time.0 as i64);
+        .map_or(MISSING_SIM_TIME, |sim_time| {
+            sim_time_to_output_seconds(sim_time.0)
+        });
     (timestep, target, func_name, span_duration, sim_time)
+}
+
+/// `tracing` records `SimTime` arguments via `Debug`, which is great for human-readable spans but
+/// awkward to parse back in a profiling layer. Instrumented `SimTime` spans therefore emit a
+/// parallel `*_ns` scalar field that we can losslessly reconstruct into `SimTime` here.
+pub(crate) fn sim_time_from_field(field_name: &str, value: u64) -> Option<SimulationTime> {
+    if matches!(field_name, "now_ns" | "sim_time_ns" | "sim_time") || field_name.contains("now") {
+        Some(SimulationTime::from_nanos(value))
+    } else {
+        None
+    }
+}
+
+pub(crate) fn sim_time_to_trace_nanos(sim_time: SimulationTime) -> u64 {
+    sim_time.as_nanos().min(u64::MAX as u128) as u64
+}
+
+fn sim_time_to_output_seconds(sim_time: SimulationTime) -> i64 {
+    sim_time.as_secs().min(i64::MAX as u64) as i64
 }
 
 fn end_timing<S: Subscriber + for<'a> LookupSpan<'a>>(id: &Id, ctx: Context<S>) {
@@ -478,6 +501,7 @@ mod tests {
     use std::thread::sleep;
     use std::time::Duration;
 
+    use crate::simulation::time::SimTime;
     use tracing::level_filters::LevelFilter;
     use tracing::{info, instrument};
     use tracing_subscriber::Layer as OtherLayer;
@@ -503,7 +527,7 @@ mod tests {
         some_function();
         info!("After func");
 
-        some_other_function(7, std::f32::consts::PI);
+        some_other_function(SimTime::from_secs(7), std::f32::consts::PI);
     }
 
     #[instrument]
@@ -511,8 +535,14 @@ mod tests {
         info!("Inside some function.")
     }
 
-    #[instrument(level = "trace", fields(rank = 42u32))]
-    fn some_other_function(_now: u32, b: f32) {
+    #[instrument(
+        level = "trace",
+        fields(
+            rank = 42u32,
+            now_ns = crate::simulation::profiling::sim_time_to_trace_nanos(now)
+        )
+    )]
+    fn some_other_function(now: SimTime, b: f32) {
         info!("Inside some other function");
         sleep(Duration::from_nanos(10));
     }

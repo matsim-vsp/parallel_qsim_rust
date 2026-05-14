@@ -53,7 +53,11 @@ impl ActivityEngine {
         self.notify_end_all(now_time, end_after_wake_up, end_from_awake)
     }
 
-    #[instrument(level = "trace", skip(self, end_after_wake_up, end_from_awake))]
+    #[instrument(
+        level = "trace",
+        skip(self, end_after_wake_up, end_from_awake),
+        fields(now_ns = crate::simulation::profiling::sim_time_to_trace_nanos(now))
+    )]
     fn notify_end_all(
         &mut self,
         now: SimTime,
@@ -81,8 +85,14 @@ impl ActivityEngine {
         res
     }
 
-    #[instrument(level = "trace", skip(self, end_after_wake_up))]
+    #[instrument(
+        level = "trace",
+        skip(self, end_after_wake_up),
+        fields(now_ns = crate::simulation::profiling::sim_time_to_trace_nanos(now))
+    )]
     fn notify_wakeup_all(&mut self, now: SimTime, end_after_wake_up: &mut [SimulationAgent]) {
+        // Keep `now` as a regular span field for readability and add `now_ns` so the profiling
+        // layer can reconstruct the exact `SimTime` without parsing `Debug` output.
         // inform agents about wakeup
         // those are the agents that are woken up and directly end their activity
         end_after_wake_up.iter_mut().for_each(|agent| {
