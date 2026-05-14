@@ -279,7 +279,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
             .get(crate::simulation::scenario::population::PREPLANNING_HORIZON);
 
         if let Some(h) = horizon {
-            if SimTime::from_u32_seconds(h) > end {
+            if SimTime::from_secs(h as u64) > end {
                 // if horizon is larger than the current end time, then end - h would be negative (might be the case at the very beginning of the simulation)
                 // and thus there would be an error.
                 end = SimTime::default();

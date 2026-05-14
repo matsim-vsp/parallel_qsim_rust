@@ -349,8 +349,8 @@ mod tests {
             received_clone.borrow_mut().push(event.clone());
         });
 
-        manager.process_event(MobsimEvent::before_sim_step(SimTime::from_u32_seconds(100)));
-        manager.process_event(MobsimEvent::after_sim_step(SimTime::from_u32_seconds(100)));
+        manager.process_event(MobsimEvent::before_sim_step(SimTime::from_secs(100)));
+        manager.process_event(MobsimEvent::after_sim_step(SimTime::from_secs(100)));
         manager.process_event(MobsimEvent::BeforeCleanup);
 
         let events = received.borrow();
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(2, events[0].meta.iteration);
         assert_eq!(0, events[0].meta.seq_no);
         assert_eq!(
-            MobsimEvent::before_sim_step(SimTime::from_u32_seconds(100)),
+            MobsimEvent::before_sim_step(SimTime::from_secs(100)),
             events[0].payload.clone()
         );
 
@@ -368,7 +368,7 @@ mod tests {
         assert_eq!(2, events[1].meta.iteration);
         assert_eq!(1, events[1].meta.seq_no);
         assert_eq!(
-            MobsimEvent::after_sim_step(SimTime::from_u32_seconds(100)),
+            MobsimEvent::after_sim_step(SimTime::from_secs(100)),
             events[1].payload.clone()
         );
 
@@ -382,15 +382,13 @@ mod tests {
     fn mobsim_next_iteration_resets_seq_counter() {
         let mut manager = MobsimEventsManager::for_partition(1, 5);
 
-        let first =
-            manager.process_event(MobsimEvent::before_sim_step(SimTime::from_u32_seconds(1)));
+        let first = manager.process_event(MobsimEvent::before_sim_step(SimTime::from_secs(1)));
         assert_eq!(5, first.meta.iteration);
         assert_eq!(0, first.meta.seq_no);
 
         manager.next_iteration();
 
-        let second =
-            manager.process_event(MobsimEvent::after_sim_step(SimTime::from_u32_seconds(2)));
+        let second = manager.process_event(MobsimEvent::after_sim_step(SimTime::from_secs(2)));
         assert_eq!(6, second.meta.iteration);
         assert_eq!(0, second.meta.seq_no);
     }
@@ -440,7 +438,7 @@ mod tests {
             order_low.borrow_mut().push("low");
         });
 
-        manager.process_event(MobsimEvent::before_sim_step(SimTime::from_u32_seconds(10)));
+        manager.process_event(MobsimEvent::before_sim_step(SimTime::from_secs(10)));
 
         assert_eq!(vec!["high", "default", "low"], order.borrow().clone());
     }
@@ -459,14 +457,14 @@ mod tests {
             VehicleLeavesPartitionEvent {
                 vehicle_id: Id::create("veh-1"),
                 to: 9,
-                time: SimTime::from_u32_seconds(42),
+                time: SimTime::from_secs(42),
             },
         ));
         manager.process_event(PartitionEvent::AgentEntersPartition(
             AgentEntersPartitionEvent {
                 agent_id: Id::create("agent-1"),
                 from: 2,
-                time: SimTime::from_u32_seconds(43),
+                time: SimTime::from_secs(43),
             },
         ));
 
@@ -480,7 +478,7 @@ mod tests {
             PartitionEvent::VehicleLeavesPartition(VehicleLeavesPartitionEvent {
                 vehicle_id: Id::create("veh-1"),
                 to: 9,
-                time: SimTime::from_u32_seconds(42),
+                time: SimTime::from_secs(42),
             }),
             events[0].payload.clone()
         );
@@ -492,7 +490,7 @@ mod tests {
             PartitionEvent::AgentEntersPartition(AgentEntersPartitionEvent {
                 agent_id: Id::create("agent-1"),
                 from: 2,
-                time: SimTime::from_u32_seconds(43),
+                time: SimTime::from_secs(43),
             }),
             events[1].payload.clone()
         );
@@ -506,7 +504,7 @@ mod tests {
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-2"),
                 from: 6,
-                time: SimTime::from_u32_seconds(10),
+                time: SimTime::from_secs(10),
             },
         ));
         assert_eq!(8, first.meta.iteration);
@@ -518,7 +516,7 @@ mod tests {
             AgentLeavesPartitionEvent {
                 agent_id: Id::create("agent-2"),
                 to: 7,
-                time: SimTime::from_u32_seconds(20),
+                time: SimTime::from_secs(20),
             },
         ));
         assert_eq!(9, second.meta.iteration);
@@ -549,7 +547,7 @@ mod tests {
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-3"),
                 from: 1,
-                time: SimTime::from_u32_seconds(5),
+                time: SimTime::from_secs(5),
             },
         ));
 

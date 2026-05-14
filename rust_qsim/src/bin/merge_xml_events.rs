@@ -47,7 +47,7 @@ fn main() {
                 readers.remove(0);
             }
             Some((time, event)) => {
-                if time.as_u32_seconds().is_multiple_of(3600) {
+                if time.as_secs().is_multiple_of(3600) {
                     info!("Starting time step: {}", time.format_decimal_seconds());
                 }
                 manager.process_event(event.as_ref());

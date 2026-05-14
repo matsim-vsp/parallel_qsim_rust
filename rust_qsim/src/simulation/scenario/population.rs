@@ -673,7 +673,7 @@ fn parse_time(value: &str) -> Option<SimTime> {
     if value == "undefined" {
         None
     } else {
-        SimTime::parse_hh_mm_ss(value).ok()
+        SimTime::parse(value).ok()
     }
 }
 
@@ -829,7 +829,7 @@ mod tests {
         assert_eq!(Id::<Link>::get_from_ext("1"), home_act.link_id);
         assert_eq!(-25000., home_act.coord.x);
         assert_eq!(0., home_act.coord.y);
-        assert_eq!(Some(SimTime::from_u32_seconds(6 * 3600)), home_act.end_time);
+        assert_eq!(Some(SimTime::from_secs(6 * 3600)), home_act.end_time);
         assert_eq!(None, home_act.start_time);
         assert_eq!(None, home_act.max_dur);
 
@@ -973,7 +973,7 @@ mod tests {
 
         assert_eq!(leg.mode.external(), "car");
         assert_eq!(leg.trav_time, Some(Duration::from_secs(1800)));
-        assert_eq!(leg.dep_time, Some(SimTime::from_u32_seconds(43200)));
+        assert_eq!(leg.dep_time, Some(SimTime::from_secs(43200)));
         assert_eq!(leg.routing_mode, None);
         let route = leg.route.as_ref().unwrap();
         assert!(matches!(route, InternalRoute::Generic(_)));

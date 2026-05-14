@@ -613,21 +613,21 @@ mod tests {
 
         // create example events
         let event1 = PersonArrivalEvent {
-            time: SimTime::from_u32_seconds(10),
+            time: SimTime::from_secs(10),
             person: Id::create("person1"),
             link: Id::create("link1"),
             leg_mode: Id::create("car"),
             attributes: InternalAttributes::default(),
         };
         let event2 = PersonArrivalEvent {
-            time: SimTime::from_u32_seconds(12),
+            time: SimTime::from_secs(12),
             person: Id::create("person1"),
             link: Id::create("link1"),
             leg_mode: Id::create("car"),
             attributes: InternalAttributes::default(),
         };
         let event3 = PersonDepartureEvent {
-            time: SimTime::from_u32_seconds(15),
+            time: SimTime::from_secs(15),
             person: Id::create("person1"),
             link: Id::create("link1"),
             leg_mode: Id::create("car"),
@@ -635,7 +635,7 @@ mod tests {
             attributes: InternalAttributes::default(),
         };
         let event4 = NewSimpleEvent {
-            time: SimTime::from_u32_seconds(20),
+            time: SimTime::from_secs(20),
             some_field: String::from("some value"),
             attributes: InternalAttributes::default(),
         };

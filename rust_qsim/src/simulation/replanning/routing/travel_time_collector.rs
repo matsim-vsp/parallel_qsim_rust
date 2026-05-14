@@ -160,17 +160,17 @@ mod test {
 
         let mut collector = TravelTimeCollector::new();
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(1),
+            SimTime::from_secs(1),
             &link1,
             &vehicle1,
         ));
         collector.process_link_enter_event(&link_enter_event(
-            SimTime::from_u32_seconds(2),
+            SimTime::from_secs(2),
             &link2,
             &vehicle1,
         ));
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(4),
+            SimTime::from_secs(4),
             &link2,
             &vehicle1,
         ));
@@ -195,32 +195,32 @@ mod test {
 
         let mut collector = TravelTimeCollector::new();
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(1),
+            SimTime::from_secs(1),
             &link1,
             &vehicle1,
         ));
         collector.process_link_enter_event(&link_enter_event(
-            SimTime::from_u32_seconds(2),
+            SimTime::from_secs(2),
             &link2,
             &vehicle1,
         ));
         collector.process_link_enter_event(&link_enter_event(
-            SimTime::from_u32_seconds(3),
+            SimTime::from_secs(3),
             &link2,
             &vehicle2,
         ));
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(4),
+            SimTime::from_secs(4),
             &link2,
             &vehicle1,
         ));
         collector.process_link_enter_event(&link_enter_event(
-            SimTime::from_u32_seconds(5),
+            SimTime::from_secs(5),
             &link2,
             &vehicle3,
         ));
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(7),
+            SimTime::from_secs(7),
             &link2,
             &vehicle2,
         ));
@@ -242,7 +242,7 @@ mod test {
                 .cache_enter_time_by_vehicle
                 .get(&vehicle3)
                 .unwrap(),
-            &SimTime::from_u32_seconds(5)
+            &SimTime::from_secs(5)
         )
     }
 
@@ -260,12 +260,12 @@ mod test {
             &vehicle1,
         ));
         collector.process_person_leaves_vehicle_event(&person_leaves_vehicle_event(
-            SimTime::from_u32_seconds(2),
+            SimTime::from_secs(2),
             &person1,
             &vehicle1,
         ));
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(4),
+            SimTime::from_secs(4),
             &link1,
             &vehicle1,
         ));
@@ -292,34 +292,34 @@ mod test {
 
         //intermediate veh 2 enters link 1
         collector.process_link_enter_event(&link_enter_event(
-            SimTime::from_u32_seconds(1),
+            SimTime::from_secs(1),
             &link1,
             &vehicle2,
         ));
         collector.process_person_leaves_vehicle_event(&person_leaves_vehicle_event(
-            SimTime::from_u32_seconds(2),
+            SimTime::from_secs(2),
             &person1,
             &vehicle1,
         ));
 
         //intermediate veh 2 leaves link 1
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(3),
+            SimTime::from_secs(3),
             &link1,
             &vehicle2,
         ));
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(10),
+            SimTime::from_secs(10),
             &link1,
             &vehicle1,
         ));
         collector.process_link_enter_event(&link_enter_event(
-            SimTime::from_u32_seconds(10),
+            SimTime::from_secs(10),
             &link2,
             &vehicle1,
         ));
         collector.process_link_leave_event(&link_leave_event(
-            SimTime::from_u32_seconds(20),
+            SimTime::from_secs(20),
             &link2,
             &vehicle1,
         ));

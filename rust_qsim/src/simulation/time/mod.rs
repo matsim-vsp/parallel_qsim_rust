@@ -124,9 +124,8 @@ impl SimTime {
         Self(Duration::from_nanos(nanos))
     }
 
-    // TODO rename
-    pub fn from_u32_seconds(seconds: u32) -> Self {
-        Self(Duration::from_secs(seconds as u64))
+    pub fn from_secs(seconds: u64) -> Self {
+        Self(Duration::from_secs(seconds))
     }
 
     pub fn as_nanos(self) -> u128 {
@@ -137,8 +136,8 @@ impl SimTime {
         self.0.as_millis()
     }
 
-    pub fn as_u32_seconds(self) -> u32 {
-        self.0.as_secs().try_into().unwrap_or(u32::MAX)
+    pub fn as_secs(self) -> u64 {
+        self.0.as_secs()
     }
 
     pub fn as_duration(self) -> Duration {
@@ -157,7 +156,8 @@ impl SimTime {
         Self(self.0.saturating_sub(duration))
     }
 
-    pub fn parse_hh_mm_ss(input: &str) -> Result<Self, String> {
+    /// Parses a time string in the format "HH:MM:SS" or "HH:MM:SS.<up to 9 digits>" into a SimTime.
+    pub fn parse(input: &str) -> Result<Self, String> {
         let mut parts = input.split(':');
         let hours = parts
             .next()
@@ -262,7 +262,7 @@ impl Display for SimTime {
     }
 }
 
-#[allow(unused)]
+/// Normalizes a string of 1-9 decimal digits to a nanosecond value by padding with zeros and parsing as u64.
 fn normalize_nanos(input: &str) -> Result<u64, String> {
     if input.is_empty() || input.len() > 9 || !input.chars().all(|c| c.is_ascii_digit()) {
         return Err("expected 1-9 decimal digits for nanoseconds".to_string());
@@ -292,6 +292,7 @@ fn normalize_nanos_truncate(input: &str) -> Result<u64, String> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Struct for transformation of internal simulation time (SimTime) to discrete ticks (Tick) and back, based on a specified number of ticks per second.
 pub(crate) struct SimClock {
     ticks_per_second: NonZeroU32,
 }
@@ -325,29 +326,26 @@ impl SimClock {
         SimTime::from_nanos(nanos as u64)
     }
 
-    pub(crate) fn u32_seconds_to_tick(self, seconds: u32) -> Tick {
-        self.time_to_tick(SimTime::from_u32_seconds(seconds))
+    pub(crate) fn secs_to_tick(self, seconds: u64) -> Tick {
+        self.time_to_tick(SimTime::from_secs(seconds))
     }
 
-    pub(crate) fn tick_to_u32_seconds(self, tick: Tick) -> u32 {
-        self.tick_to_time(tick).as_u32_seconds()
+    pub(crate) fn tick_to_secs(self, tick: Tick) -> u64 {
+        self.tick_to_time(tick).as_secs()
     }
 
     #[cfg(test)]
-    pub(crate) fn time_to_u32_seconds(self, time: SimTime) -> u32 {
-        time.as_u32_seconds()
+    pub(crate) fn time_to_secs(self, time: SimTime) -> u64 {
+        time.as_secs()
     }
 
     #[allow(unused)]
-    pub(crate) fn seconds_to_ticks_ceil(self, seconds: f64) -> Tick {
-        let ticks = (seconds * self.ticks_per_second() as f64).ceil() as u64;
-        Tick(ticks)
+    pub(crate) fn secs_to_ticks_ceil(self, seconds: f64) -> Tick {
+        Tick((seconds * self.ticks_per_second() as f64).ceil() as u64)
     }
 
-    pub(crate) fn seconds_to_travel_ticks(self, seconds: f64) -> Tick {
-        // Vehicles spend one extra node-processing step on a link after the queue travel time.
-        // Using the floored in-queue duration preserves the legacy observed event times.
-        Tick::new((seconds * self.ticks_per_second() as f64).floor().max(0.0) as u64)
+    pub(crate) fn secs_to_ticks_floor(self, seconds: f64) -> Tick {
+        Tick((seconds * self.ticks_per_second() as f64).floor().max(0.0) as u64)
     }
 }
 
@@ -363,10 +361,10 @@ mod tests {
     #[test]
     fn round_trip_with_one_tick_per_second() {
         let clock = SimClock::new(1);
-        let tick = clock.u32_seconds_to_tick(42);
+        let tick = clock.secs_to_tick(42);
         assert_eq!(tick, Tick::new(42));
-        assert_eq!(clock.tick_to_u32_seconds(tick), 42);
-        assert_eq!(clock.tick_to_time(tick), SimTime::from_u32_seconds(42));
+        assert_eq!(clock.tick_to_secs(tick), 42);
+        assert_eq!(clock.tick_to_time(tick), SimTime::from_secs(42u64));
     }
 
     #[test]
@@ -375,7 +373,7 @@ mod tests {
         let time = SimTime::from_duration(Duration::from_millis(350));
         let tick = clock.time_to_tick(time);
         assert_eq!(tick, Tick::new(4));
-        assert_eq!(clock.tick_to_u32_seconds(tick), 0);
+        assert_eq!(clock.tick_to_secs(tick), 0);
         assert_eq!(
             clock.tick_to_time(tick),
             SimTime::from_duration(Duration::from_millis(400))
@@ -386,30 +384,27 @@ mod tests {
     fn outward_seconds_are_truncated() {
         let clock = SimClock::new(10);
         let time = SimTime::from_duration(Duration::from_millis(1999));
-        assert_eq!(clock.time_to_u32_seconds(time), 1);
+        assert_eq!(clock.time_to_secs(time), 1);
     }
 
     #[test]
     fn travel_ticks_preserve_observed_link_duration() {
         let clock = SimClock::new(1);
-        assert_eq!(
-            clock.seconds_to_travel_ticks(10_000.0 / 27.78),
-            Tick::new(359)
-        );
-        assert_eq!(clock.seconds_to_travel_ticks(100.0), Tick::new(100));
-        assert_eq!(clock.seconds_to_travel_ticks(0.5), Tick::zero());
+        assert_eq!(clock.secs_to_ticks_floor(10_000.0 / 27.78), Tick::new(359));
+        assert_eq!(clock.secs_to_ticks_floor(100.0), Tick::new(100));
+        assert_eq!(clock.secs_to_ticks_floor(0.5), Tick::zero());
 
         let subsecond_clock = SimClock::new(10);
         assert_eq!(
-            subsecond_clock.seconds_to_travel_ticks(10_000.0 / 27.78),
+            subsecond_clock.secs_to_ticks_floor(10_000.0 / 27.78),
             Tick::new(3599)
         );
-        assert_eq!(subsecond_clock.seconds_to_travel_ticks(0.3), Tick::new(3));
+        assert_eq!(subsecond_clock.secs_to_ticks_floor(0.3), Tick::new(3));
     }
 
     #[test]
     fn formats_decimal_seconds_without_fraction_for_full_seconds() {
-        let time = SimTime::from_u32_seconds(42);
+        let time = SimTime::from_secs(42u64);
         assert_eq!(time.format_decimal_seconds(), "42");
     }
 
@@ -426,7 +421,7 @@ mod tests {
 
     #[test]
     fn formats_hh_mm_ss_without_fraction_for_full_seconds() {
-        let time = SimTime::from_u32_seconds(7 * 3600 + 30 * 60 + 15);
+        let time = SimTime::from_secs(7 * 3600 + 30 * 60 + 15u64);
         assert_eq!(time.format_hh_mm_ss_trimmed(), "07:30:15");
     }
 
@@ -467,7 +462,7 @@ mod tests {
 
     #[test]
     fn parses_hh_mm_ss_with_subseconds() {
-        let parsed = SimTime::parse_hh_mm_ss("07:30:15.250000001").unwrap();
+        let parsed = SimTime::parse("07:30:15.250000001").unwrap();
         assert_eq!(
             parsed,
             SimTime::from_nanos(

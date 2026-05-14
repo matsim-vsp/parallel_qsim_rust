@@ -196,7 +196,7 @@ mod tests {
             route,
             "walk",
             std::time::Duration::default(),
-            Some(SimTime::from_u32_seconds(1)),
+            Some(SimTime::from_secs(1)),
         );
         let act = InternalActivity::new(
             Coordinate::default(),

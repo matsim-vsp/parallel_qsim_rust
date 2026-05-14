@@ -212,26 +212,26 @@ mod tests {
         queue.add(
             TestItem {
                 id: 1,
-                end: SimTime::from_u32_seconds(10),
+                end: SimTime::from_secs(10),
             },
-            SimTime::from_u32_seconds(0),
+            SimTime::from_secs(0),
         );
         queue.add(
             TestItem {
                 id: 2,
-                end: SimTime::from_u32_seconds(10),
+                end: SimTime::from_secs(10),
             },
-            SimTime::from_u32_seconds(0),
+            SimTime::from_secs(0),
         );
         queue.add(
             TestItem {
                 id: 3,
-                end: SimTime::from_u32_seconds(10),
+                end: SimTime::from_secs(10),
             },
-            SimTime::from_u32_seconds(0),
+            SimTime::from_secs(0),
         );
 
-        let results = queue.pop(SimTime::from_u32_seconds(10));
+        let results = queue.pop(SimTime::from_secs(10));
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].id, 1);
         assert_eq!(results[1].id, 2);
@@ -244,42 +244,42 @@ mod tests {
         queue.add(
             TestItem {
                 id: 1,
-                end: SimTime::from_u32_seconds(15),
+                end: SimTime::from_secs(15),
             },
-            SimTime::from_u32_seconds(0),
+            SimTime::from_secs(0),
         );
         queue.add(
             TestItem {
                 id: 2,
-                end: SimTime::from_u32_seconds(10),
+                end: SimTime::from_secs(10),
             },
-            SimTime::from_u32_seconds(0),
+            SimTime::from_secs(0),
         );
         queue.add(
             TestItem {
                 id: 3,
-                end: SimTime::from_u32_seconds(20),
+                end: SimTime::from_secs(20),
             },
-            SimTime::from_u32_seconds(0),
+            SimTime::from_secs(0),
         );
         queue.add(
             TestItem {
                 id: 4,
-                end: SimTime::from_u32_seconds(10),
+                end: SimTime::from_secs(10),
             },
-            SimTime::from_u32_seconds(0),
+            SimTime::from_secs(0),
         );
 
-        let results = queue.pop(SimTime::from_u32_seconds(10));
+        let results = queue.pop(SimTime::from_secs(10));
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].id, 2);
         assert_eq!(results[1].id, 4);
 
-        let results = queue.pop(SimTime::from_u32_seconds(15));
+        let results = queue.pop(SimTime::from_secs(15));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 1);
 
-        let results = queue.pop(SimTime::from_u32_seconds(20));
+        let results = queue.pop(SimTime::from_secs(20));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 3);
     }

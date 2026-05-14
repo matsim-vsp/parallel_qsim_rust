@@ -12,7 +12,7 @@ impl Flowcap {
     pub(super) fn new(capacity_h: f32, sample_size: f32, max_available: f32) -> Flowcap {
         let capacity_per_second = capacity_h * sample_size / 3600.;
         Flowcap {
-            last_update_time: SimTime::from_u32_seconds(0),
+            last_update_time: SimTime::default(),
             value: max_available,
             capacity_per_second,
             max_available,
@@ -79,7 +79,7 @@ mod tests {
     fn flowcap_max_capacity_s() {
         let mut flowcap = Flowcap::new(36000., 1., 1.0);
 
-        flowcap.update_capacity(SimTime::from_u32_seconds(20));
+        flowcap.update_capacity(SimTime::from_secs(20));
 
         assert_eq!(1.0, flowcap.value);
     }
@@ -92,13 +92,13 @@ mod tests {
         flowcap.consume(1.0);
         assert!(!flowcap.has_capacity_left());
 
-        flowcap.update_capacity(SimTime::from_u32_seconds(1));
+        flowcap.update_capacity(SimTime::from_secs(1));
         assert!(!flowcap.has_capacity_left());
 
-        flowcap.update_capacity(SimTime::from_u32_seconds(3));
+        flowcap.update_capacity(SimTime::from_secs(3));
         assert!(!flowcap.has_capacity_left());
 
-        flowcap.update_capacity(SimTime::from_u32_seconds(5));
+        flowcap.update_capacity(SimTime::from_secs(5));
         assert!(flowcap.has_capacity_left());
     }
 }

@@ -587,7 +587,7 @@ mod tests {
         let issued_events: Vec<Box<dyn EventTrait>> = vec![
             Box::new(
                 GenericEventBuilder::default()
-                    .time(SimTime::from_u32_seconds(103))
+                    .time(SimTime::from_secs(103))
                     .attributes(InternalAttributes::from(HashMap::from([(
                         String::from("attr1"),
                         String::from("value1"),
@@ -597,7 +597,7 @@ mod tests {
             ),
             Box::new(
                 ActivityStartEventBuilder::default()
-                    .time(SimTime::from_u32_seconds(103))
+                    .time(SimTime::from_secs(103))
                     .person(Id::create("1"))
                     .link(Id::create("1"))
                     .act_type(Id::create("1"))
@@ -607,7 +607,7 @@ mod tests {
             ),
             Box::new(
                 ActivityEndEventBuilder::default()
-                    .time(SimTime::from_u32_seconds(103))
+                    .time(SimTime::from_secs(103))
                     .person(Id::create("1"))
                     .link(Id::create("1"))
                     .coordinate(Coordinate::default())
@@ -625,7 +625,7 @@ mod tests {
         // now read in
         let mut reader = ProtoEventsReader::from_file(&path);
         let (time, events) = reader.next().expect("Couldn't read timestep.");
-        assert_eq!(SimTime::from_u32_seconds(103), time);
+        assert_eq!(SimTime::from_secs(103), time);
         assert_eq!(issued_events.len(), events.len());
 
         for (i, expected_event) in issued_events.iter().enumerate() {
@@ -647,7 +647,7 @@ mod tests {
             let mut v: Vec<Box<dyn EventTrait>> = vec![
                 Box::new(
                     GenericEventBuilder::default()
-                        .time(SimTime::from_u32_seconds(time_step))
+                        .time(SimTime::from_secs(time_step))
                         .attributes(InternalAttributes::from(HashMap::from([(
                             String::from("attr1"),
                             String::from("value1"),
@@ -657,7 +657,7 @@ mod tests {
                 ),
                 Box::new(
                     ActivityStartEventBuilder::default()
-                        .time(SimTime::from_u32_seconds(time_step))
+                        .time(SimTime::from_secs(time_step))
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
@@ -667,7 +667,7 @@ mod tests {
                 ),
                 Box::new(
                     ActivityEndEventBuilder::default()
-                        .time(SimTime::from_u32_seconds(time_step))
+                        .time(SimTime::from_secs(time_step))
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
@@ -686,9 +686,9 @@ mod tests {
         writer.finish();
 
         let reader = ProtoEventsReader::from_file(&path);
-        let start_time = SimTime::from_u32_seconds(43);
-        let end_time = SimTime::from_u32_seconds(109);
-        let mut last_time_step = SimTime::from_u32_seconds(42);
+        let start_time = SimTime::from_secs(43);
+        let end_time = SimTime::from_secs(109);
+        let mut last_time_step = SimTime::from_secs(42);
         for (time, events) in reader {
             // make sure times are in the correct range and order
             assert!(time >= start_time);
@@ -698,8 +698,7 @@ mod tests {
 
             assert_eq!(3, events.len());
             for (i, event) in events.iter().enumerate() {
-                let index =
-                    ((time.as_u32_seconds() - start_time.as_u32_seconds()) * 3) as usize + i;
+                let index = ((time.as_secs() - start_time.as_secs()) * 3) as usize + i;
                 match_events(issued_events.get(index).unwrap(), event);
             }
         }

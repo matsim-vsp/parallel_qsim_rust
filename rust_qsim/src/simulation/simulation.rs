@@ -31,8 +31,8 @@ where
     pub fn run(&mut self) {
         // use fixed start and end times
         let mut now = self.start_tick;
-        let start_time = self.clock.tick_to_u32_seconds(self.start_tick);
-        let end_time = self.clock.tick_to_u32_seconds(self.end_tick);
+        let start_time = self.clock.tick_to_secs(self.start_tick);
+        let end_time = self.clock.tick_to_secs(self.end_tick);
         info!(
             "Starting #{}. Network neighbors: {:?}, Start time {}, End time {}",
             self.leg_engine.net_message_broker().rank(),
@@ -45,7 +45,7 @@ where
 
         while now <= self.end_tick {
             let now_time = self.clock.tick_to_time(now);
-            let outward_now = self.clock.tick_to_u32_seconds(now);
+            let outward_now = self.clock.tick_to_secs(now);
             self.comp_env
                 .mobsim_events_manager_borrow_mut()
                 .process_event(MobsimEvent::before_sim_step(now_time));
@@ -149,8 +149,8 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             activity_engine,
             leg_engine,
             comp_env: self.comp_env,
-            start_tick: clock.u32_seconds_to_tick(self.scenario.config.simulation().start_time),
-            end_tick: clock.u32_seconds_to_tick(self.scenario.config.simulation().end_time),
+            start_tick: clock.secs_to_tick(self.scenario.config.simulation().start_time as u64),
+            end_tick: clock.secs_to_tick(self.scenario.config.simulation().end_time as u64),
             clock,
         }
     }

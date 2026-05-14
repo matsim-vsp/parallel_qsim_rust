@@ -197,7 +197,7 @@ impl<'c> ActivityEngineBuilder<'c> {
 
     pub fn build(self) -> ActivityEngine {
         let clock = SimClock::new(self.config.simulation().ticks_per_second);
-        let now = clock.u32_seconds_to_tick(self.config.simulation().start_time);
+        let now = clock.secs_to_tick(self.config.simulation().start_time as u64);
         let now_time = clock.tick_to_time(now);
 
         let mut asleep = TimeQueue::new();
@@ -294,7 +294,7 @@ mod tests {
 
         assert_eq!(engine.awake_q.len(), 0);
         assert_eq!(engine.asleep_q.len(), 0);
-        engine.end(SimTime::from_u32_seconds(0));
+        engine.end(SimTime::from_secs(0));
     }
 
     #[integration_test]
@@ -307,11 +307,11 @@ mod tests {
         let mut engine = create_engine(agents, Default::default());
 
         {
-            let agents = engine.wake_up(SimTime::from_u32_seconds(0));
+            let agents = engine.wake_up(SimTime::from_secs(0));
             assert!(agents.is_empty());
         }
         {
-            let agents = engine.wake_up(SimTime::from_u32_seconds(10));
+            let agents = engine.wake_up(SimTime::from_secs(10));
             assert_eq!(agents.len(), 1);
         }
     }
@@ -411,8 +411,8 @@ mod tests {
                 .to(Coordinate::default())
                 .to_link("end".to_string())
                 .mode("mode".to_string())
-                .departure_time(SimTime::from_u32_seconds(10))
-                .now(SimTime::from_u32_seconds(5))
+                .departure_time(SimTime::from_secs(10))
+                .now(SimTime::from_secs(5))
                 .build()
                 .unwrap();
             assert!(
@@ -510,7 +510,7 @@ mod tests {
             )),
             "mode",
             Duration::from_secs(1),
-            Some(SimTime::from_u32_seconds(2)),
+            Some(SimTime::from_secs(2)),
         ));
         plan.add_act(InternalActivity::new(
             Coordinate::default(),

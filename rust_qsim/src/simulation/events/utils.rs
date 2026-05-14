@@ -58,7 +58,7 @@ pub fn read_proto_events(
         // get the reader with the smallest curr time step and process its events
         let reader = readers.first_mut().unwrap();
 
-        let secs = reader.curr_time_step.0.as_u32_seconds();
+        let secs = reader.curr_time_step.0.as_secs();
         let hour = secs / 3600;
         if hour > last_reported_time_step && secs.is_multiple_of(3600) {
             info!("Reading time step: {:?}h", hour);

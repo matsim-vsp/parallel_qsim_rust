@@ -193,8 +193,8 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
                 to_link: "20".to_string(),
                 to: Coordinate::new(3456., 4242.),
                 mode: "car".to_string(),
-                departure_time: SimTime::from_u32_seconds(21600),
-                now: SimTime::from_u32_seconds(21000),
+                departure_time: SimTime::from_secs(21600),
+                now: SimTime::from_secs(21000),
                 uuid: Default::default(),
             })
         );

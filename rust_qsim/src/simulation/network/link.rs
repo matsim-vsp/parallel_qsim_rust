@@ -242,7 +242,7 @@ impl LocalLink {
             free_speed,
             storage_cap,
             flow_cap: Flowcap::new(capacity_h, config.sample_size, max_available),
-            stuck_timer: StuckTimer::new(clock.u32_seconds_to_tick(config.stuck_threshold)),
+            stuck_timer: StuckTimer::new(clock.secs_to_tick(config.stuck_threshold as u64)),
             clock,
             from,
             to,
@@ -264,9 +264,7 @@ impl LocalLink {
 
     fn push_veh_to_queue(&mut self, vehicle: SimulationVehicle, now: Tick) {
         let speed = self.free_speed.min(vehicle.max_v());
-        let duration = self
-            .clock
-            .seconds_to_travel_ticks(self.length / speed as f64);
+        let duration = self.clock.secs_to_ticks_floor(self.length / speed as f64);
         let earliest_exit_time = now.saturating_add(duration);
 
         // update state
