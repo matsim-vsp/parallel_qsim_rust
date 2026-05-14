@@ -1,14 +1,17 @@
 use std::collections::{HashMap};
 use std::sync::{Arc, Mutex};
-use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager};
+use ahash::HashSet;
+use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
 use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessageBroker;
 
 pub struct BackpackingDataCollector {
     person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
+    vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
     rank: u32,
 
     message_broker: Arc<Mutex<BackpackingMessageBroker>>,
@@ -23,6 +26,7 @@ impl BackpackingDataCollector {
     {
         let data_collector = Arc::new(Mutex::new(Self {
             person_id2backpack: Default::default(),
+            vehicle_id2person_ids: Default::default(),
             rank,
             message_broker
         }));
@@ -34,15 +38,6 @@ impl BackpackingDataCollector {
         for person in population.persons.iter(){
             self.person_id2backpack.insert(person.0.clone(), Backpack::new(person.0.clone(), self.rank));
         }
-    }
-
-    fn add_special_scoring_event(&mut self, person: &Id<InternalPerson>, event: Box<dyn EventTrait>) {
-        println!("Partition #{}: Adding special scoring event for id {}", self.rank, person); // TODO Debug only, remove when working
-
-        self.person_id2backpack
-            .get_mut(person)
-            .unwrap()
-            .add_special_scoring_event(event);
     }
 
     pub(crate) fn add_arriving_backpacks(&mut self, arriving_passengers: HashMap<Id<InternalPerson>, Backpack>) {
@@ -60,8 +55,79 @@ impl BackpackingDataCollector {
         &self.person_id2backpack
     }
 
+    // fn add_special_scoring_event(&mut self, person: &Id<InternalPerson>, event: Box<dyn EventTrait>) {
+    //     println!("Partition #{}: Adding special scoring event for id {}", self.rank, person); // TODO Debug only, remove when working
+    //
+    //     self.person_id2backpack
+    //         .get_mut(person)
+    //         .unwrap()
+    //         .add_special_scoring_event(event);
+    // }
+
+    /// This method's main purpose is to forward relevant events to the backpacks affected by given event.
+    /// Events which do not affect the Backpack of any person will be ignored.
+    /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
+    fn handle_event(&mut self, event: &dyn EventTrait ) {
+        let affected_persons = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
+            self.vehicle_id2person_ids
+                .get(&e.vehicle)
+                .map(|persons| persons.iter().cloned().collect())
+                .unwrap_or_default()
+        } else if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<ActivityStartEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
+            vec![e.person.clone()]
+        } else if let Some(e) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
+            vec![e.person.clone()]
+        } else {
+            vec![]
+        };
+
+        affected_persons.into_iter().for_each(|person| {
+            self.person_id2backpack
+                .get_mut(&person)
+                .unwrap()
+                .handle_event(event);
+        });
+    }
+
     pub(crate) fn register_event_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
+            // General backpacking event forwarding
+            let bdc1 = Arc::clone(&data_collector);
+            events.on_any(move |e: &dyn EventTrait| {
+                let mut bdc = bdc1.lock().unwrap();
+                bdc.handle_event(e);
+            });
+
+            // Events for Vehicle2Person mappings
+            let bdc3 = Arc::clone(&data_collector);
+            events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
+                let mut bdc = bdc3.lock().unwrap();
+                bdc.vehicle_id2person_ids
+                    .entry(e.vehicle.clone())
+                    .or_default()
+                    .insert(e.person.clone());
+            });
+
+            let bdc4 = Arc::clone(&data_collector);
+            events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
+                let mut bdc = bdc4.lock().unwrap();
+                bdc.vehicle_id2person_ids.remove(&e.vehicle);
+            });
+            /*
             let bdc1 = Arc::clone(&data_collector);
             events.on::<ActivityStartEvent, _>(move |e: &ActivityStartEvent| {
                 let mut bdc = bdc1.lock().unwrap();
@@ -74,7 +140,7 @@ impl BackpackingDataCollector {
                 let mut bdc = bdc2.lock().unwrap();
                 println!("Partition #{}: Person {} ends activity {}", bdc.rank, e.person.clone(), e.act_type.clone());
                 bdc.add_special_scoring_event(&e.person, Box::new(e.clone()));
-            });
+            });*/
         })
     }
 

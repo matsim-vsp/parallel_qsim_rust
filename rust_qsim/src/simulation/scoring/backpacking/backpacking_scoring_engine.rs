@@ -22,12 +22,11 @@ impl BackpackingScoringEngine
 {
     pub fn new(rank: u32,
                population: &Population,
-               cut_link_id2target_partition: HashMap<Id<Link>, u32>,
                receiver: Receiver<InternalScoringMessage>,
                senders: Vec<Sender<InternalScoringMessage>>,
     ) -> Self {
         let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, rank);
-        let backpacking_data_collector = BackpackingDataCollector::new(population, cut_link_id2target_partition, rank, Arc::clone(&backpacking_message_broker));
+        let backpacking_data_collector = BackpackingDataCollector::new(population, rank, Arc::clone(&backpacking_message_broker));
         BackpackingMessageBroker::finish(&backpacking_message_broker, Arc::downgrade(&backpacking_data_collector));
 
         Self {
@@ -64,7 +63,6 @@ impl BackpackingScoringEngine
             let scoring = BackpackingScoringEngine::new(
                 rank,
                 &partition.population,
-                link_id2_target_partition,
                 receiver,
                 vec![],
             );
