@@ -77,8 +77,56 @@ impl BackpackPlan {
     }
 }
 
-// TODO Add verify() methods to the structs below!
+struct BackpackActivity {
+    pub act_type: Option<Id<String>>,
+    pub link_id: Option<Id<Link>>,
+    pub coordinate: Option<Coordinate>,
+    pub start_time: Option<u32>,
+    pub end_time: Option<u32>,
+    // pub max_dur: Option<u32>, (not meant to be set in the experienced plans)
+}
 
+impl Default for BackpackActivity {
+    fn default() -> Self {
+        Self {
+            act_type: None,
+            link_id: None,
+            coordinate: None,
+            start_time: None,
+            end_time: None,
+        }
+    }
+}
+
+impl BackpackActivity {
+    // TODO Change the code structure to make handle_* functions called internally only
+    fn handle_activity_start(&mut self, event: &ActivityStartEvent) {
+        self.act_type = Some(event.act_type.clone());
+        self.link_id = Some(event.link.clone());
+        self.coordinate = Some(event.coordinate.clone());
+        self.start_time = Some(event.time);
+    }
+
+    fn handle_activity_end(&mut self, event: &ActivityEndEvent) {
+        self.end_time = Some(event.time);
+    }
+
+    /// Consuming function turning BackpackActivity into an InternalActivity
+    fn finish(self) -> InternalActivity {
+        InternalActivity::new(
+            self.coordinate
+                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without coordinate!")),
+            self.act_type
+                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without act type!"))
+                .external(),
+            self.link_id
+                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without link!")),
+            self.start_time,
+            self.end_time,
+            None
+        )
+    }
+}
 
 struct BackpackLeg {
     pub mode: Option<Id<String>>,
@@ -269,57 +317,6 @@ impl BackpackRoute {
             }
             None => panic!("Tried to finish a BackpackRoute which has no route type!")
         }
-    }
-}
-
-struct BackpackActivity {
-    pub act_type: Option<Id<String>>,
-    pub link_id: Option<Id<Link>>,
-    pub coordinate: Option<Coordinate>,
-    pub start_time: Option<u32>,
-    pub end_time: Option<u32>,
-    // pub max_dur: Option<u32>, (not meant to be set in the experienced plans)
-}
-
-impl Default for BackpackActivity {
-    fn default() -> Self {
-        Self {
-            act_type: None,
-            link_id: None,
-            coordinate: None,
-            start_time: None,
-            end_time: None,
-        }
-    }
-}
-
-impl BackpackActivity {
-    // TODO Change the code structure to make handle_* functions called internally only
-    fn handle_activity_start(&mut self, event: &ActivityStartEvent) {
-        self.act_type = Some(event.act_type.clone());
-        self.link_id = Some(event.link.clone());
-        self.coordinate = Some(event.coordinate.clone());
-        self.start_time = Some(event.time);
-    }
-
-    fn handle_activity_end(&mut self, event: &ActivityEndEvent) {
-        self.end_time = Some(event.time);
-    }
-
-    /// Consuming function turning BackpackActivity into an InternalActivity
-    fn finish(self) -> InternalActivity {
-        InternalActivity::new(
-            self.coordinate
-                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without coordinate!")),
-            self.act_type
-                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without act type!"))
-                .external(),
-            self.link_id
-                .unwrap_or_else(|| panic!("Tried to finish BackpackActivity without link!")),
-            self.start_time,
-            self.end_time,
-            None
-        )
     }
 }
 
