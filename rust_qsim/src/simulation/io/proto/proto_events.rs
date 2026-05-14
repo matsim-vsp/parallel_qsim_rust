@@ -328,7 +328,7 @@ impl ProtoEventsWriter {
     }
 
     fn update_time_step(&mut self, time: SimTime) {
-        let time = time.as_millis().try_into().unwrap_or(u64::MAX);
+        let time = time.as_nanos().try_into().unwrap_or(u64::MAX);
         if self.curr_time_step != time {
             if !self.encoded_events.is_empty() {
                 self.write_time_step();
@@ -342,7 +342,7 @@ impl ProtoEventsWriter {
         std::mem::swap(&mut data, &mut self.encoded_events);
 
         let time_step = TimeStep {
-            time: self.curr_time_step,
+            time_ns: self.curr_time_step,
             data,
         };
         let encoded_time_step = time_step.encode_length_delimited_to_vec();
@@ -498,7 +498,7 @@ impl<R: Read + Seek> Iterator for ProtoEventsReader<R> {
     fn next(&mut self) -> Option<Self::Item> {
         let delimiter = self.read_delim()?;
         let time_step = self.read_time_step(delimiter);
-        let time = SimTime::from_millis(time_step.time);
+        let time = SimTime::from_nanos(time_step.time_ns);
         let events = self.read_events(time_step);
 
         Some((time, events))
@@ -560,7 +560,7 @@ mod tests {
         let mut writer = ProtoEventsWriter::new(&path);
         let event: Box<dyn EventTrait> = Box::new(
             GenericEventBuilder::default()
-                .time(SimTime::from_u32_seconds(1))
+                .time(SimTime::from_nanos(1_500_000))
                 .attributes(InternalAttributes::from(HashMap::from([(
                     String::from("attr1"),
                     String::from("value1"),
@@ -574,7 +574,7 @@ mod tests {
         // now read in
         let mut reader = ProtoEventsReader::from_file(&path);
         let (time, events) = reader.next().expect("Couldn't read timestep.");
-        assert_eq!(SimTime::from_u32_seconds(1), time);
+        assert_eq!(SimTime::from_nanos(1_500_000), time);
         assert_eq!(1, events.len());
         match_events(&event, events.first().unwrap());
     }
@@ -586,7 +586,7 @@ mod tests {
         let mut writer = ProtoEventsWriter::new(&path);
         let issued_events: Vec<Box<dyn EventTrait>> = vec![
             Box::new(
-                                GenericEventBuilder::default()
+                GenericEventBuilder::default()
                     .time(SimTime::from_u32_seconds(103))
                     .attributes(InternalAttributes::from(HashMap::from([(
                         String::from("attr1"),

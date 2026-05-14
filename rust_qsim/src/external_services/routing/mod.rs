@@ -69,12 +69,8 @@ impl From<InternalRoutingRequestPayload> for Request {
             to_link_id: req.to_link,
             to: Some(req.to.into()),
             mode: req.mode,
-            departure_time: req
-                .departure_time
-                .as_millis()
-                .try_into()
-                .unwrap_or(u64::MAX),
-            now: req.now.as_millis().try_into().unwrap_or(u64::MAX),
+            departure_time_ns: req.departure_time.as_nanos().try_into().unwrap_or(u64::MAX),
+            now_ns: req.now.as_nanos().try_into().unwrap_or(u64::MAX),
             request_id: req.uuid.as_bytes().to_vec(),
         }
     }
@@ -230,5 +226,33 @@ impl RoutingServiceAdapter {
             clients: RingIter::new(clients),
             shutdown_handles,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InternalRoutingRequestPayloadBuilder;
+    use crate::generated::routing::Request;
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::time::SimTime;
+
+    #[test]
+    fn request_conversion_uses_nanoseconds() {
+        let request = Request::from(
+            InternalRoutingRequestPayloadBuilder::default()
+                .person_id("person-1".to_string())
+                .from_link("from-link".to_string())
+                .from(Coordinate::new(1.0, 2.0))
+                .to_link("to-link".to_string())
+                .to(Coordinate::new(3.0, 4.0))
+                .mode("car".to_string())
+                .departure_time(SimTime::from_nanos(1_500_000))
+                .now(SimTime::from_nanos(2_750_000))
+                .build()
+                .unwrap(),
+        );
+
+        assert_eq!(1_500_000, request.departure_time_ns);
+        assert_eq!(2_750_000, request.now_ns);
     }
 }

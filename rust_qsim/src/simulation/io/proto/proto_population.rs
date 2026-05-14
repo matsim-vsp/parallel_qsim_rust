@@ -18,6 +18,14 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::Path;
 use tracing::info;
 
+fn nanos_to_u64(nanos: u128) -> u64 {
+    nanos.try_into().unwrap_or(u64::MAX)
+}
+
+fn duration_to_u64_nanos(duration: std::time::Duration) -> u64 {
+    nanos_to_u64(duration.as_nanos())
+}
+
 pub fn load_from_proto<F>(path: &Path, filter: F) -> Population
 where
     F: Fn(&InternalPerson) -> bool,
@@ -110,15 +118,9 @@ impl Activity {
                 y: value.coord.y,
                 z: value.coord.z,
             }),
-            start_time: value
-                .start_time
-                .map(|t| t.as_millis().try_into().unwrap_or(u64::MAX)),
-            end_time: value
-                .end_time
-                .map(|t| t.as_millis().try_into().unwrap_or(u64::MAX)),
-            max_dur: value
-                .max_dur
-                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
+            start_time_ns: value.start_time.map(|t| nanos_to_u64(t.as_nanos())),
+            end_time_ns: value.end_time.map(|t| nanos_to_u64(t.as_nanos())),
+            max_dur_ns: value.max_dur.map(duration_to_u64_nanos),
             attributes: value.attributes.as_cloned_map(),
         }
     }
@@ -132,12 +134,8 @@ impl Leg {
                 .routing_mode
                 .as_ref()
                 .map(|r| r.external().to_string()),
-            dep_time: value
-                .dep_time
-                .map(|t| t.as_millis().try_into().unwrap_or(u64::MAX)),
-            trav_time: value
-                .trav_time
-                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
+            dep_time_ns: value.dep_time.map(|t| nanos_to_u64(t.as_nanos())),
+            trav_time_ns: value.trav_time.map(duration_to_u64_nanos),
             attributes: value.attributes.as_cloned_map(),
             route: value.route.as_ref().map(Route::from),
         }
@@ -159,9 +157,7 @@ impl GenericRoute {
         Self {
             start_link: value.start_link().external().to_string(),
             end_link: value.end_link().external().to_string(),
-            trav_time: value
-                .trav_time()
-                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
+            trav_time_ns: value.trav_time().map(duration_to_u64_nanos),
             distance: value.distance(),
             veh_id: value.vehicle().as_ref().map(|v| v.external().to_string()),
         }
@@ -194,9 +190,7 @@ impl PtRouteDescription {
     fn from(value: &InternalPtRouteDescription) -> Self {
         Self {
             transit_route_id: value.transit_route_id.clone(),
-            boarding_time: value
-                .boarding_time
-                .map(|d| d.as_millis().try_into().unwrap_or(u64::MAX)),
+            boarding_time_ns: value.boarding_time.map(duration_to_u64_nanos),
             transit_line_id: value.transit_line_id.clone(),
             access_facility_id: value.access_facility_id.clone(),
             egress_facility_id: value.egress_facility_id.clone(),
@@ -207,13 +201,19 @@ impl PtRouteDescription {
 #[cfg(test)]
 mod tests {
     use crate::generated::population::Activity;
+    use crate::generated::population::{Leg, PtRouteDescription};
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::Network;
-    use crate::simulation::scenario::population::{InternalActivity, InternalPerson, Population};
+    use crate::simulation::scenario::population::{
+        InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson,
+        InternalPtRouteDescription, InternalRoute, Population,
+    };
     use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::time::SimTime;
     use macros::integration_test;
     use std::path::PathBuf;
+    use std::time::Duration;
 
     #[test]
     fn activity_coordinate_round_trip_preserves_none_z() {
@@ -221,9 +221,9 @@ mod tests {
             Coordinate::new(10.0, 20.0),
             "home",
             Id::create("1"),
-            Some(1),
-            Some(2),
-            Some(3),
+            Some(SimTime::from_nanos(1_500_000)),
+            Some(SimTime::from_nanos(2_250_000)),
+            Some(Duration::from_nanos(3_500_000)),
         );
 
         let wire = Activity::from(&activity);
@@ -232,6 +232,55 @@ mod tests {
         assert_eq!(10.0, round_trip.coord.x);
         assert_eq!(20.0, round_trip.coord.y);
         assert_eq!(None, round_trip.coord.z);
+        assert_eq!(Some(SimTime::from_nanos(1_500_000)), round_trip.start_time);
+        assert_eq!(Some(SimTime::from_nanos(2_250_000)), round_trip.end_time);
+        assert_eq!(Some(Duration::from_nanos(3_500_000)), round_trip.max_dur);
+    }
+
+    #[test]
+    fn leg_round_trip_preserves_sub_millisecond_times() {
+        let route = InternalRoute::Generic(InternalGenericRoute::new(
+            Id::create("start"),
+            Id::create("end"),
+            Some(Duration::from_nanos(4_750_000)),
+            Some(42.0),
+            None,
+        ));
+        let leg = InternalLeg::new(
+            route,
+            "walk",
+            Duration::from_nanos(3_250_000),
+            Some(SimTime::from_nanos(1_500_000)),
+        );
+
+        let wire = Leg::from(&leg);
+        let round_trip = InternalLeg::from(wire);
+
+        assert_eq!(Some(SimTime::from_nanos(1_500_000)), round_trip.dep_time);
+        assert_eq!(Some(Duration::from_nanos(3_250_000)), round_trip.trav_time);
+        assert_eq!(
+            Some(Duration::from_nanos(4_750_000)),
+            round_trip.route.unwrap().as_generic().trav_time()
+        );
+    }
+
+    #[test]
+    fn pt_route_description_round_trip_preserves_sub_millisecond_boarding_time() {
+        let description = InternalPtRouteDescription {
+            transit_route_id: "route-1".to_string(),
+            boarding_time: Some(Duration::from_nanos(750_000)),
+            transit_line_id: "line-1".to_string(),
+            access_facility_id: "access-1".to_string(),
+            egress_facility_id: "egress-1".to_string(),
+        };
+
+        let wire = PtRouteDescription::from(&description);
+        let round_trip = InternalPtRouteDescription::from(wire);
+
+        assert_eq!(
+            Some(Duration::from_nanos(750_000)),
+            round_trip.boarding_time
+        );
     }
 
     #[integration_test]

@@ -434,7 +434,7 @@ impl From<GenericRoute> for InternalGenericRoute {
         InternalGenericRoute {
             start_link: Id::get_from_ext(&g.start_link),
             end_link: Id::get_from_ext(&g.end_link),
-            trav_time: g.trav_time.map(Duration::from_millis),
+            trav_time: g.trav_time_ns.map(Duration::from_nanos),
             distance: g.distance,
             vehicle: g.veh_id.map(|s| Id::get_from_ext(&s)),
         }
@@ -445,7 +445,7 @@ impl From<PtRouteDescription> for InternalPtRouteDescription {
     fn from(value: PtRouteDescription) -> Self {
         InternalPtRouteDescription {
             transit_route_id: value.transit_route_id,
-            boarding_time: value.boarding_time.map(Duration::from_millis),
+            boarding_time: value.boarding_time_ns.map(Duration::from_nanos),
             transit_line_id: value.transit_line_id,
             access_facility_id: value.access_facility_id,
             egress_facility_id: value.egress_facility_id,
@@ -595,8 +595,8 @@ impl From<Leg> for InternalLeg {
         InternalLeg {
             mode: Id::get_from_ext(&io.mode),
             routing_mode: io.routing_mode.map(|s| Id::get_from_ext(&s)),
-            dep_time: io.dep_time.map(SimTime::from_millis),
-            trav_time: io.trav_time.map(Duration::from_millis),
+            dep_time: io.dep_time_ns.map(SimTime::from_nanos),
+            trav_time: io.trav_time_ns.map(Duration::from_nanos),
             route: io.route.map(InternalRoute::from),
             attributes: InternalAttributes::from(&io.attributes),
         }
@@ -630,9 +630,9 @@ impl From<Activity> for InternalActivity {
                 value.coordinate.as_ref().unwrap().y,
                 value.coordinate.as_ref().unwrap().z,
             ),
-            start_time: value.start_time.map(SimTime::from_millis),
-            end_time: value.end_time.map(SimTime::from_millis),
-            max_dur: value.max_dur.map(Duration::from_millis),
+            start_time: value.start_time_ns.map(SimTime::from_nanos),
+            end_time: value.end_time_ns.map(SimTime::from_nanos),
+            max_dur: value.max_dur_ns.map(Duration::from_nanos),
             attributes: InternalAttributes::from(&value.attributes),
         }
     }

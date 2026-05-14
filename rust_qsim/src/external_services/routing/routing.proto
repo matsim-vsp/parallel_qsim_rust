@@ -17,8 +17,10 @@ message Request {
   general.Coordinate to = 5;
   string to_link_id = 7;
   string mode = 8;
-  uint64 departure_time = 9;
-  uint64 now = 10;
+  // Simulation clock instant in nanoseconds since simulation start.
+  uint64 departure_time_ns = 9;
+  // Simulation clock instant in nanoseconds since simulation start.
+  uint64 now_ns = 10;
   bytes request_id = 11;
 }
 

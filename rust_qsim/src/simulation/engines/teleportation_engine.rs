@@ -153,6 +153,7 @@ mod tests {
     use crate::simulation::agents::SimulationAgentLogic;
     use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalRoute,
@@ -197,7 +198,14 @@ mod tests {
             std::time::Duration::default(),
             Some(SimTime::from_u32_seconds(1)),
         );
-        let act = InternalActivity::new(0.0, 0.0, "home", Id::create("start"), None, None, None);
+        let act = InternalActivity::new(
+            Coordinate::default(),
+            "home",
+            Id::create("start"),
+            None,
+            None,
+            None,
+        );
         let mut plan = InternalPlan::default();
         plan.add_act(act);
         plan.add_leg(leg);

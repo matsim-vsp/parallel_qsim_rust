@@ -4,7 +4,8 @@ package events;
 import "simulation/io/proto/types/general.proto";
 
 message TimeStep {
-  uint64 time = 1;
+  // Simulation clock instant in nanoseconds since simulation start.
+  uint64 time_ns = 1;
   bytes data = 2;
 }
 
