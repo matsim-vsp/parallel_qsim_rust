@@ -95,7 +95,7 @@ impl ForwardBackwardGraph {
         &self.forward_graph.first_out
     }
 
-    pub fn backward_first_out(&self) -> &Vec<LinkIndex> {
+    pub fn backward_first_out(&self) -> &Vec<BackwardLinkIndex> {
         &self.backward_graph.first_out
     }
 
@@ -119,27 +119,60 @@ impl ForwardBackwardGraph {
         &self.forward_graph.link_id_pos
     }
 
+    pub fn backward_link_id_pos(&self) -> &IntMap<Id<Link>, BackwardLinkIndex> {
+        &self.backward_graph.link_id_pos
+    }
+
     #[cfg(test)]
     pub fn number_of_links(&self) -> usize {
         self.forward_graph.head.len()
     }
 
-    pub fn get_node_id(&self, idx: NodeIndex) -> Id<Node> {
-        self.forward_graph.node_id_by_index[idx].clone()
+    pub fn get_node_id(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError> {
+        self.forward_graph
+            .node_id_by_index
+            .get(idx)
+            .ok_or_else(|| GraphError::NodeIndexNotFound(idx))
+            .cloned()
     }
 
-    pub fn get_link_id(&self, idx: LinkIndex) -> Id<Link> {
-        self.forward_graph.link_ids[idx].clone()
+    pub fn get_link_id(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError> {
+        self.forward_graph
+            .link_ids
+            .get(idx)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(idx))
+            .cloned()
+    }
+
+    /// Get index of a link in the backward graph, given the index of the link in the forward graph.
+    /// The indices differ since they depend on the number of outgoing and incoming edges of all
+    /// nodes with lower index than the start node of the link, which differ between forward and
+    /// backward graph.
+    fn get_backward_link_index(
+        &self,
+        forward_link_idx: LinkIndex,
+    ) -> Result<BackwardLinkIndex, GraphError> {
+        // convert forward link index to link id
+        let link_id = self.get_link_id(forward_link_idx)?;
+        // convert back to backward link index
+        self.backward_link_id_pos()
+            .get(&link_id)
+            .ok_or_else(|| GraphError::LinkIdNotFound(link_id))
+            .cloned()
     }
 }
 
 impl Graph for ForwardBackwardGraph {
-    fn node(&self, id: Id<Node>) -> &Node {
-        self.node_id_to_node.get(&id).unwrap()
+    fn node(&self, id: Id<Node>) -> Result<&Node, GraphError> {
+        self.node_id_to_node
+            .get(&id)
+            .ok_or_else(|| GraphError::NodeIdNotFound(id))
     }
 
-    fn edge(&self, id: Id<Link>) -> &Link {
-        self.link_id_to_link.get(&id).unwrap()
+    fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError> {
+        self.link_id_to_link
+            .get(&id)
+            .ok_or_else(|| GraphError::LinkIdNotFound(id))
     }
 
     fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>] {
@@ -162,71 +195,66 @@ impl Graph for ForwardBackwardGraph {
     }
 
     fn get_end_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError> {
-        // TODO this shoudl be the get_link_idx_from_id function actually
-        let link_id_index = self
-            .forward_link_id_pos()
-            .get(&link_id)
-            .ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))?;
-
-        let node_idx = self.forward_head().get(*link_id_index).unwrap().clone();
+        // find index of link (in self.forward_head())
+        let link_id_index = self.get_link_idx_from_id(link_id)?;
+        // get node index of end node
+        let node_idx = self.forward_head().get(link_id_index).unwrap().clone();
+        // convert node index to node id and return
         Ok(self.forward_graph.node_id_by_index[node_idx].clone())
     }
 
     fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError> {
-        // TODO should be get_link_idx_from_id
-        let link_id_index = self
-            .forward_link_id_pos()
-            .get(&link_id)
-            .ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))?;
+        // get link index of link in the forward graph
+        let link_index = self.get_link_idx_from_id(link_id)?;
 
-        let mut result = None;
+        // convert it to a backward link index for the backward graph, so we can look up the start
+        // node of the edge via self.backward_head()
+        let backward_link_index = self.get_backward_link_index(link_index)?;
+        let start_node_idx = self
+            .backward_head()
+            .get(backward_link_index)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(backward_link_index))
+            .copied()?;
 
-        // FIXME this can't be the optimal way to handle this, when we in fact have a backward graph!
-        for i in 0..self.forward_first_out().len() {
-            if link_id_index >= self.forward_first_out().get(i).unwrap()
-                && link_id_index < self.forward_first_out().get(i + 1).unwrap()
-            {
-                result = Some(i);
-            }
-        }
-
-        let node_idx = result.ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))?;
-        Ok(self.forward_graph.node_id_by_index[node_idx].clone())
+        // finally convert the found node index into node id
+        self.get_node_id(start_node_idx)
     }
 }
 
 impl IndexableGraph for ForwardBackwardGraph {
     fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
-        match self.forward_head().get(edge) {
-            Some(node_idx) => Ok(*node_idx),
-            None => Err(GraphError::LinkIndexNotFound(edge)),
-        }
+        self.forward_head()
+            .get(edge)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(edge))
+            .copied()
     }
 
     fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
-        // FIXME again, I can't imagine this to be optimal when we have a backward graph?
-        // Find which node owns this edge as an outgoing edge by searching first_out
-        for i in 0..self.forward_first_out().len() - 1 {
-            if edge >= self.forward_first_out()[i] && edge < self.forward_first_out()[i + 1] {
-                return Ok(i);
-            }
-        }
-        // No node was found to own this edge, so return an error
-        Err(GraphError::LinkIndexNotFound(edge))
+        // find index of edge in the backward graph (in self.backward_head()
+        let backward_link_index = self.get_backward_link_index(edge)?;
+
+        // look up start node (= end node in the backward graph) in backward_head()
+        self.backward_head()
+            .get(backward_link_index)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(backward_link_index))
+            .copied()
     }
-    fn get_link_idx_from_id(&self, link_id: Id<Link>) -> LinkIndex {
-        self.forward_link_id_pos()[&link_id]
+    fn get_link_idx_from_id(&self, link_id: Id<Link>) -> Result<LinkIndex, GraphError> {
+        self.forward_link_id_pos()
+            .get(&link_id)
+            .ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))
+            .copied()
     }
     fn get_node_idx_from_id(&self, node_id: Id<Node>) -> NodeIndex {
         self.forward_graph.node_index_by_id[&node_id]
     }
-    fn get_link_from_idx(&self, idx: LinkIndex) -> &Link {
+    fn get_link_from_idx(&self, idx: LinkIndex) -> Result<&Link, GraphError> {
         // uses method from Graph trait to map link id to link
-        self.edge(self.get_link_id_from_idx(idx))
+        self.edge(self.get_link_id_from_idx(idx)?)
     }
-    fn get_node_from_idx(&self, idx: NodeIndex) -> &Node {
+    fn get_node_from_idx(&self, idx: NodeIndex) -> Result<&Node, GraphError> {
         // uses method from Graph trait to map node id to node
-        self.node(self.get_node_id_from_idx(idx))
+        self.node(self.get_node_id_from_idx(idx)?)
     }
     fn outgoing_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex> {
         (self.forward_first_out()[node]..self.forward_first_out()[node + 1]).collect()
@@ -234,21 +262,25 @@ impl IndexableGraph for ForwardBackwardGraph {
     fn incoming_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex> {
         // TODO check if this function makes sense as well
         // Get the link ids from backward structure
-        let backward_range = self.backward_first_out()[node]..self.backward_first_out()[node + 1];
-        let backward_link_ids: Vec<_> = backward_range
+        let backward_link_indices =
+            self.backward_first_out()[node]..self.backward_first_out()[node + 1];
+
+        // Map backward link indices to link ids
+        let link_ids: Vec<_> = backward_link_indices
             .map(|i| &self.backward_link_ids()[i])
             .collect();
 
-        // Map backward link ids back to forward indices
-        backward_link_ids
+        // Map link ids back to (forward) link indices
+        link_ids
             .iter()
             .map(|id| *self.forward_link_id_pos().get(id).unwrap())
             .collect()
     }
-    fn get_link_id_from_idx(&self, idx: LinkIndex) -> Id<Link> {
+
+    fn get_link_id_from_idx(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError> {
         self.get_link_id(idx)
     }
-    fn get_node_id_from_idx(&self, idx: NodeIndex) -> Id<Node> {
+    fn get_node_id_from_idx(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError> {
         self.get_node_id(idx)
     }
 }
@@ -258,6 +290,12 @@ pub type NodeIndex = usize;
 
 /// An index of a link in an `IndexableGraph`
 pub type LinkIndex = usize;
+
+/// An index of a link in the backward graph of a `ForwardBackwardGraph`.
+/// Only used internally, when indexing the backward graph to find the start node of some edge.
+/// This separate type alias is used to emphasize that indices of links are not the same in the
+/// forward and backward graphs.
+pub(crate) type BackwardLinkIndex = usize;
 
 /// A directed graph with network node ids as nodes, and network link ids as edges, used for routing
 /// on the network.
@@ -434,7 +472,7 @@ pub(crate) mod tests {
         for (i, index) in outgoing_indices.iter().enumerate() {
             // Check whether the link id associated with each LinkIndex returned from
             // outgoing_edges_as_idx() matches the link ids returned from outgoing_edges()
-            assert_eq!(graph.get_link_id(*index), outgoing_ids[i]);
+            assert_eq!(graph.get_link_id(*index).unwrap(), outgoing_ids[i]);
         }
     }
 
@@ -458,7 +496,7 @@ pub(crate) mod tests {
         for (i, index) in incoming_indices.iter().enumerate() {
             // Check whether the link id associated with each LinkIndex returned from
             // incoming_edges_as_idx() matches the link ids returned from incoming_edges()
-            assert_eq!(graph.get_link_id(*index), incoming_ids[i]);
+            assert_eq!(graph.get_link_id(*index).unwrap(), incoming_ids[i]);
         }
     }
 
@@ -543,9 +581,9 @@ pub(crate) mod tests {
         let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
         for link_id in outgoing_links {
             // Link ID -> Link Index
-            let link_idx = graph.get_link_idx_from_id(link_id.clone());
+            let link_idx = graph.get_link_idx_from_id(link_id.clone()).unwrap();
             // Link Index -> Link ID
-            let link_id_roundtrip = graph.get_link_id_from_idx(link_idx);
+            let link_id_roundtrip = graph.get_link_id_from_idx(link_idx).unwrap();
 
             assert_eq!(
                 *link_id, link_id_roundtrip,
@@ -566,7 +604,8 @@ pub(crate) mod tests {
         let node_id_roundtrip = graph.get_node_id_from_idx(node_idx);
 
         assert_eq!(
-            node_id, node_id_roundtrip,
+            node_id,
+            node_id_roundtrip.unwrap(),
             "Node ID roundtrip should be idempotent"
         );
     }

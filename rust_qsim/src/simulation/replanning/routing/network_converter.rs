@@ -71,7 +71,7 @@ impl NetworkConverter {
 
         for (i, node) in nodes.iter().enumerate() {
             //set x and y
-            y.push(node.x);
+            y.push(node.x); // FIXME this can't be right, no?
             x.push(node.y);
 
             forward_first_out.push(forward_links_before as LinkIndex);

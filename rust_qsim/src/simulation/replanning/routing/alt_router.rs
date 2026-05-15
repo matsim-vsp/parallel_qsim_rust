@@ -190,7 +190,7 @@ impl<H: AStarHeuristic> AStarRouter<H> {
                 if graph.get_end_node_as_idx(j)? == end_node {
                     // a link connecting the start node and the end node was found, now get the
                     // actual Id<Link> of the link
-                    link_path.push(graph.get_link_id_from_idx(j));
+                    link_path.push(graph.get_link_id_from_idx(j)?);
                     break;
                 }
             }

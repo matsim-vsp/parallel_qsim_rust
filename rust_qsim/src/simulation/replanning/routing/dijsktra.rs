@@ -213,7 +213,7 @@ impl Dijkstra {
                     continue;
                 }
 
-                let link_i = request.graph.get_link_from_idx(i);
+                let link_i = request.graph.get_link_from_idx(i)?;
 
                 // Use the actual arrival time at the current node, not the departure time from the request
                 let neighbour_distance = current_distance
@@ -252,11 +252,11 @@ impl Dijkstra {
                                     // the options
 
                                     let to_node_id =
-                                        request.graph.get_node_id_from_idx(to_node_idx);
+                                        request.graph.get_node_id_from_idx(to_node_idx)?;
 
                                     h.estimate(
                                         request.graph,
-                                        request.graph.get_node_id_from_idx(neighbour),
+                                        request.graph.get_node_id_from_idx(neighbour)?,
                                         to_node_id,
                                     )
                                 }

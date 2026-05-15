@@ -14,9 +14,9 @@ pub type Disutility = f64;
 /// The graph is used for routing, and the nodes and links can be accessed by their id.
 pub trait Graph: Debug {
     /// get network node from node id
-    fn node(&self, id: Id<Node>) -> &Node;
+    fn node(&self, id: Id<Node>) -> Result<&Node, GraphError>;
     /// get network link from link id
-    fn edge(&self, id: Id<Link>) -> &Link;
+    fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError>;
     /// get slice of the outgoing edges, as link ids, of a given node, given as node id
     fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>];
     /// get slice of the incoming edges, as link ids, of a given node, given as node id
@@ -36,11 +36,11 @@ pub trait Graph: Debug {
 /// the rest of the code.
 pub trait IndexableGraph: Graph {
     fn get_node_idx_from_id(&self, id: Id<Node>) -> NodeIndex;
-    fn get_link_idx_from_id(&self, id: Id<Link>) -> LinkIndex;
-    fn get_node_id_from_idx(&self, idx: NodeIndex) -> Id<Node>;
-    fn get_link_id_from_idx(&self, idx: LinkIndex) -> Id<Link>;
-    fn get_node_from_idx(&self, idx: NodeIndex) -> &Node;
-    fn get_link_from_idx(&self, idx: LinkIndex) -> &Link;
+    fn get_link_idx_from_id(&self, id: Id<Link>) -> Result<LinkIndex, GraphError>;
+    fn get_node_id_from_idx(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError>;
+    fn get_link_id_from_idx(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError>;
+    fn get_node_from_idx(&self, idx: NodeIndex) -> Result<&Node, GraphError>;
+    fn get_link_from_idx(&self, idx: LinkIndex) -> Result<&Link, GraphError>;
     fn outgoing_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
     fn incoming_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
     fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
@@ -211,7 +211,7 @@ mod tests {
         let fpttad = FreeSpeedTravelTimeAndDisutility;
 
         let graph = get_triangle_test_graph();
-        let link = graph.edge(Id::create("4"));
+        let link = graph.edge(Id::create("4")).unwrap();
 
         assert_eq!(fpttad.travel_time(link, 0.0, None, None), 4.0);
         assert_eq!(fpttad.travel_disutility(link, 0.0, None, None), 4.0);
