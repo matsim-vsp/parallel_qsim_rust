@@ -1,9 +1,10 @@
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::mpsc::{Receiver, Sender};
 use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
 use crate::simulation::scoring::{InternalScoringMessage, Message};
@@ -14,7 +15,8 @@ pub struct BackpackingMessageBroker
     senders: Vec<Sender<InternalScoringMessage>>,
     rank: u32,
 
-    buffer: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
+    buffer_backpacks: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
+    buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,>,
     data_collector: Weak<Mutex<BackpackingDataCollector>>,
 }
 
@@ -29,7 +31,8 @@ impl BackpackingMessageBroker
             receiver,
             senders,
             rank,
-            buffer: HashMap::new(),
+            buffer_backpacks: HashMap::new(),
+            buffer_vehicles: HashMap::new(),
             data_collector: Weak::new()
         }))
     }
@@ -57,11 +60,32 @@ impl BackpackingMessageBroker
     }
 
     pub(crate) fn add_leaving_backpack(&mut self, target: QSimId, agent_id: Id<InternalPerson>, backpack: Backpack) {
-        self.buffer.entry(target).or_insert_with(|| HashMap::new()).insert(agent_id, backpack);
+        self.buffer_backpacks.entry(target).or_insert_with(|| HashMap::new()).insert(agent_id, backpack);
+    }
+    
+    pub(crate) fn add_leaving_vehicle(&mut self, target: QSimId, vehicle_id: Id<InternalVehicle>, passengers: HashSet<Id<InternalPerson>>) {
+        self.buffer_vehicles.entry(target).or_insert_with(|| HashMap::new()).insert(vehicle_id, passengers);
     }
 
     fn send_recv(&mut self) {
-        for (target, backpacks) in self.buffer.drain() {
+        for (target, vehicles) in self.buffer_vehicles.drain() {
+            let msg = InternalScoringMessage {
+                from_process: self.rank,
+                to_process: target,
+                message: Box::new(VehicleMessage { vehicles }),
+            };
+
+            let sender = self.senders.get_mut(target as usize).unwrap();
+            sender.send(msg)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Error while sending message to rank {} with error {}",
+                        target, e
+                    )
+                });
+        }
+        
+        for (target, backpacks) in self.buffer_backpacks.drain() {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
@@ -82,6 +106,10 @@ impl BackpackingMessageBroker
             let boxed_any = received_msg.message.into_any();
 
             match () {
+                _ if boxed_any.is::<VehicleMessage>() => {
+                    let m = boxed_any.downcast::<VehicleMessage>().unwrap();
+                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_vehicles(m.vehicles);
+                }
                 _ if boxed_any.is::<BackpackingMessage>() => {
                     let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
                     self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_backpacks(m.backpacks);
@@ -93,6 +121,10 @@ impl BackpackingMessageBroker
             }
         }
     }
+}
+
+pub struct VehicleMessage {
+    vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
 }
 
 pub struct BackpackingMessage {

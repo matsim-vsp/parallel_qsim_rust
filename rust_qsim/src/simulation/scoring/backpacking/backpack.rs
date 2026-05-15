@@ -17,7 +17,7 @@ impl Default for BackpackPlan {
     fn default() -> Self {
         Self {
             elements: Vec::default(),
-            current_activity: None,
+            current_activity: Some(BackpackActivity::default()),
             current_leg: None,
         }
     }
@@ -30,7 +30,6 @@ impl BackpackPlan {
         }
 
         self.current_leg = Some(BackpackLeg::default());
-        self.current_leg.as_mut().unwrap().handle_person_departure(event);
     }
 
     fn handle_person_arrival(&mut self, event: &PersonArrivalEvent) {
@@ -38,41 +37,42 @@ impl BackpackPlan {
             panic!("Illegal state: Person arrives while having no active leg!");
         }
 
-        self.current_leg.as_mut().unwrap().handle_person_arrival(event);
-        self.elements.push(Activity(self.current_activity.take().unwrap().finish()));
+        self.elements.push(InternalPlanElement::Leg(self.current_leg.take().unwrap().finish()));
     }
 
     fn handle_activity_start(&mut self, event: &ActivityStartEvent) {
-        if self.current_leg.is_some() {
+        if self.current_activity.is_some() {
             panic!("Illegal state: Person starts activity while doing an activity!");
         }
 
         self.current_activity = Some(BackpackActivity::default());
-        self.current_activity.as_mut().unwrap().handle_activity_start(event);
     }
 
     fn handle_activity_end(&mut self, event: &ActivityEndEvent) {
-        if self.current_leg.is_none() {
+        if self.current_activity.is_none() {
             panic!("Illegal state: Person ends activity while not doing an activity!");
         }
 
-        self.current_activity.as_mut().unwrap().handle_activity_end(event);
-        self.elements.push(InternalPlanElement::Leg(self.current_leg.take().unwrap().finish()))
+        self.elements.push(Activity(self.current_activity.take().unwrap().finish()))
     }
 
     fn handle_event(&mut self, event: &dyn EventTrait){
         if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
             self.handle_person_departure(e);
-        } else if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
-            self.handle_person_arrival(e);
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityStartEvent>() {
             self.handle_activity_start(e);
-        } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
-            self.handle_activity_end(e);
         }
 
         if self.current_leg.is_some() {
             self.current_leg.as_mut().unwrap().handle_event(event);
+        } else {
+            self.current_activity.as_mut().unwrap().handle_event(event);
+        }
+
+        if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
+            self.handle_person_arrival(e);
+        } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
+            self.handle_activity_end(e);
         }
     }
 }
@@ -99,16 +99,23 @@ impl Default for BackpackActivity {
 }
 
 impl BackpackActivity {
-    // TODO Change the code structure to make handle_* functions called internally only
     fn handle_activity_start(&mut self, event: &ActivityStartEvent) {
-        self.act_type = Some(event.act_type.clone());
-        self.link_id = Some(event.link.clone());
-        self.coordinate = Some(event.coordinate.clone());
         self.start_time = Some(event.time);
     }
 
     fn handle_activity_end(&mut self, event: &ActivityEndEvent) {
+        self.act_type = Some(event.act_type.clone());
+        self.link_id = Some(event.link.clone());
+        self.coordinate = Some(event.coordinate.clone());
         self.end_time = Some(event.time);
+    }
+
+    fn handle_event(&mut self, event: &dyn EventTrait) {
+        if let Some(e) = event.as_any().downcast_ref::<ActivityStartEvent>() {
+            self.handle_activity_start(e);
+        } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
+            self.handle_activity_end(e);
+        }
     }
 
     /// Consuming function turning BackpackActivity into an InternalActivity
@@ -167,6 +174,12 @@ impl BackpackLeg {
     }
 
     fn handle_event(&mut self, event: &dyn EventTrait) {
+        if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
+            self.handle_person_arrival(e);
+        } else if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
+            self.handle_person_departure(e);
+        }
+
         self.backpack_route.handle_event(event);
     }
 
@@ -203,7 +216,7 @@ struct BackpackRoute {
     vehicle: Option<Id<InternalVehicle>>,
 
     // Network Route Type
-    route: Option<Vec<Id<Link>>> // TODO Should this include start/end link?
+    route: Vec<Id<Link>>
 }
 
 impl Default for BackpackRoute {
@@ -216,7 +229,7 @@ impl Default for BackpackRoute {
             end_time: None,
             distance: None,
             vehicle: None,
-            route: None,
+            route: Vec::default(),
         }
     }
 }
@@ -230,10 +243,14 @@ impl BackpackRoute {
     fn handle_person_arrival(&mut self, event: &PersonArrivalEvent) {
         self.end_time = Some(event.time);
         self.end_link = Some(event.link.clone());
-
     }
 
     fn handle_person_enters_vehicle(&mut self, event: &PersonEntersVehicleEvent) {
+        if self.route_type == Some(BackpackRouteTypes::Generic) {
+            panic!("Caught a link enter event on an Generic Route Type!")
+        }
+        self.route_type = Some(BackpackRouteTypes::Network);
+
         self.vehicle = Some(event.vehicle.clone());
     }
 
@@ -248,15 +265,7 @@ impl BackpackRoute {
     }
 
     fn handle_link_enter_event(&mut self, event: &LinkEnterEvent) {
-        if self.route_type == Some(BackpackRouteTypes::Generic) {
-            panic!("Caught a link enter event on an Generic Route Type!")
-        }
-        self.route_type = Some(BackpackRouteTypes::Network);
-
-        if self.route.is_none() {
-            self.route = Some(vec![]);
-        }
-        self.route.as_mut().unwrap().push(event.link.clone());
+        self.route.push(event.link.clone());
     }
 
     fn handle_teleportation_arrival(&mut self, event: &TeleportationArrivalEvent) {
@@ -287,11 +296,16 @@ impl BackpackRoute {
     }
 
     fn finish(self) -> InternalRoute {
-        if self.distance.is_none() {
+        if self.route_type == Some(BackpackRouteTypes::Generic) && self.distance.is_none() {
             panic!("Tried to finish BackpackRoute without distance!");
         }
         if self.vehicle.is_none() {
             panic!("Tried to finish BackpackRoute without vehicle!");
+        }
+        if self.route_type == Some(BackpackRouteTypes::Network) &&
+            self.route.is_empty() &&
+            (self.start_link != self.end_link) {
+            panic!("Tried to finish BackpackRoute of type Network with empty vector but differing start and end link!");
         }
 
         let route_delegate = InternalGenericRoute::new(
@@ -305,15 +319,15 @@ impl BackpackRoute {
 
         match self.route_type {
             Some(BackpackRouteTypes::Generic) => {
-                return InternalRoute::Generic(route_delegate);
+                InternalRoute::Generic(route_delegate)
             }
             Some(BackpackRouteTypes::Network) => {
                 let route = InternalNetworkRoute::new(
                     route_delegate,
-                    self.route.unwrap_or_else(|| panic!("Tried to finish BackpackRoute without route!")),
+                    self.route,
                 );
 
-                return InternalRoute::Network(route);
+                InternalRoute::Network(route)
             }
             None => panic!("Tried to finish a BackpackRoute which has no route type!")
         }

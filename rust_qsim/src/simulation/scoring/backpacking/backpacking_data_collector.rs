@@ -1,6 +1,5 @@
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use ahash::HashSet;
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
 use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
@@ -40,15 +39,26 @@ impl BackpackingDataCollector {
         }
     }
 
-    pub(crate) fn add_arriving_backpacks(&mut self, arriving_passengers: HashMap<Id<InternalPerson>, Backpack>) {
-        for k in arriving_passengers.keys(){
-            println!("Partition #{}: Adding arriving passenger {}", self.rank, k); // TODO Debug only, remove when working
+    pub(crate) fn add_arriving_vehicles(&mut self, arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>) {
+        for k in arriving_vehicles.keys(){
+            println!("Partition #{}: Adding arriving vehicle {}", self.rank, k); // TODO Debug only, remove when working
         }
-        self.person_id2backpack.extend(arriving_passengers);
+        self.vehicle_id2person_ids.extend(arriving_vehicles);
     }
 
-    fn remove_leaving_backpack(&mut self, person_id: Id<InternalPerson>) -> Backpack {
-        self.person_id2backpack.remove(&person_id).unwrap_or_else(|| {panic!("Tried to remove an agent, for which no backpack is available")})
+    pub(crate) fn add_arriving_backpacks(&mut self, arriving_backpack: HashMap<Id<InternalPerson>, Backpack>) {
+        for k in arriving_backpack.keys(){
+            println!("Partition #{}: Adding arriving passenger {}", self.rank, k); // TODO Debug only, remove when working
+        }
+        self.person_id2backpack.extend(arriving_backpack);
+    }
+
+    fn remove_leaving_vehicles(&mut self, vehicle_id: &Id<InternalVehicle>) -> HashSet<Id<InternalPerson>> {
+        self.vehicle_id2person_ids.remove(vehicle_id).unwrap_or_else(|| panic!("Tried to remove a vehicle, which has no entry!"))
+    }
+
+    fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
+        self.person_id2backpack.remove(person_id).unwrap_or_else(|| panic!("Tried to remove an agent, for which no backpack is available!"))
     }
 
     pub fn get_backpacks(&self) -> &HashMap<Id<InternalPerson>, Backpack> {
@@ -67,29 +77,40 @@ impl BackpackingDataCollector {
     /// This method's main purpose is to forward relevant events to the backpacks affected by given event.
     /// Events which do not affect the Backpack of any person will be ignored.
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
+    /// TODO Remove the println!() calls for final PQ
     fn handle_event(&mut self, event: &dyn EventTrait ) {
         let affected_persons = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
+            println!("LinkEnterEvent");
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
                 .map(|persons| persons.iter().cloned().collect())
                 .unwrap_or_default()
         } else if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
+            println!("PersonArrivalEvent");
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
+            println!("PersonDepartureEvent: {}, {}", e.routing_mode, e.leg_mode);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityStartEvent>() {
+            println!("ActivityStartEvent");
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
+            println!("ActivityEndEvent");
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
+            println!("TeleportationArrivalEvent");
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
+            println!("PersonEntersVehicleEvent");
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+            println!("PersonLeavesVehicleEvent");
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
+            println!("VehicleEntersTrafficEvent");
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
+            println!("VehicleLeavesTrafficEvent");
             vec![e.person.clone()]
         } else {
             vec![]
@@ -149,8 +170,12 @@ impl BackpackingDataCollector {
             let bdc = Arc::clone(&data_collector);
             events.on_event(move |e: &RuntimeEvent<PartitionEvent>| {
                 match &e.payload {
+                    PartitionEvent::VehicleLeavesPartition(i) => {
+                        let leaving_vehicle = bdc.lock().unwrap().remove_leaving_vehicles(&i.vehicle_id);
+                        bdc.lock().unwrap().message_broker.lock().unwrap().add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
+                    }
                     PartitionEvent::AgentLeavesPartition(i) => {
-                        let leaving_backpack = bdc.lock().unwrap().remove_leaving_backpack(i.agent_id.clone());
+                        let leaving_backpack = bdc.lock().unwrap().remove_leaving_backpack(&i.agent_id);
                         bdc.lock().unwrap().message_broker.lock().unwrap().add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
                     },
                     _ => {}
