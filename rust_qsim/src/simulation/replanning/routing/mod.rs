@@ -1,6 +1,6 @@
+mod a_star_core;
+pub mod a_star_router;
 pub mod alt_landmark_data;
-pub mod alt_router;
-mod dijsktra;
 mod graph;
 pub mod least_cost_path_caluclator;
 mod network_converter;

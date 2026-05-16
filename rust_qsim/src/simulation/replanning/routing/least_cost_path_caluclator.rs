@@ -1,6 +1,6 @@
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::graph::{GraphError, LinkIndex, NodeIndex};
-use crate::simulation::scenario::network::{Link, Node};
+use crate::simulation::replanning::routing::graph::IndexableGraph;
+use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use derive_builder::Builder;
@@ -9,55 +9,6 @@ use std::fmt::Debug;
 // "normal" time representation is u32 for now, but we might want to use f64 for the future
 pub type Time = f64;
 pub type Disutility = f64;
-
-/// A (directed) graph whose nodes are Ids of network nodes, and edges are Ids of network links.
-/// The graph is used for routing, and the nodes and links can be accessed by their id.
-pub trait Graph: Debug {
-    /// get network node from node id
-    fn node(&self, id: Id<Node>) -> Result<&Node, GraphError>;
-    /// get network link from link id
-    fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError>;
-    /// get slice of the outgoing edges, as link ids, of a given node, given as node id
-    fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>];
-    /// get slice of the incoming edges, as link ids, of a given node, given as node id
-    fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>];
-    fn num_nodes(&self) -> usize;
-    /// get the end node (head) of a given link, given as link id
-    /// Returns an error if the link does not exist in the graph
-    fn get_end_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
-    /// get the start node of a given link, given as link id
-    /// Returns an error if the link does not exist in the graph
-    fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
-}
-
-/// A (directed) graph where nodes and links can be accessed by both their id and their index.
-/// Mirrors many trait methods from its supertrait "Graph", but using indices instead of ids.
-/// This is used to keep the routing algorithms efficient, while still being able to use the ids in
-/// the rest of the code.
-pub trait IndexableGraph: Graph {
-    fn get_node_idx_from_id(&self, id: Id<Node>) -> NodeIndex;
-    fn get_link_idx_from_id(&self, id: Id<Link>) -> Result<LinkIndex, GraphError>;
-    fn get_node_id_from_idx(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError>;
-    fn get_link_id_from_idx(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError>;
-    fn get_node_from_idx(&self, idx: NodeIndex) -> Result<&Node, GraphError>;
-    fn get_link_from_idx(&self, idx: LinkIndex) -> Result<&Link, GraphError>;
-    fn outgoing_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
-    fn incoming_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
-    fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
-    fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
-}
-
-/// Router that calculates a least cost path between given from- and to-links on a given graph.
-pub trait LeastCostPathCalculator {
-    /// Calculate the least cost path as defined in the request. Requests contain from- and
-    /// to-links, a reference to the graph to route on as well as the departure time and an optional
-    /// person and vehicle.
-    /// If no path is found, either because the to-link is unreachable or because the from- or
-    /// to-link do not exist in the graph, None is returned.
-    /// Otherwise, the path is returned together with its travel time and disutility.
-    // todo QUESTION: previously, we had &mut self here, but I don't see why. Do we need it?
-    fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath>;
-}
 
 /// Travel time function, mapping any network link to a travel time, depending on the departure time
 /// and optionally the person and vehicle.
@@ -81,37 +32,6 @@ pub trait TravelDisutility: Debug {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility;
-}
-
-// From and to are deliberately not nodes but links. This allows considering those links as well during routing.
-/// A request for the calculation of least cost paths. Contain all relevant data for the
-/// calculation, that is
-/// - from- and to-links, and a reference to the graph representing the network (must be an
-///     `IndexableGraph` so that the routing algorithms can be efficient)
-/// - the departure time at the from-node and optionally a person and vehicle. These are passed to
-///     travel time and disutility functions in routing (the latter being used as cost, and the
-///     former used to determine the arrival times at specific nodes)
-#[derive(Builder, Clone)]
-pub struct LeastCostPathRequest<'r> {
-    pub from: Id<Link>,
-    pub to: Id<Link>,
-    pub graph: &'r dyn IndexableGraph, // contains the graph of the network
-    #[builder(default)]
-    pub departure_time: Time,
-    #[builder(default)]
-    pub person: Option<&'r InternalPerson>,
-    #[builder(default)]
-    pub vehicle: Option<&'r InternalVehicle>,
-}
-
-/// A least cost path, given as a vector of network link ids, together with the travel time needed
-/// to take the path and the corresponding travel disutility (it's the latter which is optimal, so
-/// it's truly a least-disutility path).
-#[derive(PartialEq, Debug)]
-pub struct LeastCostPath {
-    pub path: Vec<Id<Link>>,
-    pub travel_time: Time,
-    pub travel_disutility: Disutility,
 }
 
 /// An implementation of both `TravelTime` and `TravelDisutility`, mostly based on freespeed travel
@@ -155,14 +75,57 @@ impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
     }
 }
 
+/// A request for the calculation of least cost paths. Contain all relevant data for the
+/// calculation, that is
+/// - from- and to-links, and a reference to the graph representing the network (must be an
+///     `IndexableGraph` so that the routing algorithms can be efficient)
+/// - the departure time at the from-node and optionally a person and vehicle. These are passed to
+///     travel time and disutility functions in routing (the latter being used as cost, and the
+///     former used to determine the arrival times at specific nodes)
+#[derive(Builder, Clone)]
+pub struct LeastCostPathRequest<'r> {
+    // From and to are deliberately not nodes but links. This allows considering those links as well during routing.
+    pub from: Id<Link>,
+    pub to: Id<Link>,
+    pub graph: &'r dyn IndexableGraph, // contains the graph of the network
+    #[builder(default)]
+    pub departure_time: Time,
+    #[builder(default)]
+    pub person: Option<&'r InternalPerson>,
+    #[builder(default)]
+    pub vehicle: Option<&'r InternalVehicle>,
+}
+
+/// A least cost path, given as a vector of network link ids, together with the travel time needed
+/// to take the path and the corresponding travel disutility (it's the latter which is optimal, so
+/// it's truly a least-disutility path).
+#[derive(PartialEq, Debug)]
+pub struct LeastCostPath {
+    pub path: Vec<Id<Link>>,
+    pub travel_time: Time,
+    pub travel_disutility: Disutility,
+}
+
+/// Router that calculates a least cost path between given from- and to-links on a given graph.
+pub trait LeastCostPathCalculator {
+    /// Calculate the least cost path as defined in the request. Requests contain from- and
+    /// to-links, a reference to the graph to route on as well as the departure time and an optional
+    /// person and vehicle.
+    /// If no path is found, either because the to-link is unreachable or because the from- or
+    /// to-link do not exist in the graph, None is returned.
+    /// Otherwise, the path is returned together with its travel time and disutility.
+    // todo QUESTION: previously, we had &mut self here, but I don't see why. Do we need it?
+    fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath>;
+}
+
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
 
-    use crate::simulation::replanning::routing::alt_router::AStarRouter;
-    use crate::simulation::replanning::routing::alt_router::ZeroHeuristic;
+    use crate::simulation::replanning::routing::a_star_router::AStarRouter;
+    use crate::simulation::replanning::routing::a_star_router::ZeroHeuristic;
+    use crate::simulation::replanning::routing::graph::Graph;
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::Graph;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
         FreeSpeedTravelTimeAndDisutility, LeastCostPath, LeastCostPathRequestBuilder,
     };

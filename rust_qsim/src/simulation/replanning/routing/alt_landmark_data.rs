@@ -1,11 +1,9 @@
-use crate::simulation::replanning::routing::dijsktra::{
-    Dijkstra, DijkstraActions, DijkstraRequestBuilder, DijkstraResult, HeuristicMode,
+use crate::simulation::replanning::routing::a_star_core::{
+    AStarCoreResult, AStarRequestBuilder, HeuristicMode, One2ManyNoParentsAStarActions, a_star_core,
 };
-use crate::simulation::replanning::routing::graph::{GraphError, NodeIndex};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::{Disutility, Time};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-    FreeSpeedTravelTimeAndDisutility, IndexableGraph,
-};
+use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
+use crate::simulation::replanning::routing::least_cost_path_caluclator::Disutility;
+use crate::simulation::replanning::routing::least_cost_path_caluclator::FreeSpeedTravelTimeAndDisutility;
 use rand::SeedableRng;
 use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
@@ -23,33 +21,6 @@ const DEFAULT_NUMBER_OF_LANDMARKS: usize = 16;
 pub struct AltLandmarkData {
     landmarks: Vec<NodeIndex>,
     travel_disutilities_to_all: Vec<Vec<ForwardBackwardTravelDisutility>>,
-}
-
-/// These objects represent the dijkstra use case One to many with no parent tracking.
-/// That is, when they are called in dijkstra_core to determine whether the target node was reached,
-/// they always return false, since this use case has no to-node.
-/// When they are called in the context of parent tracking, they do nothing. When they are called
-/// in the context of building the result, they return the distances from the from-node to all
-/// other nodes in the graph.
-#[derive(Clone)]
-pub(crate) struct One2ManyNoParentsDijkstraActions;
-
-impl DijkstraActions for One2ManyNoParentsDijkstraActions {
-    fn set_parent_opt(&mut self, _child: NodeIndex, _parent: NodeIndex) {}
-    fn reached_end(&self, _current_node: NodeIndex) -> bool {
-        false
-    }
-    fn build_result(
-        self,
-        _current_distance: Option<f64>,
-        _current_arrival_time: Option<Time>,
-        distances: Vec<f64>,
-    ) -> DijkstraResult {
-        DijkstraResult::DistanceToAllWithoutParents(distances)
-    }
-    fn get_to_node_opt(&self) -> Option<NodeIndex> {
-        None
-    }
 }
 
 impl AltLandmarkData {
@@ -108,9 +79,9 @@ impl AltLandmarkData {
     }
 
     /// Calculates the distance from one node to all other nodes in the graph using Dijkstra.
-    /// "Distance" in this case means travel disutility, which is in this case speficically equal
+    /// "Distance" in this case means travel disutility, which is in this case specifically equal
     /// to the freespeed travel time, *not* respecting max speed of any vehicle.  TODO is this what we want? see below
-    /// Uses the shared dijkstra core implementation, with the One2Many use case.
+    /// Uses the shared `a_star_core` implementation with `ZeroHeuristic` and the One2Many use case.
     fn distance_one_2_many(
         graph: &dyn IndexableGraph,
         from: NodeIndex,
@@ -118,31 +89,31 @@ impl AltLandmarkData {
     ) -> Result<Vec<Disutility>, GraphError> {
         let tt_td = FreeSpeedTravelTimeAndDisutility;
 
-        // TODO: right now, the distance_one_2_many function never passes a vehicle to dijkstra.
+        // TODO: right now, the distance_one_2_many function never passes a vehicle to A*.
         // Thus, always freespeed will be used. Previously, since the travel time was part of the graph, and was calculated for specific vehicles, this was not the case.
         // Need to decide if that is what we want
-        let dijkstra_request = DijkstraRequestBuilder::default()
+        let a_star_request = AStarRequestBuilder::default()
             .graph(graph)
             // set travel time and disutility function to freespeed
             .travel_time(&tt_td)
             .travel_disutility(&tt_td)
-            // makes Dijkstra calculate the distance to all other nodes, without tracking parents
-            .options(One2ManyNoParentsDijkstraActions)
+            // makes A* calculate the distance to all other nodes, without tracking parents
+            .options(One2ManyNoParentsAStarActions)
             .from(from)
-            // no heuristic used
+            // no heuristic used => A* is Dijkstra
             .heuristic_mode(HeuristicMode::without_heuristic())
             .backward(backward)
             .build()
             .unwrap();
 
-        let distances_result = match Dijkstra::dijkstra_core(dijkstra_request) {
-            // some graph error occurred in dijkstra (link or node not found). Return it.
+        let distances_result = match a_star_core(a_star_request) {
+            // some graph error occurred in A* (link or node not found). Return it.
             Err(e) => Err(e),
-            // everything fine, dijkstra returned a distance vector; use it
-            Ok(DijkstraResult::DistanceToAllWithoutParents(distances)) => Ok(distances),
-            // Dijkstra returned incorrect result enum variant. Panic, since this is a programming error.
+            // everything fine, A* returned a distance vector; use it
+            Ok(AStarCoreResult::DistanceToAllWithoutParents(distances)) => Ok(distances),
+            // A* returned incorrect result enum variant. Panic, since this is a programming error.
             _ => panic!(
-                "dijkstra with DistanceToManyOptions should return DistanceToAllWithoutParents \
+                "A* with DistanceToManyOptions should return DistanceToAllWithoutParents \
                 result."
             ),
         };
@@ -155,7 +126,6 @@ impl AltLandmarkData {
 mod tests {
     use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::IndexableGraph;
 
     #[test]
     // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO still not sure if this is true

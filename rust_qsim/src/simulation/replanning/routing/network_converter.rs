@@ -128,10 +128,10 @@ impl NetworkConverter {
             node_index_by_id: forward_node_index_by_id,
             node_id_by_index: forward_node_id_by_index,
             head: forward_head,
-            link_ids: forward_link_ids,
+            link_id_by_index: forward_link_ids,
             x: x.clone(),
             y: y.clone(),
-            link_id_pos: forward_link_id_pos,
+            link_index_by_id: forward_link_id_pos,
         };
 
         let backward_graph = RoutingGraph {
@@ -139,10 +139,10 @@ impl NetworkConverter {
             node_index_by_id: backward_node_index_by_id,
             node_id_by_index: backward_node_id_by_index,
             head: backward_head,
-            link_ids: backward_link_ids,
+            link_id_by_index: backward_link_ids,
             x,
             y,
-            link_id_pos: backward_link_id_pos,
+            link_index_by_id: backward_link_id_pos,
         };
 
         info!(
@@ -180,7 +180,6 @@ impl NetworkConverter {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
     use std::path::PathBuf;
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
@@ -206,9 +205,9 @@ mod test {
         assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
         assert_eq!(graph.forward_link_ids().len(), 6);
 
-        assert_eq!(graph.backward_graph.first_out, vec![0usize, 0, 1, 4, 6]);
-        assert_eq!(graph.backward_graph.head, vec![3usize, 1, 2, 3, 1, 2]);
-        assert_eq!(graph.backward_graph.link_ids.len(), 6);
+        assert_eq!(graph.backward_first_out(), &vec![0usize, 0, 1, 4, 6]);
+        assert_eq!(graph.backward_head(), &vec![3usize, 1, 2, 3, 1, 2]);
+        assert_eq!(graph.backward_link_ids().len(), 6);
         // we don't check y and y so far
     }
 
