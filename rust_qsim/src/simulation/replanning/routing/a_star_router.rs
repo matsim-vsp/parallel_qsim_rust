@@ -32,12 +32,14 @@ impl AStarHeuristic for ZeroHeuristic {
 }
 
 /// Heuristic that uses landmarks and triangle inequality to estimate distance between two nodes
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub(crate) struct AltHeuristic {
     landmark_data: AltLandmarkData,
 }
 
 impl AltHeuristic {
+    #[allow(dead_code)]
     pub fn new(landmark_data: AltLandmarkData) -> Self {
         AltHeuristic { landmark_data }
     }

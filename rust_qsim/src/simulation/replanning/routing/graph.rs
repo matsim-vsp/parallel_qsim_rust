@@ -223,6 +223,7 @@ impl ForwardBackwardGraph {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     pub fn number_of_links(&self) -> usize {
         self.forward_graph.head.len()
     }

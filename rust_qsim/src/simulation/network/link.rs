@@ -224,7 +224,7 @@ impl LocalLink {
     ) -> Self {
         let clock = SimClock::new(config.ticks_per_second);
         let max_available =
-            (capacity_h * config.sample_size / 3600.) * clock.tick_length().as_secs_f32();
+            (capacity_h * config.sample_size / 3600.) * clock.tick_length().as_secs_f64();
         let storage_cap = StorageCap::build(
             length,
             perm_lanes,
