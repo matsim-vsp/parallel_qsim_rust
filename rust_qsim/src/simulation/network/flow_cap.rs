@@ -46,7 +46,7 @@ impl Flowcap {
     }
 
     pub(super) fn capacity_per_tick(&self) -> f64 {
-        self.max_available // FIXME should be .capacity_per_tick?
+        self.max_available // FIXME this is not rignt. But I am not sure if we want capacity per second here or what else
     }
 }
 
