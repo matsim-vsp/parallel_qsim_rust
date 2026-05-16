@@ -233,7 +233,7 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
 
     let from_node = request.from;
 
-    // TODO possibly rename distances? But it could also be okay because it's A* terminology
+    // TODO do we want the name "distances"? In our case, it is always a travel disutility, which would become clearer if we name it accordingly. On the other hand, distance is a common name for the values tracked in A*, even when they are not actual distances, so it is also fine to keep the name "distances".
     // initialize queue: from_node gets distance and priority 0, all others infinity
     let (mut queue, mut distances) = get_initial_queue(number_of_nodes, from_node);
 
@@ -247,7 +247,8 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
         let current_distance = distances[current_id];
         let current_arrival_time = arrival_times[current_id];
 
-        // checking "unusual" values of current_distance // TODO is this the handling that we want?
+        // checking "unusual" values of current_distance
+        // TODO is this the handling of unusual distance values that we want?
         match current_distance {
             f64::INFINITY => {
                 //The smallest value in queue was unreachable. So abort here.
@@ -290,7 +291,7 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
         // if request.backward=true, we consider the incoming edges, to consider paths from
         // other nodes to the "from"-node
         let neighbour_edges = if request.backward {
-            request.graph.incoming_edges_as_idx(current_id) // TODO check if the implementation of incoming_edges, get_link_from_idx and everything is correct, specifically, if the backward graph is treated correctly. The results are correct, but maybe two errors cancel out
+            request.graph.incoming_edges_as_idx(current_id)
         } else {
             request.graph.outgoing_edges_as_idx(current_id)
         };

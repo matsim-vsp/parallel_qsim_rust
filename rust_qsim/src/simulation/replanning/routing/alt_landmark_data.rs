@@ -2,8 +2,9 @@ use crate::simulation::replanning::routing::a_star_core::{
     AStarCoreResult, AStarRequestBuilder, HeuristicMode, One2ManyNoParentsAStarActions, a_star_core,
 };
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::Disutility;
-use crate::simulation::replanning::routing::least_cost_path_caluclator::FreeSpeedTravelTimeAndDisutility;
+use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    Disutility, FreeSpeedTravelTimeAndDisutility,
+};
 use rand::SeedableRng;
 use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
@@ -87,11 +88,14 @@ impl AltLandmarkData {
         from: NodeIndex,
         backward: bool, // if true, calculates distances from all other nodes to the "from"-node
     ) -> Result<Vec<Disutility>, GraphError> {
+        // TODO: right now, the distance_one_2_many uses FreeSpeedTravelTimeAndDisutility, not FreeOrMaxSpeed...
+        // Thus, always freespeed will be used. Previously, since the travel time was part of the
+        // graph, and was calculated for specific vehicles, this was not the case; the max speed of
+        // vehicles was respected.
+        // Need to decide if that is what we want, or if the landmarks should be valid for any
+        // vehicle as they are now
         let tt_td = FreeSpeedTravelTimeAndDisutility;
 
-        // TODO: right now, the distance_one_2_many function never passes a vehicle to A*.
-        // Thus, always freespeed will be used. Previously, since the travel time was part of the graph, and was calculated for specific vehicles, this was not the case.
-        // Need to decide if that is what we want
         let a_star_request = AStarRequestBuilder::default()
             .graph(graph)
             // set travel time and disutility function to freespeed

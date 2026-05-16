@@ -269,7 +269,7 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
         };
 
         // TODO it's correct that we return the link path here? and not node path as apparently before?
-        // NOTE: it's both in Java, do we need that? Nodes are of course easy to get when you have the graph
+        // NOTE: it contains both in Java, do we need that? Nodes are of course easy to get when you have the graph
         let link_path = match Self::extract_link_path(to_node_idx, parents, request.graph) {
             Ok(link_path) => {
                 // If a link path was found, verify that it starts where the from-link ends, since
@@ -319,14 +319,16 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::Disutility;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelDisutility;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelTime;
+    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+        Disutility, FreeSpeedTravelTimeAndDisutility,
+    };
     use crate::simulation::scenario::population::InternalPerson;
 
     use crate::simulation::replanning::routing::least_cost_path_caluclator::Time;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        FreeSpeedTravelTimeAndDisutility, LeastCostPathCalculator,
+        FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPathCalculator,
     };
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
@@ -392,7 +394,7 @@ mod tests {
     }
 
     /// Time-dependent travel disutility for testing.
-    /// Disutility = (freespeed) travel_time * (1 + 10 * departure time)
+    /// Disutility = (free or max speed) travel_time * (1 + 10 * departure time)
     /// Very fast increase in disutility with time, to ensure that we see a difference also for
     /// very short routes, such as in the triangle test graph.
     #[derive(Clone, Debug)]
@@ -406,8 +408,8 @@ mod tests {
             _person: Option<&InternalPerson>,
             vehicle: Option<&InternalVehicle>,
         ) -> Disutility {
-            // Get base travel time using free speed
-            let free_speed_calc = FreeSpeedTravelTimeAndDisutility;
+            // Get base travel time using free or max speed
+            let free_speed_calc = FreeOrMaxSpeedTravelTimeAndDisutility;
             let travel_time = free_speed_calc.travel_time(link, departure_time, None, vehicle);
 
             // Apply time-dependent factor: increases with time (minimal congestion at time 0)
@@ -499,8 +501,8 @@ mod tests {
                         // create new heuristic, based on the graph for the vehicle type. TODO note: so far, the travel time for the landmarks is truly freespeed, while previously, it was maxspeed = min(max_v, freespeed).
                         AltHeuristic::new(landmark_data),
                         // ZeroHeuristic,
-                        Box::new(FreeSpeedTravelTimeAndDisutility),
-                        Box::new(FreeSpeedTravelTimeAndDisutility),
+                        Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+                        Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
                     ),
                 )
             })
@@ -549,16 +551,16 @@ mod tests {
         // Router with zero heuristic (pure Dijkstra)
         let zero_router = AStarRouter::new(
             ZeroHeuristic,
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         // Router with ALT heuristic
         let landmark_data = AltLandmarkData::new(&graph).unwrap();
         let alt_router = AStarRouter::new(
             AltHeuristic::new(landmark_data),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         // Both should find the same optimal path
@@ -591,8 +593,8 @@ mod tests {
         let graph = get_triangle_test_graph();
         let router = AStarRouter::new(
             ZeroHeuristic,
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         let request = LeastCostPathRequestBuilder::default()
@@ -623,8 +625,8 @@ mod tests {
         // disutility = freespeed travel_time
         let router_time_indep = AStarRouter::new(
             ZeroHeuristic,
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         // Create a router with time-dependent disutility
@@ -635,7 +637,7 @@ mod tests {
         // this implies that time-dependent routing is working (or is at least doing something)
         let router_time_dep = AStarRouter::new(
             ZeroHeuristic,
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(TimeDependentDisutility),
         );
 
@@ -652,7 +654,7 @@ mod tests {
         let result_time_dep = router_time_dep.calc_route(request).unwrap();
 
         let tt_time_indep = result_time_indep.travel_time;
-        let tt_time_dep = result_time_dep.travel_time; // TODO note: the field travel time here is acually the disutility, this should be fixed/renamed
+        let tt_time_dep = result_time_dep.travel_time;
 
         let td_time_indep = result_time_indep.travel_disutility;
         let td_time_dep = result_time_dep.travel_disutility;
@@ -682,8 +684,8 @@ mod tests {
 
         let router = AStarRouter::new(
             ZeroHeuristic,
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         // Verify the behaviour when the from-link or to-link doesn't exist, and when they exist but

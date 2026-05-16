@@ -34,15 +34,49 @@ pub trait TravelDisutility: Debug {
     ) -> Disutility;
 }
 
-/// An implementation of both `TravelTime` and `TravelDisutility`, mostly based on freespeed travel
-/// times. However, when a vehicle is given, it's max speed is respected, with min(freespeed, v_max)
-/// being used to determine the travel time.
+/// An implementation of both `TravelTime` and `TravelDisutility`, purely based on freespeed travel
+/// times. The travel time is simply the link length divided by the freespeed, ignoring any given
+/// vehicle type and its max speed.
+
 /// The travel disutility is equal to the travel time.
-/// TODO Is this desired, or should the max-speed-respecting travel time be a separate implementation?
 #[derive(Clone, Debug)]
 pub struct FreeSpeedTravelTimeAndDisutility;
 
 impl TravelTime for FreeSpeedTravelTimeAndDisutility {
+    fn travel_time(
+        &self,
+        link: &Link,
+        _departure_time: Time,
+        _person: Option<&InternalPerson>,
+        _vehicle: Option<&InternalVehicle>,
+    ) -> Time {
+        // the given vehicle type is ignored => true freespeed
+        link.length / link.freespeed
+    }
+}
+
+impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
+    fn travel_disutility(
+        &self,
+        link: &Link,
+        departure_time: Time,
+        person: Option<&InternalPerson>,
+        vehicle: Option<&InternalVehicle>,
+    ) -> Disutility {
+        // TODO: Adapt the factor for the Disutility
+        self.travel_time(link, departure_time, person, vehicle) * 1.0
+        // travel DISutility is simply the travel time here, since higher time corresponds to lower utility
+    }
+}
+
+/// An implementation of both `TravelTime` and `TravelDisutility`, mostly based on freespeed travel
+/// times. However, when a vehicle is given, its max speed is respected, with min(freespeed, v_max)
+/// being used to determine the travel time.
+/// The travel disutility is equal to the travel time.
+#[derive(Clone, Debug)]
+pub struct FreeOrMaxSpeedTravelTimeAndDisutility;
+
+impl TravelTime for FreeOrMaxSpeedTravelTimeAndDisutility {
     fn travel_time(
         &self,
         link: &Link,
@@ -61,7 +95,7 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
     }
 }
 
-impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
+impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
     fn travel_disutility(
         &self,
         link: &Link,
@@ -127,7 +161,7 @@ mod tests {
     use crate::simulation::replanning::routing::graph::Graph;
     use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
-        FreeSpeedTravelTimeAndDisutility, LeastCostPath, LeastCostPathRequestBuilder,
+        FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPath, LeastCostPathRequestBuilder,
     };
     use crate::simulation::replanning::routing::least_cost_path_caluclator::{
         LeastCostPathCalculator, TravelDisutility, TravelTime,
@@ -142,8 +176,8 @@ mod tests {
         // simple A*-Router with zero heuristic => is Dijkstra.
         let router = AStarRouter::new(
             ZeroHeuristic,
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
         // triangle graph
         let graph = get_triangle_test_graph();
@@ -168,25 +202,25 @@ mod tests {
         );
     }
 
-    /// Test the FreeSpeedTravelTimeAndDisutility implementation of TravelTime and TravelDisutility
+    /// Test the FreeOrMaxSpeedTravelTimeAndDisutility implementation of TravelTime and TravelDisutility
     #[test]
-    fn test_free_speed_travel_time_and_disutility() {
-        let fpttad = FreeSpeedTravelTimeAndDisutility;
+    fn test_free_or_max_speed_travel_time_and_disutility() {
+        let fomsttad = FreeOrMaxSpeedTravelTimeAndDisutility;
 
         let graph = get_triangle_test_graph();
         let link = graph.edge(Id::create("4")).unwrap();
 
-        assert_eq!(fpttad.travel_time(link, 0.0, None, None), 4.0);
-        assert_eq!(fpttad.travel_disutility(link, 0.0, None, None), 4.0);
+        assert_eq!(fomsttad.travel_time(link, 0.0, None, None), 4.0);
+        assert_eq!(fomsttad.travel_disutility(link, 0.0, None, None), 4.0);
 
         // also test that the vehicle's max speed is respected
 
         // vehicle max_v is lower than freespeed, so travel time will be longer
         let vehicle = InternalVehicle::new(0, 0, 1000.0, 0.0);
 
-        assert_eq!(fpttad.travel_time(link, 0.0, None, Some(&vehicle)), 10.0);
+        assert_eq!(fomsttad.travel_time(link, 0.0, None, Some(&vehicle)), 10.0);
         assert_eq!(
-            fpttad.travel_disutility(link, 0.0, None, Some(&vehicle)),
+            fomsttad.travel_disutility(link, 0.0, None, Some(&vehicle)),
             10.0
         );
     }
