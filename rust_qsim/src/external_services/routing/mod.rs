@@ -3,7 +3,9 @@ use crate::generated::routing::routing_service_client::RoutingServiceClient;
 use crate::generated::routing::{Request, Response};
 use crate::simulation::config::Config;
 use crate::simulation::data_structures::RingIter;
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPlanElement};
+use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
 use std::sync::{Arc, Mutex};
@@ -29,14 +31,12 @@ impl RequestToAdapter for InternalRoutingRequest {}
 pub struct InternalRoutingRequestPayload {
     pub person_id: String,
     pub from_link: String,
-    pub from_x: f64,
-    pub from_y: f64,
+    pub from: Coordinate,
     pub to_link: String,
-    pub to_x: f64,
-    pub to_y: f64,
+    pub to: Coordinate,
     pub mode: String,
-    pub departure_time: u32,
-    pub now: u32,
+    pub departure_time: SimTime,
+    pub now: SimTime,
     #[builder(default = "Uuid::now_v7()")]
     pub uuid: Uuid,
 }
@@ -45,11 +45,9 @@ impl InternalRoutingRequestPayload {
     pub fn equals_ignoring_uuid(&self, other: &Self) -> bool {
         self.person_id == other.person_id
             && self.from_link == other.from_link
-            && self.from_x == other.from_x
-            && self.from_y == other.from_y
+            && self.from == other.from
             && self.to_link == other.to_link
-            && self.to_x == other.to_x
-            && self.to_y == other.to_y
+            && self.to == other.to
             && self.mode == other.mode
             && self.departure_time == other.departure_time
             && self.now == other.now
@@ -67,14 +65,12 @@ impl From<InternalRoutingRequestPayload> for Request {
         Request {
             person_id: req.person_id,
             from_link_id: req.from_link,
-            from_x: req.from_x,
-            from_y: req.from_y,
+            from: Some(req.from.into()),
             to_link_id: req.to_link,
-            to_x: req.to_x,
-            to_y: req.to_y,
+            to: Some(req.to.into()),
             mode: req.mode,
-            departure_time: req.departure_time,
-            now: req.now,
+            departure_time_ns: req.departure_time.as_nanos(),
+            now_ns: req.now.as_nanos(),
             request_id: req.uuid.as_bytes().to_vec(),
         }
     }
@@ -113,6 +109,26 @@ impl From<Response> for InternalRoutingResponse {
         Self {
             elements,
             request_id: Uuid::from_bytes(value.request_id.try_into().unwrap()),
+        }
+    }
+}
+
+impl From<Coordinate> for crate::generated::general::Coordinate {
+    fn from(c: Coordinate) -> Self {
+        crate::generated::general::Coordinate {
+            x: c.x,
+            y: c.y,
+            z: c.z,
+        }
+    }
+}
+
+impl From<crate::generated::general::Coordinate> for Coordinate {
+    fn from(c: crate::generated::general::Coordinate) -> Self {
+        Coordinate {
+            x: c.x,
+            y: c.y,
+            z: c.z,
         }
     }
 }
@@ -210,5 +226,33 @@ impl RoutingServiceAdapter {
             clients: RingIter::new(clients),
             shutdown_handles,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::InternalRoutingRequestPayloadBuilder;
+    use crate::generated::routing::Request;
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::time::SimTime;
+
+    #[test]
+    fn request_conversion_uses_nanoseconds() {
+        let request = Request::from(
+            InternalRoutingRequestPayloadBuilder::default()
+                .person_id("person-1".to_string())
+                .from_link("from-link".to_string())
+                .from(Coordinate::new(1.0, 2.0))
+                .to_link("to-link".to_string())
+                .to(Coordinate::new(3.0, 4.0))
+                .mode("car".to_string())
+                .departure_time(SimTime::from_nanos(1_500_000))
+                .now(SimTime::from_nanos(2_750_000))
+                .build()
+                .unwrap(),
+        );
+
+        assert_eq!(1_500_000, request.departure_time_ns);
+        assert_eq!(2_750_000, request.now_ns);
     }
 }

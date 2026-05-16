@@ -18,6 +18,7 @@ modules:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/equil_with_channels
+    write_events: XmlGz
   routing:
     type: Routing
     mode: UsePlans

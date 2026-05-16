@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use crate::simulation::network::sim_network::StorageUpdate;
+use crate::simulation::time::Tick;
 use crate::simulation::vehicles::SimulationVehicle;
 
 pub enum InternalSimMessage {
@@ -10,7 +11,7 @@ pub enum InternalSimMessage {
 
 #[derive(Debug)]
 pub struct InternalSyncMessage {
-    time: u32,
+    time: Tick,
     from_process: u32,
     to_process: u32,
     vehicles: Vec<SimulationVehicle>,
@@ -35,7 +36,7 @@ impl InternalSimMessage {
 }
 
 impl InternalSyncMessage {
-    pub fn new(time: u32, from: u32, to: u32) -> Self {
+    pub fn new(time: Tick, from: u32, to: u32) -> Self {
         Self {
             time,
             from_process: from,
@@ -53,7 +54,7 @@ impl InternalSyncMessage {
         self.storage_capacities.push(storage_cap);
     }
 
-    pub fn time(&self) -> u32 {
+    pub fn time(&self) -> Tick {
         self.time
     }
 

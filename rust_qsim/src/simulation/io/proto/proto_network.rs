@@ -1,3 +1,4 @@
+use crate::generated::general::Coordinate;
 use crate::generated::network::{Link, Node};
 use crate::simulation::scenario::network::Network;
 use std::path::Path;
@@ -26,8 +27,11 @@ impl crate::generated::network::Network {
             .iter()
             .map(|n| Node {
                 id: n.id.external().to_string(),
-                x: n.x,
-                y: n.y,
+                coordinate: Some(Coordinate {
+                    x: n.coord.x,
+                    y: n.coord.y,
+                    z: n.coord.z,
+                }),
                 partition: n.partition,
                 cmp_weight: n.cmp_weight,
             })
@@ -53,5 +57,31 @@ impl crate::generated::network::Network {
             links,
             effective_cell_size: network.effective_cell_size(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::network::{Network, Node};
+
+    #[test]
+    fn node_coordinate_round_trip_preserves_none_z() {
+        let mut network = Network::new();
+        network.add_node(Node::new(
+            Id::create("node-1"),
+            Coordinate::new(1.0, 2.0),
+            3,
+            4,
+        ));
+
+        let wire = crate::generated::network::Network::from(&network);
+        let round_trip = Network::from(wire);
+
+        let node = round_trip.get_node(&Id::get_from_ext("node-1"));
+        assert_eq!(1.0, node.coord.x);
+        assert_eq!(2.0, node.coord.y);
+        assert_eq!(None, node.coord.z);
     }
 }

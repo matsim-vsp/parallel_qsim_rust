@@ -515,7 +515,8 @@ pub struct DrtService {
 pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
-    pub sample_size: f64,
+    pub ticks_per_second: u32,
+    pub sample_size: f32,
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
 }
@@ -670,6 +671,7 @@ impl Default for Simulation {
         Self {
             start_time: 0,
             end_time: 86400,
+            ticks_per_second: 1,
             sample_size: 1.0,
             stuck_threshold: 10,
             main_modes: vec![],
@@ -908,6 +910,7 @@ mod tests {
         let simulation = Simulation {
             start_time: 0,
             end_time: 42,
+            ticks_per_second: 1,
             sample_size: 0.1,
             stuck_threshold: 1,
             main_modes: vec!["bike".to_string()],
@@ -945,6 +948,7 @@ mod tests {
 
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);
+        assert_eq!(parsed_config.simulation().ticks_per_second, 1);
         assert_eq!(parsed_config.simulation().sample_size, 0.1);
         assert_eq!(parsed_config.simulation().stuck_threshold, 1);
         assert_eq!(parsed_config.simulation().main_modes, vec!["bike"]);

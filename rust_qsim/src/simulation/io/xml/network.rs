@@ -31,8 +31,8 @@ pub(crate) fn write_to_xml(network: &Network, path: &Path) {
         };
         let io_node = IONode {
             id: node.id.external().to_string(),
-            x: node.x,
-            y: node.y,
+            x: node.coord.x,
+            y: node.coord.y,
             attributes: Some(attributes),
         };
         result.nodes_mut().push(io_node);

@@ -3,6 +3,7 @@ use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
 use crate::simulation::scenario::network::{Link, Network};
+use crate::simulation::time::Tick;
 use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::rc::Rc;
@@ -56,7 +57,8 @@ where
         *self.link_mapping.get(link_id).unwrap()
     }
 
-    pub fn add_veh(&mut self, vehicle: SimulationVehicle, now: u32) {
+    pub fn add_veh(&mut self, vehicle: SimulationVehicle, now: impl Into<Tick>) {
+        let now = now.into();
         let link_id = vehicle.curr_link_id().unwrap();
         let partition = *self.link_mapping.get(link_id).unwrap();
         let rank = self.rank();
@@ -67,7 +69,8 @@ where
         message.add_veh(vehicle);
     }
 
-    pub fn add_cap_update(&mut self, cap: StorageUpdate, now: u32) {
+    pub fn add_cap_update(&mut self, cap: StorageUpdate, now: impl Into<Tick>) {
+        let now = now.into();
         let rank = self.rank();
         let message = self
             .out_messages
@@ -80,7 +83,8 @@ where
         });
     }
 
-    pub fn send_recv(&mut self, now: u32) -> Vec<InternalSyncMessage> {
+    pub fn send_recv(&mut self, now: impl Into<Tick>) -> Vec<InternalSyncMessage> {
+        let now = now.into();
         let vehicles = self.prepare_send_recv_vehicles(now);
 
         let mut result: Vec<InternalSyncMessage> = Vec::new();
@@ -111,7 +115,7 @@ where
         msg: InternalSyncMessage,
         result: &mut Vec<InternalSyncMessage>,
         in_messages: &mut BinaryHeap<InternalSyncMessage>,
-        now: u32,
+        now: Tick,
     ) {
         if msg.time() <= now {
             result.push(msg);
@@ -124,7 +128,7 @@ where
         &mut self,
         expected_messages: &mut HashSet<u32>,
         messages: &mut Vec<InternalSyncMessage>,
-        now: u32,
+        now: Tick,
     ) {
         while let Some(msg) = self.in_messages.peek() {
             if msg.time() <= now {
@@ -136,7 +140,7 @@ where
         }
     }
 
-    fn prepare_send_recv_vehicles(&mut self, now: u32) -> HashMap<u32, InternalSyncMessage> {
+    fn prepare_send_recv_vehicles(&mut self, now: Tick) -> HashMap<u32, InternalSyncMessage> {
         let capacity = self.out_messages.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
@@ -160,7 +164,9 @@ mod tests {
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::network::sim_network::StorageUpdate;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::time::SimTime;
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils::create_agent;
     use macros::integration_test;
@@ -230,7 +236,7 @@ mod tests {
                 assert_eq!(0, msg.time());
                 assert_eq!(1, msg.vehicles().len());
                 let mut vehicle = msg.vehicles_mut().remove(0);
-                vehicle.notify_event(&mut AgentEvent::LeftLink(), 0);
+                vehicle.notify_event(&mut AgentEvent::LeftLink(), SimTime::default());
                 broker.add_veh(vehicle, 1);
             } else {
                 for msg in result_0 {
@@ -347,6 +353,7 @@ mod tests {
         let config = config::Simulation {
             start_time: 0,
             end_time: 0,
+            ticks_per_second: 1,
             sample_size: 0.0,
             stuck_threshold: 0,
             main_modes: vec![],
@@ -458,7 +465,12 @@ mod tests {
     }
 
     fn create_node(id: u64, partition: u32) -> Node {
-        Node::new(Id::create(&id.to_string()), 0., 0., partition, 1)
+        Node::new(
+            Id::create(&id.to_string()),
+            Coordinate::default(),
+            partition,
+            1,
+        )
     }
 
     fn create_link(id: u64, from: u64, to: u64, partition: u32) -> Link {

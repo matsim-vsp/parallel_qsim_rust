@@ -48,7 +48,7 @@ pub fn event_trait_derive(input: TokenStream) -> TokenStream {
                             fn type_(&self) -> &'static str {
                                 Self::TYPE
                             }
-                            fn time(&self) -> u32 {
+                            fn time(&self) -> crate::simulation::time::SimTime {
                                 self.time
                             }
                             fn attributes(&self) -> &crate::simulation::InternalAttributes {

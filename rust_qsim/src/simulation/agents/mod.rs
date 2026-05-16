@@ -5,8 +5,13 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
-use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::time::SimTime;
+use crate::simulation::time_queue::Identifiable;
 use std::fmt::Debug;
+
+pub trait EndTime {
+    fn end_time(&self, now: SimTime) -> SimTime;
+}
 
 pub trait SimulationAgentLogic:
     EndTime + Identifiable<InternalPerson> + EnvironmentalEventObserver + Send
@@ -15,18 +20,18 @@ pub trait SimulationAgentLogic:
     fn next_act(&self) -> &InternalActivity;
     fn curr_leg(&self) -> &InternalLeg;
     fn next_leg(&self) -> Option<&InternalLeg>;
-    fn advance_plan(&mut self, now: u32);
+    fn advance_plan(&mut self, now: SimTime);
     fn state(&self) -> SimulationAgentState;
 
     // Having these functions here is not ideal. See https://github.com/matsim-vsp/parallel_qsim_rust/issues/203 for more details.
     fn is_wanting_to_arrive_on_current_link(&self) -> bool;
     fn curr_link_id(&self) -> Option<&Id<Link>>;
     fn peek_next_link_id(&self) -> Option<&Id<Link>>;
-    fn wakeup_time(&self, now: u32) -> u32;
+    fn wakeup_time(&self, now: SimTime) -> SimTime;
 }
 
 pub trait EnvironmentalEventObserver {
-    fn notify_event(&mut self, event: &mut AgentEvent, now: u32);
+    fn notify_event(&mut self, event: &mut AgentEvent, now: SimTime);
 }
 
 #[non_exhaustive]
@@ -53,7 +58,7 @@ pub struct ActivityStartedEvent<'a> {
 pub struct WokeUpEvent<'w> {
     pub comp_env: &'w mut ThreadLocalComputationalEnvironment,
     // I think we should remove this field. This information comes from the agent to the engines and then goes back to the agent. So, it is redundant. paul, mar'26
-    pub end_time: u32,
+    pub end_time: SimTime,
 }
 
 impl Debug for dyn SimulationAgentLogic {

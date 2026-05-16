@@ -6,14 +6,17 @@ use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_p
 use crate::simulation::io::xml::population::{
     IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::time::SimTime;
 use itertools::{EitherOrBoth, Itertools};
 use serde_json::{Error, Value};
 use std::collections::HashMap;
 use std::path::Path;
 use std::str::FromStr;
+use std::time::Duration;
 
 pub const PREPLANNING_HORIZON: &str = "preplanningHorizon";
 
@@ -126,11 +129,10 @@ impl Population {
 pub struct InternalActivity {
     pub act_type: Id<String>,
     pub link_id: Id<Link>,
-    pub x: f64,
-    pub y: f64,
-    pub start_time: Option<u32>,
-    pub end_time: Option<u32>,
-    pub max_dur: Option<u32>,
+    pub coord: Coordinate,
+    pub start_time: Option<SimTime>,
+    pub end_time: Option<SimTime>,
+    pub max_dur: Option<Duration>,
     pub attributes: InternalAttributes,
 }
 
@@ -138,8 +140,8 @@ pub struct InternalActivity {
 pub struct InternalLeg {
     pub mode: Id<String>,
     pub routing_mode: Option<Id<String>>,
-    pub dep_time: Option<u32>,
-    pub trav_time: Option<u32>,
+    pub dep_time: Option<SimTime>,
+    pub trav_time: Option<Duration>,
     pub route: Option<InternalRoute>,
     pub attributes: InternalAttributes,
 }
@@ -155,7 +157,7 @@ pub enum InternalRoute {
 pub struct InternalGenericRoute {
     pub start_link: Id<Link>,
     end_link: Id<Link>,
-    trav_time: Option<u32>,
+    trav_time: Option<Duration>,
     distance: Option<f64>,
     vehicle: Option<Id<InternalVehicle>>,
 }
@@ -175,7 +177,7 @@ pub struct InternalPtRoute {
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalPtRouteDescription {
     pub transit_route_id: String,
-    pub boarding_time: Option<u32>,
+    pub boarding_time: Option<Duration>,
     pub transit_line_id: String,
     pub access_facility_id: String,
     pub egress_facility_id: String,
@@ -285,17 +287,15 @@ impl InternalPlan {
 
 impl InternalActivity {
     pub fn new(
-        x: f64,
-        y: f64,
+        coord: Coordinate,
         act_type: &str,
         link_id: Id<Link>,
-        start_time: Option<u32>,
-        end_time: Option<u32>,
-        max_dur: Option<u32>,
+        start_time: Option<SimTime>,
+        end_time: Option<SimTime>,
+        max_dur: Option<Duration>,
     ) -> Self {
         InternalActivity {
-            x,
-            y,
+            coord,
             act_type: Id::create(act_type),
             link_id,
             start_time,
@@ -306,14 +306,14 @@ impl InternalActivity {
     }
 
     // i think this should go into the utils module rather than being here. paul, mar'26
-    pub fn cmp_end_time(&self, begin: u32) -> u32 {
+    pub fn cmp_end_time(&self, begin: SimTime) -> SimTime {
         if let Some(end_time) = self.end_time {
             end_time
         } else if let Some(max_dur) = self.max_dur {
-            begin + max_dur
+            begin.saturating_add(max_dur)
         } else {
-            // supposed to be an equivalent for OptionalTime.undefined() in the java code
-            u32::MAX
+            // Bounded replacement for OptionalTime.undefined(): even the maximum representable
+            SimTime::from_nanos(u64::MAX)
         }
     }
 
@@ -331,7 +331,7 @@ impl FromStr for InternalPtRouteDescription {
 
         Ok(InternalPtRouteDescription {
             transit_route_id: trim_quotes(&desc["transitRouteId"]),
-            boarding_time: desc["boardingTime"].as_str().and_then(parse_time),
+            boarding_time: desc["boardingTime"].as_str().and_then(parse_duration),
             transit_line_id: trim_quotes(&desc["transitLineId"]),
             access_facility_id: trim_quotes(&desc["accessFacilityId"]),
             egress_facility_id: trim_quotes(&desc["egressFacilityId"]),
@@ -375,7 +375,7 @@ impl InternalRoute {
         let generic = InternalGenericRoute::new(
             Id::create(io.start_link.as_str()),
             Id::create(io.end_link.as_str()),
-            parse_time_opt(&io.trav_time),
+            parse_duration_opt(&io.trav_time),
             Option::from(io.distance),
             Some(Id::create(&external)),
         );
@@ -434,7 +434,7 @@ impl From<GenericRoute> for InternalGenericRoute {
         InternalGenericRoute {
             start_link: Id::get_from_ext(&g.start_link),
             end_link: Id::get_from_ext(&g.end_link),
-            trav_time: g.trav_time,
+            trav_time: g.trav_time_ns.map(Duration::from_nanos),
             distance: g.distance,
             vehicle: g.veh_id.map(|s| Id::get_from_ext(&s)),
         }
@@ -445,7 +445,7 @@ impl From<PtRouteDescription> for InternalPtRouteDescription {
     fn from(value: PtRouteDescription) -> Self {
         InternalPtRouteDescription {
             transit_route_id: value.transit_route_id,
-            boarding_time: value.boarding_time,
+            boarding_time: value.boarding_time_ns.map(Duration::from_nanos),
             transit_line_id: value.transit_line_id,
             access_facility_id: value.access_facility_id,
             egress_facility_id: value.egress_facility_id,
@@ -457,7 +457,7 @@ impl InternalGenericRoute {
     pub fn new(
         start_link: Id<Link>,
         end_link: Id<Link>,
-        trav_time: Option<u32>,
+        trav_time: Option<Duration>,
         distance: Option<f64>,
         vehicle: Option<Id<InternalVehicle>>,
     ) -> Self {
@@ -482,7 +482,7 @@ impl InternalGenericRoute {
         &self.vehicle
     }
 
-    pub fn trav_time(&self) -> Option<u32> {
+    pub fn trav_time(&self) -> Option<Duration> {
         self.trav_time
     }
 
@@ -531,7 +531,12 @@ impl InternalPtRoute {
 }
 
 impl InternalLeg {
-    pub fn new(route: InternalRoute, mode: &str, trav_time: u32, dep_time: Option<u32>) -> Self {
+    pub fn new(
+        route: InternalRoute,
+        mode: &str,
+        trav_time: Duration,
+        dep_time: Option<SimTime>,
+    ) -> Self {
         Self {
             route: Some(route),
             mode: Id::create(mode),
@@ -542,7 +547,7 @@ impl InternalLeg {
         }
     }
 
-    pub fn travel_time(&self) -> u32 {
+    pub fn travel_time(&self) -> Duration {
         if let Some(leg_trav_time) = self.trav_time {
             leg_trav_time
         } else {
@@ -590,8 +595,8 @@ impl From<Leg> for InternalLeg {
         InternalLeg {
             mode: Id::get_from_ext(&io.mode),
             routing_mode: io.routing_mode.map(|s| Id::get_from_ext(&s)),
-            dep_time: io.dep_time,
-            trav_time: io.trav_time,
+            dep_time: io.dep_time_ns.map(SimTime::from_nanos),
+            trav_time: io.trav_time_ns.map(Duration::from_nanos),
             route: io.route.map(InternalRoute::from),
             attributes: InternalAttributes::from(&io.attributes),
         }
@@ -603,11 +608,10 @@ impl From<IOActivity> for InternalActivity {
         InternalActivity {
             act_type: Id::create(&io.r#type),
             link_id: Id::create(&io.link),
-            x: io.x,
-            y: io.y,
+            coord: Coordinate::new(io.x, io.y),
             start_time: parse_time_opt(&io.start_time),
             end_time: parse_time_opt(&io.end_time),
-            max_dur: parse_time_opt(&io.max_dur),
+            max_dur: parse_duration_opt(&io.max_dur),
             attributes: io
                 .attributes
                 .map(InternalAttributes::from)
@@ -621,11 +625,14 @@ impl From<Activity> for InternalActivity {
         InternalActivity {
             act_type: Id::get_from_ext(&value.act_type),
             link_id: Id::get_from_ext(&value.link_id),
-            x: value.x,
-            y: value.y,
-            start_time: value.start_time,
-            end_time: value.end_time,
-            max_dur: value.max_dur,
+            coord: Coordinate::with_z(
+                value.coordinate.as_ref().unwrap().x,
+                value.coordinate.as_ref().unwrap().y,
+                value.coordinate.as_ref().unwrap().z,
+            ),
+            start_time: value.start_time_ns.map(SimTime::from_nanos),
+            end_time: value.end_time_ns.map(SimTime::from_nanos),
+            max_dur: value.max_dur_ns.map(Duration::from_nanos),
             attributes: InternalAttributes::from(&value.attributes),
         }
     }
@@ -638,15 +645,15 @@ fn trim_quotes(s: &Value) -> String {
 fn parse_trav_time(
     leg_trav_time: &Option<String>,
     route_trav_time: &Option<String>,
-) -> Option<u32> {
-    if let Some(trav_time) = parse_time_opt(leg_trav_time) {
+) -> Option<Duration> {
+    if let Some(trav_time) = parse_duration_opt(leg_trav_time) {
         Some(trav_time)
     } else {
-        parse_time_opt(route_trav_time)
+        parse_duration_opt(route_trav_time)
     }
 }
 
-fn parse_time_opt(value: &Option<String>) -> Option<u32> {
+fn parse_time_opt(value: &Option<String>) -> Option<SimTime> {
     if let Some(time) = value.as_ref() {
         parse_time(time)
     } else {
@@ -654,17 +661,24 @@ fn parse_time_opt(value: &Option<String>) -> Option<u32> {
     }
 }
 
-fn parse_time(value: &str) -> Option<u32> {
-    let split: Vec<&str> = value.split(':').collect();
-    if split.len() == 3 {
-        let hour: u32 = split.first().unwrap().parse().unwrap();
-        let minutes: u32 = split.get(1).unwrap().parse().unwrap();
-        let seconds: u32 = split.get(2).unwrap().parse().unwrap();
-
-        Some(hour * 3600 + minutes * 60 + seconds)
+fn parse_duration_opt(value: &Option<String>) -> Option<Duration> {
+    if let Some(time) = value.as_ref() {
+        parse_duration(time)
     } else {
         None
     }
+}
+
+fn parse_time(value: &str) -> Option<SimTime> {
+    if value == "undefined" {
+        None
+    } else {
+        SimTime::parse(value).ok()
+    }
+}
+
+fn parse_duration(value: &str) -> Option<Duration> {
+    parse_time(value).map(SimTime::as_duration)
 }
 
 impl From<IOPerson> for InternalPerson {
@@ -781,13 +795,32 @@ mod tests {
     use crate::simulation::io::xml::population::{IOLeg, IORoute};
     use crate::simulation::scenario::network::{Link, Network};
     use crate::simulation::scenario::population::{
-        FromIOPerson, InternalLeg, InternalPerson, InternalRoute, Population,
+        FromIOPerson, InternalActivity, InternalLeg, InternalPerson, InternalRoute, Population,
     };
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::vehicles::InternalVehicle;
+    use crate::simulation::time::SimTime;
     use macros::integration_test;
     use std::collections::HashSet;
     use std::path::PathBuf;
+    use std::time::Duration;
+
+    #[test]
+    fn cmp_end_time_uses_bounded_open_ended_sentinel() {
+        let activity = InternalActivity::new(
+            crate::simulation::scenario::Coordinate::new(0.0, 0.0),
+            "home",
+            Id::create("1"),
+            None,
+            None,
+            None,
+        );
+
+        assert_eq!(
+            SimTime::from_nanos(u64::MAX),
+            activity.cmp_end_time(SimTime::default())
+        );
+    }
 
     #[integration_test]
     fn from_io_1_plan() {
@@ -811,9 +844,9 @@ mod tests {
         let home_act = binding.first().unwrap();
         assert_eq!("h", home_act.act_type.external());
         assert_eq!(Id::<Link>::get_from_ext("1"), home_act.link_id);
-        assert_eq!(-25000., home_act.x);
-        assert_eq!(0., home_act.y);
-        assert_eq!(Some(6 * 3600), home_act.end_time);
+        assert_eq!(-25000., home_act.coord.x);
+        assert_eq!(0., home_act.coord.y);
+        assert_eq!(Some(SimTime::from_secs(6 * 3600)), home_act.end_time);
         assert_eq!(None, home_act.start_time);
         assert_eq!(None, home_act.max_dur);
 
@@ -956,14 +989,17 @@ mod tests {
         let leg = InternalLeg::from_io(io_leg, Id::create("person"));
 
         assert_eq!(leg.mode.external(), "car");
-        assert_eq!(leg.trav_time, Some(1800));
-        assert_eq!(leg.dep_time, Some(43200));
+        assert_eq!(leg.trav_time, Some(Duration::from_secs(1800)));
+        assert_eq!(leg.dep_time, Some(SimTime::from_secs(43200)));
         assert_eq!(leg.routing_mode, None);
         let route = leg.route.as_ref().unwrap();
         assert!(matches!(route, InternalRoute::Generic(_)));
         assert_eq!(route.as_generic().start_link.external(), "1");
         assert_eq!(route.as_generic().end_link.external(), "2");
-        assert_eq!(route.as_generic().trav_time, Some(1200));
+        assert_eq!(
+            route.as_generic().trav_time,
+            Some(Duration::from_secs(1200))
+        );
         assert_eq!(route.as_generic().distance, Some(42.0));
         assert_eq!(
             route.as_generic().vehicle.as_ref().unwrap().external(),

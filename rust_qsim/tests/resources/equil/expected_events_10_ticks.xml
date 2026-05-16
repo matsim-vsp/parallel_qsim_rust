@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<events version="1.0">
+    <event time="21600" type="actend" person="1" link="1" x="-25000" y="0" actType="h"/>
+    <event time="21600" type="departure" person="1" link="1" legMode="car" computationalRoutingMode="car"/>
+    <event time="21600" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
+    <event time="21600" type="vehicle enters traffic" person="1" link="1" vehicle="1_car" networkMode="car" relativePosition="1"/>
+    <event time="21600.1" type="left link" link="1" vehicle="1_car"/>
+    <event time="21600.1" type="entered link" link="6" vehicle="1_car"/>
+    <event time="21960.1" type="left link" link="6" vehicle="1_car"/>
+    <event time="21960.1" type="entered link" link="15" vehicle="1_car"/>
+    <event time="22140.1" type="left link" link="15" vehicle="1_car"/>
+    <event time="22140.1" type="entered link" link="20" vehicle="1_car"/>
+    <event time="22500" type="vehicle leaves traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
+    <event time="22500" type="PersonLeavesVehicle" person="1" vehicle="1_car"/>
+    <event time="22500" type="arrival" person="1" link="20" legMode="car"/>
+    <event time="22500.1" type="actstart" person="1" link="20" x="3456" y="4242" actType="w"/>
+    <event time="23100.1" type="actend" person="1" link="20" x="3456" y="4242" actType="w"/>
+    <event time="23100.1" type="departure" person="1" link="20" legMode="car" computationalRoutingMode="car"/>
+    <event time="23100.1" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
+    <event time="23100.1" type="vehicle enters traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
+    <event time="23100.1" type="vehicle leaves traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
+    <event time="23100.1" type="PersonLeavesVehicle" person="1" vehicle="1_car"/>
+    <event time="23100.1" type="arrival" person="1" link="20" legMode="car"/>
+    <event time="23100.2" type="actstart" person="1" link="20" x="10000" y="0" actType="w"/>
+    <event time="35700.2" type="actend" person="1" link="20" x="10000" y="0" actType="w"/>
+    <event time="35700.2" type="departure" person="1" link="20" legMode="car" computationalRoutingMode="car"/>
+    <event time="35700.2" type="PersonEntersVehicle" person="1" vehicle="1_car"/>
+    <event time="35700.2" type="vehicle enters traffic" person="1" link="20" vehicle="1_car" networkMode="car" relativePosition="1"/>
+    <event time="35700.3" type="left link" link="20" vehicle="1_car"/>
+    <event time="35700.3" type="entered link" link="21" vehicle="1_car"/>
+    <event time="36060.3" type="left link" link="21" vehicle="1_car"/>
+    <event time="36060.3" type="entered link" link="22" vehicle="1_car"/>
+    <event time="37320.2" type="left link" link="22" vehicle="1_car"/>
+    <event time="37320.2" type="entered link" link="23" vehicle="1_car"/>
+    <event time="37680.2" type="left link" link="23" vehicle="1_car"/>
+    <event time="37680.2" type="entered link" link="1" vehicle="1_car"/>
+    <event time="38040.1" type="vehicle leaves traffic" person="1" link="1" vehicle="1_car" networkMode="car" relativePosition="1"/>
+    <event time="38040.1" type="PersonLeavesVehicle" person="1" vehicle="1_car"/>
+    <event time="38040.1" type="arrival" person="1" link="1" legMode="car"/>
+    <event time="38040.2" type="actstart" person="1" link="1" x="-25000" y="0" actType="h"/>
+</events>

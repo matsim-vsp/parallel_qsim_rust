@@ -2,12 +2,13 @@ use crate::simulation::agents::agent_logic::{
     AdaptivePlanBasedSimulationLogic, PlanBasedSimulationLogic,
 };
 use crate::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+    AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
-use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::time::SimTime;
+use crate::simulation::time_queue::Identifiable;
 
 #[derive(Debug)]
 pub struct SimulationAgent {
@@ -39,7 +40,7 @@ impl SimulationAgent {
 }
 
 impl EndTime for SimulationAgent {
-    fn end_time(&self, now: u32) -> u32 {
+    fn end_time(&self, now: SimTime) -> SimTime {
         self.logic.end_time(now)
     }
 }
@@ -51,7 +52,7 @@ impl Identifiable<InternalPerson> for SimulationAgent {
 }
 
 impl EnvironmentalEventObserver for SimulationAgent {
-    fn notify_event(&mut self, event: &mut AgentEvent, now: u32) {
+    fn notify_event(&mut self, event: &mut AgentEvent, now: SimTime) {
         self.logic.notify_event(event, now)
     }
 }
@@ -69,7 +70,7 @@ impl SimulationAgentLogic for SimulationAgent {
     fn next_leg(&self) -> Option<&InternalLeg> {
         self.logic.next_leg()
     }
-    fn advance_plan(&mut self, now: u32) {
+    fn advance_plan(&mut self, now: SimTime) {
         self.logic.advance_plan(now);
     }
     fn state(&self) -> SimulationAgentState {
@@ -84,7 +85,7 @@ impl SimulationAgentLogic for SimulationAgent {
     fn peek_next_link_id(&self) -> Option<&Id<Link>> {
         self.logic.peek_next_link_id()
     }
-    fn wakeup_time(&self, now: u32) -> u32 {
+    fn wakeup_time(&self, now: SimTime) -> SimTime {
         self.logic.wakeup_time(now)
     }
 }

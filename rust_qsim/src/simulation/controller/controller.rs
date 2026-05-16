@@ -7,7 +7,7 @@ use crate::simulation::controller::{
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
     ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn,
-    MobsimListenerRegisterFn,
+    MobsimListenerRegisterFn, PartitionListenerRegisterFn,
 };
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::population::agent_source::{
@@ -41,6 +41,8 @@ pub struct Controller {
     event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
     #[debug(skip)]
     mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
+    #[debug(skip)]
+    partition_event_listener_per_partition: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
@@ -52,6 +54,7 @@ pub struct ControllerBuilder {
     controller_event_register_fn: Vec<Box<ControllerListenerRegisterFn>>,
     event_handler_register_fn: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
     mobsim_event_register_fn: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
+    partition_event_register_fn: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
     external_services: ExternalServices,
     global_barrier: Option<Arc<Barrier>>,
     adapter_handles: Vec<AdapterHandle>,
@@ -65,6 +68,7 @@ impl ControllerBuilder {
             controller_event_register_fn: Vec::new(),
             event_handler_register_fn: HashMap::new(),
             mobsim_event_register_fn: HashMap::new(),
+            partition_event_register_fn: HashMap::new(),
             external_services: ExternalServices::default(),
             global_barrier: None,
             adapter_handles: Vec::new(),
@@ -94,6 +98,7 @@ impl ControllerBuilder {
             controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_register_fn,
             mobsim_event_listener_per_partition: self.mobsim_event_register_fn,
+            partition_event_listener_per_partition: self.partition_event_register_fn,
             external_services: self.external_services,
             global_barrier: barrier,
             adapter_handles: self.adapter_handles,
@@ -121,6 +126,14 @@ impl ControllerBuilder {
         v: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
     ) -> Self {
         self.mobsim_event_register_fn = v;
+        self
+    }
+
+    pub fn partition_event_register_fn(
+        mut self,
+        v: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
+    ) -> Self {
+        self.partition_event_register_fn = v;
         self
     }
 
@@ -246,6 +259,11 @@ impl Controller {
                     )
                     .mobsim_event_listener(
                         self.mobsim_event_listener_per_partition
+                            .remove(&rank)
+                            .unwrap_or_default(),
+                    )
+                    .partition_event_listener(
+                        self.partition_event_listener_per_partition
                             .remove(&rank)
                             .unwrap_or_default(),
                     )

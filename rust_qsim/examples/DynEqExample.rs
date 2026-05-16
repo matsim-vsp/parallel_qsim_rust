@@ -1,8 +1,8 @@
 use core::any::Any;
 use rust_qsim::simulation::events::{EventTrait, LinkEnterEvent, LinkLeaveEvent};
 use rust_qsim::simulation::id::Id;
+use rust_qsim::simulation::time::SimTime;
 use std::ops::Deref;
-
 // Example for implementation and usage of DynEq, a trait for dynamic equality comparison of trait
 // objects. This is used in the implementation of EventTrait to allow for equality comparison of
 // different event types.
@@ -40,14 +40,14 @@ impl PartialEq for dyn DynEq {
 fn main() {
     // link enter event
     let le: Box<dyn EventTrait> = Box::new(LinkEnterEvent {
-        time: 0,
+        time: SimTime::default(),
         link: Id::create("link"),
         vehicle: Id::create("link"),
         attributes: Default::default(),
     });
     // link leave event
     let ll: Box<dyn EventTrait> = Box::new(LinkLeaveEvent {
-        time: 0,
+        time: SimTime::default(),
         link: Id::create("link"),
         vehicle: Id::create("link"),
         attributes: Default::default(),
