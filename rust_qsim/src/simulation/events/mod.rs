@@ -1,5 +1,6 @@
 mod comparison;
 pub mod utils;
+pub mod visualize;
 
 use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
