@@ -248,7 +248,6 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
         let current_arrival_time = arrival_times[current_id];
 
         // checking "unusual" values of current_distance
-        // TODO is this the handling of unusual distance values that we want?
         match current_distance {
             f64::INFINITY => {
                 //The smallest value in queue was unreachable. So abort here.

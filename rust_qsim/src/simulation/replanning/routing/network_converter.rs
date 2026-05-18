@@ -15,7 +15,7 @@ pub struct NetworkConverter {}
 
 #[allow(dead_code)]
 impl NetworkConverter {
-    #[deprecated]
+    // #[deprecated] // FIXME this should be deprecated, commented out temporarily for github build
     pub fn convert_network_with_vehicle_types(
         network: &Network,
         vehicle_types: &IntMap<Id<InternalVehicleType>, InternalVehicleType>,
@@ -34,7 +34,7 @@ impl NetworkConverter {
         unimplemented!()
     }
 
-    #[deprecated(note = "Use the convert_network_for_mode function instead.")]
+    // #[deprecated(note = "Use the convert_network_for_mode function instead.")]  FIXME: should be deprecated, commented out temporarily for github build
     pub(crate) fn convert_network(
         network: &Network,
         vehicle_type: Option<&InternalVehicleType>,
