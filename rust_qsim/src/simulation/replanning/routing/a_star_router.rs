@@ -5,7 +5,7 @@ use crate::simulation::replanning::routing::a_star_core::{
 };
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+use crate::simulation::replanning::routing::least_cost_path_calculator::{
     Disutility, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, TravelDisutility,
     TravelTime,
 };
@@ -217,7 +217,18 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
             // copies graph, from, to, departure time, person, vehicle values from the lcp request
             .from_least_cost_path_request(&request)
         {
-            Ok(builder) => builder, // if succesful, continue
+            Ok(builder) => {
+                // if succesful, continue building
+                builder
+                    // set heuristic to the heuristic of the router
+                    .heuristic_mode(HeuristicMode::with_heuristic(&self.heuristic))
+                    .travel_time(self.travel_time.as_ref())
+                    .travel_disutility(self.travel_disutility.as_ref())
+                    // set AStarActions to the use case One to One with parent tracking
+                    .options(One2OneWithParentsAStarActions::new(to_node_idx, parents))
+                    .build()
+                    .unwrap()
+            }
             Err(err) => {
                 // else, likely the given from- or to-links do not exist
                 warn!(
@@ -227,16 +238,7 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
                 );
                 return None;
             }
-        }
-        // continue building
-        // set heuristic to the heuristic of the router
-        .heuristic_mode(HeuristicMode::with_heuristic(&self.heuristic))
-        .travel_time(self.travel_time.as_ref())
-        .travel_disutility(self.travel_disutility.as_ref())
-        // set AStarActions to the use case One to One with parent tracking
-        .options(One2OneWithParentsAStarActions::new(to_node_idx, parents))
-        .build()
-        .unwrap();
+        };
 
         // call a_star_core with the request, and extract the distance to the goal and the
         // parents vector from the result
@@ -321,15 +323,15 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelDisutility;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelTime;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    use crate::simulation::replanning::routing::least_cost_path_calculator::TravelDisutility;
+    use crate::simulation::replanning::routing::least_cost_path_calculator::TravelTime;
+    use crate::simulation::replanning::routing::least_cost_path_calculator::{
         Disutility, FreeSpeedTravelTimeAndDisutility,
     };
     use crate::simulation::scenario::population::InternalPerson;
 
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::Time;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    use crate::simulation::replanning::routing::least_cost_path_calculator::Time;
+    use crate::simulation::replanning::routing::least_cost_path_calculator::{
         FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPathCalculator,
     };
 
@@ -340,8 +342,10 @@ mod tests {
     };
     use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
     use crate::simulation::replanning::routing::graph::IndexableGraph;
-    use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    use crate::simulation::replanning::routing::graph::tests::{
+        get_triangle_test_graph, get_triangle_test_network,
+    };
+    use crate::simulation::replanning::routing::least_cost_path_calculator::{
         LeastCostPath, LeastCostPathRequestBuilder,
     };
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
@@ -425,7 +429,8 @@ mod tests {
     #[test]
     // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO I don't understand this message really. Seems to work for me?
     fn test_simple_dijkstra_routing() {
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
 
         let router = AStarRouter::new(
             ZeroHeuristic,
@@ -548,7 +553,8 @@ mod tests {
     /// Test that ALT heuristic and zero heuristic find the same optimal path
     #[test]
     fn test_alt_vs_zero_heuristic_same_result() {
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
 
         // Router with zero heuristic (pure Dijkstra)
         let zero_router = AStarRouter::new(
@@ -592,7 +598,9 @@ mod tests {
     /// Test routing when start and destination are the same (zero distance)
     #[test]
     fn test_same_start_and_destination() {
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
         let router = AStarRouter::new(
             ZeroHeuristic,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
@@ -621,7 +629,8 @@ mod tests {
     /// disutility differs from the time-independent case, even if the travel times are the same.
     #[test]
     fn test_time_dependent_routing() {
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
 
         // Create a router with time-independent disutility
         // disutility = freespeed travel_time
@@ -729,7 +738,8 @@ mod tests {
     /// (never overestimates the actual distance)
     #[test]
     fn test_alt_heuristic_admissibility() {
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
 
         let landmark_data = AltLandmarkData::new(&graph).unwrap();
         let alt_heuristic = AltHeuristic::new(landmark_data);

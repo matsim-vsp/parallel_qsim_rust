@@ -1,8 +1,8 @@
 use crate::simulation::replanning::routing::a_star_router::{AStarHeuristic, ZeroHeuristic};
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::TravelDisutility;
-use crate::simulation::replanning::routing::least_cost_path_caluclator::{Disutility, TravelTime};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+use crate::simulation::replanning::routing::least_cost_path_calculator::TravelDisutility;
+use crate::simulation::replanning::routing::least_cost_path_calculator::{Disutility, TravelTime};
+use crate::simulation::replanning::routing::least_cost_path_calculator::{
     LeastCostPathRequest, Time,
 };
 use crate::simulation::scenario::population::InternalPerson;
@@ -11,6 +11,7 @@ use derive_builder::Builder;
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use ordered_float::OrderedFloat;
 use std::cmp::Reverse;
+use std::fmt::Debug;
 use tracing::warn;
 
 /// Specifies which heuristic to use for A* search
@@ -21,10 +22,19 @@ use tracing::warn;
 ///     - this allows to run `a_star_core` without a `to`-node, since even when using
 ///     `ZeroHeuristic`, a node would have to be passed. But with this setting, `a_star_core` knows
 ///     not to call any Heuristic
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum HeuristicMode<'a, H: AStarHeuristic = ZeroHeuristic> {
     WithHeuristic(&'a H),
     WithoutHeuristic,
+}
+
+impl<'a, H: AStarHeuristic> Clone for HeuristicMode<'a, H> {
+    fn clone(&self) -> Self {
+        match self {
+            HeuristicMode::WithHeuristic(h) => HeuristicMode::WithHeuristic(h),
+            HeuristicMode::WithoutHeuristic => HeuristicMode::WithoutHeuristic,
+        }
+    }
 }
 
 impl<'a, H: AStarHeuristic> HeuristicMode<'a, H> {
@@ -73,7 +83,7 @@ pub(crate) enum AStarCoreResult {
 /// - at every current node in the algorithm, whether it should stop, since it reached its goal
 /// - upon reaching a node, whether its parent node should be tracked
 /// - when the algorithm returns, what form the result should have (e.g. with or without parents)
-pub(crate) trait AStarActions: Clone {
+pub(crate) trait AStarActions: Clone + Debug {
     /// Called by `a_star_core` at every visited node, the alg will return if it receives `true`
     fn reached_end(&self, current_node: NodeIndex) -> bool;
     /// Called by `a_star_core` when a node is reached, the implementation decides whether to store
@@ -98,7 +108,7 @@ pub(crate) trait AStarActions: Clone {
 /// When they are called in the context of parent tracking, they do nothing. When they are called
 /// in the context of building the result, they return the distances from the from-node to all
 /// other nodes in the graph.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct One2ManyNoParentsAStarActions;
 
 impl AStarActions for One2ManyNoParentsAStarActions {
@@ -125,7 +135,7 @@ impl AStarActions for One2ManyNoParentsAStarActions {
 /// When called in the context of parent tracking, will update the parents.
 /// When called to build the A* result, will return the distance from the from-node to the to-node,
 /// together with the parents vector, which can be used to extract the path.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct One2OneWithParentsAStarActions {
     to_node: NodeIndex,
     parents: Vec<Option<NodeIndex>>,

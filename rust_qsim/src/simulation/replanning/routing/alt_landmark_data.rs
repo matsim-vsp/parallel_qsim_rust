@@ -2,7 +2,7 @@ use crate::simulation::replanning::routing::a_star_core::{
     AStarCoreResult, AStarRequestBuilder, HeuristicMode, One2ManyNoParentsAStarActions, a_star_core,
 };
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
-use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+use crate::simulation::replanning::routing::least_cost_path_calculator::{
     Disutility, FreeSpeedTravelTimeAndDisutility,
 };
 use rand::SeedableRng;
@@ -129,12 +129,16 @@ impl AltLandmarkData {
 #[cfg(test)]
 mod tests {
     use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
-    use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::replanning::routing::graph::tests::{
+        get_triangle_test_graph, get_triangle_test_network,
+    };
 
     #[test]
     // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO still not sure if this is true
     fn test_landmark_choice_and_distance_calculation() {
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
         let alt_data = AltLandmarkData::new(&graph).unwrap();
 
         //selection is so far random, but with fixed seed (chooses node with index 3 as landmark)

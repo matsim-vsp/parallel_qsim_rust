@@ -6,6 +6,9 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use derive_builder::Builder;
 use std::fmt::Debug;
 
+// TODO: The comment below is outdated and can go, but:
+// should the "Time" used in routing stay f64, or do we use u64 like the SimTime, since it was
+// decided that that gives a good enough accuracy and max duration?
 // "normal" time representation is u32 for now, but we might want to use f64 for the future
 pub type Time = f64;
 pub type Disutility = f64;
@@ -159,11 +162,13 @@ mod tests {
     use crate::simulation::replanning::routing::a_star_router::AStarRouter;
     use crate::simulation::replanning::routing::a_star_router::ZeroHeuristic;
     use crate::simulation::replanning::routing::graph::Graph;
-    use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    use crate::simulation::replanning::routing::graph::tests::{
+        get_triangle_test_graph, get_triangle_test_network,
+    };
+    use crate::simulation::replanning::routing::least_cost_path_calculator::{
         FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPath, LeastCostPathRequestBuilder,
     };
-    use crate::simulation::replanning::routing::least_cost_path_caluclator::{
+    use crate::simulation::replanning::routing::least_cost_path_calculator::{
         LeastCostPathCalculator, TravelDisutility, TravelTime,
     };
     use crate::simulation::scenario::network::Link;
@@ -180,7 +185,8 @@ mod tests {
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
         // triangle graph
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::create("1")) // these links are connected via
@@ -207,7 +213,9 @@ mod tests {
     fn test_free_or_max_speed_travel_time_and_disutility() {
         let fomsttad = FreeOrMaxSpeedTravelTimeAndDisutility;
 
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
         let link = graph.edge(Id::create("4")).unwrap();
 
         assert_eq!(fomsttad.travel_time(link, 0.0, None, None), 4.0);

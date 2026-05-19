@@ -16,29 +16,32 @@ pub struct NetworkConverter {}
 #[allow(dead_code)]
 impl NetworkConverter {
     // #[deprecated] // FIXME this should be deprecated, commented out temporarily for github build
-    pub fn convert_network_with_vehicle_types(
-        network: &Network,
+    pub fn convert_network_with_vehicle_types<'net>(
+        network: &'net Network,
         vehicle_types: &IntMap<Id<InternalVehicleType>, InternalVehicleType>,
-    ) -> IntMap<Id<InternalVehicleType>, ForwardBackwardGraph> {
+    ) -> IntMap<Id<InternalVehicleType>, ForwardBackwardGraph<'net>> {
         vehicle_types
             .iter()
             .map(|(id, vt)| (id.clone(), Self::convert_network(network, Some(vt))))
             .collect()
     }
 
-    pub fn filter_network(_mode: String, _network: &Network) -> Network {
+    pub fn filter_network(_mode: &str, _network: &Network) -> Network {
         unimplemented!()
     }
 
-    pub fn convert_network_for_mode(_network: &Network, _mode: String) -> ForwardBackwardGraph {
+    pub fn convert_network_for_mode<'net>(
+        _network: &'net Network,
+        _mode: &str,
+    ) -> ForwardBackwardGraph<'net> {
         unimplemented!()
     }
 
     // #[deprecated(note = "Use the convert_network_for_mode function instead.")]  FIXME: should be deprecated, commented out temporarily for github build
-    pub(crate) fn convert_network(
-        network: &Network,
+    pub(crate) fn convert_network<'net>(
+        network: &'net Network,
         vehicle_type: Option<&InternalVehicleType>,
-    ) -> ForwardBackwardGraph {
+    ) -> ForwardBackwardGraph<'net> {
         info!(
             "Converting network to forward backward graph for mode {:?}.",
             vehicle_type
@@ -153,8 +156,8 @@ impl NetworkConverter {
         ForwardBackwardGraph::new(
             forward_graph,
             backward_graph,
-            network.nodes_with_ids().clone(),
-            network.links_with_ids().clone(),
+            network.nodes_with_ids(),
+            network.links_with_ids(),
         )
     }
 
@@ -184,7 +187,9 @@ mod test {
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::replanning::routing::graph::tests::get_triangle_test_graph;
+    use crate::simulation::replanning::routing::graph::tests::{
+        get_triangle_test_graph, get_triangle_test_network,
+    };
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::vehicles::Garage;
@@ -255,7 +260,8 @@ mod test {
     /// Test that all links exist in both forward and backward directions
     #[test]
     fn test_all_links_in_both_directions() {
-        let graph = get_triangle_test_graph();
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
 
         // Every link should exist in forward_link_ids
         // and also in backward_link_ids (possibly at different position)
