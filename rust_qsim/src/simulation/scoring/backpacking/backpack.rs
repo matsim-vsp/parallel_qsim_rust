@@ -217,6 +217,8 @@ struct BackpackRoute {
 
     // Network Route Type
     route: Vec<Id<Link>>
+    // Currently, route sequence does not contain start or end-link id even though internally
+    // the QSim needs them in the sequence (aleks, May'26)
 }
 
 impl Default for BackpackRoute {
