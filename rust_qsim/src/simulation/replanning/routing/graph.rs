@@ -1,4 +1,5 @@
 use crate::simulation::id::Id;
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::{Link, Node};
 use nohash_hasher::IntMap;
 use std::fmt;
@@ -53,56 +54,37 @@ pub trait IndexableGraph: Graph {
     fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
 }
 
-/// A directed graph with network node ids as nodes, and network link ids as edges, used for routing
-/// on the network.
-///
-/// Stored in a way optimized for retrieving outgoing edges. Namely:
-/// - `first_out` is a vector such that `first_out[i]` is the index of the first outgoing edge of
+/// A directed graph, stored in Compressed sparse row (CSR) format.
+/// That is, contains the two vectors:
+/// - `first_out`: a vector such that `first_out[i]` is the index of the first outgoing edge of
 ///     node i in `head`, and `first_out[i+1]` is the index of the first outgoing edge of node i+1,
-///     so that the outgoing edges of node i are exactly those in
+///     i.e., the outgoing edges of node i are exactly those in
 ///     `head[first_out[i]..first_out[i+1]]`.
-/// - `head` is a vector such that `head[j]` is the node index of the end node of the edge with
+/// - `head`: a vector such that `head[j]` is the node index of the end node of the edge with
 ///     index j
-/// The graph also contains vectors and maps allowing to go from node index to network node id, and
-/// from link index to network link id, and vice versa.
-/// Also contains x and y coordinates, that are not used in routing.
+/// This structure allows to efficiently look up the outgoing edges of a node. To efficiently look
+/// up incoming edges, use `ForwardBackwardGraph`s, that contain two `CsrGraph`s, one for the
+/// forward and one for the backward graph, with the latter allowing to access incoming edges cheaply.
+///
+/// This structure considers nodes and edges as indices, so it does not contain any information on
+/// the actual nodes and edges. Other structures, such as `ForwardBackwardGraph`, are responsible
+/// for keeping track of what nodes and edges are, while this struct only stores the Graph
+/// structure.
 #[derive(Clone, Debug, PartialEq)]
 #[allow(dead_code)]
-pub struct RoutingGraph {
-    // TODO move the node intmap, vector, x and y to ForwardBackwardGraph maybe? Otherwise, it's duplicate
+pub struct CsrGraph {
     /// a vector such that `first_out[i]` is the index of the first outgoing edge of
     /// node i in `head`, and `first_out[i+1]` is the index of the first outgoing edge of node i+1,
     /// so that the outgoing edges of node i are exactly those in
     /// `head[first_out[i]..first_out[i+1]]`.
     pub(crate) first_out: Vec<LinkIndex>,
-    pub(crate) node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to indices (in first_out, x, y etc.)
-    pub(crate) node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to node ids
     /// a vector such that `head[j]` is the node index of the end node of the edge with index j
     pub(crate) head: Vec<NodeIndex>,
-    pub(crate) link_id_by_index: Vec<Id<Link>>,
-    pub(crate) x: Vec<f64>,
-    pub(crate) y: Vec<f64>,
-    pub(crate) link_index_by_id: IntMap<Id<Link>, LinkIndex>,
 }
 
-impl RoutingGraph {
-    #[cfg(test)]
-    fn new(
-        first_out: Vec<LinkIndex>,
-        node_index_by_id: IntMap<Id<Node>, NodeIndex>,
-        node_id_by_index: Vec<Id<Node>>,
-        head: Vec<NodeIndex>,
-    ) -> RoutingGraph {
-        RoutingGraph {
-            first_out,
-            node_index_by_id,
-            node_id_by_index,
-            head,
-            link_id_by_index: vec![],
-            x: vec![],
-            y: vec![],
-            link_index_by_id: IntMap::default(),
-        }
+impl CsrGraph {
+    pub(crate) fn new(first_out: Vec<LinkIndex>, head: Vec<NodeIndex>) -> CsrGraph {
+        CsrGraph { first_out, head }
     }
 }
 
@@ -138,39 +120,56 @@ impl Display for GraphError {
 
 impl std::error::Error for GraphError {}
 
-/// An implementation of `Graph` and `IndexableGraph`, i.e., a directed graph with network node ids
-/// as nodes, and network link ids as edges.
+/// An implementation of `Graph` and `IndexableGraph`, i.e., a directed graph with network nodes
+/// as nodes, and network links as edges.
 ///
-/// Contains both a forward and a backward `RoutingGraph`, with the backward graph a copy of the
-/// forward one, just with flipped directions on the edges. This allows to have cheap access to both
-/// outgoing and incoming edges.
+/// The graph structure is stored in two `CsrGraph`s, one "forward" graph and one "backward", with
+/// the backward graph a copy of the forward one, just with flipped directions on the edges. This
+/// allows to have cheap access to both outgoing and incoming edges.
 ///
-/// Note that while nodes and edges can be indexed in both forward and backward graph, the indices
-/// of the same edge in the forward and backward graph differ, due to the structure of how
-/// `RoutingGraph`s are stored. A method `get_backward_link_index` is available to convert between
-/// the two, and is used internally when looking up the start node of an edge via the backward graph.
-///
-/// Also contains maps from node and link ids to the actual network nodes and links.
+/// Also contains maps and vectors to map between indices, (node/link) ids and actual nodes and
+/// links. And contains coordinate data, currently not used in routing.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ForwardBackwardGraph<'net> {
-    forward_graph: RoutingGraph,
-    backward_graph: RoutingGraph,
-    node_id_to_node: &'net IntMap<Id<Node>, Node>,
-    link_id_to_link: &'net IntMap<Id<Link>, Link>,
+pub(crate) struct ForwardBackwardRoutingGraph<'net> {
+    forward_graph: CsrGraph,
+    backward_graph: CsrGraph,
+    node_by_node_id: &'net IntMap<Id<Node>, Node>, // maps node ids to actual network nodes
+    link_by_link_id: &'net IntMap<Id<Link>, Link>, // maps link ids to actual network links
+    node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to node indices
+    node_id_by_index: Vec<Id<Node>>,               // maps (Node)Indices to node ids
+    forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
+    backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
+    forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
+    backward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the backward graph
+    coords: Vec<&'net Coordinate>, // TODO do we need coordinates, when we have them in the nodes?
 }
 
-impl<'net> ForwardBackwardGraph<'net> {
+impl<'net> ForwardBackwardRoutingGraph<'net> {
     pub fn new(
-        forward_graph: RoutingGraph,
-        backward_graph: RoutingGraph,
-        node_id_to_node: &'net IntMap<Id<Node>, Node>,
-        link_id_to_link: &'net IntMap<Id<Link>, Link>,
+        forward_graph: CsrGraph,
+        backward_graph: CsrGraph,
+        node_by_node_id: &'net IntMap<Id<Node>, Node>,
+        link_by_link_id: &'net IntMap<Id<Link>, Link>,
+        node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to indices (in first_out, x, y etc.)
+        node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to node ids
+        forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
+        backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
+        forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
+        backward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the backward graph
+        coords: Vec<&'net Coordinate>,
     ) -> Self {
         let graph = Self {
             forward_graph,
             backward_graph,
-            node_id_to_node,
-            link_id_to_link,
+            node_by_node_id,
+            link_by_link_id,
+            node_index_by_id,
+            node_id_by_index,
+            forward_link_id_by_index,
+            backward_link_id_by_index,
+            forward_link_index_by_id,
+            backward_link_index_by_id,
+            coords,
         };
         graph.validate_else_panic();
         graph
@@ -208,38 +207,30 @@ impl<'net> ForwardBackwardGraph<'net> {
     }
 
     pub(crate) fn forward_link_ids(&self) -> &Vec<Id<Link>> {
-        &self.forward_graph.link_id_by_index
+        &self.forward_link_id_by_index
     }
 
     pub(crate) fn backward_link_ids(&self) -> &Vec<Id<Link>> {
-        &self.backward_graph.link_id_by_index
+        &self.backward_link_id_by_index
     }
 
     pub(crate) fn forward_link_id_pos(&self) -> &IntMap<Id<Link>, LinkIndex> {
-        &self.forward_graph.link_index_by_id
+        &self.forward_link_index_by_id
     }
 
     pub(crate) fn backward_link_id_pos(&self) -> &IntMap<Id<Link>, BackwardLinkIndex> {
-        &self.backward_graph.link_index_by_id
-    }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    pub fn number_of_links(&self) -> usize {
-        self.forward_graph.head.len()
+        &self.backward_link_index_by_id
     }
 
     pub(crate) fn get_node_id(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError> {
-        self.forward_graph
-            .node_id_by_index
+        self.node_id_by_index
             .get(idx)
             .ok_or_else(|| GraphError::NodeIndexNotFound(idx))
             .cloned()
     }
 
     pub(crate) fn get_link_id(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError> {
-        self.forward_graph
-            .link_id_by_index
+        self.forward_link_id_by_index
             .get(idx)
             .ok_or_else(|| GraphError::LinkIndexNotFound(idx))
             .cloned()
@@ -263,28 +254,28 @@ impl<'net> ForwardBackwardGraph<'net> {
     }
 }
 
-impl Graph for ForwardBackwardGraph<'_> {
+impl Graph for ForwardBackwardRoutingGraph<'_> {
     fn node(&self, id: Id<Node>) -> Result<&Node, GraphError> {
-        self.node_id_to_node
+        self.node_by_node_id
             .get(&id)
             .ok_or_else(|| GraphError::NodeIdNotFound(id))
     }
 
     fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError> {
-        self.link_id_to_link
+        self.link_by_link_id
             .get(&id)
             .ok_or_else(|| GraphError::LinkIdNotFound(id))
     }
 
     fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>] {
-        let node_idx = self.forward_graph.node_index_by_id[&node];
+        let node_idx = self.node_index_by_id[&node];
         let link_indices =
             self.forward_first_out()[node_idx]..self.forward_first_out()[node_idx + 1];
         &self.forward_link_ids()[link_indices]
     }
 
     fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>] {
-        let node_idx = self.backward_graph.node_index_by_id[&node];
+        let node_idx = self.node_index_by_id[&node];
         let link_indices =
             self.backward_first_out()[node_idx]..self.backward_first_out()[node_idx + 1];
         &self.backward_link_ids()[link_indices]
@@ -300,7 +291,7 @@ impl Graph for ForwardBackwardGraph<'_> {
         // get node index of end node
         let node_idx = self.forward_head().get(link_id_index).unwrap().clone();
         // convert node index to node id and return
-        Ok(self.forward_graph.node_id_by_index[node_idx].clone())
+        Ok(self.node_id_by_index[node_idx].clone())
     }
 
     fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError> {
@@ -321,7 +312,7 @@ impl Graph for ForwardBackwardGraph<'_> {
     }
 }
 
-impl IndexableGraph for ForwardBackwardGraph<'_> {
+impl IndexableGraph for ForwardBackwardRoutingGraph<'_> {
     fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
         self.forward_head()
             .get(edge)
@@ -346,7 +337,7 @@ impl IndexableGraph for ForwardBackwardGraph<'_> {
             .copied()
     }
     fn get_node_idx_from_id(&self, node_id: Id<Node>) -> NodeIndex {
-        self.forward_graph.node_index_by_id[&node_id]
+        self.node_index_by_id[&node_id]
     }
     fn get_link_from_idx(&self, idx: LinkIndex) -> Result<&Link, GraphError> {
         // uses method from Graph trait to map link id to link
@@ -388,7 +379,7 @@ impl IndexableGraph for ForwardBackwardGraph<'_> {
 pub(crate) mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, RoutingGraph};
+    use crate::simulation::replanning::routing::graph::{CsrGraph, ForwardBackwardRoutingGraph};
     use crate::simulation::replanning::routing::graph::{Graph, GraphError, IndexableGraph};
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
     use crate::simulation::scenario::network::{Network, Node};
@@ -402,64 +393,44 @@ pub(crate) mod tests {
             &PartitionMethod::Metis(MetisOptions::default()),
         )
     }
-    pub fn get_triangle_test_graph<'net>(network: &'net Network) -> ForwardBackwardGraph<'net> {
+    pub fn get_triangle_test_graph<'net>(
+        network: &'net Network,
+    ) -> ForwardBackwardRoutingGraph<'net> {
         NetworkConverter::convert_network(network, None)
     }
 
     #[integration_test]
     #[should_panic]
     fn test_graph_not_valid() {
-        ForwardBackwardGraph::new(
-            RoutingGraph::new(
-                vec![0, 1, 2],
-                IntMap::from_iter([
-                    (Id::create("0"), 0),
-                    (Id::create("1"), 1),
-                    (Id::create("2"), 2),
-                ]),
-                vec![Id::create("0"), Id::create("1"), Id::create("2")],
-                vec![0, 1, 2, 3, 4, 5],
-            ),
-            RoutingGraph::new(
-                vec![0, 1, 2],
-                IntMap::from_iter([
-                    (Id::create("0"), 0),
-                    (Id::create("1"), 1),
-                    (Id::create("2"), 2),
-                ]),
-                vec![Id::create("0"), Id::create("1"), Id::create("2")],
-                vec![0, 1, 2, 3, 4],
-            ),
-            &IntMap::default(),
-            &IntMap::default(),
+        ForwardBackwardRoutingGraph::new(
+            CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
+            CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4]),
+            &IntMap::default(), // node_by_node_id
+            &IntMap::default(), // link_by_link_id
+            IntMap::default(),  // node_index_by_id
+            vec![Id::create("0"), Id::create("1"), Id::create("2")],
+            vec![],
+            vec![],
+            IntMap::default(), // forward_link_index_by_id
+            IntMap::default(), // bacward_link_index_by_id
+            vec![],
         );
     }
 
     #[integration_test]
     fn test_graph_valid() {
-        ForwardBackwardGraph::new(
-            RoutingGraph::new(
-                vec![0, 1, 2],
-                IntMap::from_iter([
-                    (Id::create("0"), 0),
-                    (Id::create("1"), 1),
-                    (Id::create("2"), 2),
-                ]),
-                vec![Id::create("0"), Id::create("1"), Id::create("2")],
-                vec![0, 1, 2, 3, 4, 5],
-            ),
-            RoutingGraph::new(
-                vec![42, 43, 44],
-                IntMap::from_iter([
-                    (Id::create("0"), 0),
-                    (Id::create("1"), 1),
-                    (Id::create("2"), 2),
-                ]),
-                vec![Id::create("0"), Id::create("1"), Id::create("2")],
-                vec![8, 10, 12, 13, 14, 15],
-            ),
-            &IntMap::default(),
-            &IntMap::default(),
+        ForwardBackwardRoutingGraph::new(
+            CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
+            CsrGraph::new(vec![42, 43, 44], vec![8, 10, 12, 13, 14, 15]),
+            &IntMap::default(), // node_by_node_id
+            &IntMap::default(), // link_by_link_id
+            IntMap::default(),  // node_index_by_id
+            vec![Id::create("0"), Id::create("1"), Id::create("2")],
+            vec![],
+            vec![],
+            IntMap::default(), // forward_link_index_by_id
+            IntMap::default(), // bacward_link_index_by_id
+            vec![],
         );
     }
 

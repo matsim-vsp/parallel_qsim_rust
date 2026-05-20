@@ -6,7 +6,7 @@ use tracing::info;
 
 use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::graph::{
-    ForwardBackwardGraph, LinkIndex, NodeIndex, RoutingGraph,
+    CsrGraph, ForwardBackwardRoutingGraph, LinkIndex, NodeIndex,
 };
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::InternalVehicleType;
@@ -19,7 +19,7 @@ impl NetworkConverter {
     pub fn convert_network_with_vehicle_types<'net>(
         network: &'net Network,
         vehicle_types: &IntMap<Id<InternalVehicleType>, InternalVehicleType>,
-    ) -> IntMap<Id<InternalVehicleType>, ForwardBackwardGraph<'net>> {
+    ) -> IntMap<Id<InternalVehicleType>, ForwardBackwardRoutingGraph<'net>> {
         vehicle_types
             .iter()
             .map(|(id, vt)| (id.clone(), Self::convert_network(network, Some(vt))))
@@ -33,7 +33,7 @@ impl NetworkConverter {
     pub fn convert_network_for_mode<'net>(
         _network: &'net Network,
         _mode: &str,
-    ) -> ForwardBackwardGraph<'net> {
+    ) -> ForwardBackwardRoutingGraph<'net> {
         unimplemented!()
     }
 
@@ -41,26 +41,24 @@ impl NetworkConverter {
     pub(crate) fn convert_network<'net>(
         network: &'net Network,
         vehicle_type: Option<&InternalVehicleType>,
-    ) -> ForwardBackwardGraph<'net> {
+    ) -> ForwardBackwardRoutingGraph<'net> {
         info!(
             "Converting network to forward backward graph for mode {:?}.",
             vehicle_type
         );
 
+        let mut node_index_by_id = IntMap::default();
+        let mut node_id_by_index = Vec::new();
+
         let mut forward_first_out = Vec::new();
-        let mut forward_node_index_by_id = IntMap::default();
-        let mut forward_node_id_by_index = Vec::new();
         let mut forward_head = Vec::new();
-        let mut forward_link_ids = Vec::new();
+        let mut forward_link_id_by_index = Vec::new();
 
         let mut backward_first_out = Vec::new();
-        let mut backward_node_index_by_id = IntMap::default();
-        let mut backward_node_id_by_index = Vec::new();
         let mut backward_head = Vec::new();
-        let mut backward_link_ids = Vec::new();
+        let mut backward_link_id_by_index = Vec::new();
 
-        let mut x = Vec::new();
-        let mut y = Vec::new();
+        let mut coords = Vec::new();
 
         let nodes = network.get_all_nodes_sorted();
         let node_indices = nodes
@@ -74,17 +72,14 @@ impl NetworkConverter {
 
         for (i, node) in nodes.iter().enumerate() {
             //set x and y
-            x.push(node.coord.x);
-            y.push(node.coord.y);
+            coords.push(&node.coord);
 
             forward_first_out.push(forward_links_before as LinkIndex);
             backward_first_out.push(backward_links_before as LinkIndex);
 
             // keep track of which node id has which index in first_out
-            forward_node_index_by_id.insert(node.id.clone(), i as NodeIndex);
-            forward_node_id_by_index.push(node.id.clone());
-            backward_node_index_by_id.insert(node.id.clone(), i as NodeIndex);
-            backward_node_id_by_index.push(node.id.clone());
+            node_index_by_id.insert(node.id.clone(), i as NodeIndex);
+            node_id_by_index.push(node.id.clone());
 
             //calculate adjacent links
             let outgoing_links = Self::get_links(&node.out_links, network, vehicle_type);
@@ -99,7 +94,7 @@ impl NetworkConverter {
 
                 forward_head.push(to_node_index);
 
-                forward_link_ids.push(link.id.clone());
+                forward_link_id_by_index.push(link.id.clone());
             }
 
             //process ingoing links
@@ -109,55 +104,43 @@ impl NetworkConverter {
 
                 backward_head.push(to_node_index);
 
-                backward_link_ids.push(link.id.clone());
+                backward_link_id_by_index.push(link.id.clone());
             }
         }
         forward_first_out.push(forward_head.len() as LinkIndex);
         backward_first_out.push(backward_head.len() as LinkIndex);
 
-        let forward_link_id_pos = forward_link_ids
+        let forward_link_index_by_id = forward_link_id_by_index
             .iter()
             .enumerate()
             .map(|(i, id)| (id.clone(), i as LinkIndex))
             .collect::<IntMap<Id<Link>, LinkIndex>>();
-        let backward_link_id_pos = backward_link_ids
+        let backward_link_index_by_id = backward_link_id_by_index
             .iter()
             .enumerate()
             .map(|(i, id)| (id.clone(), i as LinkIndex))
             .collect::<IntMap<Id<Link>, LinkIndex>>();
 
-        let forward_graph = RoutingGraph {
-            first_out: forward_first_out,
-            node_index_by_id: forward_node_index_by_id,
-            node_id_by_index: forward_node_id_by_index,
-            head: forward_head,
-            link_id_by_index: forward_link_ids,
-            x: x.clone(),
-            y: y.clone(),
-            link_index_by_id: forward_link_id_pos,
-        };
-
-        let backward_graph = RoutingGraph {
-            first_out: backward_first_out,
-            node_index_by_id: backward_node_index_by_id,
-            node_id_by_index: backward_node_id_by_index,
-            head: backward_head,
-            link_id_by_index: backward_link_ids,
-            x,
-            y,
-            link_index_by_id: backward_link_id_pos,
-        };
+        let forward_graph = CsrGraph::new(forward_first_out, forward_head);
+        let backward_graph = CsrGraph::new(backward_first_out, backward_head);
 
         info!(
             "Finished converting network to forward backward graph for mode {:?}.",
             vehicle_type
         );
 
-        ForwardBackwardGraph::new(
+        ForwardBackwardRoutingGraph::new(
             forward_graph,
             backward_graph,
-            network.nodes_with_ids(),
-            network.links_with_ids(),
+            network.nodes_with_ids(), // node_id_to_node
+            network.links_with_ids(), // link_id_to_link
+            node_index_by_id,
+            node_id_by_index,
+            forward_link_id_by_index,
+            backward_link_id_by_index,
+            forward_link_index_by_id,
+            backward_link_index_by_id,
+            coords,
         )
     }
 
