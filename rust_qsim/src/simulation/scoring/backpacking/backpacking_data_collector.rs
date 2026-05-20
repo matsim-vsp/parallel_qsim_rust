@@ -65,15 +65,6 @@ impl BackpackingDataCollector {
         &self.person_id2backpack
     }
 
-    // fn add_special_scoring_event(&mut self, person: &Id<InternalPerson>, event: Box<dyn EventTrait>) {
-    //     println!("Partition #{}: Adding special scoring event for id {}", self.rank, person); // TODO Debug only, remove when working
-    //
-    //     self.person_id2backpack
-    //         .get_mut(person)
-    //         .unwrap()
-    //         .add_special_scoring_event(event);
-    // }
-
     /// This method's main purpose is to forward relevant events to the backpacks affected by given event.
     /// Events which do not affect the Backpack of any person will be ignored.
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
@@ -108,10 +99,16 @@ impl BackpackingDataCollector {
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
             println!("VehicleEntersTrafficEvent");
-            vec![e.person.clone()]
+            self.vehicle_id2person_ids
+                .get(&e.vehicle)
+                .map(|persons| persons.iter().cloned().collect())
+                .unwrap_or_default()
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
             println!("VehicleLeavesTrafficEvent");
-            vec![e.person.clone()]
+            self.vehicle_id2person_ids
+                .get(&e.vehicle)
+                .map(|persons| persons.iter().cloned().collect())
+                .unwrap_or_default()
         } else {
             vec![]
         };
