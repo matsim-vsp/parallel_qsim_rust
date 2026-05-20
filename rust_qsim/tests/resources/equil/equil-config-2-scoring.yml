@@ -17,7 +17,7 @@ modules:
   output:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
-    output_dir: ./test_output/simulation/scoring
+    output_dir: ./test_output/simulation/scoring_2
   routing:
     type: Routing
     mode: UsePlans
