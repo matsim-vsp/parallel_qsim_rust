@@ -102,7 +102,27 @@ impl BackpackingMessageBroker
                 });
         }
 
-        while let Ok(received_msg) = self.receiver.try_recv() {
+        // TODO Optimize to only send/check this to neighbours
+        for (target, sender) in self.senders.iter().enumerate() {
+            let msg = InternalScoringMessage {
+                from_process: self.rank,
+                to_process: target as QSimId,
+                message: Box::new(FinishMessage{})
+            };
+
+            sender.send(msg)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Error while sending message to rank {} with error {}",
+                        target, e
+                    )
+                })
+        }
+
+        let mut finished_partitions: HashSet<QSimId> = HashSet::new();
+        while finished_partitions.len() < self.senders.len() {
+            let received_msg = self.receiver.recv().expect("Error receiving message");
+
             let boxed_any = received_msg.message.into_any();
 
             match () {
@@ -113,6 +133,9 @@ impl BackpackingMessageBroker
                 _ if boxed_any.is::<BackpackingMessage>() => {
                     let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
                     self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_backpacks(m.backpacks);
+                }
+                _ if boxed_any.is::<FinishMessage>() => {
+                    finished_partitions.insert(received_msg.from_process);
                 }
                 _ => {
                     panic!("Received unknown message type!");
@@ -129,4 +152,7 @@ pub struct VehicleMessage {
 
 pub struct BackpackingMessage {
     backpacks: HashMap<Id<InternalPerson>, Backpack>
+}
+
+pub struct FinishMessage {
 }
