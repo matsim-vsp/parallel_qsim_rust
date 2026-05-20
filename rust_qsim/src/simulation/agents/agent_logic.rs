@@ -3,7 +3,7 @@ use crate::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
 use crate::simulation::agents::{
-    AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+    AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
@@ -14,8 +14,10 @@ use crate::simulation::scenario::population::{
 use crate::simulation::scenario::trip_structure_utils::{
     find_trip_span_starting_at_activity_default, identify_main_mode,
 };
-use crate::simulation::time_queue::{EndTime, Identifiable};
+use crate::simulation::time::SimTime;
+use crate::simulation::time_queue::Identifiable;
 use std::fmt::{Debug, Formatter};
+use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::oneshot::Receiver;
 use tracing::trace;
@@ -25,7 +27,7 @@ pub struct PlanBasedSimulationLogic {
     pub(super) basic_agent_delegate: InternalPerson,
     pub(super) curr_plan_element: usize,
     pub(super) curr_route_element: usize,
-    activity_end_time: Option<u32>,
+    activity_end_time: Option<SimTime>,
 }
 
 pub struct AdaptivePlanBasedSimulationLogic {
@@ -51,7 +53,7 @@ impl Identifiable<InternalPerson> for PlanBasedSimulationLogic {
 }
 
 impl EnvironmentalEventObserver for PlanBasedSimulationLogic {
-    fn notify_event(&mut self, event: &mut AgentEvent, _now: u32) {
+    fn notify_event(&mut self, event: &mut AgentEvent, _now: SimTime) {
         match event {
             AgentEvent::TeleportationStarted { .. } => {
                 self.set_curr_route_element_to_last();
@@ -85,7 +87,7 @@ impl PlanBasedSimulationLogic {
             .unwrap()
             .as_activity()
             .unwrap()
-            .cmp_end_time(0);
+            .cmp_end_time(SimTime::default());
         Self {
             basic_agent_delegate,
             curr_plan_element: 0,
@@ -137,7 +139,7 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             .and_then(|p| p.as_leg())
     }
 
-    fn advance_plan(&mut self, now: u32) {
+    fn advance_plan(&mut self, now: SimTime) {
         self.curr_plan_element += 1;
         self.curr_route_element = 0;
         assert!(
@@ -208,20 +210,20 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
             .route_element_at(next_i)
     }
 
-    fn wakeup_time(&self, _: u32) -> u32 {
+    fn wakeup_time(&self, _: SimTime) -> SimTime {
         self.activity_end_time.unwrap()
     }
 }
 
 impl EndTime for PlanBasedSimulationLogic {
-    fn end_time(&self, now: u32) -> u32 {
+    fn end_time(&self, now: SimTime) -> SimTime {
         match self
             .basic_agent_delegate
             .plan_element_at(self.curr_plan_element)
             .unwrap()
         {
             InternalPlanElement::Activity(_) => self.activity_end_time.unwrap(),
-            InternalPlanElement::Leg(l) => l.travel_time() + now,
+            InternalPlanElement::Leg(l) => now.saturating_add(l.travel_time()),
         }
     }
 }
@@ -243,7 +245,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         self.delegate.next_leg()
     }
 
-    fn advance_plan(&mut self, now: u32) {
+    fn advance_plan(&mut self, now: SimTime) {
         self.delegate.advance_plan(now);
     }
 
@@ -263,7 +265,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         self.delegate.peek_next_link_id()
     }
 
-    fn wakeup_time(&self, now: u32) -> u32 {
+    fn wakeup_time(&self, now: SimTime) -> SimTime {
         let mut end = self.delegate.wakeup_time(now);
         if self.delegate.next_leg().is_none() {
             // no need to wake up if there is no other leg.
@@ -277,12 +279,12 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
             .get(crate::simulation::scenario::population::PREPLANNING_HORIZON);
 
         if let Some(h) = horizon {
-            if h > end {
+            if SimTime::from_secs(h as u64) > end {
                 // if horizon is larger than the current end time, then end - h would be negative (might be the case at the very beginning of the simulation)
                 // and thus there would be an error.
-                end = 0;
+                end = SimTime::default();
             } else {
-                end -= h;
+                end = end.saturating_sub(Duration::from_secs(h as u64));
             }
         }
 
@@ -291,7 +293,7 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
 }
 
 impl EndTime for AdaptivePlanBasedSimulationLogic {
-    fn end_time(&self, now: u32) -> u32 {
+    fn end_time(&self, now: SimTime) -> SimTime {
         self.delegate.end_time(now)
     }
 }
@@ -303,7 +305,7 @@ impl Identifiable<InternalPerson> for AdaptivePlanBasedSimulationLogic {
 }
 
 impl EnvironmentalEventObserver for AdaptivePlanBasedSimulationLogic {
-    fn notify_event(&mut self, mut event: &mut AgentEvent, now: u32) {
+    fn notify_event(&mut self, mut event: &mut AgentEvent, now: SimTime) {
         match &mut event {
             AgentEvent::WokeUp(w) => {
                 self.react_to_woke_up(w.comp_env, w.end_time, now);
@@ -326,8 +328,8 @@ impl AdaptivePlanBasedSimulationLogic {
     fn react_to_woke_up(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        departure_time: u32,
-        now: u32,
+        departure_time: SimTime,
+        now: SimTime,
     ) {
         if self.route_receiver.is_some() {
             // If we already have a route request in progress, we do not call the router again.
@@ -353,8 +355,8 @@ impl AdaptivePlanBasedSimulationLogic {
     fn call_router(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        departure_time: u32,
-        now: u32,
+        departure_time: SimTime,
+        now: SimTime,
     ) {
         let (send, recv) = tokio::sync::oneshot::channel();
 
@@ -397,11 +399,9 @@ impl AdaptivePlanBasedSimulationLogic {
         let payload = InternalRoutingRequestPayloadBuilder::default()
             .person_id(self.delegate.id().external().to_string())
             .from_link(origin.link_id.external().to_string())
-            .from_x(origin.x)
-            .from_y(origin.y)
+            .from(origin.coord.clone())
             .to_link(destination.link_id.external().to_string())
-            .to_x(destination.x)
-            .to_y(destination.y)
+            .to(destination.coord.clone())
             .mode(mode.clone())
             .departure_time(departure_time)
             .now(now)
@@ -425,7 +425,7 @@ impl AdaptivePlanBasedSimulationLogic {
     }
 
     #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
-    fn replace_route(&mut self, _now: u32) {
+    fn replace_route(&mut self, _now: SimTime) {
         if self.route_receiver.is_none() {
             // No route request in progress, nothing to replace.
             return;
@@ -439,7 +439,7 @@ impl AdaptivePlanBasedSimulationLogic {
     }
 
     #[tracing::instrument(level = "trace", fields(person_id = self.delegate.id().external()))]
-    fn blocking_recv(&mut self, _now: u32) -> InternalRoutingResponse {
+    fn blocking_recv(&mut self, _now: SimTime) -> InternalRoutingResponse {
         let receiver = self.route_receiver.take().unwrap();
         let response = receiver
             .blocking_recv()
@@ -452,7 +452,7 @@ impl AdaptivePlanBasedSimulationLogic {
 
     /// Replaces the next trip in the plan with the legs and activities from the given InternalRoutingResponse.
     #[tracing::instrument(level = "trace", skip(response), fields(person_id = self.delegate.id().external()))]
-    fn replace_next_trip(&mut self, response: InternalRoutingResponse, _now: u32) {
+    fn replace_next_trip(&mut self, response: InternalRoutingResponse, _now: SimTime) {
         trace!(uuid = response.request_id.as_u128());
 
         if response.elements.is_empty() {
@@ -476,6 +476,7 @@ mod tests {
     use super::*;
     use crate::external_services::routing::InternalRoutingResponse;
     use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::population::{
         InternalActivity, InternalLeg, InternalPlan, InternalRoute,
     };
@@ -485,8 +486,7 @@ mod tests {
         InternalActivity {
             act_type: Id::create(act_type),
             link_id: Id::create(link),
-            x: 0.0,
-            y: 0.0,
+            coord: Coordinate::default(),
             start_time: None,
             end_time: None,
             max_dur: None,
@@ -499,12 +499,12 @@ mod tests {
             mode: Id::create(mode),
             routing_mode: Some(Id::create(mode)),
             dep_time: None,
-            trav_time: Some(10),
+            trav_time: Some(Duration::from_secs(10)),
             route: Some(InternalRoute::Generic(
                 crate::simulation::scenario::population::InternalGenericRoute::new(
                     Id::create("l1"),
                     Id::create("l2"),
-                    Some(10),
+                    Some(Duration::from_secs(10)),
                     Some(100.0),
                     None,
                 ),
@@ -531,7 +531,7 @@ mod tests {
             request_id: Uuid::now_v7(),
         };
 
-        logic.replace_next_trip(response.clone(), 0);
+        logic.replace_next_trip(response.clone(), SimTime::default());
         let elements = &logic
             .delegate
             .basic_agent_delegate

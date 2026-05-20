@@ -193,6 +193,7 @@ pub fn find_trip_span_starting_at_activity_default(
 mod tests {
     use super::*;
     use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::population::{InternalLeg, InternalPlanElement};
     use macros::integration_test;
 
@@ -237,8 +238,7 @@ mod tests {
         InternalPlanElement::Activity(InternalActivity {
             act_type: Id::create(act_type),
             link_id: Id::create(link),
-            x: 0.0,
-            y: 0.0,
+            coord: Coordinate::default(),
             start_time: None,
             end_time: None,
             max_dur: None,

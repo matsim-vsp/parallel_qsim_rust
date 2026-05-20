@@ -1,50 +1,36 @@
+use crate::simulation::agents::EndTime;
 use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
+use crate::simulation::time::SimTime;
 use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-
-pub trait EndTime {
-    fn end_time(&self, now: u32) -> u32;
-}
 
 pub trait Identifiable<I: StableTypeId> {
     fn id(&self) -> &Id<I>;
 }
 
-struct Entry<T>
-where
-    T: EndTime,
-{
-    end_time: u32,
+struct Entry<T> {
+    end_time: SimTime,
     order: usize,
     value: T,
 }
 
-impl<T> PartialEq<Self> for Entry<T>
-where
-    T: EndTime,
-{
+impl<T> PartialEq<Self> for Entry<T> {
     fn eq(&self, other: &Self) -> bool {
         self.end_time == other.end_time && self.order == other.order
     }
 }
 
-impl<T> Eq for Entry<T> where T: EndTime {}
+impl<T> Eq for Entry<T> {}
 
-impl<T> PartialOrd<Self> for Entry<T>
-where
-    T: EndTime,
-{
+impl<T> PartialOrd<Self> for Entry<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T> Ord for Entry<T>
-where
-    T: EndTime,
-{
+impl<T> Ord for Entry<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // First compare by end_time (reverse for min-heap)
         // Then use order as secondary sort key (also reverse for FIFO within same time)
@@ -92,10 +78,9 @@ where
         }
     }
 
-    pub fn add(&mut self, value: T, now: u32) {
+    pub fn add(&mut self, value: T, now: SimTime) {
         let end_time = value.end_time(now);
         let order = self.counter;
-        // Counter wraps around naturally with usize overflow behavior
         self.counter = self.counter.wrapping_add(1);
         self.q.push(Entry {
             end_time,
@@ -104,7 +89,7 @@ where
         });
     }
 
-    pub fn pop(&mut self, now: u32) -> Vec<T> {
+    pub fn pop(&mut self, now: SimTime) -> Vec<T> {
         let mut result: Vec<T> = Vec::new();
 
         while let Some(entry_ref) = self.q.peek() {
@@ -119,25 +104,28 @@ where
         result
     }
 
+    #[cfg(test)]
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         self.q.len()
     }
 }
 
+#[allow(dead_code)]
 struct ValueWrap<I: StableTypeId> {
     id: Id<I>,
-    end_time: u32,
+    end_time: SimTime,
 }
 
 impl<I: StableTypeId> ValueWrap<I> {
-    fn new(id: Id<I>, end_time: u32) -> Self {
+    #[allow(dead_code)]
+    fn new(id: Id<I>, end_time: SimTime) -> Self {
         ValueWrap { id, end_time }
     }
 }
 
 impl<I: StableTypeId> EndTime for ValueWrap<I> {
-    fn end_time(&self, _: u32) -> u32 {
+    fn end_time(&self, _now: SimTime) -> SimTime {
         self.end_time
     }
 }
@@ -145,6 +133,7 @@ impl<I: StableTypeId> EndTime for ValueWrap<I> {
 /// This is a mutable version of TimeQueue. It allows to mutate the values in the queue.
 /// It is a logical error to mutate the end_time of the value such that the order of the queue is changed.
 /// TODO taxi driver needs to be able to change his end_time such that order is changed
+#[allow(dead_code)]
 pub struct MutTimeQueue<T, I>
 where
     T: EndTime + Identifiable<I>,
@@ -164,6 +153,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 impl<T, I> MutTimeQueue<T, I>
 where
     T: EndTime + Identifiable<I>,
@@ -176,14 +166,14 @@ where
         }
     }
 
-    pub fn add(&mut self, value: T, now: u32) {
+    pub fn add(&mut self, value: T, now: SimTime) {
         let id = value.id();
         self.q
             .add(ValueWrap::new(id.clone(), value.end_time(now)), now);
         self.cache.insert(id.clone(), value);
     }
 
-    pub fn pop(&mut self, now: u32) -> Vec<T> {
+    pub fn pop(&mut self, now: SimTime) -> Vec<T> {
         let ids = self.q.pop(now);
         let mut result: Vec<T> = Vec::new();
 
@@ -195,7 +185,7 @@ where
         result
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
         self.cache.values_mut()
     }
 }
@@ -207,11 +197,11 @@ mod tests {
     #[derive(Debug, Clone)]
     struct TestItem {
         id: u32,
-        end: u32,
+        end: SimTime,
     }
 
     impl EndTime for TestItem {
-        fn end_time(&self, _now: u32) -> u32 {
+        fn end_time(&self, _now: SimTime) -> SimTime {
             self.end
         }
     }
@@ -219,14 +209,29 @@ mod tests {
     #[test]
     fn test_time_queue_stable_ordering() {
         let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        queue.add(
+            TestItem {
+                id: 1,
+                end: SimTime::from_secs(10),
+            },
+            SimTime::from_secs(0),
+        );
+        queue.add(
+            TestItem {
+                id: 2,
+                end: SimTime::from_secs(10),
+            },
+            SimTime::from_secs(0),
+        );
+        queue.add(
+            TestItem {
+                id: 3,
+                end: SimTime::from_secs(10),
+            },
+            SimTime::from_secs(0),
+        );
 
-        // Add multiple items with the same end time
-        // They should be popped in the order they were added (FIFO)
-        queue.add(TestItem { id: 1, end: 10 }, 0);
-        queue.add(TestItem { id: 2, end: 10 }, 0);
-        queue.add(TestItem { id: 3, end: 10 }, 0);
-
-        let results = queue.pop(10);
+        let results = queue.pop(SimTime::from_secs(10));
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].id, 1);
         assert_eq!(results[1].id, 2);
@@ -236,26 +241,66 @@ mod tests {
     #[test]
     fn test_time_queue_time_ordering_priority() {
         let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        queue.add(
+            TestItem {
+                id: 1,
+                end: SimTime::from_secs(15),
+            },
+            SimTime::from_secs(0),
+        );
+        queue.add(
+            TestItem {
+                id: 2,
+                end: SimTime::from_secs(10),
+            },
+            SimTime::from_secs(0),
+        );
+        queue.add(
+            TestItem {
+                id: 3,
+                end: SimTime::from_secs(20),
+            },
+            SimTime::from_secs(0),
+        );
+        queue.add(
+            TestItem {
+                id: 4,
+                end: SimTime::from_secs(10),
+            },
+            SimTime::from_secs(0),
+        );
 
-        // Add items with different end times
-        // They should be popped in time order first
-        queue.add(TestItem { id: 1, end: 15 }, 0);
-        queue.add(TestItem { id: 2, end: 10 }, 0);
-        queue.add(TestItem { id: 3, end: 20 }, 0);
-        queue.add(TestItem { id: 4, end: 10 }, 0); // Same as id:2
-
-        let results = queue.pop(10);
+        let results = queue.pop(SimTime::from_secs(10));
         assert_eq!(results.len(), 2);
-        // Time 10 items should come out in order they were added
         assert_eq!(results[0].id, 2);
         assert_eq!(results[1].id, 4);
 
-        let results = queue.pop(15);
+        let results = queue.pop(SimTime::from_secs(15));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 1);
 
-        let results = queue.pop(20);
+        let results = queue.pop(SimTime::from_secs(20));
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].id, 3);
+    }
+
+    #[test]
+    fn test_time_queue_subsecond_due_time() {
+        let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        let due_time = SimTime::from_nanos(350_000_000);
+        queue.add(
+            TestItem {
+                id: 1,
+                end: due_time,
+            },
+            SimTime::from_nanos(0),
+        );
+
+        let early = queue.pop(SimTime::from_nanos(349_000_000));
+        assert!(early.is_empty());
+
+        let ready = queue.pop(due_time);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id, 1);
     }
 }

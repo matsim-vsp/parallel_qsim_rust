@@ -6,6 +6,7 @@ use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
 use crate::simulation::scenario::network::{Link, Network, Node};
+use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::vehicles::SimulationVehicle;
 use crate::simulation::{config, random};
 use ahash::AHasher;
@@ -80,6 +81,7 @@ pub struct SimNetworkPartition {
     active_links: ActiveCache<Link>,
     veh_counter: usize,
     partition: u32,
+    clock: SimClock,
 }
 
 #[derive(Debug)]
@@ -96,6 +98,7 @@ impl SimNetworkPartition {
         config: &config::Simulation,
         base_seed: u64,
     ) -> Self {
+        let clock = SimClock::new(config.ticks_per_second);
         let nodes: Vec<&Node> = global_network
             .nodes()
             .iter()
@@ -130,7 +133,7 @@ impl SimNetworkPartition {
             .map(|n| (n.id.clone(), Self::create_sim_node(n)))
             .collect();
 
-        SimNetworkPartition::build(sim_nodes, sim_links, partition, base_seed)
+        SimNetworkPartition::build(sim_nodes, sim_links, partition, base_seed, clock)
     }
 
     fn create_sim_node(node: &Node) -> SimNode {
@@ -172,6 +175,7 @@ impl SimNetworkPartition {
         links: IntMap<Id<Link>, SimLink>,
         partition: u32,
         base_seed: u64,
+        clock: SimClock,
     ) -> Self {
         // Initialize RNG with a seed based on the base seed and node id
         let rng = nodes
@@ -191,6 +195,7 @@ impl SimNetworkPartition {
             active_nodes: ActiveCache::<Node>::default(),
             veh_counter: 0,
             partition,
+            clock,
         }
     }
 
@@ -249,8 +254,9 @@ impl SimNetworkPartition {
         &mut self,
         vehicle: SimulationVehicle,
         events_manager: Option<Rc<RefCell<EventsManager>>>,
-        now: u32,
+        now: impl Into<Tick>,
     ) {
+        let now = now.into();
         let link_id = vehicle.curr_link_id().unwrap_or_else(|| {
             panic!("Vehicle is expected to have a current link id if it is sent onto the network")
         });
@@ -280,7 +286,7 @@ impl SimNetworkPartition {
         if let Some(manager) = events_manager {
             manager.borrow_mut().process_event(
                 &LinkEnterEventBuilder::default()
-                    .time(now)
+                    .time(self.clock.tick_to_time(now))
                     .link(link.id().clone())
                     .vehicle(vehicle.id().clone())
                     .build()
@@ -309,8 +315,9 @@ impl SimNetworkPartition {
     pub fn move_links(
         &mut self,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        now: u32,
+        now: impl Into<Tick>,
     ) -> MoveAllLinksResult {
+        let now = now.into();
         let mut storage_cap_updates: Vec<_> = Vec::new();
         let mut vehicles_exit_partition: Vec<_> = Vec::new();
         let mut deactivate: IntSet<_> = IntSet::default();
@@ -357,7 +364,7 @@ impl SimNetworkPartition {
     fn move_local_link(
         link: &mut LocalLink,
         active_nodes: &mut ActiveCache<Node>,
-        now: u32,
+        now: Tick,
         comp_env: &mut ThreadLocalComputationalEnvironment,
     ) -> MoveSingleLinkResult {
         let vehicles_end_leg = link.do_sim_step(now, comp_env);
@@ -378,7 +385,7 @@ impl SimNetworkPartition {
         link: &mut SplitInLink,
         active_nodes: &mut ActiveCache<Node>,
         storage_cap_updates: &mut Vec<StorageUpdate>,
-        now: u32,
+        now: Tick,
         events: &mut ThreadLocalComputationalEnvironment,
     ) -> MoveSingleLinkResult {
         // if anything has changed on the link, we want to report the updated storage capacity to the
@@ -415,7 +422,12 @@ impl SimNetworkPartition {
         MoveSingleLinkResult::default()
     }
 
-    pub fn move_nodes(&mut self, comp_env: &mut ThreadLocalComputationalEnvironment, now: u32) {
+    pub fn move_nodes(
+        &mut self,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        now: impl Into<Tick>,
+    ) {
+        let now = now.into();
         let mut deactivate = vec![];
         let active_node_ids: Vec<_> = self.active_nodes.active.iter().cloned().collect();
 
@@ -436,7 +448,7 @@ impl SimNetworkPartition {
         &mut self,
         node_id: &Id<Node>,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        now: u32,
+        now: Tick,
     ) -> bool {
         let node = self.nodes.get(node_id).unwrap();
         // Get node-specific RNG using node id and current time as hash
@@ -480,6 +492,7 @@ impl SimNetworkPartition {
                             &mut self.links,
                             &mut self.active_links,
                             comp_env,
+                            self.clock,
                             now,
                         );
                     }
@@ -494,7 +507,7 @@ impl SimNetworkPartition {
             }
         }
         // check whether any link is offering next timestep. Otherwise the node can be de-activated
-        Self::any_link_offers(&active, &self.links, now + 1)
+        Self::any_link_offers(&active, &self.links, now.next())
     }
 
     fn get_active_in_links(
@@ -519,7 +532,7 @@ impl SimNetworkPartition {
     fn any_link_offers(
         link_ids: &[Id<Link>],
         links: &IntMap<Id<Link>, SimLink>,
-        time: u32,
+        time: Tick,
     ) -> bool {
         link_ids
             .iter()
@@ -527,7 +540,7 @@ impl SimNetworkPartition {
             .any(|link| link.offers_veh(time).is_some())
     }
 
-    fn should_veh_move_out(in_id: &Id<Link>, links: &IntMap<Id<Link>, SimLink>, now: u32) -> bool {
+    fn should_veh_move_out(in_id: &Id<Link>, links: &IntMap<Id<Link>, SimLink>, now: Tick) -> bool {
         let in_link = links.get(in_id).unwrap();
         if let Some(veh_ref) = in_link.offers_veh(now) {
             return if let Some(next_id) = veh_ref.peek_next_route_element() {
@@ -560,19 +573,21 @@ impl SimNetworkPartition {
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut ActiveCache<Link>,
         comp_env: &mut ThreadLocalComputationalEnvironment,
-        now: u32,
+        clock: SimClock,
+        now: Tick,
     ) {
         let old_link_id = vehicle.curr_link_id().unwrap().clone();
+        let now_time = clock.tick_to_time(now);
 
         comp_env.events_manager_borrow_mut().process_event(
             &LinkLeaveEventBuilder::default()
                 .vehicle(vehicle.id().clone())
                 .link(old_link_id.clone())
-                .time(now)
+                .time(now_time)
                 .build()
                 .unwrap(),
         );
-        vehicle.notify_event(&mut AgentEvent::LeftLink(), now);
+        vehicle.notify_event(&mut AgentEvent::LeftLink(), now_time);
         let new_link_id = vehicle.curr_link_id().unwrap().clone();
         let new_link = links.get_mut(&new_link_id).unwrap();
 
@@ -580,7 +595,7 @@ impl SimNetworkPartition {
         if let SimLink::Local(_) = new_link {
             comp_env.events_manager_borrow_mut().process_event(
                 &LinkEnterEventBuilder::default()
-                    .time(now)
+                    .time(now_time)
                     .link(new_link.id().clone())
                     .vehicle(vehicle.id().clone())
                     .build()
@@ -619,10 +634,11 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::controller::ThreadLocalComputationalEnvironment;
     use crate::simulation::id::Id;
-    use crate::simulation::io::proto::xml_events::XmlEventsWriter;
+    use crate::simulation::io::xml::events::XmlEventsWriter;
     use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::SimLink;
     use crate::simulation::network::link::SimLink::Local;
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils;
@@ -986,8 +1002,7 @@ mod tests {
     fn move_nodes_transition_logic() {
         let mut net = Network::new();
         let node1 = Node {
-            x: 0.0,
-            y: 0.0,
+            coord: Coordinate::default(),
             id: Id::create("node1"),
             in_links: vec![],
             out_links: vec![],
@@ -1110,8 +1125,8 @@ mod tests {
             unreachable!()
         };
 
-        // Not 1000 but 993 because at the beginning link3 is not saturated.
-        assert_eq!(link1 + link2, 993);
+        // Not 1000 but 992 because at the beginning link3 is not saturated.
+        assert_eq!(link1 + link2, 992);
 
         // link1 has flow cap of 1 veh/s, link2 has flow cap of 2 veh/s.
         // Since all go from link1 and link2 to link3 (flow cap: 1 veh/s), there is only one vehicle per time step moved over the node.
@@ -1171,13 +1186,13 @@ mod tests {
     #[integration_test]
     fn neighbors() {
         let mut net = Network::new();
-        let node = Node::new(Id::create("node-1"), -0., 0., 0, 1);
-        let node_1_1 = Node::new(Id::create("node-1-1"), -0., 0., 1, 1);
-        let node_1_2 = Node::new(Id::create("node-1-2"), -0., 0., 1, 1);
+        let node = Node::new(Id::create("node-1"), Coordinate::default(), 0, 1);
+        let node_1_1 = Node::new(Id::create("node-1-1"), Coordinate::default(), 1, 1);
+        let node_1_2 = Node::new(Id::create("node-1-2"), Coordinate::default(), 1, 1);
 
-        let node_2_1 = Node::new(Id::create("node-2-1"), -0., 0., 2, 1);
-        let node_3_1 = Node::new(Id::create("node-3-1"), -0., 0., 3, 1);
-        let node_4_1 = Node::new(Id::create("not-a-neighbor"), 0., 0., 4, 1);
+        let node_2_1 = Node::new(Id::create("node-2-1"), Coordinate::default(), 2, 1);
+        let node_3_1 = Node::new(Id::create("node-3-1"), Coordinate::default(), 3, 1);
+        let node_4_1 = Node::new(Id::create("not-a-neighbor"), Coordinate::default(), 4, 1);
 
         // create in links from partitions 1 and 2. 2 incoming links from partition 1, one incoming from
         // partition 2
@@ -1221,9 +1236,9 @@ mod tests {
     fn create_three_node_sim_network_with_partition(
         network: &mut Network,
     ) -> Vec<SimNetworkPartition> {
-        let node1 = Node::new(Id::create("node1"), -100., 0., 0, 1);
-        let node2 = Node::new(Id::create("node2"), 0., 0., 0, 1);
-        let mut node3 = Node::new(Id::create("node3"), 100., 0., 0, 1);
+        let node1 = Node::new(Id::create("node1"), Coordinate::new(-100., 0.), 0, 1);
+        let node2 = Node::new(Id::create("node2"), Coordinate::new(0., 0.), 0, 1);
+        let mut node3 = Node::new(Id::create("node3"), Coordinate::new(100., 0.), 0, 1);
         node3.partition = 1;
         let mut link1 = Link::new_with_default(Id::create("link1"), &node1, &node2);
         link1.capacity = 3600.;

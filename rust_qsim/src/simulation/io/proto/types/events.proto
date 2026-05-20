@@ -4,11 +4,12 @@ package events;
 import "simulation/io/proto/types/general.proto";
 
 message TimeStep {
-  uint32 time = 1;
+  // Simulation clock instant in nanoseconds since simulation start.
+  uint64 time_ns = 1;
   bytes data = 2;
 }
 
-message MyEvent {
+message GenericEvent {
   string type = 1;
   map<string, general.AttributeValue> attributes = 2;
 }

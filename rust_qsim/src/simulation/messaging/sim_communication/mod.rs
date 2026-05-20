@@ -1,4 +1,5 @@
 use crate::simulation::messaging::messages::InternalSyncMessage;
+use crate::simulation::time::Tick;
 use std::collections::{HashMap, HashSet};
 
 pub mod local_communicator;
@@ -9,7 +10,7 @@ pub trait SimCommunicator {
         &self,
         vehicles: HashMap<u32, InternalSyncMessage>,
         expected_vehicle_messages: &mut HashSet<u32>,
-        now: u32,
+        now: Tick,
         on_msg: F,
     ) where
         F: FnMut(InternalSyncMessage);

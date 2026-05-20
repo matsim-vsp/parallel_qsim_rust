@@ -12,7 +12,7 @@ use xml::reader::XmlEvent;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
-    EventHandlerRegisterFn, EventTrait, EventsManager, GeneralEvent, LinkEnterEvent,
+    EventHandlerRegisterFn, EventTrait, EventsManager, GenericEvent, LinkEnterEvent,
     LinkEnterEventBuilder, LinkLeaveEvent, LinkLeaveEventBuilder, PersonArrivalEvent,
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
@@ -21,9 +21,11 @@ use crate::simulation::events::{
     VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::time::SimTime;
 
 pub struct XmlEventsWriter {
     writer: Mutex<Box<dyn Write + Send>>,
@@ -48,30 +50,38 @@ impl XmlEventsWriter {
     }
 
     pub fn event_2_string(e: &dyn EventTrait) -> String {
-        if let Some(ev) = e.as_any().downcast_ref::<GeneralEvent>() {
-            format!("<event time=\"{}\" type=\"{}\"/>\n", ev.time(), ev.type_())
+        if let Some(ev) = e.as_any().downcast_ref::<GenericEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\"/>\n",
+                ev.time().format_decimal_seconds(),
+                ev.type_()
+            )
         } else if let Some(ev) = e.as_any().downcast_ref::<ActivityStartEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
-                ev.time(),
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" x=\"{}\" y=\"{}\" actType=\"{}\"/>\n",
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.link,
+                ev.coordinate.x,
+                ev.coordinate.y,
                 ev.act_type
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<ActivityEndEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" actType=\"{}\"/>\n",
-                ev.time(),
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" x=\"{}\" y=\"{}\" actType=\"{}\"/>\n",
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.link,
+                ev.coordinate.x,
+                ev.coordinate.y,
                 ev.act_type
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<LinkEnterEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.link,
                 ev.vehicle
@@ -79,7 +89,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<LinkLeaveEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" link=\"{}\" vehicle=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.link,
                 ev.vehicle
@@ -87,7 +97,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.vehicle
@@ -95,7 +105,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" vehicle=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.vehicle
@@ -103,7 +113,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonDepartureEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" computationalRoutingMode=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.link,
@@ -113,7 +123,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<PersonArrivalEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.link,
@@ -122,7 +132,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<TeleportationArrivalEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" distance=\"{}\" mode=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.distance,
@@ -131,7 +141,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" distance=\"{}\" mode=\"{}\" line=\"{}\" route=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.distance,
@@ -142,7 +152,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.link,
@@ -153,7 +163,7 @@ impl XmlEventsWriter {
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
             format!(
                 "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" vehicle=\"{}\" networkMode=\"{}\" relativePosition=\"{}\"/>\n",
-                ev.time(),
+                ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.link,
@@ -220,7 +230,7 @@ impl XmlEventsReader {
         let parser = EventReader::new(buffered_reader);
         Self { parser }
     }
-    pub fn read_next(&mut self) -> Option<(u32, Box<dyn EventTrait>)> {
+    pub fn read_next(&mut self) -> Option<(SimTime, Box<dyn EventTrait>)> {
         loop {
             let result = self.parser.next();
             match result {
@@ -228,7 +238,10 @@ impl XmlEventsReader {
                     name, attributes, ..
                 }) => {
                     if name.local_name.eq("event") {
-                        let time: u32 = attributes.first().unwrap().value.parse().unwrap();
+                        let time = SimTime::parse_decimal_seconds(
+                            value_from_name(&attributes, "time").unwrap(),
+                        )
+                        .unwrap_or_else(|e| panic!("Could not parse event time: {e}"));
                         let event = handle(attributes);
                         return Some((time, event));
                     }
@@ -262,12 +275,15 @@ fn handle(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
 }
 
 fn handle_vehicle_enters_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(4).unwrap().value);
-    let network_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
-    let relative_position: f64 = attr.get(6).unwrap().value.parse().unwrap();
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let relative_position: f64 = value_from_name(&attr, "relativePosition")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let vehicle: Id<InternalVehicle> = Id::create(value_from_name(&attr, "vehicle").unwrap());
+    let network_mode: Id<String> = Id::create(value_from_name(&attr, "networkMode").unwrap());
     Box::new(
         VehicleEntersTrafficEventBuilder::default()
             .time(time)
@@ -282,12 +298,15 @@ fn handle_vehicle_enters_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrai
 }
 
 fn handle_vehicle_leaves_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(4).unwrap().value);
-    let network_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
-    let relative_position: f64 = attr.get(6).unwrap().value.parse().unwrap();
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let relative_position: f64 = value_from_name(&attr, "relativePosition")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let vehicle: Id<InternalVehicle> = Id::create(value_from_name(&attr, "vehicle").unwrap());
+    let network_mode: Id<String> = Id::create(value_from_name(&attr, "networkMode").unwrap());
     Box::new(
         VehicleLeavesTrafficEventBuilder::default()
             .time(time)
@@ -302,43 +321,50 @@ fn handle_vehicle_leaves_traffic(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrai
 }
 
 fn handle_act_end(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let x: f64 = value_from_name(&attr, "x").unwrap().parse().unwrap();
+    let y: f64 = value_from_name(&attr, "y").unwrap().parse().unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let act_type: Id<String> = Id::create(value_from_name(&attr, "actType").unwrap());
     Box::new(
         ActivityEndEventBuilder::default()
             .time(time)
             .person(person)
             .link(link)
             .act_type(act_type)
+            .coordinate(Coordinate::new(x, y))
             .build()
             .unwrap(),
     )
 }
 
 fn handle_act_start(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let act_type: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let x: f64 = value_from_name(&attr, "x").unwrap().parse().unwrap();
+    let y: f64 = value_from_name(&attr, "y").unwrap().parse().unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let act_type: Id<String> = Id::create(value_from_name(&attr, "actType").unwrap());
     Box::new(
         ActivityStartEventBuilder::default()
             .time(time)
             .person(person)
             .link(link)
             .act_type(act_type)
+            .coordinate(Coordinate::new(x, y))
             .build()
             .unwrap(),
     )
 }
 
 fn handle_departure(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let leg_mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
-    let routing_mode: Id<String> = Id::create(&attr.get(5).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let leg_mode: Id<String> = Id::create(value_from_name(&attr, "legMode").unwrap());
+    let routing_mode: Id<String> =
+        Id::create(value_from_name(&attr, "computationalRoutingMode").unwrap());
     Box::new(
         PersonDepartureEventBuilder::default()
             .time(time)
@@ -352,10 +378,10 @@ fn handle_departure(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
 }
 
 fn handle_arrival(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let link: Id<Link> = Id::create(&attr.get(3).unwrap().value);
-    let leg_mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let leg_mode: Id<String> = Id::create(value_from_name(&attr, "legMode").unwrap());
     Box::new(
         PersonArrivalEventBuilder::default()
             .time(time)
@@ -368,10 +394,10 @@ fn handle_arrival(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
 }
 
 fn travelled(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let distance: f64 = attr.get(3).unwrap().value.parse().unwrap();
-    let mode: Id<String> = Id::create(&attr.get(4).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let distance: f64 = value_from_name(&attr, "distance").unwrap().parse().unwrap();
+    let mode: Id<String> = Id::create(value_from_name(&attr, "mode").unwrap());
     Box::new(
         TeleportationArrivalEventBuilder::default()
             .time(time)
@@ -384,9 +410,9 @@ fn travelled(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
 }
 
 fn handle_person_enters_veh(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let vehicle: Id<InternalVehicle> = Id::create(value_from_name(&attr, "vehicle").unwrap());
     Box::new(
         PersonEntersVehicleEventBuilder::default()
             .time(time)
@@ -398,9 +424,9 @@ fn handle_person_enters_veh(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
 }
 
 fn handle_person_leaves_veh(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let person: Id<InternalPerson> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let vehicle: Id<InternalVehicle> = Id::create(value_from_name(&attr, "vehicle").unwrap());
     Box::new(
         PersonLeavesVehicleEventBuilder::default()
             .time(time)
@@ -412,9 +438,9 @@ fn handle_person_leaves_veh(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
 }
 
 fn handle_link_enter(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let vehicle: Id<InternalVehicle> = Id::create(value_from_name(&attr, "vehicle").unwrap());
     Box::new(
         LinkEnterEventBuilder::default()
             .time(time)
@@ -426,9 +452,9 @@ fn handle_link_enter(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
 }
 
 fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
-    let time: u32 = attr.first().unwrap().value.parse().unwrap();
-    let link: Id<Link> = Id::create(&attr.get(2).unwrap().value);
-    let vehicle: Id<InternalVehicle> = Id::create(&attr.get(3).unwrap().value);
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let vehicle: Id<InternalVehicle> = Id::create(value_from_name(&attr, "vehicle").unwrap());
     Box::new(
         LinkLeaveEventBuilder::default()
             .time(time)
@@ -437,4 +463,58 @@ fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
             .build()
             .unwrap(),
     )
+}
+
+fn value_from_name<'a>(attr: &'a Vec<OwnedAttribute>, name: &str) -> Option<&'a String> {
+    attr.iter()
+        .find(|&a| a.name.local_name.eq(name))
+        .map(|a| &a.value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{XmlEventsReader, XmlEventsWriter};
+    use crate::simulation::events::{ActivityStartEvent, ActivityStartEventBuilder, EventTrait};
+    use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::time::SimTime;
+    use macros::integration_test;
+    use std::fs;
+    use std::path::PathBuf;
+
+    #[integration_test]
+    fn xml_event_round_trip_preserves_nanoseconds() {
+        let output_dir = PathBuf::from("./test_output/io/xml_events/nanos_round_trip");
+        fs::create_dir_all(&output_dir).unwrap();
+        let path = output_dir.join("events.xml");
+
+        let event: Box<dyn EventTrait> = Box::new(
+            ActivityStartEventBuilder::default()
+                .time(SimTime::from_nanos(42_123_456_789))
+                .person(Id::create("person-1"))
+                .link(Id::create("link-1"))
+                .act_type(Id::create("home"))
+                .coordinate(Coordinate::new(1.0, 2.0))
+                .build()
+                .unwrap(),
+        );
+
+        let writer = XmlEventsWriter::new(&path);
+        writer.on_any(event.as_ref());
+        writer.finish();
+
+        let mut reader = XmlEventsReader::new(&path);
+        let (time, parsed_event) = reader.read_next().unwrap();
+
+        assert_eq!(SimTime::from_nanos(42_123_456_789), time);
+
+        let parsed_event = parsed_event
+            .as_any()
+            .downcast_ref::<ActivityStartEvent>()
+            .unwrap();
+        assert_eq!(Id::create("person-1"), parsed_event.person);
+        assert_eq!(Id::create("link-1"), parsed_event.link);
+        assert_eq!(Id::create("home"), parsed_event.act_type);
+        assert_eq!(Coordinate::new(1.0, 2.0), parsed_event.coordinate);
+    }
 }

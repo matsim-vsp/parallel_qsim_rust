@@ -77,8 +77,8 @@ impl DrtAgentSource {
             let veh_id = vehicle.id.clone();
             let person_id = Id::<InternalPerson>::create(veh_id.external());
             let from = scenario.network_partition.links.get(&link).unwrap().from();
-            let _x = scenario.network.get_node(from).x;
-            let _y = scenario.network.get_node(from).y;
+            let _x = scenario.network.get_node(from).coord.x;
+            let _y = scenario.network.get_node(from).coord.y;
 
             let plan = InternalPlan::default();
             //TODO is Some(start) as end time correct?

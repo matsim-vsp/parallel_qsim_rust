@@ -3,7 +3,7 @@ use rust_qsim::external_services::AdapterHandle;
 use rust_qsim::simulation::config::Config;
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
-use rust_qsim::simulation::io::proto::xml_events::XmlEventsWriter;
+use rust_qsim::simulation::io::xml::events::XmlEventsWriter;
 use rust_qsim::simulation::population::agent_source::PopulationAgentSource;
 use rust_qsim::simulation::scenario::MutableScenario;
 use std::collections::HashMap;
