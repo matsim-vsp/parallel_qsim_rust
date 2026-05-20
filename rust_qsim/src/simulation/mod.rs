@@ -30,7 +30,6 @@ pub mod scenario;
 pub mod simulation;
 pub mod time;
 pub mod time_queue;
-pub mod utils;
 pub mod vehicles;
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]

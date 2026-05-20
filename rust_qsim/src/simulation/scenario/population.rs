@@ -11,7 +11,6 @@ use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
-use crate::simulation::utils::time::{parse_time, parse_time_opt, write_timestr};
 use itertools::{EitherOrBoth, Itertools};
 use serde_json::{Error, Value};
 use std::collections::HashMap;
@@ -449,7 +448,7 @@ impl InternalRoute {
                     boarding_time: ptr
                         .description
                         .boarding_time
-                        .map(|t| write_timestr(t))
+                        .map(|t| SimTime::from_duration(t).format_hh_mm_ss_trimmed())
                         .unwrap_or_else(|| "undefined".to_string()),
                     transit_line_id: ptr.description.transit_line_id,
                     access_facility_id: ptr.description.access_facility_id,
@@ -629,7 +628,10 @@ impl FromIOPerson<IOLeg> for InternalLeg {
             mode: mode.clone(),
             routing_mode,
             dep_time: parse_time_opt(&io.dep_time),
-            trav_time: parse_time_opt(&io.trav_time),
+            trav_time: parse_trav_time(
+                &io.trav_time,
+                &io.route.as_ref().and_then(|r| r.trav_time.clone()),
+            ),
             route: io.route.map(|r| InternalRoute::from_io(r, id, mode)),
             attributes: io
                 .attributes

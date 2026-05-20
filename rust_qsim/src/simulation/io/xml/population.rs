@@ -13,7 +13,7 @@ use crate::simulation::scenario::population::{
     InternalRoute, Population,
 };
 use crate::simulation::scenario::vehicles::Garage;
-use crate::simulation::utils::time::write_timestr;
+use crate::simulation::time::SimTime;
 
 pub(crate) fn load_from_xml(
     path: impl AsRef<Path>,
@@ -130,7 +130,9 @@ impl From<&InternalRoute> for IORoute {
             r#type: Some(r_type.to_string()),
             start_link: Some(generic_internal_route.start_link().external().to_string()),
             end_link: Some(generic_internal_route.end_link().external().to_string()),
-            trav_time: generic_internal_route.trav_time().map(|t| write_timestr(t)),
+            trav_time: generic_internal_route
+                .trav_time()
+                .map(|t| SimTime::from_duration(t).format_hh_mm_ss_trimmed()),
             distance: generic_internal_route.distance(),
             vehicle: generic_internal_route
                 .vehicle()
@@ -183,11 +185,13 @@ impl From<&InternalActivity> for IOActivity {
         IOActivity {
             r#type: activity.act_type.external().to_string(),
             link: Some(activity.link_id.external().to_string()),
-            x: Some(activity.x),
-            y: Some(activity.y),
-            start_time: activity.start_time.map(|t| write_timestr(t)),
-            end_time: activity.end_time.map(|t| write_timestr(t)),
-            max_dur: activity.max_dur.map(|d| write_timestr(d)),
+            x: Some(activity.coord.x),
+            y: Some(activity.coord.y),
+            start_time: activity.start_time.map(|t| t.format_hh_mm_ss_trimmed()),
+            end_time: activity.end_time.map(|t| t.format_hh_mm_ss_trimmed()),
+            max_dur: activity
+                .max_dur
+                .map(|d| SimTime::from_duration(d).format_hh_mm_ss_trimmed()),
             attributes: IOAttributes::from_internal_none_if_empty(&activity.attributes),
         }
     }
@@ -214,8 +218,10 @@ impl From<&InternalLeg> for IOLeg {
 
         IOLeg {
             mode: leg.mode.external().to_string(),
-            dep_time: leg.dep_time.map(|t| write_timestr(t)),
-            trav_time: leg.trav_time.map(|t| write_timestr(t)),
+            dep_time: leg.dep_time.map(|t| t.format_hh_mm_ss_trimmed()),
+            trav_time: leg
+                .trav_time
+                .map(|t| SimTime::from_duration(t).format_hh_mm_ss_trimmed()),
             route: leg.route.clone().map(|r| IORoute::from(&r)),
             attributes: IOAttributes::from_internal_none_if_empty(&verified_internal_attrs),
         }
