@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
@@ -10,9 +10,10 @@ use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
 use crate::simulation::scenario::population::{
     InternalActivity, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement,
-    InternalRoute, Population, write_timestr,
+    InternalRoute, Population,
 };
 use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::utils::time::write_timestr;
 
 pub(crate) fn load_from_xml(
     path: impl AsRef<Path>,
@@ -94,11 +95,11 @@ pub struct IOPTRouteDescription {
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct IORoute {
     #[serde(rename = "@type")]
-    pub r#type: String,
+    pub r#type: Option<String>,
     #[serde(rename = "@start_link")]
-    pub start_link: String,
+    pub start_link: Option<String>,
     #[serde(rename = "@end_link")]
-    pub end_link: String,
+    pub end_link: Option<String>,
     #[serde(rename = "@trav_time", skip_serializing_if = "Option::is_none")]
     pub trav_time: Option<String>,
     #[serde(rename = "@distance", skip_serializing_if = "Option::is_none")]
@@ -126,9 +127,9 @@ impl From<&InternalRoute> for IORoute {
         };
 
         IORoute {
-            r#type: r_type.to_string(),
-            start_link: generic_internal_route.start_link().external().to_string(),
-            end_link: generic_internal_route.end_link().external().to_string(),
+            r#type: Some(r_type.to_string()),
+            start_link: Some(generic_internal_route.start_link().external().to_string()),
+            end_link: Some(generic_internal_route.end_link().external().to_string()),
             trav_time: generic_internal_route.trav_time().map(|t| write_timestr(t)),
             distance: generic_internal_route.distance(),
             vehicle: generic_internal_route
@@ -158,11 +159,11 @@ pub struct IOActivity {
     #[serde(rename = "@type")]
     pub r#type: String,
     #[serde(rename = "@link")]
-    pub link: String,
+    pub link: Option<String>,
     #[serde(rename = "@x")]
-    pub x: f64,
+    pub x: Option<f64>,
     #[serde(rename = "@y")]
-    pub y: f64,
+    pub y: Option<f64>,
     #[serde(rename = "@start_time", skip_serializing_if = "Option::is_none")]
     pub start_time: Option<String>,
     #[serde(rename = "@end_time", skip_serializing_if = "Option::is_none")]
@@ -181,9 +182,9 @@ impl From<&InternalActivity> for IOActivity {
     fn from(activity: &InternalActivity) -> Self {
         IOActivity {
             r#type: activity.act_type.external().to_string(),
-            link: activity.link_id.external().to_string(),
-            x: activity.x,
-            y: activity.y,
+            link: Some(activity.link_id.external().to_string()),
+            x: Some(activity.x),
+            y: Some(activity.y),
             start_time: activity.start_time.map(|t| write_timestr(t)),
             end_time: activity.end_time.map(|t| write_timestr(t)),
             max_dur: activity.max_dur.map(|d| write_timestr(d)),
@@ -343,12 +344,13 @@ fn verify_internal_attrs(leg: &InternalLeg) -> InternalAttributes {
                 leg.attributes.clone()
             } else {
                 // routing mode in leg and attributes don't match, this should not happen, panic
-                panic!(
+                warn!(
                     "Routing mode in leg and attributes don't match. Routing mode in leg: {:?}, \
                     routing mode in attributes: {:?}",
                     field_routing_mode.external().to_string(),
                     attr_routing_mode
                 );
+                leg.attributes.clone()
             }
         }
 
@@ -362,7 +364,8 @@ fn verify_internal_attrs(leg: &InternalLeg) -> InternalAttributes {
 
         // routing mode is not present in leg but present in attributes, this should not happen, panic
         (None, Some(_)) => {
-            panic!("Routing mode is not present in leg but present in attributes.");
+            warn!("Routing mode is not present in leg but present in attributes.");
+            leg.attributes.clone()
         }
     }
 }
@@ -527,9 +530,9 @@ mod tests {
                 assert_eq!(None, leg.trav_time);
                 assert_eq!(None, leg.dep_time);
                 let route = leg.route.as_ref().unwrap();
-                assert_eq!("links", route.r#type);
-                assert_eq!("1", route.start_link);
-                assert_eq!("20", route.end_link);
+                assert_eq!(Some("links".to_string()), route.r#type);
+                assert_eq!(Some("1".to_string()), route.start_link);
+                assert_eq!(Some("20".to_string()), route.end_link);
                 assert_eq!("undefined", route.trav_time.as_ref().unwrap());
                 assert_eq!(25000.0, route.distance.unwrap());
                 assert_eq!("null", route.vehicle.as_ref().unwrap());
@@ -542,9 +545,9 @@ mod tests {
             IOPlanElement::Activity(activity) => {
                 //<activity type=\"w\" link=\"20\" x=\"10000.0\" y=\"0.0\" max_dur=\"03:30:00\" >
                 assert_eq!("w", activity.r#type);
-                assert_eq!("20", activity.link);
-                assert_eq!(10000.0, activity.x);
-                assert_eq!(0.0, activity.y);
+                assert_eq!("20", activity.link.as_ref().unwrap());
+                assert_eq!(10000.0, activity.x.unwrap());
+                assert_eq!(0.0, activity.y.unwrap());
                 assert_eq!(Some(String::from("03:30:00")), activity.max_dur);
                 assert_eq!(None, activity.start_time);
                 assert_eq!(None, activity.end_time);
@@ -569,9 +572,9 @@ mod tests {
         assert_eq!(leg.dep_time, Some(String::from("00:00:00")));
         assert_eq!(leg.trav_time, None);
         let route = leg.route.as_ref().unwrap();
-        assert_eq!(route.r#type, "generic");
-        assert_eq!(route.start_link, "4410448#0");
-        assert_eq!(route.end_link, "4410448#0");
+        assert_eq!(route.r#type, Some("generic".to_string()));
+        assert_eq!(route.start_link, Some("4410448#0".to_string()));
+        assert_eq!(route.end_link, Some("4410448#0".to_string()));
         assert_eq!(route.trav_time, Some(String::from("00:00:46")));
         assert_eq!(route.distance.unwrap(), 57.23726831365165);
         assert_eq!(route.vehicle, None);
@@ -591,9 +594,9 @@ mod tests {
         assert_eq!(leg.dep_time, None);
         assert_eq!(leg.trav_time, Some(String::from("00:10:01")));
         let route = leg.route.as_ref().unwrap();
-        assert_eq!(route.r#type, "default_pt");
-        assert_eq!(route.start_link, "33");
-        assert_eq!(route.end_link, "11");
+        assert_eq!(route.r#type, Some("default_pt".to_string()));
+        assert_eq!(route.start_link, Some("33".to_string()));
+        assert_eq!(route.end_link, Some("11".to_string()));
         assert_eq!(route.trav_time, Some(String::from("00:10:01")));
         assert!(route.distance.unwrap().is_nan());
         assert_eq!(route.vehicle, None);

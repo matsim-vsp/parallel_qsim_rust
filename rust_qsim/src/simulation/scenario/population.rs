@@ -9,6 +9,7 @@ use crate::simulation::io::xml::population::{
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::utils::time::{parse_time, parse_time_opt, write_timestr};
 use itertools::{EitherOrBoth, Itertools};
 use serde_json::{Error, Value};
 use std::collections::HashMap;
@@ -380,14 +381,14 @@ impl InternalRoute {
     fn from_io(io: IORoute, id: Id<InternalPerson>, mode: Id<String>) -> Self {
         let external = format!("{}_{}", id.external(), mode.external());
         let generic = InternalGenericRoute::new(
-            Id::create(io.start_link.as_str()),
-            Id::create(io.end_link.as_str()),
+            Id::create(io.start_link.expect("Route must have start link").as_str()),
+            Id::create(io.end_link.expect("Route must have end link").as_str()),
             parse_time_opt(&io.trav_time),
             Option::from(io.distance),
             Some(Id::create(&external)),
         );
 
-        match io.r#type.as_str() {
+        match io.r#type.expect("Route must have type").as_str() {
             "generic" => InternalRoute::Generic(generic),
             "default_pt" => {
                 let description = io
@@ -411,7 +412,7 @@ impl InternalRoute {
                     route,
                 })
             }
-            _ => panic!("Unknown route type: {}", io.r#type),
+            other_unknown_str => panic!("Unknown route type: {}", other_unknown_str),
         }
     }
 
@@ -419,32 +420,43 @@ impl InternalRoute {
         match self {
             InternalRoute::Generic(_) => None,
             InternalRoute::Network(nr) => {
-                // TODO: in Java (https://github.com/matsim-org/matsim-libs/blob/main/matsim/src/main/java/org/matsim/core/population/routes/LinkNetworkRouteImpl.java), the end link id is only included in the string if it is not the same as the start link id, or if the route consiste of only start and end links (and no links inbetwee).
-                // Do we want that behaviour?
+                // if route starts and ends with same link, and has length 2 (only start and end
+                // node contained => not a true round trip), remove the end link from the route
+                // before writing
+                // Note: When such routes have been read from file, the InternalRoute will likely
+                // already only contain one link in its "route" vector, since this is how the route
+                // is written in the files. But since we only remove the last link before writing in
+                // the case length == 2 (not length < 2), this should not cause any issues here.
+                let route = if nr.route().first() == nr.route().last() && nr.route().len() == 2 {
+                    let mut route = nr.route().clone();
+                    route.pop();
+                    route
+                } else {
+                    nr.route().clone()
+                };
+
                 Some(
-                    nr.route()
+                    route
                         .iter()
                         .map(|id| id.external().to_string())
                         .collect::<Vec<String>>()
                         .join(" "),
                 )
             }
-            InternalRoute::Pt(ptr) => {
-                Some(
-                    serde_json::to_string(&IOPTRouteDescription {
-                        transit_route_id: ptr.description.transit_route_id,
-                        boarding_time: ptr
-                            .description
-                            .boarding_time
-                            .map(|t| write_timestr(t))
-                            .unwrap(), // TODO boarding_time is optional in InternalPtRoute. Should it be?
-                        transit_line_id: ptr.description.transit_line_id,
-                        access_facility_id: ptr.description.access_facility_id,
-                        egress_facility_id: ptr.description.egress_facility_id,
-                    })
-                    .unwrap(),
-                )
-            }
+            InternalRoute::Pt(ptr) => Some(
+                serde_json::to_string(&IOPTRouteDescription {
+                    transit_route_id: ptr.description.transit_route_id,
+                    boarding_time: ptr
+                        .description
+                        .boarding_time
+                        .map(|t| write_timestr(t))
+                        .unwrap_or_else(|| "undefined".to_string()),
+                    transit_line_id: ptr.description.transit_line_id,
+                    access_facility_id: ptr.description.access_facility_id,
+                    egress_facility_id: ptr.description.egress_facility_id,
+                })
+                .unwrap(),
+            ),
         }
     }
 }
@@ -639,9 +651,9 @@ impl From<IOActivity> for InternalActivity {
     fn from(io: IOActivity) -> Self {
         InternalActivity {
             act_type: Id::create(&io.r#type),
-            link_id: Id::create(&io.link),
-            x: io.x,
-            y: io.y,
+            link_id: Id::create(&io.link.expect("Activity must have a link id")),
+            x: io.x.expect("Activity must have x coordinate"),
+            y: io.y.expect("Activity must have y coordinate"),
             start_time: parse_time_opt(&io.start_time),
             end_time: parse_time_opt(&io.end_time),
             max_dur: parse_time_opt(&io.max_dur),
@@ -670,35 +682,6 @@ impl From<Activity> for InternalActivity {
 
 fn trim_quotes(s: &Value) -> String {
     s.to_string().trim_matches('"').to_string()
-}
-
-fn parse_time_opt(value: &Option<String>) -> Option<u32> {
-    if let Some(time) = value.as_ref() {
-        parse_time(time)
-    } else {
-        None
-    }
-}
-
-fn parse_time(value: &str) -> Option<u32> {
-    let split: Vec<&str> = value.split(':').collect();
-    if split.len() == 3 {
-        let hour: u32 = split.first().unwrap().parse().unwrap();
-        let minutes: u32 = split.get(1).unwrap().parse().unwrap();
-        let seconds: u32 = split.get(2).unwrap().parse().unwrap();
-
-        Some(hour * 3600 + minutes * 60 + seconds)
-    } else {
-        None
-    }
-}
-
-/// create a string "hh:mm:ss" from a given number of seconds
-pub(crate) fn write_timestr(time_secs: u32) -> String {
-    let hours = time_secs / 3600; // rounds towards zero, i.e., floors the result
-    let minutes = (time_secs % 3600) / 60;
-    let seconds = time_secs % 60;
-    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
 impl From<IOPerson> for InternalPerson {
@@ -976,9 +959,9 @@ mod tests {
             dep_time: Some("12:00:00".to_string()),
             trav_time: Some("00:30:00".to_string()),
             route: Some(IORoute {
-                r#type: "generic".to_string(),
-                start_link: "1".to_string(),
-                end_link: "2".to_string(),
+                r#type: Some("generic".to_string()),
+                start_link: Some("1".to_string()),
+                end_link: Some("2".to_string()),
                 trav_time: Some("00:20:00".to_string()),
                 distance: Some(42.0),
                 vehicle: None,
@@ -1017,9 +1000,9 @@ mod tests {
             dep_time: None,
             trav_time: Some("00:30:00".to_string()),
             route: Some(IORoute {
-                r#type: "default_pt".to_string(),
-                start_link: "1".to_string(),
-                end_link: "2".to_string(),
+                r#type: Some("default_pt".to_string()),
+                start_link: Some("1".to_string()),
+                end_link: Some("2".to_string()),
                 trav_time: Some("00:20:00".to_string()),
                 distance: Some(f64::NAN),
                 vehicle: None,

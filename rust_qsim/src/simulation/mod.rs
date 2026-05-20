@@ -29,6 +29,7 @@ pub mod scenario;
 #[allow(clippy::module_inception)]
 pub mod simulation;
 pub mod time_queue;
+pub mod utils;
 pub mod vehicles;
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
