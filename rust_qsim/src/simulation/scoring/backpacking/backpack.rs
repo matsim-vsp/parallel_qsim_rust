@@ -75,8 +75,14 @@ impl BackpackPlan {
             self.handle_activity_end(e);
         }
     }
-    
-    fn finish(self) -> InternalPlan {
+
+    fn finish(mut self) -> InternalPlan {
+        // Finish remaining current act
+        if self.current_activity.is_none() {
+            panic!("Tried to finish an agent, which is not in an ending activity!");
+        }
+        self.elements.push(Activity(self.current_activity.unwrap().finish()));
+
         InternalPlan {
             selected: true,
             elements: self.elements
@@ -107,6 +113,9 @@ impl Default for BackpackActivity {
 
 impl BackpackActivity {
     fn handle_activity_start(&mut self, event: &ActivityStartEvent) {
+        self.act_type = Some(event.act_type.clone());
+        self.link_id = Some(event.link.clone());
+        self.coordinate = Some(event.coordinate.clone());
         self.start_time = Some(event.time);
     }
 
@@ -385,7 +394,7 @@ impl Backpack {
 
         self.backpack_plan.handle_event(event);
     }
-    
+
     pub(crate) fn finish(self) -> InternalPerson {
         InternalPerson::new(self.person_id, self.backpack_plan.finish())
     }
