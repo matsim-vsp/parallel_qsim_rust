@@ -195,6 +195,8 @@ impl Controller {
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(true));
 
+        self.controller_events_manager
+            .process_event(ControllerEvent::scoring(true));
 
         self.controller_events_manager
             .process_event(ControllerEvent::iteration_ends(true));
@@ -238,7 +240,7 @@ impl Controller {
         );
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
 
-        let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = BackpackingScoringEngine::create_for_n_partitions(num_parts, &partitions);
+        let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = BackpackingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager);
         for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
             self.event_handler_per_partition.entry(i as u32).or_insert_with(Vec::new).push(e_fn);
         }

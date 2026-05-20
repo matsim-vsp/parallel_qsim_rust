@@ -180,4 +180,14 @@ impl BackpackingDataCollector {
             });
         })
     }
+
+    pub(crate) fn finish(&mut self) -> Population {
+        let persons: HashMap<Id<InternalPerson>, InternalPerson> = self.person_id2backpack.drain().map(|(person_id, backpack)| {
+            (person_id, backpack.finish())
+        }).collect();
+
+        Population {
+            persons
+        }
+    }
 }

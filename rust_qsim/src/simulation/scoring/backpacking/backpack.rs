@@ -2,7 +2,7 @@ use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, DynEq, Eve
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
-use crate::simulation::scenario::population::{InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson, InternalPlanElement, InternalRoute};
+use crate::simulation::scenario::population::{InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson, InternalPlan, InternalPlanElement, InternalRoute};
 use crate::simulation::scenario::population::InternalPlanElement::Activity;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 
@@ -73,6 +73,13 @@ impl BackpackPlan {
             self.handle_person_arrival(e);
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
             self.handle_activity_end(e);
+        }
+    }
+    
+    fn finish(self) -> InternalPlan {
+        InternalPlan {
+            selected: true,
+            elements: self.elements
         }
     }
 }
@@ -340,6 +347,7 @@ impl BackpackRoute {
 /// The Backpack is not managed by the agent itself but by the [BackpackDataCollector], which exists
 /// once for each partition. If an agent leaves the current partition, the Backpack is transmitted
 /// to the partition the agent is currently entering.
+/// TODO Check if the events attribute is needed
 pub struct Backpack{
     person_id: Id<InternalPerson>,
     events: Vec<Box<dyn EventTrait>>,
@@ -376,5 +384,9 @@ impl Backpack {
         }
 
         self.backpack_plan.handle_event(event);
+    }
+    
+    pub(crate) fn finish(self) -> InternalPerson {
+        InternalPerson::new(self.person_id, self.backpack_plan.finish())
     }
 }
