@@ -112,7 +112,8 @@ impl<H: AStarHeuristic> AStarRouter<H> {
     /// through the list of parents.
     /// Stops when a node with no parent is found, which should be the from-node. But this is not
     /// verified here, since this function doesn't know the from-node.
-    /// Use the below method verify_path for such a check.
+    /// However, the below function extract_link_path, which calls this function, does verify that
+    /// the found path is correct.
     fn extract_node_path(to: NodeIndex, parents: Vec<Option<NodeIndex>>) -> Vec<NodeIndex> {
         let mut node_path = Vec::new();
         let mut current = to;
@@ -128,19 +129,23 @@ impl<H: AStarHeuristic> AStarRouter<H> {
         node_path
     }
 
-    /// Given a to-node, a vector parents and the graph, extracts the path of links to the to-node.
+    /// Given a to-link, a vector parents and the graph, extracts the path of links to the to-link.
     /// Uses the above extract_node_path to get the path of nodes, and then looks up the
     /// corresponding links in the graph.
-    /// Since this uses extract_node_path, there is no check that the path starts at the from-link,
-    /// instead the node path search stops when no parent is found (which should be the from-node).
-    /// Use the below method verify_path for such a check.
+    /// Calls the below `verify_path` to check correctness of the found path. Because of this, a
+    /// from-link must also be given.
     fn extract_link_path(
-        to: NodeIndex,
+        to_link: Id<Link>,
+        from_link: Id<Link>,
         parents: Vec<Option<NodeIndex>>,
         graph: &dyn IndexableGraph,
-    ) -> Result<Vec<Id<Link>>, GraphError> {
+    ) -> Result<Option<Vec<Id<Link>>>, GraphError> {
+        // convert given "to" link id to node id, by looking for the start node of the link
+        let to_node_id = graph.get_start_node(to_link.clone())?;
+        let to_node_idx = graph.get_node_idx_from_id(to_node_id);
+
         // get node path
-        let node_path = Self::extract_node_path(to, parents);
+        let node_path = Self::extract_node_path(to_node_idx, parents);
 
         let mut link_path = Vec::new();
 
@@ -160,7 +165,12 @@ impl<H: AStarHeuristic> AStarRouter<H> {
                 }
             }
         }
-        Ok(link_path)
+
+        // verify the found path: if incorrect, return None instead of a path
+        if !Self::verify_path(&link_path, graph, from_link, to_link)? {
+            return Ok(None);
+        }
+        Ok(Some(link_path))
     }
 
     /// Given a path, graph from- and to-link, verifies that the path starts at the end node of the
@@ -274,44 +284,29 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
 
         // TODO it's correct that we return the link path here? and not node path as apparently before?
         // NOTE: it contains both in Java, do we need that? Nodes are of course easy to get when you have the graph
-        let link_path = match Self::extract_link_path(to_node_idx, parents, request.graph) {
-            Ok(link_path) => {
-                // If a link path was found, verify that it starts where the from-link ends, since
-                // extract_link_path does not check this
-                match Self::verify_path(&link_path, request.graph, request.from, request.to) {
-                    Ok(true) => {} // all good, we can use the extracted link path
+        let link_path =
+            match Self::extract_link_path(request.to, request.from, parents, request.graph) {
+                Ok(Some(link_path)) => link_path, // all good, path was found
+                Ok(None) => {
                     // verification negative: incorrect path was found
-                    Ok(false) => {
-                        error!(
-                            "Path search unsuccesful: A path was found, but it does not connect \
-                        the given from- and to-links. Something went wrong in Dijkstra or path \
-                        extraction."
-                        );
-                        return None;
-                    }
-                    // from- or to-link not found in the graph. Note: this case should never occur,
-                    // since an invalid from- or to-link would have been detected already during A*
-                    Err(e) => {
-                        error!(
-                            "Path search unsuccessful: A path was found, but when verifying its\
-                            correctness, an error occured: {}",
-                            e
-                        );
-                        return None;
-                    }
+                    error!(
+                        "Path search unsuccesful: A path was found, but it does not connect \
+                    the given from- and to-links. Something went wrong in Dijkstra or path \
+                    extraction."
+                    );
+                    return None;
                 }
-
-                link_path
-            }
-
-            Err(err) => {
-                error!(
-                    "Error extracting link path from node path: {}, cannot calculate path",
-                    err
-                );
-                return None;
-            }
-        };
+                // from- or to-link not found in the graph. Note: this case should never occur,
+                // since an invalid from- or to-link would have been detected already during A*
+                Err(e) => {
+                    error!(
+                        "Path search unsuccessful: A path was found, but when verifying its\
+                    correctness, an error occured: {}",
+                        e
+                    );
+                    return None;
+                }
+            };
 
         return Some(LeastCostPath {
             path: link_path,
