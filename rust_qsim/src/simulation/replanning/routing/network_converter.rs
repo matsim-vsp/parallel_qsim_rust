@@ -58,8 +58,6 @@ impl NetworkConverter {
         let mut backward_head = Vec::new();
         let mut backward_link_id_by_index = Vec::new();
 
-        let mut coords = Vec::new();
-
         let nodes = network.get_all_nodes_sorted();
         let node_indices = nodes
             .iter()
@@ -71,9 +69,6 @@ impl NetworkConverter {
         let mut backward_links_before = 0;
 
         for (i, node) in nodes.iter().enumerate() {
-            //set x and y
-            coords.push(&node.coord);
-
             forward_first_out.push(forward_links_before as LinkIndex);
             backward_first_out.push(backward_links_before as LinkIndex);
 
@@ -140,7 +135,6 @@ impl NetworkConverter {
             backward_link_id_by_index,
             forward_link_index_by_id,
             backward_link_index_by_id,
-            coords,
         )
     }
 

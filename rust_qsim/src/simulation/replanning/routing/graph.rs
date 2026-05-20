@@ -1,5 +1,4 @@
 use crate::simulation::id::Id;
-use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::{Link, Node};
 use nohash_hasher::IntMap;
 use std::fmt;
@@ -141,7 +140,6 @@ pub(crate) struct ForwardBackwardRoutingGraph<'net> {
     backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
     forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
     backward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the backward graph
-    coords: Vec<&'net Coordinate>, // TODO do we need coordinates, when we have them in the nodes?
 }
 
 impl<'net> ForwardBackwardRoutingGraph<'net> {
@@ -156,7 +154,6 @@ impl<'net> ForwardBackwardRoutingGraph<'net> {
         backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
         forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
         backward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the backward graph
-        coords: Vec<&'net Coordinate>,
     ) -> Self {
         let graph = Self {
             forward_graph,
@@ -169,7 +166,6 @@ impl<'net> ForwardBackwardRoutingGraph<'net> {
             backward_link_id_by_index,
             forward_link_index_by_id,
             backward_link_index_by_id,
-            coords,
         };
         graph.validate_else_panic();
         graph
@@ -413,7 +409,6 @@ pub(crate) mod tests {
             vec![],
             IntMap::default(), // forward_link_index_by_id
             IntMap::default(), // bacward_link_index_by_id
-            vec![],
         );
     }
 
@@ -430,7 +425,6 @@ pub(crate) mod tests {
             vec![],
             IntMap::default(), // forward_link_index_by_id
             IntMap::default(), // bacward_link_index_by_id
-            vec![],
         );
     }
 
