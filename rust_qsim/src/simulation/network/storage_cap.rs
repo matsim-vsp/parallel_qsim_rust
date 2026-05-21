@@ -15,22 +15,22 @@
 /// can be found in SimNetwork::move_links.
 #[derive(Debug, Clone)]
 pub struct StorageCap {
-    max: f32,
-    used: f32,
+    max: f64,
+    used: f64,
 }
 
 impl StorageCap {
     pub fn build(
         length: f64,
-        perm_lanes: f32,
-        capacity_h: f32,
-        sample_size: f32,
-        effective_cell_size: f32,
+        perm_lanes: f64,
+        capacity_h: f64,
+        sample_size: f64,
+        effective_cell_size: f64,
     ) -> Self {
         let flow_cap_s = capacity_h * sample_size / 3600.;
-        let cap = length * perm_lanes as f64 * sample_size as f64 / effective_cell_size as f64;
+        let cap = length * perm_lanes * sample_size / effective_cell_size;
         // storage capacity needs to be at least enough to handle the cap_per_time_step:
-        let max_storage_cap = flow_cap_s.max(cap as f32);
+        let max_storage_cap = flow_cap_s.max(cap);
 
         // the original code contains more logic to increase storage capacity for links with a low
         // free speed. Omit this for now, as we don't want to create a feature complete qsim
@@ -41,7 +41,7 @@ impl StorageCap {
         }
     }
 
-    pub fn used(&self) -> f32 {
+    pub fn used(&self) -> f64 {
         self.used
     }
 
@@ -51,14 +51,14 @@ impl StorageCap {
     ///
     /// # Parameters
     /// * 'value' storage capacity to be consumed
-    pub fn consume(&mut self, value: f32) {
+    pub fn consume(&mut self, value: f64) {
         self.used += value;
     }
 
     /// Releases storage capacity on a link
     ///
     /// This method should be called when a vehicle leaves a link
-    pub fn release(&mut self, value: f32) {
+    pub fn release(&mut self, value: f64) {
         self.used -= value;
     }
 

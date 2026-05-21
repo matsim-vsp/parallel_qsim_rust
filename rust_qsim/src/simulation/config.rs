@@ -516,7 +516,7 @@ pub struct Simulation {
     pub start_time: u32,
     pub end_time: u32,
     pub ticks_per_second: u32,
-    pub sample_size: f32,
+    pub sample_size: f64,
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
 }

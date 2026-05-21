@@ -31,8 +31,8 @@ impl SimulationVehicle {
     pub fn from_parts(
         id: u64,
         veh_type: u64,
-        max_v: f32,
-        pce: f32,
+        max_v: f64,
+        pce: f64,
         driver: SimulationAgent,
     ) -> Self {
         Self::new(
@@ -62,11 +62,11 @@ impl SimulationVehicle {
         &self.vehicle.id
     }
 
-    pub fn max_v(&self) -> f32 {
+    pub fn max_v(&self) -> f64 {
         self.vehicle.max_v
     }
 
-    pub fn pce(&self) -> f32 {
+    pub fn pce(&self) -> f64 {
         self.vehicle.pce
     }
 

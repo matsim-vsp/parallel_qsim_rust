@@ -1,214 +1,683 @@
-use std::collections::HashMap;
+use crate::simulation::id::Id;
+use crate::simulation::scenario::network::{Link, Node};
+use nohash_hasher::IntMap;
+use std::fmt;
+use std::fmt::{Debug, Display};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct ForwardBackwardGraph {
-    pub forward_graph: Graph,
-    pub backward_graph: Graph,
+/// A (directed) graph whose nodes are Ids of network nodes, and edges are Ids of network links.
+/// The graph is used for routing, and the nodes and links can be accessed by their id.
+pub trait Graph: Debug {
+    /// get network node from node id
+    fn node(&self, id: Id<Node>) -> Result<&Node, GraphError>;
+    /// get network link from link id
+    fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError>;
+    /// get slice of the outgoing edges, as link ids, of a given node, given as node id
+    fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>];
+    /// get slice of the incoming edges, as link ids, of a given node, given as node id
+    fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>];
+    fn num_nodes(&self) -> usize;
+    /// get the end node (head) of a given link, given as link id
+    /// Returns an error if the link does not exist in the graph
+    fn get_end_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
+    /// get the start node of a given link, given as link id
+    /// Returns an error if the link does not exist in the graph
+    fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError>;
 }
 
-impl ForwardBackwardGraph {
-    pub fn new(forward_graph: Graph, backward_graph: Graph) -> Self {
+/// An index of a node in an `IndexableGraph`
+pub type NodeIndex = usize;
+
+/// An index of a link in an `IndexableGraph`
+pub type LinkIndex = usize;
+
+/// An index of a link in the backward graph of a `ForwardBackwardGraph`.
+/// Only used internally, when indexing the backward graph to find the start node of some edge.
+/// This separate type alias is used to emphasize that indices of links are not the same in the
+/// forward and backward graphs.
+pub(crate) type BackwardLinkIndex = usize;
+
+/// A (directed) graph where nodes and links can be accessed by both their id and their index.
+/// Mirrors many trait methods from its supertrait "Graph", but using indices instead of ids.
+/// This is used to keep the routing algorithms efficient, while still being able to use the ids in
+/// the rest of the code.
+pub trait IndexableGraph: Graph {
+    fn get_node_idx_from_id(&self, id: Id<Node>) -> NodeIndex;
+    fn get_link_idx_from_id(&self, id: Id<Link>) -> Result<LinkIndex, GraphError>;
+    fn get_node_id_from_idx(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError>;
+    fn get_link_id_from_idx(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError>;
+    fn get_node_from_idx(&self, idx: NodeIndex) -> Result<&Node, GraphError>;
+    fn get_link_from_idx(&self, idx: LinkIndex) -> Result<&Link, GraphError>;
+    fn outgoing_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
+    fn incoming_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex>;
+    fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
+    fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError>;
+}
+
+/// A directed graph, stored in Compressed sparse row (CSR) format.
+/// That is, contains the two vectors:
+/// - `first_out`: a vector such that `first_out[i]` is the index of the first outgoing edge of
+///     node i in `head`, and `first_out[i+1]` is the index of the first outgoing edge of node i+1,
+///     i.e., the outgoing edges of node i are exactly those in
+///     `head[first_out[i]..first_out[i+1]]`.
+/// - `head`: a vector such that `head[j]` is the node index of the end node of the edge with
+///     index j
+/// This structure allows to efficiently look up the outgoing edges of a node. To efficiently look
+/// up incoming edges, use `ForwardBackwardGraph`s, that contain two `CsrGraph`s, one for the
+/// forward and one for the backward graph, with the latter allowing to access incoming edges cheaply.
+///
+/// This structure considers nodes and edges as indices, so it does not contain any information on
+/// the actual nodes and edges. Other structures, such as `ForwardBackwardGraph`, are responsible
+/// for keeping track of what nodes and edges are, while this struct only stores the Graph
+/// structure.
+#[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
+pub struct CsrGraph {
+    /// a vector such that `first_out[i]` is the index of the first outgoing edge of
+    /// node i in `head`, and `first_out[i+1]` is the index of the first outgoing edge of node i+1,
+    /// so that the outgoing edges of node i are exactly those in
+    /// `head[first_out[i]..first_out[i+1]]`.
+    pub(crate) first_out: Vec<LinkIndex>,
+    /// a vector such that `head[j]` is the node index of the end node of the edge with index j
+    pub(crate) head: Vec<NodeIndex>,
+}
+
+impl CsrGraph {
+    pub(crate) fn new(first_out: Vec<LinkIndex>, head: Vec<NodeIndex>) -> CsrGraph {
+        CsrGraph { first_out, head }
+    }
+}
+
+/// Error type for graph operations. Has variants for when node ids or indices, or link ids or
+/// indices, are passed to be used in some operation but are not found in the graph on which the
+/// operation takes place.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GraphError {
+    LinkIdNotFound(Id<Link>),
+    LinkIndexNotFound(LinkIndex),
+    NodeIdNotFound(Id<Node>),
+    NodeIndexNotFound(NodeIndex),
+}
+
+impl Display for GraphError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GraphError::LinkIdNotFound(link_id) => {
+                write!(f, "no link with id {} found in the graph", link_id)
+            }
+            GraphError::NodeIdNotFound(node_id) => {
+                write!(f, "no node with id {} found in the graph", node_id)
+            }
+            GraphError::LinkIndexNotFound(link_index) => {
+                write!(f, "no link with index {} found in the graph", link_index)
+            }
+            GraphError::NodeIndexNotFound(node_index) => {
+                write!(f, "no node with index {} found in the graph.", node_index)
+            }
+        }
+    }
+}
+
+impl std::error::Error for GraphError {}
+
+/// An implementation of `Graph` and `IndexableGraph`, i.e., a directed graph with network nodes
+/// as nodes, and network links as edges.
+///
+/// The graph structure is stored in two `CsrGraph`s, one "forward" graph and one "backward", with
+/// the backward graph a copy of the forward one, just with flipped directions on the edges. This
+/// allows to have cheap access to both outgoing and incoming edges.
+///
+/// Also contains maps and vectors to map between indices, (node/link) ids and actual nodes and
+/// links. And contains coordinate data, currently not used in routing.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ForwardBackwardRoutingGraph<'net> {
+    forward_graph: CsrGraph,
+    backward_graph: CsrGraph,
+    node_by_node_id: &'net IntMap<Id<Node>, Node>, // maps node ids to actual network nodes
+    link_by_link_id: &'net IntMap<Id<Link>, Link>, // maps link ids to actual network links
+    node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to node indices
+    node_id_by_index: Vec<Id<Node>>,               // maps (Node)Indices to node ids
+    forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
+    backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
+    forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
+    backward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the backward graph
+}
+
+impl<'net> ForwardBackwardRoutingGraph<'net> {
+    pub fn new(
+        forward_graph: CsrGraph,
+        backward_graph: CsrGraph,
+        node_by_node_id: &'net IntMap<Id<Node>, Node>,
+        link_by_link_id: &'net IntMap<Id<Link>, Link>,
+        node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to indices (in first_out, x, y etc.)
+        node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to node ids
+        forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
+        backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
+        forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
+        backward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the backward graph
+    ) -> Self {
         let graph = Self {
             forward_graph,
             backward_graph,
+            node_by_node_id,
+            link_by_link_id,
+            node_index_by_id,
+            node_id_by_index,
+            forward_link_id_by_index,
+            backward_link_id_by_index,
+            forward_link_index_by_id,
+            backward_link_index_by_id,
         };
         graph.validate_else_panic();
         graph
     }
 
     fn validate_else_panic(&self) {
+        // ensure forward and backward graphs have same amount of edges
         assert_eq!(
             self.forward_graph.head.len(),
             self.backward_graph.head.len()
         );
-        assert_eq!(
-            self.forward_graph.travel_time.len(),
-            self.backward_graph.travel_time.len()
-        );
-        assert_eq!(
-            self.forward_graph.head.len(),
-            self.backward_graph.travel_time.len()
-        );
+        // ensure forward and backward graphs have same amount of nodes
         assert_eq!(
             self.forward_graph.first_out.len(),
             self.backward_graph.first_out.len()
         );
     }
 
-    pub fn get_forward_travel_time_by_link_id(&self, link_id: u64) -> Option<u32> {
-        let index = self.forward_link_id_pos().get(&link_id);
+    // All these getters are for internal use, they are only pub(crate) for testing reasons
 
-        //if index is None, then there is no link with link id in graph
-        index.map(|&i| {
-            *self
-                .forward_travel_time()
-                .get(i)
-                .unwrap_or_else(|| panic!("There is no travel time for link {:?}", link_id))
-        })
-    }
-    pub fn forward_first_out(&self) -> &Vec<usize> {
+    pub(crate) fn forward_first_out(&self) -> &Vec<LinkIndex> {
         &self.forward_graph.first_out
     }
 
-    pub fn forward_head(&self) -> &Vec<usize> {
+    pub(crate) fn backward_first_out(&self) -> &Vec<BackwardLinkIndex> {
+        &self.backward_graph.first_out
+    }
+
+    pub(crate) fn forward_head(&self) -> &Vec<NodeIndex> {
         &self.forward_graph.head
     }
 
-    pub fn forward_travel_time(&self) -> &Vec<u32> {
-        &self.forward_graph.travel_time
+    pub(crate) fn backward_head(&self) -> &Vec<NodeIndex> {
+        &self.backward_graph.head
     }
 
-    pub fn forward_link_ids(&self) -> &Vec<u64> {
-        &self.forward_graph.link_ids
+    pub(crate) fn forward_link_ids(&self) -> &Vec<Id<Link>> {
+        &self.forward_link_id_by_index
     }
 
-    pub fn forward_link_id_pos(&self) -> &HashMap<u64, usize> {
-        &self.forward_graph.link_id_pos
+    pub(crate) fn backward_link_ids(&self) -> &Vec<Id<Link>> {
+        &self.backward_link_id_by_index
     }
 
-    pub fn number_of_nodes(&self) -> usize {
-        self.forward_graph.first_out.len() - 1
+    pub(crate) fn forward_link_id_pos(&self) -> &IntMap<Id<Link>, LinkIndex> {
+        &self.forward_link_index_by_id
     }
 
-    #[cfg(test)]
-    pub fn number_of_links(&self) -> usize {
-        self.forward_graph.head.len()
+    pub(crate) fn backward_link_id_pos(&self) -> &IntMap<Id<Link>, BackwardLinkIndex> {
+        &self.backward_link_index_by_id
     }
 
-    pub fn clone_with_new_travel_times_by_link(
+    pub(crate) fn get_node_id(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError> {
+        self.node_id_by_index
+            .get(idx)
+            .ok_or_else(|| GraphError::NodeIndexNotFound(idx))
+            .cloned()
+    }
+
+    pub(crate) fn get_link_id(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError> {
+        self.forward_link_id_by_index
+            .get(idx)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(idx))
+            .cloned()
+    }
+
+    /// Get index of a link in the backward graph, given the index of the link in the forward graph.
+    /// The indices differ since they depend on the number of outgoing and incoming edges of all
+    /// nodes with lower index than the start node of the link, which differ between forward and
+    /// backward graph.
+    pub(crate) fn get_backward_link_index(
         &self,
-        new_travel_times_by_link: HashMap<u64, u32>,
-    ) -> ForwardBackwardGraph {
-        ForwardBackwardGraph {
-            forward_graph: self
-                .forward_graph
-                .clone_with_new_travel_times_by_link(&new_travel_times_by_link),
-            backward_graph: self
-                .backward_graph
-                .clone_with_new_travel_times_by_link(&new_travel_times_by_link),
-        }
+        forward_link_idx: LinkIndex,
+    ) -> Result<BackwardLinkIndex, GraphError> {
+        // convert forward link index to link id
+        let link_id = self.get_link_id(forward_link_idx)?;
+        // convert back to backward link index
+        self.backward_link_id_pos()
+            .get(&link_id)
+            .ok_or_else(|| GraphError::LinkIdNotFound(link_id))
+            .cloned()
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-#[allow(dead_code)]
-pub struct Graph {
-    pub(crate) first_out: Vec<usize>,
-    pub(crate) head: Vec<usize>,
-    pub(crate) travel_time: Vec<u32>,
-    pub(crate) link_ids: Vec<u64>,
-    pub(crate) x: Vec<f64>,
-    pub(crate) y: Vec<f64>,
-    pub(crate) link_id_pos: HashMap<u64, usize>,
+impl Graph for ForwardBackwardRoutingGraph<'_> {
+    fn node(&self, id: Id<Node>) -> Result<&Node, GraphError> {
+        self.node_by_node_id
+            .get(&id)
+            .ok_or_else(|| GraphError::NodeIdNotFound(id))
+    }
+
+    fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError> {
+        self.link_by_link_id
+            .get(&id)
+            .ok_or_else(|| GraphError::LinkIdNotFound(id))
+    }
+
+    fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>] {
+        let node_idx = self.node_index_by_id[&node];
+        let link_indices =
+            self.forward_first_out()[node_idx]..self.forward_first_out()[node_idx + 1];
+        &self.forward_link_ids()[link_indices]
+    }
+
+    fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>] {
+        let node_idx = self.node_index_by_id[&node];
+        let link_indices =
+            self.backward_first_out()[node_idx]..self.backward_first_out()[node_idx + 1];
+        &self.backward_link_ids()[link_indices]
+    }
+
+    fn num_nodes(&self) -> usize {
+        self.forward_first_out().len() - 1
+    }
+
+    fn get_end_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError> {
+        // find index of link (in self.forward_head())
+        let link_id_index = self.get_link_idx_from_id(link_id)?;
+        // get node index of end node
+        let node_idx = self.forward_head().get(link_id_index).unwrap().clone();
+        // convert node index to node id and return
+        Ok(self.node_id_by_index[node_idx].clone())
+    }
+
+    fn get_start_node(&self, link_id: Id<Link>) -> Result<Id<Node>, GraphError> {
+        // get link index of link in the forward graph
+        let link_index = self.get_link_idx_from_id(link_id)?;
+
+        // convert it to a backward link index for the backward graph, so we can look up the start
+        // node of the edge via self.backward_head()
+        let backward_link_index = self.get_backward_link_index(link_index)?;
+        let start_node_idx = self
+            .backward_head()
+            .get(backward_link_index)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(backward_link_index))
+            .copied()?;
+
+        // finally convert the found node index into node id
+        self.get_node_id(start_node_idx)
+    }
 }
 
-impl Graph {
-    #[cfg(test)]
-    fn new(first_out: Vec<usize>, head: Vec<usize>, travel_time: Vec<u32>) -> Graph {
-        Graph {
-            first_out,
-            head,
-            travel_time,
-            link_ids: vec![],
-            x: vec![],
-            y: vec![],
-            link_id_pos: HashMap::new(),
-        }
+impl IndexableGraph for ForwardBackwardRoutingGraph<'_> {
+    fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
+        self.forward_head()
+            .get(edge)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(edge))
+            .copied()
     }
 
-    #[tracing::instrument(level = "trace", skip(new_travel_times_by_link))]
-    pub fn clone_with_new_travel_times_by_link(
-        &self,
-        new_travel_times_by_link: &HashMap<u64, u32>,
-    ) -> Graph {
-        debug_assert_eq!(self.link_ids.len(), self.travel_time.len());
+    fn get_start_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
+        // find index of edge in the backward graph (in self.backward_head()
+        let backward_link_index = self.get_backward_link_index(edge)?;
 
-        let mut new_travel_time_vector = Vec::new();
-        for (index, &id) in self.link_ids.iter().enumerate() {
-            new_travel_time_vector.push(
-                *new_travel_times_by_link
-                    .get(&(id))
-                    .unwrap_or_else(|| self.travel_time.get(index).unwrap()),
-            );
-        }
+        // look up start node (= end node in the backward graph) in backward_head()
+        self.backward_head()
+            .get(backward_link_index)
+            .ok_or_else(|| GraphError::LinkIndexNotFound(backward_link_index))
+            .copied()
+    }
+    fn get_link_idx_from_id(&self, link_id: Id<Link>) -> Result<LinkIndex, GraphError> {
+        self.forward_link_id_pos()
+            .get(&link_id)
+            .ok_or_else(|| GraphError::LinkIdNotFound(link_id.clone()))
+            .copied()
+    }
+    fn get_node_idx_from_id(&self, node_id: Id<Node>) -> NodeIndex {
+        self.node_index_by_id[&node_id]
+    }
+    fn get_link_from_idx(&self, idx: LinkIndex) -> Result<&Link, GraphError> {
+        // uses method from Graph trait to map link id to link
+        self.edge(self.get_link_id_from_idx(idx)?)
+    }
+    fn get_node_from_idx(&self, idx: NodeIndex) -> Result<&Node, GraphError> {
+        // uses method from Graph trait to map node id to node
+        self.node(self.get_node_id_from_idx(idx)?)
+    }
+    fn outgoing_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex> {
+        (self.forward_first_out()[node]..self.forward_first_out()[node + 1]).collect()
+    }
+    fn incoming_edges_as_idx(&self, node: NodeIndex) -> Vec<LinkIndex> {
+        // Get the link ids from backward structure
+        let backward_link_indices =
+            self.backward_first_out()[node]..self.backward_first_out()[node + 1];
 
-        self.clone_with_new_travel_times(new_travel_time_vector)
+        // Map backward link indices to link ids
+        let link_ids: Vec<_> = backward_link_indices
+            .map(|i| &self.backward_link_ids()[i])
+            .collect();
+
+        // Map link ids back to (forward) link indices
+        link_ids
+            .iter()
+            .map(|id| *self.forward_link_id_pos().get(id).unwrap())
+            .collect()
     }
 
-    #[tracing::instrument(level = "trace", skip(travel_times))]
-    fn clone_with_new_travel_times(&self, travel_times: Vec<u32>) -> Graph {
-        let mut result = self.clone();
-        result.travel_time = travel_times;
-        result
+    fn get_link_id_from_idx(&self, idx: LinkIndex) -> Result<Id<Link>, GraphError> {
+        self.get_link_id(idx)
+    }
+    fn get_node_id_from_idx(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError> {
+        self.get_node_id(idx)
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
-    use crate::simulation::replanning::routing::graph::{ForwardBackwardGraph, Graph};
+    use crate::simulation::id::Id;
+    use crate::simulation::replanning::routing::graph::{CsrGraph, ForwardBackwardRoutingGraph};
+    use crate::simulation::replanning::routing::graph::{Graph, GraphError, IndexableGraph};
     use crate::simulation::replanning::routing::network_converter::NetworkConverter;
-    use crate::simulation::scenario::network::Network;
+    use crate::simulation::scenario::network::{Network, Node};
     use macros::integration_test;
-    use std::collections::HashMap;
+    use nohash_hasher::IntMap;
 
-    pub fn get_triangle_test_graph() -> ForwardBackwardGraph {
-        let network = Network::from_file(
+    pub fn get_triangle_test_network() -> Network {
+        Network::from_file(
             "./assets/routing_tests/triangle-network.xml",
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
-        );
-        NetworkConverter::convert_network(&network, None)
+        )
+    }
+    pub fn get_triangle_test_graph<'net>(
+        network: &'net Network,
+    ) -> ForwardBackwardRoutingGraph<'net> {
+        NetworkConverter::convert_network(network, None)
     }
 
-    #[test]
+    #[integration_test]
     #[should_panic]
     fn test_graph_not_valid() {
-        ForwardBackwardGraph::new(
-            Graph::new(
-                vec![0, 1, 2],
-                vec![0, 1, 2, 3, 4, 5],
-                vec![1, 1, 1, 1, 1, 1],
-            ),
-            Graph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4], vec![1, 1, 1, 1, 1]),
-        );
-    }
-
-    #[test]
-    fn test_graph_valid() {
-        ForwardBackwardGraph::new(
-            Graph::new(
-                vec![0, 1, 2],
-                vec![0, 1, 2, 3, 4, 5],
-                vec![1, 1, 1, 1, 1, 1],
-            ),
-            Graph::new(
-                vec![42, 43, 44],
-                vec![8, 10, 12, 13, 14, 15],
-                vec![1, 1, 1, 1, 1, 10],
-            ),
+        ForwardBackwardRoutingGraph::new(
+            CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
+            CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4]),
+            &IntMap::default(), // node_by_node_id
+            &IntMap::default(), // link_by_link_id
+            IntMap::default(),  // node_index_by_id
+            vec![Id::create("0"), Id::create("1"), Id::create("2")],
+            vec![],
+            vec![],
+            IntMap::default(), // forward_link_index_by_id
+            IntMap::default(), // bacward_link_index_by_id
         );
     }
 
     #[integration_test]
-    fn clone_without_change() {
-        let graph = get_triangle_test_graph();
-        let new_graph = graph.clone_with_new_travel_times_by_link(HashMap::new());
+    fn test_graph_valid() {
+        ForwardBackwardRoutingGraph::new(
+            CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
+            CsrGraph::new(vec![42, 43, 44], vec![8, 10, 12, 13, 14, 15]),
+            &IntMap::default(), // node_by_node_id
+            &IntMap::default(), // link_by_link_id
+            IntMap::default(),  // node_index_by_id
+            vec![Id::create("0"), Id::create("1"), Id::create("2")],
+            vec![],
+            vec![],
+            IntMap::default(), // forward_link_index_by_id
+            IntMap::default(), // bacward_link_index_by_id
+        );
+    }
 
-        assert_eq!(graph, new_graph);
+    /// test outgoing_edges
+    #[test]
+    fn test_outgoing_edges() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let node_id = Id::create("1");
+        let outgoing_edges = graph.outgoing_edges(node_id);
+        // verify that the found edges are the true ones for this specific graph
+        assert_eq!(outgoing_edges, [Id::create("1"), Id::create("2")]);
+    }
+
+    /// test incoming_edges
+    #[test]
+    fn test_incoming_edges() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let node_id = Id::create("3");
+        let incoming_edges = graph.incoming_edges(node_id);
+        // verify that the found edges are the true ones for this specific graph
+        assert_eq!(incoming_edges, [Id::create("2"), Id::create("4")]);
+    }
+
+    /// Test if outgoing_edges_as_idx yields results consistent with outgoing_edges
+    #[test]
+    fn test_outgoing_edges_as_idx() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let node_id = Id::<Node>::create("1");
+        let node_idx = graph.get_node_idx_from_id(node_id.clone());
+
+        let outgoing_indices = graph.outgoing_edges_as_idx(node_idx);
+        let outgoing_ids = graph.outgoing_edges(node_id);
+
+        // Lengths should be equal
+        assert_eq!(
+            outgoing_indices.len(),
+            outgoing_ids.len(),
+            "outgoing_edges_as_idx and outgoing_edges should have same length"
+        );
+        for (i, index) in outgoing_indices.iter().enumerate() {
+            // Check whether the link id associated with each LinkIndex returned from
+            // outgoing_edges_as_idx() matches the link ids returned from outgoing_edges()
+            assert_eq!(graph.get_link_id(*index).unwrap(), outgoing_ids[i]);
+        }
+    }
+
+    /// Test if incoming_edges_as_idx gives results consistent with incoming_edges
+    #[test]
+    fn test_incoming_edges_as_idx() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let node_id = Id::<Node>::create("2");
+        let node_idx = graph.get_node_idx_from_id(node_id.clone());
+
+        let incoming_indices = graph.incoming_edges_as_idx(node_idx);
+        let incoming_ids = graph.incoming_edges(node_id);
+
+        // Lengths should be equal
+        assert_eq!(
+            incoming_indices.len(),
+            incoming_ids.len(),
+            "incoming_edges_as_idx and incoming_edges should have same length"
+        );
+        for (i, index) in incoming_indices.iter().enumerate() {
+            // Check whether the link id associated with each LinkIndex returned from
+            // incoming_edges_as_idx() matches the link ids returned from incoming_edges()
+            assert_eq!(graph.get_link_id(*index).unwrap(), incoming_ids[i]);
+        }
+    }
+
+    /// Test get_end_node with valid link
+    #[test]
+    fn test_get_end_node_valid_link() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        // Test with various valid links that exist in the graph
+        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
+        assert!(
+            !outgoing_links.is_empty(),
+            "Node 1 should have outgoing links"
+        );
+        let true_end_nodes = vec![Id::<Node>::create("2"), Id::<Node>::create("3")];
+
+        for (link_id, true_end_node) in outgoing_links.iter().zip(true_end_nodes) {
+            let result = graph.get_end_node(link_id.clone());
+            assert!(result.is_ok(), "get_end_node should succeed for valid link");
+            let end_node = result.unwrap();
+            // End node should match the expected node
+            assert_eq!(end_node, true_end_node);
+        }
+    }
+
+    /// Test get_end_node with invalid link (GraphError)
+    #[test]
+    fn test_get_end_node_invalid_link_returns_error() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let invalid_link_id = Id::create("nonexistent_link");
+        let result = graph.get_end_node(invalid_link_id.clone());
+
+        assert!(
+            result.is_err(),
+            "get_end_node should return error for invalid link"
+        );
+        match result.unwrap_err() {
+            GraphError::LinkIdNotFound(_) => {} // Expected
+            _ => panic!("Expected LinkNotFound error"),
+        }
+    }
+
+    /// Test get_start_node with valid link
+    #[test]
+    fn test_get_start_node_valid_link() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
+        assert!(!outgoing_links.is_empty());
+
+        for link_id in outgoing_links {
+            let result = graph.get_start_node(link_id.clone());
+            assert!(
+                result.is_ok(),
+                "get_start_node should succeed for valid link"
+            );
+            let start_node = result.unwrap();
+            assert_eq!(start_node, Id::<Node>::create("1"));
+        }
+    }
+
+    /// Test get_start_node with invalid link
+    #[test]
+    fn test_get_start_node_invalid_link_returns_error() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let invalid_link_id = Id::create("nonexistent_link");
+        let result = graph.get_start_node(invalid_link_id.clone());
+
+        assert!(
+            result.is_err(),
+            "get_start_node should return error for invalid link"
+        );
+    }
+
+    /// Test roundtrip: Link ID -> Index -> Link ID should be equal
+    #[test]
+    fn test_link_id_to_idx_roundtrip() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
+        for link_id in outgoing_links {
+            // Link ID -> Link Index
+            let link_idx = graph.get_link_idx_from_id(link_id.clone()).unwrap();
+            // Link Index -> Link ID
+            let link_id_roundtrip = graph.get_link_id_from_idx(link_idx).unwrap();
+
+            assert_eq!(
+                *link_id, link_id_roundtrip,
+                "Link ID roundtrip should be idempotent"
+            );
+        }
+    }
+
+    /// Test roundtrip: Node ID -> Index -> Node ID should be equal
+    #[test]
+    fn test_node_id_to_idx_roundtrip() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        let node_id = Id::<Node>::create("1");
+        // Node ID -> Node Index
+        let node_idx = graph.get_node_idx_from_id(node_id.clone());
+        // Node Index -> Node ID
+        let node_id_roundtrip = graph.get_node_id_from_idx(node_idx);
+
+        assert_eq!(
+            node_id,
+            node_id_roundtrip.unwrap(),
+            "Node ID roundtrip should be idempotent"
+        );
     }
 
     #[test]
-    #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore
-    fn clone_with_change() {
-        let mut graph = get_triangle_test_graph();
-        let mut change = HashMap::new();
-        change.insert(5, 42);
-        let new_graph = graph.clone_with_new_travel_times_by_link(change);
+    fn test_get_end_node_as_idx_valid_edges() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
 
-        //change manually
-        graph.forward_graph.travel_time[5] = 42;
-        graph.backward_graph.travel_time[3] = 42;
-        assert_eq!(graph, new_graph);
+        let true_end_node_indices = vec![vec![], vec![2, 3], vec![2, 3], vec![1, 2]];
+
+        // For all outgoing edges, get_end_node_as_idx should not panic, since they are all valid (exist in the graph)
+        for node_idx in 0..graph.num_nodes() {
+            let outgoing_edge_indices = graph.outgoing_edges_as_idx(node_idx);
+            for (j, edge_idx) in outgoing_edge_indices.iter().enumerate() {
+                let end_node = graph.get_end_node_as_idx(*edge_idx).unwrap(); // Should not panic
+                assert_eq!(
+                    end_node, true_end_node_indices[node_idx][j],
+                    "End node is incorrect, expected {}, got {}",
+                    true_end_node_indices[node_idx][j], end_node
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_get_end_node_as_idx_invalid_edge() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        assert_eq!(
+            graph.get_end_node_as_idx(999),
+            Err(GraphError::LinkIndexNotFound(999)),
+            "get_end_node_as_idx should return LinkIndexNotFound error for invalid edge index"
+        );
+    }
+
+    #[test]
+    fn test_get_start_node_as_idx_invalid_edge() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        assert_eq!(
+            graph.get_start_node_as_idx(999),
+            Err(GraphError::LinkIndexNotFound(999)),
+            "get_start_node_as_idx should return LinkIndexNotFound error for invalid edge index"
+        );
+    }
+
+    #[test]
+    fn test_get_start_node_as_idx() {
+        let network = get_triangle_test_network();
+        let graph = get_triangle_test_graph(&network);
+
+        // For all outgoing edges, get_start_node_as_idx should not panic
+        for node_idx in 0..graph.num_nodes() {
+            let outgoing_edge_indices = graph.outgoing_edges_as_idx(node_idx);
+            for edge_idx in outgoing_edge_indices {
+                let start_node = graph.get_start_node_as_idx(edge_idx).unwrap(); // Should not panic
+                assert_eq!(
+                    start_node, node_idx,
+                    "Start node should match the source node"
+                );
+            }
+        }
     }
 }
