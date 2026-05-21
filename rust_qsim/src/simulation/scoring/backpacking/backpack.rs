@@ -315,10 +315,10 @@ impl BackpackRoute {
 
     fn finish(self) -> InternalRoute {
         if self.route_type == Some(BackpackRouteTypes::Generic) && self.distance.is_none() {
-            panic!("Tried to finish BackpackRoute without distance!");
+            panic!("Tried to finish GenericBackpackRoute without distance!");
         }
-        if self.vehicle.is_none() {
-            panic!("Tried to finish BackpackRoute without vehicle!");
+        if self.route_type == Some(BackpackRouteTypes::Network) && self.vehicle.is_none() {
+            panic!("Tried to finish NetworkBackpackRoute without vehicle!");
         }
         if self.route_type == Some(BackpackRouteTypes::Network) &&
             self.route.is_empty() &&
