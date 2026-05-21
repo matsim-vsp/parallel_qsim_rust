@@ -1,22 +1,34 @@
+use std::fs::{File, OpenOptions};
 use std::sync::Arc;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use clap::Parser;
-use tracing::info;
+use tracing::{info, info_span};
+use tracing::dispatcher::DefaultGuard;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{fmt, Layer};
+use tracing_subscriber::filter::Targets;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::id::Id;
+use rust_qsim::simulation::io;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::MutableScenario;
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
 
 // TODO: This script is not meant to be a library function. It should be outsourced aleks Apr'26
 fn main() {
-    let _guard = init_std_out_logging_thread_local();
+    let _guard = init_logging_with_benchmark();
 
     let args = CommandLineArgs::parse();
     info!("Started with args: {:?}", args);
 
     // Load and adapt config
     let config = Arc::new(Config::from_args(args));
+
+    // Set up benchmark tracing registry
+    prepare_benchmark(&config);
 
     // Load and adapt mod
     let mut scenario = MutableScenario::load(config);
@@ -31,7 +43,72 @@ fn main() {
         .build()
         .unwrap();
 
-    controller.run()
+    let sim_span = info_span!("simulation");
+    let _enter = sim_span.enter();
+
+    let start = Instant::now();
+
+    controller.run();
+
+    let elapsed = start.elapsed();
+
+    info!(
+        target: "benchmark",
+        runtime_ms = elapsed.as_millis(),
+        runtime_sec = elapsed.as_secs_f64(),
+        "simulation_completed"
+    );
+
+}
+
+fn init_logging_with_benchmark() -> DefaultGuard {
+    // Original stdout layer
+    let stdout_layer = fmt::Layer::new()
+        .with_writer(std::io::stdout)
+        .with_filter(LevelFilter::INFO);
+
+    // Benchmark file writer
+    let benchmark_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("./output/benchmark.log")
+        .unwrap();
+
+    // Benchmark-only layer
+    let benchmark_layer = fmt::Layer::new()
+        .with_writer(benchmark_file)
+        .with_ansi(false)
+        .with_filter(
+            Targets::new()
+                .with_target("benchmark", tracing::Level::INFO),
+        );
+
+    // Combined subscriber
+    let collector = tracing_subscriber::registry()
+        .with(stdout_layer)
+        .with(benchmark_layer);
+
+    tracing::subscriber::set_default(collector)
+}
+
+fn prepare_benchmark(config: &Arc<Config>) {
+    // Set up the benchmark tracing
+    let mut path = io::resolve_path(config.context(), &config.output().output_dir);
+    path.push("benchmark.log");
+
+    let benchmark_file = File::create(path).unwrap();
+
+    let benchmark_layer = fmt::layer()
+        .with_writer(benchmark_file)
+        .with_ansi(false)
+        .with_filter(
+            Targets::new().with_target("benchmark", tracing::Level::INFO)
+        );
+
+    tracing_subscriber::registry()
+        .with(benchmark_layer)
+        .try_init()
+        .unwrap();
 }
 
 /// This function was copied from Paul Heinrich's own repository:
