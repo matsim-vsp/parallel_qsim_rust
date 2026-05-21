@@ -46,7 +46,7 @@ impl BackpackingScoringEngine
 {
     pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, config: &Arc<Config>, events: &mut ControllerEventsManager) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<PartitionListenerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>){
         let num_parts = config.partitioning().num_parts;
-        let output_dir = config.output().output_dir.clone();
+        let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
         // Create ScoringEngines with channels
         let mut senders: Vec<_> = Vec::new();
@@ -89,27 +89,28 @@ impl BackpackingScoringEngine
             event_register_functions.push(BackpackingDataCollector::register_event_fn(Arc::clone(&scoring.backpacking_data_collector)));
             partition_register_functions.push(BackpackingDataCollector::register_partition_fn(Arc::clone(&scoring.backpacking_data_collector)));
             mobsim_register_functions.push(BackpackingMessageBroker::register_fn(Arc::clone(&scoring.backpacking_message_broker)));
-            BackpackingScoringEngine::register(scoring, events, output_dir.clone());
+            BackpackingScoringEngine::register(scoring, events, output_path.clone());
         }
 
         (event_register_functions, partition_register_functions, mobsim_register_functions)
     }
 
-    fn register(engine: BackpackingScoringEngine, events: &mut ControllerEventsManager, output_dir: PathBuf) {
+    fn register(engine: BackpackingScoringEngine, events: &mut ControllerEventsManager, output_path: PathBuf) {
         events.on_event(move |e: &RuntimeEvent<ControllerEvent>| {
             match e.payload {
-                ControllerEvent::Scoring(_) => engine.scoring(output_dir.clone()),
+                ControllerEvent::Scoring(_) => engine.scoring(output_path.clone()),
                 _ => {}
             }
         });
 
     }
 
-    fn scoring(&self, mut output_dir: PathBuf) {
-        println!("Reached scoring method");
+    fn scoring(&self, mut output_path: PathBuf) {
         let population = self.backpacking_data_collector.lock().unwrap().finish();
-        output_dir.push("output_plans.binpb");
-        population.to_file(output_dir.as_path());
+        output_path.push(format!("scoring/output_plans_{}.binpb", self.rank));
+        info!("Starting writing PartitionPlans to {:?}", output_path);
+        population.to_file(output_path.as_path());
+        info!("Finished writing PartitionPlans to {:?}", output_path);
 
         // TODO Scoring...
     }
