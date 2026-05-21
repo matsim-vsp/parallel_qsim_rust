@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
+use nohash_hasher::IntSet;
 use crate::simulation::config::Config;
 use crate::simulation::events::{EventHandlerRegisterFn};
 use crate::simulation::framework_events::{ControllerEvent, ControllerEventsManager, MobsimListenerRegisterFn, PartitionListenerRegisterFn, RuntimeEvent};
@@ -24,10 +25,11 @@ impl BackpackingScoringEngine
 {
     pub fn new(rank: u32,
                population: &Population,
+               neighbours: IntSet<u32>,
                receiver: Receiver<InternalScoringMessage>,
                senders: Vec<Sender<InternalScoringMessage>>,
     ) -> Self {
-        let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, rank);
+        let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, neighbours, rank);
         let backpacking_data_collector = BackpackingDataCollector::new(population, rank, Arc::clone(&backpacking_message_broker));
         BackpackingMessageBroker::finish(&backpacking_message_broker, Arc::downgrade(&backpacking_data_collector));
 
@@ -68,6 +70,7 @@ impl BackpackingScoringEngine
             let scoring = BackpackingScoringEngine::new(
                 rank,
                 &partition.population,
+                partition.network_partition.neighbors(),
                 receiver,
                 vec![],
             );
