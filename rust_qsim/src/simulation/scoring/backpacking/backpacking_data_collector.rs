@@ -42,14 +42,14 @@ impl BackpackingDataCollector {
 
     pub(crate) fn add_arriving_vehicles(&mut self, arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>) {
         for k in arriving_vehicles.keys(){
-            println!("Partition #{}: Adding arriving vehicle {}", self.rank, k); // TODO Debug only, remove when working
+            // println!("Partition #{}: Adding arriving vehicle {}", self.rank, k); // TODO Debug only, remove when working
         }
         self.vehicle_id2person_ids.extend(arriving_vehicles);
     }
 
     pub(crate) fn add_arriving_backpacks(&mut self, arriving_backpack: HashMap<Id<InternalPerson>, Backpack>) {
         for k in arriving_backpack.keys(){
-            println!("Partition #{}: Adding arriving passenger {}", self.rank, k); // TODO Debug only, remove when working
+            // println!("Partition #{}: Adding arriving passenger {}", self.rank, k); // TODO Debug only, remove when working
         }
         self.person_id2backpack.extend(arriving_backpack);
     }
@@ -76,40 +76,40 @@ impl BackpackingDataCollector {
     /// TODO Remove the println!() calls for final PQ
     fn handle_event(&mut self, event: &dyn EventTrait ) {
         let affected_persons = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
-            println!("Partition #{}: LinkEnterEvent", self.rank);
+            // println!("Partition #{}: LinkEnterEvent", self.rank);
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
                 .map(|persons| persons.iter().cloned().collect())
                 .unwrap_or_default()
         } else if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
-            println!("Partition #{}: PersonArrivalEvent", self.rank);
+            // println!("Partition #{}: PersonArrivalEvent", self.rank);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
-            println!("Partition #{}: PersonDepartureEvent: {}, {}", self.rank, e.routing_mode, e.leg_mode);
+            // println!("Partition #{}: PersonDepartureEvent: {}, {}", self.rank, e.routing_mode, e.leg_mode);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityStartEvent>() {
-            println!("Partition #{}: ActivityStartEvent", self.rank);
+            // println!("Partition #{}: ActivityStartEvent", self.rank);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
-            println!("Partition #{}: ActivityEndEvent", self.rank);
+            // println!("Partition #{}: ActivityEndEvent", self.rank);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
-            println!("Partition #{}: TeleportationArrivalEvent", self.rank);
+            // println!("Partition #{}: TeleportationArrivalEvent", self.rank);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
-            println!("Partition #{}: PersonEntersVehicleEvent", self.rank);
+            // println!("Partition #{}: PersonEntersVehicleEvent", self.rank);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
-            println!("Partition #{}: PersonLeavesVehicleEvent", self.rank);
+            // println!("Partition #{}: PersonLeavesVehicleEvent", self.rank);
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            println!("Partition #{}: VehicleEntersTrafficEvent", self.rank);
+            // println!("Partition #{}: VehicleEntersTrafficEvent", self.rank);
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
                 .map(|persons| persons.iter().cloned().collect())
                 .unwrap_or_default()
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            println!("Partition #{}: VehicleLeavesTrafficEvent", self.rank);
+            // println!("Partition #{}: VehicleLeavesTrafficEvent", self.rank);
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
                 .map(|persons| persons.iter().cloned().collect())
@@ -139,7 +139,7 @@ impl BackpackingDataCollector {
             let bdc3 = Arc::clone(&data_collector);
             events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
                 let mut bdc = bdc3.lock().unwrap();
-                println!("Partition #{}: Entered vehicle {}", bdc.rank, e.vehicle);
+                // println!("Partition #{}: Entered vehicle {}", bdc.rank, e.vehicle);
                 bdc.vehicle_id2person_ids
                     .entry(e.vehicle.clone())
                     .or_default()
@@ -149,7 +149,7 @@ impl BackpackingDataCollector {
             let bdc4 = Arc::clone(&data_collector);
             events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
                 let mut bdc = bdc4.lock().unwrap();
-                println!("Partition #{}: Left vehicle {}", bdc.rank, e.vehicle);
+                // println!("Partition #{}: Left vehicle {}", bdc.rank, e.vehicle);
                 bdc.vehicle_id2person_ids.remove(&e.vehicle);
             });
             /*
