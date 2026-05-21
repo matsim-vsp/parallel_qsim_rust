@@ -3,10 +3,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use nohash_hasher::IntSet;
+use tracing::info;
 use crate::simulation::config::Config;
 use crate::simulation::events::{EventHandlerRegisterFn};
-use crate::simulation::framework_events::{ControllerEvent, ControllerEventsManager, MobsimListenerRegisterFn, PartitionListenerRegisterFn, RuntimeEvent};
+use crate::simulation::framework_events::{ControllerEvent, ControllerEventsManager, MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
+use crate::simulation::io;
 use crate::simulation::network::link::SimLink;
 use crate::simulation::scenario::network::{Link};
 use crate::simulation::scenario::population::Population;
@@ -18,12 +20,13 @@ use crate::simulation::scoring::{InternalScoringMessage};
 pub struct BackpackingScoringEngine
 {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
-    backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker>>
+    backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker>>,
+    rank: QSimId
 }
 
 impl BackpackingScoringEngine
 {
-    pub fn new(rank: u32,
+    pub fn new(rank: QSimId,
                population: &Population,
                neighbours: IntSet<u32>,
                receiver: Receiver<InternalScoringMessage>,
@@ -35,7 +38,8 @@ impl BackpackingScoringEngine
 
         Self {
             backpacking_data_collector,
-            backpacking_message_broker
+            backpacking_message_broker,
+            rank
         }
 
         // TODO Add a callback to start scoring when Mobsim is finished (AfterMobsim event)

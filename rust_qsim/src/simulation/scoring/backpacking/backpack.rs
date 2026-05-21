@@ -1,5 +1,6 @@
 use tracing::warn;
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, DynEq, EventTrait, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
+use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
@@ -370,11 +371,11 @@ pub struct Backpack{
     person_id: Id<InternalPerson>,
     events: Vec<Box<dyn EventTrait>>,
     backpack_plan: BackpackPlan,
-    starting_partition: u32
+    starting_partition: QSimId
 }
 
 impl Backpack {
-    pub fn new(person_id: Id<InternalPerson>, starting_partition: u32) -> Self {
+    pub fn new(person_id: Id<InternalPerson>, starting_partition: QSimId) -> Self {
         Self {
             person_id,
             events: Default::default(),

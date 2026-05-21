@@ -14,8 +14,8 @@ pub struct BackpackingMessageBroker
 {
     receiver: Receiver<InternalScoringMessage>,
     senders: Vec<Sender<InternalScoringMessage>>,
-    neighbours: IntSet<u32>,
-    rank: u32,
+    neighbours: IntSet<QSimId>,
+    rank: QSimId,
 
     buffer_backpacks: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
     buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,>,
@@ -27,8 +27,8 @@ impl BackpackingMessageBroker
     pub(crate) fn new(
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
-        neighbours: IntSet<u32>,
-        rank: u32,
+        neighbours: IntSet<QSimId>,
+        rank: QSimId,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,

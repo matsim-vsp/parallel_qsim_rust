@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tracing::warn;
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
-use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
+use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -12,7 +12,7 @@ use crate::simulation::scoring::backpacking::backpacking_scoring_broker::Backpac
 pub struct BackpackingDataCollector {
     person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
     vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
-    rank: u32,
+    rank: QSimId,
 
     message_broker: Arc<Mutex<BackpackingMessageBroker>>,
 }
@@ -20,7 +20,7 @@ pub struct BackpackingDataCollector {
 impl BackpackingDataCollector {
     pub fn new(
         population: &Population,
-        rank: u32,
+        rank: QSimId,
         message_broker: Arc<Mutex<BackpackingMessageBroker>>
     ) -> Arc<Mutex<Self>>
     {
