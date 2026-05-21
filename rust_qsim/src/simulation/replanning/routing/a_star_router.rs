@@ -10,6 +10,7 @@ use crate::simulation::replanning::routing::least_cost_path_calculator::{
     TravelTime,
 };
 use crate::simulation::scenario::network::{Link, Node};
+use std::time::Duration;
 use tracing::{error, warn};
 
 /// A heuristic to be used in A*. Given a from and to-node, estimates the distance, that is,
@@ -219,8 +220,8 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
         // initialize parents vector and the disutility from the from-node to the to-node.
         // owned by this function but filled by a_star_core
         let mut parents = vec![None; request.graph.num_nodes()];
-        let optimal_disutility: f64;
-        let associated_travel_time: f64;
+        let optimal_disutility: Disutility;
+        let associated_travel_time: Duration;
 
         // create request for a_star_core
         let a_star_request = match AStarRequestBuilder::default()
@@ -282,8 +283,6 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
             ),
         };
 
-        // TODO it's correct that we return the link path here? and not node path as apparently before?
-        // NOTE: it contains both in Java, do we need that? Nodes are of course easy to get when you have the graph
         let link_path =
             match Self::extract_link_path(request.to, request.from, parents, request.graph) {
                 Ok(Some(link_path)) => link_path, // all good, path was found
@@ -325,7 +324,6 @@ mod tests {
     };
     use crate::simulation::scenario::population::InternalPerson;
 
-    use crate::simulation::replanning::routing::least_cost_path_calculator::Time;
     use crate::simulation::replanning::routing::least_cost_path_calculator::{
         FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPathCalculator,
     };
@@ -347,6 +345,9 @@ mod tests {
     use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::scenario::vehicles::InternalVehicleType;
     use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
+    use crate::simulation::time::SimTime;
+    use std::time::Duration;
+
     use macros::integration_test;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -358,7 +359,7 @@ mod tests {
         from: &str,
         to: &str,
         vehicle: Option<&InternalVehicle>,
-        expected_travel_time: Option<Time>,
+        expected_travel_time: Option<Duration>,
         expexted_travel_disutility: Option<Disutility>,
         expected_path: Option<Vec<&str>>,
     ) {
@@ -405,7 +406,7 @@ mod tests {
         fn travel_disutility(
             &self,
             link: &Link,
-            departure_time: Time,
+            departure_time: SimTime,
             _person: Option<&InternalPerson>,
             vehicle: Option<&InternalVehicle>,
         ) -> Disutility {
@@ -414,9 +415,16 @@ mod tests {
             let travel_time = free_speed_calc.travel_time(link, departure_time, None, vehicle);
 
             // Apply time-dependent factor: increases with time (minimal congestion at time 0)
-            let time_dep_factor = 1.0 + 10.0 * departure_time;
+            let time_dep_factor = 1 + 10 * departure_time.as_secs();
 
-            travel_time * time_dep_factor
+            (travel_time * time_dep_factor as u32).as_secs_f64()
+        }
+        fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility {
+            // Get base travel time using free or max speed
+            let free_speed_calc = FreeOrMaxSpeedTravelTimeAndDisutility;
+            // min travel disutility is at time 0, and coincides with the free or max speed travel
+            // time, since the time dependent factor is 1 at time 0
+            free_speed_calc.get_link_min_travel_disutility(link)
         }
     }
 
@@ -438,9 +446,9 @@ mod tests {
             &graph,
             "1",
             "2",
-            None,      // vehicle
-            Some(6.0), // tt
-            Some(6.0), // td
+            None,                         // vehicle
+            Some(Duration::from_secs(6)), // tt
+            Some(6.0 as Disutility),      // td
             Some(vec!["4", "5"]),
         ); // previously, the node path was returned, which is [2, 3, 1]
         calc_route_and_check(
@@ -448,9 +456,9 @@ mod tests {
             &graph,
             "2",
             "3",
-            None,      // vehicle
-            Some(3.0), // tt
-            Some(3.0), // td
+            None,                         // vehicle
+            Some(Duration::from_secs(3)), // tt
+            Some(3.0),                    // td
             Some(vec!["5", "1"]),
         ); // previously, the node path was returned, which is [3, 1, 2]
         calc_route_and_check(
@@ -458,9 +466,9 @@ mod tests {
             &graph,
             "1",
             "5",
-            None,      // vehicle
-            Some(4.0), // tt
-            Some(4.0), // td
+            None,                         // vehicle
+            Some(Duration::from_secs(4)), // tt
+            Some(4.0 as Disutility),      // td
             Some(vec!["4"]),
         ); // previously, the node path was returned, which is [2, 3]
     }
@@ -522,8 +530,8 @@ mod tests {
             "link0", // 0,
             "link4", // 5,
             garage.vehicles.get(&bike_vehicle_id),
-            Some(240.0),                           // Some(280.0),
-            Some(240.0),                           // Some(280.0),
+            Some(Duration::from_secs(240)),        // Some(280.0),
+            Some(240.0 as Disutility),             // Some(280.0),
             Some(vec!["link1", "link2", "link3"]), // Some(vec![0, 1, 2, 3, 4, 5]),
         );
 
@@ -539,9 +547,9 @@ mod tests {
             "link0", // 0,
             "link4", // 5,
             garage.vehicles.get(&car_vehicle_id),
-            Some(100.0),                  // tt
-            Some(100.0),                  // td
-            Some(vec!["link5", "link6"]), // Some(vec![0, 1, 6, 4, 5]),
+            Some(Duration::from_secs(100)), // tt
+            Some(100.0 as Disutility),      // td
+            Some(vec!["link5", "link6"]),   // Some(vec![0, 1, 6, 4, 5]),
         )
     }
 
@@ -615,7 +623,7 @@ mod tests {
         // from node 2 to node 2
         assert!(result.is_some());
         let path = result.unwrap();
-        assert_eq!(path.travel_time, 0.0);
+        assert_eq!(path.travel_time, Duration::from_secs(0));
         assert_eq!(path.travel_disutility, 0.0);
         assert!(path.path.is_empty());
     }
@@ -652,7 +660,7 @@ mod tests {
             .graph(&graph)
             .from(Id::create("1"))
             .to(Id::create("2"))
-            .departure_time(0.0)
+            .departure_time(SimTime::from_secs(0))
             .build()
             .unwrap();
 

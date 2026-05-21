@@ -118,6 +118,11 @@ impl Sub for Tick {
 pub struct SimTime(Duration);
 
 impl SimTime {
+    pub fn max() -> Self {
+        // note that this is smaller than Duration::MAX, since we allow at most u64::MAX nanoseconds
+        Self::from_nanos(MAX_SIMTIME_NANOS)
+    }
+
     pub fn from_duration(duration: Duration) -> Self {
         assert_duration_fits_simtime(duration);
         Self(duration)
@@ -134,8 +139,6 @@ impl SimTime {
     pub fn from_secs(seconds: u64) -> Self {
         Self::from_duration(Duration::from_secs(seconds))
     }
-
-    // TODO add pub fn from_secs_f64 (mirrors the same fct from Duration type)
 
     pub fn as_nanos(self) -> u64 {
         self.0

@@ -3,14 +3,15 @@ use crate::simulation::replanning::routing::graph::IndexableGraph;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use std::fmt::Debug;
+use std::time::Duration;
 
 // TODO: The comment below is outdated and can go, but:
 // should the "Time" used in routing stay f64, or do we use u64 like the SimTime, since it was
 // decided that that gives a good enough accuracy and max duration?
 // "normal" time representation is u32 for now, but we might want to use f64 for the future
-pub type Time = f64; // todo remove, replaced by SimTime
 pub type Disutility = f64;
 
 /// Travel time function, mapping any network link to a travel time, depending on the departure time
@@ -19,10 +20,10 @@ pub trait TravelTime: Debug {
     fn travel_time(
         &self,
         link: &Link,
-        departure_time: Time, // TODO shoulod be SimTime
+        departure_time: SimTime,
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
-    ) -> Time;
+    ) -> Duration;
 }
 
 /// Travel disutility function, mapping any network link to a travel disutility, depending on the
@@ -31,11 +32,16 @@ pub trait TravelDisutility: Debug {
     fn travel_disutility(
         &self,
         link: &Link,
-        departure_time: Time,
+        departure_time: SimTime,
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility;
-    // fn get_link_min_travel_disutility(&self, &Link)  returns the smallest possible, used for landmarks
+
+    /// Returns  the smallest possible travel disutility at the given link, over all times, persons
+    /// and vehicles.
+    /// This is used when calculating landmark data, to ensure that the ALT heuristic never
+    /// overestimates the travel disutility between two nodes.
+    fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility; // TODO actually use this in landmark calculation
 }
 
 /// An implementation of both `TravelTime` and `TravelDisutility`, purely based on freespeed travel
@@ -50,12 +56,12 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
     fn travel_time(
         &self,
         link: &Link,
-        _departure_time: Time,
+        _departure_time: SimTime,
         _person: Option<&InternalPerson>,
         _vehicle: Option<&InternalVehicle>,
-    ) -> Time {
+    ) -> Duration {
         // the given vehicle type is ignored => true freespeed
-        link.length / link.freespeed // SimTime::from_nanos(1e9 * ...)
+        Duration::from_secs_f64(link.length / link.freespeed)
     }
 }
 
@@ -63,13 +69,19 @@ impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
     fn travel_disutility(
         &self,
         link: &Link,
-        departure_time: Time,
+        departure_time: SimTime,
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility {
         // TODO: Adapt the factor for the Disutility
-        self.travel_time(link, departure_time, person, vehicle) * 1.0 // todo .as_secs() * 1.0
+        self.travel_time(link, departure_time, person, vehicle)
+            .as_secs_f64()
+            * 1.0
         // travel DISutility is simply the travel time here, since higher time corresponds to lower utility
+    }
+    // min travel disutility is equal to the travel disutility, since it does not depend on time, person or vehicle
+    fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility {
+        self.travel_disutility(link, SimTime::from_secs(0), None, None)
     }
 }
 
@@ -84,10 +96,10 @@ impl TravelTime for FreeOrMaxSpeedTravelTimeAndDisutility {
     fn travel_time(
         &self,
         link: &Link,
-        _departure_time: Time,
+        _departure_time: SimTime,
         _person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
-    ) -> Time {
+    ) -> Duration {
         // respect the given vehicle type, if provided
         let max_speed = if let Some(v) = vehicle {
             v.max_v.min(link.freespeed)
@@ -95,7 +107,7 @@ impl TravelTime for FreeOrMaxSpeedTravelTimeAndDisutility {
             link.freespeed
         };
 
-        link.length / max_speed
+        Duration::from_secs_f64(link.length / max_speed)
     }
 }
 
@@ -103,13 +115,22 @@ impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
     fn travel_disutility(
         &self,
         link: &Link,
-        departure_time: Time,
+        departure_time: SimTime,
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility {
         // TODO: Adapt the factor for the Disutility
-        self.travel_time(link, departure_time, person, vehicle) * 1.0
+        self.travel_time(link, departure_time, person, vehicle)
+            .as_secs_f64()
+            * 1.0
         // travel DISutility is simply the travel time here, since higher time corresponds to lower utility
+    }
+    fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility {
+        // the min travel disutility is equal to freespeed travel time, which is obtained from
+        // the travel disutility function by not passing a vehicle (since that one simply calls
+        // the travel time function, which respects the vehicle's max speed if given, and otherwise
+        // uses the freespeed)
+        self.travel_disutility(link, SimTime::from_secs(0), None, None)
     }
 }
 
@@ -127,7 +148,7 @@ pub struct LeastCostPathRequest<'r> {
     pub to: Id<Link>,
     pub graph: &'r dyn IndexableGraph, // contains the graph of the network
     #[builder(default)]
-    pub departure_time: Time,
+    pub departure_time: SimTime,
     #[builder(default)]
     pub person: Option<&'r InternalPerson>,
     #[builder(default)]
@@ -140,7 +161,7 @@ pub struct LeastCostPathRequest<'r> {
 #[derive(PartialEq, Debug)]
 pub struct LeastCostPath {
     pub path: Vec<Id<Link>>,
-    pub travel_time: Time,
+    pub travel_time: Duration,
     pub travel_disutility: Disutility,
 }
 
@@ -152,13 +173,13 @@ pub trait LeastCostPathCalculator {
     /// If no path is found, either because the to-link is unreachable or because the from- or
     /// to-link do not exist in the graph, None is returned.
     /// Otherwise, the path is returned together with its travel time and disutility.
-    // todo QUESTION: previously, we had &mut self here, but I don't see why. Do we need it?
     fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath>;
 }
 
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
+    use std::time::Duration;
 
     use crate::simulation::replanning::routing::a_star_router::AStarRouter;
     use crate::simulation::replanning::routing::a_star_router::ZeroHeuristic;
@@ -167,13 +188,15 @@ mod tests {
         get_triangle_test_graph, get_triangle_test_network,
     };
     use crate::simulation::replanning::routing::least_cost_path_calculator::{
-        FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPath, LeastCostPathRequestBuilder,
+        Disutility, FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPath,
+        LeastCostPathRequestBuilder,
     };
     use crate::simulation::replanning::routing::least_cost_path_calculator::{
         LeastCostPathCalculator, TravelDisutility, TravelTime,
     };
     use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::vehicles::InternalVehicle;
+    use crate::simulation::time::SimTime;
 
     /// simple test just to make sure that the interface works. More precise testing is done
     /// in the respective files where implementations of LeastCostPathCaltulator are defined.
@@ -202,8 +225,8 @@ mod tests {
         assert_eq!(
             result,
             Some(LeastCostPath {
-                travel_time: 4.0,
-                travel_disutility: 4.0,
+                travel_time: Duration::from_secs(4),
+                travel_disutility: 4.0 as Disutility,
                 path: expected_path,
             })
         );
@@ -219,17 +242,26 @@ mod tests {
 
         let link = graph.edge(Id::create("4")).unwrap();
 
-        assert_eq!(fomsttad.travel_time(link, 0.0, None, None), 4.0);
-        assert_eq!(fomsttad.travel_disutility(link, 0.0, None, None), 4.0);
+        assert_eq!(
+            fomsttad.travel_time(link, SimTime::from_secs(0), None, None),
+            Duration::from_secs(4)
+        );
+        assert_eq!(
+            fomsttad.travel_disutility(link, SimTime::from_secs(0), None, None),
+            4.0
+        );
 
         // also test that the vehicle's max speed is respected
 
         // vehicle max_v is lower than freespeed, so travel time will be longer
         let vehicle = InternalVehicle::new(0, 0, 1000.0, 0.0);
 
-        assert_eq!(fomsttad.travel_time(link, 0.0, None, Some(&vehicle)), 10.0);
         assert_eq!(
-            fomsttad.travel_disutility(link, 0.0, None, Some(&vehicle)),
+            fomsttad.travel_time(link, SimTime::from_secs(0), None, Some(&vehicle)),
+            Duration::from_secs(10)
+        );
+        assert_eq!(
+            fomsttad.travel_disutility(link, SimTime::from_secs(0), None, Some(&vehicle)),
             10.0
         );
     }

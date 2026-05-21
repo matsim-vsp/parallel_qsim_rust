@@ -1,17 +1,17 @@
 use crate::simulation::replanning::routing::a_star_router::{AStarHeuristic, ZeroHeuristic};
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
+use crate::simulation::replanning::routing::least_cost_path_calculator::LeastCostPathRequest;
 use crate::simulation::replanning::routing::least_cost_path_calculator::TravelDisutility;
 use crate::simulation::replanning::routing::least_cost_path_calculator::{Disutility, TravelTime};
-use crate::simulation::replanning::routing::least_cost_path_calculator::{
-    LeastCostPathRequest, Time,
-};
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use keyed_priority_queue::{Entry, KeyedPriorityQueue};
 use ordered_float::OrderedFloat;
 use std::cmp::Reverse;
 use std::fmt::Debug;
+use std::time::Duration;
 use tracing::warn;
 
 /// Specifies which heuristic to use for A* search
@@ -73,7 +73,7 @@ pub(crate) enum AStarCoreResult {
     DistanceToAllWithoutParents(Vec<Disutility>),
     /// Shortest distance (=travel disutility) from one node to another, with the associated travel
     /// time and generated list of parents
-    SingleDistWithParents(Disutility, Time, Vec<Option<NodeIndex>>),
+    SingleDistWithParents(Disutility, Duration, Vec<Option<NodeIndex>>),
 }
 
 /// Implementations of this trait represent different use cases of `a_star_core`.
@@ -94,9 +94,9 @@ pub(crate) trait AStarActions: Clone + Debug {
     /// This is okay, since the method is called when A* finishes.
     fn build_result(
         self,
-        current_distance: Option<f64>,
-        current_travel_time: Option<Time>,
-        distances: Vec<f64>,
+        current_disutility: Option<Disutility>,
+        current_travel_time: Option<Duration>,
+        disutilities: Vec<Disutility>,
     ) -> AStarCoreResult;
     /// Called by `a_star_core` to get the to-node, to be able to pass it to a heuristic
     fn get_to_node_opt(&self) -> Option<NodeIndex>;
@@ -118,11 +118,11 @@ impl AStarActions for One2ManyNoParentsAStarActions {
     }
     fn build_result(
         self,
-        _current_distance: Option<f64>,
-        _current_arrival_time: Option<Time>,
-        distances: Vec<f64>,
+        _current_disutility: Option<Disutility>,
+        _current_arrival_time: Option<Duration>,
+        disutilities: Vec<Disutility>,
     ) -> AStarCoreResult {
-        AStarCoreResult::DistanceToAllWithoutParents(distances)
+        AStarCoreResult::DistanceToAllWithoutParents(disutilities)
     }
     fn get_to_node_opt(&self) -> Option<NodeIndex> {
         None
@@ -160,20 +160,20 @@ impl AStarActions for One2OneWithParentsAStarActions {
     // Consumes self, so parents can be moved without cloning
     fn build_result(
         self,
-        current_distance: Option<Disutility>,
-        current_travel_time: Option<Time>,
-        _distances: Vec<f64>,
+        current_disutility: Option<Disutility>,
+        current_travel_time: Option<Duration>,
+        _disutilities: Vec<Disutility>,
     ) -> AStarCoreResult {
-        // note that current_distance and current_travel_time is given as an option, since the
-        // trait also allows implementations of one2many, where only the distances vector is needed,
-        // not current dist and current time.
+        // note that current_disutility and current_travel_time is given as an option, since the
+        // trait also allows implementations of one2many, where only the disutilites vector is
+        // needed, not current disutility and current time.
 
-        // But the below should not panic, since a_star_core only passes current_distance=None or
+        // But the below should not panic, since a_star_core only passes current_disutility=None or
         // current_travel_time=None in the case where the entire queue has been visited and the
         // to_node has neither been found nor been determined to be unreachable, which only happens
         // in one2many (where no to-node exists)
         AStarCoreResult::SingleDistWithParents(
-            current_distance.expect("A* use case 1to1 requires that current distance is given"),
+            current_disutility.expect("A* use case 1to1 requires that current disutility is given"),
             current_travel_time.expect("A* use case 1to1 requires that travel time is given"),
             self.parents,
         )
@@ -202,7 +202,7 @@ pub(crate) struct AStarRequest<'a, H: AStarHeuristic, O: AStarActions> {
     graph: &'a dyn IndexableGraph,
     options: O,
     #[builder(default)]
-    departure_time: Time,
+    departure_time: SimTime,
     #[builder(default)]
     person: Option<&'a InternalPerson>,
     #[builder(default)]
@@ -244,44 +244,55 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
     let from_node = request.from;
 
     // TODO do we want the name "distances"? In our case, it is always a travel disutility, which would become clearer if we name it accordingly. On the other hand, distance is a common name for the values tracked in A*, even when they are not actual distances, so it is also fine to keep the name "distances".
-    // initialize queue: from_node gets distance and priority 0, all others infinity
-    let (mut queue, mut distances) = get_initial_queue(number_of_nodes, from_node);
+    // initialize queue: from_node gets disutility and priority 0, all others infinity
+    let (mut queue, mut disutilities) = get_initial_queue(number_of_nodes, from_node);
 
     // Initialize arrival_times to track when each node is reached
-    let mut arrival_times = vec![f64::INFINITY as Time; number_of_nodes];
+    let mut arrival_times = vec![SimTime::max(); number_of_nodes];
     arrival_times[from_node] = request.departure_time;
 
     // Not initializing parents here, since they are contained in the options
     while let Some((current_id, _)) = queue.pop() {
         // distance from "from"-node to the current_id node
-        let current_distance = distances[current_id];
+        let current_disutility = disutilities[current_id];
         let current_arrival_time = arrival_times[current_id];
 
         // checking "unusual" values of current_distance
-        match current_distance {
+        match current_disutility {
             f64::INFINITY => {
                 //The smallest value in queue was unreachable. So abort here.
 
+                // we want to return the travel time (which is a duration), not the arrival time
+                let current_travel_time = current_arrival_time
+                    .as_duration()
+                    .saturating_sub(request.departure_time.as_duration());
+
                 // this chooses the correct result enum variant automatically
                 return Ok(request.options.build_result(
-                    Some(current_distance),
-                    Some(current_arrival_time),
-                    distances,
+                    Some(current_disutility),
+                    Some(current_travel_time),
+                    disutilities,
                 ));
             }
             f64::NEG_INFINITY => {
-                warn!("Distance of negative infinity encountered in A*.");
+                warn!("Disutility of negative infinity encountered in A*.");
             }
-            nan_dist if nan_dist.is_nan() => {
-                // The smallest value in queue is NaN, treated as worse than distance infinity
+            nan_disutility if nan_disutility.is_nan() => {
+                // The smallest value in queue is NaN, treated as worse than disutility infinity
                 warn!(
-                    "Queue in A* only contains entries with distance NaN, which are\
+                    "Queue in A* only contains entries with disutility NaN, which are\
                     treated as unreachable. Aborting A*."
                 );
+
+                // we want to return the travel time (which is a duration), not the arrival time
+                let current_travel_time = current_arrival_time
+                    .as_duration()
+                    .saturating_sub(request.departure_time.as_duration());
+
                 return Ok(request.options.build_result(
-                    Some(nan_dist),
-                    Some(current_arrival_time),
-                    distances,
+                    Some(nan_disutility),
+                    Some(current_travel_time),
+                    disutilities,
                 ));
             }
             _ => {}
@@ -289,11 +300,16 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
 
         // check if the target node has been reached, if applicable, in that case return early
         if request.options.reached_end(current_id) == true {
+            // we want to return the travel time (which is a duration), not the arrival time
+            let current_travel_time = current_arrival_time
+                .as_duration()
+                .saturating_sub(request.departure_time.as_duration());
+
             // this chooses the correct result enum variant automatically
             return Ok(request.options.build_result(
-                Some(current_distance),
-                Some(current_arrival_time),
-                distances,
+                Some(current_disutility),
+                Some(current_travel_time),
+                disutilities,
             ));
         }
 
@@ -325,7 +341,7 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
             let link_i = request.graph.get_link_from_idx(i)?;
 
             // Use the actual arrival time at the current node, not the departure time from the request
-            let neighbour_distance = current_distance
+            let neighbour_disutility = current_disutility
                 + request.travel_disutility.travel_disutility(
                     link_i,
                     current_arrival_time,
@@ -333,9 +349,9 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                     request.vehicle,
                 );
 
-            if distances[neighbour] > neighbour_distance {
+            if disutilities[neighbour] > neighbour_disutility {
                 //perform update
-                distances[neighbour] = neighbour_distance;
+                disutilities[neighbour] = neighbour_disutility;
 
                 // Calculate arrival time at the neighbour node
                 let link_travel_time = request.travel_time.travel_time(
@@ -344,7 +360,8 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                     request.person,
                     request.vehicle,
                 );
-                arrival_times[neighbour] = current_arrival_time + link_travel_time;
+
+                arrival_times[neighbour] = current_arrival_time.saturating_add(link_travel_time);
 
                 match queue.entry(neighbour) {
                     Entry::Occupied(e) => {
@@ -380,7 +397,9 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                         };
 
                         // update priority of the neighbour
-                        e.set_priority(NodePriority::new(neighbour_distance + heuristic_estimate));
+                        e.set_priority(NodePriority::new(
+                            neighbour_disutility + heuristic_estimate,
+                        ));
                     }
                     Entry::Vacant(_) => {
                         unreachable!()
@@ -397,24 +416,24 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
     // this case: either, the to_node was reached and the function returned already, or the
     // to_node is unreachable, in which case, at some point the smallest distance in the queue
     // will be infinity or NaN and the function will also return.
-    return Ok(request.options.build_result(None, None, distances));
+    return Ok(request.options.build_result(None, None, disutilities));
 }
 
-/// Initialize the priority queue and distances vector for A* search. The from-node gets
-/// priority and distance 0.0, all others infinity
+/// Initialize the priority queue and Disutilities vector for A* search. The from-node gets
+/// priority and Disutility 0.0, all others infinity
 fn get_initial_queue(
     node_count: usize,
     from: NodeIndex,
-) -> (KeyedPriorityQueue<NodeIndex, NodePriority>, Vec<f64>) {
+) -> (KeyedPriorityQueue<NodeIndex, NodePriority>, Vec<Disutility>) {
     // queue contains node indices and their priority (of type NodePriority, i.e., OrderedFloats
     // that are sorted in reverse order (=> queue prefers small numbers))
     let mut queue = KeyedPriorityQueue::new();
 
-    // We will also return distances as f64 separately, since we need them as standard floats with
-    // normal sorting.
-    // Also, in A*, node priority and distance will not stay the same, since priorities also contain
-    // the heuristic values.
-    let mut distances = Vec::new();
+    // We will also return disutilities as "Disutility" (f64) separately, since we need them as
+    // standard floats with normal sorting.
+    // Also, in A*, node priority and disutility will not stay the same, since priorities also
+    // contain the heuristic values.
+    let mut disutilities = Vec::new();
 
     for node in 0..node_count {
         let node_index = node as NodeIndex;
@@ -424,12 +443,12 @@ fn get_initial_queue(
         } else {
             NodePriority::new(f64::INFINITY)
         };
-        // track f64 distances
-        distances.push(node_priority.get());
+        // track f64 disutilities
+        disutilities.push(node_priority.get());
         // save entry to queue
         queue.push(node_index, node_priority);
     }
-    (queue, distances)
+    (queue, disutilities)
 }
 
 // Note: a_star_core is not tested here as of now, since it is implicitly tested by the tests of
