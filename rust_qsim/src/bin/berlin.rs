@@ -1,6 +1,6 @@
 use std::fs::{OpenOptions};
 use std::sync::Arc;
-use std::time::{Instant, UNIX_EPOCH};
+use std::time::Instant;
 use clap::Parser;
 use tracing::{info, info_span};
 use tracing::level_filters::LevelFilter;
@@ -9,7 +9,6 @@ use tracing_subscriber::filter::{filter_fn};
 use tracing_subscriber::layer::SubscriberExt;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
-use rust_qsim::simulation::framework_events::{ControllerEventsManager, ControllerListenerRegisterFn, RuntimeEvent};
 use rust_qsim::simulation::id::Id;
 use rust_qsim::simulation::scenario::MutableScenario;
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;

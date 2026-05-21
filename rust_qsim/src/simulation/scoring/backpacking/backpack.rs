@@ -182,21 +182,14 @@ impl Default for BackpackLeg {
 }
 
 impl BackpackLeg {
-
-    // TODO handlers currently skip: backpack_route
-
     fn handle_person_departure(&mut self, event: &PersonDepartureEvent) {
         self.mode = Some(event.leg_mode.clone());
         self.routing_mode = Some(event.routing_mode.clone());
         self.dep_time = Some(event.time);
-
-        // self.backpack_route.handle_person_departure(); TODO
     }
 
     fn handle_person_arrival(&mut self, event: &PersonArrivalEvent) {
         self.trav_time = Some(event.time - self.dep_time.unwrap());
-
-        // self.backpack_route.handle_person_arrival(); TODO
     }
 
     fn handle_event(&mut self, event: &dyn EventTrait) {

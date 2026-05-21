@@ -41,8 +41,6 @@ impl BackpackingScoringEngine
             backpacking_message_broker,
             rank
         }
-
-        // TODO Add a callback to start scoring when Mobsim is finished (AfterMobsim event)
     }
 }
 
