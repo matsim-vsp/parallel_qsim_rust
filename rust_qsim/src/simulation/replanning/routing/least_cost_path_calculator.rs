@@ -10,7 +10,7 @@ use std::fmt::Debug;
 // should the "Time" used in routing stay f64, or do we use u64 like the SimTime, since it was
 // decided that that gives a good enough accuracy and max duration?
 // "normal" time representation is u32 for now, but we might want to use f64 for the future
-pub type Time = f64;
+pub type Time = f64; // todo remove, replaced by SimTime
 pub type Disutility = f64;
 
 /// Travel time function, mapping any network link to a travel time, depending on the departure time
@@ -19,7 +19,7 @@ pub trait TravelTime: Debug {
     fn travel_time(
         &self,
         link: &Link,
-        departure_time: Time,
+        departure_time: Time, // TODO shoulod be SimTime
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Time;
@@ -35,6 +35,7 @@ pub trait TravelDisutility: Debug {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility;
+    // fn get_link_min_travel_disutility(&self, &Link)  returns the smallest possible, used for landmarks
 }
 
 /// An implementation of both `TravelTime` and `TravelDisutility`, purely based on freespeed travel
@@ -54,7 +55,7 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
         _vehicle: Option<&InternalVehicle>,
     ) -> Time {
         // the given vehicle type is ignored => true freespeed
-        link.length / link.freespeed
+        link.length / link.freespeed // SimTime::from_nanos(1e9 * ...)
     }
 }
 
@@ -67,7 +68,7 @@ impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility {
         // TODO: Adapt the factor for the Disutility
-        self.travel_time(link, departure_time, person, vehicle) * 1.0
+        self.travel_time(link, departure_time, person, vehicle) * 1.0 // todo .as_secs() * 1.0
         // travel DISutility is simply the travel time here, since higher time corresponds to lower utility
     }
 }

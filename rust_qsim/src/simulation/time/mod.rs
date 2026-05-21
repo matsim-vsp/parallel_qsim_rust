@@ -135,6 +135,8 @@ impl SimTime {
         Self::from_duration(Duration::from_secs(seconds))
     }
 
+    // TODO add pub fn from_secs_f64 (mirrors the same fct from Duration type)
+
     pub fn as_nanos(self) -> u64 {
         self.0
             .as_nanos()

@@ -223,7 +223,7 @@ impl LocalLink {
         to: Id<Node>,
     ) -> Self {
         let clock = SimClock::new(config.ticks_per_second);
-        let max_available =
+        let capacity_per_tick =
             (capacity_h * config.sample_size / 3600.) * clock.tick_length().as_secs_f64();
         let storage_cap = StorageCap::build(
             length,
@@ -241,7 +241,7 @@ impl LocalLink {
             length,
             free_speed,
             storage_cap,
-            flow_cap: Flowcap::new(capacity_h, config.sample_size, max_available),
+            flow_cap: Flowcap::new(capacity_h, config.sample_size, capacity_per_tick),
             stuck_timer: StuckTimer::new(clock.secs_to_tick(config.stuck_threshold as u64)),
             clock,
             from,
@@ -420,7 +420,7 @@ impl LocalLink {
 
     fn has_flow_capacity_left(&self, _veh: &SimulationVehicle) -> bool {
         let buffer_cap = self.buffer.iter().map(|v| v.pce()).sum::<f64>();
-        self.flow_cap.value() - buffer_cap > 0.0
+        self.flow_cap.remaining_capacity() - buffer_cap > 0.0
     }
 
     /// This method returns the next/first vehicle from the buffer and removes it from the buffer.

@@ -94,11 +94,11 @@ impl AltLandmarkData {
         // vehicles was respected.
         // Need to decide if that is what we want, or if the landmarks should be valid for any
         // vehicle as they are now
-        let tt_td = FreeSpeedTravelTimeAndDisutility;
+        let tt_td = FreeSpeedTravelTimeAndDisutility; // TODO AltLandmarkData::new gets a travel disutility as well, so not initializued here anymore
 
         let a_star_request = AStarRequestBuilder::default()
             .graph(graph)
-            // set travel time and disutility function to freespeed
+            // set travel time and disutility filter_netfunction to freespeed
             .travel_time(&tt_td)
             .travel_disutility(&tt_td)
             // makes A* calculate the distance to all other nodes, without tracking parents

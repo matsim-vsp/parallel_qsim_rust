@@ -11,7 +11,7 @@ use crate::simulation::replanning::routing::graph::{
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::InternalVehicleType;
 
-pub struct NetworkConverter {}
+pub struct NetworkConverter {} // Todo remove struct, should just be a module
 
 #[allow(dead_code)]
 impl NetworkConverter {
@@ -26,13 +26,14 @@ impl NetworkConverter {
             .collect()
     }
 
+    // todo delete
     pub fn filter_network(_mode: &str, _network: &Network) -> Network {
         unimplemented!()
     }
 
     pub fn convert_network_for_mode<'net>(
         _network: &'net Network,
-        _mode: &str,
+        _mode: &str, // todo make id<String>
     ) -> ForwardBackwardRoutingGraph<'net> {
         unimplemented!()
     }
@@ -40,7 +41,7 @@ impl NetworkConverter {
     // #[deprecated(note = "Use the convert_network_for_mode function instead.")]  FIXME: should be deprecated, commented out temporarily for github build
     pub(crate) fn convert_network<'net>(
         network: &'net Network,
-        vehicle_type: Option<&InternalVehicleType>,
+        vehicle_type: Option<&InternalVehicleType>, // todo make Option<Id<String>> for mode, then all others are no longer needed
     ) -> ForwardBackwardRoutingGraph<'net> {
         info!(
             "Converting network to forward backward graph for mode {:?}.",
