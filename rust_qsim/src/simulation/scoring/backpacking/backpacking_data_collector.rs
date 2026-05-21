@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
+use tracing::warn;
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
 use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, RuntimeEvent};
 use crate::simulation::id::Id;
@@ -54,7 +55,11 @@ impl BackpackingDataCollector {
     }
 
     fn remove_leaving_vehicles(&mut self, vehicle_id: &Id<InternalVehicle>) -> HashSet<Id<InternalPerson>> {
-        self.vehicle_id2person_ids.remove(vehicle_id).unwrap_or_else(|| panic!("Tried to remove a vehicle, which has no entry!"))
+        // TODO Build a checker, so that it only allows missing entries for teleported modes
+        self.vehicle_id2person_ids.remove(vehicle_id).unwrap_or_else(|| {
+            warn!("Partition #{}: Tried to remove vehicle {}, which has no entry!", self.rank, vehicle_id);
+            return HashSet::default()
+        })
     }
 
     fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
