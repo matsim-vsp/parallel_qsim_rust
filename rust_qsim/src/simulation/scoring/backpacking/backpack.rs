@@ -1,9 +1,10 @@
+use tracing::warn;
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, DynEq, EventTrait, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson, InternalPlan, InternalPlanElement, InternalRoute};
-use crate::simulation::scenario::population::InternalPlanElement::Activity;
+use crate::simulation::scenario::population::InternalPlanElement::{Activity, Leg};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 
 pub struct BackpackPlan {
@@ -77,11 +78,19 @@ impl BackpackPlan {
     }
 
     fn finish(mut self) -> InternalPlan {
-        // Finish remaining current act
-        if self.current_activity.is_none() {
-            panic!("Tried to finish an agent, which is not in an ending activity!");
+        // Check if plan is completely empty, in this case return an empty default plan
+        if self.elements.is_empty() {
+            return InternalPlan::default()
         }
-        self.elements.push(Activity(self.current_activity.unwrap().finish()));
+
+        // Resolve remaining act (or leg if agent could not finish its plan)
+        if self.current_activity.is_none() {
+            // TODO Ask PH how I to properly handle unfinished legs
+            warn!("Finished an agent, which is not in an ending activity! It likely never arrived at its destination.");
+        } else {
+            // Finish remaining current act
+            self.elements.push(Activity(self.current_activity.unwrap().finish()));
+        }
 
         InternalPlan {
             selected: true,
