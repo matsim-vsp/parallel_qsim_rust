@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::mpsc::{Receiver, Sender};
+use std::time::{SystemTime, UNIX_EPOCH};
 use nohash_hasher::IntSet;
+use tracing::info;
 use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
@@ -56,6 +58,18 @@ impl BackpackingMessageBroker
                 match &e.payload {
                     MobsimEvent::AfterSimStep(i) => {
                         bsb.lock().unwrap().send_recv(i.time);
+
+                        // TODO Benchmark only
+                        info!(
+                            target: "benchmark",
+                            partition = bsb.lock().unwrap().rank,
+                            sim_time = i.time,
+                            unix_time = SystemTime::now()
+                                .duration_since(UNIX_EPOCH)
+                                .unwrap()
+                                .as_millis(),
+                            "after_sim_step"
+                        );
                     }
                     _ => {}
                 }
@@ -153,7 +167,6 @@ impl BackpackingMessageBroker
                 _ => {
                     panic!("Received unknown message type!");
                 }
-
             }
         }
     }

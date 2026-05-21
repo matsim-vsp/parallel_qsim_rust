@@ -1,25 +1,22 @@
-use std::fs::{File, OpenOptions};
+use std::fs::{OpenOptions};
 use std::sync::Arc;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Instant, UNIX_EPOCH};
 use clap::Parser;
 use tracing::{info, info_span};
-use tracing::dispatcher::DefaultGuard;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{fmt, Layer};
-use tracing_subscriber::filter::Targets;
+use tracing_subscriber::filter::{filter_fn};
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
+use rust_qsim::simulation::framework_events::{ControllerEventsManager, ControllerListenerRegisterFn, RuntimeEvent};
 use rust_qsim::simulation::id::Id;
-use rust_qsim::simulation::io;
-use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::MutableScenario;
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
 
 // TODO: This script is not meant to be a library function. It should be outsourced aleks Apr'26
 fn main() {
-    let _guard = init_logging_with_benchmark();
+    init_logging_with_benchmark();
 
     let args = CommandLineArgs::parse();
     info!("Started with args: {:?}", args);
@@ -27,16 +24,11 @@ fn main() {
     // Load and adapt config
     let config = Arc::new(Config::from_args(args));
 
-    // Set up benchmark tracing registry
-    prepare_benchmark(&config);
-
     // Load and adapt mod
     let mut scenario = MutableScenario::load(config);
 
     add_teleported_vehicle(&mut scenario, "walk");
     add_teleported_vehicle(&mut scenario, "pt");
-
-    // TODO Extract cut links here
 
     // Create and run simulation
     let controller = ControllerBuilder::default_with_scenario(scenario)
@@ -61,13 +53,13 @@ fn main() {
 
 }
 
-fn init_logging_with_benchmark() -> DefaultGuard {
-    // Original stdout layer
+fn init_logging_with_benchmark() {
+    // Stdout layer: exclude benchmark target
     let stdout_layer = fmt::Layer::new()
         .with_writer(std::io::stdout)
         .with_filter(LevelFilter::INFO);
 
-    // Benchmark file writer
+    // Benchmark file
     let benchmark_file = OpenOptions::new()
         .create(true)
         .append(true)
@@ -78,38 +70,17 @@ fn init_logging_with_benchmark() -> DefaultGuard {
     let benchmark_layer = fmt::Layer::new()
         .with_writer(benchmark_file)
         .with_ansi(false)
-        .with_filter(
-            Targets::new()
-                .with_target("benchmark", tracing::Level::INFO),
-        );
+        .with_filter(filter_fn(|metadata| {
+            metadata.target() == "benchmark"
+        }));
 
-    // Combined subscriber
     let collector = tracing_subscriber::registry()
         .with(stdout_layer)
         .with(benchmark_layer);
 
-    tracing::subscriber::set_default(collector)
+    tracing::subscriber::set_global_default(collector).unwrap();
 }
 
-fn prepare_benchmark(config: &Arc<Config>) {
-    // Set up the benchmark tracing
-    let mut path = io::resolve_path(config.context(), &config.output().output_dir);
-    path.push("benchmark.log");
-
-    let benchmark_file = File::create(path).unwrap();
-
-    let benchmark_layer = fmt::layer()
-        .with_writer(benchmark_file)
-        .with_ansi(false)
-        .with_filter(
-            Targets::new().with_target("benchmark", tracing::Level::INFO)
-        );
-
-    tracing_subscriber::registry()
-        .with(benchmark_layer)
-        .try_init()
-        .unwrap();
-}
 
 /// This function was copied from Paul Heinrich's own repository:
 /// https://github.com/paulheinr/parallel-qsim-berlin/blob/main/src/main/rust/src/bin/berlin.rs
