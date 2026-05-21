@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub mod proto;
 pub mod xml;
@@ -16,6 +16,6 @@ pub fn resolve_path(config_path: &Option<PathBuf>, file_path: &PathBuf) -> PathB
     }
 }
 
-pub fn is_url(path: &str) -> bool {
-    path.starts_with("http://") || path.starts_with("https://")
+pub fn is_url(path: impl AsRef<Path>) -> bool {
+    path.as_ref().starts_with("http://") || path.as_ref().starts_with("https://")
 }

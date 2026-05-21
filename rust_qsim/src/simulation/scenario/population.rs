@@ -4,7 +4,7 @@ use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::population::{
-    IOActivity, IOLeg, IOPerson, IOPlan, IOPlanElement, IORoute,
+    IOActivity, IOLeg, IOPTRouteDescription, IOPerson, IOPlan, IOPlanElement, IORoute,
 };
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::{Link, Network};
@@ -25,13 +25,15 @@ trait FromIOPerson<T> {
 }
 
 pub fn from_file<F: Fn(&InternalPerson) -> bool>(
-    path: &Path,
+    path: impl AsRef<Path>,
     garage: &mut Garage,
     filter: F,
 ) -> Population {
-    if path.extension().unwrap().eq("binpb") {
+    if path.as_ref().extension().unwrap().eq("binpb") {
         load_from_proto(path, filter)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.as_ref().extension().unwrap().eq("xml")
+        || path.as_ref().extension().unwrap().eq("gz")
+    {
         let persons = crate::simulation::io::xml::population::load_from_xml(path, garage)
             .into_iter()
             .filter(|(_id, p)| filter(p))
@@ -39,7 +41,8 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
         Population { persons }
     } else {
         panic!(
-            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+            "Tried to load {:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension",
+            path.as_ref()
         );
     }
 }
@@ -66,7 +69,7 @@ impl Population {
         }
     }
 
-    pub fn from_file(file_path: &Path, garage: &mut Garage) -> Self {
+    pub fn from_file(file_path: impl AsRef<Path>, garage: &mut Garage) -> Self {
         from_file(file_path, garage, |_p| true)
     }
 
@@ -244,6 +247,10 @@ impl InternalPerson {
     pub fn selected_plan(&self) -> Option<&InternalPlan> {
         self.plans.iter().find(|&plan| plan.selected)
     }
+
+    pub(crate) fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
+    }
 }
 
 impl Default for InternalPlan {
@@ -373,14 +380,14 @@ impl InternalRoute {
     fn from_io(io: IORoute, id: Id<InternalPerson>, mode: Id<String>) -> Self {
         let external = format!("{}_{}", id.external(), mode.external());
         let generic = InternalGenericRoute::new(
-            Id::create(io.start_link.as_str()),
-            Id::create(io.end_link.as_str()),
+            Id::create(io.start_link.expect("Route must have start link").as_str()),
+            Id::create(io.end_link.expect("Route must have end link").as_str()),
             parse_duration_opt(&io.trav_time),
             Option::from(io.distance),
             Some(Id::create(&external)),
         );
 
-        match io.r#type.as_str() {
+        match io.r#type.expect("Route must have type").as_str() {
             "generic" => InternalRoute::Generic(generic),
             "default_pt" => {
                 let description = io
@@ -404,7 +411,51 @@ impl InternalRoute {
                     route,
                 })
             }
-            _ => panic!("Unknown route type: {}", io.r#type),
+            other_unknown_str => panic!("Unknown route type: {}", other_unknown_str),
+        }
+    }
+
+    pub(crate) fn get_route_description(self) -> Option<String> {
+        match self {
+            InternalRoute::Generic(_) => None,
+            InternalRoute::Network(nr) => {
+                // if route starts and ends with same link, and has length 2 (only start and end
+                // node contained => not a true round trip), remove the end link from the route
+                // before writing
+                // Note: When such routes have been read from file, the InternalRoute will likely
+                // already only contain one link in its "route" vector, since this is how the route
+                // is written in the files. But since we only remove the last link before writing in
+                // the case length == 2 (not length < 2), this should not cause any issues here.
+                let route = if nr.route().first() == nr.route().last() && nr.route().len() == 2 {
+                    let mut route = nr.route().clone();
+                    route.pop();
+                    route
+                } else {
+                    nr.route().clone()
+                };
+
+                Some(
+                    route
+                        .iter()
+                        .map(|id| id.external().to_string())
+                        .collect::<Vec<String>>()
+                        .join(" "),
+                )
+            }
+            InternalRoute::Pt(ptr) => Some(
+                serde_json::to_string(&IOPTRouteDescription {
+                    transit_route_id: ptr.description.transit_route_id,
+                    boarding_time: ptr
+                        .description
+                        .boarding_time
+                        .map(|t| SimTime::from_duration(t).format_hh_mm_ss_trimmed())
+                        .unwrap_or_else(|| "undefined".to_string()),
+                    transit_line_id: ptr.description.transit_line_id,
+                    access_facility_id: ptr.description.access_facility_id,
+                    egress_facility_id: ptr.description.egress_facility_id,
+                })
+                .unwrap(),
+            ),
         }
     }
 }
@@ -607,8 +658,11 @@ impl From<IOActivity> for InternalActivity {
     fn from(io: IOActivity) -> Self {
         InternalActivity {
             act_type: Id::create(&io.r#type),
-            link_id: Id::create(&io.link),
-            coord: Coordinate::new(io.x, io.y),
+            link_id: Id::create(&io.link.expect("Activity must have a link id")),
+            coord: Coordinate::new(
+                io.x.expect("Activity must have x coordinate"),
+                io.y.expect("Activity must have y coordinate"),
+            ),
             start_time: parse_time_opt(&io.start_time),
             end_time: parse_time_opt(&io.end_time),
             max_dur: parse_duration_opt(&io.max_dur),
@@ -975,11 +1029,11 @@ mod tests {
             dep_time: Some("12:00:00".to_string()),
             trav_time: Some("00:30:00".to_string()),
             route: Some(IORoute {
-                r#type: "generic".to_string(),
-                start_link: "1".to_string(),
-                end_link: "2".to_string(),
+                r#type: Some("generic".to_string()),
+                start_link: Some("1".to_string()),
+                end_link: Some("2".to_string()),
                 trav_time: Some("00:20:00".to_string()),
-                distance: 42.0,
+                distance: Some(42.0),
                 vehicle: None,
                 route: None,
             }),
@@ -1019,11 +1073,11 @@ mod tests {
             dep_time: None,
             trav_time: Some("00:30:00".to_string()),
             route: Some(IORoute {
-                r#type: "default_pt".to_string(),
-                start_link: "1".to_string(),
-                end_link: "2".to_string(),
+                r#type: Some("default_pt".to_string()),
+                start_link: Some("1".to_string()),
+                end_link: Some("2".to_string()),
                 trav_time: Some("00:20:00".to_string()),
-                distance: f64::NAN,
+                distance: Some(f64::NAN),
                 vehicle: None,
                 route: Some(String::from(
                     "{\"transitRouteId\":\"3to1\",\"boardingTime\":\"undefined\",\"transitLineId\":\"Blue Line\",\"accessFacilityId\":\"3\",\"egressFacilityId\":\"1\"}",

@@ -308,18 +308,25 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandl
     }
 }
 
-pub fn get_numbered_output_filename(output_dir: &Path, input_file: &Path, part: u32) -> PathBuf {
+pub fn get_numbered_output_filename(
+    output_dir: impl AsRef<Path>,
+    input_file: impl AsRef<Path>,
+    part: u32,
+) -> PathBuf {
     let out = create_output_filename(output_dir, input_file);
     insert_number_in_proto_filename(&out, part)
 }
 
-pub fn create_output_filename(output_dir: &Path, input_file: &Path) -> PathBuf {
-    let filename = input_file.file_name().unwrap();
-    output_dir.join(filename)
+pub fn create_output_filename(
+    output_dir: impl AsRef<Path>,
+    input_file: impl AsRef<Path>,
+) -> PathBuf {
+    let filename = input_file.as_ref().file_name().unwrap();
+    output_dir.as_ref().join(filename)
 }
 
-pub(crate) fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf {
-    let filename = path.file_name().unwrap().to_str().unwrap();
+pub(crate) fn insert_number_in_proto_filename(path: impl AsRef<Path>, part: u32) -> PathBuf {
+    let filename = path.as_ref().file_name().unwrap().to_str().unwrap();
 
     let (stripped, ext) = if filename.ends_with(".xml.gz") {
         (filename.strip_suffix(".xml.gz").unwrap(), "xml.gz")
@@ -336,5 +343,5 @@ pub(crate) fn insert_number_in_proto_filename(path: &Path, part: u32) -> PathBuf
         .unwrap_or(stripped);
 
     let new_filename = format!("{stripped}.{part}.{ext}");
-    path.parent().unwrap().join(new_filename)
+    path.as_ref().parent().unwrap().join(new_filename)
 }
