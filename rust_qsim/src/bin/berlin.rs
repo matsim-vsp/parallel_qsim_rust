@@ -1,4 +1,4 @@
-use std::fs::{OpenOptions};
+use std::fs::{create_dir, OpenOptions};
 use std::sync::Arc;
 use std::time::Instant;
 use clap::Parser;
@@ -53,6 +53,8 @@ fn main() {
 }
 
 fn init_logging_with_benchmark() {
+    create_dir("./output").expect("Could not create output folder");
+
     // Stdout layer: exclude benchmark target
     let stdout_layer = fmt::Layer::new()
         .with_writer(std::io::stdout)
