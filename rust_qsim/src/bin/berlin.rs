@@ -1,6 +1,6 @@
 use std::fs::{create_dir, OpenOptions};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use tracing::{info, info_span};
 use tracing::level_filters::LevelFilter;
@@ -53,7 +53,7 @@ fn main() {
 }
 
 fn init_logging_with_benchmark() {
-    create_dir("./output").expect("Could not create output folder");
+    create_dir(format!("./benchmark_{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis())).expect("Could not create output folder");
 
     // Stdout layer: exclude benchmark target
     let stdout_layer = fmt::Layer::new()
