@@ -54,7 +54,7 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     };
 
     let benchmark_file_appender =
-        rolling::never(&dir, "./output/benchmark-t.log");
+        rolling::never(&dir, "./benchmark-t.log");
 
     let (benchmark_file, benchmark_guard) =
         non_blocking(benchmark_file_appender);
