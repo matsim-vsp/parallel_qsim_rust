@@ -58,18 +58,6 @@ impl BackpackingMessageBroker
                 match &e.payload {
                     MobsimEvent::AfterSimStep(i) => {
                         bsb.lock().unwrap().send_recv(i.time);
-
-                        // TODO Benchmark only
-                        info!(
-                            target: "benchmark",
-                            partition = bsb.lock().unwrap().rank,
-                            sim_time = i.time,
-                            unix_time = SystemTime::now()
-                                .duration_since(UNIX_EPOCH)
-                                .unwrap()
-                                .as_millis(),
-                            "after_sim_step"
-                        );
                     }
                     _ => {}
                 }

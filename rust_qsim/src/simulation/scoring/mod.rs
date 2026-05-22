@@ -4,6 +4,7 @@ use crate::simulation::framework_events::{MobsimListenerRegisterFn, QSimId};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 
 pub mod backpacking;
+pub mod benchmark;
 
 /// A scoring engine contains a DataCollector and MessageBroker for respective implementation.
 pub trait ScoringEngine
