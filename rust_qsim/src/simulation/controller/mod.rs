@@ -24,12 +24,11 @@ use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Barrier};
 use std::thread::{JoinHandle, sleep};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
-use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
 
 // This is a wrapper around a Sender that can be used to send requests to an external service.
 // The value is of type Arc as this is the adapter running in another thread.

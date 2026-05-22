@@ -1,7 +1,6 @@
-use std::any::{Any, TypeId};
+use std::any::{Any};
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{MobsimListenerRegisterFn, QSimId};
-use crate::simulation::messaging::sim_communication::SimCommunicator;
 
 pub mod backpacking;
 pub mod benchmark;
@@ -37,6 +36,7 @@ impl<T: Any + Send> Message for T {
 pub struct InternalScoringMessage {
     // time: u32,
     from_process: QSimId,
+    #[allow(unused)]
     to_process: QSimId,
     message: Box<dyn Message>
 }

@@ -41,16 +41,16 @@ impl BackpackingDataCollector {
     }
 
     pub(crate) fn add_arriving_vehicles(&mut self, arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>) {
-        for k in arriving_vehicles.keys(){
+        // for k in arriving_vehicles.keys(){
             // println!("Partition #{}: Adding arriving vehicle {}", self.rank, k); // TODO Debug only, remove when working
-        }
+        // }
         self.vehicle_id2person_ids.extend(arriving_vehicles);
     }
 
     pub(crate) fn add_arriving_backpacks(&mut self, arriving_backpack: HashMap<Id<InternalPerson>, Backpack>) {
-        for k in arriving_backpack.keys(){
+        // for k in arriving_backpack.keys(){
             // println!("Partition #{}: Adding arriving passenger {}", self.rank, k); // TODO Debug only, remove when working
-        }
+        // }
         self.person_id2backpack.extend(arriving_backpack);
     }
 

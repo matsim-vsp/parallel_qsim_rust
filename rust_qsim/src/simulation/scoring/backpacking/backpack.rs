@@ -1,5 +1,5 @@
 use tracing::warn;
-use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, DynEq, EventTrait, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
+use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventTrait, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
 use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
@@ -26,7 +26,7 @@ impl Default for BackpackPlan {
 }
 
 impl BackpackPlan {
-    fn handle_person_departure(&mut self, event: &PersonDepartureEvent) {
+    fn handle_person_departure(&mut self) {
         if self.current_leg.is_some() {
             panic!("Illegal state: Person departs while having an active leg!");
         }
@@ -34,15 +34,15 @@ impl BackpackPlan {
         self.current_leg = Some(BackpackLeg::default());
     }
 
-    fn handle_person_arrival(&mut self, event: &PersonArrivalEvent) {
+    fn handle_person_arrival(&mut self) {
         if self.current_leg.is_none() {
             panic!("Illegal state: Person arrives while having no active leg!");
         }
 
-        self.elements.push(InternalPlanElement::Leg(self.current_leg.take().unwrap().finish()));
+        self.elements.push(Leg(self.current_leg.take().unwrap().finish()));
     }
 
-    fn handle_activity_start(&mut self, event: &ActivityStartEvent) {
+    fn handle_activity_start(&mut self) {
         if self.current_activity.is_some() {
             panic!("Illegal state: Person starts activity while doing an activity!");
         }
@@ -50,7 +50,7 @@ impl BackpackPlan {
         self.current_activity = Some(BackpackActivity::default());
     }
 
-    fn handle_activity_end(&mut self, event: &ActivityEndEvent) {
+    fn handle_activity_end(&mut self) {
         if self.current_activity.is_none() {
             panic!("Illegal state: Person ends activity while not doing an activity!");
         }
@@ -59,10 +59,10 @@ impl BackpackPlan {
     }
 
     fn handle_event(&mut self, event: &dyn EventTrait){
-        if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
-            self.handle_person_departure(e);
-        } else if let Some(e) = event.as_any().downcast_ref::<ActivityStartEvent>() {
-            self.handle_activity_start(e);
+        if let Some(_) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
+            self.handle_person_departure();
+        } else if let Some(_) = event.as_any().downcast_ref::<ActivityStartEvent>() {
+            self.handle_activity_start();
         }
 
         if self.current_leg.is_some() {
@@ -71,10 +71,10 @@ impl BackpackPlan {
             self.current_activity.as_mut().unwrap().handle_event(event);
         }
 
-        if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
-            self.handle_person_arrival(e);
-        } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
-            self.handle_activity_end(e);
+        if let Some(_) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
+            self.handle_person_arrival();
+        } else if let Some(_) = event.as_any().downcast_ref::<ActivityEndEvent>() {
+            self.handle_activity_end();
         }
     }
 
@@ -364,6 +364,7 @@ pub struct Backpack{
     person_id: Id<InternalPerson>,
     events: Vec<Box<dyn EventTrait>>,
     backpack_plan: BackpackPlan,
+    #[allow(unused)]
     starting_partition: QSimId
 }
 

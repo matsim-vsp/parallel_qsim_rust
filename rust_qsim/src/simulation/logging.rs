@@ -4,7 +4,7 @@ use tracing::Level;
 use tracing::dispatcher::DefaultGuard;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
-use tracing_subscriber::filter::{filter_fn, LevelFilter, Targets};
+use tracing_subscriber::filter::{filter_fn, LevelFilter};
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Layer};
