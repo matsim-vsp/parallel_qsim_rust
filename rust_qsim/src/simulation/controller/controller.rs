@@ -240,15 +240,17 @@ impl Controller {
         );
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
 
-        let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = BackpackingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager);
-        for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
-            self.event_handler_per_partition.entry(i as u32).or_insert_with(Vec::new).push(e_fn);
-        }
-        for (i, p_fn) in scoring_partition_fn.into_iter().enumerate() {
-            self.partition_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(p_fn);
-        }
-        for (i, m_fn) in scoring_mobsim_fn.into_iter().enumerate() {
-            self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
+        if self.config.scoring().enabled {
+            let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = BackpackingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager);
+            for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
+                self.event_handler_per_partition.entry(i as u32).or_insert_with(Vec::new).push(e_fn);
+            }
+            for (i, p_fn) in scoring_partition_fn.into_iter().enumerate() {
+                self.partition_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(p_fn);
+            }
+            for (i, m_fn) in scoring_mobsim_fn.into_iter().enumerate() {
+                self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
+            }
         }
 
         let handles: IntMap<u32, JoinHandle<()>> = comms

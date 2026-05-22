@@ -330,6 +330,24 @@ impl Config {
             .expect("ComputationalSetup was not set.")
     }
 
+    pub fn scoring(&self) -> &Scoring {
+        self.module::<Scoring>("scoring")
+            .expect("Scoring was not set.")
+    }
+
+    pub fn scoring_mut(&mut self) -> &mut Scoring {
+        if !self.modules.contains_key("scoring") {
+            self.modules
+                .insert("scoring".to_string(), Box::new(Scoring::default()));
+        }
+        self.module_mut::<Scoring>("scoring").unwrap()
+    }
+
+    pub fn set_scoring(&mut self, scoring: Scoring) {
+        self.modules
+            .insert("scoring".to_string(), Box::new(scoring));
+    }
+
     fn module<T: 'static>(&self, key: &str) -> Option<&T> {
         self.modules
             .get(key)
@@ -556,6 +574,30 @@ impl Default for ComputationalSetup {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Scoring {
+    pub enabled: bool,
+    #[serde(default)]
+    pub plans_collection_type: ScoringPlansCollectionType
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum ScoringPlansCollectionType {
+    #[default]
+    Backpacking,
+    Reducing,
+    ExternalThreads
+}
+
+impl Default for Scoring {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            plans_collection_type: ScoringPlansCollectionType::default()
+        }
+    }
+}
+
 #[typetag::serde(tag = "type")]
 pub trait ConfigModule: Debug + Send + Sync + DynClone {
     fn as_any(&self) -> &dyn Any;
@@ -654,6 +696,16 @@ impl ConfigModule for ComputationalSetup {
 
 #[typetag::serde]
 impl ConfigModule for Drt {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Scoring {
     fn as_any(&self) -> &dyn Any {
         self
     }
