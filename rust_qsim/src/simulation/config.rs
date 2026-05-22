@@ -581,6 +581,12 @@ pub struct Scoring {
     pub plans_collection_type: ScoringPlansCollectionType
 }
 
+register_override!("scoring.enabled", |config, value| {
+    if let Ok(v) = value.parse() {
+        config.scoring_mut().enabled = v;
+    }
+});
+
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum ScoringPlansCollectionType {
     #[default]
