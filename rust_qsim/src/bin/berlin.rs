@@ -1,4 +1,5 @@
-use std::fs::{create_dir, OpenOptions};
+use std::fs::{create_dir, create_dir_all, OpenOptions};
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use clap::Parser;
@@ -53,7 +54,20 @@ fn main() {
 }
 
 fn init_logging_with_benchmark() {
-    create_dir("./output").expect("Could not create output folder");
+    create_dir_all("./output").expect("Could not create output folder");
+
+    // Find the next available benchmark_N filename
+    let mut index = 0;
+    let filename = loop {
+        let path = format!("./output/benchmark_{}", index);
+
+        if !Path::new(&path).exists() {
+            break path;
+        }
+
+        index += 1;
+    };
+
 
     // Stdout layer: exclude benchmark target
     let stdout_layer = fmt::Layer::new()
@@ -64,7 +78,7 @@ fn init_logging_with_benchmark() {
     let benchmark_file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("./output/benchmark.log")
+        .open(filename)
         .unwrap();
 
     // Benchmark-only layer
