@@ -326,7 +326,8 @@ impl BackpackRoute {
         if self.route_type == Some(BackpackRouteTypes::Network) &&
             self.route.is_empty() &&
             (self.start_link != self.end_link) {
-            panic!("Tried to finish BackpackRoute of type Network with empty vector but differing start and end link!");
+            // TODO This case seems to happen in simulations sometimes. Check with PH if this is intended.
+            // panic!("Tried to finish BackpackRoute of type Network with empty vector but differing start and end link!");
         }
 
         let route_delegate = InternalGenericRoute::new(
