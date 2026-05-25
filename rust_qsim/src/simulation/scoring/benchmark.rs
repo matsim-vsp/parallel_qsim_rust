@@ -19,7 +19,7 @@ impl Benchmark {
                             unix_time = SystemTime::now()
                                 .duration_since(UNIX_EPOCH)
                                 .unwrap()
-                                .as_millis(),
+                                .as_nanos(),
                             "after_sim_step"
                         );
                     }
