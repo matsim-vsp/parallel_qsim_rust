@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "hotpath", hotpath::measure_all)]
-
 use std::any::{Any};
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{MobsimListenerRegisterFn, QSimId};
