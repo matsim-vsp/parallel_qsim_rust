@@ -30,6 +30,7 @@ pub mod scenario;
 pub mod simulation;
 pub mod time_queue;
 pub mod vehicles;
+#[cfg_attr(feature = "hotpath", hotpath::measure_all)]
 pub mod scoring;
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]

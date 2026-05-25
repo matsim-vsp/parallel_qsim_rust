@@ -15,6 +15,8 @@ use rust_qsim::simulation::scenario::MutableScenario;
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
 
 // TODO: This script is not meant to be a library function. It should be outsourced aleks Apr'26
+
+#[cfg_attr(feature = "hotpath", hotpath::main)]
 fn main() {
     init_logging_with_benchmark();
 
