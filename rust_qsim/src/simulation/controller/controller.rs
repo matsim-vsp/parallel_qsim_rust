@@ -254,9 +254,9 @@ impl Controller {
             }
         }
         
-        for (i, m_fn) in Benchmark::setup_benchmark(num_parts).drain(..).enumerate() {
-            self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
-        }
+        // for (i, m_fn) in Benchmark::setup_benchmark(num_parts).drain(..).enumerate() {
+        //     self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
+        // }
 
         let handles: IntMap<u32, JoinHandle<()>> = comms
             .into_iter()
