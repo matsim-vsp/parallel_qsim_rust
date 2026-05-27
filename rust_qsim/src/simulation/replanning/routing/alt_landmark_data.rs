@@ -1,9 +1,9 @@
 use crate::simulation::replanning::routing::a_star_core::{
-    AStarCoreResult, AStarRequestBuilder, HeuristicMode, One2ManyNoParentsAStarActions, a_star_core,
+    AStarCoreResult, AStarRequestBuilder, HeuristicMode, LandmarkCalcAStarActions, a_star_core,
 };
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
 use crate::simulation::replanning::routing::least_cost_path_calculator::{
-    Disutility, FreeSpeedTravelTimeAndDisutility,
+    Disutility, TravelDisutility,
 };
 use rand::SeedableRng;
 use rand::prelude::IteratorRandom;
@@ -15,7 +15,7 @@ pub type ForwardBackwardTravelDisutility = (Disutility, Disutility);
 const DEFAULT_NUMBER_OF_LANDMARKS: usize = 16;
 
 /// Landmark data to be used in ALT routing. Contains the chosen landmarks and the pre-calculated
-/// distances from each landmark to all other nodes in the graph, for both forward and backward
+/// disutilities from each landmark to all other nodes in the graph, for both forward and backward
 /// directions.
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -25,17 +25,29 @@ pub struct AltLandmarkData {
 }
 
 impl AltLandmarkData {
-    /// Given a graph, chooses landmarks (currently randomly) and precalculates their distances,
-    /// i.e., travel disutilities, to all other nodes, both forward and backward
-    pub fn new(graph: &dyn IndexableGraph) -> Result<AltLandmarkData, GraphError> {
-        let landmarks: Vec<NodeIndex> = Self::choose_landmarks(graph);
-
-        let travel_disutilities_to_all = Self::calculate_distances(graph, &landmarks)?;
-
-        Ok(AltLandmarkData {
+    pub fn new(
+        landmarks: Vec<NodeIndex>,
+        travel_disutilities_to_all: Vec<Vec<ForwardBackwardTravelDisutility>>,
+    ) -> Self {
+        Self {
             landmarks,
             travel_disutilities_to_all,
-        })
+        }
+    }
+
+    // TODO possibly rename fn
+    /// Given a graph, chooses landmarks (currently randomly) and precalculates their travel
+    /// disutilities to all other nodes, both forward and backward
+    pub fn from_graph(
+        graph: &dyn IndexableGraph,
+        disutility: &dyn TravelDisutility,
+    ) -> Result<AltLandmarkData, GraphError> {
+        let landmarks: Vec<NodeIndex> = Self::choose_landmarks(graph);
+
+        let travel_disutilities_to_all =
+            Self::calc_all_disutilities(graph, disutility, &landmarks)?;
+
+        Ok(AltLandmarkData::new(landmarks, travel_disutilities_to_all))
     }
 
     pub fn travel_disutilities_to_all(&self) -> &Vec<Vec<ForwardBackwardTravelDisutility>> {
@@ -52,10 +64,11 @@ impl AltLandmarkData {
         (0..graph.num_nodes()).choose_multiple(&mut StdRng::seed_from_u64(42), number_of_landmarks)
     }
 
-    /// Calculate distances from given list of landmarks to all other nodes in the graph, both
-    /// forward and backward.
-    fn calculate_distances(
+    /// Calculate travel disutilities from given list of landmarks to all other nodes in the graph,
+    /// both forward and backward.
+    fn calc_all_disutilities(
         graph: &dyn IndexableGraph,
+        disutility: &dyn TravelDisutility,
         landmarks: &[NodeIndex],
     ) -> Result<Vec<Vec<ForwardBackwardTravelDisutility>>, GraphError> {
         // for every landmark...
@@ -64,45 +77,37 @@ impl AltLandmarkData {
             .map(
                 |landmark_node| -> Result<Vec<ForwardBackwardTravelDisutility>, GraphError> {
                     // ... calculate forward and backward distances to all other nodes
-                    let forward_distances =
-                        Self::distance_one_2_many(graph, *landmark_node, false)?;
-                    let backward_distances =
-                        Self::distance_one_2_many(graph, *landmark_node, true)?;
+                    let forward_disutilities =
+                        Self::disutilities_one_2_many(graph, disutility, *landmark_node, false)?;
+                    let backward_disutilities =
+                        Self::disutilities_one_2_many(graph, disutility, *landmark_node, true)?;
 
                     // collect into ForwardBackwardTravelDisutility objects
-                    Ok(forward_distances
+                    Ok(forward_disutilities
                         .into_iter()
-                        .zip(backward_distances.into_iter())
+                        .zip(backward_disutilities.into_iter())
                         .collect::<Vec<ForwardBackwardTravelDisutility>>())
                 },
             )
             .collect()
     }
 
-    /// Calculates the distance from one node to all other nodes in the graph using Dijkstra.
-    /// "Distance" in this case means travel disutility, which is in this case specifically equal
-    /// to the freespeed travel time, *not* respecting max speed of any vehicle.  TODO is this what we want? see below
-    /// Uses the shared `a_star_core` implementation with `ZeroHeuristic` and the One2Many use case.
-    fn distance_one_2_many(
+    /// Calculates the travel disutilities from one node to all other nodes in the graph using
+    /// Dijkstra (or optionally, from all other nodes to one node, if backward=true).
+    /// Returns a vector of disutilities, where the index corresponds to the node index in the
+    /// graph.
+    /// Uses the A* implementation also used for routing, without heuristic.
+    fn disutilities_one_2_many(
         graph: &dyn IndexableGraph,
+        disutility: &dyn TravelDisutility,
         from: NodeIndex,
-        backward: bool, // if true, calculates distances from all other nodes to the "from"-node
+        backward: bool, // if true, calculates disutilities FROM all other nodes to the "from"-node
     ) -> Result<Vec<Disutility>, GraphError> {
-        // TODO: right now, the distance_one_2_many uses FreeSpeedTravelTimeAndDisutility, not FreeOrMaxSpeed...
-        // Thus, always freespeed will be used. Previously, since the travel time was part of the
-        // graph, and was calculated for specific vehicles, this was not the case; the max speed of
-        // vehicles was respected.
-        // Need to decide if that is what we want, or if the landmarks should be valid for any
-        // vehicle as they are now
-        let tt_td = FreeSpeedTravelTimeAndDisutility; // TODO AltLandmarkData::new gets a travel disutility as well, so not initializued here anymore
-
         let a_star_request = AStarRequestBuilder::default()
             .graph(graph)
-            // set travel time and disutility filter_netfunction to freespeed
-            .travel_time(&tt_td)
-            .travel_disutility(&tt_td)
-            // makes A* calculate the distance to all other nodes, without tracking parents
-            .options(One2ManyNoParentsAStarActions)
+            // makes A* calculate the disutility to all other nodes, based on the MIN disutility per
+            // link, without tracking parents
+            .options(LandmarkCalcAStarActions::new(disutility))
             .from(from)
             // no heuristic used => A* is Dijkstra
             .heuristic_mode(HeuristicMode::without_heuristic())
@@ -110,11 +115,11 @@ impl AltLandmarkData {
             .build()
             .unwrap();
 
-        let distances_result = match a_star_core(a_star_request) {
+        let disutilities_result = match a_star_core(a_star_request) {
             // some graph error occurred in A* (link or node not found). Return it.
             Err(e) => Err(e),
-            // everything fine, A* returned a distance vector; use it
-            Ok(AStarCoreResult::DistanceToAllWithoutParents(distances)) => Ok(distances),
+            // everything fine, A* returned a disutility vector; use it
+            Ok(AStarCoreResult::DisutilityToAllWithoutParents(disutilities)) => Ok(disutilities),
             // A* returned incorrect result enum variant. Panic, since this is a programming error.
             _ => panic!(
                 "A* with DistanceToManyOptions should return DistanceToAllWithoutParents \
@@ -122,7 +127,7 @@ impl AltLandmarkData {
             ),
         };
 
-        distances_result
+        disutilities_result
     }
 }
 
@@ -132,16 +137,17 @@ mod tests {
     use crate::simulation::replanning::routing::graph::tests::{
         get_triangle_test_graph, get_triangle_test_network,
     };
+    use crate::simulation::replanning::routing::least_cost_path_calculator::FreeOrMaxSpeedTravelTimeAndDisutility;
 
     #[test]
-    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO still not sure if this is true
     fn test_landmark_choice_and_distance_calculation() {
         let network = get_triangle_test_network();
         let graph = get_triangle_test_graph(&network);
 
-        let alt_data = AltLandmarkData::new(&graph).unwrap();
+        let alt_data =
+            AltLandmarkData::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
 
-        //selection is so far random, but with fixed seed (chooses node with index 3 as landmark)
+        // selection is so far random, but with fixed seed (chooses node with index 3 as landmark)
 
         // verify that exactly one landmark was chosen, namely node with index 3
         assert_eq!(alt_data.landmarks.len(), 1);

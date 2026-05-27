@@ -1,7 +1,6 @@
 use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::a_star_core::{
-    AStarCoreResult, AStarRequestBuilder, HeuristicMode, One2OneWithParentsAStarActions,
-    a_star_core,
+    AStarCoreResult, AStarRequestBuilder, HeuristicMode, RoutingAStarActions, a_star_core,
 };
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
@@ -10,19 +9,18 @@ use crate::simulation::replanning::routing::least_cost_path_calculator::{
     TravelTime,
 };
 use crate::simulation::scenario::network::{Link, Node};
-use std::time::Duration;
 use tracing::{error, warn};
 
 /// A heuristic to be used in A*. Given a from and to-node, estimates the distance, that is,
 /// disutility, between them.
 /// Is not allowed to overestimate distances. It is expected of implementations to respect this.
 pub trait AStarHeuristic: Clone {
-    /// Estimate distance, i.e., travel disutility, between from-node and to-node in the given
-    /// graph. Never overestimates the disutilility.
+    /// Estimate travel disutility between from-node and to-node in the given graph. Never
+    /// overestimates the disutilility.
     fn estimate(&self, graph: &dyn IndexableGraph, from: Id<Node>, to: Id<Node>) -> Disutility;
 }
 
-/// Zero heuristic estimates all distances to be zero. With this, the A* collapses into Dijkstra.
+/// Zero heuristic estimates all disutilities to be zero. With this, the A* collapses into Dijkstra.
 #[derive(Clone)]
 pub(crate) struct ZeroHeuristic;
 
@@ -32,7 +30,7 @@ impl AStarHeuristic for ZeroHeuristic {
     }
 }
 
-/// Heuristic that uses landmarks and triangle inequality to estimate distance between two nodes
+/// Heuristic that uses landmarks and triangle inequality to estimate disutility between two nodes
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub(crate) struct AltHeuristic {
@@ -47,7 +45,7 @@ impl AltHeuristic {
 }
 
 impl AStarHeuristic for AltHeuristic {
-    /// Estimate the distance between the from- and to-node in the given graph by using landmarks.
+    /// Estimate the disutility between the from- and to-node in the given graph by using landmarks.
     fn estimate(&self, graph: &dyn IndexableGraph, from: Id<Node>, to: Id<Node>) -> Disutility {
         /* The ALT algorithm uses two lower bounds for each Landmark:
          * given: source node S, target node T, landmark L
@@ -69,11 +67,11 @@ impl AStarHeuristic for AltHeuristic {
             .iter()
             .enumerate()
         {
-            let from_distance = lm_travel_disutility[from_idx]; // (SL,LS)
-            let to_distance = lm_travel_disutility[to_idx]; // (LT,TL)
+            let from_disutility = lm_travel_disutility[from_idx]; // (SL,LS)
+            let to_disutility = lm_travel_disutility[to_idx]; // (LT,TL)
 
-            let forward_estimate = from_distance.0 - to_distance.1;
-            let backward_estimate = to_distance.0 - from_distance.1;
+            let forward_estimate = from_disutility.0 - to_disutility.1;
+            let backward_estimate = to_disutility.0 - from_disutility.1;
 
             h = h.max(forward_estimate.max(backward_estimate))
         }
@@ -87,8 +85,8 @@ impl AStarHeuristic for AltHeuristic {
 /// A* router, an implementation of the LeastCostPathCalculator trait.
 /// Owns a heuristic, a travel time calculator and a travel disutility calculator, which are used
 /// in the A* search.
-/// The heuristic is used to estimate the remaining travel time to the destination, and should be
-/// admissible (i.e., never overestimate the actual remaining travel time).
+/// The heuristic is used to estimate the remaining travel disutility to the destination, and must
+/// be admissible (i.e., never overestimate the actual remaining travel disutility).
 /// The travel time is used to track the arrival time at the nodes along the path, while the travel
 /// disutility is used as cost, i.e., this is what the A* search minimizes.
 pub struct AStarRouter<H: AStarHeuristic> {
@@ -217,12 +215,6 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
         // convert to-node id to node index
         let to_node_idx = request.graph.get_node_idx_from_id(to_node_id);
 
-        // initialize parents vector and the disutility from the from-node to the to-node.
-        // owned by this function but filled by a_star_core
-        let mut parents = vec![None; request.graph.num_nodes()];
-        let optimal_disutility: Disutility;
-        let associated_travel_time: Duration;
-
         // create request for a_star_core
         let a_star_request = match AStarRequestBuilder::default()
             // copies graph, from, to, departure time, person, vehicle values from the lcp request
@@ -233,10 +225,13 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
                 builder
                     // set heuristic to the heuristic of the router
                     .heuristic_mode(HeuristicMode::with_heuristic(&self.heuristic))
-                    .travel_time(self.travel_time.as_ref())
-                    .travel_disutility(self.travel_disutility.as_ref())
-                    // set AStarActions to the use case One to One with parent tracking
-                    .options(One2OneWithParentsAStarActions::new(to_node_idx, parents))
+                    // set AStarActions to the Routing use case
+                    .options(RoutingAStarActions::new(
+                        to_node_idx,
+                        self.travel_time.as_ref(),
+                        self.travel_disutility.as_ref(),
+                        request.graph.num_nodes(),
+                    ))
                     .build()
                     .unwrap()
             }
@@ -253,35 +248,36 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
 
         // call a_star_core with the request, and extract the distance to the goal and the
         // parents vector from the result
-        (optimal_disutility, associated_travel_time, parents) = match a_star_core(a_star_request) {
-            // Standard case: A* returned a valid result.
-            Ok(AStarCoreResult::SingleDistWithParents(distance, time, parents)) => {
-                // if the returned distance to the target is infinity or NaN, it is unreachable, so
-                // we return None
-                if distance == f64::INFINITY || distance.is_nan() {
-                    warn!(
-                        "To link {} is unreachable from from link {}, cannot calculate path",
-                        request.to, request.from
-                    );
+        let (optimal_disutility, associated_travel_time, parents) =
+            match a_star_core(a_star_request) {
+                // Standard case: A* returned a valid result.
+                Ok(AStarCoreResult::SingleDisutilWithParents(distance, time, parents)) => {
+                    // if the returned distance to the target is infinity or NaN, it is unreachable, so
+                    // we return None
+                    if distance == f64::INFINITY || distance.is_nan() {
+                        warn!(
+                            "To link {} is unreachable from from link {}, cannot calculate path",
+                            request.to, request.from
+                        );
+                        return None;
+                    }
+                    // else, we take the found shortest "distance" as the optimal disutility
+                    (distance, time, parents)
+                }
+                // Unsuccesful case: Some error occurred in A*, e.g., a given link or node was not
+                // found, so we cannot calculate a path. Return None
+                Err(e) => {
+                    warn!("Error during A*: {} cannot calculate path.", e);
                     return None;
                 }
-                // else, we take the found shortest "distance" as the optimal disutility
-                (distance, time, parents)
-            }
-            // Unsuccesful case: Some error occurred in A*, e.g., a given link or node was not
-            // found, so we cannot calculate a path. Return None
-            Err(e) => {
-                warn!("Error during A*: {} cannot calculate path.", e);
-                return None;
-            }
-            // Unrecoverable error: A* returned the wrong result type. This should not happen,
-            // since we use the A* use case OneToOneWithParents, which always builds results
-            // of type SingleDistWithParents.
-            _ => panic!(
-                "A* with One2OneWithParentsAStarActions should return \
+                // Unrecoverable error: A* returned the wrong result type. This should not happen,
+                // since we use the A* use case OneToOneWithParents, which always builds results
+                // of type SingleDistWithParents.
+                _ => panic!(
+                    "A* with One2OneWithParentsAStarActions should return \
                 SingleDistWithParents result"
-            ),
-        };
+                ),
+            };
 
         let link_path =
             match Self::extract_link_path(request.to, request.from, parents, request.graph) {
@@ -430,7 +426,6 @@ mod tests {
 
     /// simple test of Dijkstra (A* with zero heuristic) and free speed travel disutility
     #[test]
-    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO I don't understand this message really. Seems to work for me?
     fn test_simple_dijkstra_routing() {
         let network = get_triangle_test_network();
         let graph = get_triangle_test_graph(&network);
@@ -450,7 +445,7 @@ mod tests {
             Some(Duration::from_secs(6)), // tt
             Some(6.0 as Disutility),      // td
             Some(vec!["4", "5"]),
-        ); // previously, the node path was returned, which is [2, 3, 1]
+        );
         calc_route_and_check(
             &router,
             &graph,
@@ -460,7 +455,7 @@ mod tests {
             Some(Duration::from_secs(3)), // tt
             Some(3.0),                    // td
             Some(vec!["5", "1"]),
-        ); // previously, the node path was returned, which is [3, 1, 2]
+        );
         calc_route_and_check(
             &router,
             &graph,
@@ -470,13 +465,12 @@ mod tests {
             Some(Duration::from_secs(4)), // tt
             Some(4.0 as Disutility),      // td
             Some(vec!["4"]),
-        ); // previously, the node path was returned, which is [2, 3]
+        );
     }
 
     /// Test routing with ALT heuristic, with two different vehicle types (car and bike) that have
     /// different travel times on the same links, and thus different optimal paths.
     #[integration_test]
-    // #[ignore] //ignored because we use a global ID store now and the internal IDs are not predictable anymore // TODO see above, is this still valid?
     fn test_mode_alt_routing() {
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
@@ -503,12 +497,13 @@ mod tests {
         let router_by_vehicle_type = graph_by_vehicle_type
             .iter()
             .map(|(id, g)| {
-                let landmark_data = AltLandmarkData::new(g).unwrap();
+                let landmark_data =
+                    AltLandmarkData::from_graph(g, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
 
                 (
                     id,
                     AStarRouter::new(
-                        // create new heuristic, based on the graph for the vehicle type. TODO note: so far, the travel time for the landmarks is truly freespeed, while previously, it was maxspeed = min(max_v, freespeed).
+                        // create new heuristic, based on the graph for the vehicle type.
                         AltHeuristic::new(landmark_data),
                         // ZeroHeuristic,
                         Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
@@ -527,12 +522,12 @@ mod tests {
         calc_route_and_check(
             router_by_vehicle_type.get(bike_type_id).unwrap(),
             graph_by_vehicle_type.get(bike_type_id).unwrap(),
-            "link0", // 0,
-            "link4", // 5,
+            "link0",
+            "link4",
             garage.vehicles.get(&bike_vehicle_id),
-            Some(Duration::from_secs(240)),        // Some(280.0),
-            Some(240.0 as Disutility),             // Some(280.0),
-            Some(vec!["link1", "link2", "link3"]), // Some(vec![0, 1, 2, 3, 4, 5]),
+            Some(Duration::from_secs(240)),
+            Some(240.0 as Disutility),
+            Some(vec!["link1", "link2", "link3"]),
         );
 
         // check routing for car
@@ -544,12 +539,12 @@ mod tests {
         calc_route_and_check(
             router_by_vehicle_type.get(car_type_id).unwrap(),
             graph_by_vehicle_type.get(car_type_id).unwrap(),
-            "link0", // 0,
-            "link4", // 5,
+            "link0",
+            "link4",
             garage.vehicles.get(&car_vehicle_id),
             Some(Duration::from_secs(100)), // tt
             Some(100.0 as Disutility),      // td
-            Some(vec!["link5", "link6"]),   // Some(vec![0, 1, 6, 4, 5]),
+            Some(vec!["link5", "link6"]),
         )
     }
 
@@ -567,7 +562,8 @@ mod tests {
         );
 
         // Router with ALT heuristic
-        let landmark_data = AltLandmarkData::new(&graph).unwrap();
+        let landmark_data =
+            AltLandmarkData::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
         let alt_router = AStarRouter::new(
             AltHeuristic::new(landmark_data),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
@@ -744,24 +740,16 @@ mod tests {
         let network = get_triangle_test_network();
         let graph = get_triangle_test_graph(&network);
 
-        let landmark_data = AltLandmarkData::new(&graph).unwrap();
+        let landmark_data =
+            AltLandmarkData::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
         let alt_heuristic = AltHeuristic::new(landmark_data);
 
         // Test heuristic estimates for various node pairs
         let test_pairs = vec![("1", "2"), ("2", "3"), ("1", "3"), ("2", "1")];
 
-        // These are the true "distances" between the node pairs based on the triangle test graph
+        // These are the true disutilities between the node pairs based on the triangle test graph
         // and free speed travel disutilities.
-        // Note that any travel disutility that is not freespeed-based should return higher or
-        // equal travel disutilities, compared to freespeed. For instance, considering
-        // maxspeed-based travel disutility, the true distances would be higher, since maxspeed is
-        // upper bounded by freespeed. So if the heuristic lower bounds this disutility, then it
-        // lower bounds any travel disutility.
-        // TODO in theory, one could imagine settings where this doesn't hold, i.e., we have travel
-        // disutilities that are lower than pure freespeed-based. This could be if we for instance
-        // add negative disutilities for some "comfort" along certain routes. As of now, the ALT
-        // would no longer be an admissible heuristic in this case.
-        let test_pair_true_distances_freespeed = vec![1.0, 4.0, 2.0, 6.0];
+        let test_pair_true_disutilities_freespeed = vec![1.0, 4.0, 2.0, 6.0];
 
         for (i, (from_str, to_str)) in test_pairs.iter().enumerate() {
             let heuristic_estimate = alt_heuristic.estimate(
@@ -789,7 +777,7 @@ mod tests {
 
             // Heuristic must be lower or equal to the true distance
             assert!(
-                heuristic_estimate <= test_pair_true_distances_freespeed[i],
+                heuristic_estimate <= test_pair_true_disutilities_freespeed[i],
                 "Heuristic estimate should always be lower or equal to the true distance"
             );
         }

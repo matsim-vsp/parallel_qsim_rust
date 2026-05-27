@@ -3,6 +3,7 @@ use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, 
 use crate::simulation::replanning::routing::least_cost_path_calculator::LeastCostPathRequest;
 use crate::simulation::replanning::routing::least_cost_path_calculator::TravelDisutility;
 use crate::simulation::replanning::routing::least_cost_path_calculator::{Disutility, TravelTime};
+use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
@@ -70,18 +71,20 @@ impl NodePriority {
 /// and One2One with parent tracking)
 pub(crate) enum AStarCoreResult {
     /// Distance (=travel disutility) from one node to all other nodes in the graph
-    DistanceToAllWithoutParents(Vec<Disutility>),
+    DisutilityToAllWithoutParents(Vec<Disutility>),
     /// Shortest distance (=travel disutility) from one node to another, with the associated travel
     /// time and generated list of parents
-    SingleDistWithParents(Disutility, Duration, Vec<Option<NodeIndex>>),
+    SingleDisutilWithParents(Disutility, Duration, Vec<Option<NodeIndex>>),
 }
 
 /// Implementations of this trait represent different use cases of `a_star_core`.
-/// In particular, they set whether the A* search is One2One or One2Many and whether parents are
-/// tracked or not.
+/// In particular, they set whether the A* search is One2One or One2Many, whether parents are
+/// tracked or not and whether arrival times at nodes are tracked or not.
 /// Specifically, the implementations decide:
 /// - at every current node in the algorithm, whether it should stop, since it reached its goal
 /// - upon reaching a node, whether its parent node should be tracked
+/// - when scanning neighbours of the current node, whether to track the arrival time at the
+///     neighbour nodes.
 /// - when the algorithm returns, what form the result should have (e.g. with or without parents)
 pub(crate) trait AStarActions: Clone + Debug {
     /// Called by `a_star_core` at every visited node, the alg will return if it receives `true`
@@ -95,76 +98,158 @@ pub(crate) trait AStarActions: Clone + Debug {
     fn build_result(
         self,
         current_disutility: Option<Disutility>,
-        current_travel_time: Option<Duration>,
+        initial_departure_time: SimTime,
         disutilities: Vec<Disutility>,
     ) -> AStarCoreResult;
     /// Called by `a_star_core` to get the to-node, to be able to pass it to a heuristic
     fn get_to_node_opt(&self) -> Option<NodeIndex>;
+    /// Called to store the arrival time at a specific node. Implementations decide if and how they
+    /// do it.
+    fn set_arrival_time_opt(&mut self, node: NodeIndex, time: SimTime);
+    /// Called to store the arrival time at a specific neighbour of the current node, using a
+    /// given link. Implementations decide if and how they do it (typically based on a call to
+    /// a TravelTime function for the given link).
+    fn set_arrival_time_at_neighbour_opt(
+        &mut self,
+        current_node: NodeIndex, // needed to get the arrival time at the start of the link
+        neighbour_node: NodeIndex,
+        link: &Link,
+        person: Option<&InternalPerson>,
+        vehicle: Option<&InternalVehicle>,
+    );
+    /// Called to get the arrival time at a specific node. Implementations that do not track arrival
+    /// times will return None.
+    fn get_arrival_time_at_node_opt(&self, node: NodeIndex) -> Option<SimTime>;
+    /// Called to get the travel disutility, which is used as cost, of a given link. Implementations
+    /// choose how to do this, in particular they can either use the minimum travel disutility of a
+    /// given link (this is done for landmark calculation) or they can use the actual travel
+    /// disutility at the arrival time at the start of the link (this is done for routing).
+    fn get_disutility_of_link(
+        &self,
+        link: &Link,
+        start_node_of_link: NodeIndex,
+        person: Option<&InternalPerson>,
+        vehicle: Option<&InternalVehicle>,
+    ) -> Disutility;
 }
 
-/// These objects represent the A* use case One2Many with no parent tracking.
-/// That is, when they are called in `a_star_core` to determine whether the target node was reached,
-/// they always return false, since this use case has no to-node.
-/// When they are called in the context of parent tracking, they do nothing. When they are called
-/// in the context of building the result, they return the distances from the from-node to all
-/// other nodes in the graph.
+/// These objects represent the A* use case "Landmark calculation", i.e., A* searches from one node
+/// to all others, tracks neither parents nor arrival times, and uses the MIN travel disutility of
+/// links as cost (independent of time, person, vehicle). This ensures that an ALT heuristic based
+/// on that data is admissible, i.e., doesn't overestimate travel disutilities.
 #[derive(Clone, Debug)]
-pub(crate) struct One2ManyNoParentsAStarActions;
+pub(crate) struct LandmarkCalcAStarActions<'a> {
+    travel_disutility: &'a dyn TravelDisutility,
+}
 
-impl AStarActions for One2ManyNoParentsAStarActions {
+impl<'a> LandmarkCalcAStarActions<'a> {
+    pub fn new(travel_disutility: &'a dyn TravelDisutility) -> Self {
+        Self { travel_disutility }
+    }
+}
+
+impl AStarActions for LandmarkCalcAStarActions<'_> {
+    /// when called to track parents, this implementation does nothing
     fn set_parent_opt(&mut self, _child: NodeIndex, _parent: NodeIndex) {}
+    /// this implementation will never return reached_end==true, since there is no to-node
     fn reached_end(&self, _current_node: NodeIndex) -> bool {
         false
     }
+    /// returns a DisutilityToALlWithoutParents result.
     fn build_result(
         self,
         _current_disutility: Option<Disutility>,
-        _current_arrival_time: Option<Duration>,
+        _initial_departure_time: SimTime,
         disutilities: Vec<Disutility>,
     ) -> AStarCoreResult {
-        AStarCoreResult::DistanceToAllWithoutParents(disutilities)
+        AStarCoreResult::DisutilityToAllWithoutParents(disutilities)
     }
+    /// returns None, since there is no to-node
     fn get_to_node_opt(&self) -> Option<NodeIndex> {
         None
     }
-}
+    /// when called to track arrival times, this implementation does nothing
+    fn set_arrival_time_opt(&mut self, _node: NodeIndex, _time: SimTime) {}
 
-/// The A* use case "One to One with parent tracking", i.e., finding single shortest paths.
-/// That is, when called in `a_star_core` to determine whether the target was reached, will return
-/// true when the current node is the to-node.
-/// When called in the context of parent tracking, will update the parents.
-/// When called to build the A* result, will return the distance from the from-node to the to-node,
-/// together with the parents vector, which can be used to extract the path.
-#[derive(Clone, Debug)]
-pub(crate) struct One2OneWithParentsAStarActions {
-    to_node: NodeIndex,
-    parents: Vec<Option<NodeIndex>>,
-}
+    /// when called to track arrival times, this implementation does nothing
+    fn set_arrival_time_at_neighbour_opt(
+        &mut self,
+        _current_node: NodeIndex,
+        _neighbour_node: NodeIndex,
+        _link: &Link,
+        _person: Option<&InternalPerson>,
+        _vehicle: Option<&InternalVehicle>,
+    ) {
+    }
 
-impl One2OneWithParentsAStarActions {
-    pub fn new(to_node: NodeIndex, parents: Vec<Option<NodeIndex>>) -> Self {
-        Self { to_node, parents }
+    /// when called to track arrival times, this implementation does nothing
+    fn get_arrival_time_at_node_opt(&self, _node: NodeIndex) -> Option<SimTime> {
+        None
+    }
+
+    /// returns the minimum travel disutility of the given link
+    fn get_disutility_of_link(
+        &self,
+        link: &Link,
+        _start_node_of_link: NodeIndex,
+        _person: Option<&InternalPerson>,
+        _vehicle: Option<&InternalVehicle>,
+    ) -> Disutility {
+        self.travel_disutility.get_link_min_travel_disutility(link)
     }
 }
 
-impl AStarActions for One2OneWithParentsAStarActions {
+/// The A* use case "Routing". That is, A* searches from one node to exactly one other, i.e., stops
+/// early if the to-node was reached. It will also track parent nodes so that the path can be
+/// reconstructed, and it tracks arrival times at nodes on the way. Uses the actual travel
+/// disutility of links at the time that they are reached (this is what the arrival times are
+/// tracked for).
+#[derive(Clone, Debug)]
+pub(crate) struct RoutingAStarActions<'a> {
+    to_node: NodeIndex,
+    parents: Vec<Option<NodeIndex>>,
+    arrival_times: Vec<SimTime>,
+    travel_time: &'a dyn TravelTime,
+    travel_disutility: &'a dyn TravelDisutility,
+}
+
+impl<'a> RoutingAStarActions<'a> {
+    pub fn new(
+        to_node: NodeIndex,
+        travel_time: &'a dyn TravelTime,
+        travel_disutility: &'a dyn TravelDisutility,
+        number_of_nodes: usize,
+    ) -> Self {
+        Self {
+            to_node,
+            parents: vec![None; number_of_nodes],
+            arrival_times: vec![SimTime::max(); number_of_nodes],
+            travel_time,
+            travel_disutility,
+        }
+    }
+}
+
+impl AStarActions for RoutingAStarActions<'_> {
+    /// reached_end == true if the to-node was reached
     fn reached_end(&self, current_node: NodeIndex) -> bool {
         self.to_node == current_node
     }
+    /// stores parent nodes in a vector
     fn set_parent_opt(&mut self, child: NodeIndex, parent: NodeIndex) {
         self.parents[child] = Some(parent);
     }
 
-    // constructs a "single distance with parent tracking" result, containing the distance from the
-    // from-node to the to-node and the tracked parents.
-    // Consumes self, so parents can be moved without cloning
+    /// constructs a "single distance with parent tracking" result, containing the distance from the
+    /// from-node to the to-node and the tracked parents.
+    /// Consumes self, so parents can be moved without cloning
     fn build_result(
         self,
         current_disutility: Option<Disutility>,
-        current_travel_time: Option<Duration>,
+        initial_departure_time: SimTime,
         _disutilities: Vec<Disutility>,
     ) -> AStarCoreResult {
-        // note that current_disutility and current_travel_time is given as an option, since the
+        // note that current_disutility and initial_departure_time is given as an option, since the
         // trait also allows implementations of one2many, where only the disutilites vector is
         // needed, not current disutility and current time.
 
@@ -172,14 +257,92 @@ impl AStarActions for One2OneWithParentsAStarActions {
         // current_travel_time=None in the case where the entire queue has been visited and the
         // to_node has neither been found nor been determined to be unreachable, which only happens
         // in one2many (where no to-node exists)
-        AStarCoreResult::SingleDistWithParents(
+
+        // We always return the arrival time at the to-node, regardless of whether the algorithm
+        // reached it or not. Since if it didn't, the arrival time there will be SimTime::max(),
+        // which is reasonable to return.
+        // Note that it can be that the disutility to the to-node is infinity, but a finite time is
+        // returned as travel time. This case could occur if the to-node is connected to a visited
+        // node via a link with finite travel time but infinite travel disutility.
+
+        // unwrap is okay, since the method will always return Some() in this implementation
+        let current_arrival_time = self.get_arrival_time_at_node_opt(self.to_node).unwrap();
+
+        // subtract departure time to get the actual travel time
+        let current_travel_time = current_arrival_time
+            .as_duration()
+            .saturating_sub(initial_departure_time.as_duration());
+
+        AStarCoreResult::SingleDisutilWithParents(
             current_disutility.expect("A* use case 1to1 requires that current disutility is given"),
-            current_travel_time.expect("A* use case 1to1 requires that travel time is given"),
+            current_travel_time,
             self.parents,
         )
     }
+
+    /// returns the to-node
     fn get_to_node_opt(&self) -> Option<NodeIndex> {
         Some(self.to_node)
+    }
+
+    /// stores the arrival time in a vector
+    fn set_arrival_time_opt(&mut self, node: NodeIndex, time: SimTime) {
+        self.arrival_times[node] = time;
+    }
+
+    /// calculates the link travel time by calling the TravelTime function. Then sets the arrival
+    /// time of the given neighbour to the arrival time at the current node plus that travel time.
+    fn set_arrival_time_at_neighbour_opt(
+        &mut self,
+        current_node: NodeIndex, // needed to get arrival time at start node of the link
+        neighbour_node: NodeIndex,
+        link: &Link,
+        person: Option<&InternalPerson>,
+        vehicle: Option<&InternalVehicle>,
+    ) {
+        // unwrap is ok, since the method will always return Some() in this implementation
+        let time_at_link_start = self.get_arrival_time_at_node_opt(current_node).unwrap();
+
+        // let current_time_unwrapped = current_time.expect("Current time must be given in routing.");
+
+        // get travel time to neighbour node
+        let travel_time_to_neighbour =
+            self.travel_time
+                .travel_time(link, time_at_link_start, person, vehicle);
+
+        // arrival time at neighbour is current time + travel time to neighbour
+        self.set_arrival_time_opt(
+            neighbour_node,
+            time_at_link_start.saturating_add(travel_time_to_neighbour),
+        );
+    }
+
+    /// returns the arrival time at the given node
+    fn get_arrival_time_at_node_opt(&self, node: NodeIndex) -> Option<SimTime> {
+        Some(self.arrival_times[node])
+    }
+
+    /// returns the actual travel disutility of the given link, at the arrival time at the start
+    /// node of the link, optionally for given person and vehicle.
+    fn get_disutility_of_link(
+        &self,
+        link: &Link,
+        start_node_of_link: NodeIndex,
+        person: Option<&InternalPerson>,
+        vehicle: Option<&InternalVehicle>,
+    ) -> Disutility {
+        let arrival_time_at_start_of_link = self
+            .get_arrival_time_at_node_opt(start_node_of_link)
+            .expect(
+                "Start node of link must have been visited and therefore have an arrival time.",
+            );
+
+        self.travel_disutility.travel_disutility(
+            link,
+            arrival_time_at_start_of_link,
+            person,
+            vehicle,
+        )
     }
 }
 
@@ -187,7 +350,8 @@ impl AStarActions for One2OneWithParentsAStarActions {
 /// - data needed for calculation, that is the graph, the travel time and travel disutility
 ///     functions, the from-node, the departure time, the person and vehicle (if applicable)
 /// - a `AStarActions` implementation that determines the use case (parent tracking or not,
-///     one to many or not), which also contains the to-node when applicable
+///     one to many or not, arrival time tracking or not). The implementation also contains the
+///     travel disutility function, and the travel time function and the to-node when applicable.
 /// - the `HeuristicMode`: a heuristic to be used, or the information that none is to be used
 /// - a bool specifying whether the search is to be performed forwards or backwards. In the
 ///     latter case, paths using incoming edges, i.e., paths leading going to the from-node,
@@ -195,10 +359,10 @@ impl AStarActions for One2OneWithParentsAStarActions {
 #[derive(Builder, Debug)]
 pub(crate) struct AStarRequest<'a, H: AStarHeuristic, O: AStarActions> {
     heuristic_mode: HeuristicMode<'a, H>,
-    travel_time: &'a dyn TravelTime, // used to update the time when a certain node is reached
-    travel_disutility: &'a dyn TravelDisutility, // used as "distance" in A*, i.e., we find the shortest path wrt this
     from: NodeIndex,
     // Note: the to-node is stored in the options, when applicable, since it is only used in certain use cases (1to1)
+    // same for the TravelTime function. TravelDisutility is also stored in the options since the
+    // travel disutility is called via the options object.
     graph: &'a dyn IndexableGraph,
     options: O,
     #[builder(default)]
@@ -243,34 +407,32 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
 
     let from_node = request.from;
 
-    // TODO do we want the name "distances"? In our case, it is always a travel disutility, which would become clearer if we name it accordingly. On the other hand, distance is a common name for the values tracked in A*, even when they are not actual distances, so it is also fine to keep the name "distances".
+    // TODO verify that the name distances is no longer used
+
     // initialize queue: from_node gets disutility and priority 0, all others infinity
     let (mut queue, mut disutilities) = get_initial_queue(number_of_nodes, from_node);
 
-    // Initialize arrival_times to track when each node is reached
-    let mut arrival_times = vec![SimTime::max(); number_of_nodes];
-    arrival_times[from_node] = request.departure_time;
+    // The arrival times are initialized with SimTime::max() for all nodes, so the arrival time at
+    // the from-node must be set to the departure time manually.
+    request
+        .options
+        .set_arrival_time_opt(from_node, request.departure_time);
 
     // Not initializing parents here, since they are contained in the options
-    while let Some((current_id, _)) = queue.pop() {
-        // distance from "from"-node to the current_id node
-        let current_disutility = disutilities[current_id];
-        let current_arrival_time = arrival_times[current_id];
 
-        // checking "unusual" values of current_distance
+    while let Some((current_id, _)) = queue.pop() {
+        // disutility from "from"-node to the current_id node
+        let current_disutility = disutilities[current_id];
+
+        // checking "unusual" values of current_disutility
         match current_disutility {
             f64::INFINITY => {
                 //The smallest value in queue was unreachable. So abort here.
 
-                // we want to return the travel time (which is a duration), not the arrival time
-                let current_travel_time = current_arrival_time
-                    .as_duration()
-                    .saturating_sub(request.departure_time.as_duration());
-
                 // this chooses the correct result enum variant automatically
                 return Ok(request.options.build_result(
                     Some(current_disutility),
-                    Some(current_travel_time),
+                    request.departure_time,
                     disutilities,
                 ));
             }
@@ -284,14 +446,9 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                     treated as unreachable. Aborting A*."
                 );
 
-                // we want to return the travel time (which is a duration), not the arrival time
-                let current_travel_time = current_arrival_time
-                    .as_duration()
-                    .saturating_sub(request.departure_time.as_duration());
-
                 return Ok(request.options.build_result(
                     Some(nan_disutility),
-                    Some(current_travel_time),
+                    request.departure_time,
                     disutilities,
                 ));
             }
@@ -300,15 +457,10 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
 
         // check if the target node has been reached, if applicable, in that case return early
         if request.options.reached_end(current_id) == true {
-            // we want to return the travel time (which is a duration), not the arrival time
-            let current_travel_time = current_arrival_time
-                .as_duration()
-                .saturating_sub(request.departure_time.as_duration());
-
             // this chooses the correct result enum variant automatically
             return Ok(request.options.build_result(
                 Some(current_disutility),
-                Some(current_travel_time),
+                request.departure_time,
                 disutilities,
             ));
         }
@@ -321,9 +473,11 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
             request.graph.outgoing_edges_as_idx(current_id)
         };
 
+        // go through all neighbours of the current node. If the disutility to get there is smaller
+        // than what was previously found, set the disutility of the neighbour to the smaller value
+        // and update its priority in the queue. Also, if parent tracking is enabled, update the
+        // parent of the neighbour node to be the current node.
         for i in neighbour_edges {
-            //we need an update_or_insert + parent update here instead of push always.
-
             // When backward=true, incoming_edges return edges TO the current node,
             // so we need the start node to get the neighbours.
             // When backward=false, outgoing_edges return edges FROM the current node, so we
@@ -334,48 +488,52 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                 request.graph.get_end_node_as_idx(i)
             }?;
 
+            // This case should never occur, since all nodes should be part of the initial queue.
             if let Entry::Vacant(_) = queue.entry(neighbour) {
                 continue;
             }
 
             let link_i = request.graph.get_link_from_idx(i)?;
 
-            // Use the actual arrival time at the current node, not the departure time from the request
+            // Evaluates the link disutility at the actual arrival time at the current node, not
+            // the initial departure time.
+            // This is handled by the options object.
             let neighbour_disutility = current_disutility
-                + request.travel_disutility.travel_disutility(
+                + request.options.get_disutility_of_link(
                     link_i,
-                    current_arrival_time,
+                    current_id, // start_node_of_link
                     request.person,
                     request.vehicle,
                 );
 
             if disutilities[neighbour] > neighbour_disutility {
-                //perform update
+                // update disutility to neighbour node
                 disutilities[neighbour] = neighbour_disutility;
 
-                // Calculate arrival time at the neighbour node
-                let link_travel_time = request.travel_time.travel_time(
+                // tell options object to track the arrival time at the neighbour node
+                request.options.set_arrival_time_at_neighbour_opt(
+                    current_id,
+                    neighbour,
                     link_i,
-                    current_arrival_time,
                     request.person,
                     request.vehicle,
                 );
 
-                arrival_times[neighbour] = current_arrival_time.saturating_add(link_travel_time);
-
+                // update priority of the neighbour in the queue, which is the (now lower)
+                // disutility to get there plus the heuristic estimate to get to the target (if
+                // applicable)
                 match queue.entry(neighbour) {
                     Entry::Occupied(e) => {
                         // Compute heuristic estimate based on the heuristic mode
                         let heuristic_estimate = match &request.heuristic_mode {
                             HeuristicMode::WithHeuristic(h) => {
-                                // For One-to-One routing, use the provided heuristic
+                                // panic is okay here, since it is a programming error if
+                                // someone uses WithHeuristic but does not provide a to_node in
+                                // the options
                                 let to_node_idx = request.options.get_to_node_opt().expect(
                                     "Heuristic mode is WithHeuristic, but no to_node \
                                         provided in AStarOptions.",
                                 );
-                                // panic is okay here, since it is a programming error if
-                                // someone uses WithHeuristic but does not provide a to_node in
-                                // the options
 
                                 let to_node_id = request.graph.get_node_id_from_idx(to_node_idx)?;
 
@@ -387,7 +545,7 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                             }
                             HeuristicMode::WithoutHeuristic => {
                                 // In WithoutHeuristic-mode, set heuristic to 0.0. This is the
-                                // case in For One-to-Many (landmark calculation).
+                                // case in One-to-Many (landmark calculation).
                                 // This collapses A* to pure Dijkstra.
                                 // (We don't use the ZeroHeuristic.estimate function here, since
                                 // it would require unnecessary calls to the graph and in particular
@@ -410,13 +568,14 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
             }
         }
     }
-    // will panic if options are AltOptions, since then, a current_distance and
-    // current_arrival_time must be provided.
+    // will panic if options are AltOptions, since then, a current_disutility must be provided.
     // But this is okay, since we should not reach this point (all points in queue visited) in
     // this case: either, the to_node was reached and the function returned already, or the
-    // to_node is unreachable, in which case, at some point the smallest distance in the queue
+    // to_node is unreachable, in which case, at some point the smallest disutility in the queue
     // will be infinity or NaN and the function will also return.
-    return Ok(request.options.build_result(None, None, disutilities));
+    return Ok(request
+        .options
+        .build_result(None, request.departure_time, disutilities));
 }
 
 /// Initialize the priority queue and Disutilities vector for A* search. The from-node gets

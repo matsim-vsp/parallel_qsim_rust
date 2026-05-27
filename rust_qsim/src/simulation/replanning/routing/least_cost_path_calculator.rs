@@ -8,10 +8,6 @@ use derive_builder::Builder;
 use std::fmt::Debug;
 use std::time::Duration;
 
-// TODO: The comment below is outdated and can go, but:
-// should the "Time" used in routing stay f64, or do we use u64 like the SimTime, since it was
-// decided that that gives a good enough accuracy and max duration?
-// "normal" time representation is u32 for now, but we might want to use f64 for the future
 pub type Disutility = f64;
 
 /// Travel time function, mapping any network link to a travel time, depending on the departure time
@@ -41,7 +37,7 @@ pub trait TravelDisutility: Debug {
     /// and vehicles.
     /// This is used when calculating landmark data, to ensure that the ALT heuristic never
     /// overestimates the travel disutility between two nodes.
-    fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility; // TODO actually use this in landmark calculation
+    fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility;
 }
 
 /// An implementation of both `TravelTime` and `TravelDisutility`, purely based on freespeed travel
