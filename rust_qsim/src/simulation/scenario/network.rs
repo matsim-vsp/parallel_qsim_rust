@@ -408,8 +408,8 @@ impl Link {
         )
     }
 
-    pub fn contains_mode(&self, mode: u64) -> bool {
-        self.modes.iter().map(|m| m.internal()).contains(&mode)
+    pub fn contains_mode(&self, mode: Id<String>) -> bool {
+        self.modes.iter().contains(&mode)
     }
 }
 

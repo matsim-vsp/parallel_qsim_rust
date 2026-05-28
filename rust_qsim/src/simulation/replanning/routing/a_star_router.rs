@@ -337,16 +337,18 @@ mod tests {
     use crate::simulation::replanning::routing::least_cost_path_calculator::{
         LeastCostPath, LeastCostPathRequestBuilder,
     };
-    use crate::simulation::replanning::routing::network_converter::NetworkConverter;
+    use crate::simulation::replanning::routing::network_converter;
     use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::scenario::vehicles::InternalVehicleType;
     use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
     use crate::simulation::time::SimTime;
     use std::time::Duration;
 
+    use itertools::Itertools;
     use macros::integration_test;
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use std::sync::Arc;
 
     /// Runs an A* least cost path run based on the given input and compares to expected output.
     fn calc_route_and_check<H: AStarHeuristic>(
@@ -472,6 +474,7 @@ mod tests {
     /// different travel times on the same links, and thus different optimal paths.
     #[integration_test]
     fn test_mode_alt_routing() {
+        // TODO return to this test when the restructuring is done, to see if it still has a reasonable structure or if its maybe overengineered etc
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
             1,
@@ -491,17 +494,28 @@ mod tests {
         );
         garage.add_veh_by_type(&Id::create("car_person"), car_type_id);
 
-        let graph_by_vehicle_type =
-            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+        let graph_by_mode = network_converter::convert_network_with_modes(
+            Arc::new(network),
+            &garage
+                .vehicle_types
+                .iter()
+                .map(|(_vt_id, vt)| vt.net_mode.clone())
+                .unique()
+                .collect(),
+        );
 
-        let router_by_vehicle_type = graph_by_vehicle_type
+        // TODO it doesn't really make sense to be per vehicle type,we should have per mode
+        let router_by_vehicle_type = garage
+            .vehicle_types //graph_by_mode
             .iter()
-            .map(|(id, g)| {
+            .map(|(vt_id, vt)| {
+                let mode = vt.net_mode.clone();
+                let g = graph_by_mode.get(&mode).unwrap();
                 let landmark_data =
                     AltLandmarkData::from_graph(g, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
 
                 (
-                    id,
+                    vt_id.clone(),
                     AStarRouter::new(
                         // create new heuristic, based on the graph for the vehicle type.
                         AltHeuristic::new(landmark_data),
@@ -521,7 +535,9 @@ mod tests {
 
         calc_route_and_check(
             router_by_vehicle_type.get(bike_type_id).unwrap(),
-            graph_by_vehicle_type.get(bike_type_id).unwrap(),
+            graph_by_mode
+                .get(&garage.vehicle_types[&bike_type_id].net_mode.clone())
+                .unwrap(),
             "link0",
             "link4",
             garage.vehicles.get(&bike_vehicle_id),
@@ -538,7 +554,9 @@ mod tests {
 
         calc_route_and_check(
             router_by_vehicle_type.get(car_type_id).unwrap(),
-            graph_by_vehicle_type.get(car_type_id).unwrap(),
+            graph_by_mode
+                .get(&garage.vehicle_types[&car_type_id].net_mode.clone())
+                .unwrap(),
             "link0",
             "link4",
             garage.vehicles.get(&car_vehicle_id),
@@ -690,7 +708,7 @@ mod tests {
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
-        let graph = NetworkConverter::convert_network(&network, None);
+        let graph = network_converter::convert_network_for_mode(Arc::new(network), None);
 
         let router = AStarRouter::new(
             ZeroHeuristic,

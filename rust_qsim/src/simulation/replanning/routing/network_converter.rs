@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-
 use itertools::Itertools;
 use nohash_hasher::IntMap;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::info;
 
 use crate::simulation::id::Id;
@@ -9,170 +9,159 @@ use crate::simulation::replanning::routing::graph::{
     CsrGraph, ForwardBackwardRoutingGraph, LinkIndex, NodeIndex,
 };
 use crate::simulation::scenario::network::{Link, Network};
-use crate::simulation::scenario::vehicles::InternalVehicleType;
-
-pub struct NetworkConverter {} // Todo remove struct, should just be a module
 
 #[allow(dead_code)]
-impl NetworkConverter {
-    // #[deprecated] // FIXME this should be deprecated, commented out temporarily for github build
-    pub fn convert_network_with_vehicle_types<'net>(
-        network: &'net Network,
-        vehicle_types: &IntMap<Id<InternalVehicleType>, InternalVehicleType>,
-    ) -> IntMap<Id<InternalVehicleType>, ForwardBackwardRoutingGraph<'net>> {
-        vehicle_types
-            .iter()
-            .map(|(id, vt)| (id.clone(), Self::convert_network(network, Some(vt))))
-            .collect()
-    }
 
-    // todo delete
-    pub fn filter_network(_mode: &str, _network: &Network) -> Network {
-        unimplemented!()
-    }
+pub fn convert_network_with_modes(
+    network: Arc<Network>,
+    modes: &Vec<Id<String>>,
+) -> IntMap<Id<String>, ForwardBackwardRoutingGraph> {
+    modes
+        .iter()
+        .map(|mode| {
+            (
+                mode.clone(),
+                convert_network_for_mode(network.clone(), Some(mode.clone())),
+            )
+        })
+        .collect()
+}
 
-    pub fn convert_network_for_mode<'net>(
-        _network: &'net Network,
-        _mode: &str, // todo make id<String>
-    ) -> ForwardBackwardRoutingGraph<'net> {
-        unimplemented!()
-    }
+pub(crate) fn convert_network_for_mode(
+    network: Arc<Network>,
+    mode: Option<Id<String>>,
+) -> ForwardBackwardRoutingGraph {
+    info!(
+        "Converting network to forward backward graph for mode {:?}.",
+        mode
+    );
 
-    // #[deprecated(note = "Use the convert_network_for_mode function instead.")]  FIXME: should be deprecated, commented out temporarily for github build
-    pub(crate) fn convert_network<'net>(
-        network: &'net Network,
-        vehicle_type: Option<&InternalVehicleType>, // todo make Option<Id<String>> for mode, then all others are no longer needed
-    ) -> ForwardBackwardRoutingGraph<'net> {
-        info!(
-            "Converting network to forward backward graph for mode {:?}.",
-            vehicle_type
-        );
+    let mut node_index_by_id = IntMap::default();
+    let mut node_id_by_index = Vec::new();
 
-        let mut node_index_by_id = IntMap::default();
-        let mut node_id_by_index = Vec::new();
+    let mut forward_first_out = Vec::new();
+    let mut forward_head = Vec::new();
+    let mut forward_link_id_by_index = Vec::new();
 
-        let mut forward_first_out = Vec::new();
-        let mut forward_head = Vec::new();
-        let mut forward_link_id_by_index = Vec::new();
+    let mut backward_first_out = Vec::new();
+    let mut backward_head = Vec::new();
+    let mut backward_link_id_by_index = Vec::new();
 
-        let mut backward_first_out = Vec::new();
-        let mut backward_head = Vec::new();
-        let mut backward_link_id_by_index = Vec::new();
+    let nodes = network.get_all_nodes_sorted();
+    let node_indices = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, node)| (&node.id, i))
+        .collect::<HashMap<_, _>>();
 
-        let nodes = network.get_all_nodes_sorted();
-        let node_indices = nodes
-            .iter()
-            .enumerate()
-            .map(|(i, node)| (&node.id, i))
-            .collect::<HashMap<_, _>>();
+    let mut forward_links_before = 0;
+    let mut backward_links_before = 0;
 
-        let mut forward_links_before = 0;
-        let mut backward_links_before = 0;
+    for (i, node) in nodes.iter().enumerate() {
+        forward_first_out.push(forward_links_before as LinkIndex);
+        backward_first_out.push(backward_links_before as LinkIndex);
 
-        for (i, node) in nodes.iter().enumerate() {
-            forward_first_out.push(forward_links_before as LinkIndex);
-            backward_first_out.push(backward_links_before as LinkIndex);
+        // keep track of which node id has which index in first_out
+        node_index_by_id.insert(node.id.clone(), i as NodeIndex);
+        node_id_by_index.push(node.id.clone());
 
-            // keep track of which node id has which index in first_out
-            node_index_by_id.insert(node.id.clone(), i as NodeIndex);
-            node_id_by_index.push(node.id.clone());
+        //calculate adjacent links
+        let outgoing_links = get_links(&node.out_links, &network, mode.clone());
+        forward_links_before += outgoing_links.len();
 
-            //calculate adjacent links
-            let outgoing_links = Self::get_links(&node.out_links, network, vehicle_type);
-            forward_links_before += outgoing_links.len();
+        let ingoing_links = get_links(&node.in_links, &network, mode.clone());
+        backward_links_before += ingoing_links.len();
 
-            let ingoing_links = Self::get_links(&node.in_links, network, vehicle_type);
-            backward_links_before += ingoing_links.len();
+        //process outgoing links
+        for link in outgoing_links {
+            let to_node_index = *node_indices.get(&link.to).unwrap() as NodeIndex;
 
-            //process outgoing links
-            for link in outgoing_links {
-                let to_node_index = *node_indices.get(&link.to).unwrap() as NodeIndex;
+            forward_head.push(to_node_index);
 
-                forward_head.push(to_node_index);
-
-                forward_link_id_by_index.push(link.id.clone());
-            }
-
-            //process ingoing links
-            for link in ingoing_links {
-                //Watch out: This is in the backward graph
-                let to_node_index = *node_indices.get(&link.from).unwrap() as NodeIndex;
-
-                backward_head.push(to_node_index);
-
-                backward_link_id_by_index.push(link.id.clone());
-            }
+            forward_link_id_by_index.push(link.id.clone());
         }
-        forward_first_out.push(forward_head.len() as LinkIndex);
-        backward_first_out.push(backward_head.len() as LinkIndex);
 
-        let forward_link_index_by_id = forward_link_id_by_index
-            .iter()
-            .enumerate()
-            .map(|(i, id)| (id.clone(), i as LinkIndex))
-            .collect::<IntMap<Id<Link>, LinkIndex>>();
-        let backward_link_index_by_id = backward_link_id_by_index
-            .iter()
-            .enumerate()
-            .map(|(i, id)| (id.clone(), i as LinkIndex))
-            .collect::<IntMap<Id<Link>, LinkIndex>>();
+        //process ingoing links
+        for link in ingoing_links {
+            //Watch out: This is in the backward graph
+            let to_node_index = *node_indices.get(&link.from).unwrap() as NodeIndex;
 
-        let forward_graph = CsrGraph::new(forward_first_out, forward_head);
-        let backward_graph = CsrGraph::new(backward_first_out, backward_head);
+            backward_head.push(to_node_index);
 
-        info!(
-            "Finished converting network to forward backward graph for mode {:?}.",
-            vehicle_type
-        );
-
-        ForwardBackwardRoutingGraph::new(
-            forward_graph,
-            backward_graph,
-            network.nodes_with_ids(), // node_id_to_node
-            network.links_with_ids(), // link_id_to_link
-            node_index_by_id,
-            node_id_by_index,
-            forward_link_id_by_index,
-            backward_link_id_by_index,
-            forward_link_index_by_id,
-            backward_link_index_by_id,
-        )
+            backward_link_id_by_index.push(link.id.clone());
+        }
     }
+    forward_first_out.push(forward_head.len() as LinkIndex);
+    backward_first_out.push(backward_head.len() as LinkIndex);
 
-    fn get_links<'net>(
-        link_ids: &[Id<Link>],
-        network: &'net Network,
-        vehicle_type: Option<&InternalVehicleType>,
-    ) -> Vec<&'net Link> {
-        link_ids
-            .iter()
-            .sorted_by_key(|&l| l.internal())
-            .map(|l| network.get_link(l))
-            .filter(|&l| {
-                if let Some(vt) = vehicle_type {
-                    l.contains_mode(vt.net_mode.internal())
-                } else {
-                    true
-                }
-            })
-            .collect::<Vec<&Link>>()
-    }
+    let forward_link_index_by_id = forward_link_id_by_index
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.clone(), i as LinkIndex))
+        .collect::<IntMap<Id<Link>, LinkIndex>>();
+    let backward_link_index_by_id = backward_link_id_by_index
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (id.clone(), i as LinkIndex))
+        .collect::<IntMap<Id<Link>, LinkIndex>>();
+
+    let forward_graph = CsrGraph::new(forward_first_out, forward_head);
+    let backward_graph = CsrGraph::new(backward_first_out, backward_head);
+
+    info!(
+        "Finished converting network to forward backward graph for mode {:?}.",
+        mode
+    );
+
+    ForwardBackwardRoutingGraph::new(
+        forward_graph,
+        backward_graph,
+        Arc::new(network.nodes_with_ids().clone()), // node_id_to_node
+        Arc::new(network.links_with_ids().clone()), // link_id_to_link
+        node_index_by_id,
+        node_id_by_index,
+        forward_link_id_by_index,
+        backward_link_id_by_index,
+        forward_link_index_by_id,
+        backward_link_index_by_id,
+    )
+}
+
+fn get_links<'net>(
+    link_ids: &'net [Id<Link>],
+    network: &'net Network,
+    mode: Option<Id<String>>,
+) -> Vec<&'net Link> {
+    link_ids
+        .iter()
+        .sorted_by_key(|&l| l.internal())
+        .map(|l| network.get_link(l))
+        .filter(|&l| {
+            if let Some(m) = mode.clone() {
+                // if a mode was given, only include links that allow this mode
+                l.contains_mode(m)
+            } else {
+                // if no mode was given, include all links
+                true
+            }
+        })
+        .collect::<Vec<&Link>>()
 }
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
-
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::graph::tests::{
         get_triangle_test_graph, get_triangle_test_network,
     };
-    use crate::simulation::replanning::routing::network_converter::NetworkConverter;
+    use crate::simulation::replanning::routing::network_converter;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::vehicles::InternalVehicleType;
     use crate::test_utils::create_vehicle_type;
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
     #[test]
     fn test_simple_network() {
@@ -181,7 +170,7 @@ mod test {
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
-        let graph = NetworkConverter::convert_network(&network, None);
+        let graph = network_converter::convert_network_for_mode(Arc::new(network), None);
 
         assert_eq!(graph.forward_first_out(), &vec![0usize, 0, 2, 4, 6]);
         assert_eq!(graph.forward_head(), &vec![2usize, 3, 2, 3, 1, 2]);
@@ -193,6 +182,8 @@ mod test {
         // we don't check y and y so far
     }
 
+    /// test whether the network converter correctly creates separate graphs for different modes,
+    /// and only includes links that allow the respective mode in each graph
     #[test]
     fn test_simple_network_with_modes() {
         let network = Network::from_file(
@@ -201,36 +192,26 @@ mod test {
             &PartitionMethod::Metis(MetisOptions::default()),
         );
 
-        let mut garage = Garage::new();
+        let car_mode_id = Id::<String>::get_from_ext("car");
+        let bike_mode_id = Id::<String>::get_from_ext("bike");
 
-        let car_type_id = Id::<InternalVehicleType>::create("car");
-        let car_id = Id::<String>::get_from_ext("car");
-        let mut car_veh_type = create_vehicle_type(&car_type_id, car_id);
-        car_veh_type.max_v = 5.;
-        garage.add_veh_type(car_veh_type);
-
-        let bike_type_id = Id::<InternalVehicleType>::create("bike");
-        let bike_id = Id::<String>::get_from_ext("bike");
-        let mut bike_veh_type = create_vehicle_type(&bike_type_id, bike_id);
-        bike_veh_type.max_v = 2.;
-        garage.add_veh_type(bike_veh_type);
-
-        let mut graph_by_mode =
-            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+        // create graphs based on the given network based on the given nodes
+        let mut graph_by_mode = network_converter::convert_network_with_modes(
+            Arc::new(network),
+            &vec![car_mode_id.clone(), bike_mode_id.clone()],
+        );
 
         assert_eq!(graph_by_mode.keys().len(), 2);
 
-        let car_network = graph_by_mode.remove(&car_type_id).unwrap();
-        assert_eq!(car_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
-        assert_eq!(car_network.forward_head(), &vec![3, 2, 1, 2]);
-        // assert_eq!(car_network.forward_travel_time(), &vec![2, 2, 5, 5]);
-        assert_eq!(car_network.forward_link_ids().len(), 4);
+        let car_graph = graph_by_mode.remove(&car_mode_id.clone()).unwrap();
+        assert_eq!(car_graph.forward_first_out(), &vec![0, 0, 1, 3, 4]);
+        assert_eq!(car_graph.forward_head(), &vec![3, 2, 1, 2]);
+        assert_eq!(car_graph.forward_link_ids().len(), 4);
 
-        let bike_network = graph_by_mode.remove(&bike_type_id).unwrap();
-        assert_eq!(bike_network.forward_first_out(), &vec![0, 0, 1, 3, 4]);
-        assert_eq!(bike_network.forward_head(), &vec![2, 2, 3, 1]);
-        // assert_eq!(bike_network.forward_travel_time(), &vec![5, 5, 5, 5]);
-        assert_eq!(bike_network.forward_link_ids().len(), 4);
+        let bike_graph = graph_by_mode.remove(&bike_mode_id.clone()).unwrap();
+        assert_eq!(bike_graph.forward_first_out(), &vec![0, 0, 1, 3, 4]);
+        assert_eq!(bike_graph.forward_head(), &vec![2, 2, 3, 1]);
+        assert_eq!(bike_graph.forward_link_ids().len(), 4);
     }
 
     /// Test that all links exist in both forward and backward directions
@@ -271,14 +252,20 @@ mod test {
             "./assets/adhoc_routing/no_updates/vehicles.xml",
         ));
 
-        let vehicle_type2graph =
-            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+        let vehicle_type2graph = network_converter::convert_network_with_modes(
+            Arc::new(network),
+            &garage
+                .vehicle_types
+                .iter()
+                .map(|(_vt_id, vt)| vt.net_mode.clone())
+                .collect(),
+        );
 
         // No link allows mode "walk". So the graph is expected to be empty.
         let walk_id = &Id::<InternalVehicleType>::get_from_ext("walk");
         assert!(
             vehicle_type2graph
-                .get(walk_id)
+                .get(&garage.vehicle_types[walk_id].net_mode)
                 .unwrap()
                 .forward_link_ids()
                 .is_empty()
@@ -312,8 +299,14 @@ mod test {
             "./assets/mode_dependent_routing/vehicle_definitions.xml",
         ));
 
-        let vehicle_type2graph =
-            NetworkConverter::convert_network_with_vehicle_types(&network, &garage.vehicle_types);
+        let vehicle_type2graph = network_converter::convert_network_with_modes(
+            Arc::new(network),
+            &garage
+                .vehicle_types
+                .iter()
+                .map(|(_vt_id, vt)| vt.net_mode.clone())
+                .collect(),
+        );
 
         assert_eq!(vehicle_type2graph.keys().len(), 2);
 

@@ -3,6 +3,7 @@ use crate::simulation::scenario::network::{Link, Node};
 use nohash_hasher::IntMap;
 use std::fmt;
 use std::fmt::{Debug, Display};
+use std::sync::Arc;
 
 /// A (directed) graph whose nodes are Ids of network nodes, and edges are Ids of network links.
 /// The graph is used for routing, and the nodes and links can be accessed by their id.
@@ -129,25 +130,25 @@ impl std::error::Error for GraphError {}
 /// Also contains maps and vectors to map between indices, (node/link) ids and actual nodes and
 /// links. And contains coordinate data, currently not used in routing.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct ForwardBackwardRoutingGraph<'net> {
+pub(crate) struct ForwardBackwardRoutingGraph {
     forward_graph: CsrGraph,
     backward_graph: CsrGraph,
-    node_by_node_id: &'net IntMap<Id<Node>, Node>, // maps node ids to actual network nodes
-    link_by_link_id: &'net IntMap<Id<Link>, Link>, // maps link ids to actual network links
+    node_by_node_id: Arc<IntMap<Id<Node>, Node>>, // maps node ids to actual network nodes
+    link_by_link_id: Arc<IntMap<Id<Link>, Link>>, // maps link ids to actual network links
     node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to node indices
-    node_id_by_index: Vec<Id<Node>>,               // maps (Node)Indices to node ids
+    node_id_by_index: Vec<Id<Node>>,              // maps (Node)Indices to node ids
     forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
     backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
     forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
     backward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the backward graph
 }
 
-impl<'net> ForwardBackwardRoutingGraph<'net> {
+impl ForwardBackwardRoutingGraph {
     pub fn new(
         forward_graph: CsrGraph,
         backward_graph: CsrGraph,
-        node_by_node_id: &'net IntMap<Id<Node>, Node>,
-        link_by_link_id: &'net IntMap<Id<Link>, Link>,
+        node_by_node_id: Arc<IntMap<Id<Node>, Node>>,
+        link_by_link_id: Arc<IntMap<Id<Link>, Link>>,
         node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to indices (in first_out, x, y etc.)
         node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to node ids
         forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
@@ -250,7 +251,7 @@ impl<'net> ForwardBackwardRoutingGraph<'net> {
     }
 }
 
-impl Graph for ForwardBackwardRoutingGraph<'_> {
+impl Graph for ForwardBackwardRoutingGraph {
     fn node(&self, id: Id<Node>) -> Result<&Node, GraphError> {
         self.node_by_node_id
             .get(&id)
@@ -308,7 +309,7 @@ impl Graph for ForwardBackwardRoutingGraph<'_> {
     }
 }
 
-impl IndexableGraph for ForwardBackwardRoutingGraph<'_> {
+impl IndexableGraph for ForwardBackwardRoutingGraph {
     fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
         self.forward_head()
             .get(edge)
@@ -377,10 +378,11 @@ pub(crate) mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::graph::{CsrGraph, ForwardBackwardRoutingGraph};
     use crate::simulation::replanning::routing::graph::{Graph, GraphError, IndexableGraph};
-    use crate::simulation::replanning::routing::network_converter::NetworkConverter;
+    use crate::simulation::replanning::routing::network_converter;
     use crate::simulation::scenario::network::{Network, Node};
     use macros::integration_test;
     use nohash_hasher::IntMap;
+    use std::sync::Arc;
 
     pub fn get_triangle_test_network() -> Network {
         Network::from_file(
@@ -389,10 +391,10 @@ pub(crate) mod tests {
             &PartitionMethod::Metis(MetisOptions::default()),
         )
     }
-    pub fn get_triangle_test_graph<'net>(
-        network: &'net Network,
-    ) -> ForwardBackwardRoutingGraph<'net> {
-        NetworkConverter::convert_network(network, None)
+    // TODO think about whether the convert_network fn should actually take an arc,
+    // or if its only the function to create a Router that should (maybe that's not possible without clone?)
+    pub fn get_triangle_test_graph(network: &Network) -> ForwardBackwardRoutingGraph {
+        network_converter::convert_network_for_mode(Arc::new(network.clone()), None)
     }
 
     #[integration_test]
@@ -401,9 +403,9 @@ pub(crate) mod tests {
         ForwardBackwardRoutingGraph::new(
             CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
             CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4]),
-            &IntMap::default(), // node_by_node_id
-            &IntMap::default(), // link_by_link_id
-            IntMap::default(),  // node_index_by_id
+            Arc::new(IntMap::default()), // node_by_node_id
+            Arc::new(IntMap::default()), // link_by_link_id
+            IntMap::default(),           // node_index_by_id
             vec![Id::create("0"), Id::create("1"), Id::create("2")],
             vec![],
             vec![],
@@ -417,9 +419,9 @@ pub(crate) mod tests {
         ForwardBackwardRoutingGraph::new(
             CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
             CsrGraph::new(vec![42, 43, 44], vec![8, 10, 12, 13, 14, 15]),
-            &IntMap::default(), // node_by_node_id
-            &IntMap::default(), // link_by_link_id
-            IntMap::default(),  // node_index_by_id
+            Arc::new(IntMap::default()), // node_by_node_id
+            Arc::new(IntMap::default()), // link_by_link_id
+            IntMap::default(),           // node_index_by_id
             vec![Id::create("0"), Id::create("1"), Id::create("2")],
             vec![],
             vec![],
