@@ -3,7 +3,7 @@ use crate::simulation::replanning::routing::a_star_core::{
     AStarCoreResult, AStarRequestBuilder, HeuristicMode, RoutingAStarActions, a_star_core,
 };
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
-use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
+use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, LinkIndex};
 use crate::simulation::replanning::routing::least_cost_path_calculator::{
     Disutility, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, TravelDisutility,
     TravelTime,
@@ -171,28 +171,7 @@ impl<H: AStarHeuristic> AStarRouter<H> {
             .collect()
     }
 
-    /// Given a to-node and a vector of parents, extracts the path to the to-node by recursing
-    /// through the list of parents.
-    /// Stops when a node with no parent is found, which should be the from-node. But this is not
-    /// verified here, since this function doesn't know the from-node.
-    /// However, the below function extract_link_path, which calls this function, does verify that
-    /// the found path is correct.
-    fn extract_node_path(to: NodeIndex, parents: Vec<Option<NodeIndex>>) -> Vec<NodeIndex> {
-        let mut node_path = Vec::new();
-        let mut current = to;
-
-        node_path.push(to);
-        while let Some(father) = parents[current] {
-            // while a parent node exists
-            node_path.push(father); // add it to the path
-            current = father; // and continue with that node, i.e., look for its parent next
-        }
-
-        node_path.reverse();
-        node_path
-    }
-
-    /// Given a to-link, a vector parents and the graph, extracts the path of links to the to-link.
+    /// Given a to-link and a vector of parent links, extracts the path of links to the to-link.
     /// Uses the above extract_node_path to get the path of nodes, and then looks up the
     /// corresponding links in the graph.
     /// Calls the below `verify_path` to check correctness of the found path. Because of this, a
@@ -201,33 +180,22 @@ impl<H: AStarHeuristic> AStarRouter<H> {
         &self,
         to_link: Id<Link>,
         from_link: Id<Link>,
-        parents: Vec<Option<NodeIndex>>,
+        parent_links: Vec<Option<LinkIndex>>,
     ) -> Result<Option<Vec<Id<Link>>>, GraphError> {
         // convert given "to" link id to node id, by looking for the start node of the link
         let to_node_id = self.graph.get_start_node(to_link.clone())?;
         let to_node_idx = self.graph.get_node_idx_from_id(to_node_id);
 
-        // get node path
-        let node_path = Self::extract_node_path(to_node_idx, parents);
-
         let mut link_path = Vec::new();
+        let mut current_node = to_node_idx;
 
-        // look for link connecting node i and node i+1
-        for i in 0..node_path.len() - 1 {
-            let start_node = node_path[i];
-            let end_node = node_path[i + 1];
-
-            // go through outgoing edges of the start node, and find the one that has the end node
-            // as head
-            for j in self.graph.outgoing_edges_as_idx(start_node) {
-                if self.graph.get_end_node_as_idx(j)? == end_node {
-                    // a link connecting the start node and the end node was found, now get the
-                    // actual Id<Link> of the link
-                    link_path.push(self.graph.get_link_id_from_idx(j)?);
-                    break;
-                }
-            }
+        while let Some(parent_link) = parent_links[current_node] {
+            // while a parent link exists, add the link id to the link path
+            link_path.push(self.graph.get_link_id_from_idx(parent_link)?);
+            // and set the start node of that link as current node
+            current_node = self.graph.get_start_node_as_idx(parent_link)?;
         }
+        link_path.reverse();
 
         // verify the found path: if incorrect, return None instead of a path
         if !self.verify_path(&link_path, from_link, to_link)? {
@@ -313,11 +281,11 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
         };
 
         // call a_star_core with the request, and extract the distance to the goal and the
-        // parents vector from the result
-        let (optimal_disutility, associated_travel_time, parents) =
+        // parent links vector from the result
+        let (optimal_disutility, associated_travel_time, parent_links) =
             match a_star_core(a_star_request) {
                 // Standard case: A* returned a valid result.
-                Ok(AStarCoreResult::SingleDisutilWithParents(distance, time, parents)) => {
+                Ok(AStarCoreResult::SingleDisutilWithParents(distance, time, parent_links)) => {
                     // if the returned distance to the target is infinity or NaN, it is unreachable, so
                     // we return None
                     if distance == f64::INFINITY || distance.is_nan() {
@@ -328,7 +296,7 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
                         return None;
                     }
                     // else, we take the found shortest "distance" as the optimal disutility
-                    (distance, time, parents)
+                    (distance, time, parent_links)
                 }
                 // Unsuccesful case: Some error occurred in A*, e.g., a given link or node was not
                 // found, so we cannot calculate a path. Return None
@@ -337,15 +305,15 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
                     return None;
                 }
                 // Unrecoverable error: A* returned the wrong result type. This should not happen,
-                // since we use the A* use case OneToOneWithParents, which always builds results
+                // since we use the A* use case RoutingAStarActions, which always builds results
                 // of type SingleDistWithParents.
                 _ => panic!(
-                    "A* with One2OneWithParentsAStarActions should return \
+                    "A* with RoutingAStarActions should return \
                 SingleDistWithParents result"
                 ),
             };
 
-        let link_path = match self.extract_link_path(request.to, request.from, parents) {
+        let link_path = match self.extract_link_path(request.to, request.from, parent_links) {
             Ok(Some(link_path)) => link_path, // all good, path was found
             Ok(None) => {
                 // verification negative: incorrect path was found

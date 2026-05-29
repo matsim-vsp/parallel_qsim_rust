@@ -1,5 +1,7 @@
 use crate::simulation::replanning::routing::a_star_router::{AStarHeuristic, ZeroHeuristic};
-use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
+use crate::simulation::replanning::routing::graph::{
+    GraphError, IndexableGraph, LinkIndex, NodeIndex,
+};
 use crate::simulation::replanning::routing::least_cost_path_calculator::LeastCostPathRequest;
 use crate::simulation::replanning::routing::least_cost_path_calculator::TravelDisutility;
 use crate::simulation::replanning::routing::least_cost_path_calculator::{Disutility, TravelTime};
@@ -67,14 +69,16 @@ impl NodePriority {
     }
 }
 
-/// Result of an A* run. Has two versions for different use cases (One2Many w/o parent tracking
-/// and One2One with parent tracking)
+/// Result of an A* run. Has two versions for different use cases (Landmarks: One2Many w/o parent
+/// tracking, and Routing: One2One with parent tracking. A "parent link" refers to the link on which
+/// the algorithm arrived at a given node)
 pub(crate) enum AStarCoreResult {
     /// Distance (=travel disutility) from one node to all other nodes in the graph
     DisutilityToAllWithoutParents(Vec<Disutility>),
     /// Shortest distance (=travel disutility) from one node to another, with the associated travel
-    /// time and generated list of parents
-    SingleDisutilWithParents(Disutility, Duration, Vec<Option<NodeIndex>>),
+    /// time and generated list of parent links (the link from which the algorithm arrived at the
+    /// node)
+    SingleDisutilWithParents(Disutility, Duration, Vec<Option<LinkIndex>>),
 }
 
 /// Implementations of this trait represent different use cases of `a_star_core`.
@@ -82,7 +86,7 @@ pub(crate) enum AStarCoreResult {
 /// tracked or not and whether arrival times at nodes are tracked or not.
 /// Specifically, the implementations decide:
 /// - at every current node in the algorithm, whether it should stop, since it reached its goal
-/// - upon reaching a node, whether its parent node should be tracked
+/// - upon reaching a node, whether its parent link should be tracked
 /// - when scanning neighbours of the current node, whether to track the arrival time at the
 ///     neighbour nodes.
 /// - when the algorithm returns, what form the result should have (e.g. with or without parents)
@@ -90,8 +94,9 @@ pub(crate) trait AStarActions: Clone + Debug {
     /// Called by `a_star_core` at every visited node, the alg will return if it receives `true`
     fn reached_end(&self, current_node: NodeIndex) -> bool;
     /// Called by `a_star_core` when a node is reached, the implementation decides whether to store
-    /// the information about the parent node, and if yes, how
-    fn set_parent_opt(&mut self, child: NodeIndex, parent: NodeIndex);
+    /// the information about the parent link (the link from which the algorithm arrived at the
+    /// node), and if yes, how
+    fn set_parent_link_opt(&mut self, child: NodeIndex, parent_link: LinkIndex);
     /// Creates a A* result, the trait implementation chooses the result enum variant.
     /// Consumes self to allow moving values without cloning.
     /// This is okay, since the method is called when A* finishes.
@@ -150,7 +155,7 @@ impl<'a> LandmarkCalcAStarActions<'a> {
 
 impl AStarActions for LandmarkCalcAStarActions<'_> {
     /// when called to track parents, this implementation does nothing
-    fn set_parent_opt(&mut self, _child: NodeIndex, _parent: NodeIndex) {}
+    fn set_parent_link_opt(&mut self, _child: NodeIndex, _parent_link: LinkIndex) {}
     /// this implementation will never return reached_end==true, since there is no to-node
     fn reached_end(&self, _current_node: NodeIndex) -> bool {
         false
@@ -200,14 +205,14 @@ impl AStarActions for LandmarkCalcAStarActions<'_> {
 }
 
 /// The A* use case "Routing". That is, A* searches from one node to exactly one other, i.e., stops
-/// early if the to-node was reached. It will also track parent nodes so that the path can be
-/// reconstructed, and it tracks arrival times at nodes on the way. Uses the actual travel
-/// disutility of links at the time that they are reached (this is what the arrival times are
-/// tracked for).
+/// early if the to-node was reached. It will also track parent links (links from which the algorithm
+/// arrived at nodes) so that the path can be reconstructed, and it tracks arrival times at nodes
+/// on the way. Uses the actual travel disutility of links at the time that they are reached (this
+/// is what the arrival times are tracked for).
 #[derive(Clone, Debug)]
 pub(crate) struct RoutingAStarActions<'a> {
     to_node: NodeIndex,
-    parents: Vec<Option<NodeIndex>>,
+    parent_links: Vec<Option<LinkIndex>>,
     arrival_times: Vec<SimTime>,
     travel_time: &'a dyn TravelTime,
     travel_disutility: &'a dyn TravelDisutility,
@@ -222,7 +227,7 @@ impl<'a> RoutingAStarActions<'a> {
     ) -> Self {
         Self {
             to_node,
-            parents: vec![None; number_of_nodes],
+            parent_links: vec![None; number_of_nodes],
             arrival_times: vec![SimTime::max(); number_of_nodes],
             travel_time,
             travel_disutility,
@@ -235,13 +240,13 @@ impl AStarActions for RoutingAStarActions<'_> {
     fn reached_end(&self, current_node: NodeIndex) -> bool {
         self.to_node == current_node
     }
-    /// stores parent nodes in a vector
-    fn set_parent_opt(&mut self, child: NodeIndex, parent: NodeIndex) {
-        self.parents[child] = Some(parent);
+    /// stores parent links in a vector
+    fn set_parent_link_opt(&mut self, child: NodeIndex, parent_link: LinkIndex) {
+        self.parent_links[child] = Some(parent_link);
     }
 
     /// constructs a "single distance with parent tracking" result, containing the distance from the
-    /// from-node to the to-node and the tracked parents.
+    /// from-node to the to-node and the tracked parent links.
     /// Consumes self, so parents can be moved without cloning
     fn build_result(
         self,
@@ -276,7 +281,7 @@ impl AStarActions for RoutingAStarActions<'_> {
         AStarCoreResult::SingleDisutilWithParents(
             current_disutility.expect("A* use case 1to1 requires that current disutility is given"),
             current_travel_time,
-            self.parents,
+            self.parent_links,
         )
     }
 
@@ -400,7 +405,7 @@ impl<'a, H: AStarHeuristic, O: AStarActions> AStarRequestBuilder<'a, H, O> {
 /// Core A* logic.
 /// Can be used for different use cases, currently:
 /// - Routing: calculate the least cost path from one node to another, tracking
-///     parent nodes and arrival times at all nodes, using the true travel disutility per link at
+///     parent links and arrival times at all nodes, using the true travel disutility per link at
 ///     the actual arrival time at the link
 /// - Landmark calculation: calculate disutilites from one to all other nodes, based on the
 ///     minimum travel disutility for each link (independent of time, vehicle, ...). Used for
@@ -482,7 +487,7 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
         // go through all neighbours of the current node. If the disutility to get there is smaller
         // than what was previously found, set the disutility of the neighbour to the smaller value
         // and update its priority in the queue. Also, if parent tracking is enabled, update the
-        // parent of the neighbour node to be the current node.
+        // parent link of the neighbour node to be the current link.
         for i in neighbour_edges {
             // When backward=true, incoming_edges return edges TO the current node,
             // so we need the start node to get the neighbours.
@@ -568,8 +573,8 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                         unreachable!()
                     }
                 }
-                // update parents if applicable
-                request.options.set_parent_opt(neighbour, current_id);
+                // update parent link if applicable
+                request.options.set_parent_link_opt(neighbour, i)
             }
         }
     }
