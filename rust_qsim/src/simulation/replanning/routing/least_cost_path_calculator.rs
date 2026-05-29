@@ -1,5 +1,4 @@
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::graph::IndexableGraph;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -20,6 +19,10 @@ pub trait TravelTime: Debug {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Duration;
+
+    /// helper function, returns a box of self.clone. This allows to implement Clone for
+    /// Box<dyn TravelTime>.
+    fn box_clone(&self) -> Box<dyn TravelTime>;
 }
 
 /// Travel disutility function, mapping any network link to a travel disutility, depending on the
@@ -38,6 +41,22 @@ pub trait TravelDisutility: Debug {
     /// This is used when calculating landmark data, to ensure that the ALT heuristic never
     /// overestimates the travel disutility between two nodes.
     fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility;
+
+    /// helper function, returns a box of self.clone. This allows to implement Clone for
+    /// Box<dyn TravelDisutility>.
+    fn box_clone(&self) -> Box<dyn TravelDisutility>;
+}
+
+impl Clone for Box<dyn TravelTime> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
+}
+
+impl Clone for Box<dyn TravelDisutility> {
+    fn clone(&self) -> Self {
+        self.box_clone()
+    }
 }
 
 /// An implementation of both `TravelTime` and `TravelDisutility`, purely based on freespeed travel
@@ -59,6 +78,10 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
         // the given vehicle type is ignored => true freespeed
         Duration::from_secs_f64(link.length / link.freespeed)
     }
+
+    fn box_clone(&self) -> Box<dyn TravelTime> {
+        Box::new(self.clone())
+    }
 }
 
 impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
@@ -78,6 +101,9 @@ impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
     // min travel disutility is equal to the travel disutility, since it does not depend on time, person or vehicle
     fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility {
         self.travel_disutility(link, SimTime::from_secs(0), None, None)
+    }
+    fn box_clone(&self) -> Box<dyn TravelDisutility> {
+        Box::new(self.clone())
     }
 }
 
@@ -105,6 +131,9 @@ impl TravelTime for FreeOrMaxSpeedTravelTimeAndDisutility {
 
         Duration::from_secs_f64(link.length / max_speed)
     }
+    fn box_clone(&self) -> Box<dyn TravelTime> {
+        Box::new(self.clone())
+    }
 }
 
 impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
@@ -128,6 +157,9 @@ impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
         // uses the freespeed)
         self.travel_disutility(link, SimTime::from_secs(0), None, None)
     }
+    fn box_clone(&self) -> Box<dyn TravelDisutility> {
+        Box::new(self.clone())
+    }
 }
 
 /// A request for the calculation of least cost paths. Contain all relevant data for the
@@ -142,7 +174,6 @@ pub struct LeastCostPathRequest<'r> {
     // From and to are deliberately not nodes but links. This allows considering those links as well during routing.
     pub from: Id<Link>,
     pub to: Id<Link>,
-    pub graph: &'r dyn IndexableGraph, // contains the graph of the network
     #[builder(default)]
     pub departure_time: SimTime,
     #[builder(default)]
@@ -175,13 +206,14 @@ pub trait LeastCostPathCalculator {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
+    use std::sync::Arc;
     use std::time::Duration;
 
-    use crate::simulation::replanning::routing::a_star_router::AStarRouter;
-    use crate::simulation::replanning::routing::a_star_router::ZeroHeuristic;
+    use crate::simulation::replanning::routing::a_star_router::DijkstraRouter;
+
     use crate::simulation::replanning::routing::graph::Graph;
     use crate::simulation::replanning::routing::graph::tests::{
-        get_triangle_test_graph, get_triangle_test_network,
+        get_triangle_test_network, net_to_graph,
     };
     use crate::simulation::replanning::routing::least_cost_path_calculator::{
         Disutility, FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPath,
@@ -198,20 +230,20 @@ mod tests {
     /// in the respective files where implementations of LeastCostPathCaltulator are defined.
     #[test]
     fn test_least_cost_path_interface() {
-        // simple A*-Router with zero heuristic => is Dijkstra.
-        let router = AStarRouter::new(
-            ZeroHeuristic,
+        // triangle graph
+        let network = get_triangle_test_network();
+
+        // DijkstraRouter is an alias for AStarRouter<ZeroHeuristic>
+        let router = DijkstraRouter::new(
+            Arc::new(network),
+            None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
-        // triangle graph
-        let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::create("1")) // these links are connected via
             .to(Id::create("5")) // link "4", which takes 4 secs
-            .graph(&graph)
             .build()
             .unwrap();
 
@@ -234,7 +266,7 @@ mod tests {
         let fomsttad = FreeOrMaxSpeedTravelTimeAndDisutility;
 
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let link = graph.edge(Id::create("4")).unwrap();
 

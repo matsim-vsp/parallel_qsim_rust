@@ -1,3 +1,4 @@
+use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::a_star_core::{
     AStarCoreResult, AStarRequestBuilder, HeuristicMode, LandmarkCalcAStarActions, a_star_core,
 };
@@ -5,6 +6,8 @@ use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, 
 use crate::simulation::replanning::routing::least_cost_path_calculator::{
     Disutility, TravelDisutility,
 };
+use crate::simulation::scenario::network::Node;
+use nohash_hasher::IntMap;
 use rand::SeedableRng;
 use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
@@ -22,36 +25,47 @@ const DEFAULT_NUMBER_OF_LANDMARKS: usize = 16;
 pub struct AltLandmarkData {
     landmarks: Vec<NodeIndex>,
     travel_disutilities_to_all: Vec<Vec<ForwardBackwardTravelDisutility>>,
+    node_id_to_idx: IntMap<Id<Node>, NodeIndex>,
 }
 
 impl AltLandmarkData {
     pub fn new(
         landmarks: Vec<NodeIndex>,
         travel_disutilities_to_all: Vec<Vec<ForwardBackwardTravelDisutility>>,
+        node_id_to_idx: IntMap<Id<Node>, NodeIndex>,
     ) -> Self {
         Self {
             landmarks,
             travel_disutilities_to_all,
+            node_id_to_idx,
         }
     }
 
-    // TODO possibly rename fn
     /// Given a graph, chooses landmarks (currently randomly) and precalculates their travel
     /// disutilities to all other nodes, both forward and backward
-    pub fn from_graph(
+    pub(crate) fn from_graph(
         graph: &dyn IndexableGraph,
         disutility: &dyn TravelDisutility,
-    ) -> Result<AltLandmarkData, GraphError> {
+    ) -> Result<Self, GraphError> {
         let landmarks: Vec<NodeIndex> = Self::choose_landmarks(graph);
 
         let travel_disutilities_to_all =
             Self::calc_all_disutilities(graph, disutility, &landmarks)?;
 
-        Ok(AltLandmarkData::new(landmarks, travel_disutilities_to_all))
+        Ok(Self::new(
+            landmarks,
+            travel_disutilities_to_all,
+            // map from node ids to node indices. Required so that the landmark data is clearly
+            // mapped to true nodes (not just indices)
+            graph.get_node_idxs_from_ids().clone(),
+        ))
     }
 
-    pub fn travel_disutilities_to_all(&self) -> &Vec<Vec<ForwardBackwardTravelDisutility>> {
+    pub(crate) fn travel_disutilities_to_all(&self) -> &Vec<Vec<ForwardBackwardTravelDisutility>> {
         &self.travel_disutilities_to_all
+    }
+    pub(crate) fn node_id_to_idx(&self) -> &IntMap<Id<Node>, NodeIndex> {
+        &self.node_id_to_idx
     }
 
     fn choose_landmarks(graph: &dyn IndexableGraph) -> Vec<NodeIndex> {
@@ -76,7 +90,7 @@ impl AltLandmarkData {
             .iter()
             .map(
                 |landmark_node| -> Result<Vec<ForwardBackwardTravelDisutility>, GraphError> {
-                    // ... calculate forward and backward distances to all other nodes
+                    // ... calculate forward and backward disutilities to all other nodes
                     let forward_disutilities =
                         Self::disutilities_one_2_many(graph, disutility, *landmark_node, false)?;
                     let backward_disutilities =
@@ -122,7 +136,7 @@ impl AltLandmarkData {
             Ok(AStarCoreResult::DisutilityToAllWithoutParents(disutilities)) => Ok(disutilities),
             // A* returned incorrect result enum variant. Panic, since this is a programming error.
             _ => panic!(
-                "A* with DistanceToManyOptions should return DistanceToAllWithoutParents \
+                "A* with LandmarkCalcAStarActions should return DisutilityToAllWithoutParents \
                 result."
             ),
         };
@@ -135,14 +149,14 @@ impl AltLandmarkData {
 mod tests {
     use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
     use crate::simulation::replanning::routing::graph::tests::{
-        get_triangle_test_graph, get_triangle_test_network,
+        get_triangle_test_network, net_to_graph,
     };
     use crate::simulation::replanning::routing::least_cost_path_calculator::FreeOrMaxSpeedTravelTimeAndDisutility;
 
     #[test]
-    fn test_landmark_choice_and_distance_calculation() {
+    fn test_landmark_choice_and_disutility_calculation() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let alt_data =
             AltLandmarkData::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();

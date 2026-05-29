@@ -8,32 +8,45 @@ use crate::simulation::replanning::routing::least_cost_path_calculator::{
     Disutility, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, TravelDisutility,
     TravelTime,
 };
-use crate::simulation::scenario::network::{Link, Node};
+use crate::simulation::replanning::routing::network_converter::{
+    convert_network_for_mode, convert_network_with_modes,
+};
+use crate::simulation::scenario::network::{Link, Network, Node};
+use nohash_hasher::IntMap;
+use std::sync::Arc;
 use tracing::{error, warn};
 
-/// A heuristic to be used in A*. Given a from and to-node, estimates the distance, that is,
-/// disutility, between them.
-/// Is not allowed to overestimate distances. It is expected of implementations to respect this.
-pub trait AStarHeuristic: Clone {
-    /// Estimate travel disutility between from-node and to-node in the given graph. Never
-    /// overestimates the disutilility.
-    fn estimate(&self, graph: &dyn IndexableGraph, from: Id<Node>, to: Id<Node>) -> Disutility;
+/// A heuristic to be used in A*. Given a from and to-node, estimates the disutility between them.
+/// Is not allowed to overestimate disutilities. It is expected of implementations to respect this.
+/// Heuristics are in general only valid for the graph they have been created for. Therefore, the
+/// estimate method does not take a graph as input, but only a to- and from-node.
+pub trait AStarHeuristic {
+    /// Estimate travel disutility between from-node and to-node. Never overestimates the
+    /// disutility.
+    fn estimate(&self, from: Id<Node>, to: Id<Node>) -> Disutility;
+    /// Create a heuristic for a given graph using a given travel disutility function as cost.
+    /// Precalculates any data needed to estimate disutilities between nodes, such as landmark data
+    /// for the ALT heuristic.
+    fn create(graph: &dyn IndexableGraph, disutility: &dyn TravelDisutility) -> Self;
 }
 
 /// Zero heuristic estimates all disutilities to be zero. With this, the A* collapses into Dijkstra.
 #[derive(Clone)]
-pub(crate) struct ZeroHeuristic;
+pub struct ZeroHeuristic;
 
 impl AStarHeuristic for ZeroHeuristic {
-    fn estimate(&self, _graph: &dyn IndexableGraph, _from: Id<Node>, _to: Id<Node>) -> Disutility {
+    fn estimate(&self, _from: Id<Node>, _to: Id<Node>) -> Disutility {
         0.
+    }
+    fn create(_graph: &dyn IndexableGraph, _disutility: &dyn TravelDisutility) -> Self {
+        Self {}
     }
 }
 
 /// Heuristic that uses landmarks and triangle inequality to estimate disutility between two nodes
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
-pub(crate) struct AltHeuristic {
+pub struct AltHeuristic {
     landmark_data: AltLandmarkData,
 }
 
@@ -42,11 +55,22 @@ impl AltHeuristic {
     pub fn new(landmark_data: AltLandmarkData) -> Self {
         AltHeuristic { landmark_data }
     }
+
+    pub(crate) fn from_graph(
+        graph: &dyn IndexableGraph,
+        disutility: &dyn TravelDisutility,
+    ) -> Self {
+        // calculate landmark data for the graph
+        let landmark_data = AltLandmarkData::from_graph(graph, disutility).unwrap();
+
+        AltHeuristic { landmark_data }
+    }
 }
 
 impl AStarHeuristic for AltHeuristic {
-    /// Estimate the disutility between the from- and to-node in the given graph by using landmarks.
-    fn estimate(&self, graph: &dyn IndexableGraph, from: Id<Node>, to: Id<Node>) -> Disutility {
+    /// Estimate the disutility between the from- and to-node using the ALT heuristic.
+    /// Uses landmarks and triangle inequality to compute a lower bound on travel disutility.
+    fn estimate(&self, from: Id<Node>, to: Id<Node>) -> Disutility {
         /* The ALT algorithm uses two lower bounds for each Landmark:
          * given: source node S, target node T, landmark L
          * then, due to the triangle inequality:
@@ -57,16 +81,11 @@ impl AStarHeuristic for AltHeuristic {
          * go from S to T.
          */
 
-        let from_idx = graph.get_node_idx_from_id(from);
-        let to_idx = graph.get_node_idx_from_id(to);
+        let from_idx = self.landmark_data.node_id_to_idx()[&from];
+        let to_idx = self.landmark_data.node_id_to_idx()[&to];
 
         let mut h: f64 = 0.0;
-        for (_landmark_idx, lm_travel_disutility) in self
-            .landmark_data
-            .travel_disutilities_to_all()
-            .iter()
-            .enumerate()
-        {
+        for lm_travel_disutility in self.landmark_data.travel_disutilities_to_all().iter() {
             let from_disutility = lm_travel_disutility[from_idx]; // (SL,LS)
             let to_disutility = lm_travel_disutility[to_idx]; // (LT,TL)
 
@@ -80,33 +99,78 @@ impl AStarHeuristic for AltHeuristic {
 
         result
     }
+    fn create(graph: &dyn IndexableGraph, disutility: &dyn TravelDisutility) -> Self {
+        Self::from_graph(graph, disutility)
+    }
 }
 
 /// A* router, an implementation of the LeastCostPathCalculator trait.
-/// Owns a heuristic, a travel time calculator and a travel disutility calculator, which are used
-/// in the A* search.
+/// Owns a graph on which the path is searched, and a heuristic function, a travel time and a
+/// travel disutility function, which are used in the A* search.
 /// The heuristic is used to estimate the remaining travel disutility to the destination, and must
 /// be admissible (i.e., never overestimate the actual remaining travel disutility).
 /// The travel time is used to track the arrival time at the nodes along the path, while the travel
 /// disutility is used as cost, i.e., this is what the A* search minimizes.
 pub struct AStarRouter<H: AStarHeuristic> {
+    graph: Box<dyn IndexableGraph>,
     heuristic: H,
     travel_time: Box<dyn TravelTime>,
     travel_disutility: Box<dyn TravelDisutility>,
 }
 
+pub type DijkstraRouter = AStarRouter<ZeroHeuristic>;
+pub type AltRouter = AStarRouter<AltHeuristic>;
+
 impl<H: AStarHeuristic> AStarRouter<H> {
+    /// create a new A* router on a given network, optionally for a specific mode using the given
+    /// travel time and travel disutility functions.
+    /// The heuristic is automatically initialized (i.e., required data is calculated automatically)
     pub fn new(
-        heuristic: H,
+        network: Arc<Network>,
+        mode: Option<Id<String>>,
         travel_time: Box<dyn TravelTime>,
         travel_disutility: Box<dyn TravelDisutility>,
     ) -> Self {
-        AStarRouter {
+        let graph = convert_network_for_mode(network, mode);
+        // create heuristic based on the graph. For instance, calculate landmark data in the case
+        // of AltHeuristic
+        let heuristic = H::create(&graph, &*travel_disutility);
+
+        Self {
+            graph: Box::new(graph),
             heuristic,
             travel_time,
             travel_disutility,
         }
     }
+
+    /// Create new A* routers for a given network, for a list of modes, using the same travel time
+    /// and disutility functions for each.
+    pub fn new_for_modes(
+        network: Arc<Network>,
+        modes: &Vec<Id<String>>,
+        travel_time: Box<dyn TravelTime>,
+        travel_disutility: Box<dyn TravelDisutility>,
+    ) -> IntMap<Id<String>, Self> {
+        let graphs = convert_network_with_modes(network, modes);
+
+        graphs
+            .into_iter()
+            .map(|(mode, graph)| {
+                let heuristic = H::create(&graph, &*travel_disutility);
+                (
+                    mode.clone(),
+                    Self {
+                        graph: Box::new(graph),
+                        heuristic,
+                        travel_time: travel_time.clone(),
+                        travel_disutility: travel_disutility.clone(),
+                    },
+                )
+            })
+            .collect()
+    }
+
     /// Given a to-node and a vector of parents, extracts the path to the to-node by recursing
     /// through the list of parents.
     /// Stops when a node with no parent is found, which should be the from-node. But this is not
@@ -134,14 +198,14 @@ impl<H: AStarHeuristic> AStarRouter<H> {
     /// Calls the below `verify_path` to check correctness of the found path. Because of this, a
     /// from-link must also be given.
     fn extract_link_path(
+        &self,
         to_link: Id<Link>,
         from_link: Id<Link>,
         parents: Vec<Option<NodeIndex>>,
-        graph: &dyn IndexableGraph,
     ) -> Result<Option<Vec<Id<Link>>>, GraphError> {
         // convert given "to" link id to node id, by looking for the start node of the link
-        let to_node_id = graph.get_start_node(to_link.clone())?;
-        let to_node_idx = graph.get_node_idx_from_id(to_node_id);
+        let to_node_id = self.graph.get_start_node(to_link.clone())?;
+        let to_node_idx = self.graph.get_node_idx_from_id(to_node_id);
 
         // get node path
         let node_path = Self::extract_node_path(to_node_idx, parents);
@@ -155,18 +219,18 @@ impl<H: AStarHeuristic> AStarRouter<H> {
 
             // go through outgoing edges of the start node, and find the one that has the end node
             // as head
-            for j in graph.outgoing_edges_as_idx(start_node) {
-                if graph.get_end_node_as_idx(j)? == end_node {
+            for j in self.graph.outgoing_edges_as_idx(start_node) {
+                if self.graph.get_end_node_as_idx(j)? == end_node {
                     // a link connecting the start node and the end node was found, now get the
                     // actual Id<Link> of the link
-                    link_path.push(graph.get_link_id_from_idx(j)?);
+                    link_path.push(self.graph.get_link_id_from_idx(j)?);
                     break;
                 }
             }
         }
 
         // verify the found path: if incorrect, return None instead of a path
-        if !Self::verify_path(&link_path, graph, from_link, to_link)? {
+        if !self.verify_path(&link_path, from_link, to_link)? {
             return Ok(None);
         }
         Ok(Some(link_path))
@@ -175,21 +239,21 @@ impl<H: AStarHeuristic> AStarRouter<H> {
     /// Given a path, graph from- and to-link, verifies that the path starts at the end node of the
     /// from-link and ends at the start node of the to-link.
     fn verify_path(
+        &self,
         path: &Vec<Id<Link>>,
-        graph: &dyn IndexableGraph,
         from_link: Id<Link>,
         to_link: Id<Link>,
     ) -> Result<bool, GraphError> {
-        let end_node_of_from_link = graph.get_end_node(from_link)?;
-        let start_node_of_to_link = graph.get_start_node(to_link)?;
+        let end_node_of_from_link = self.graph.get_end_node(from_link)?;
+        let start_node_of_to_link = self.graph.get_start_node(to_link)?;
 
         let last_index = match path.len() {
             0 => return Ok(end_node_of_from_link == start_node_of_to_link),
             path_length => path_length - 1,
         };
 
-        let first_node_of_path = graph.get_start_node(path[0].clone())?;
-        let last_node_of_path = graph.get_end_node(path[last_index].clone())?;
+        let first_node_of_path = self.graph.get_start_node(path[0].clone())?;
+        let last_node_of_path = self.graph.get_end_node(path[last_index].clone())?;
 
         // verify if path starts at end node of from-link and ends at start node of to-link
         Ok(first_node_of_path == end_node_of_from_link
@@ -200,7 +264,7 @@ impl<H: AStarHeuristic> AStarRouter<H> {
 impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
     fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath> {
         // convert given "to" link id to node id, by looking for the start node of the link
-        let to_node_id = match request.graph.get_start_node(request.to.clone()).ok() {
+        let to_node_id = match self.graph.get_start_node(request.to.clone()).ok() {
             Some(node_id) => node_id, // the link was found as expected
             None => {
                 // if the to link is not in the graph, we cannot calculate a path, so return None
@@ -213,12 +277,14 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
         };
 
         // convert to-node id to node index
-        let to_node_idx = request.graph.get_node_idx_from_id(to_node_id);
+        let to_node_idx = self.graph.get_node_idx_from_id(to_node_id);
 
         // create request for a_star_core
         let a_star_request = match AStarRequestBuilder::default()
-            // copies graph, from, to, departure time, person, vehicle values from the lcp request
-            .from_least_cost_path_request(&request)
+            // copies from, departure time, person, vehicle values from the lcp request.
+            // The graph is required to transform the from-link to from node, and is
+            // added itself to the A* request as well
+            .from_least_cost_path_request_with_graph(&request, &*self.graph)
         {
             Ok(builder) => {
                 // if succesful, continue building
@@ -230,7 +296,7 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
                         to_node_idx,
                         self.travel_time.as_ref(),
                         self.travel_disutility.as_ref(),
-                        request.graph.num_nodes(),
+                        self.graph.num_nodes(),
                     ))
                     .build()
                     .unwrap()
@@ -279,29 +345,28 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
                 ),
             };
 
-        let link_path =
-            match Self::extract_link_path(request.to, request.from, parents, request.graph) {
-                Ok(Some(link_path)) => link_path, // all good, path was found
-                Ok(None) => {
-                    // verification negative: incorrect path was found
-                    error!(
-                        "Path search unsuccesful: A path was found, but it does not connect \
+        let link_path = match self.extract_link_path(request.to, request.from, parents) {
+            Ok(Some(link_path)) => link_path, // all good, path was found
+            Ok(None) => {
+                // verification negative: incorrect path was found
+                error!(
+                    "Path search unsuccesful: A path was found, but it does not connect \
                     the given from- and to-links. Something went wrong in Dijkstra or path \
                     extraction."
-                    );
-                    return None;
-                }
-                // from- or to-link not found in the graph. Note: this case should never occur,
-                // since an invalid from- or to-link would have been detected already during A*
-                Err(e) => {
-                    error!(
-                        "Path search unsuccessful: A path was found, but when verifying its\
+                );
+                return None;
+            }
+            // from- or to-link not found in the graph. Note: this case should never occur,
+            // since an invalid from- or to-link would have been detected already during A*
+            Err(e) => {
+                error!(
+                    "Path search unsuccessful: A path was found, but when verifying its\
                     correctness, an error occured: {}",
-                        e
-                    );
-                    return None;
-                }
-            };
+                    e
+                );
+                return None;
+            }
+        };
 
         return Some(LeastCostPath {
             path: link_path,
@@ -327,33 +392,29 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::a_star_router::{
-        AStarHeuristic, AStarRouter, AltHeuristic, ZeroHeuristic,
+        AStarHeuristic, AStarRouter, AltHeuristic, AltRouter, DijkstraRouter, ZeroHeuristic,
     };
     use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
-    use crate::simulation::replanning::routing::graph::IndexableGraph;
     use crate::simulation::replanning::routing::graph::tests::{
-        get_triangle_test_graph, get_triangle_test_network,
+        get_triangle_test_network, net_to_graph,
     };
     use crate::simulation::replanning::routing::least_cost_path_calculator::{
         LeastCostPath, LeastCostPathRequestBuilder,
     };
-    use crate::simulation::replanning::routing::network_converter;
-    use crate::simulation::scenario::network::{Link, Network, Node};
-    use crate::simulation::scenario::vehicles::InternalVehicleType;
-    use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
+
+    use crate::simulation::scenario::network::{Link, Network};
+    use crate::simulation::scenario::vehicles::{Garage, InternalVehicle, InternalVehicleType};
     use crate::simulation::time::SimTime;
     use std::time::Duration;
 
-    use itertools::Itertools;
     use macros::integration_test;
-    use std::collections::HashMap;
+
     use std::path::PathBuf;
     use std::sync::Arc;
 
     /// Runs an A* least cost path run based on the given input and compares to expected output.
     fn calc_route_and_check<H: AStarHeuristic>(
         router: &AStarRouter<H>,
-        graph: &dyn IndexableGraph,
         from: &str,
         to: &str,
         vehicle: Option<&InternalVehicle>,
@@ -362,7 +423,6 @@ mod tests {
         expected_path: Option<Vec<&str>>,
     ) {
         let request = LeastCostPathRequestBuilder::default()
-            .graph(graph)
             .from(Id::create(from))
             .to(Id::create(to))
             .vehicle(vehicle)
@@ -424,23 +484,25 @@ mod tests {
             // time, since the time dependent factor is 1 at time 0
             free_speed_calc.get_link_min_travel_disutility(link)
         }
+        fn box_clone(&self) -> Box<dyn TravelDisutility> {
+            Box::new(self.clone())
+        }
     }
 
     /// simple test of Dijkstra (A* with zero heuristic) and free speed travel disutility
     #[test]
     fn test_simple_dijkstra_routing() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
 
-        let router = AStarRouter::new(
-            ZeroHeuristic,
+        let router = DijkstraRouter::new(
+            Arc::new(network),
+            None,
             Box::new(FreeSpeedTravelTimeAndDisutility),
             Box::new(FreeSpeedTravelTimeAndDisutility),
         );
 
         calc_route_and_check(
             &router,
-            &graph,
             "1",
             "2",
             None,                         // vehicle
@@ -450,7 +512,6 @@ mod tests {
         );
         calc_route_and_check(
             &router,
-            &graph,
             "2",
             "3",
             None,                         // vehicle
@@ -460,7 +521,6 @@ mod tests {
         );
         calc_route_and_check(
             &router,
-            &graph,
             "1",
             "5",
             None,                         // vehicle
@@ -474,94 +534,73 @@ mod tests {
     /// different travel times on the same links, and thus different optimal paths.
     #[integration_test]
     fn test_mode_alt_routing() {
-        // TODO return to this test when the restructuring is done, to see if it still has a reasonable structure or if its maybe overengineered etc
+        // load network
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
+        // load garage. This one only contains vehicle types, no vehicles.
         let mut garage = Garage::from_file(&PathBuf::from(
             "./assets/adhoc_routing/no_updates/vehicles.xml",
         ));
 
-        let bike_type_id = &Id::<InternalVehicleType>::get_from_ext("bike");
-        let car_type_id = &Id::<InternalVehicleType>::get_from_ext("car");
+        // load ids of vehicle types and modes into variables, for bike and car
+        let bike_type_id = Id::<InternalVehicleType>::get_from_ext("bike");
+        let bike_mode_id = Id::<String>::get_from_ext("bike");
+        let car_type_id = Id::<InternalVehicleType>::get_from_ext("car");
+        let car_mode_id = Id::<String>::get_from_ext("car");
 
         // Add vehicles for each vehicle type (since the garage file only contains vehicle types)
         garage.add_veh_by_type(
             &Id::create("bike_person"), // create some person
-            bike_type_id,               // vehicle type
+            &bike_type_id,              // vehicle type
         );
-        garage.add_veh_by_type(&Id::create("car_person"), car_type_id);
+        garage.add_veh_by_type(&Id::create("car_person"), &car_type_id);
 
-        let graph_by_mode = network_converter::convert_network_with_modes(
+        // load ids of the newly created vehicles into variables
+        let bike_vehicle_id = garage.veh_id(
+            &Id::get_from_ext("bike_person"), // person id
+            &bike_type_id,                    // vehicle type id
+        );
+
+        let car_vehicle_id = garage.veh_id(
+            &Id::get_from_ext("car_person"), // person id
+            &car_type_id,                    // vehicle type id
+        );
+
+        // Create ALT routers on the network for the two modes.
+
+        // Note: in this particular network, all links can be used by car and bike, so both routers
+        // are actually the same
+        let router_by_mode = AltRouter::new_for_modes(
             Arc::new(network),
-            &garage
-                .vehicle_types
-                .iter()
-                .map(|(_vt_id, vt)| vt.net_mode.clone())
-                .unique()
-                .collect(),
+            &vec![car_mode_id, bike_mode_id],
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
-
-        // TODO it doesn't really make sense to be per vehicle type,we should have per mode
-        let router_by_vehicle_type = garage
-            .vehicle_types //graph_by_mode
-            .iter()
-            .map(|(vt_id, vt)| {
-                let mode = vt.net_mode.clone();
-                let g = graph_by_mode.get(&mode).unwrap();
-                let landmark_data =
-                    AltLandmarkData::from_graph(g, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
-
-                (
-                    vt_id.clone(),
-                    AStarRouter::new(
-                        // create new heuristic, based on the graph for the vehicle type.
-                        AltHeuristic::new(landmark_data),
-                        // ZeroHeuristic,
-                        Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-                        Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-                    ),
-                )
-            })
-            .collect::<HashMap<_, _>>();
 
         // check routing for bike
-        let bike_vehicle_id = garage.veh_id(
-            &Id::create("bike_person"),
-            &Id::<InternalVehicleType>::get_from_ext("bike"),
-        );
 
         calc_route_and_check(
-            router_by_vehicle_type.get(bike_type_id).unwrap(),
-            graph_by_mode
-                .get(&garage.vehicle_types[&bike_type_id].net_mode.clone())
-                .unwrap(),
+            router_by_mode.get(&Id::get_from_ext("bike")).unwrap(), // bike router
             "link0",
             "link4",
-            garage.vehicles.get(&bike_vehicle_id),
+            garage.vehicles.get(&bike_vehicle_id), // bike vehicle
             Some(Duration::from_secs(240)),
             Some(240.0 as Disutility),
             Some(vec!["link1", "link2", "link3"]),
         );
 
         // check routing for car
-        let car_vehicle_id = garage.veh_id(
-            &Id::create("car_person"),
-            &Id::<InternalVehicleType>::get_from_ext("car"),
-        );
 
         calc_route_and_check(
-            router_by_vehicle_type.get(car_type_id).unwrap(),
-            graph_by_mode
-                .get(&garage.vehicle_types[&car_type_id].net_mode.clone())
-                .unwrap(),
+            router_by_mode.get(&Id::get_from_ext("car")).unwrap(), // car router
             "link0",
             "link4",
-            garage.vehicles.get(&car_vehicle_id),
-            Some(Duration::from_secs(100)), // tt
-            Some(100.0 as Disutility),      // td
+            garage.vehicles.get(&car_vehicle_id), // car vehicle
+            Some(Duration::from_secs(100)),       // tt
+            Some(100.0 as Disutility),            // td
             Some(vec!["link5", "link6"]),
         )
     }
@@ -569,37 +608,34 @@ mod tests {
     /// Test that ALT heuristic and zero heuristic find the same optimal path
     #[test]
     fn test_alt_vs_zero_heuristic_same_result() {
-        let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let network = Arc::new(get_triangle_test_network());
 
         // Router with zero heuristic (pure Dijkstra)
-        let zero_router = AStarRouter::new(
-            ZeroHeuristic,
+        let zero_router = DijkstraRouter::new(
+            network.clone(),
+            None, // mode
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         // Router with ALT heuristic
-        let landmark_data =
-            AltLandmarkData::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
-        let alt_router = AStarRouter::new(
-            AltHeuristic::new(landmark_data),
+        let alt_router = AStarRouter::<AltHeuristic>::new(
+            network.clone(),
+            None, // mode
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         // Both should find the same optimal path
         let request_zero = LeastCostPathRequestBuilder::default()
-            .graph(&graph)
-            .from(Id::create("1"))
-            .to(Id::create("2"))
+            .from(Id::get_from_ext("1"))
+            .to(Id::get_from_ext("2"))
             .build()
             .unwrap();
 
         let request_alt = LeastCostPathRequestBuilder::default()
-            .graph(&graph)
-            .from(Id::create("1"))
-            .to(Id::create("2"))
+            .from(Id::get_from_ext("1"))
+            .to(Id::get_from_ext("2"))
             .build()
             .unwrap();
 
@@ -616,18 +652,17 @@ mod tests {
     #[test]
     fn test_same_start_and_destination() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
 
-        let router = AStarRouter::new(
-            ZeroHeuristic,
+        let router = DijkstraRouter::new(
+            Arc::new(network),
+            None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
 
         let request = LeastCostPathRequestBuilder::default()
-            .graph(&graph)
-            .from(Id::create("1")) // link 1 ends in node 2
-            .to(Id::create("4")) // link 4 starts in node 2
+            .from(Id::get_from_ext("1")) // link 1 ends in node 2
+            .to(Id::get_from_ext("4")) // link 4 starts in node 2
             .build()
             .unwrap();
 
@@ -646,13 +681,13 @@ mod tests {
     /// disutility differs from the time-independent case, even if the travel times are the same.
     #[test]
     fn test_time_dependent_routing() {
-        let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let network = Arc::new(get_triangle_test_network());
 
         // Create a router with time-independent disutility
         // disutility = freespeed travel_time
-        let router_time_indep = AStarRouter::new(
-            ZeroHeuristic,
+        let router_time_indep = AStarRouter::<ZeroHeuristic>::new(
+            network.clone(),
+            None, // mode
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
@@ -663,17 +698,17 @@ mod tests {
         // from above.
         // Therefore, if both routers start at the same time, if they return different disutilities,
         // this implies that time-dependent routing is working (or is at least doing something)
-        let router_time_dep = AStarRouter::new(
-            ZeroHeuristic,
+        let router_time_dep = DijkstraRouter::new(
+            network.clone(),
+            None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(TimeDependentDisutility),
         );
 
         // Route at time 0.0
         let request = LeastCostPathRequestBuilder::default()
-            .graph(&graph)
-            .from(Id::create("1"))
-            .to(Id::create("2"))
+            .from(Id::get_from_ext("1"))
+            .to(Id::get_from_ext("2"))
             .departure_time(SimTime::from_secs(0))
             .build()
             .unwrap();
@@ -708,10 +743,10 @@ mod tests {
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
-        let graph = network_converter::convert_network_for_mode(Arc::new(network), None);
 
-        let router = AStarRouter::new(
-            ZeroHeuristic,
+        let router = DijkstraRouter::new(
+            Arc::new(network),
+            None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
         );
@@ -720,21 +755,18 @@ mod tests {
         // are not connected
 
         let nonexisting_from_link_request = LeastCostPathRequestBuilder::default()
-            .graph(&graph)
-            .from(Id::create("link100"))
-            .to(Id::create("link4")) // Non-existent link ID
+            .from(Id::create("link100")) // Non-existent link ID
+            .to(Id::get_from_ext("link4"))
             .build()
             .unwrap();
         let nonexisting_to_link_request = LeastCostPathRequestBuilder::default()
-            .graph(&graph)
-            .from(Id::create("link0"))
+            .from(Id::get_from_ext("link0"))
             .to(Id::create("link999")) // Non-existent link ID
             .build()
             .unwrap();
         let unreachable_request = LeastCostPathRequestBuilder::default()
-            .graph(&graph)
-            .from(Id::create("link6"))
-            .to(Id::create("link0")) // Link is not reachable
+            .from(Id::get_from_ext("link6"))
+            .to(Id::get_from_ext("link0")) // Link is not reachable
             .build()
             .unwrap();
 
@@ -756,7 +788,7 @@ mod tests {
     #[test]
     fn test_alt_heuristic_admissibility() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let landmark_data =
             AltLandmarkData::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
@@ -770,11 +802,8 @@ mod tests {
         let test_pair_true_disutilities_freespeed = vec![1.0, 4.0, 2.0, 6.0];
 
         for (i, (from_str, to_str)) in test_pairs.iter().enumerate() {
-            let heuristic_estimate = alt_heuristic.estimate(
-                &graph,
-                Id::<Node>::create(from_str),
-                Id::<Node>::create(to_str),
-            );
+            let heuristic_estimate =
+                alt_heuristic.estimate(Id::get_from_ext(from_str), Id::get_from_ext(to_str));
 
             // Heuristic should not be NaN
             assert!(

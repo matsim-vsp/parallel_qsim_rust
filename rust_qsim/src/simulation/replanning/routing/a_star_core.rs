@@ -357,6 +357,7 @@ impl AStarActions for RoutingAStarActions<'_> {
 ///     latter case, paths using incoming edges, i.e., paths leading going to the from-node,
 ///     are searched.
 #[derive(Builder, Debug)]
+#[builder(pattern = "owned")]
 pub(crate) struct AStarRequest<'a, H: AStarHeuristic, O: AStarActions> {
     heuristic_mode: HeuristicMode<'a, H>,
     from: NodeIndex,
@@ -377,17 +378,18 @@ pub(crate) struct AStarRequest<'a, H: AStarHeuristic, O: AStarActions> {
 
 impl<'a, H: AStarHeuristic, O: AStarActions> AStarRequestBuilder<'a, H, O> {
     /// partially builds a A* request using data from a given least cost path request
-    pub(crate) fn from_least_cost_path_request(
-        &mut self,
+    pub(crate) fn from_least_cost_path_request_with_graph(
+        self,
         request: &LeastCostPathRequest<'a>,
-    ) -> Result<&mut Self, GraphError> {
+        graph: &'a dyn IndexableGraph,
+    ) -> Result<Self, GraphError> {
         // convert "from"-link id to corresponding from-node id, and then to NodeIndex
-        let from_node_id = request.graph.get_end_node(request.from.clone())?;
+        let from_node_id = graph.get_end_node(request.from.clone())?;
 
-        let from_idx = request.graph.get_node_idx_from_id(from_node_id);
+        let from_idx = graph.get_node_idx_from_id(from_node_id);
 
         Ok(self
-            .graph(request.graph)
+            .graph(graph)
             .departure_time(request.departure_time)
             .person(request.person)
             .vehicle(request.vehicle)
@@ -396,18 +398,22 @@ impl<'a, H: AStarHeuristic, O: AStarActions> AStarRequestBuilder<'a, H, O> {
 }
 
 /// Core A* logic.
-/// Can be used to calculate distances from one to all other nodes
-/// and from one to one node, with or without parent tracking, depending on the provided options.
-/// This makes it usable both for calculating landmark data as well as for AStar routing.
-/// Takes an `AStarRequest` containing all necessary data for the A* run.
+/// Can be used for different use cases, currently:
+/// - Routing: calculate the least cost path from one node to another, tracking
+///     parent nodes and arrival times at all nodes, using the true travel disutility per link at
+///     the actual arrival time at the link
+/// - Landmark calculation: calculate disutilites from one to all other nodes, based on the
+///     minimum travel disutility for each link (independent of time, vehicle, ...). Used for
+///     precalculating landmark data to be used in the ALT heuristic function.
+/// Takes an `AStarRequest` containing all necessary data for the A* run, for example an
+/// implementation of the `AStarActions` trait, which determines which of the above use cases is
+/// used.
 pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
     mut request: AStarRequest<H, O>,
 ) -> Result<AStarCoreResult, GraphError> {
     let number_of_nodes = request.graph.num_nodes();
 
     let from_node = request.from;
-
-    // TODO verify that the name distances is no longer used
 
     // initialize queue: from_node gets disutility and priority 0, all others infinity
     let (mut queue, mut disutilities) = get_initial_queue(number_of_nodes, from_node);
@@ -538,7 +544,6 @@ pub(crate) fn a_star_core<H: AStarHeuristic, O: AStarActions>(
                                 let to_node_id = request.graph.get_node_id_from_idx(to_node_idx)?;
 
                                 h.estimate(
-                                    request.graph,
                                     request.graph.get_node_id_from_idx(neighbour)?,
                                     to_node_id,
                                 )

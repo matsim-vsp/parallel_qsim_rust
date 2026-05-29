@@ -42,6 +42,7 @@ pub(crate) type BackwardLinkIndex = usize;
 /// This is used to keep the routing algorithms efficient, while still being able to use the ids in
 /// the rest of the code.
 pub trait IndexableGraph: Graph {
+    fn get_node_idxs_from_ids(&self) -> &IntMap<Id<Node>, NodeIndex>;
     fn get_node_idx_from_id(&self, id: Id<Node>) -> NodeIndex;
     fn get_link_idx_from_id(&self, id: Id<Link>) -> Result<LinkIndex, GraphError>;
     fn get_node_id_from_idx(&self, idx: NodeIndex) -> Result<Id<Node>, GraphError>;
@@ -310,6 +311,10 @@ impl Graph for ForwardBackwardRoutingGraph {
 }
 
 impl IndexableGraph for ForwardBackwardRoutingGraph {
+    fn get_node_idxs_from_ids(&self) -> &IntMap<Id<Node>, NodeIndex> {
+        &self.node_index_by_id
+    }
+
     fn get_end_node_as_idx(&self, edge: LinkIndex) -> Result<NodeIndex, GraphError> {
         self.forward_head()
             .get(edge)
@@ -391,9 +396,8 @@ pub(crate) mod tests {
             &PartitionMethod::Metis(MetisOptions::default()),
         )
     }
-    // TODO think about whether the convert_network fn should actually take an arc,
-    // or if its only the function to create a Router that should (maybe that's not possible without clone?)
-    pub fn get_triangle_test_graph(network: &Network) -> ForwardBackwardRoutingGraph {
+
+    pub fn net_to_graph(network: &Network) -> ForwardBackwardRoutingGraph {
         network_converter::convert_network_for_mode(Arc::new(network.clone()), None)
     }
 
@@ -434,7 +438,7 @@ pub(crate) mod tests {
     #[test]
     fn test_outgoing_edges() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let node_id = Id::create("1");
         let outgoing_edges = graph.outgoing_edges(node_id);
@@ -446,7 +450,7 @@ pub(crate) mod tests {
     #[test]
     fn test_incoming_edges() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let node_id = Id::create("3");
         let incoming_edges = graph.incoming_edges(node_id);
@@ -458,7 +462,7 @@ pub(crate) mod tests {
     #[test]
     fn test_outgoing_edges_as_idx() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let node_id = Id::<Node>::create("1");
         let node_idx = graph.get_node_idx_from_id(node_id.clone());
@@ -483,7 +487,7 @@ pub(crate) mod tests {
     #[test]
     fn test_incoming_edges_as_idx() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let node_id = Id::<Node>::create("2");
         let node_idx = graph.get_node_idx_from_id(node_id.clone());
@@ -508,7 +512,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_end_node_valid_link() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         // Test with various valid links that exist in the graph
         let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
@@ -531,7 +535,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_end_node_invalid_link_returns_error() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let invalid_link_id = Id::create("nonexistent_link");
         let result = graph.get_end_node(invalid_link_id.clone());
@@ -550,7 +554,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_start_node_valid_link() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
         assert!(!outgoing_links.is_empty());
@@ -570,7 +574,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_start_node_invalid_link_returns_error() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let invalid_link_id = Id::create("nonexistent_link");
         let result = graph.get_start_node(invalid_link_id.clone());
@@ -585,7 +589,7 @@ pub(crate) mod tests {
     #[test]
     fn test_link_id_to_idx_roundtrip() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
         for link_id in outgoing_links {
@@ -605,7 +609,7 @@ pub(crate) mod tests {
     #[test]
     fn test_node_id_to_idx_roundtrip() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let node_id = Id::<Node>::create("1");
         // Node ID -> Node Index
@@ -623,7 +627,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_end_node_as_idx_valid_edges() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         let true_end_node_indices = vec![vec![], vec![2, 3], vec![2, 3], vec![1, 2]];
 
@@ -644,7 +648,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_end_node_as_idx_invalid_edge() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         assert_eq!(
             graph.get_end_node_as_idx(999),
@@ -656,7 +660,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_start_node_as_idx_invalid_edge() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         assert_eq!(
             graph.get_start_node_as_idx(999),
@@ -668,7 +672,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_start_node_as_idx() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         // For all outgoing edges, get_start_node_as_idx should not panic
         for node_idx in 0..graph.num_nodes() {

@@ -153,13 +153,12 @@ mod test {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::graph::tests::{
-        get_triangle_test_graph, get_triangle_test_network,
+        get_triangle_test_network, net_to_graph,
     };
     use crate::simulation::replanning::routing::network_converter;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::vehicles::InternalVehicleType;
-    use crate::test_utils::create_vehicle_type;
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -218,7 +217,7 @@ mod test {
     #[test]
     fn test_all_links_in_both_directions() {
         let network = get_triangle_test_network();
-        let graph = get_triangle_test_graph(&network);
+        let graph = net_to_graph(&network);
 
         // Every link should exist in forward_link_ids
         // and also in backward_link_ids (possibly at different position)
