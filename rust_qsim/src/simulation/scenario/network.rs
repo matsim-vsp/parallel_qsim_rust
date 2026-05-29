@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tracing::info;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Network {
     nodes: IntMap<Id<Node>, Node>,
     links: IntMap<Id<Link>, Link>,
@@ -408,8 +408,8 @@ impl Link {
         )
     }
 
-    pub fn contains_mode(&self, mode: Id<String>) -> bool {
-        self.modes.iter().contains(&mode)
+    pub fn contains_mode(&self, mode: &Id<String>) -> bool {
+        self.modes.iter().contains(mode)
     }
 }
 

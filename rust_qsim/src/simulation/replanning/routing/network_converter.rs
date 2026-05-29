@@ -116,8 +116,7 @@ pub(crate) fn convert_network_for_mode(
     ForwardBackwardRoutingGraph::new(
         forward_graph,
         backward_graph,
-        Arc::new(network.nodes_with_ids().clone()), // node_id_to_node
-        Arc::new(network.links_with_ids().clone()), // link_id_to_link
+        network,
         node_index_by_id,
         node_id_by_index,
         forward_link_id_by_index,
@@ -136,15 +135,8 @@ fn get_links<'net>(
         .iter()
         .sorted_by_key(|&l| l.internal())
         .map(|l| network.get_link(l))
-        .filter(|&l| {
-            if let Some(m) = mode.clone() {
-                // if a mode was given, only include links that allow this mode
-                l.contains_mode(m)
-            } else {
-                // if no mode was given, include all links
-                true
-            }
-        })
+        // if mode is None, include all links. Otherwise, only include links that allow the given mode
+        .filter(|&l| mode.as_ref().map_or(true, |m| l.contains_mode(m)))
         .collect::<Vec<&Link>>()
 }
 

@@ -1,8 +1,9 @@
 use crate::simulation::id::Id;
-use crate::simulation::scenario::network::{Link, Node};
+use crate::simulation::scenario::network::{Link, Network, Node};
 use nohash_hasher::IntMap;
 use std::fmt;
 use std::fmt::{Debug, Display};
+use std::ops::Range;
 use std::sync::Arc;
 
 /// A (directed) graph whose nodes are Ids of network nodes, and edges are Ids of network links.
@@ -13,9 +14,9 @@ pub trait Graph: Debug {
     /// get network link from link id
     fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError>;
     /// get slice of the outgoing edges, as link ids, of a given node, given as node id
-    fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>];
+    fn outgoing_edges(&self, node: Id<Node>) -> Result<&[Id<Link>], GraphError>;
     /// get slice of the incoming edges, as link ids, of a given node, given as node id
-    fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>];
+    fn incoming_edges(&self, node: Id<Node>) -> Result<&[Id<Link>], GraphError>;
     fn num_nodes(&self) -> usize;
     /// get the end node (head) of a given link, given as link id
     /// Returns an error if the link does not exist in the graph
@@ -96,8 +97,10 @@ impl CsrGraph {
 pub enum GraphError {
     LinkIdNotFound(Id<Link>),
     LinkIndexNotFound(LinkIndex),
+    LinkRangeNotFound(Range<LinkIndex>),
     NodeIdNotFound(Id<Node>),
     NodeIndexNotFound(NodeIndex),
+    NodeRangeNotFound(Range<NodeIndex>),
 }
 
 impl Display for GraphError {
@@ -114,6 +117,20 @@ impl Display for GraphError {
             }
             GraphError::NodeIndexNotFound(node_index) => {
                 write!(f, "no node with index {} found in the graph.", node_index)
+            }
+            GraphError::LinkRangeNotFound(link_range) => {
+                write!(
+                    f,
+                    "not all links with indices in range {}..{} found in the graph.",
+                    link_range.start, link_range.end
+                )
+            }
+            GraphError::NodeRangeNotFound(node_range) => {
+                write!(
+                    f,
+                    "not all nodes with indices in range {}..{} found in the graph.",
+                    node_range.start, node_range.end
+                )
             }
         }
     }
@@ -134,10 +151,11 @@ impl std::error::Error for GraphError {}
 pub(crate) struct ForwardBackwardRoutingGraph {
     forward_graph: CsrGraph,
     backward_graph: CsrGraph,
-    node_by_node_id: Arc<IntMap<Id<Node>, Node>>, // maps node ids to actual network nodes
-    link_by_link_id: Arc<IntMap<Id<Link>, Link>>, // maps link ids to actual network links
+    network: Arc<Network>,
+    // node_by_node_id: Arc<IntMap<Id<Node>, Node>>, // maps node ids to actual network nodes
+    // link_by_link_id: Arc<IntMap<Id<Link>, Link>>, // maps link ids to actual network links
     node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to node indices
-    node_id_by_index: Vec<Id<Node>>,              // maps (Node)Indices to node ids
+    node_id_by_index: Vec<Id<Node>>,               // maps (Node)Indices to node ids
     forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
     backward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the backward graph to link ids
     forward_link_index_by_id: IntMap<Id<Link>, LinkIndex>, // maps link ids to link indices in the forward graph
@@ -148,8 +166,9 @@ impl ForwardBackwardRoutingGraph {
     pub fn new(
         forward_graph: CsrGraph,
         backward_graph: CsrGraph,
-        node_by_node_id: Arc<IntMap<Id<Node>, Node>>,
-        link_by_link_id: Arc<IntMap<Id<Link>, Link>>,
+        network: Arc<Network>,
+        // node_by_node_id: Arc<IntMap<Id<Node>, Node>>,
+        // link_by_link_id: Arc<IntMap<Id<Link>, Link>>,
         node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to indices (in first_out, x, y etc.)
         node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to node ids
         forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
@@ -160,8 +179,9 @@ impl ForwardBackwardRoutingGraph {
         let graph = Self {
             forward_graph,
             backward_graph,
-            node_by_node_id,
-            link_by_link_id,
+            network,
+            // node_by_node_id,
+            // link_by_link_id,
             node_index_by_id,
             node_id_by_index,
             forward_link_id_by_index,
@@ -171,6 +191,13 @@ impl ForwardBackwardRoutingGraph {
         };
         graph.validate_else_panic();
         graph
+    }
+
+    fn nodes_by_node_ids(&self) -> &IntMap<Id<Node>, Node> {
+        self.network.nodes_with_ids()
+    }
+    fn links_by_link_ids(&self) -> &IntMap<Id<Link>, Link> {
+        self.network.links_with_ids()
     }
 
     fn validate_else_panic(&self) {
@@ -254,29 +281,43 @@ impl ForwardBackwardRoutingGraph {
 
 impl Graph for ForwardBackwardRoutingGraph {
     fn node(&self, id: Id<Node>) -> Result<&Node, GraphError> {
-        self.node_by_node_id
+        self.nodes_by_node_ids()
             .get(&id)
             .ok_or_else(|| GraphError::NodeIdNotFound(id))
     }
 
     fn edge(&self, id: Id<Link>) -> Result<&Link, GraphError> {
-        self.link_by_link_id
+        self.links_by_link_ids()
             .get(&id)
             .ok_or_else(|| GraphError::LinkIdNotFound(id))
     }
 
-    fn outgoing_edges(&self, node: Id<Node>) -> &[Id<Link>] {
-        let node_idx = self.node_index_by_id[&node];
+    fn outgoing_edges(&self, node: Id<Node>) -> Result<&[Id<Link>], GraphError> {
+        let node_idx = self
+            .node_index_by_id
+            .get(&node)
+            .ok_or_else(|| GraphError::NodeIdNotFound(node.clone()))?;
+
         let link_indices =
-            self.forward_first_out()[node_idx]..self.forward_first_out()[node_idx + 1];
-        &self.forward_link_ids()[link_indices]
+            self.forward_first_out()[*node_idx]..self.forward_first_out()[node_idx + 1];
+
+        self.forward_link_ids()
+            .get(link_indices.clone())
+            .ok_or_else(|| GraphError::LinkRangeNotFound(link_indices))
     }
 
-    fn incoming_edges(&self, node: Id<Node>) -> &[Id<Link>] {
-        let node_idx = self.node_index_by_id[&node];
+    fn incoming_edges(&self, node: Id<Node>) -> Result<&[Id<Link>], GraphError> {
+        let node_idx = self
+            .node_index_by_id
+            .get(&node)
+            .ok_or_else(|| GraphError::NodeIdNotFound(node.clone()))?;
+
         let link_indices =
-            self.backward_first_out()[node_idx]..self.backward_first_out()[node_idx + 1];
-        &self.backward_link_ids()[link_indices]
+            self.backward_first_out()[*node_idx]..self.backward_first_out()[node_idx + 1];
+
+        self.backward_link_ids()
+            .get(link_indices.clone())
+            .ok_or_else(|| GraphError::LinkRangeNotFound(link_indices))
     }
 
     fn num_nodes(&self) -> usize {
@@ -407,9 +448,8 @@ pub(crate) mod tests {
         ForwardBackwardRoutingGraph::new(
             CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
             CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4]),
-            Arc::new(IntMap::default()), // node_by_node_id
-            Arc::new(IntMap::default()), // link_by_link_id
-            IntMap::default(),           // node_index_by_id
+            Arc::new(Network::default()),
+            IntMap::default(), // node_index_by_id
             vec![Id::create("0"), Id::create("1"), Id::create("2")],
             vec![],
             vec![],
@@ -423,9 +463,8 @@ pub(crate) mod tests {
         ForwardBackwardRoutingGraph::new(
             CsrGraph::new(vec![0, 1, 2], vec![0, 1, 2, 3, 4, 5]),
             CsrGraph::new(vec![42, 43, 44], vec![8, 10, 12, 13, 14, 15]),
-            Arc::new(IntMap::default()), // node_by_node_id
-            Arc::new(IntMap::default()), // link_by_link_id
-            IntMap::default(),           // node_index_by_id
+            Arc::new(Network::default()),
+            IntMap::default(), // node_index_by_id
             vec![Id::create("0"), Id::create("1"), Id::create("2")],
             vec![],
             vec![],
@@ -441,7 +480,7 @@ pub(crate) mod tests {
         let graph = net_to_graph(&network);
 
         let node_id = Id::create("1");
-        let outgoing_edges = graph.outgoing_edges(node_id);
+        let outgoing_edges = graph.outgoing_edges(node_id).unwrap();
         // verify that the found edges are the true ones for this specific graph
         assert_eq!(outgoing_edges, [Id::create("1"), Id::create("2")]);
     }
@@ -453,7 +492,7 @@ pub(crate) mod tests {
         let graph = net_to_graph(&network);
 
         let node_id = Id::create("3");
-        let incoming_edges = graph.incoming_edges(node_id);
+        let incoming_edges = graph.incoming_edges(node_id).unwrap();
         // verify that the found edges are the true ones for this specific graph
         assert_eq!(incoming_edges, [Id::create("2"), Id::create("4")]);
     }
@@ -468,7 +507,7 @@ pub(crate) mod tests {
         let node_idx = graph.get_node_idx_from_id(node_id.clone());
 
         let outgoing_indices = graph.outgoing_edges_as_idx(node_idx);
-        let outgoing_ids = graph.outgoing_edges(node_id);
+        let outgoing_ids = graph.outgoing_edges(node_id).unwrap();
 
         // Lengths should be equal
         assert_eq!(
@@ -493,7 +532,7 @@ pub(crate) mod tests {
         let node_idx = graph.get_node_idx_from_id(node_id.clone());
 
         let incoming_indices = graph.incoming_edges_as_idx(node_idx);
-        let incoming_ids = graph.incoming_edges(node_id);
+        let incoming_ids = graph.incoming_edges(node_id).unwrap();
 
         // Lengths should be equal
         assert_eq!(
@@ -515,7 +554,7 @@ pub(crate) mod tests {
         let graph = net_to_graph(&network);
 
         // Test with various valid links that exist in the graph
-        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
+        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1")).unwrap();
         assert!(
             !outgoing_links.is_empty(),
             "Node 1 should have outgoing links"
@@ -556,7 +595,7 @@ pub(crate) mod tests {
         let network = get_triangle_test_network();
         let graph = net_to_graph(&network);
 
-        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
+        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1")).unwrap();
         assert!(!outgoing_links.is_empty());
 
         for link_id in outgoing_links {
@@ -591,7 +630,7 @@ pub(crate) mod tests {
         let network = get_triangle_test_network();
         let graph = net_to_graph(&network);
 
-        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1"));
+        let outgoing_links = graph.outgoing_edges(Id::<Node>::create("1")).unwrap();
         for link_id in outgoing_links {
             // Link ID -> Link Index
             let link_idx = graph.get_link_idx_from_id(link_id.clone()).unwrap();

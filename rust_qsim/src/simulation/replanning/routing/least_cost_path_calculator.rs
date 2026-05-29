@@ -27,6 +27,12 @@ pub trait TravelTime: Debug {
 
 /// Travel disutility function, mapping any network link to a travel disutility, depending on the
 /// departure time and optionally the person and vehicle.
+///
+/// # Contract
+/// - Returned disutilities are used as edge weights in Dijkstra/A* and therefore must be
+///   non-negative. NaN is treated as worse than infinity.
+/// - `get_link_min_travel_disutility(link)` must be a global lower bound on `travel_disutility`
+///   for the given link across all times/persons/vehicles (so ALT remains admissible).
 pub trait TravelDisutility: Debug {
     fn travel_disutility(
         &self,
