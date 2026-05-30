@@ -24,10 +24,16 @@ pub trait AStarHeuristic {
     /// Estimate travel disutility between from-node and to-node. Never overestimates the
     /// disutility.
     fn estimate(&self, from: Id<Node>, to: Id<Node>) -> Disutility;
-    /// Create a heuristic for a given graph using a given travel disutility function as cost.
+    /// Constructor for a heuristic for a given graph using a given travel disutility function as
+    /// cost.
     /// Precalculates any data needed to estimate disutilities between nodes, such as landmark data
     /// for the ALT heuristic.
-    fn create(graph: &dyn IndexableGraph, disutility: &dyn TravelDisutility) -> Self;
+    fn create(
+        graph: &dyn IndexableGraph,
+        disutility: &dyn TravelDisutility,
+    ) -> Result<Self, GraphError>
+    where
+        Self: Sized;
 }
 
 /// Zero heuristic estimates all disutilities to be zero. With this, the A* collapses into Dijkstra.
@@ -38,32 +44,32 @@ impl AStarHeuristic for ZeroHeuristic {
     fn estimate(&self, _from: Id<Node>, _to: Id<Node>) -> Disutility {
         0.
     }
-    fn create(_graph: &dyn IndexableGraph, _disutility: &dyn TravelDisutility) -> Self {
-        Self {}
+    fn create(
+        _graph: &dyn IndexableGraph,
+        _disutility: &dyn TravelDisutility,
+    ) -> Result<Self, GraphError> {
+        Ok(Self {})
     }
 }
 
 /// Heuristic that uses landmarks and triangle inequality to estimate disutility between two nodes
-#[allow(dead_code)]
+// #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct AltHeuristic {
     landmark_data: AltLandmarkData,
 }
 
 impl AltHeuristic {
-    #[allow(dead_code)]
-    pub fn new(landmark_data: AltLandmarkData) -> Self {
-        AltHeuristic { landmark_data }
-    }
-
+    /// Create ALT heuristic based on a given graph and travel disutility function, by initializing
+    /// landmarks and calculating the landmark data for them on the graph
     pub(crate) fn from_graph(
         graph: &dyn IndexableGraph,
         disutility: &dyn TravelDisutility,
-    ) -> Self {
+    ) -> Result<Self, GraphError> {
         // calculate landmark data for the graph
-        let landmark_data = AltLandmarkData::from_graph(graph, disutility).unwrap();
+        let landmark_data = AltLandmarkData::from_graph(graph, disutility)?;
 
-        AltHeuristic { landmark_data }
+        Ok(AltHeuristic { landmark_data })
     }
 }
 
@@ -99,7 +105,10 @@ impl AStarHeuristic for AltHeuristic {
 
         result
     }
-    fn create(graph: &dyn IndexableGraph, disutility: &dyn TravelDisutility) -> Self {
+    fn create(
+        graph: &dyn IndexableGraph,
+        disutility: &dyn TravelDisutility,
+    ) -> Result<Self, GraphError> {
         Self::from_graph(graph, disutility)
     }
 }
@@ -130,45 +139,47 @@ impl<H: AStarHeuristic> AStarRouter<H> {
         mode: Option<Id<String>>,
         travel_time: Box<dyn TravelTime>,
         travel_disutility: Box<dyn TravelDisutility>,
-    ) -> Self {
+    ) -> Result<Self, GraphError> {
         let graph = convert_network_for_mode(network, mode);
         // create heuristic based on the graph. For instance, calculate landmark data in the case
         // of AltHeuristic
-        let heuristic = H::create(&graph, &*travel_disutility);
+        let heuristic = H::create(&graph, &*travel_disutility)?;
 
-        Self {
+        Ok(Self {
             graph: Box::new(graph),
             heuristic,
             travel_time,
             travel_disutility,
-        }
+        })
     }
 
     /// Create new A* routers for a given network, for a list of modes, using the same travel time
     /// and disutility functions for each.
+    /// If a GraphError occurs when creating the router for one of the modes, returns GraphError,
+    /// i.e., the routers for any other modes are discarded.
     pub fn new_for_modes(
         network: Arc<Network>,
         modes: &Vec<Id<String>>,
         travel_time: Box<dyn TravelTime>,
         travel_disutility: Box<dyn TravelDisutility>,
-    ) -> IntMap<Id<String>, Self> {
+    ) -> Result<IntMap<Id<String>, Self>, GraphError> {
         let graphs = convert_network_with_modes(network, modes);
 
         graphs
             .into_iter()
-            .map(|(mode, graph)| {
-                let heuristic = H::create(&graph, &*travel_disutility);
-                (
-                    mode.clone(),
+            .try_fold(IntMap::default(), |mut map, (mode, graph)| {
+                let heuristic = H::create(&graph, &*travel_disutility)?;
+                map.insert(
+                    mode,
                     Self {
                         graph: Box::new(graph),
                         heuristic,
                         travel_time: travel_time.clone(),
                         travel_disutility: travel_disutility.clone(),
                     },
-                )
+                );
+                Ok(map)
             })
-            .collect()
     }
 
     /// Given a to-link and a vector of parent links, extracts the path of links to the to-link.
@@ -250,7 +261,7 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
         // create request for a_star_core
         let a_star_request = match AStarRequestBuilder::default()
             // copies from, departure time, person, vehicle values from the lcp request.
-            // The graph is required to transform the from-link to from node, and is
+            // The graph is required to transform the from-link to from-node, and is
             // added itself to the A* request as well
             .from_least_cost_path_request_with_graph(&request, &*self.graph)
         {
@@ -362,7 +373,6 @@ mod tests {
     use crate::simulation::replanning::routing::a_star_router::{
         AStarHeuristic, AStarRouter, AltHeuristic, AltRouter, DijkstraRouter, ZeroHeuristic,
     };
-    use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
     use crate::simulation::replanning::routing::graph::tests::{
         get_triangle_test_network, net_to_graph,
     };
@@ -467,7 +477,8 @@ mod tests {
             None,
             Box::new(FreeSpeedTravelTimeAndDisutility),
             Box::new(FreeSpeedTravelTimeAndDisutility),
-        );
+        )
+        .unwrap();
 
         calc_route_and_check(
             &router,
@@ -498,13 +509,95 @@ mod tests {
         );
     }
 
-    /// Test routing with ALT heuristic, with two different vehicle types (car and bike) that have
-    /// different travel times on the same links, and thus different optimal paths.
+    /// Test routing with ALT heuristic, with two different vehicle types (car and bike).
+    /// The network is such that all links are available for both modes, but the modes have
+    /// different max speeds and thus different travel times on the same links, and thus different
+    /// optimal paths.
     #[integration_test]
-    fn test_mode_alt_routing() {
+    fn test_mode_alt_routing_same_graphs() {
         // load network
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
+            1,
+            &PartitionMethod::Metis(MetisOptions::default()),
+        );
+        // load garage. This one only contains vehicle types, no vehicles.
+        let mut garage = Garage::from_file(&PathBuf::from(
+            "./assets/adhoc_routing/no_updates/vehicles.xml",
+        ));
+
+        // load ids of vehicle types into variables, for bike and car
+        let bike_type_id = Id::<InternalVehicleType>::get_from_ext("bike");
+        let car_type_id = Id::<InternalVehicleType>::get_from_ext("car");
+
+        // Add vehicles for each vehicle type (since the garage file only contains vehicle types)
+        garage.add_veh_by_type(
+            &Id::create("bike_person"), // create some person
+            &bike_type_id,              // vehicle type
+        );
+        garage.add_veh_by_type(&Id::create("car_person"), &car_type_id);
+
+        // load ids of the newly created vehicles into variables
+        let bike_vehicle_id = garage.veh_id(
+            &Id::get_from_ext("bike_person"), // person id
+            &bike_type_id,                    // vehicle type id
+        );
+
+        let car_vehicle_id = garage.veh_id(
+            &Id::get_from_ext("car_person"), // person id
+            &car_type_id,                    // vehicle type id
+        );
+
+        // Create ALT routers on the network for the two modes.
+
+        // Note: in this particular network, all links can be used by car and bike, so both routers
+        // are actually the same
+        // So while in a normal use case, one would create two different routers, here, we
+        // explicitly do not, to verify that the same router respects different travel times of
+        // different modes
+        let router = AltRouter::new(
+            Arc::new(network),
+            None, // mode can be set to None here, since all links in the given network allow modes bike and car.
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+        )
+        .unwrap();
+
+        // check routing for bike
+
+        calc_route_and_check(
+            &router,
+            "link0",
+            "link4",
+            garage.vehicles.get(&bike_vehicle_id), // bike vehicle
+            Some(Duration::from_secs(240)),
+            Some(240.0 as Disutility),
+            Some(vec!["link1", "link2", "link3"]),
+        );
+
+        // check routing for car
+
+        calc_route_and_check(
+            &router,
+            "link0",
+            "link4",
+            garage.vehicles.get(&car_vehicle_id), // car vehicle
+            Some(Duration::from_secs(100)),       // tt
+            Some(100.0 as Disutility),            // td
+            Some(vec!["link5", "link6"]),
+        )
+    }
+
+    /// Test routing with ALT heuristic, with two different vehicle types (car and bike).
+    /// The network is such that not all links are available for both modes, so the routers per mode
+    /// use different graphs internally. We deliberately use the FreeSpeed travel disutility (not
+    /// respecting max speed) to test the different travel times and optimal paths due to the
+    /// differing graphs (only).
+    #[integration_test]
+    fn test_mode_alt_routing_different_graphs() {
+        // load network
+        let network = Network::from_file(
+            "./assets/routing_tests/network_different_modes.xml",
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
@@ -539,37 +632,38 @@ mod tests {
 
         // Create ALT routers on the network for the two modes.
 
-        // Note: in this particular network, all links can be used by car and bike, so both routers
-        // are actually the same
+        // Note: in this network, not all links can be used by both car and bike, so the two routers
+        // are actually needed. This is is the usual case.
         let router_by_mode = AltRouter::new_for_modes(
             Arc::new(network),
             &vec![car_mode_id, bike_mode_id],
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        );
+            Box::new(FreeSpeedTravelTimeAndDisutility),
+            Box::new(FreeSpeedTravelTimeAndDisutility),
+        )
+        .unwrap();
 
         // check routing for bike
 
         calc_route_and_check(
             router_by_mode.get(&Id::get_from_ext("bike")).unwrap(), // bike router
-            "link0",
-            "link4",
+            "3",
+            "1",
             garage.vehicles.get(&bike_vehicle_id), // bike vehicle
-            Some(Duration::from_secs(240)),
-            Some(240.0 as Disutility),
-            Some(vec!["link1", "link2", "link3"]),
+            Some(Duration::from_secs(6)),
+            Some(6.0 as Disutility),
+            Some(vec!["4", "5"]),
         );
 
         // check routing for car
 
         calc_route_and_check(
             router_by_mode.get(&Id::get_from_ext("car")).unwrap(), // car router
-            "link0",
-            "link4",
+            "3",
+            "2", // Note: this is a different link than in the bike test above, but it starts at the same node, so the routing destination is the same
             garage.vehicles.get(&car_vehicle_id), // car vehicle
-            Some(Duration::from_secs(100)),       // tt
-            Some(100.0 as Disutility),            // td
-            Some(vec!["link5", "link6"]),
+            Some(Duration::from_secs(5)), // tt
+            Some(5.0 as Disutility), // td
+            Some(vec!["7"]),
         )
     }
 
@@ -584,7 +678,8 @@ mod tests {
             None, // mode
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        );
+        )
+        .unwrap();
 
         // Router with ALT heuristic
         let alt_router = AStarRouter::<AltHeuristic>::new(
@@ -592,23 +687,18 @@ mod tests {
             None, // mode
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        );
+        )
+        .unwrap();
 
         // Both should find the same optimal path
-        let request_zero = LeastCostPathRequestBuilder::default()
+        let request = LeastCostPathRequestBuilder::default()
             .from(Id::get_from_ext("1"))
             .to(Id::get_from_ext("2"))
             .build()
             .unwrap();
 
-        let request_alt = LeastCostPathRequestBuilder::default()
-            .from(Id::get_from_ext("1"))
-            .to(Id::get_from_ext("2"))
-            .build()
-            .unwrap();
-
-        let zero_result = zero_router.calc_route(request_zero);
-        let alt_result = alt_router.calc_route(request_alt);
+        let zero_result = zero_router.calc_route(request.clone());
+        let alt_result = alt_router.calc_route(request);
 
         assert_eq!(
             zero_result, alt_result,
@@ -626,7 +716,8 @@ mod tests {
             None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        );
+        )
+        .unwrap();
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::get_from_ext("1")) // link 1 ends in node 2
@@ -658,7 +749,8 @@ mod tests {
             None, // mode
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        );
+        )
+        .unwrap();
 
         // Create a router with time-dependent disutility
         // disutility = freespeed travel_time * (1 + 10 * departure_time)
@@ -671,7 +763,8 @@ mod tests {
             None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(TimeDependentDisutility),
-        );
+        )
+        .unwrap();
 
         // Route at time 0.0
         let request = LeastCostPathRequestBuilder::default()
@@ -717,7 +810,8 @@ mod tests {
             None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        );
+        )
+        .unwrap();
 
         // Verify the behaviour when the from-link or to-link doesn't exist, and when they exist but
         // are not connected
@@ -758,9 +852,8 @@ mod tests {
         let network = get_triangle_test_network();
         let graph = net_to_graph(&network);
 
-        let landmark_data =
-            AltLandmarkData::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
-        let alt_heuristic = AltHeuristic::new(landmark_data);
+        let alt_heuristic =
+            AltHeuristic::from_graph(&graph, &FreeOrMaxSpeedTravelTimeAndDisutility).unwrap();
 
         // Test heuristic estimates for various node pairs
         let test_pairs = vec![("1", "2"), ("2", "3"), ("1", "3"), ("2", "1")];

@@ -20,7 +20,7 @@ use tracing::warn;
 /// Specifies which heuristic to use for A* search
 ///
 /// - `WithHeuristic(&'a H)`: Use the provided heuristic for One-to-One routing with A*
-/// - `WithoutHeuristic`: Use zero heuristic (collapses A* to pure Dijkstra)
+/// - `WithoutHeuristic`: Use zero heuristic (collapses A* to pure Dijkstra),
 ///   for One-to-Many landmark distance calculations
 ///     - this allows to run `a_star_core` without a `to`-node, since even when using
 ///     `ZeroHeuristic`, a node would have to be passed. But with this setting, `a_star_core` knows
@@ -160,7 +160,7 @@ impl AStarActions for LandmarkCalcAStarActions<'_> {
     fn reached_end(&self, _current_node: NodeIndex) -> bool {
         false
     }
-    /// returns a DisutilityToALlWithoutParents result.
+    /// returns a DisutilityToAllWithoutParents result.
     fn build_result(
         self,
         _current_disutility: Option<Disutility>,
@@ -219,6 +219,8 @@ pub(crate) struct RoutingAStarActions<'a> {
 }
 
 impl<'a> RoutingAStarActions<'a> {
+    /// create a new `RoutingAStarActions` object. Initializes the parent links vector as all `None`
+    /// and the arrival times vector as all `SimTime::max()`
     pub fn new(
         to_node: NodeIndex,
         travel_time: &'a dyn TravelTime,
@@ -354,9 +356,10 @@ impl AStarActions for RoutingAStarActions<'_> {
 /// Request for A* runs. Contains
 /// - data needed for calculation, that is the graph, the travel time and travel disutility
 ///     functions, the from-node, the departure time, the person and vehicle (if applicable)
-/// - a `AStarActions` implementation that determines the use case (parent tracking or not,
-///     one to many or not, arrival time tracking or not). The implementation also contains the
-///     travel disutility function, and the travel time function and the to-node when applicable.
+/// - a `AStarActions` implementation that determines the use case (routing or landmark calculation,
+///     that is, parent tracking or not, one to many or not, arrival time tracking or not). The
+///     implementation also contains the travel disutility function, and the travel time function
+///     and the to-node when applicable.
 /// - the `HeuristicMode`: a heuristic to be used, or the information that none is to be used
 /// - a bool specifying whether the search is to be performed forwards or backwards. In the
 ///     latter case, paths using incoming edges, i.e., paths leading going to the from-node,
@@ -382,7 +385,7 @@ pub(crate) struct AStarRequest<'a, H: AStarHeuristic, O: AStarActions> {
 }
 
 impl<'a, H: AStarHeuristic, O: AStarActions> AStarRequestBuilder<'a, H, O> {
-    /// partially builds a A* request using data from a given least cost path request
+    /// partially builds a A* request using data from a given least cost path request and graph
     pub(crate) fn from_least_cost_path_request_with_graph(
         self,
         request: &LeastCostPathRequest<'a>,

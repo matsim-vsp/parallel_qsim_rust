@@ -7,7 +7,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 /// A (directed) graph whose nodes are Ids of network nodes, and edges are Ids of network links.
-/// The graph is used for routing, and the nodes and links can be accessed by their id.
+/// The graph is used for routing. The actual network nodes and links can be accessed by their id.
 pub trait Graph: Debug {
     /// get network node from node id
     fn node(&self, id: Id<Node>) -> Result<&Node, GraphError>;
@@ -43,6 +43,7 @@ pub(crate) type BackwardLinkIndex = usize;
 /// This is used to keep the routing algorithms efficient, while still being able to use the ids in
 /// the rest of the code.
 pub trait IndexableGraph: Graph {
+    /// get a map from node ids to node indices
     fn get_node_idxs_from_ids(&self) -> &IntMap<Id<Node>, NodeIndex>;
     fn get_node_idx_from_id(&self, id: Id<Node>) -> NodeIndex;
     fn get_link_idx_from_id(&self, id: Id<Link>) -> Result<LinkIndex, GraphError>;
@@ -90,9 +91,9 @@ impl CsrGraph {
     }
 }
 
-/// Error type for graph operations. Has variants for when node ids or indices, or link ids or
-/// indices, are passed to be used in some operation but are not found in the graph on which the
-/// operation takes place.
+/// Error type for graph operations. Has variants for when node ids, node indices or a range of
+/// node indices, or link ids, link indices or a range of link indices, are passed to be used in
+/// some operation but are not found in the graph on which the operation takes place.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GraphError {
     LinkIdNotFound(Id<Link>),
@@ -139,21 +140,21 @@ impl Display for GraphError {
 impl std::error::Error for GraphError {}
 
 /// An implementation of `Graph` and `IndexableGraph`, i.e., a directed graph with network nodes
-/// as nodes, and network links as edges.
+/// as nodes, and network links as edges, where nodes and edges can be accessed by both their id
+/// and their index.
 ///
 /// The graph structure is stored in two `CsrGraph`s, one "forward" graph and one "backward", with
 /// the backward graph a copy of the forward one, just with flipped directions on the edges. This
 /// allows to have cheap access to both outgoing and incoming edges.
 ///
-/// Also contains maps and vectors to map between indices, (node/link) ids and actual nodes and
-/// links. And contains coordinate data, currently not used in routing.
+/// Also contains maps and vectors to map between indices and (node/link) ids. And stores an Arc
+/// pointing to the Network it is representing, which can be used to access the actual network
+/// nodes and links from their id.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct ForwardBackwardRoutingGraph {
     forward_graph: CsrGraph,
     backward_graph: CsrGraph,
     network: Arc<Network>,
-    // node_by_node_id: Arc<IntMap<Id<Node>, Node>>, // maps node ids to actual network nodes
-    // link_by_link_id: Arc<IntMap<Id<Link>, Link>>, // maps link ids to actual network links
     node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to node indices
     node_id_by_index: Vec<Id<Node>>,               // maps (Node)Indices to node ids
     forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
@@ -167,8 +168,6 @@ impl ForwardBackwardRoutingGraph {
         forward_graph: CsrGraph,
         backward_graph: CsrGraph,
         network: Arc<Network>,
-        // node_by_node_id: Arc<IntMap<Id<Node>, Node>>,
-        // link_by_link_id: Arc<IntMap<Id<Link>, Link>>,
         node_index_by_id: IntMap<Id<Node>, NodeIndex>, // maps node ids to indices (in first_out, x, y etc.)
         node_id_by_index: Vec<Id<Node>>, // maps (Node)Indices (in first_out, x, y etc.) to node ids
         forward_link_id_by_index: Vec<Id<Link>>, // maps link indices of the forward graph to link ids
@@ -180,8 +179,6 @@ impl ForwardBackwardRoutingGraph {
             forward_graph,
             backward_graph,
             network,
-            // node_by_node_id,
-            // link_by_link_id,
             node_index_by_id,
             node_id_by_index,
             forward_link_id_by_index,
@@ -193,9 +190,11 @@ impl ForwardBackwardRoutingGraph {
         graph
     }
 
+    /// maps node ids to actual network nodes, by looking them up in the network
     fn nodes_by_node_ids(&self) -> &IntMap<Id<Node>, Node> {
         self.network.nodes_with_ids()
     }
+    /// maps link ids to actual network links, by looking them up in the network
     fn links_by_link_ids(&self) -> &IntMap<Id<Link>, Link> {
         self.network.links_with_ids()
     }

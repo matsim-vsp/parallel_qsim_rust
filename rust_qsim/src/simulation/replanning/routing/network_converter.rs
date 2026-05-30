@@ -12,6 +12,8 @@ use crate::simulation::scenario::network::{Link, Network};
 
 #[allow(dead_code)]
 
+/// convert a network into multiple graphs, one for each given mode, such that only the links on
+/// which a mode can travel on are contained in the respective graphs
 pub fn convert_network_with_modes(
     network: Arc<Network>,
     modes: &Vec<Id<String>>,
@@ -27,6 +29,8 @@ pub fn convert_network_with_modes(
         .collect()
 }
 
+/// convert a given network into a (forward backward) graph. Optionally, a mode can be given, in
+/// which case only the links that allow that mode will be included in the graph
 pub(crate) fn convert_network_for_mode(
     network: Arc<Network>,
     mode: Option<Id<String>>,
@@ -149,9 +153,6 @@ mod test {
     };
     use crate::simulation::replanning::routing::network_converter;
     use crate::simulation::scenario::network::Network;
-    use crate::simulation::scenario::vehicles::Garage;
-    use crate::simulation::scenario::vehicles::InternalVehicleType;
-    use std::path::PathBuf;
     use std::sync::Arc;
 
     #[test]
@@ -170,7 +171,6 @@ mod test {
         assert_eq!(graph.backward_first_out(), &vec![0usize, 0, 1, 4, 6]);
         assert_eq!(graph.backward_head(), &vec![3usize, 1, 2, 3, 1, 2]);
         assert_eq!(graph.backward_link_ids().len(), 6);
-        // we don't check y and y so far
     }
 
     /// test whether the network converter correctly creates separate graphs for different modes,
@@ -229,97 +229,5 @@ mod test {
                 "Every forward link should exist in backward links"
             );
         }
-    }
-
-    #[test]
-    #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
-    fn test_mode_filter() {
-        let network = Network::from_file(
-            "./assets/adhoc_routing/no_updates/network.xml",
-            1,
-            &PartitionMethod::Metis(MetisOptions::default()),
-        );
-        let garage = Garage::from_file(&PathBuf::from(
-            "./assets/adhoc_routing/no_updates/vehicles.xml",
-        ));
-
-        let vehicle_type2graph = network_converter::convert_network_with_modes(
-            Arc::new(network),
-            &garage
-                .vehicle_types
-                .iter()
-                .map(|(_vt_id, vt)| vt.net_mode.clone())
-                .collect(),
-        );
-
-        // No link allows mode "walk". So the graph is expected to be empty.
-        let walk_id = &Id::<InternalVehicleType>::get_from_ext("walk");
-        assert!(
-            vehicle_type2graph
-                .get(&garage.vehicle_types[walk_id].net_mode)
-                .unwrap()
-                .forward_link_ids()
-                .is_empty()
-        );
-
-        // Note: the part below was commented out because we no longer store travel time in the
-        // graph.
-
-        // // Test for mode "car"
-        // let car_id = &Id::<InternalVehicleType>::get_from_ext("car");
-        // let car_graph = vehicle_type2graph.get(car_id).unwrap();
-        // let link2_index = car_graph.forward_graph.first_out[2];
-        // // assert_eq!(car_graph.forward_graph.travel_time[link2_index], 100);
-        //
-        // // Test for mode "bike"
-        // let bike_id = &Id::<InternalVehicleType>::get_from_ext("bike");
-        // let bike_graph = vehicle_type2graph.get(bike_id).unwrap();
-        // let link2_index = bike_graph.forward_graph.first_out[2];
-        // assert_eq!(bike_graph.forward_graph.travel_time[link2_index], 200);
-    }
-
-    #[test]
-    #[ignore] // ignore after architecture change. Need to consider whether we need this module at all.
-    fn test_different_veh_types_same_net_mode() {
-        let network = Network::from_file(
-            "./assets/adhoc_routing/no_updates/network.xml",
-            1,
-            &PartitionMethod::Metis(MetisOptions::default()),
-        );
-        let garage = Garage::from_file(&PathBuf::from(
-            "./assets/mode_dependent_routing/vehicle_definitions.xml",
-        ));
-
-        let vehicle_type2graph = network_converter::convert_network_with_modes(
-            Arc::new(network),
-            &garage
-                .vehicle_types
-                .iter()
-                .map(|(_vt_id, vt)| vt.net_mode.clone())
-                .collect(),
-        );
-
-        assert_eq!(vehicle_type2graph.keys().len(), 2);
-
-        // Note: the part below was commented out since we no longer store travel times in the
-        // graph
-
-        // assert_eq!(
-        //     vehicle_type2graph
-        //         .get(&Id::<InternalVehicleType>::get_from_ext("car"))
-        //         .unwrap()
-        //         .forward_graph
-        //         .travel_time,
-        //     vec![10, 10, 50, 100, 10, 10, 50]
-        // );
-        //
-        // assert_eq!(
-        //     vehicle_type2graph
-        //         .get(&Id::<InternalVehicleType>::get_from_ext("bike"))
-        //         .unwrap()
-        //         .forward_graph
-        //         .travel_time,
-        //     vec![20, 20, 200, 200, 20, 20, 200]
-        // );
     }
 }

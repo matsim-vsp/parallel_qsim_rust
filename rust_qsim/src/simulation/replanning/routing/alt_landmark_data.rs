@@ -13,6 +13,7 @@ use rand::prelude::IteratorRandom;
 use rand::rngs::StdRng;
 use std::f64;
 
+/// Disutility data for a pair of nodes, in both forward and backward direction.
 pub type ForwardBackwardTravelDisutility = (Disutility, Disutility);
 
 const DEFAULT_NUMBER_OF_LANDMARKS: usize = 16;
@@ -41,8 +42,8 @@ impl AltLandmarkData {
         }
     }
 
-    /// Given a graph, chooses landmarks (currently randomly) and precalculates their travel
-    /// disutilities to all other nodes, both forward and backward
+    /// Given a graph and a disutility function, chooses landmarks (currently randomly) and
+    /// precalculates their travel disutilities to all other nodes, both forward and backward
     pub(crate) fn from_graph(
         graph: &dyn IndexableGraph,
         disutility: &dyn TravelDisutility,
@@ -110,7 +111,8 @@ impl AltLandmarkData {
     /// Dijkstra (or optionally, from all other nodes to one node, if backward=true).
     /// Returns a vector of disutilities, where the index corresponds to the node index in the
     /// graph.
-    /// Uses the A* implementation also used for routing, without heuristic.
+    /// Uses the A* implementation also `a_star_core` which is also used for routing, but without
+    /// heuristic.
     fn disutilities_one_2_many(
         graph: &dyn IndexableGraph,
         disutility: &dyn TravelDisutility,

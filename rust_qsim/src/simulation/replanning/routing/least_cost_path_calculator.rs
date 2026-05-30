@@ -7,11 +7,13 @@ use derive_builder::Builder;
 use std::fmt::Debug;
 use std::time::Duration;
 
+/// Disutility is the unit of the cost values used in routing
 pub type Disutility = f64;
 
 /// Travel time function, mapping any network link to a travel time, depending on the departure time
 /// and optionally the person and vehicle.
 pub trait TravelTime: Debug {
+    /// get travel time of given link at given time, optionally for a specific person and vehicle
     fn travel_time(
         &self,
         link: &Link,
@@ -27,6 +29,8 @@ pub trait TravelTime: Debug {
 
 /// Travel disutility function, mapping any network link to a travel disutility, depending on the
 /// departure time and optionally the person and vehicle.
+/// Also provides a method to get a global lower bound on the travel disutility for a given link,
+/// over all times, persons and vehicles. This is used to calculate landmark data.
 ///
 /// # Contract
 /// - Returned disutilities are used as edge weights in Dijkstra/A* and therefore must be
@@ -34,6 +38,8 @@ pub trait TravelTime: Debug {
 /// - `get_link_min_travel_disutility(link)` must be a global lower bound on `travel_disutility`
 ///   for the given link across all times/persons/vehicles (so ALT remains admissible).
 pub trait TravelDisutility: Debug {
+    /// get travel disutility of the given link at the given time, optionally for a specific person
+    /// and vehicle
     fn travel_disutility(
         &self,
         link: &Link,
@@ -53,6 +59,11 @@ pub trait TravelDisutility: Debug {
     fn box_clone(&self) -> Box<dyn TravelDisutility>;
 }
 
+// we need Clone for Box<dyn TravelTime> and Box<dyn TravelDisutility>, since we want to clone them
+// when constructing multiple routers at once (e.g., for different modes) using the same travel time
+// and disutility. And since we cannot make Clone a supertrait of TravelTime and TravelDisutility,
+// since that makes them not dyn compatible, we implement Clone manually.
+
 impl Clone for Box<dyn TravelTime> {
     fn clone(&self) -> Self {
         self.box_clone()
@@ -68,7 +79,7 @@ impl Clone for Box<dyn TravelDisutility> {
 /// An implementation of both `TravelTime` and `TravelDisutility`, purely based on freespeed travel
 /// times. The travel time is simply the link length divided by the freespeed, ignoring any given
 /// vehicle type and its max speed.
-
+///
 /// The travel disutility is equal to the travel time.
 #[derive(Clone, Debug)]
 pub struct FreeSpeedTravelTimeAndDisutility;
@@ -170,11 +181,14 @@ impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
 
 /// A request for the calculation of least cost paths. Contain all relevant data for the
 /// calculation, that is
-/// - from- and to-links, and a reference to the graph representing the network (must be an
-///     `IndexableGraph` so that the routing algorithms can be efficient)
+/// - from- and to-links
 /// - the departure time at the from-node and optionally a person and vehicle. These are passed to
 ///     travel time and disutility functions in routing (the latter being used as cost, and the
 ///     former used to determine the arrival times at specific nodes)
+///
+/// This is what an implementation of `LeastCostPathCalculator` receives as input when calculating
+/// a least cost path. Note that the router owns its graph, so the request does not specifiy the
+/// graph to route on, instead users must use the correct router.
 #[derive(Builder, Clone)]
 pub struct LeastCostPathRequest<'r> {
     // From and to are deliberately not nodes but links. This allows considering those links as well during routing.
@@ -198,11 +212,14 @@ pub struct LeastCostPath {
     pub travel_disutility: Disutility,
 }
 
-/// Router that calculates a least cost path between given from- and to-links on a given graph.
+/// Router that calculates a least cost path between given from- and to-links.
+/// The router contains the network to route on (typically stored as a graph) and the cost function,
+/// which is in this case a travel disutility function.
 pub trait LeastCostPathCalculator {
     /// Calculate the least cost path as defined in the request. Requests contain from- and
-    /// to-links, a reference to the graph to route on as well as the departure time and an optional
-    /// person and vehicle.
+    /// to-links as well as the departure time and an optional person and vehicle.
+    /// The network to route on and the cost function are properties of the implementation of the
+    /// router.
     /// If no path is found, either because the to-link is unreachable or because the from- or
     /// to-link do not exist in the graph, None is returned.
     /// Otherwise, the path is returned together with its travel time and disutility.
@@ -245,7 +262,8 @@ mod tests {
             None,
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
             Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        );
+        )
+        .unwrap();
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::create("1")) // these links are connected via
@@ -253,7 +271,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let expected_path: Vec<Id<Link>> = [Id::<Link>::create("4")].into_iter().collect();
+        let expected_path: Vec<Id<Link>> = [Id::create("4")].into_iter().collect();
 
         let result = router.calc_route(request);
         assert_eq!(
