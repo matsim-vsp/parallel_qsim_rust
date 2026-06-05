@@ -1,16 +1,10 @@
-use std::fs::{create_dir, create_dir_all, OpenOptions};
-use std::path::Path;
 use std::sync::Arc;
-use std::time::Instant;
 use clap::Parser;
-use tracing::{info, info_span};
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::{fmt, Layer};
-use tracing_subscriber::filter::{filter_fn};
-use tracing_subscriber::layer::SubscriberExt;
+use tracing::info;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::id::Id;
+use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::MutableScenario;
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
 
@@ -18,7 +12,7 @@ use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
 
 #[cfg_attr(feature = "hotpath", hotpath::main)]
 fn main() {
-    init_logging_with_benchmark();
+    let _guard = init_std_out_logging_thread_local();
 
     let args = CommandLineArgs::parse();
     info!("Started with args: {:?}", args);
@@ -37,67 +31,8 @@ fn main() {
         .build()
         .unwrap();
 
-    let sim_span = info_span!("simulation");
-    let _enter = sim_span.enter();
-
-    let start = Instant::now();
-
-    controller.run();
-
-    let elapsed = start.elapsed();
-
-    info!(
-        target: "benchmark",
-        runtime_ms = elapsed.as_millis(),
-        runtime_sec = elapsed.as_secs_f64(),
-        "simulation_completed"
-    );
-
+    controller.run()
 }
-
-fn init_logging_with_benchmark() {
-    create_dir_all("./output").expect("Could not create output folder");
-
-    // Find the next available benchmark_N filename
-    let mut index = 0;
-    let filename = loop {
-        let path = format!("./output/benchmark_{}", index);
-
-        if !Path::new(&path).exists() {
-            break path;
-        }
-
-        index += 1;
-    };
-
-
-    // Stdout layer: exclude benchmark target
-    let stdout_layer = fmt::Layer::new()
-        .with_writer(std::io::stdout)
-        .with_filter(LevelFilter::INFO);
-
-    // Benchmark file
-    let benchmark_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(filename)
-        .unwrap();
-
-    // Benchmark-only layer
-    let benchmark_layer = fmt::Layer::new()
-        .with_writer(benchmark_file)
-        .with_ansi(false)
-        .with_filter(filter_fn(|metadata| {
-            metadata.target() == "benchmark"
-        }));
-
-    let collector = tracing_subscriber::registry()
-        .with(stdout_layer)
-        .with(benchmark_layer);
-
-    tracing::subscriber::set_global_default(collector).unwrap();
-}
-
 
 /// This function was copied from Paul Heinrich's own repository:
 /// https://github.com/paulheinr/parallel-qsim-berlin/blob/main/src/main/rust/src/bin/berlin.rs
