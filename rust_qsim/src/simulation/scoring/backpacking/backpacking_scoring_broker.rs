@@ -45,7 +45,6 @@ impl BackpackingMessageBroker
         self.senders.push(sender);
     }
 
-    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     pub(crate) fn finish(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){
         message_broker.lock().unwrap().data_collector = data_collector;
     }
@@ -72,7 +71,6 @@ impl BackpackingMessageBroker
         self.buffer_vehicles.entry(target).or_insert_with(|| HashMap::new()).insert(vehicle_id, passengers);
     }
 
-    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     fn send_recv(&mut self, now: u32) {
         for (target, vehicles) in self.buffer_vehicles.drain() {
             let msg = InternalScoringMessage {

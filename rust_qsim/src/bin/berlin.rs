@@ -10,7 +10,6 @@ use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
 
 // TODO: This script is not meant to be a library function. It should be outsourced aleks Apr'26
 
-#[cfg_attr(feature = "hotpath", hotpath::main)]
 fn main() {
     let _guard = init_std_out_logging_thread_local();
 

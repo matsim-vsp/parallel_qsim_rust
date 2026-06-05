@@ -70,7 +70,6 @@ impl BackpackingDataCollector {
         &self.person_id2backpack
     }
 
-    #[cfg_attr(feature = "hotpath", hotpath::measure)]
     /// This method's main purpose is to forward relevant events to the backpacks affected by given event.
     /// Events which do not affect the Backpack of any person will be ignored.
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
