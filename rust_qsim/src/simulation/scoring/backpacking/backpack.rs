@@ -234,6 +234,10 @@ struct BackpackRoute {
     distance: Option<f64>,
     vehicle: Option<Id<InternalVehicle>>,
 
+    //TODO These values are currently unused
+    relative_position_on_departure_link: Option<f64>,
+    relative_position_on_arrival_link: Option<f64>,
+
     // Network Route Type
     route: Vec<Id<Link>>
     // Currently, route sequence does not contain start or end-link id even though internally
@@ -250,6 +254,8 @@ impl Default for BackpackRoute {
             end_time: None,
             distance: None,
             vehicle: None,
+            relative_position_on_departure_link: None,
+            relative_position_on_arrival_link: None,
             route: Vec::default(),
         }
     }
@@ -276,13 +282,11 @@ impl BackpackRoute {
     }
 
     fn handle_vehicle_enters_traffic(&mut self, event: &VehicleEntersTrafficEvent) {
-        // TODO Relative position on departure link
-        // ...
+        self.relative_position_on_departure_link = Some(event.relative_position);
     }
 
     fn handle_vehicle_leaves_traffic(&mut self, event: &VehicleLeavesTrafficEvent) {
-        // TODO Relative position on arrival link
-        // ...
+        self.relative_position_on_arrival_link = Some(event.relative_position);
     }
 
     fn handle_link_enter_event(&mut self, event: &LinkEnterEvent) {
