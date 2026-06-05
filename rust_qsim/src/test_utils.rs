@@ -30,7 +30,7 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
 
     let net_route = InternalNetworkRoute::new(generic_route, vec);
 
-    let leg = InternalLeg::new(InternalRoute::Network(net_route), "car", 0, None);
+    let leg = InternalLeg::new(InternalRoute::Network(net_route), "car", "car", 0, None);
     let act = InternalActivity::new(
         Coordinate::default(),
         "act",

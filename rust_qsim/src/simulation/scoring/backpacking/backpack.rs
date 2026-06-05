@@ -84,11 +84,8 @@ impl BackpackPlan {
             return InternalPlan::default()
         }
 
-        // Resolve remaining act (or leg if agent could not finish its plan)
-        if self.current_activity.is_none() {
-            // TODO Ask PH how I to properly handle unfinished legs
-            warn!("Finished an agent, which is not in an ending activity! It likely never arrived at its destination.");
-        } else {
+        // Resolve remaining act
+        if !self.current_activity.is_none() {
             // Finish remaining current act
             self.elements.push(Activity(self.current_activity.unwrap().finish()));
         }
@@ -163,7 +160,7 @@ impl BackpackActivity {
 
 struct BackpackLeg {
     pub mode: Option<Id<String>>,
-    pub routing_mode: Option<Id<String>>, // TODO Seems like this var is not needed
+    pub routing_mode: Option<Id<String>>,
     pub dep_time: Option<u32>,
     pub trav_time: Option<u32>,
     pub backpack_route: BackpackRoute,
@@ -208,6 +205,9 @@ impl BackpackLeg {
                 .finish(),
             self.mode
                 .unwrap_or_else(|| panic!("Tried to finish BackpackLeg without mode!"))
+                .external(),
+            self.routing_mode
+                .unwrap_or_else(|| panic!("Tried to finish BackpackLeg without routing_mode!"))
                 .external(),
             self.trav_time
                 .unwrap_or_else(|| panic!("Tried to finish BackpackLeg without trav_time!")),
@@ -364,7 +364,6 @@ impl BackpackRoute {
 /// The Backpack is not managed by the agent itself but by the [BackpackDataCollector], which exists
 /// once for each partition. If an agent leaves the current partition, the Backpack is transmitted
 /// to the partition the agent is currently entering.
-/// TODO Check if the events attribute is needed
 pub struct Backpack{
     person_id: Id<InternalPerson>,
     events: Vec<Box<dyn EventTrait>>,

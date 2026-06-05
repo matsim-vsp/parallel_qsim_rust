@@ -471,6 +471,7 @@ mod tests {
                 None,
             )),
             "mode",
+            "mode",
             1,
             Some(2),
         ));
