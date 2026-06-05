@@ -24,7 +24,6 @@ use std::thread::JoinHandle;
 use std::{fs, mem, thread};
 use tracing::info;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
-use crate::simulation::scoring::benchmark::Benchmark;
 
 #[derive(Debug)]
 pub enum Scenario {
@@ -253,10 +252,6 @@ impl Controller {
                 self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
             }
         }
-        
-        // for (i, m_fn) in Benchmark::setup_benchmark(num_parts).drain(..).enumerate() {
-        //     self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
-        // }
 
         let handles: IntMap<u32, JoinHandle<()>> = comms
             .into_iter()

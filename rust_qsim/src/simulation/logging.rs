@@ -4,7 +4,7 @@ use tracing::Level;
 use tracing::dispatcher::DefaultGuard;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
-use tracing_subscriber::filter::{filter_fn, LevelFilter};
+use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -20,7 +20,6 @@ use crate::simulation::profiling::routing::RoutingSpanDurationToFileLayer;
 pub(crate) struct LogGuards {
     tracing_guards: Vec<Box<dyn std::any::Any + Send>>,
     log_guard: Option<WorkerGuard>,
-    benchmark_guard: WorkerGuard,
     default: DefaultGuard,
 }
 
@@ -33,7 +32,6 @@ pub fn init_std_out_logging_thread_local() -> DefaultGuard {
     tracing::subscriber::set_default(collector)
 }
 
-// TODO The logging has been changed to allow debugging. Try to find a less invasive solution
 pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     let file_discriminant = part.to_string();
     let dir = resolve_path(config.context(), &config.output().output_dir);
@@ -53,34 +51,17 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
         (None, None)
     };
 
-    let benchmark_file_appender =
-        rolling::never(&dir, "./benchmark-t.log");
-
-    let (benchmark_file, benchmark_guard) =
-        non_blocking(benchmark_file_appender);
-
-    let benchmark_layer = fmt::Layer::new()
-        .with_writer(benchmark_file)
-        .with_ansi(false)
-        .with_filter(filter_fn(|metadata| {
-            metadata.target() == "benchmark"
-        }));
-
     let console_layer = (part == 0).then(|| {
         fmt::layer()
             .with_writer(io::stdout)
             .with_span_events(FmtSpan::CLOSE)
-            .with_filter(filter_fn(|metadata| {
-                metadata.level() <= &Level::INFO &&
-                metadata.target() != "benchmark"
-            }))
+            .with_filter(LevelFilter::INFO)
     });
 
     // Add `Optional`s. If None, then the corresponding layer is not added.
     let collector = registry()
         .with(log_layer)
         .with(console_layer)
-        .with(benchmark_layer)
         // This seems to be a bit odd, but is necessary to let the compiler figure out the correct types.
         // Depending on the order of the layers, the types of the input values are different.
         // This is why the layers are plugged together here and not stored in the csv_layers struct.
@@ -92,7 +73,6 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     LogGuards {
         tracing_guards: csv_layers.writer_guards,
         log_guard,
-        benchmark_guard,
         default,
     }
 }
