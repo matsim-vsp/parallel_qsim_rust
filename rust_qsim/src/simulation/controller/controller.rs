@@ -1,5 +1,6 @@
 use crate::external_services::AdapterHandle;
 use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
+use crate::simulation::config::ScoringPlansCollectionType::{Backpacking, Mapping, HomeSending};
 use crate::simulation::controller::{
     ExternalServices, PartitionArgumentsBuilder, create_output_filename,
     insert_number_in_proto_filename,
@@ -241,7 +242,12 @@ impl Controller {
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
 
         if self.config.scoring().enabled {
-            let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = BackpackingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager);
+            let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = match self.config.scoring().plans_collection_type {
+                Backpacking => BackpackingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager),
+                Mapping => panic!("Not implemented yet!"),
+                HomeSending => panic!("Not implemented yet!")
+            };
+
             for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
                 self.event_handler_per_partition.entry(i as u32).or_insert_with(Vec::new).push(e_fn);
             }

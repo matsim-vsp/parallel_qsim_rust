@@ -591,8 +591,8 @@ register_override!("scoring.enabled", |config, value| {
 pub enum ScoringPlansCollectionType {
     #[default]
     Backpacking,
-    Reducing,
-    ExternalThreads
+    Mapping,
+    HomeSending
 }
 
 impl Default for Scoring {
