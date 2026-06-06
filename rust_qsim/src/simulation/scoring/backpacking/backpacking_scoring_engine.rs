@@ -14,7 +14,7 @@ use crate::simulation::scenario::network::{Link};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
-use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessageBroker;
+use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
 use crate::simulation::scoring::{InternalScoringMessage};
 
 pub struct BackpackingScoringEngine

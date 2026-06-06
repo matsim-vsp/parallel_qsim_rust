@@ -7,7 +7,7 @@ use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
-use crate::simulation::scoring::backpacking::backpacking_scoring_broker::BackpackingMessageBroker;
+use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
 
 pub struct BackpackingDataCollector {
     person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
