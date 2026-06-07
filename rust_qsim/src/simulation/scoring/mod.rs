@@ -3,6 +3,7 @@ use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{MobsimListenerRegisterFn, QSimId};
 
 pub mod backpacking;
+pub mod partial_plans;
 
 /// A scoring engine contains a DataCollector and MessageBroker for respective implementation.
 pub trait ScoringEngine
