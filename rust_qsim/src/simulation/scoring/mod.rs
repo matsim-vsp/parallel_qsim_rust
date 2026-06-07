@@ -5,18 +5,6 @@ use crate::simulation::framework_events::{MobsimListenerRegisterFn, QSimId};
 pub mod backpacking;
 pub mod partial_plans;
 
-/// A scoring engine contains a DataCollector and MessageBroker for respective implementation.
-pub trait ScoringEngine
-{
-    fn create_for_n_partitions(n: u32) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>);
-    fn scoring(&self);
-}
-
-// A data collector registers callbacks for events, that are important for the respective ScoringEngine
-// pub trait DataCollector {
-//     fn register_fn(data_collector: Arc<Mutex<dyn DataCollector>>) -> Box<EventHandlerRegisterFn>;
-// }
-
 pub trait Message: Any + Send {
     fn as_any(&self) -> &dyn Any;
 
@@ -39,22 +27,4 @@ pub struct InternalScoringMessage {
     #[allow(unused)]
     to_process: QSimId,
     message: Box<dyn Message>
-}
-
-/// The message broker communicates with other partitions
-pub trait ScoringMessageBroker{
-
-}
-
-// TODO These structs are yet to be implemented in respective sub-modules
-pub struct PlanCollectingMessageBroker {
-
-}
-
-pub struct IntegratedPlanCollectingMessageBroker {
-
-}
-
-pub struct OutsourcedPlanCollectingMessageBroker {
-
 }
