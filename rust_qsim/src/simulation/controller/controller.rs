@@ -25,6 +25,7 @@ use std::thread::JoinHandle;
 use std::{fs, mem, thread};
 use tracing::info;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
+use crate::simulation::scoring::homesending::homesending_scoring_engine::HomesendingScoringEngine;
 
 #[derive(Debug)]
 pub enum Scenario {
@@ -245,7 +246,7 @@ impl Controller {
             let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = match self.config.scoring().plans_collection_type {
                 Backpacking => BackpackingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager),
                 Mapping => panic!("Not implemented yet!"),
-                HomeSending => panic!("Not implemented yet!")
+                HomeSending => HomesendingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager),
             };
 
             for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
