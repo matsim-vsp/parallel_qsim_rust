@@ -18,7 +18,7 @@ pub struct HomeSendingMessageBroker
     neighbours: IntSet<QSimId>,
     rank: QSimId,
 
-    buffer_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Box<dyn EventTrait>>>,
+    buffer_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
     buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
     data_collector: Weak<Mutex<HomeSendingDataCollector>>,
 }
@@ -68,11 +68,7 @@ impl HomeSendingMessageBroker {
     }
 
     pub(crate) fn add_leaving_event(&mut self, target: QSimId, person_id: Id<InternalPerson>, event: Box<dyn EventTrait>) {
-        if self.buffer_vehicles.contains_key(&target) {
-            panic!("Event collision! Tried to add a leaving event to an already filled entry.")
-        }
-
-        self.buffer_events.entry(target).or_insert_with(|| HashMap::new()).insert(person_id, event);
+        self.buffer_events.entry(target).or_insert_with(|| HashMap::new()).entry(person_id).or_insert_with(|| Vec::default()).push(event);
     }
 
     fn send_recv(&mut self, now: u32) {
@@ -166,5 +162,5 @@ impl HomeSendingMessageBroker {
 
 
 pub struct EventMessage {
-    events: HashMap<Id<InternalPerson>, Box<dyn EventTrait>>,
+    events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
 }

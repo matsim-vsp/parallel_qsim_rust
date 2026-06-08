@@ -46,11 +46,12 @@ impl HomeSendingDataCollector {
         self.vehicle_id2person_ids.extend(arriving_vehicles);
     }
 
-    pub(crate) fn add_arriving_events(&mut self, arriving_events: HashMap<Id<InternalPerson>, Box<dyn EventTrait>>) {
-        println!("Partition #{}: Handling arriving message", self.rank);
-        arriving_events.into_iter().for_each(|(person_id, arriving_event)| {
-            self.person_id2partial_plan.get_mut(&person_id).unwrap().handle_event(&*arriving_event);
-        })
+    pub(crate) fn add_arriving_events(&mut self, mut arriving_events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>) {
+        for (person_id, mut arriving_events) in arriving_events {
+            for arriving_event in arriving_events {
+                self.person_id2partial_plan.get_mut(&person_id).unwrap().handle_event(&*arriving_event);
+            }
+        }
     }
 
     fn remove_leaving_vehicles(&mut self, vehicle_id: &Id<InternalVehicle>) -> HashSet<Id<InternalPerson>> {
@@ -66,7 +67,6 @@ impl HomeSendingDataCollector {
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
     fn handle_event(&mut self, event: &dyn EventTrait ) {
         let affected_persons: Vec<(Id<InternalPerson>, Box<dyn EventTrait>)> = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
-            println!("LinkEnterEvent");
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
                 .into_iter()
@@ -75,28 +75,20 @@ impl HomeSendingDataCollector {
                 .map(|person| (person, Box::new(e.clone()) as Box<dyn EventTrait>))
                 .collect::<Vec<_>>()
         } else if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
-            println!("PersonArrivalEvent");
             vec![(e.person.clone(), Box::new(e.clone()))]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
-            println!("PersonDepartureEvent");
             vec![(e.person.clone(), Box::new(e.clone()))]
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityStartEvent>() {
-            println!("ActivityStartEvent");
             vec![(e.person.clone(), Box::new(e.clone()))]
         } else if let Some(e) = event.as_any().downcast_ref::<ActivityEndEvent>() {
-            println!("ActivityEndEvent");
             vec![(e.person.clone(), Box::new(e.clone()))]
         } else if let Some(e) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
-            println!("TeleportationArrivalEvent");
             vec![(e.person.clone(), Box::new(e.clone()))]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
-            println!("PersonEntersVehicleEvent");
             vec![(e.person.clone(), Box::new(e.clone()))]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
-            println!("PersonLeavesVehicleEvent");
             vec![(e.person.clone(), Box::new(e.clone()))]
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            println!("VehicleEntersTrafficEvent");
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
                 .into_iter()
@@ -105,7 +97,6 @@ impl HomeSendingDataCollector {
                 .map(|person| (person, Box::new(e.clone()) as Box<dyn EventTrait>))
                 .collect::<Vec<_>>()
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            println!("VehicleLeavesTrafficEvent");
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
                 .into_iter()
@@ -121,10 +112,8 @@ impl HomeSendingDataCollector {
             let target = self.person_id2home_partition.get(&person).unwrap();
 
             if *target == self.rank {
-                println!("Partition #{}: Handling event", self.rank);
                 self.person_id2partial_plan.get_mut(&person).unwrap().handle_event(event);
             } else {
-                println!("Partition #{}: Sending event to #{}", self.rank, *target);
                 self.message_broker.lock().unwrap().add_leaving_event(*target, person, boxed_event);
             }
         });
