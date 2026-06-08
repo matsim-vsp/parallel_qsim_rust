@@ -1,15 +1,15 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::{Mutex, Weak};
-use std::sync::mpsc::{Receiver, Sender};
-use nohash_hasher::IntSet;
 use crate::simulation::events::EventTrait;
-use crate::simulation::framework_events::QSimId;
+use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::scoring::backpacking::backpacking_message_broker::{BackpackingMessage, FinishMessage, VehicleMessage};
+use crate::simulation::scoring::backpacking::backpacking_message_broker::{BackpackingMessageBroker, FinishMessage, VehicleMessage};
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
 use crate::simulation::scoring::InternalScoringMessage;
+use nohash_hasher::IntSet;
+use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, Mutex, Weak};
 
 pub struct HomeSendingMessageBroker
 {
@@ -17,21 +17,64 @@ pub struct HomeSendingMessageBroker
     senders: Vec<Sender<InternalScoringMessage>>,
     neighbours: IntSet<QSimId>,
     rank: QSimId,
-    
+
     buffer_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Box<dyn EventTrait>>>,
     buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
     data_collector: Weak<Mutex<HomeSendingDataCollector>>,
 }
 
 impl HomeSendingMessageBroker {
+    pub(crate) fn new(
+        receiver: Receiver<InternalScoringMessage>,
+        senders: Vec<Sender<InternalScoringMessage>>,
+        neighbours: IntSet<QSimId>,
+        rank: QSimId,
+    ) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self {
+            receiver,
+            senders,
+            neighbours,
+            rank,
+            buffer_events: HashMap::new(),
+            buffer_vehicles: HashMap::new(),
+            data_collector: Weak::new()
+        }))
+    }
+
+    pub(crate) fn add_sender(&mut self, sender: Sender<InternalScoringMessage>) {
+        self.senders.push(sender);
+    }
+
+    pub(crate) fn init(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<HomeSendingDataCollector>>) {
+        message_broker.lock().unwrap().data_collector = data_collector;
+    }
+
+    pub(crate) fn register_fn(scoring_broker: Arc<Mutex<HomeSendingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
+        Box::new(move |events: &mut MobsimEventsManager| {
+            let broker = Arc::clone(&scoring_broker);
+            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
+                match &e.payload {
+                    MobsimEvent::AfterSimStep(i) => {
+                        broker.lock().unwrap().send_recv(i.time);
+                    }
+                    _ => {}
+                }
+            });
+        })
+    }
+
     pub(crate) fn add_leaving_vehicle(&mut self, target: QSimId, vehicle_id: Id<InternalVehicle>, passengers: HashSet<Id<InternalPerson>>) {
         self.buffer_vehicles.entry(target).or_insert_with(|| HashMap::new()).insert(vehicle_id, passengers);
     }
-    
+
     pub(crate) fn add_leaving_event(&mut self, target: QSimId, person_id: Id<InternalPerson>, event: Box<dyn EventTrait>) {
+        if self.buffer_vehicles.contains_key(&target) {
+            panic!("Event collision! Tried to add a leaving event to an already filled entry.")
+        }
+
         self.buffer_events.entry(target).or_insert_with(|| HashMap::new()).insert(person_id, event);
     }
-    
+
     fn send_recv(&mut self, now: u32) {
         for (target, vehicles) in self.buffer_vehicles.drain() {
             let msg = InternalScoringMessage {
@@ -117,7 +160,7 @@ impl HomeSendingMessageBroker {
             }
         }
     }
-    
+
 }
 
 
