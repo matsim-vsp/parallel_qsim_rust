@@ -45,7 +45,7 @@ impl BackpackingMessageBroker
         self.senders.push(sender);
     }
 
-    pub(crate) fn finish(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){
+    pub(crate) fn init(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){
         message_broker.lock().unwrap().data_collector = data_collector;
     }
 

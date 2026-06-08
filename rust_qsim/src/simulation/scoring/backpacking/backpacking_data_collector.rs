@@ -1,6 +1,3 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
-use tracing::warn;
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
 use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
@@ -8,6 +5,8 @@ use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 
 pub struct BackpackingDataCollector {
     person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
@@ -35,8 +34,8 @@ impl BackpackingDataCollector {
     }
 
     fn generate_backpacks_for_population(&mut self, population: &Population){
-        for person in population.persons.iter(){
-            self.person_id2backpack.insert(person.0.clone(), Backpack::new(person.0.clone(), self.rank));
+        for person in population.persons.keys(){
+            self.person_id2backpack.insert(person.clone(), Backpack::new(person.clone(), self.rank));
         }
     }
 
@@ -98,7 +97,7 @@ impl BackpackingDataCollector {
                 .map(|persons| persons.iter().cloned().collect())
                 .unwrap_or_default()
         } else {
-            vec![]
+            return;
         };
 
         affected_persons.into_iter().for_each(|person| {
@@ -112,16 +111,16 @@ impl BackpackingDataCollector {
     pub(crate) fn register_event_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             // General backpacking event forwarding
-            let bdc1 = Arc::clone(&data_collector);
+            let data_collector1 = Arc::clone(&data_collector);
             events.on_any(move |e: &dyn EventTrait| {
-                let mut bdc = bdc1.lock().unwrap();
+                let mut bdc = data_collector1.lock().unwrap();
                 bdc.handle_event(e);
             });
 
             // Events for Vehicle2Person mappings
-            let bdc3 = Arc::clone(&data_collector);
+            let data_collector2 = Arc::clone(&data_collector);
             events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                let mut bdc = bdc3.lock().unwrap();
+                let mut bdc = data_collector2.lock().unwrap();
                 // println!("Partition #{}: Entered vehicle {}", bdc.rank, e.vehicle);
                 bdc.vehicle_id2person_ids
                     .entry(e.vehicle.clone())
@@ -129,41 +128,27 @@ impl BackpackingDataCollector {
                     .insert(e.person.clone());
             });
 
-            let bdc4 = Arc::clone(&data_collector);
+            let data_collector3 = Arc::clone(&data_collector);
             events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
-                let mut bdc = bdc4.lock().unwrap();
+                let mut bdc = data_collector3.lock().unwrap();
                 // println!("Partition #{}: Left vehicle {}", bdc.rank, e.vehicle);
                 bdc.vehicle_id2person_ids.remove(&e.vehicle);
             });
-            /*
-            let bdc1 = Arc::clone(&data_collector);
-            events.on::<ActivityStartEvent, _>(move |e: &ActivityStartEvent| {
-                let mut bdc = bdc1.lock().unwrap();
-                println!("Partition #{}: Person {} starts activity {}", bdc.rank, e.person.clone(), e.act_type.clone());
-                bdc.add_special_scoring_event(&e.person, Box::new(e.clone()));
-            });
-
-            let bdc2 = Arc::clone(&data_collector);
-            events.on::<ActivityEndEvent, _>(move |e: &ActivityEndEvent| {
-                let mut bdc = bdc2.lock().unwrap();
-                println!("Partition #{}: Person {} ends activity {}", bdc.rank, e.person.clone(), e.act_type.clone());
-                bdc.add_special_scoring_event(&e.person, Box::new(e.clone()));
-            });*/
         })
     }
 
     pub(crate) fn register_partition_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<PartitionListenerRegisterFn> {
         Box::new(move |events| {
-            let bdc = Arc::clone(&data_collector);
+            let data_collector1 = Arc::clone(&data_collector);
             events.on_event(move |e: &RuntimeEvent<PartitionEvent>| {
                 match &e.payload {
                     PartitionEvent::VehicleLeavesPartition(i) => {
-                        let leaving_vehicle = bdc.lock().unwrap().remove_leaving_vehicles(&i.vehicle_id);
-                        bdc.lock().unwrap().message_broker.lock().unwrap().add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
+                        let leaving_vehicle = data_collector1.lock().unwrap().remove_leaving_vehicles(&i.vehicle_id);
+                        data_collector1.lock().unwrap().message_broker.lock().unwrap().add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
                     }
                     PartitionEvent::AgentLeavesPartition(i) => {
-                        let leaving_backpack = bdc.lock().unwrap().remove_leaving_backpack(&i.agent_id);
-                        bdc.lock().unwrap().message_broker.lock().unwrap().add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
+                        let leaving_backpack = data_collector1.lock().unwrap().remove_leaving_backpack(&i.agent_id);
+                        data_collector1.lock().unwrap().message_broker.lock().unwrap().add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
                     },
                     _ => {}
                 }

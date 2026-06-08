@@ -34,7 +34,7 @@ impl BackpackingScoringEngine
     ) -> Self {
         let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, neighbours, rank);
         let backpacking_data_collector = BackpackingDataCollector::new(population, rank, Arc::clone(&backpacking_message_broker));
-        BackpackingMessageBroker::finish(&backpacking_message_broker, Arc::downgrade(&backpacking_data_collector));
+        BackpackingMessageBroker::init(&backpacking_message_broker, Arc::downgrade(&backpacking_data_collector));
 
         Self {
             backpacking_data_collector,
@@ -42,10 +42,7 @@ impl BackpackingScoringEngine
             rank
         }
     }
-}
 
-impl BackpackingScoringEngine
-{
     pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, config: &Arc<Config>, events: &mut ControllerEventsManager) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<PartitionListenerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>){
         let num_parts = config.partitioning().num_parts;
         let output_path = io::resolve_path(config.context(), &config.output().output_dir);
