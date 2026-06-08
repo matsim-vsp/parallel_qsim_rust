@@ -3,50 +3,45 @@ use crate::simulation::time::SimTime;
 #[derive(Debug, Clone)]
 pub struct Flowcap {
     last_update_time: SimTime,
-    value: f32,
-    capacity_per_second: f32,
-    max_available: f32,
+    remaining_capacity: f64,
+    capacity_per_second: f64,
+    capacity_per_tick: f64,
 }
 
 impl Flowcap {
-    pub(super) fn new(capacity_h: f32, sample_size: f32, max_available: f32) -> Flowcap {
+    pub(super) fn new(capacity_h: f64, sample_size: f64, capacity_per_tick: f64) -> Flowcap {
         let capacity_per_second = capacity_h * sample_size / 3600.;
         Flowcap {
             last_update_time: SimTime::default(),
-            value: max_available,
+            remaining_capacity: capacity_per_tick,
             capacity_per_second,
-            max_available,
+            capacity_per_tick,
         }
     }
 
     pub(super) fn update_capacity(&mut self, now: SimTime) {
         if self.last_update_time < now {
-            let elapsed = now.duration_since(self.last_update_time).as_secs_f32();
-            let acc_flow_cap = elapsed * self.capacity_per_second + self.value;
-            self.value = f32::min(acc_flow_cap, self.max_available);
+            let elapsed = now.duration_since(self.last_update_time).as_secs_f64();
+            let acc_flow_cap = elapsed * self.capacity_per_second + self.remaining_capacity;
+            self.remaining_capacity = f64::min(acc_flow_cap, self.capacity_per_tick);
             self.last_update_time = now;
         }
     }
 
     pub(super) fn has_capacity_left(&self) -> bool {
-        self.value > 1e-10
+        self.remaining_capacity > 1e-10
     }
 
-    pub(super) fn value(&self) -> f32 {
-        self.value
+    pub(super) fn remaining_capacity(&self) -> f64 {
+        self.remaining_capacity
     }
 
-    pub(super) fn consume(&mut self, by: f32) {
-        self.value -= by;
+    pub(super) fn consume(&mut self, by: f64) {
+        self.remaining_capacity -= by;
     }
 
-    #[cfg(test)]
-    pub(super) fn max_available(&self) -> f32 {
-        self.max_available
-    }
-
-    pub(super) fn capacity_per_tick(&self) -> f32 {
-        self.max_available
+    pub(super) fn capacity_per_tick(&self) -> f64 {
+        self.capacity_per_tick
     }
 }
 
@@ -62,7 +57,7 @@ mod tests {
     fn init() {
         let clock = SimClock::new(10);
         let cap = Flowcap::new(5432., 0.31415, 0.47401747 / 10.0);
-        assert_approx_eq!(0.47401747 / 10.0, cap.max_available(), 0.0001);
+        assert_approx_eq!(0.47401747 / 10.0, cap.capacity_per_tick(), 0.0001);
         assert_eq!(Duration::from_millis(100), clock.tick_length());
     }
 
@@ -81,7 +76,7 @@ mod tests {
 
         flowcap.update_capacity(SimTime::from_secs(20));
 
-        assert_eq!(1.0, flowcap.value);
+        assert_eq!(1.0, flowcap.remaining_capacity);
     }
 
     #[test]

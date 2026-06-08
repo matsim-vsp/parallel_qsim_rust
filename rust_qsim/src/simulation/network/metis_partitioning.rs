@@ -115,7 +115,7 @@ fn add_vwgt(network: &Network, options: &MetisOptions, vwgt: &mut Vec<Idx>, node
     }
 }
 
-fn get_adjwgt(options: &MetisOptions, link: &Link) -> f32 {
+fn get_adjwgt(options: &MetisOptions, link: &Link) -> f64 {
     match options.edge_weight {
         EdgeWeight::Capacity => link.capacity,
         EdgeWeight::Constant => 1.,

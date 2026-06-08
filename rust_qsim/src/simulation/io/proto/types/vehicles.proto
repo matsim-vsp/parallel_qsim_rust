@@ -10,18 +10,18 @@ message VehiclesContainer {
 
 message VehicleType {
   uint64 id = 1;
-  float length = 2;
-  float width = 3;
-  float max_v = 4;
-  float pce = 5;
-  float fef = 6;
+  double length = 2;
+  double width = 3;
+  double max_v = 4;
+  double pce = 5;
+  double fef = 6;
   uint64 net_mode = 7;
 }
 
 message Vehicle {
   uint64 id = 1;
   uint64 type = 2;
-  float max_v = 3;
-  float pce = 4;
+  double max_v = 3;
+  double pce = 4;
   map<string, general.AttributeValue> attributes = 5;
 }

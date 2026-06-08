@@ -37,11 +37,11 @@ pub fn to_file(garage: &Garage, path: &Path) {
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalVehicleType {
     pub id: Id<InternalVehicleType>,
-    pub length: f32,
-    pub width: f32,
-    pub max_v: f32,
-    pub pce: f32,
-    pub fef: f32,
+    pub length: f64,
+    pub width: f64,
+    pub max_v: f64,
+    pub pce: f64,
+    pub fef: f64,
     pub net_mode: Id<String>,
     pub attributes: InternalAttributes,
 }
@@ -49,8 +49,8 @@ pub struct InternalVehicleType {
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalVehicle {
     pub id: Id<InternalVehicle>,
-    pub max_v: f32,
-    pub pce: f32,
+    pub max_v: f64,
+    pub pce: f64,
     pub vehicle_type: Id<InternalVehicleType>,
     pub attributes: InternalAttributes,
 }
@@ -109,7 +109,7 @@ impl InternalVehicle {
     }
 
     #[cfg(test)]
-    pub fn new(id: u64, veh_type: u64, max_v: f32, pce: f32) -> Self {
+    pub fn new(id: u64, veh_type: u64, max_v: f64, pce: f64) -> Self {
         InternalVehicle {
             id: Id::create(&id.to_string()),
             max_v,

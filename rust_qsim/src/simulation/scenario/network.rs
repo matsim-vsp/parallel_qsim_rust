@@ -14,14 +14,14 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tracing::info;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Network {
     nodes: IntMap<Id<Node>, Node>,
     links: IntMap<Id<Link>, Link>,
-    effective_cell_size: f32,
+    effective_cell_size: f64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     pub coord: Coordinate,
     pub id: Id<Node>,
@@ -31,15 +31,15 @@ pub struct Node {
     pub cmp_weight: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Link {
     pub id: Id<Link>,
     pub from: Id<Node>,
     pub to: Id<Node>,
     pub length: f64,
-    pub capacity: f32,
-    pub freespeed: f32,
-    pub permlanes: f32,
+    pub capacity: f64,
+    pub freespeed: f64,
+    pub permlanes: f64,
     pub modes: IntSet<Id<String>>,
     pub partition: u32,
     pub attributes: InternalAttributes,
@@ -60,7 +60,7 @@ impl Network {
         }
     }
 
-    pub fn effective_cell_size(&self) -> f32 {
+    pub fn effective_cell_size(&self) -> f64 {
         self.effective_cell_size
     }
 
@@ -227,7 +227,7 @@ impl Network {
             .collect::<Vec<&Node>>()
     }
 
-    pub fn set_effective_cell_size(&mut self, effective_cell_size: f32) {
+    pub fn set_effective_cell_size(&mut self, effective_cell_size: f64) {
         self.effective_cell_size = effective_cell_size;
     }
 
@@ -237,6 +237,14 @@ impl Network {
 
     pub fn links(&self) -> Vec<&Link> {
         self.links.values().collect::<Vec<&Link>>()
+    }
+
+    pub fn nodes_with_ids(&self) -> &IntMap<Id<Node>, Node> {
+        &self.nodes
+    }
+
+    pub fn links_with_ids(&self) -> &IntMap<Id<Link>, Link> {
+        &self.links
     }
 }
 
@@ -363,9 +371,9 @@ impl Link {
         from: Id<Node>,
         to: Id<Node>,
         length: f64,
-        capacity: f32,
-        freespeed: f32,
-        permlanes: f32,
+        capacity: f64,
+        freespeed: f64,
+        permlanes: f64,
         modes: IntSet<Id<String>>,
         partition: u32,
     ) -> Self {
@@ -400,8 +408,8 @@ impl Link {
         )
     }
 
-    pub fn contains_mode(&self, mode: u64) -> bool {
-        self.modes.iter().map(|m| m.internal()).contains(&mode)
+    pub fn contains_mode(&self, mode: &Id<String>) -> bool {
+        self.modes.iter().contains(mode)
     }
 }
 
