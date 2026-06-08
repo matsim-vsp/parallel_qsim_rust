@@ -18,7 +18,7 @@ pub struct BackpackingMessageBroker
     rank: QSimId,
 
     buffer_backpacks: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
-    buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,>,
+    buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
     data_collector: Weak<Mutex<BackpackingDataCollector>>,
 }
 
@@ -158,8 +158,9 @@ impl BackpackingMessageBroker
     }
 }
 
+// TODO Adjust access modifiers
 pub struct VehicleMessage {
-    vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+    pub(crate) vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
 }
 
 pub struct BackpackingMessage {
@@ -167,5 +168,5 @@ pub struct BackpackingMessage {
 }
 
 pub struct FinishMessage {
-    time: u32
+    pub(crate) time: u32
 }

@@ -587,6 +587,15 @@ register_override!("scoring.enabled", |config, value| {
     }
 });
 
+register_override!("scoring.plans_collection_type", |config, value| {
+    config.scoring_mut().plans_collection_type = match value.to_lowercase().as_str() {
+        "backpacking" => ScoringPlansCollectionType::Backpacking,
+        "mapping" => ScoringPlansCollectionType::Mapping,
+        "homesending" | "home-sending" => ScoringPlansCollectionType::HomeSending,
+        _ => panic!("Invalid scoring collection mode: {}", value),
+    };
+});
+
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum ScoringPlansCollectionType {
     #[default]
