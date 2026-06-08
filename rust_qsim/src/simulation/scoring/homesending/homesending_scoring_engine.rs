@@ -46,6 +46,8 @@ impl HomesendingScoringEngine {
     }
 
     pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, config: &Arc<Config>, events: &mut ControllerEventsManager) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<PartitionListenerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>){
+        info!("Initializing Scoring with HomeSending...");
+
         let num_parts = config.partitioning().num_parts;
         let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
