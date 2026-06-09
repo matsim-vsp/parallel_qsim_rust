@@ -9,7 +9,7 @@ use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
 use crate::simulation::scoring::homesending::homesending_message_broker::HomeSendingMessageBroker;
-use crate::simulation::scoring::InternalScoringMessage;
+use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
 use nohash_hasher::IntSet;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -17,6 +17,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tracing::info;
 use crate::generated::population::Person;
+use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
+use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
 
 pub struct HomesendingScoringEngine
@@ -27,7 +29,7 @@ pub struct HomesendingScoringEngine
 }
 
 impl HomesendingScoringEngine {
-    fn new(rank: QSimId,
+    pub(crate) fn new(rank: QSimId,
            population: &Population,
            neighbours: IntSet<u32>,
            person_id2_partition_id: HashMap<Id<InternalPerson>, QSimId>,
@@ -44,88 +46,32 @@ impl HomesendingScoringEngine {
             rank
         }
     }
+}
 
-    pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, config: &Arc<Config>, events: &mut ControllerEventsManager) -> (Vec<Box<EventHandlerRegisterFn>>, Vec<Box<PartitionListenerRegisterFn>>, Vec<Box<MobsimListenerRegisterFn>>){
-        info!("Initializing Scoring with HomeSending...");
 
-        let num_parts = config.partitioning().num_parts;
-        let output_path = io::resolve_path(config.context(), &config.output().output_dir);
-
-        // Prepare person_id2home_partition map
-        let mut person_id2home_partition: HashMap<Id<InternalPerson>, QSimId> = HashMap::new();
-        for (i, partition) in partitions.iter().enumerate() {
-            let partition = partition.as_ref().unwrap();
-
-            for person in partition.population.persons.keys() {
-                person_id2home_partition.insert(person.clone(), i as QSimId);
-            }
-        }
-
-        // Create ScoringEngines with channels
-        let mut senders: Vec<_> = Vec::new();
-        let mut scorings: Vec<_> = Vec::new();
-
-        for rank in 0..num_parts {
-            let partition = partitions.get(rank as usize).unwrap().as_ref().unwrap();
-
-            // Generate cut link map for current partition
-            let mut link_id2_target_partition: HashMap<Id<Link>, u32> = HashMap::new();
-            for (id, link) in partition.network_partition.links.iter() {
-                match link {
-                    SimLink::Out(split) => {
-                        link_id2_target_partition.insert(id.clone(), split.to_part);
-                    }
-                    _ => {}
-                }
-            }
-
-            let (sender, receiver) = channel();
-            let scoring = HomesendingScoringEngine::new(
-                rank,
-                &partition.population,
-                partition.network_partition.neighbors(),
-                person_id2home_partition.clone(),
-                receiver,
-                vec![],
-            );
-            senders.push(sender);
-            scorings.push(scoring);
-        }
-
-        let mut event_register_functions = Vec::new();
-        let mut partition_register_functions = Vec::new();
-        let mut mobsim_register_functions = Vec::new();
-
-        for scoring in scorings.drain(..) {
-            for sender in &senders {
-                scoring.homesending_message_broker.lock().unwrap().add_sender(sender.clone());
-            }
-            event_register_functions.push(HomeSendingDataCollector::register_event_fn(Arc::clone(&scoring.homesending_data_collector)));
-            partition_register_functions.push(HomeSendingDataCollector::register_partition_fn(Arc::clone(&scoring.homesending_data_collector)));
-            mobsim_register_functions.push(HomeSendingMessageBroker::register_fn(Arc::clone(&scoring.homesending_message_broker)));
-            HomesendingScoringEngine::register(scoring, events, output_path.clone());
-        }
-
-        (event_register_functions, partition_register_functions, mobsim_register_functions)
+impl ScoringEngine for HomesendingScoringEngine {
+    fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
+        self.homesending_message_broker.lock().unwrap().attach_senders(senders);
     }
 
-    fn register(engine: HomesendingScoringEngine, events: &mut ControllerEventsManager, output_path: PathBuf) {
-        events.on_event(move |e: &RuntimeEvent<ControllerEvent>| {
-            match e.payload {
-                ControllerEvent::Scoring(_) => engine.scoring(output_path.clone()),
-                _ => {}
-            }
-        });
-
+    fn register_fn(&self) -> (Box<EventHandlerRegisterFn>, Box<PartitionListenerRegisterFn>, Box<MobsimListenerRegisterFn>) {
+        (
+            HomeSendingDataCollector::register_event_fn(self.homesending_data_collector.clone()),
+            HomeSendingDataCollector::register_partition_fn(self.homesending_data_collector.clone()),
+            HomeSendingMessageBroker::register_fn(self.homesending_message_broker.clone())
+        )
     }
 
-    fn scoring(&self, mut output_path: PathBuf) {
+
+    fn finish(&self, mut output_path: PathBuf) {
         let population = self.homesending_data_collector.lock().unwrap().finish();
         output_path.push(format!("scoring/output_plans_{}.binpb", self.rank));
         info!("Starting writing PartitionPlans to {:?}", output_path);
         population.to_file(output_path.as_path());
         info!("Finished writing PartitionPlans to {:?}", output_path);
+    }
 
-        // TODO Scoring...
+    fn scoring(&self) {
+        todo!()
     }
 }

@@ -41,8 +41,8 @@ impl BackpackingMessageBroker
         }))
     }
     
-    pub(crate) fn add_sender(&mut self, sender: Sender<InternalScoringMessage>) {
-        self.senders.push(sender);
+    pub(crate) fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
+        self.senders.extend(senders);
     }
 
     pub(crate) fn init(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<BackpackingDataCollector>>){

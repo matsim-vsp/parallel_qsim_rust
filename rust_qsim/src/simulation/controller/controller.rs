@@ -6,10 +6,7 @@ use crate::simulation::controller::{
     insert_number_in_proto_filename,
 };
 use crate::simulation::events::EventHandlerRegisterFn;
-use crate::simulation::framework_events::{
-    ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn,
-    MobsimListenerRegisterFn, PartitionListenerRegisterFn,
-};
+use crate::simulation::framework_events::{ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn, MobsimListenerRegisterFn, PartitionListenerRegisterFn, RuntimeEvent};
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
@@ -25,6 +22,7 @@ use std::thread::JoinHandle;
 use std::{fs, mem, thread};
 use tracing::info;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
+use crate::simulation::scoring::create_for_n_partitions;
 use crate::simulation::scoring::homesending::homesending_scoring_engine::HomesendingScoringEngine;
 
 #[derive(Debug)]
@@ -243,11 +241,7 @@ impl Controller {
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
 
         if self.config.scoring().enabled {
-            let (scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = match self.config.scoring().plans_collection_type {
-                Backpacking => BackpackingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager),
-                Mapping => panic!("Not implemented yet!"),
-                HomeSending => HomesendingScoringEngine::create_for_n_partitions(&partitions, &self.config, &mut self.controller_events_manager),
-            };
+            let (scoring_engines, scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = create_for_n_partitions(&partitions, self.config.clone());
 
             for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
                 self.event_handler_per_partition.entry(i as u32).or_insert_with(Vec::new).push(e_fn);
@@ -258,6 +252,25 @@ impl Controller {
             for (i, m_fn) in scoring_mobsim_fn.into_iter().enumerate() {
                 self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
             }
+
+            let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
+
+            self.controller_events_manager.on_event(move |e: &RuntimeEvent<ControllerEvent>| {
+                match e.payload {
+                    ControllerEvent::AfterMobsim(_) => {
+                        // TODO Dispatch multiple threads for final finish process
+                        for engine in scoring_engines.iter() {
+                            engine.finish(output_path.clone());
+                        }
+                    },
+                    ControllerEvent::Scoring(_) => {
+                        for engine in scoring_engines.iter() {
+                            engine.scoring();
+                        }
+                    },
+                    _ => {}
+                }
+            });
         }
 
         let handles: IntMap<u32, JoinHandle<()>> = comms
