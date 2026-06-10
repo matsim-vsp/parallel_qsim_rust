@@ -161,7 +161,7 @@ pub struct PartitionArguments<C: SimCommunicator> {
     global_barrier: Arc<Barrier>,
 }
 
-fn execute_partition<C: SimCommunicator + Send + 'static>(partition_arguments: PartitionArguments<C>) {
+fn execute_partition<C: SimCommunicator + 'static>(partition_arguments: PartitionArguments<C>) {
     let partition = partition_arguments.scenario_partition;
 
     let config = &partition.config;
