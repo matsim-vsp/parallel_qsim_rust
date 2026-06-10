@@ -258,10 +258,16 @@ impl Controller {
             self.controller_events_manager.on_event(move |e: &RuntimeEvent<ControllerEvent>| {
                 match e.payload {
                     ControllerEvent::AfterMobsim(_) => {
-                        // TODO Dispatch multiple threads for final finish process
-                        for engine in scoring_engines.iter() {
-                            engine.finish(output_path.clone());
-                        }
+                        thread::scope(|s| {
+                            for (i, engine) in scoring_engines.iter().enumerate() {
+                                thread::Builder::new()
+                                    .name(format!("scoring-{i}"))
+                                    .spawn_scoped(s, || {
+                                        engine.finish();
+                                    })
+                                    .unwrap();
+                            }
+                        });
                     },
                     ControllerEvent::Scoring(_) => {
                         for engine in scoring_engines.iter() {

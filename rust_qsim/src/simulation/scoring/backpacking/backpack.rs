@@ -41,6 +41,10 @@ impl Backpack {
         None
     }
 
+    pub fn get_starting_partion(&self) -> QSimId{
+        self.starting_partition
+    }
+
     pub(crate) fn handle_event(&mut self, event: &dyn EventTrait) {
         if let Some(e) = Self::relevant_event_for_scoring(event) {
             self.events.push(e);

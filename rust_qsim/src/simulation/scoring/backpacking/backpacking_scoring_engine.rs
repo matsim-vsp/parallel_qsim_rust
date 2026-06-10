@@ -21,7 +21,9 @@ pub struct BackpackingScoringEngine
 {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
     backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker>>,
-    rank: QSimId
+    rank: QSimId,
+    
+    output_path: PathBuf
 }
 
 impl BackpackingScoringEngine
@@ -30,7 +32,8 @@ impl BackpackingScoringEngine
                population: &Population,
                neighbours: IntSet<u32>,
                receiver: Receiver<InternalScoringMessage>,
-               senders: Vec<Sender<InternalScoringMessage>>,
+               senders: Vec<Sender<InternalScoringMessage>>, 
+               output_path: PathBuf
     ) -> Self {
         let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, neighbours, rank);
         let backpacking_data_collector = BackpackingDataCollector::new(population, rank, Arc::clone(&backpacking_message_broker));
@@ -39,7 +42,8 @@ impl BackpackingScoringEngine
         Self {
             backpacking_data_collector,
             backpacking_message_broker,
-            rank
+            rank,
+            output_path
         }
     }
 }
@@ -57,15 +61,19 @@ impl ScoringEngine for BackpackingScoringEngine {
         )
     }
 
-    fn finish(&self, mut output_path: PathBuf) {
+    fn finish(&self) {
+        self.backpacking_data_collector.lock().unwrap().send_to_home();
+        self.backpacking_message_broker.lock().unwrap().send_recv(u32::MAX);
+        
         let population = self.backpacking_data_collector.lock().unwrap().finish();
-        output_path.push(format!("scoring/output_plans_{}.binpb", self.rank));
-        info!("Starting writing PartitionPlans to {:?}", output_path);
-        population.to_file(output_path.as_path());
-        info!("Finished writing PartitionPlans to {:?}", output_path);
+        let mut o = self.output_path.clone();
+        o.push(format!("scoring/output_plans_{}.binpb", self.rank));
+        info!("Starting writing PartitionPlans to {:?}", o);
+        population.to_file(o.as_path());
+        info!("Finished writing PartitionPlans to {:?}", o);
     }
 
     fn scoring(&self) {
-        todo!()
+        // TODO
     }
 }

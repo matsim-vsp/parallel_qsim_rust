@@ -47,7 +47,7 @@ pub struct InternalScoringMessage {
 }
 
 /// Trait for a scoring engine that can be initialized and finished by the controller.
-pub trait ScoringEngine {
+pub trait ScoringEngine: Send + Sync {
 
     /// Attaches the senders to the internal structs managing message handling.
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>);
@@ -59,7 +59,7 @@ pub trait ScoringEngine {
 
     /// Called from the Controller after the mobsim is finished. Shall finish remaining tasks,
     /// that can only be done after the iteration end.
-    fn finish(&self, output_path: PathBuf);
+    fn finish(&self);
 
     /// Actual scoring.
     fn scoring(&self);
@@ -101,6 +101,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                 partition.network_partition.neighbors(),
                 receiver,
                 vec![],
+                io::resolve_path(config.context(), &config.output().output_dir)
             )),
             ScoringPlansCollectionType::Mapping => panic!("Not implemented yet!"),
             ScoringPlansCollectionType::HomeSending => {
@@ -120,6 +121,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                     person_id2home_partition.clone(),
                     receiver,
                     vec![],
+                    io::resolve_path(config.context(), &config.output().output_dir)
                 ))
             }
         };

@@ -71,7 +71,7 @@ impl BackpackingMessageBroker
         self.buffer_vehicles.entry(target).or_insert_with(|| HashMap::new()).insert(vehicle_id, passengers);
     }
 
-    fn send_recv(&mut self, now: u32) {
+    pub(crate) fn send_recv(&mut self, now: u32) {
         for (target, vehicles) in self.buffer_vehicles.drain() {
             let msg = InternalScoringMessage {
                 from_process: self.rank,

@@ -25,7 +25,9 @@ pub struct HomesendingScoringEngine
 {
     homesending_data_collector: Arc<Mutex<HomeSendingDataCollector>>,
     homesending_message_broker: Arc<Mutex<HomeSendingMessageBroker>>,
-    rank: QSimId
+    rank: QSimId,
+
+    output_path: PathBuf,
 }
 
 impl HomesendingScoringEngine {
@@ -34,7 +36,8 @@ impl HomesendingScoringEngine {
            neighbours: IntSet<u32>,
            person_id2_partition_id: HashMap<Id<InternalPerson>, QSimId>,
            receiver: Receiver<InternalScoringMessage>,
-           senders: Vec<Sender<InternalScoringMessage>>
+           senders: Vec<Sender<InternalScoringMessage>>,
+           output_path: PathBuf
     ) -> Self {
         let homesending_message_broker = HomeSendingMessageBroker::new(receiver, senders, neighbours, rank);
         let homesending_data_collector = HomeSendingDataCollector::new(population, person_id2_partition_id, rank, Arc::clone(&homesending_message_broker));
@@ -43,7 +46,8 @@ impl HomesendingScoringEngine {
         Self {
             homesending_data_collector,
             homesending_message_broker,
-            rank
+            rank,
+            output_path
         }
     }
 }
@@ -63,15 +67,16 @@ impl ScoringEngine for HomesendingScoringEngine {
     }
 
 
-    fn finish(&self, mut output_path: PathBuf) {
+    fn finish(&self) {
         let population = self.homesending_data_collector.lock().unwrap().finish();
-        output_path.push(format!("scoring/output_plans_{}.binpb", self.rank));
-        info!("Starting writing PartitionPlans to {:?}", output_path);
-        population.to_file(output_path.as_path());
-        info!("Finished writing PartitionPlans to {:?}", output_path);
+        let mut o = self.output_path.clone();
+        o.push(format!("scoring/output_plans_{}.binpb", self.rank));
+        info!("Starting writing PartitionPlans to {:?}", o);
+        population.to_file(o.as_path());
+        info!("Finished writing PartitionPlans to {:?}", o);
     }
 
     fn scoring(&self) {
-        todo!()
+        // TODO
     }
 }

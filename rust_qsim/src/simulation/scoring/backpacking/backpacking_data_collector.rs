@@ -156,6 +156,22 @@ impl BackpackingDataCollector {
         })
     }
 
+    pub(crate) fn send_to_home(&mut self){
+        let mut leaving_person_ids: Vec<_> = Vec::default();
+
+        // Send foreign backpacks to their home partition
+        for (person, backpack) in self.person_id2backpack.iter() {
+            if backpack.get_starting_partion() != self.rank {
+                leaving_person_ids.push(person.clone());
+            }
+        }
+
+        for person_id in leaving_person_ids.drain(..) {
+            let leaving_backpack = self.remove_leaving_backpack(&person_id);
+            self.message_broker.lock().unwrap().add_leaving_backpack(leaving_backpack.get_starting_partion(), person_id, leaving_backpack);
+        }
+    }
+
     pub(crate) fn finish(&mut self) -> Population {
         let persons: HashMap<Id<InternalPerson>, InternalPerson> = self.person_id2backpack.drain().map(|(person_id, backpack)| {
             (person_id, backpack.finish())
