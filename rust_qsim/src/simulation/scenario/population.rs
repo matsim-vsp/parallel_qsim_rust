@@ -378,10 +378,9 @@ impl InternalRoute {
     }
 
     fn from_io(io: IORoute, id: Id<InternalPerson>, mode: Id<String>) -> Self {
-        let external = if let Some(v) = io.vehicle {
-            v
-        } else {
-            format!("{}_{}", id.external(), mode.external())
+        let external = match io.vehicle {
+            Some(v) if v != "null" && !v.is_empty() => v,
+            _ => format!("{}_{}", id.external(), mode.external()),
         };
         let generic = InternalGenericRoute::new(
             Id::create(io.start_link.expect("Route must have start link").as_str()),
