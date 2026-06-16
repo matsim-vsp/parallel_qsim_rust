@@ -1,6 +1,6 @@
 use crate::generated::events::GenericEvent;
 use crate::simulation::events::comparison::EventBatch;
-use crate::simulation::events::{EventTrait, EventsManager, GenericEventBuilder, comparison};
+use crate::simulation::events::{EventTrait, EventsManager, comparison};
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::xml::events::{XmlEventsReader, XmlEventsWriter};
 use crate::simulation::logging::init_std_out_logging_thread_local;
@@ -31,7 +31,6 @@ impl<R: Read + Seek> StatefulReader<R> {
 
 struct StatefulXmlReader {
     reader: XmlEventsReader,
-    curr_time_step: SimTime,
     next_event: Option<(SimTime, Box<dyn EventTrait>)>,
 }
 
@@ -107,11 +106,7 @@ pub fn read_xml_events(
             continue;
         };
 
-        let wrapper = StatefulXmlReader {
-            reader,
-            curr_time_step: SimTime::default(),
-            next_event,
-        };
+        let wrapper = StatefulXmlReader { reader, next_event };
         readers.push(wrapper);
     }
 
