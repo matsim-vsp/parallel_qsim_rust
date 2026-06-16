@@ -1,6 +1,6 @@
 use crate::generated::events::GenericEvent;
 use crate::simulation::events::comparison::EventBatch;
-use crate::simulation::events::{EventsManager, comparison};
+use crate::simulation::events::{EventTrait, EventsManager, GenericEventBuilder, comparison};
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::xml::events::{XmlEventsReader, XmlEventsWriter};
 use crate::simulation::logging::init_std_out_logging_thread_local;
@@ -32,21 +32,22 @@ impl<R: Read + Seek> StatefulReader<R> {
 struct StatefulXmlReader {
     reader: XmlEventsReader,
     curr_time_step: SimTime,
+    next_event: Option<(SimTime, Box<dyn EventTrait>)>,
 }
 
 /// Reads all proto events from the given folder and publishes them to the given events manager.
 /// Assumes that ids are already loaded.
 pub fn read_proto_events(
     events: &mut EventsManager,
-    folder: &Path,
-    prefix: String,
+    folder: impl AsRef<Path>,
+    prefix: &str,
     num_parts: u32,
 ) {
     let mut readers = Vec::new();
     info!("Reading from Files: ");
     for i in 0..num_parts {
-        let path = PathBuf::from(&folder).join(format!("{prefix}.{i}.binpb"));
-        info!("\t {}", path.to_str().unwrap());
+        let path = PathBuf::from(&folder.as_ref()).join(format!("{prefix}.{i}.binpb"));
+        info!("\t {}", path.display());
         let reader = ProtoEventsReader::from_file(&path);
         let wrapper = StatefulReader {
             reader,
@@ -85,7 +86,7 @@ pub fn read_proto_events(
 pub fn read_xml_events(
     events_mgr: &mut EventsManager,
     folder: impl AsRef<Path>,
-    prefix: String,
+    prefix: &str,
     num_parts: u32,
     is_gz: bool,
 ) {
@@ -97,11 +98,19 @@ pub fn read_xml_events(
             "{prefix}.{i}.xml{}",
             if is_gz { ".gz" } else { "" } // add .gz ending if specified
         ));
-        info!("\t {}", path.to_str().unwrap());
-        let reader = XmlEventsReader::new(&path);
+        info!("\t {}", path.display());
+        let mut reader = XmlEventsReader::new(&path);
+
+        let next_event = reader.read_next();
+        if next_event.is_none() {
+            // if first event is empty, don't add the reader of this file to the readers vec
+            continue;
+        };
+
         let wrapper = StatefulXmlReader {
             reader,
             curr_time_step: SimTime::default(),
+            next_event,
         };
         readers.push(wrapper);
     }
@@ -109,15 +118,30 @@ pub fn read_xml_events(
     info!("Starting to read XML event files.");
     let mut last_reported_time_step = 0;
     while !readers.is_empty() {
-        readers.sort_by(|a, b| a.curr_time_step.cmp(&b.curr_time_step));
+        // sort readers by next event time, if None use default 0.0
+        readers.sort_by(|a, b| {
+            a.next_event
+                .as_ref()
+                .map(|e| e.0)
+                .unwrap_or(SimTime::default())
+                .cmp(
+                    &b.next_event
+                        .as_ref()
+                        .map(|e| e.0)
+                        .unwrap_or(SimTime::default()),
+                )
+        });
 
         // get the reader with the smallest curr time step and process its event
         let reader = readers.first_mut().unwrap();
 
-        match reader.reader.read_next() {
+        match reader.next_event.as_ref() {
+            //reader.reader.read_next() {
+            // if the reader is empty, remove it from the vec of readers
             None => {
                 readers.remove(0);
             }
+            // if the reader has an event, process it and update the reader's next event
             Some((time, event)) => {
                 let secs = time.as_secs();
                 let hour = secs / 3600;
@@ -127,7 +151,8 @@ pub fn read_xml_events(
                 }
                 // process the event
                 events_mgr.process_event(event.as_ref());
-                reader.curr_time_step = time;
+                // reader.curr_time_step = time;
+                reader.next_event = reader.reader.read_next();
             }
         }
     }
@@ -152,7 +177,7 @@ pub fn convert_proto_to_xml_events(
     read_proto_events(
         &mut manager,
         path_to_proto_files.as_ref(),
-        String::from("events"),
+        "events",
         num_parts,
     );
     info!(
@@ -273,15 +298,16 @@ mod test {
         }
     }
 
-    /// test the read_from_xml function to check that the events read from an XML file are correctly
-    /// published to the events manager.
-    /// Writes the corresponding xml string of all published events into a vector (using the above
-    /// defined EventsToVecCollector event handler), and then comparing the vector with the expected
-    /// event strings (corresponding to the events in the read XML file).
+    /// test the `read_from_xml` function to check that the events read from two XML files are
+    /// correctly published to the events manager, in the right order.
+    /// Writes the corresponding XML string of all published events into a vector (using the above
+    /// defined `EventsToVecCollector` event handler), and then comparing the vector with the
+    /// expected event strings (corresponding to the events in the read XML files).
     #[test]
     fn test_read_from_xml() {
+        let _guard = init_std_out_logging_thread_local();
         let resource_folder = "./tests/resources/events/".to_string();
-        let num_parts = 1;
+        let num_parts = 2;
 
         let mut events_mgr = EventsManager::new();
 
@@ -301,19 +327,19 @@ mod test {
         read_xml_events(
             &mut events_mgr,
             &PathBuf::from(&resource_folder),
-            String::from("expected_events"),
+            "expected_events",
             num_parts,
             false,
         );
 
         // assert that the event strings that the events handler handled are all the events inside
-        // the read "expected_events.0.xml"
-        // (the vector corresponds to the events in tests/resources/events/expected_events.0.xml)
+        // the read files "expected_events.0.xml" and "expected_events.1.xml", in correct order.
         assert_eq!(
             event_string_collection.lock().unwrap().clone(),
             vec![
                 "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"10\" actType=\"home\"/>\n",
                 "<event time=\"32400.5\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
+                "<event time=\"32406\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n", // this row comes from the file expected_events.1.xml
                 "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n",
                 "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\"/>\n",
                 "<event time=\"32409\" type=\"actstart\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
