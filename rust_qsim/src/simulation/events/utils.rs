@@ -79,20 +79,24 @@ pub fn read_proto_events(
     events.finish();
 }
 
-/// Reads all XML event files from the given folder and publishes them to the given events manager.
-/// Supports both `.xml` and `.xml.gz` files.
+/// Reads all XML event files with name `{folder}/{prefix}.{i}.xml` for `0 <= i < num_parts`, or
+/// `[...].xml.gz` if `is_gz=true` and publishes them to the given events manager.
 /// Assumes that ids are already loaded.
 pub fn read_xml_events(
     events_mgr: &mut EventsManager,
     folder: impl AsRef<Path>,
     prefix: String,
     num_parts: u32,
+    is_gz: bool,
 ) {
     // initialize readers, one for every file.
     let mut readers = Vec::new();
     info!("Reading from XML Files: ");
     for i in 0..num_parts {
-        let path = PathBuf::from(folder.as_ref()).join(format!("{prefix}.{i}.xml"));
+        let path = PathBuf::from(folder.as_ref()).join(format!(
+            "{prefix}.{i}.xml{}",
+            if is_gz { ".gz" } else { "" } // add .gz ending if specified
+        ));
         info!("\t {}", path.to_str().unwrap());
         let reader = XmlEventsReader::new(&path);
         let wrapper = StatefulXmlReader {
@@ -121,6 +125,7 @@ pub fn read_xml_events(
                     info!("Reading time step: {:?}h", hour);
                     last_reported_time_step = hour;
                 }
+                // process the event
                 events_mgr.process_event(event.as_ref());
                 reader.curr_time_step = time;
             }
@@ -298,6 +303,7 @@ mod test {
             &PathBuf::from(&resource_folder),
             String::from("expected_events"),
             num_parts,
+            false,
         );
 
         // assert that the event strings that the events handler handled are all the events inside
