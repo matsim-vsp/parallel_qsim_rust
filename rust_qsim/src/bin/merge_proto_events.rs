@@ -35,7 +35,7 @@ fn main() {
     read_proto_events(
         &mut manager,
         &PathBuf::from(args.path),
-        String::from("events"),
+        "events",
         args.num_parts,
     );
     info!(
