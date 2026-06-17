@@ -19,9 +19,9 @@ use tracing::info;
 /// This is needed so that multiple readers can be sorted by the time of their next event.
 trait StatefulReader {
     /// preload the event time and event data of the next timestep into the reader state. Returns
-    /// `Some(())` if the next time step was successfully preloaded, or `None` if there are no more
+    /// `true` if the next time step was successfully preloaded, or `false` if there are no more
     /// events to read.
-    fn load_next(&mut self) -> Option<()>;
+    fn load_next(&mut self) -> bool;
     /// process the events that are currently preloaded in the state using the given event manager
     fn process_preloaded_events(&self, manager: &mut EventsManager);
     /// read the time of the preloaded events
@@ -43,12 +43,12 @@ impl StatefulProtoReader<File> {
 }
 
 impl StatefulReader for StatefulProtoReader<File> {
-    fn load_next(&mut self) -> Option<()> {
+    fn load_next(&mut self) -> bool {
         match self.reader.next() {
-            None => None,
+            None => false,
             Some(time_step) => {
                 self.preloaded_time_step = time_step;
-                Some(())
+                true
             }
         }
     }
@@ -88,12 +88,12 @@ impl StatefulXmlReader {
 }
 
 impl StatefulReader for StatefulXmlReader {
-    fn load_next(&mut self) -> Option<()> {
+    fn load_next(&mut self) -> bool {
         match self.reader.read_next() {
-            None => None,
+            None => false,
             Some(next_event) => {
                 self.preloaded_event = next_event;
-                Some(())
+                true
             }
         }
     }
@@ -151,7 +151,7 @@ pub fn read_events(
     let mut last_reported_time_step = 0;
 
     // preload next events, and if they exist, process them
-    while reader.load_next().is_some() {
+    while reader.load_next() {
         let secs = reader.get_preloaded_time().as_secs();
         let hour = secs / 3600;
         if hour > last_reported_time_step && secs.is_multiple_of(3600) {
@@ -199,7 +199,7 @@ pub fn read_partitioned_events(
 
         // initialize stateful reader by preloading the first state. If this returns None, the file
         // is empty so we don't add the reader to the readers.
-        if reader.load_next().is_none() {
+        if !reader.load_next() {
             continue;
         }
         readers.push(reader);
@@ -223,7 +223,7 @@ pub fn read_partitioned_events(
         // process the events currently stored in "self.curr_time_step"
         reader.process_preloaded_events(events_mgr);
 
-        if reader.load_next().is_none() {
+        if !reader.load_next() {
             readers.remove(0);
         };
     }
