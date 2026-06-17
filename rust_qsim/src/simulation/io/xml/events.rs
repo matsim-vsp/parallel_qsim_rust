@@ -63,8 +63,14 @@ impl XmlEventsWriter {
                 ev.type_(),
                 ev.person,
                 ev.link,
-                ev.coordinate.x,
-                ev.coordinate.y,
+                ev.coordinate
+                    .as_ref()
+                    .map(|c| c.x.to_string())
+                    .unwrap_or("undefined".to_string()),
+                ev.coordinate
+                    .as_ref()
+                    .map(|c| c.y.to_string())
+                    .unwrap_or("undefined".to_string()),
                 ev.act_type
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<ActivityEndEvent>() {
@@ -74,8 +80,14 @@ impl XmlEventsWriter {
                 ev.type_(),
                 ev.person,
                 ev.link,
-                ev.coordinate.x,
-                ev.coordinate.y,
+                ev.coordinate
+                    .as_ref()
+                    .map(|c| c.x.to_string())
+                    .unwrap_or("undefined".to_string()),
+                ev.coordinate
+                    .as_ref()
+                    .map(|c| c.y.to_string())
+                    .unwrap_or("undefined".to_string()),
                 ev.act_type
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<LinkEnterEvent>() {
@@ -333,7 +345,7 @@ fn handle_act_end(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
             .person(person)
             .link(link)
             .act_type(act_type)
-            .coordinate(Coordinate::new(x, y))
+            .coordinate(Some(Coordinate::new(x, y)))
             .build()
             .unwrap(),
     )
@@ -352,7 +364,7 @@ fn handle_act_start(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
             .person(person)
             .link(link)
             .act_type(act_type)
-            .coordinate(Coordinate::new(x, y))
+            .coordinate(Some(Coordinate::new(x, y)))
             .build()
             .unwrap(),
     )
@@ -494,7 +506,7 @@ mod tests {
                 .person(Id::create("person-1"))
                 .link(Id::create("link-1"))
                 .act_type(Id::create("home"))
-                .coordinate(Coordinate::new(1.0, 2.0))
+                .coordinate(Some(Coordinate::new(1.0, 2.0)))
                 .build()
                 .unwrap(),
         );
@@ -515,6 +527,6 @@ mod tests {
         assert_eq!(Id::create("person-1"), parsed_event.person);
         assert_eq!(Id::create("link-1"), parsed_event.link);
         assert_eq!(Id::create("home"), parsed_event.act_type);
-        assert_eq!(Coordinate::new(1.0, 2.0), parsed_event.coordinate);
+        assert_eq!(Some(Coordinate::new(1.0, 2.0)), parsed_event.coordinate);
     }
 }

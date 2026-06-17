@@ -39,7 +39,7 @@ pub fn create_agent(id: u64, route: Vec<&str>) -> SimulationAgent {
         None,
     );
     let act = InternalActivity::new(
-        Coordinate::default(),
+        Some(Coordinate::default()),
         "act",
         Id::create("1"),
         None,

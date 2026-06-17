@@ -486,7 +486,7 @@ mod tests {
         InternalActivity {
             act_type: Id::create(act_type),
             link_id: Id::create(link),
-            coord: Coordinate::default(),
+            coord: Some(Coordinate::default()),
             start_time: None,
             end_time: None,
             max_dur: None,

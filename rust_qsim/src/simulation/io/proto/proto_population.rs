@@ -114,10 +114,10 @@ impl Activity {
         Self {
             act_type: value.act_type.external().to_string(),
             link_id: value.link_id.external().to_string(),
-            coordinate: Some(Coordinate {
-                x: value.coord.x,
-                y: value.coord.y,
-                z: value.coord.z,
+            coordinate: value.coord.as_ref().map(|c| Coordinate {
+                x: c.x,
+                y: c.y,
+                z: c.z,
             }),
             start_time_ns: value.start_time.map(SimTime::as_nanos),
             end_time_ns: value.end_time.map(SimTime::as_nanos),
@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn activity_coordinate_round_trip_preserves_none_z() {
         let activity = InternalActivity::new(
-            Coordinate::new(10.0, 20.0),
+            Some(Coordinate::new(10.0, 20.0)),
             "home",
             Id::create("1"),
             Some(SimTime::from_nanos(1_500_000)),
@@ -230,9 +230,9 @@ mod tests {
         let wire = Activity::from(&activity);
         let round_trip = InternalActivity::from(wire);
 
-        assert_eq!(10.0, round_trip.coord.x);
-        assert_eq!(20.0, round_trip.coord.y);
-        assert_eq!(None, round_trip.coord.z);
+        assert_eq!(10.0, round_trip.coord.as_ref().unwrap().x);
+        assert_eq!(20.0, round_trip.coord.as_ref().unwrap().y);
+        assert_eq!(None, round_trip.coord.as_ref().unwrap().z);
         assert_eq!(Some(SimTime::from_nanos(1_500_000)), round_trip.start_time);
         assert_eq!(Some(SimTime::from_nanos(2_250_000)), round_trip.end_time);
         assert_eq!(Some(Duration::from_nanos(3_500_000)), round_trip.max_dur);

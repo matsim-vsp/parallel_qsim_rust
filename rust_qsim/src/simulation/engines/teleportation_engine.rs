@@ -199,7 +199,7 @@ mod tests {
             Some(SimTime::from_secs(1)),
         );
         let act = InternalActivity::new(
-            Coordinate::default(),
+            Some(Coordinate::default()),
             "home",
             Id::create("start"),
             None,

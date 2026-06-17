@@ -417,8 +417,8 @@ mod tests {
             let payload = InternalRoutingRequestPayloadBuilder::default()
                 .person_id("1".to_string())
                 .from_link("start".to_string())
-                .from(Coordinate::default())
-                .to(Coordinate::default())
+                .from(Some(Coordinate::default()))
+                .to(Some(Coordinate::default()))
                 .to_link("end".to_string())
                 .mode("mode".to_string())
                 .departure_time(SimTime::from_secs(10))
@@ -498,7 +498,7 @@ mod tests {
     fn create_plan() -> InternalPlan {
         let mut plan = InternalPlan::default();
         let mut activity = InternalActivity::new(
-            Coordinate::default(),
+            Some(Coordinate::default()),
             "home",
             Id::create("start"),
             None,
@@ -523,7 +523,7 @@ mod tests {
             Some(SimTime::from_secs(2)),
         ));
         plan.add_act(InternalActivity::new(
-            Coordinate::default(),
+            Some(Coordinate::default()),
             "work",
             Id::create("end"),
             None,
