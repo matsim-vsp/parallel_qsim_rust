@@ -1,10 +1,13 @@
 use crate::generated::events::GenericEvent;
 use crate::simulation::events::comparison::EventBatch;
-use crate::simulation::events::{EventTrait, EventsManager, comparison};
+use crate::simulation::events::{EventTrait, EventsManager, GenericEventBuilder, comparison};
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::xml::events::{XmlEventsReader, XmlEventsWriter};
 use crate::simulation::logging::init_std_out_logging_thread_local;
 use crate::simulation::time::SimTime;
+use std::error::Error;
+use std::fmt::Display;
+use std::fs::File;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -12,147 +15,222 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::{fmt, thread};
 use tracing::info;
 
-struct StatefulReader<R: Read + Seek> {
-    reader: ProtoEventsReader<R>,
-    curr_time_step: (SimTime, Vec<GenericEvent>),
+/// An event file reader with a state, containing the time and event data of the next time step.
+/// This is needed so that multiple readers can be sorted by the time of their next event.
+trait StatefulReader {
+    /// preload the event time and event data of the next timestep into the reader state. Returns
+    /// `Some(())` if the next time step was successfully preloaded, or `None` if there are no more
+    /// events to read.
+    fn load_next(&mut self) -> Option<()>;
+    /// process the events that are currently preloaded in the state using the given event manager
+    fn process_preloaded_events(&self, manager: &mut EventsManager);
+    /// read the time of the preloaded events
+    fn get_preloaded_time(&self) -> SimTime;
 }
 
-impl<R: Read + Seek> StatefulReader<R> {
-    pub fn load_next(&mut self) -> Option<()> {
+struct StatefulProtoReader<R: Read + Seek> {
+    reader: ProtoEventsReader<R>,
+    preloaded_time_step: (SimTime, Vec<GenericEvent>),
+}
+
+impl StatefulProtoReader<File> {
+    fn from_file(path: impl AsRef<Path>) -> Self {
+        Self {
+            reader: ProtoEventsReader::from_file(path.as_ref()),
+            preloaded_time_step: (SimTime::default(), Vec::new()),
+        }
+    }
+}
+
+impl StatefulReader for StatefulProtoReader<File> {
+    fn load_next(&mut self) -> Option<()> {
         match self.reader.next() {
             None => None,
             Some(time_step) => {
-                self.curr_time_step = time_step;
+                self.preloaded_time_step = time_step;
                 Some(())
             }
         }
+    }
+    fn process_preloaded_events(&self, manager: &mut EventsManager) {
+        process_events(
+            self.preloaded_time_step.0,
+            &self.preloaded_time_step.1,
+            manager,
+        )
+    }
+
+    fn get_preloaded_time(&self) -> SimTime {
+        self.preloaded_time_step.0
     }
 }
 
 struct StatefulXmlReader {
     reader: XmlEventsReader,
-    next_event: Option<(SimTime, Box<dyn EventTrait>)>,
+    preloaded_event: (SimTime, Box<dyn EventTrait>),
 }
 
-/// Reads all proto events from the given folder and publishes them to the given events manager.
-/// Assumes that ids are already loaded.
-pub fn read_proto_events(
-    events: &mut EventsManager,
-    folder: impl AsRef<Path>,
-    prefix: &str,
-    num_parts: u32,
-) {
-    let mut readers = Vec::new();
-    info!("Reading from Files: ");
-    for i in 0..num_parts {
-        let path = PathBuf::from(&folder.as_ref()).join(format!("{prefix}.{i}.binpb"));
-        info!("\t {}", path.display());
-        let reader = ProtoEventsReader::from_file(&path);
-        let wrapper = StatefulReader {
-            reader,
-            curr_time_step: (SimTime::default(), Vec::new()),
-        };
-        readers.push(wrapper);
+impl StatefulXmlReader {
+    fn from_file(path: impl AsRef<Path>) -> Self {
+        Self {
+            reader: XmlEventsReader::new(path),
+            preloaded_event: (
+                SimTime::default(),
+                Box::new(
+                    GenericEventBuilder::default()
+                        .time(SimTime::default())
+                        .build()
+                        .unwrap(),
+                ),
+            ),
+        }
+    }
+}
+
+impl StatefulReader for StatefulXmlReader {
+    fn load_next(&mut self) -> Option<()> {
+        match self.reader.read_next() {
+            None => None,
+            Some(next_event) => {
+                self.preloaded_event = next_event;
+                Some(())
+            }
+        }
+    }
+    fn process_preloaded_events(&self, manager: &mut EventsManager) {
+        manager.process_event(self.preloaded_event.1.as_ref());
     }
 
-    info!("Starting to read proto files.");
+    fn get_preloaded_time(&self) -> SimTime {
+        self.preloaded_event.0
+    }
+}
+
+/// Error type for file types that are given to the event reading functions
+#[derive(Debug)]
+pub enum FileTypeError {
+    Unimplemented(String),
+    NotGiven,
+    NotValidUnicode,
+}
+
+impl Display for FileTypeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FileTypeError::Unimplemented(ext) => write!(f, "unimplemented file type: {}", ext),
+            FileTypeError::NotGiven => write!(f, "file was given without extension"),
+            FileTypeError::NotValidUnicode => write!(f, "file extension is not valid unicode"),
+        }
+    }
+}
+impl Error for FileTypeError {}
+
+/// Reads the events from the given file and publishes them to the given events manager.
+/// When reading a proto file, assumes that ids are already loaded.
+pub fn read_events(
+    events_mgr: &mut EventsManager,
+    path: impl AsRef<Path>,
+) -> Result<(), FileTypeError> {
+    info!("Reading events from file: {}", path.as_ref().display());
+    let file_extension = path
+        .as_ref()
+        .extension()
+        .ok_or_else(|| FileTypeError::NotGiven)?;
+
+    let mut reader: Box<dyn StatefulReader> = match file_extension
+        .to_str()
+        .map(|s| s.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("xml") | Some("xml.gz") => Box::new(StatefulXmlReader::from_file(path)),
+        Some("binpb") | Some("pbf") => Box::new(StatefulProtoReader::from_file(path)),
+        Some(other) => return Err(FileTypeError::Unimplemented(other.to_string())),
+        None => return Err(FileTypeError::NotValidUnicode),
+    };
+
     let mut last_reported_time_step = 0;
-    while !readers.is_empty() {
-        readers.sort_by(|a, b| a.curr_time_step.0.cmp(&b.curr_time_step.0));
 
-        // get the reader with the smallest curr time step and process its events
-        let reader = readers.first_mut().unwrap();
-
-        let secs = reader.curr_time_step.0.as_secs();
+    // preload next events, and if they exist, process them
+    while reader.load_next().is_some() {
+        let secs = reader.get_preloaded_time().as_secs();
         let hour = secs / 3600;
         if hour > last_reported_time_step && secs.is_multiple_of(3600) {
             info!("Reading time step: {:?}h", hour);
             last_reported_time_step = hour;
         }
 
-        process_events(reader.curr_time_step.0, &reader.curr_time_step.1, events);
-        if reader.load_next().is_none() {
-            readers.remove(0);
-        };
+        // process the preloaded events
+        reader.process_preloaded_events(events_mgr);
     }
-    info!("Finished reading proto files.");
-    events.finish();
+
+    info!("Finished reading file.");
+    events_mgr.finish();
+
+    Ok(())
 }
 
-/// Reads all XML event files with name `{folder}/{prefix}.{i}.xml` for `0 <= i < num_parts`, or
-/// `[...].xml.gz` if `is_gz=true` and publishes them to the given events manager.
-/// Assumes that ids are already loaded.
-pub fn read_xml_events(
+/// Reads all event files from the given folder with file name `{prefix}.{i}.{file_extension}`,
+/// where `i=0..num_parts`, and publishes them to the given events manager.
+/// When reading proto files, assumes that ids are already loaded.
+pub fn read_partitioned_events(
     events_mgr: &mut EventsManager,
     folder: impl AsRef<Path>,
     prefix: &str,
     num_parts: u32,
-    is_gz: bool,
-) {
-    // initialize readers, one for every file.
-    let mut readers = Vec::new();
-    info!("Reading from XML Files: ");
-    for i in 0..num_parts {
-        let path = PathBuf::from(folder.as_ref()).join(format!(
-            "{prefix}.{i}.xml{}",
-            if is_gz { ".gz" } else { "" } // add .gz ending if specified
-        ));
-        info!("\t {}", path.display());
-        let mut reader = XmlEventsReader::new(&path);
+    file_extension: &str,
+) -> Result<(), FileTypeError> {
+    let normalized_extension = file_extension.trim_start_matches('.').to_ascii_lowercase();
 
-        let next_event = reader.read_next();
-        if next_event.is_none() {
-            // if first event is empty, don't add the reader of this file to the readers vec
-            continue;
+    let mut readers: Vec<Box<dyn StatefulReader>> = Vec::new();
+
+    info!("Reading from Files: ");
+
+    for i in 0..num_parts {
+        let path =
+            PathBuf::from(&folder.as_ref()).join(format!("{prefix}.{i}.{normalized_extension}"));
+        info!("\t {}", path.display());
+
+        // create stateful reader based on given file extension, return error if unsupported
+        let mut reader: Box<dyn StatefulReader> = match normalized_extension.as_str() {
+            "binpb" | "pbf" => Box::new(StatefulProtoReader::from_file(path)),
+            "xml" | "xml.gz" => Box::new(StatefulXmlReader::from_file(path)),
+            _ => return Err(FileTypeError::Unimplemented(normalized_extension)),
         };
 
-        let wrapper = StatefulXmlReader { reader, next_event };
-        readers.push(wrapper);
+        // initialize stateful reader by preloading the first state. If this returns None, the file
+        // is empty so we don't add the reader to the readers.
+        if reader.load_next().is_none() {
+            continue;
+        }
+        readers.push(reader);
     }
 
-    info!("Starting to read XML event files.");
+    info!("Starting to read files.");
     let mut last_reported_time_step = 0;
     while !readers.is_empty() {
-        // sort readers by next event time, if None use default 0.0
-        readers.sort_by(|a, b| {
-            a.next_event
-                .as_ref()
-                .map(|e| e.0)
-                .unwrap_or(SimTime::default())
-                .cmp(
-                    &b.next_event
-                        .as_ref()
-                        .map(|e| e.0)
-                        .unwrap_or(SimTime::default()),
-                )
-        });
+        readers.sort_by(|a, b| a.get_preloaded_time().cmp(&b.get_preloaded_time()));
 
-        // get the reader with the smallest curr time step and process its event
+        // get the reader with the smallest curr time step and process its events
         let reader = readers.first_mut().unwrap();
 
-        match reader.next_event.as_ref() {
-            //reader.reader.read_next() {
-            // if the reader is empty, remove it from the vec of readers
-            None => {
-                readers.remove(0);
-            }
-            // if the reader has an event, process it and update the reader's next event
-            Some((time, event)) => {
-                let secs = time.as_secs();
-                let hour = secs / 3600;
-                if hour > last_reported_time_step && secs.is_multiple_of(3600) {
-                    info!("Reading time step: {:?}h", hour);
-                    last_reported_time_step = hour;
-                }
-                // process the event
-                events_mgr.process_event(event.as_ref());
-                // reader.curr_time_step = time;
-                reader.next_event = reader.reader.read_next();
-            }
+        let secs = reader.get_preloaded_time().as_secs();
+        let hour = secs / 3600;
+        if hour > last_reported_time_step && secs.is_multiple_of(3600) {
+            info!("Reading time step: {:?}h", hour);
+            last_reported_time_step = hour;
         }
+
+        // process the events currently stored in "self.curr_time_step"
+        reader.process_preloaded_events(events_mgr);
+
+        if reader.load_next().is_none() {
+            readers.remove(0);
+        };
     }
-    info!("Finished reading XML event files.");
+    info!("Finished reading files.");
     events_mgr.finish();
+
+    Ok(())
 }
 
 /// Reads all proto events from the given folder and writes them to a single XML file (optionally
@@ -162,23 +240,25 @@ pub fn convert_proto_to_xml_events(
     path_to_proto_files: impl AsRef<Path>,
     num_parts: u32,
     output_file_path: impl AsRef<Path> + 'static + Send + Clone,
-) {
+) -> Result<(), FileTypeError> {
     let mut manager = EventsManager::new();
 
     let register_xml_writer = XmlEventsWriter::register_fn(output_file_path.clone());
 
     register_xml_writer(&mut manager);
 
-    read_proto_events(
+    read_partitioned_events(
         &mut manager,
         path_to_proto_files.as_ref(),
         "events",
         num_parts,
-    );
+        "binpb",
+    )?;
     info!(
         "Finished writing to xml file ({}).",
         output_file_path.as_ref().to_str().unwrap()
     );
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -191,7 +271,7 @@ pub enum EventsFileNotEqualError {
     },
 }
 
-impl fmt::Display for EventsFileNotEqualError {
+impl Display for EventsFileNotEqualError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             EventsFileNotEqualError::DifferentEventTimes => write!(f, "Event times differ."),
@@ -293,13 +373,127 @@ mod test {
         }
     }
 
-    /// test the `read_from_xml` function to check that the events read from two XML files are
-    /// correctly published to the events manager, in the right order.
+    /// test the read_events function on a single xml file. Publishes the read events to an event
+    /// manager where the above `EventsToVecCollector` is registered, and then compares the
+    /// collected event strings with the expected event strings.
+    #[test]
+    fn test_read_single_xml_file() {
+        let _guard = init_std_out_logging_thread_local();
+        let resource_folder = "./tests/resources/events/".to_string();
+        let path = PathBuf::from(resource_folder).join("expected_events.0.xml");
+
+        let mut events_mgr = EventsManager::new();
+
+        // the event strings read from the XML file will be collected in this vector, to be compared
+        // with the expected event strings
+        let event_string_collection = Arc::new(Mutex::new(Vec::new()));
+
+        // XmlEventsVecCollector is an event handler that writes event strings, like those written
+        // into XML, into a given vector.
+        let register_xml_event_collector =
+            EventsToVecCollector::register_fn(event_string_collection.clone());
+
+        register_xml_event_collector(&mut events_mgr);
+
+        // read the XML events and publish them to the events manager, which will trigger the event
+        // handler above and fill the event_string_collection vector
+        read_events(&mut events_mgr, &path).unwrap();
+
+        // assert that the event strings that the events handler handled are all the events inside
+        // the read file "expected_events.0.xml"
+        assert_eq!(
+            event_string_collection.lock().unwrap().clone(),
+            vec![
+                "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"10\" actType=\"home\"/>\n",
+                "<event time=\"32400.5\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
+                "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n",
+                "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\"/>\n",
+                "<event time=\"32409\" type=\"actstart\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" computationalRoutingMode=\"car\"/>\n",
+                "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32409.123456789\" type=\"vehicle enters traffic\" person=\"100\" link=\"link1\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
+                "<event time=\"32410\" type=\"left link\" link=\"link1\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32410\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32511\" type=\"left link\" link=\"link2\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32511\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32521\" type=\"vehicle leaves traffic\" person=\"100\" link=\"link3\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
+                "<event time=\"32521\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32521\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\"/>\n",
+                "<event time=\"32522\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32522\" type=\"actend\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32522\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
+                "<event time=\"32538\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\"/>\n",
+                "<event time=\"32538\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\"/>\n",
+                "<event time=\"32539\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"20\" actType=\"errands\"/>\n"
+            ]
+        );
+    }
+
+    /// test the read_events function on a single proto file. Publishes the read events to an event
+    /// manager where the above `EventsToVecCollector` is registered, and then compares the
+    /// collected event strings with the expected event strings.
+    #[test]
+    fn test_read_single_proto_file() {
+        let _guard = init_std_out_logging_thread_local();
+        let resource_folder = "./tests/resources/events/".to_string();
+        let path = PathBuf::from(resource_folder).join("expected_events.0.xml");
+
+        let mut events_mgr = EventsManager::new();
+
+        // the event strings read from the XML file will be collected in this vector, to be compared
+        // with the expected event strings
+        let event_string_collection = Arc::new(Mutex::new(Vec::new()));
+
+        // XmlEventsVecCollector is an event handler that writes event strings, like those written
+        // into XML, into a given vector.
+        let register_xml_event_collector =
+            EventsToVecCollector::register_fn(event_string_collection.clone());
+
+        register_xml_event_collector(&mut events_mgr);
+
+        // read the XML events and publish them to the events manager, which will trigger the event
+        // handler above and fill the event_string_collection vector
+        read_events(&mut events_mgr, &path).unwrap();
+
+        // assert that the event strings that the events handler handled are all the events inside
+        // the read file "expected_events.0.xml"
+        assert_eq!(
+            event_string_collection.lock().unwrap().clone(),
+            vec![
+                "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"10\" actType=\"home\"/>\n",
+                "<event time=\"32400.5\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
+                "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n",
+                "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\"/>\n",
+                "<event time=\"32409\" type=\"actstart\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" computationalRoutingMode=\"car\"/>\n",
+                "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32409.123456789\" type=\"vehicle enters traffic\" person=\"100\" link=\"link1\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
+                "<event time=\"32410\" type=\"left link\" link=\"link1\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32410\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32511\" type=\"left link\" link=\"link2\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32511\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32521\" type=\"vehicle leaves traffic\" person=\"100\" link=\"link3\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
+                "<event time=\"32521\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
+                "<event time=\"32521\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\"/>\n",
+                "<event time=\"32522\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32522\" type=\"actend\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
+                "<event time=\"32522\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
+                "<event time=\"32538\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\"/>\n",
+                "<event time=\"32538\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\"/>\n",
+                "<event time=\"32539\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"20\" actType=\"errands\"/>\n"
+            ]
+        );
+    }
+
+    /// test the `read_partitioned_events` function to check that the events read from two XML
+    /// files are correctly published to the events manager, in the right order.
     /// Writes the corresponding XML string of all published events into a vector (using the above
     /// defined `EventsToVecCollector` event handler), and then comparing the vector with the
     /// expected event strings (corresponding to the events in the read XML files).
     #[test]
-    fn test_read_from_xml() {
+    fn test_read_partitioned_xml() {
         let _guard = init_std_out_logging_thread_local();
         let resource_folder = "./tests/resources/events/".to_string();
         let num_parts = 2;
@@ -319,13 +513,14 @@ mod test {
 
         // read the XML events and publish them to the events manager, which will trigger the event
         // handler above and fill the event_string_collection vector
-        read_xml_events(
+        read_partitioned_events(
             &mut events_mgr,
             &PathBuf::from(&resource_folder),
             "expected_events",
             num_parts,
-            false,
-        );
+            "xml",
+        )
+        .unwrap();
 
         // assert that the event strings that the events handler handled are all the events inside
         // the read files "expected_events.0.xml" and "expected_events.1.xml", in correct order.
