@@ -289,16 +289,15 @@ impl VehicularDepartureHandler {
                 .unwrap(),
         );
 
-        let veh_id = route
-            .as_generic()
-            .vehicle()
-            .as_ref()
-            .unwrap_or(&Id::get_from_ext(&format!(
+        let veh_id = if let Some(v) = route.as_generic().vehicle().as_ref() {
+            v.clone()
+        } else {
+            Id::get_from_ext(&format!(
                 "{}_{}",
                 agent.id().external(),
                 leg.mode.external()
-            )))
-            .clone();
+            ))
+        };
 
         if self.main_modes.contains(&leg.mode) {
             assert!(
