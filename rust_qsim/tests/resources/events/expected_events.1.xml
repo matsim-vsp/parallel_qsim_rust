@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<events version="1.0">
+    <event time="32406" type="travelled" person="100" distance="10" mode="walk"/>
+</events>

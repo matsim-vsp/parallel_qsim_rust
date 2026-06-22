@@ -1,6 +1,6 @@
 use clap::Parser;
 use rust_qsim::simulation::events::EventsManager;
-use rust_qsim::simulation::events::utils::read_proto_events;
+use rust_qsim::simulation::events::utils::read_partitioned_events;
 use rust_qsim::simulation::id;
 use rust_qsim::simulation::io::proto::proto_events::ProtoEventsWriter;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
@@ -32,12 +32,14 @@ fn main() {
 
     register_proto_writer(&mut manager);
 
-    read_proto_events(
+    read_partitioned_events(
         &mut manager,
         &PathBuf::from(args.path),
-        String::from("events"),
+        "events",
         args.num_parts,
-    );
+        "binpb",
+    )
+    .expect("Failed to read events from file");
     info!(
         "Finished writing to proto file ({}).",
         output_file_path.display()

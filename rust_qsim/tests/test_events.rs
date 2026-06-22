@@ -35,7 +35,8 @@ fn test_proto_to_xml() {
         &proto_folder,
         num_parts,
         PathBuf::from(&output_folder).join("events.xml.gz"),
-    );
+    )
+    .expect("Failed to convert proto events to xml");
 
     // assert origin xml = new xml
     let generated_file = PathBuf::from(&output_folder).join("events.xml.gz");

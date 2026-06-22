@@ -17,7 +17,8 @@ fn main() {
 
     let output_file_path = PathBuf::from(&args.path).join("events.xml.gz");
 
-    utils::convert_proto_to_xml_events(args.path, args.num_parts, output_file_path);
+    utils::convert_proto_to_xml_events(args.path, args.num_parts, output_file_path)
+        .expect("Failed to convert proto events to xml");
 }
 
 #[derive(Parser, Debug)]
