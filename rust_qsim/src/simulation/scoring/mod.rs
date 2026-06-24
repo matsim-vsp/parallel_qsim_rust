@@ -117,7 +117,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                 Box::new(HomesendingScoringEngine::new(
                     rank,
                     &partition.population,
-                    partition.network_partition.neighbors(),
+                    num_parts as usize,
                     person_id2home_partition.clone(),
                     receiver,
                     vec![],
