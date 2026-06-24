@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::mem::take;
 use std::sync::{Arc, Mutex};
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
 use crate::simulation::framework_events::QSimId;
@@ -11,32 +12,42 @@ pub struct MappingDataForwarder {
     person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
     vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>,
     rank: QSimId,
+    num_partitions: u32,
 
     person_id2internal_plan: HashMap<Id<InternalPerson>, InternalPerson>,
     message_broker: Arc<Mutex<MappingCollectorMessageBroker>>
 }
 
 impl MappingDataForwarder {
-     pub fn new(person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>, vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>, rank: QSimId, mapping_collector_message_broker: Arc<Mutex<MappingCollectorMessageBroker>>) -> Arc<Mutex<Self>> {
+    pub fn new(person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>, vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>, rank: QSimId, num_partitions: u32, mapping_collector_message_broker: Arc<Mutex<MappingCollectorMessageBroker>>) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             person_hash_function,
             vehicle_hash_function,
             rank,
+            num_partitions,
             person_id2internal_plan: HashMap::new(),
             message_broker: mapping_collector_message_broker
         }))
     }
 
     fn forward_person_event(&self, person_id: Id<InternalPerson>, event: Box<dyn EventTrait>){
-        self.message_broker.lock().unwrap().add_leaving_person_event((self.person_hash_function)(person_id.clone()), person_id.clone(), event);
+        let target = (self.person_hash_function)(person_id.clone()) + self.num_partitions;
+        self.message_broker.lock().unwrap().add_leaving_person_event(target, person_id.clone(), event);
     }
 
     fn forward_vehicle_event(&self, vehicle_id: Id<InternalVehicle>, event: Box<dyn EventTrait>){
-        self.message_broker.lock().unwrap().add_leaving_vehicle_event((self.vehicle_hash_function)(vehicle_id.clone()), vehicle_id.clone(), event);
+        let target = (self.vehicle_hash_function)(vehicle_id.clone()) + self.num_partitions;
+        self.message_broker.lock().unwrap().add_leaving_vehicle_event(target, vehicle_id.clone(), event);
     }
 
     pub(crate) fn add_arriving_plan(&mut self, person_id: Id<InternalPerson>, arriving_plan: InternalPlan){
         self.person_id2internal_plan.insert(person_id.clone(), InternalPerson::new(person_id, arriving_plan));
+    }
+
+    pub(crate) fn finish(&mut self) -> Population {
+        Population {
+            persons: take(&mut self.person_id2internal_plan)
+        }
     }
 
     fn handle_event(&mut self, event: &dyn EventTrait ) {

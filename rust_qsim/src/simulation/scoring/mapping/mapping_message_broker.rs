@@ -23,7 +23,7 @@ pub struct MappingCollectorMessageBroker {
 }
 
 impl MappingCollectorMessageBroker {
-    pub fn new(receiver: Receiver<InternalScoringMessage>, senders: Vec<Sender<InternalScoringMessage>>, rank: QSimId, num_partitions: usize, num_scoring_threads: usize, buffer_events: HashMap<u32, Vec<Box<dyn EventTrait>>>, buffer_vehicles: HashMap<u32, Vec<Box<dyn EventTrait>>>) -> Arc<Mutex<Self>> {
+    pub fn new(receiver: Receiver<InternalScoringMessage>, senders: Vec<Sender<InternalScoringMessage>>, rank: QSimId, num_partitions: usize, num_scoring_threads: usize,) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self { receiver, senders, rank, num_partitions, num_scoring_threads, buffer_events: HashMap::new(), buffer_vehicles: HashMap::new(), data_forwarder: Weak::new() }))
     }
 
@@ -93,14 +93,11 @@ impl MappingCollectorMessageBroker {
     fn finish_send_recv(&mut self) {
         self.send();
 
-        for target in (1..self.num_scoring_threads).map(|t| t + self.num_partitions) {
-            if target as QSimId == self.rank {
-                continue;
-            }
+        for target in (0..self.num_scoring_threads).map(|t| t + self.num_partitions) {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target as QSimId,
-                message: Box::new(FinishMessage {}),
+                message: Box::new(ScoringFinishMessage {}),
             };
             self.senders[target].send(msg).unwrap_or_else(|e| {
                 panic!("Error sending FinishMessage to rank {} with error {}", target, e)
@@ -108,7 +105,7 @@ impl MappingCollectorMessageBroker {
         }
 
         // TODO Use finished instead of this for loop
-        for _ in 1..self.num_scoring_threads {
+        for _ in 0..self.num_scoring_threads {
             let received_msg = self.receiver.recv().unwrap();
 
             let boxed_any = received_msg.message.into_any();
@@ -133,15 +130,15 @@ pub struct MappingScoringMessageBroker {
     rank: QSimId,
     num_partitions: usize,
     num_scoring_threads: usize,
-    partition2person_ids: HashMap<QSimId, Vec<Id<InternalPerson>>>,
+    partition_id2person_id: HashMap<QSimId, Vec<Id<InternalPerson>>>,
 
     buffer_events: HashMap<u32, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
     data_collector: Weak<Mutex<MappingDataCollector>>,
 }
 
 impl MappingScoringMessageBroker {
-    pub fn new(receiver: Receiver<InternalScoringMessage>, senders: Vec<Sender<InternalScoringMessage>>, rank: QSimId, num_partitions: usize, num_scoring_threads: usize, partition2person_ids: HashMap<QSimId, Vec<Id<InternalPerson>>>) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self { receiver, senders, rank, num_partitions, num_scoring_threads, partition2person_ids,buffer_events: HashMap::new(), data_collector: Weak::new() }))
+    pub fn new(receiver: Receiver<InternalScoringMessage>, senders: Vec<Sender<InternalScoringMessage>>, rank: QSimId, num_partitions: usize, num_scoring_threads: usize, partition_id2person_id: HashMap<QSimId, Vec<Id<InternalPerson>>>) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self { receiver, senders, rank, num_partitions, num_scoring_threads, partition_id2person_id, buffer_events: HashMap::new(), data_collector: Weak::new() }))
     }
 
     pub(crate) fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
@@ -155,24 +152,25 @@ impl MappingScoringMessageBroker {
     /// Thread-Function to execute. Consists of blocking recv-send loop, that breaks when all finish messages were received.
     /// Finish procedure consists of sending experienced plans back to the home-partitions.
     pub fn work(&mut self){
-        let mut finished = HashSet::new(); 
+        let mut finished = HashSet::new();
         loop {
             let received_msg = self.receiver.recv().expect("Error receiving message");
             self.send();
-            
-            if let Some(f) = self.recv(received_msg) {
+
+            if let RecvResult::CollectorFinish(f) = self.recv(received_msg) {
                 finished.insert(f);
             }
             if finished.len() == self.num_partitions {
                 break;
             }
         }
-        
+
+        self.finish_sync();
         self.finish_send();
-        
     }
 
-    fn recv(&mut self, msg: InternalScoringMessage) -> Option<QSimId> {
+    fn recv(&mut self, msg: InternalScoringMessage) -> RecvResult {
+        let from = msg.from_process;
         let boxed_any = msg.message.into_any();
 
         match () {
@@ -185,15 +183,18 @@ impl MappingScoringMessageBroker {
                 let m = boxed_any.downcast::<PersonEventMessage>().unwrap();
                 self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_person_events(m.events);
             }
-            _ if boxed_any.is::<FinishMessage>() => {
-                return Some(msg.from_process)
+            _ if boxed_any.is::<ScoringFinishMessage>() => {
+                return RecvResult::CollectorFinish(from);
+            }
+            _ if boxed_any.is::<CollectorFinishMessage>() => {
+                return RecvResult::ScoringFinish(from);
             }
             _ => {
                 panic!("Received unknown message type!");
             }
         }
-        
-        None
+
+        RecvResult::Data
     }
 
     fn send(&mut self) {
@@ -212,31 +213,30 @@ impl MappingScoringMessageBroker {
 
     /// Sends and waits for level-2 finish messages
     fn finish_sync(&mut self) {
-        for target in (1..self.num_scoring_threads).map(|t| t + self.num_partitions) {
+        for target in (0..self.num_scoring_threads).map(|t| t + self.num_partitions) {
+            if target == self.rank as usize { continue; }
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target as QSimId,
-                message: Box::new(FinishMessage {}),
+                message: Box::new(CollectorFinishMessage {}),
             };
-
             self.senders[target].send(msg).unwrap_or_else(|e| {
-                panic!("Error sending VehicleMessage to rank {} with error {}", target, e)
+                panic!("Error sending CollectorFinishMessage to rank {} with error {}", target, e)
             });
         }
 
         let mut finished = HashSet::new();
-        while finished.len() < self.num_scoring_threads {
+        while finished.len() < self.num_scoring_threads - 1 {
             let received_msg = self.receiver.recv().expect("Error receiving message");
-
-            if let Some(f) = self.recv(received_msg) {
-                    finished.insert(f);
+            if let RecvResult::ScoringFinish(f) = self.recv(received_msg) {
+                finished.insert(f);
             }
         }
     }
 
     fn finish_send(&mut self) {
         for target in 0..self.num_partitions {
-            let plans = self.partition2person_ids[&(target as QSimId)].iter().map(|person_id|
+            let plans = self.partition_id2person_id.get(&(target as QSimId)).unwrap().iter().map(|person_id|
                 (person_id.clone(), self.data_collector.upgrade().unwrap().lock().unwrap().remove_person_plan(person_id.clone()))
             ).collect();
             
@@ -254,6 +254,12 @@ impl MappingScoringMessageBroker {
 }
 
 
+enum RecvResult {
+    Data,
+    CollectorFinish(QSimId),
+    ScoringFinish(QSimId),
+}
+
 struct PersonEventMessage {
     events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
 }
@@ -262,7 +268,11 @@ struct VehicleEventMessage {
     events: HashMap<Id<InternalVehicle>, Vec<Box<dyn EventTrait>>>,
 }
 
-struct FinishMessage {
+struct ScoringFinishMessage {
+
+}
+
+struct CollectorFinishMessage {
 
 }
 

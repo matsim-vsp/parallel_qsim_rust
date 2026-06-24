@@ -11,14 +11,24 @@ use crate::simulation::scoring::partial_plans::PartialPlan;
 
 pub struct MappingDataCollector {
     person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
+    num_partitions: u32,
 
     person_id2partial_plan: HashMap<Id<InternalPerson>, PartialPlan>,
     vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
-    
+
     message_broker: Arc<Mutex<MappingScoringMessageBroker>>
 }
 
 impl MappingDataCollector {
+    pub fn new(person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>, num_partitions: u32, message_broker: Arc<Mutex<MappingScoringMessageBroker>>) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self {
+            person_hash_function,
+            num_partitions,
+            person_id2partial_plan: HashMap::new(),
+            vehicle_id2person_ids: HashMap::new(),
+            message_broker }))
+    }
+
     pub(crate) fn add_arriving_person_events(&mut self, mut arriving_events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>) {
         for (person_id, mut arriving_events) in arriving_events {
             for arriving_event in arriving_events {
@@ -34,18 +44,18 @@ impl MappingDataCollector {
             for arriving_event in arriving_events.drain(..) {
                 if let Some(e) = arriving_event.as_any().downcast_ref::<LinkEnterEvent>(){
                     for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
-                        buffer_events.entry((self.person_hash_function)(person_id.clone())).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
+                        buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
                     }
                 } else if let Some(e) = arriving_event.as_any().downcast_ref::<VehicleEntersTrafficEvent>(){
                     for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
-                        buffer_events.entry((self.person_hash_function)(person_id.clone())).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
+                        buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
                     }
                 } else if let Some(e) = arriving_event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>(){
                     for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
-                        buffer_events.entry((self.person_hash_function)(person_id.clone())).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
+                        buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
                     }
                 } else if let Some(e) = arriving_event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
-                    self.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().insert(e.person.clone());
+                    self.vehicle_id2person_ids.entry(e.vehicle.clone()).or_default().insert(e.person.clone());
                 } else if let Some(e) = arriving_event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
                     self.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().remove(&e.person);
                 } else {
