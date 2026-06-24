@@ -21,6 +21,7 @@ use crate::simulation::scoring::homesending::homesending_scoring_engine::Homesen
 pub mod backpacking;
 pub mod partial_plans;
 pub mod homesending;
+mod mapping;
 
 pub trait Message: Any + Send {
     fn as_any(&self) -> &dyn Any;
