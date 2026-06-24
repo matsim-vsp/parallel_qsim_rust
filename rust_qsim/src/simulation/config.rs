@@ -578,7 +578,8 @@ impl Default for ComputationalSetup {
 pub struct Scoring {
     pub enabled: bool,
     #[serde(default)]
-    pub plans_collection_type: ScoringPlansCollectionType
+    pub plans_collection_type: ScoringPlansCollectionType,
+    pub collector_threads: u32,
 }
 
 register_override!("scoring.enabled", |config, value| {
@@ -596,6 +597,12 @@ register_override!("scoring.plans_collection_type", |config, value| {
     };
 });
 
+register_override!("scoring.collector_threads", |config, value| {
+    if let Ok(v) = value.parse() {
+        config.scoring_mut().enabled = v;
+    }
+});
+
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum ScoringPlansCollectionType {
     #[default]
@@ -608,7 +615,8 @@ impl Default for Scoring {
     fn default() -> Self {
         Self {
             enabled: true,
-            plans_collection_type: ScoringPlansCollectionType::default()
+            plans_collection_type: ScoringPlansCollectionType::default(),
+            collector_threads: 1,
         }
     }
 }

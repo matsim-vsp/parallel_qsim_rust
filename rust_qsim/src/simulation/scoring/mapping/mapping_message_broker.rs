@@ -15,7 +15,7 @@ pub struct MappingCollectorMessageBroker {
     senders: Vec<Sender<InternalScoringMessage>>,
     rank: QSimId,
     num_partitions: usize,
-    num_scoring_threads: usize,
+    num_collectors: usize,
 
     buffer_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
     buffer_vehicles: HashMap<u32, HashMap<Id<InternalVehicle>, Vec<Box<dyn EventTrait>>>>,
@@ -24,7 +24,7 @@ pub struct MappingCollectorMessageBroker {
 
 impl MappingCollectorMessageBroker {
     pub fn new(receiver: Receiver<InternalScoringMessage>, senders: Vec<Sender<InternalScoringMessage>>, rank: QSimId, num_partitions: usize, num_scoring_threads: usize,) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self { receiver, senders, rank, num_partitions, num_scoring_threads, buffer_events: HashMap::new(), buffer_vehicles: HashMap::new(), data_forwarder: Weak::new() }))
+        Arc::new(Mutex::new(Self { receiver, senders, rank, num_partitions, num_collectors: num_scoring_threads, buffer_events: HashMap::new(), buffer_vehicles: HashMap::new(), data_forwarder: Weak::new() }))
     }
 
     pub(crate) fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
@@ -93,7 +93,7 @@ impl MappingCollectorMessageBroker {
     fn finish_send_recv(&mut self) {
         self.send();
 
-        for target in (0..self.num_scoring_threads).map(|t| t + self.num_partitions) {
+        for target in (0..self.num_collectors).map(|t| t + self.num_partitions) {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target as QSimId,
@@ -105,7 +105,7 @@ impl MappingCollectorMessageBroker {
         }
 
         // TODO Use finished instead of this for loop
-        for _ in 0..self.num_scoring_threads {
+        for _ in 0..self.num_collectors {
             let received_msg = self.receiver.recv().unwrap();
 
             let boxed_any = received_msg.message.into_any();
@@ -129,7 +129,7 @@ pub struct MappingScoringMessageBroker {
     senders: Vec<Sender<InternalScoringMessage>>,
     rank: QSimId,
     num_partitions: usize,
-    num_scoring_threads: usize,
+    num_collectors: usize,
     partition_id2person_id: HashMap<QSimId, Vec<Id<InternalPerson>>>,
 
     buffer_events: HashMap<u32, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
@@ -137,8 +137,8 @@ pub struct MappingScoringMessageBroker {
 }
 
 impl MappingScoringMessageBroker {
-    pub fn new(receiver: Receiver<InternalScoringMessage>, senders: Vec<Sender<InternalScoringMessage>>, rank: QSimId, num_partitions: usize, num_scoring_threads: usize, partition_id2person_id: HashMap<QSimId, Vec<Id<InternalPerson>>>) -> Arc<Mutex<Self>> {
-        Arc::new(Mutex::new(Self { receiver, senders, rank, num_partitions, num_scoring_threads, partition_id2person_id, buffer_events: HashMap::new(), data_collector: Weak::new() }))
+    pub fn new(receiver: Receiver<InternalScoringMessage>, senders: Vec<Sender<InternalScoringMessage>>, rank: QSimId, num_partitions: usize, num_collectors: usize, partition_id2person_id: HashMap<QSimId, Vec<Id<InternalPerson>>>) -> Arc<Mutex<Self>> {
+        Arc::new(Mutex::new(Self { receiver, senders, rank, num_partitions, num_collectors, partition_id2person_id, buffer_events: HashMap::new(), data_collector: Weak::new() }))
     }
 
     pub(crate) fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
@@ -213,7 +213,7 @@ impl MappingScoringMessageBroker {
 
     /// Sends and waits for level-2 finish messages
     fn finish_sync(&mut self) {
-        for target in (0..self.num_scoring_threads).map(|t| t + self.num_partitions) {
+        for target in (0..self.num_collectors).map(|t| t + self.num_partitions) {
             if target == self.rank as usize { continue; }
             let msg = InternalScoringMessage {
                 from_process: self.rank,
@@ -226,7 +226,7 @@ impl MappingScoringMessageBroker {
         }
 
         let mut finished = HashSet::new();
-        while finished.len() < self.num_scoring_threads - 1 {
+        while finished.len() < self.num_collectors - 1 {
             let received_msg = self.receiver.recv().expect("Error receiving message");
             if let RecvResult::ScoringFinish(f) = self.recv(received_msg) {
                 finished.insert(f);
