@@ -153,9 +153,10 @@ mod test {
     };
     use crate::simulation::replanning::routing::network_converter;
     use crate::simulation::scenario::network::Network;
+    use macros::integration_test;
     use std::sync::Arc;
 
-    #[test]
+    #[integration_test]
     fn test_simple_network() {
         let network = Network::from_file(
             "./assets/routing_tests/triangle-network.xml",
@@ -175,7 +176,7 @@ mod test {
 
     /// test whether the network converter correctly creates separate graphs for different modes,
     /// and only includes links that allow the respective mode in each graph
-    #[test]
+    #[integration_test]
     fn test_simple_network_with_modes() {
         let network = Network::from_file(
             "./assets/routing_tests/network_different_modes.xml",
@@ -206,7 +207,7 @@ mod test {
     }
 
     /// Test that all links exist in both forward and backward directions
-    #[test]
+    #[integration_test]
     fn test_all_links_in_both_directions() {
         let network = get_triangle_test_network();
         let graph = net_to_graph(&network);

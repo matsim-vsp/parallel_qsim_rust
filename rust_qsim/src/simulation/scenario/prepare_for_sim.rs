@@ -74,10 +74,11 @@ mod tests {
     };
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::{Coordinate, MutableScenario};
+    use macros::integration_test;
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    #[test]
+    #[integration_test]
     fn prepare_for_sim_succeeds_for_empty_population() {
         let mut scenario = scenario_with_population(Population::new());
 
@@ -86,7 +87,7 @@ mod tests {
         assert!(scenario.population.persons.is_empty());
     }
 
-    #[test]
+    #[integration_test]
     fn prepare_for_sim_visits_population_without_moving_persons() {
         let mut persons = HashMap::new();
         persons.insert(Id::create("person-1"), person("person-1", "link-1"));

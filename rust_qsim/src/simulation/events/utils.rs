@@ -344,6 +344,7 @@ pub fn compare_xml_event_files(
 mod test {
     use super::*;
     use crate::simulation::events::{EventHandlerRegisterFn, EventTrait};
+    use macros::integration_test;
     use std::rc::Rc;
 
     /// event handler that writes any event as a string (corresponding to an entry in an XML file)
@@ -376,7 +377,7 @@ mod test {
     /// test the read_events function on a single xml file. Publishes the read events to an event
     /// manager where the above `EventsToVecCollector` is registered, and then compares the
     /// collected event strings with the expected event strings.
-    #[test]
+    #[integration_test]
     fn test_read_single_xml_file() {
         let _guard = init_std_out_logging_thread_local();
         let resource_folder = "./tests/resources/events/".to_string();
@@ -433,7 +434,7 @@ mod test {
     /// test the read_events function on a single proto file. Publishes the read events to an event
     /// manager where the above `EventsToVecCollector` is registered, and then compares the
     /// collected event strings with the expected event strings.
-    #[test]
+    #[integration_test]
     fn test_read_single_proto_file() {
         let _guard = init_std_out_logging_thread_local();
         let resource_folder = "./tests/resources/events/".to_string();
@@ -492,7 +493,7 @@ mod test {
     /// Writes the corresponding XML string of all published events into a vector (using the above
     /// defined `EventsToVecCollector` event handler), and then comparing the vector with the
     /// expected event strings (corresponding to the events in the read XML files).
-    #[test]
+    #[integration_test]
     fn test_read_partitioned_xml() {
         let _guard = init_std_out_logging_thread_local();
         let resource_folder = "./tests/resources/events/".to_string();

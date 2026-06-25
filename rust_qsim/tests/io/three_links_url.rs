@@ -4,8 +4,6 @@ use rust_qsim::simulation::scenario::population::Population;
 use rust_qsim::simulation::scenario::vehicles::Garage;
 use std::path::PathBuf;
 
-mod test_simulation;
-
 const BASE_URL: &str = "https://raw.githubusercontent.com/matsim-vsp/parallel_qsim_rust/refs/heads/main/rust_qsim/tests/resources/3-links-url";
 
 #[test]
@@ -35,7 +33,8 @@ fn load_files_from_url_have_content() {
 
     // Load expected events and check if it's not empty
     let events_url = format!("{}/expected_events.xml", BASE_URL);
-    let events = test_simulation::TestSubscriber::expected_events_from_file(&events_url);
+    let events =
+        crate::support::simulation_executor::TestSubscriber::expected_events_from_file(&events_url);
     assert!(
         !events.is_empty(),
         "Expected events loaded from URL should not be empty"
