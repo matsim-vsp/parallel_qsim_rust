@@ -149,7 +149,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
             let (sender, receiver) = channel();
 
             collectors.push(MappingScoringEngine::new(
-                i + num_collectors,
+                i + num_parts,
                 person_hash(num_collectors),
                 num_parts as usize,
                 num_collectors as usize,
@@ -175,7 +175,6 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
 
         for mut collector in collectors {
             collector.attach_senders(senders.clone());
-
         }
     }
 
