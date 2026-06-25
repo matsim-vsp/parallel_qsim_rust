@@ -1,6 +1,8 @@
-use crate::simulation::id::Id;
+use crate::simulation::config::Config;
 use crate::simulation::scenario::MutableScenario;
+use crate::simulation::scenario::network::Network;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::vehicles::Garage;
 use rayon::prelude::*;
 use thiserror::Error;
 
@@ -28,11 +30,17 @@ pub struct PrepareForSimIssue {
 }
 
 pub fn prepare_for_sim(scenario: &mut MutableScenario) -> Result<(), PrepareForSimError> {
+    let context = PrepareForSimContext {
+        network: &scenario.network,
+        garage: &scenario.garage,
+        config: scenario.config.as_ref(),
+    };
+
     let issues: Vec<_> = scenario
         .population
         .persons
         .par_iter_mut()
-        .flat_map(|(_, person)| prepare_person(person))
+        .flat_map(|(_, person)| prepare_person(&context, person))
         .collect();
 
     if issues.is_empty() {
@@ -42,7 +50,16 @@ pub fn prepare_for_sim(scenario: &mut MutableScenario) -> Result<(), PrepareForS
     }
 }
 
-fn prepare_person(_person: &mut InternalPerson) -> Vec<PrepareForSimIssue> {
+pub struct PrepareForSimContext<'a> {
+    pub network: &'a Network,
+    pub garage: &'a Garage,
+    pub config: &'a Config,
+}
+
+fn prepare_person(
+    _context: &PrepareForSimContext<'_>,
+    _person: &mut InternalPerson,
+) -> Vec<PrepareForSimIssue> {
     Vec::new()
 }
 
