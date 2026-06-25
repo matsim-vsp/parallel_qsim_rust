@@ -71,7 +71,7 @@ impl MappingCollectorMessageBroker {
             };
 
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
-                panic!("Error sending VehicleMessage to rank {} with error {}", target, e)
+                panic!("Error sending VehicleEventMessage to rank {} with error {}", target, e);
             });
         }
 
@@ -83,7 +83,7 @@ impl MappingCollectorMessageBroker {
             };
 
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
-                panic!("Error sending VehicleMessage to rank {} with error {}", target, e)
+                panic!("Error sending PersonEventMessage to rank {} with error {}", target, e)
             });
         }
     }
