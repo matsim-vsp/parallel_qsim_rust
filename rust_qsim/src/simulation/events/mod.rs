@@ -207,7 +207,7 @@ pub struct ActivityStartEvent {
     pub time: SimTime,
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
-    pub coordinate: Option<Coordinate>,
+    pub coordinate: Option<Coordinate>, // this is temporarily set to Option<Coordinate>. When issue #275 is implemented, they will be mandatory. June '26 Andreas + Paul
     pub act_type: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,
@@ -238,7 +238,7 @@ pub struct ActivityEndEvent {
     pub time: SimTime,
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
-    pub coordinate: Option<Coordinate>,
+    pub coordinate: Option<Coordinate>, // this is temporarily set to Option<Coordinate>. When issue #275 is implemented, they will be mandatory. June '26 Andreas + Paul
     pub act_type: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,
