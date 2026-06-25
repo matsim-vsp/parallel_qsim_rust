@@ -63,14 +63,8 @@ impl XmlEventsWriter {
                 ev.type_(),
                 ev.person,
                 ev.link,
-                ev.coordinate
-                    .as_ref()
-                    .map(|c| c.x.to_string())
-                    .unwrap_or("undefined".to_string()),
-                ev.coordinate
-                    .as_ref()
-                    .map(|c| c.y.to_string())
-                    .unwrap_or("undefined".to_string()),
+                ev.coordinate.as_ref().map(|c| c.x).unwrap_or(f64::NAN),
+                ev.coordinate.as_ref().map(|c| c.y).unwrap_or(f64::NAN),
                 ev.act_type
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<ActivityEndEvent>() {
@@ -80,14 +74,8 @@ impl XmlEventsWriter {
                 ev.type_(),
                 ev.person,
                 ev.link,
-                ev.coordinate
-                    .as_ref()
-                    .map(|c| c.x.to_string())
-                    .unwrap_or("undefined".to_string()),
-                ev.coordinate
-                    .as_ref()
-                    .map(|c| c.y.to_string())
-                    .unwrap_or("undefined".to_string()),
+                ev.coordinate.as_ref().map(|c| c.x).unwrap_or(f64::NAN),
+                ev.coordinate.as_ref().map(|c| c.y).unwrap_or(f64::NAN),
                 ev.act_type
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<LinkEnterEvent>() {
