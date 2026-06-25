@@ -129,6 +129,10 @@ pub fn write_to_file<T: Serialize>(serde_message: &T, path: impl AsRef<Path>, dt
     if path.as_ref().extension().unwrap().eq("gz") {
         let mut compressor = flate2::write::GzEncoder::new(file_writer, Compression::fast());
 
+        compressor
+            .write_all(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+            .expect("Failed to write XML declaration");
+
         // write header. first: dtd spec
         compressor
             .write_all(dtd_spec.as_bytes())

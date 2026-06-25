@@ -1,5 +1,6 @@
 pub mod network;
 pub mod population;
+pub mod prepare_for_sim;
 pub mod trip_structure_utils;
 pub mod vehicles;
 
