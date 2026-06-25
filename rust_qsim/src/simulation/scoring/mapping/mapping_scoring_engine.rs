@@ -2,8 +2,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
+use tracing::info;
 use crate::simulation::events::EventHandlerRegisterFn;
-use crate::simulation::framework_events::{MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId};
+use crate::simulation::framework_events::{MobsimListenerRegisterFn, PartitionEventsManager, PartitionListenerRegisterFn, QSimId};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -47,19 +48,28 @@ impl MappingCollectorEngine {
 
 impl ScoringEngine for MappingCollectorEngine {
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
-        todo!()
+        self.mapping_message_broker.lock().unwrap().attach_senders(senders);
     }
 
     fn register_fn(&self) -> (Box<EventHandlerRegisterFn>, Box<PartitionListenerRegisterFn>, Box<MobsimListenerRegisterFn>) {
-        todo!()
+        (
+            MappingDataForwarder::register_event_fn(self.mapping_data_forwarder.clone()),
+            Box::new(|_| {}),
+            MappingCollectorMessageBroker::register_fn(self.mapping_message_broker.clone())
+        )
     }
 
     fn finish(&self) {
-        todo!()
+        let population = self.mapping_data_forwarder.lock().unwrap().finish();
+        let mut o = self.output_path.clone();
+        o.push(format!("scoring/output_plans_{}.binpb", self.rank));
+        info!("Starting writing PartitionPlans to {:?}", o);
+        population.to_file(o.as_path());
+        info!("Finished writing PartitionPlans to {:?}", o);
     }
 
     fn scoring(&self) {
-        todo!()
+        // TODO
     }
 }
 
