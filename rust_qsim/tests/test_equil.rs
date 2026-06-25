@@ -206,9 +206,9 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
             self.requests[0].equals_ignoring_uuid(&InternalRoutingRequestPayload {
                 person_id: "1".to_string(),
                 from_link: "1".to_string(),
-                from: Some(Coordinate::new(-25000., 0.)),
+                from: Coordinate::new(-25000., 0.),
                 to_link: "20".to_string(),
-                to: Some(Coordinate::new(3456., 4242.)),
+                to: Coordinate::new(3456., 4242.),
                 mode: "car".to_string(),
                 departure_time: SimTime::from_secs(21600),
                 now: SimTime::from_secs(21000),

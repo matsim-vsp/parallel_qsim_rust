@@ -31,9 +31,9 @@ impl RequestToAdapter for InternalRoutingRequest {}
 pub struct InternalRoutingRequestPayload {
     pub person_id: String,
     pub from_link: String,
-    pub from: Option<Coordinate>,
+    pub from: Coordinate,
     pub to_link: String,
-    pub to: Option<Coordinate>,
+    pub to: Coordinate,
     pub mode: String,
     pub departure_time: SimTime,
     pub now: SimTime,
@@ -65,9 +65,9 @@ impl From<InternalRoutingRequestPayload> for Request {
         Request {
             person_id: req.person_id,
             from_link_id: req.from_link,
-            from: req.from.map(|f| f.into()),
+            from: Some(req.from.into()),
             to_link_id: req.to_link,
-            to: req.to.map(|t| t.into()),
+            to: Some(req.to.into()),
             mode: req.mode,
             departure_time_ns: req.departure_time.as_nanos(),
             now_ns: req.now.as_nanos(),
@@ -242,9 +242,9 @@ mod tests {
             InternalRoutingRequestPayloadBuilder::default()
                 .person_id("person-1".to_string())
                 .from_link("from-link".to_string())
-                .from(Some(Coordinate::new(1.0, 2.0)))
+                .from(Coordinate::new(1.0, 2.0))
                 .to_link("to-link".to_string())
-                .to(Some(Coordinate::new(3.0, 4.0)))
+                .to(Coordinate::new(3.0, 4.0))
                 .mode("car".to_string())
                 .departure_time(SimTime::from_nanos(1_500_000))
                 .now(SimTime::from_nanos(2_750_000))
