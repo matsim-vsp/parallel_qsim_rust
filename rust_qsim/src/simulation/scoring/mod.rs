@@ -161,18 +161,17 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
             senders.push(sender);
         }
 
-        thread::scope(|s| {
-            for (i, mut collector) in collectors.drain(..).enumerate() {
-                collector.attach_senders(senders.clone());
+        for (i, mut collector) in collectors.drain(..).enumerate() {
+            collector.attach_senders(senders.clone());
 
-                thread::Builder::new()
-                    .name(format!("scoring-{i}"))
-                    .spawn_scoped(s, move || {
-                        collector.work()
-                    })
-                    .unwrap();
-            }
-        });
+            thread::Builder::new()
+                .name(format!("scoring-{i}"))
+                .spawn(move || {
+                    collector.work()
+                })
+                .unwrap();
+        }
+
 
         for mut collector in collectors {
             collector.attach_senders(senders.clone());
