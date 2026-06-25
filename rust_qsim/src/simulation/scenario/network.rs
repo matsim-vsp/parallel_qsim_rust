@@ -197,7 +197,7 @@ impl Network {
         self.links.get_mut(id).unwrap()
     }
 
-    fn partition_network(
+    pub fn partition_network(
         network: &mut Network,
         partition_method: &PartitionMethod,
         num_parts: u32,

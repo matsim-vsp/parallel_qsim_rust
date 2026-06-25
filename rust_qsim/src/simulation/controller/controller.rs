@@ -12,6 +12,7 @@ use crate::simulation::messaging::sim_communication::local_communicator::Channel
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
+use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
 use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
@@ -211,7 +212,7 @@ impl Controller {
     }
 
     fn run_channel(&mut self) -> IntMap<u32, JoinHandle<()>> {
-        let scenario = {
+        let mut scenario = {
             let s = mem::replace(&mut self.scenario, Scenario::Partitioned);
             match s {
                 Scenario::Partitioned => {
@@ -222,6 +223,8 @@ impl Controller {
                 Scenario::Full(s) => s,
             }
         };
+
+        prepare_for_sim(&mut scenario).unwrap_or_else(|err| panic!("{err}"));
 
         // Is of type Vec<Option<>> because later we iteratively take the partition builder and construct
         // the actual partitions.
