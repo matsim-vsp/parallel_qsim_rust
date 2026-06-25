@@ -229,10 +229,10 @@ pub trait LeastCostPathCalculator {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
+    use crate::simulation::replanning::routing::a_star_router::DijkstraRouter;
+    use macros::integration_test;
     use std::sync::Arc;
     use std::time::Duration;
-
-    use crate::simulation::replanning::routing::a_star_router::DijkstraRouter;
 
     use crate::simulation::replanning::routing::graph::Graph;
     use crate::simulation::replanning::routing::graph::tests::{
@@ -251,7 +251,7 @@ mod tests {
 
     /// simple test just to make sure that the interface works. More precise testing is done
     /// in the respective files where implementations of LeastCostPathCaltulator are defined.
-    #[test]
+    #[integration_test]
     fn test_least_cost_path_interface() {
         // triangle graph
         let network = get_triangle_test_network();
@@ -285,7 +285,7 @@ mod tests {
     }
 
     /// Test the FreeOrMaxSpeedTravelTimeAndDisutility implementation of TravelTime and TravelDisutility
-    #[test]
+    #[integration_test]
     fn test_free_or_max_speed_travel_time_and_disutility() {
         let fomsttad = FreeOrMaxSpeedTravelTimeAndDisutility;
 
