@@ -8,7 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[integration_test(rust_qsim)]
-fn test_proto_to_xml() {
+fn proto_events_convert_to_matching_xml() {
     let resource_folder = "./tests/resources/events/".to_string();
     let output_folder = "./test_output/io/xml_events/".to_string();
     let proto_folder = PathBuf::from(&output_folder).join("proto");

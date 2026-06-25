@@ -5,7 +5,7 @@ use rust_qsim::simulation::scenario::MutableScenario;
 
 /// Test that with default structs the simulation runs without errors
 #[integration_test(rust_qsim)]
-fn test_empty() {
+fn empty_simulation_runs() {
     let mut config = Config::default();
     config.output_mut().overwrite_files = OverwriteFiles::DeleteDirectoryIfExists;
     config.output_mut().output_dir = "./test_output/simulation/empty".parse().unwrap();

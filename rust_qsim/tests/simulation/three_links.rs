@@ -1,12 +1,10 @@
-use crate::test_simulation::TestExecutorBuilder;
+use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::integration_test;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use std::sync::Arc;
 
-mod test_simulation;
-
 #[integration_test(rust_qsim)]
-fn execute_3_links_single_part() {
+fn three_links_single_part_matches_expected_events() {
     let config_args =
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-1.yml");
 
@@ -24,7 +22,7 @@ fn execute_3_links_single_part() {
 }
 
 #[integration_test(rust_qsim)]
-fn execute_3_links_2_parts() {
+fn three_links_two_parts_match_expected_events() {
     let config_args =
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-2.yml");
 
