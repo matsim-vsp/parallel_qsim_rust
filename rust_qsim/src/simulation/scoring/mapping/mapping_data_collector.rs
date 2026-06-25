@@ -40,26 +40,27 @@ impl MappingDataCollector {
     pub(crate) fn add_arriving_vehicle_events(&mut self, mut arriving_events: HashMap<Id<InternalVehicle>, Vec<Box<dyn EventTrait>>>) -> HashMap<u32, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>> {
         let mut buffer_events: HashMap<u32, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>> = HashMap::new();
         
-        for (vehicle_id, mut arriving_events) in arriving_events {
-            for arriving_event in arriving_events.drain(..) {
-                if let Some(e) = arriving_event.as_any().downcast_ref::<LinkEnterEvent>(){
+        for (vehicle_id, mut events) in arriving_events {
+            for event in events.drain(..) {
+                let event_ref: &dyn EventTrait = &*event;
+                if let Some(e) = event_ref.as_any().downcast_ref::<LinkEnterEvent>(){
                     for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
                         buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
                     }
-                } else if let Some(e) = arriving_event.as_any().downcast_ref::<VehicleEntersTrafficEvent>(){
+                } else if let Some(e) = event_ref.as_any().downcast_ref::<VehicleEntersTrafficEvent>(){
                     for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
                         buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
                     }
-                } else if let Some(e) = arriving_event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>(){
+                } else if let Some(e) = event_ref.as_any().downcast_ref::<VehicleLeavesTrafficEvent>(){
                     for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
                         buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
                     }
-                } else if let Some(e) = arriving_event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
+                } else if let Some(e) = event_ref.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
                     self.vehicle_id2person_ids.entry(e.vehicle.clone()).or_default().insert(e.person.clone());
-                } else if let Some(e) = arriving_event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+                } else if let Some(e) = event_ref.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
                     self.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().remove(&e.person);
                 } else {
-                    panic!("Unknown event type!")
+                    panic!("Unknown event type: '{}'", event_ref.type_())
                 }
             }
         }
