@@ -32,7 +32,7 @@ impl MappingDataCollector {
     pub(crate) fn add_arriving_person_events(&mut self, mut arriving_events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>) {
         for (person_id, mut arriving_events) in arriving_events {
             for arriving_event in arriving_events {
-                self.person_id2partial_plan.get_mut(&person_id).unwrap().handle_event(&*arriving_event);
+                self.person_id2partial_plan.entry(person_id.clone()).or_default().handle_event(&*arriving_event);
             }
         }
     }
