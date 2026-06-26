@@ -123,7 +123,7 @@ mod tests {
     fn person(id: &str, link_id: &str) -> InternalPerson {
         let mut plan = InternalPlan::default();
         plan.add_act(InternalActivity::new(
-            Coordinate::default(),
+            Some(Coordinate::default()),
             "act",
             Id::create(link_id),
             None,

@@ -23,7 +23,7 @@ message Plan {
 message Activity {
   string act_type = 1;
   string link_id = 2;
-  general.Coordinate coordinate = 3;
+  optional general.Coordinate coordinate = 3;
   // Simulation clock instant in nanoseconds since simulation start.
   optional uint64 start_time_ns = 5;
   // Simulation clock instant in nanoseconds since simulation start.

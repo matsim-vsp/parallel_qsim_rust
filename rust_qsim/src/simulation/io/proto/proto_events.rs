@@ -30,8 +30,10 @@ impl From<&ActivityEndEvent> for GenericEvent {
             String::from("act_type"),
             AttributeValue::from(value.act_type.external()),
         );
-        attributes.insert(String::from("x"), AttributeValue::from(value.coordinate.x));
-        attributes.insert(String::from("y"), AttributeValue::from(value.coordinate.y));
+        if let Some(c) = value.coordinate.as_ref() {
+            attributes.insert(String::from("x"), AttributeValue::from(c.x));
+            attributes.insert(String::from("y"), AttributeValue::from(c.y));
+        }
 
         GenericEvent {
             r#type: value.type_().to_string(),
@@ -55,8 +57,10 @@ impl From<&ActivityStartEvent> for GenericEvent {
             "act_type".to_string(),
             AttributeValue::from(value.act_type.external()),
         );
-        attributes.insert(String::from("x"), AttributeValue::from(value.coordinate.x));
-        attributes.insert(String::from("y"), AttributeValue::from(value.coordinate.y));
+        if let Some(c) = value.coordinate.as_ref() {
+            attributes.insert(String::from("x"), AttributeValue::from(c.x));
+            attributes.insert(String::from("y"), AttributeValue::from(c.y));
+        }
 
         GenericEvent {
             r#type: value.type_().to_string(),
@@ -601,7 +605,7 @@ mod tests {
                     .person(Id::create("1"))
                     .link(Id::create("1"))
                     .act_type(Id::create("1"))
-                    .coordinate(Coordinate::default())
+                    .coordinate(Some(Coordinate::default()))
                     .build()
                     .unwrap(),
             ),
@@ -610,7 +614,7 @@ mod tests {
                     .time(SimTime::from_secs(103))
                     .person(Id::create("1"))
                     .link(Id::create("1"))
-                    .coordinate(Coordinate::default())
+                    .coordinate(Some(Coordinate::default()))
                     .act_type(Id::create("1"))
                     .build()
                     .unwrap(),
@@ -661,7 +665,7 @@ mod tests {
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
-                        .coordinate(Coordinate::default())
+                        .coordinate(Some(Coordinate::default()))
                         .build()
                         .unwrap(),
                 ),
@@ -671,7 +675,7 @@ mod tests {
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
-                        .coordinate(Coordinate::default())
+                        .coordinate(Some(Coordinate::default()))
                         .build()
                         .unwrap(),
                 ),

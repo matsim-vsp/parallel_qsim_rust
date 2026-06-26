@@ -185,8 +185,8 @@ impl From<&InternalActivity> for IOActivity {
         IOActivity {
             r#type: activity.act_type.external().to_string(),
             link: Some(activity.link_id.external().to_string()),
-            x: Some(activity.coord.x),
-            y: Some(activity.coord.y),
+            x: activity.coord.as_ref().map(|c| c.x),
+            y: activity.coord.as_ref().map(|c| c.y),
             start_time: activity.start_time.map(|t| t.format_hh_mm_ss_trimmed()),
             end_time: activity.end_time.map(|t| t.format_hh_mm_ss_trimmed()),
             max_dur: activity

@@ -132,7 +132,7 @@ impl Population {
 pub struct InternalActivity {
     pub act_type: Id<String>,
     pub link_id: Id<Link>,
-    pub coord: Coordinate,
+    pub coord: Option<Coordinate>,
     pub start_time: Option<SimTime>,
     pub end_time: Option<SimTime>,
     pub max_dur: Option<Duration>,
@@ -294,7 +294,7 @@ impl InternalPlan {
 
 impl InternalActivity {
     pub fn new(
-        coord: Coordinate,
+        coord: Option<Coordinate>,
         act_type: &str,
         link_id: Id<Link>,
         start_time: Option<SimTime>,
@@ -662,10 +662,12 @@ impl From<IOActivity> for InternalActivity {
         InternalActivity {
             act_type: Id::create(&io.r#type),
             link_id: Id::create(&io.link.expect("Activity must have a link id")),
-            coord: Coordinate::new(
-                io.x.expect("Activity must have x coordinate"),
-                io.y.expect("Activity must have y coordinate"),
-            ),
+            coord: io.x.map(|x| {
+                Coordinate::new(
+                    x,
+                    io.y.expect("y coordinate should be given when x coord is given"),
+                )
+            }),
             start_time: parse_time_opt(&io.start_time),
             end_time: parse_time_opt(&io.end_time),
             max_dur: parse_duration_opt(&io.max_dur),
@@ -682,11 +684,11 @@ impl From<Activity> for InternalActivity {
         InternalActivity {
             act_type: Id::get_from_ext(&value.act_type),
             link_id: Id::get_from_ext(&value.link_id),
-            coord: Coordinate::with_z(
+            coord: Some(Coordinate::with_z(
                 value.coordinate.as_ref().unwrap().x,
                 value.coordinate.as_ref().unwrap().y,
                 value.coordinate.as_ref().unwrap().z,
-            ),
+            )),
             start_time: value.start_time_ns.map(SimTime::from_nanos),
             end_time: value.end_time_ns.map(SimTime::from_nanos),
             max_dur: value.max_dur_ns.map(Duration::from_nanos),
@@ -850,6 +852,7 @@ mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::population::{IOLeg, IORoute};
+    use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network};
     use crate::simulation::scenario::population::{
         FromIOPerson, InternalActivity, InternalLeg, InternalPerson, InternalRoute, Population,
@@ -865,7 +868,7 @@ mod tests {
     #[test]
     fn cmp_end_time_uses_bounded_open_ended_sentinel() {
         let activity = InternalActivity::new(
-            crate::simulation::scenario::Coordinate::new(0.0, 0.0),
+            Some(Coordinate::new(0.0, 0.0)),
             "home",
             Id::create("1"),
             None,
@@ -901,8 +904,8 @@ mod tests {
         let home_act = binding.first().unwrap();
         assert_eq!("h", home_act.act_type.external());
         assert_eq!(Id::<Link>::get_from_ext("1"), home_act.link_id);
-        assert_eq!(-25000., home_act.coord.x);
-        assert_eq!(0., home_act.coord.y);
+        assert_eq!(-25000., home_act.coord.as_ref().unwrap().x);
+        assert_eq!(0., home_act.coord.as_ref().unwrap().y);
         assert_eq!(Some(SimTime::from_secs(6 * 3600)), home_act.end_time);
         assert_eq!(None, home_act.start_time);
         assert_eq!(None, home_act.max_dur);

@@ -498,7 +498,7 @@ mod tests {
     fn create_plan() -> InternalPlan {
         let mut plan = InternalPlan::default();
         let mut activity = InternalActivity::new(
-            Coordinate::default(),
+            Some(Coordinate::default()),
             "home",
             Id::create("start"),
             None,
@@ -523,7 +523,7 @@ mod tests {
             Some(SimTime::from_secs(2)),
         ));
         plan.add_act(InternalActivity::new(
-            Coordinate::default(),
+            Some(Coordinate::default()),
             "work",
             Id::create("end"),
             None,
