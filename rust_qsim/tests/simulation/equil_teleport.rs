@@ -1,6 +1,4 @@
-mod test_simulation;
-
-use crate::test_simulation::TestExecutorBuilder;
+use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::integration_test;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use std::sync::Arc;

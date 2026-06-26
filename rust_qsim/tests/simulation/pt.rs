@@ -1,4 +1,4 @@
-use crate::test_simulation::TestExecutorBuilder;
+use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::integration_test;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
@@ -11,10 +11,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 
-mod test_simulation;
-
 #[integration_test(rust_qsim)]
-fn test_pt_tutorial() {
+fn pt_tutorial_matches_expected_events() {
     TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
 
     let config = Arc::new(Config::from_args(CommandLineArgs::new_with_path(

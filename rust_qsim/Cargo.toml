@@ -66,8 +66,3 @@ prost-build = "0.13.5"
 # provides the protoc compiler - this makes the build slow but one doesn't need to install the protoc compiler as prerequisite.
 protobuf-src = "2.1.1"
 tonic-build = "0.13.1"
-
-[[test]]
-name = "test_3_links_url"
-path = "tests/test_3_links_url.rs"
-required-features = ["http"]

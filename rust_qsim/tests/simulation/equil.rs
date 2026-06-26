@@ -10,8 +10,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 
-mod test_simulation;
-use crate::test_simulation::TestExecutorBuilder;
+use crate::support::simulation_executor::TestExecutorBuilder;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
 use rust_qsim::simulation::id::{Id, store_to_file};
@@ -43,7 +42,7 @@ where
 }
 
 #[integration_test(rust_qsim)]
-fn execute_equil_single_part() {
+fn equil_single_part_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
     let config = Arc::new(Config::from_args(config_args));
 
@@ -56,7 +55,7 @@ fn execute_equil_single_part() {
 }
 
 #[integration_test(rust_qsim)]
-fn execute_equil_single_part_with_10_ticks_per_second() {
+fn equil_single_part_with_10_ticks_per_second_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
     let mut config = Config::from_args(config_args);
     config.simulation_mut().ticks_per_second = 10;
@@ -73,7 +72,7 @@ fn execute_equil_single_part_with_10_ticks_per_second() {
 }
 
 #[integration_test(rust_qsim)]
-fn execute_equil_2_parts() {
+fn equil_two_parts_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
     let config = Arc::new(Config::from_args(config_args));
 
@@ -87,7 +86,7 @@ fn execute_equil_2_parts() {
 
 #[integration_test(rust_qsim)]
 #[should_panic]
-fn execute_equil_adaptive_planning_single_part_panics() {
+fn equil_adaptive_planning_without_external_service_panics() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
     let expected_events = "./tests/resources/equil/expected_events.xml";
@@ -104,7 +103,7 @@ fn execute_equil_adaptive_planning_single_part_panics() {
 }
 
 #[integration_test(rust_qsim)]
-fn execute_equil_adaptive_planning_single_part() {
+fn equil_adaptive_planning_single_part_matches_expected_events() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
     let expected_events = "./tests/resources/equil/expected_events.xml";
@@ -142,7 +141,7 @@ fn execute_equil_adaptive_planning_single_part() {
 }
 
 #[integration_test(rust_qsim)]
-fn execute_equil_adaptive_planning_two_parts() {
+fn equil_adaptive_planning_two_parts_matches_expected_events() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels-adaptive/");
     let config_path = "./tests/resources/equil/equil-config-2-adaptive.yml".to_string();
     let expected_events = "./tests/resources/equil/expected_events.xml";
