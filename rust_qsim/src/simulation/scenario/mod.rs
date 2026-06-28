@@ -36,6 +36,10 @@ impl Coordinate {
         let dz = a.z.unwrap_or(0.0) - b.z.unwrap_or(0.0);
         (dx * dx + dy * dy + dz * dz).sqrt()
     }
+
+    pub fn middle(a: &Self, b: &Self) -> Self {
+        Coordinate::new_3d((a.x + b.x) / 2., (a.y + b.y) / 2., (a.z + b.z) / 2.)
+    }
 }
 
 impl Default for Coordinate {

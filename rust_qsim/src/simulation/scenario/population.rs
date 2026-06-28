@@ -280,6 +280,10 @@ impl InternalPerson {
         &self.plans
     }
 
+    pub fn plans_mut(&mut self) -> &mut Vec<InternalPlan> {
+        &mut self.plans
+    }
+
     pub fn plan_element_at(&self, index: usize) -> Option<&InternalPlanElement> {
         self.selected_plan().unwrap().elements.get(index)
     }
@@ -330,6 +334,26 @@ impl InternalPlan {
             .iter()
             .filter_map(|e| match e {
                 InternalPlanElement::Activity(act) => Some(act),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn acts_mut(&mut self) -> Vec<&mut InternalActivity> {
+        self.elements
+            .iter_mut()
+            .filter_map(|e| match e {
+                InternalPlanElement::Activity(act) => Some(act),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn legs_mut(&mut self) -> Vec<&mut InternalLeg> {
+        self.elements
+            .iter_mut()
+            .filter_map(|e| match e {
+                InternalPlanElement::Leg(leg) => Some(leg),
                 _ => None,
             })
             .collect()
