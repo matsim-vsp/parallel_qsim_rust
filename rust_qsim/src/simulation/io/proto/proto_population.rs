@@ -80,7 +80,7 @@ pub fn write_to_proto(population: &Population, path: &Path) {
 
     for person in population.persons.values() {
         bytes.clear();
-        Person::from(person)
+        person_to_wire(person)
             .encode_length_delimited(&mut bytes)
             .expect("Failed to encode person");
         writer.write_all(&bytes).expect("failed to write buffer");
@@ -89,120 +89,104 @@ pub fn write_to_proto(population: &Population, path: &Path) {
     writer.flush().expect("Failed to flush buffer");
 }
 
-impl Person {
-    pub fn from(value: &InternalPerson) -> Self {
-        Self {
-            id: value.id().external().to_string(),
-            plan: value.plans().iter().map(Plan::from).collect(),
-            attributes: Default::default(),
-        }
+fn person_to_wire(value: &InternalPerson) -> Person {
+    Person {
+        id: value.id().external().to_string(),
+        plan: value.plans().iter().map(plan_to_wire).collect(),
+        attributes: Default::default(),
     }
 }
 
-impl Plan {
-    fn from(value: &InternalPlan) -> Self {
-        Self {
-            selected: value.selected,
-            legs: value.legs().iter().map(|p| Leg::from(p)).collect(),
-            acts: value.acts().iter().map(|l| Activity::from(l)).collect(),
-        }
+fn plan_to_wire(value: &InternalPlan) -> Plan {
+    Plan {
+        selected: value.selected,
+        legs: value.legs().iter().map(|leg| leg_to_wire(leg)).collect(),
+        acts: value
+            .acts()
+            .iter()
+            .map(|act| activity_to_wire(act))
+            .collect(),
     }
 }
 
-impl Activity {
-    fn from(value: &InternalActivity) -> Self {
-        Self {
-            act_type: value.act_type.external().to_string(),
-            link_id: value.link_id.external().to_string(),
-            coordinate: value.coord.as_ref().map(|c| Coordinate {
-                x: c.x,
-                y: c.y,
-                z: c.z,
-            }),
-            start_time_ns: value.start_time.map(SimTime::as_nanos),
-            end_time_ns: value.end_time.map(SimTime::as_nanos),
-            max_dur_ns: value.max_dur.map(duration_to_u64_nanos),
-            attributes: value.attributes.as_cloned_map(),
-        }
+fn activity_to_wire(value: &InternalActivity) -> Activity {
+    Activity {
+        act_type: value.act_type.external().to_string(),
+        link_id: value.link_id.external().to_string(),
+        coordinate: value.coord.as_ref().map(|c| Coordinate {
+            x: c.x,
+            y: c.y,
+            z: c.z,
+        }),
+        start_time_ns: value.start_time.map(SimTime::as_nanos),
+        end_time_ns: value.end_time.map(SimTime::as_nanos),
+        max_dur_ns: value.max_dur.map(duration_to_u64_nanos),
+        attributes: value.attributes.as_cloned_map(),
     }
 }
 
-impl Leg {
-    fn from(value: &InternalLeg) -> Self {
-        Self {
-            mode: value.mode.external().to_string(),
-            routing_mode: value
-                .routing_mode
-                .as_ref()
-                .map(|r| r.external().to_string()),
-            dep_time_ns: value.dep_time.map(SimTime::as_nanos),
-            trav_time_ns: value.trav_time.map(duration_to_u64_nanos),
-            attributes: value.attributes.as_cloned_map(),
-            route: value.route.as_ref().map(Route::from),
-        }
+fn leg_to_wire(value: &InternalLeg) -> Leg {
+    Leg {
+        mode: value.mode.external().to_string(),
+        routing_mode: value
+            .routing_mode
+            .as_ref()
+            .map(|r| r.external().to_string()),
+        dep_time_ns: value.dep_time.map(SimTime::as_nanos),
+        trav_time_ns: value.trav_time.map(duration_to_u64_nanos),
+        attributes: value.attributes.as_cloned_map(),
+        route: value.route.as_ref().map(route_to_wire),
     }
 }
 
-impl Route {
-    fn from(value: &InternalRoute) -> Self {
-        match value {
-            InternalRoute::Generic(g) => Route::GenericRoute(GenericRoute::from(g)),
-            InternalRoute::Network(n) => Route::NetworkRoute(NetworkRoute::from(n)),
-            InternalRoute::Pt(p) => Route::PtRoute(PtRoute::from(p)),
-        }
+fn route_to_wire(value: &InternalRoute) -> Route {
+    match value {
+        InternalRoute::Generic(g) => Route::GenericRoute(generic_route_to_wire(g)),
+        InternalRoute::Network(n) => Route::NetworkRoute(network_route_to_wire(n)),
+        InternalRoute::Pt(p) => Route::PtRoute(pt_route_to_wire(p)),
     }
 }
 
-impl GenericRoute {
-    fn from(value: &InternalGenericRoute) -> Self {
-        Self {
-            start_link: value.start_link().external().to_string(),
-            end_link: value.end_link().external().to_string(),
-            trav_time_ns: value.trav_time().map(duration_to_u64_nanos),
-            distance: value.distance(),
-            veh_id: value.vehicle().as_ref().map(|v| v.external().to_string()),
-        }
+fn generic_route_to_wire(value: &InternalGenericRoute) -> GenericRoute {
+    GenericRoute {
+        start_link: value.start_link().external().to_string(),
+        end_link: value.end_link().external().to_string(),
+        trav_time_ns: value.trav_time().map(duration_to_u64_nanos),
+        distance: value.distance(),
+        veh_id: value.vehicle().as_ref().map(|v| v.external().to_string()),
     }
 }
 
-impl NetworkRoute {
-    fn from(value: &InternalNetworkRoute) -> Self {
-        Self {
-            delegate: Some(GenericRoute::from(value.generic_delegate())),
-            route: value
-                .route()
-                .iter()
-                .map(|id| id.external().to_string())
-                .collect(),
-        }
+fn network_route_to_wire(value: &InternalNetworkRoute) -> NetworkRoute {
+    NetworkRoute {
+        delegate: Some(generic_route_to_wire(value.generic_delegate())),
+        route: value
+            .route()
+            .iter()
+            .map(|id| id.external().to_string())
+            .collect(),
     }
 }
 
-impl PtRoute {
-    fn from(value: &InternalPtRoute) -> Self {
-        Self {
-            delegate: Some(GenericRoute::from(value.generic_delegate())),
-            information: Some(PtRouteDescription::from(value.description())),
-        }
+fn pt_route_to_wire(value: &InternalPtRoute) -> PtRoute {
+    PtRoute {
+        delegate: Some(generic_route_to_wire(value.generic_delegate())),
+        information: Some(pt_route_description_to_wire(value.description())),
     }
 }
 
-impl PtRouteDescription {
-    fn from(value: &InternalPtRouteDescription) -> Self {
-        Self {
-            transit_route_id: value.transit_route_id.clone(),
-            boarding_time_ns: value.boarding_time.map(duration_to_u64_nanos),
-            transit_line_id: value.transit_line_id.clone(),
-            access_facility_id: value.access_facility_id.clone(),
-            egress_facility_id: value.egress_facility_id.clone(),
-        }
+fn pt_route_description_to_wire(value: &InternalPtRouteDescription) -> PtRouteDescription {
+    PtRouteDescription {
+        transit_route_id: value.transit_route_id.clone(),
+        boarding_time_ns: value.boarding_time.map(duration_to_u64_nanos),
+        transit_line_id: value.transit_line_id.clone(),
+        access_facility_id: value.access_facility_id.clone(),
+        egress_facility_id: value.egress_facility_id.clone(),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::generated::population::Activity;
-    use crate::generated::population::{Leg, PtRouteDescription};
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::Network;
@@ -227,7 +211,7 @@ mod tests {
             Some(Duration::from_nanos(3_500_000)),
         );
 
-        let wire = Activity::from(&activity);
+        let wire = super::activity_to_wire(&activity);
         let round_trip = InternalActivity::from(wire);
 
         assert_eq!(10.0, round_trip.coord.as_ref().unwrap().x);
@@ -254,7 +238,7 @@ mod tests {
             Some(SimTime::from_nanos(1_500_000)),
         );
 
-        let wire = Leg::from(&leg);
+        let wire = super::leg_to_wire(&leg);
         let round_trip = InternalLeg::from(wire);
 
         assert_eq!(Some(SimTime::from_nanos(1_500_000)), round_trip.dep_time);
@@ -275,7 +259,7 @@ mod tests {
             egress_facility_id: "egress-1".to_string(),
         };
 
-        let wire = PtRouteDescription::from(&description);
+        let wire = super::pt_route_description_to_wire(&description);
         let round_trip = InternalPtRouteDescription::from(wire);
 
         assert_eq!(

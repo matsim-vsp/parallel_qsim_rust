@@ -65,9 +65,9 @@ impl From<InternalRoutingRequestPayload> for Request {
         Request {
             person_id: req.person_id,
             from_link_id: req.from_link,
-            from: Some(req.from.into()),
+            from: Some(coordinate_to_wire(req.from)),
             to_link_id: req.to_link,
-            to: Some(req.to.into()),
+            to: Some(coordinate_to_wire(req.to)),
             mode: req.mode,
             departure_time_ns: req.departure_time.as_nanos(),
             now_ns: req.now.as_nanos(),
@@ -113,23 +113,20 @@ impl From<Response> for InternalRoutingResponse {
     }
 }
 
-impl From<Coordinate> for crate::generated::general::Coordinate {
-    fn from(c: Coordinate) -> Self {
-        crate::generated::general::Coordinate {
-            x: c.x,
-            y: c.y,
-            z: c.z,
-        }
+fn coordinate_to_wire(c: Coordinate) -> crate::generated::general::Coordinate {
+    crate::generated::general::Coordinate {
+        x: c.x,
+        y: c.y,
+        z: c.z,
     }
 }
 
-impl From<crate::generated::general::Coordinate> for Coordinate {
-    fn from(c: crate::generated::general::Coordinate) -> Self {
-        Coordinate {
-            x: c.x,
-            y: c.y,
-            z: c.z,
-        }
+#[allow(dead_code)]
+fn coordinate_from_wire(c: crate::generated::general::Coordinate) -> Coordinate {
+    Coordinate {
+        x: c.x,
+        y: c.y,
+        z: c.z,
     }
 }
 

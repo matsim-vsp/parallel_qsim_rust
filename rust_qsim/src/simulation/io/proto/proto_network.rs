@@ -14,49 +14,47 @@ pub fn load_from_proto(path: &Path) -> Network {
 
 pub fn write_to_proto(network: &Network, path: &Path) {
     info!("Start writing proto network to path: {path:?}");
-    let wire_network = crate::generated::network::Network::from(network);
+    let wire_network = network_to_wire(network);
     crate::generated::write_to_file(wire_network, path);
     info!("Finished writing proto network to path: {path:?}");
 }
 
-impl crate::generated::network::Network {
-    pub fn from(network: &Network) -> Self {
-        info!("Converting Network into wire format");
-        let nodes: Vec<_> = network
-            .nodes()
-            .iter()
-            .map(|n| Node {
-                id: n.id.external().to_string(),
-                coordinate: Some(Coordinate {
-                    x: n.coord.x,
-                    y: n.coord.y,
-                    z: n.coord.z,
-                }),
-                partition: n.partition,
-                cmp_weight: n.cmp_weight,
-            })
-            .collect();
-        let links: Vec<_> = network
-            .links()
-            .iter()
-            .map(|l| Link {
-                id: l.id.external().to_string(),
-                from: l.from.external().to_string(),
-                to: l.to.external().to_string(),
-                length: l.length,
-                capacity: l.capacity,
-                freespeed: l.freespeed,
-                permlanes: l.permlanes,
-                modes: l.modes.iter().map(|id| id.external().to_string()).collect(),
-                partition: l.partition,
-            })
-            .collect();
+pub(crate) fn network_to_wire(network: &Network) -> crate::generated::network::Network {
+    info!("Converting Network into wire format");
+    let nodes: Vec<_> = network
+        .nodes()
+        .iter()
+        .map(|n| Node {
+            id: n.id.external().to_string(),
+            coordinate: Some(Coordinate {
+                x: n.coord.x,
+                y: n.coord.y,
+                z: n.coord.z,
+            }),
+            partition: n.partition,
+            cmp_weight: n.cmp_weight,
+        })
+        .collect();
+    let links: Vec<_> = network
+        .links()
+        .iter()
+        .map(|l| Link {
+            id: l.id.external().to_string(),
+            from: l.from.external().to_string(),
+            to: l.to.external().to_string(),
+            length: l.length,
+            capacity: l.capacity,
+            freespeed: l.freespeed,
+            permlanes: l.permlanes,
+            modes: l.modes.iter().map(|id| id.external().to_string()).collect(),
+            partition: l.partition,
+        })
+        .collect();
 
-        crate::generated::network::Network {
-            nodes,
-            links,
-            effective_cell_size: network.effective_cell_size(),
-        }
+    crate::generated::network::Network {
+        nodes,
+        links,
+        effective_cell_size: network.effective_cell_size(),
     }
 }
 
@@ -77,7 +75,7 @@ mod tests {
             4,
         ));
 
-        let wire = crate::generated::network::Network::from(&network);
+        let wire = super::network_to_wire(&network);
         let round_trip = Network::from(wire);
 
         let node = round_trip.get_node(&Id::get_from_ext("node-1"));

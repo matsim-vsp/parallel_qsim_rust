@@ -731,30 +731,42 @@ mod tests {
                 let typed_event = event.as_any().downcast_ref::<ActivityStartEvent>().unwrap();
                 assert_eq!(
                     typed_event.person.external(),
-                    other.attributes["person"].as_string()
+                    other.attributes["person"]
+                        .as_string()
+                        .expect("expected string person attribute")
                 );
                 assert_eq!(
                     typed_event.link.external(),
-                    other.attributes["link"].as_string()
+                    other.attributes["link"]
+                        .as_string()
+                        .expect("expected string link attribute")
                 );
                 assert_eq!(
                     typed_event.act_type.external(),
-                    other.attributes["act_type"].as_string()
+                    other.attributes["act_type"]
+                        .as_string()
+                        .expect("expected string act_type attribute")
                 );
             }
             ActivityEndEvent::TYPE => {
                 let typed_event = event.as_any().downcast_ref::<ActivityEndEvent>().unwrap();
                 assert_eq!(
                     typed_event.person.external(),
-                    other.attributes["person"].as_string()
+                    other.attributes["person"]
+                        .as_string()
+                        .expect("expected string person attribute")
                 );
                 assert_eq!(
                     typed_event.link.external(),
-                    other.attributes["link"].as_string()
+                    other.attributes["link"]
+                        .as_string()
+                        .expect("expected string link attribute")
                 );
                 assert_eq!(
                     typed_event.act_type.external(),
-                    other.attributes["act_type"].as_string()
+                    other.attributes["act_type"]
+                        .as_string()
+                        .expect("expected string act_type attribute")
                 );
             }
             _ => panic!("wrong type"),

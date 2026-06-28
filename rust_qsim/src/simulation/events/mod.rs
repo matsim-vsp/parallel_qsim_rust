@@ -56,6 +56,35 @@ impl PartialEq for dyn EventTrait {
     }
 }
 
+fn required_string_attr<'a>(
+    event: &'a crate::generated::events::GenericEvent,
+    key: &str,
+) -> &'a str {
+    event
+        .attributes
+        .get(key)
+        .and_then(|attr| attr.as_string())
+        .unwrap_or_else(|| {
+            panic!(
+                "Expected string attribute '{}' on proto event '{}'",
+                key, event.r#type
+            )
+        })
+}
+
+fn required_double_attr(event: &crate::generated::events::GenericEvent, key: &str) -> f64 {
+    event
+        .attributes
+        .get(key)
+        .and_then(|attr| attr.as_double())
+        .unwrap_or_else(|| {
+            panic!(
+                "Expected double attribute '{}' on proto event '{}'",
+                key, event.r#type
+            )
+        })
+}
+
 type HandleEventFn = dyn Fn(&dyn EventTrait) + 'static;
 
 /// This is a meta function. It is used to register functions at the [EventsManager] that handle events. Also check the documentation there.
@@ -220,13 +249,13 @@ impl ActivityStartEvent {
         assert!(event.r#type.eq(Self::TYPE));
         ActivityStartEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .act_type(Id::create(&event.attributes["act_type"].as_string()))
-            .coordinate(Some(Coordinate::new(
-                event.attributes["x"].as_double(),
-                event.attributes["y"].as_double(),
-            )))
+            .person(Id::create(required_string_attr(event, "person")))
+            .link(Id::create(required_string_attr(event, "link")))
+            .act_type(Id::create(required_string_attr(event, "act_type")))
+            .coordinate(Coordinate::new_2d(
+                required_double_attr(event, "x"),
+                required_double_attr(event, "y"),
+            ))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -251,13 +280,14 @@ impl ActivityEndEvent {
         assert!(event.r#type.eq(Self::TYPE));
         ActivityEndEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .act_type(Id::create(&event.attributes["act_type"].as_string()))
-            .coordinate(Some(Coordinate::new(
-                event.attributes["x"].as_double(),
-                event.attributes["y"].as_double(),
-            )))
+            .person(Id::create(required_string_attr(event, "person")))
+            .link(Id::create(required_string_attr(event, "link")))
+            .act_type(Id::create(required_string_attr(event, "act_type")))
+            .coordinate(Coordinate::new_3d(
+                required_double_attr(event, "x"),
+                required_double_attr(event, "y"),
+                required_double_attr(event, "z"),
+            ))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -280,8 +310,8 @@ impl LinkEnterEvent {
         assert!(event.r#type.eq(Self::TYPE));
         LinkEnterEventBuilder::default()
             .time(time)
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
+            .link(Id::create(required_string_attr(event, "link")))
+            .vehicle(Id::create(required_string_attr(event, "vehicle")))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -304,8 +334,8 @@ impl LinkLeaveEvent {
         assert!(event.r#type.eq(Self::TYPE));
         LinkLeaveEventBuilder::default()
             .time(time)
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
+            .link(Id::create(required_string_attr(event, "link")))
+            .vehicle(Id::create(required_string_attr(event, "vehicle")))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -332,11 +362,11 @@ impl VehicleEntersTrafficEvent {
         assert!(event.r#type.eq(Self::TYPE));
         VehicleEntersTrafficEventBuilder::default()
             .time(time)
-            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .network_mode(Id::create(&event.attributes["network_mode"].as_string()))
-            .relative_position(event.attributes["relative_position"].as_double())
+            .vehicle(Id::create(required_string_attr(event, "vehicle")))
+            .link(Id::create(required_string_attr(event, "link")))
+            .person(Id::create(required_string_attr(event, "person")))
+            .network_mode(Id::create(required_string_attr(event, "network_mode")))
+            .relative_position(required_double_attr(event, "relative_position"))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -363,11 +393,11 @@ impl VehicleLeavesTrafficEvent {
         assert!(event.r#type.eq(Self::TYPE));
         VehicleLeavesTrafficEventBuilder::default()
             .time(time)
-            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .network_mode(Id::create(&event.attributes["network_mode"].as_string()))
-            .relative_position(event.attributes["relative_position"].as_double())
+            .vehicle(Id::create(required_string_attr(event, "vehicle")))
+            .link(Id::create(required_string_attr(event, "link")))
+            .person(Id::create(required_string_attr(event, "person")))
+            .network_mode(Id::create(required_string_attr(event, "network_mode")))
+            .relative_position(required_double_attr(event, "relative_position"))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -390,8 +420,8 @@ impl PersonEntersVehicleEvent {
         assert!(event.r#type.eq(Self::TYPE));
         PersonEntersVehicleEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
+            .person(Id::create(required_string_attr(event, "person")))
+            .vehicle(Id::create(required_string_attr(event, "vehicle")))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -414,8 +444,8 @@ impl PersonLeavesVehicleEvent {
         assert!(event.r#type.eq(Self::TYPE));
         PersonLeavesVehicleEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .vehicle(Id::create(&event.attributes["vehicle"].as_string()))
+            .person(Id::create(required_string_attr(event, "person")))
+            .vehicle(Id::create(required_string_attr(event, "vehicle")))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -440,10 +470,10 @@ impl PersonDepartureEvent {
         assert!(event.r#type.eq(Self::TYPE));
         PersonDepartureEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .leg_mode(Id::create(&event.attributes["mode"].as_string()))
-            .routing_mode(Id::create(&event.attributes["routing_mode"].as_string()))
+            .person(Id::create(required_string_attr(event, "person")))
+            .link(Id::create(required_string_attr(event, "link")))
+            .leg_mode(Id::create(required_string_attr(event, "mode")))
+            .routing_mode(Id::create(required_string_attr(event, "routing_mode")))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -467,9 +497,9 @@ impl PersonArrivalEvent {
         assert!(event.r#type.eq(Self::TYPE));
         PersonArrivalEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .link(Id::create(&event.attributes["link"].as_string()))
-            .leg_mode(Id::create(&event.attributes["mode"].as_string()))
+            .person(Id::create(required_string_attr(event, "person")))
+            .link(Id::create(required_string_attr(event, "link")))
+            .leg_mode(Id::create(required_string_attr(event, "mode")))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -493,9 +523,9 @@ impl TeleportationArrivalEvent {
         assert!(event.r#type.eq(Self::TYPE));
         TeleportationArrivalEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .mode(Id::create(&event.attributes["mode"].as_string()))
-            .distance(event.attributes["distance"].as_string().parse().unwrap())
+            .person(Id::create(required_string_attr(event, "person")))
+            .mode(Id::create(required_string_attr(event, "mode")))
+            .distance(required_string_attr(event, "distance").parse().unwrap())
             .attributes(attrs)
             .build()
             .unwrap()
@@ -521,11 +551,11 @@ impl PtTeleportationArrivalEvent {
         assert!(event.r#type.eq(Self::TYPE));
         PtTeleportationArrivalEventBuilder::default()
             .time(time)
-            .person(Id::create(&event.attributes["person"].as_string()))
-            .distance(event.attributes["distance"].as_string().parse().unwrap())
-            .mode(Id::create(&event.attributes["mode"].as_string()))
-            .route(Id::create(&event.attributes["route"].as_string()))
-            .line(Id::create(&event.attributes["line"].as_string()))
+            .person(Id::create(required_string_attr(event, "person")))
+            .distance(required_string_attr(event, "distance").parse().unwrap())
+            .mode(Id::create(required_string_attr(event, "mode")))
+            .route(Id::create(required_string_attr(event, "route")))
+            .line(Id::create(required_string_attr(event, "line")))
             .attributes(attrs)
             .build()
             .unwrap()
