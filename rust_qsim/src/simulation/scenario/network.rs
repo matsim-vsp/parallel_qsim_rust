@@ -265,8 +265,8 @@ impl From<IONetwork> for Network {
     }
 }
 
-impl From<crate::generated::network::Network> for Network {
-    fn from(value: crate::generated::network::Network) -> Self {
+impl From<matsim_schemas::network::Network> for Network {
+    fn from(value: matsim_schemas::network::Network) -> Self {
         let mut result = Network::new();
         result.set_effective_cell_size(value.effective_cell_size);
         for wn in &value.nodes {

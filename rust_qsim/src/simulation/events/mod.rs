@@ -9,6 +9,7 @@ use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use macros::event_struct;
+use matsim_schemas::events::GenericEvent as ProtoGenericEvent;
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
@@ -56,10 +57,7 @@ impl PartialEq for dyn EventTrait {
     }
 }
 
-fn required_string_attr<'a>(
-    event: &'a crate::generated::events::GenericEvent,
-    key: &str,
-) -> &'a str {
+fn required_string_attr<'a>(event: &'a ProtoGenericEvent, key: &str) -> &'a str {
     event
         .attributes
         .get(key)
@@ -72,7 +70,7 @@ fn required_string_attr<'a>(
         })
 }
 
-fn required_double_attr(event: &crate::generated::events::GenericEvent, key: &str) -> f64 {
+fn required_double_attr(event: &ProtoGenericEvent, key: &str) -> f64 {
     event
         .attributes
         .get(key)
@@ -220,7 +218,7 @@ pub struct GenericEvent {
 
 impl GenericEvent {
     pub const TYPE: &'static str = "generic";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         GenericEventBuilder::default()
@@ -244,7 +242,7 @@ pub struct ActivityStartEvent {
 
 impl ActivityStartEvent {
     pub const TYPE: &'static str = "actstart";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         ActivityStartEventBuilder::default()
@@ -276,7 +274,7 @@ pub struct ActivityEndEvent {
 
 impl ActivityEndEvent {
     pub const TYPE: &'static str = "actend";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         ActivityEndEventBuilder::default()
@@ -306,7 +304,7 @@ pub struct LinkEnterEvent {
 
 impl LinkEnterEvent {
     pub const TYPE: &'static str = "entered link";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         LinkEnterEventBuilder::default()
@@ -330,7 +328,7 @@ pub struct LinkLeaveEvent {
 
 impl LinkLeaveEvent {
     pub const TYPE: &'static str = "left link";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         LinkLeaveEventBuilder::default()
@@ -358,7 +356,7 @@ pub struct VehicleEntersTrafficEvent {
 
 impl VehicleEntersTrafficEvent {
     pub const TYPE: &'static str = "vehicle enters traffic";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         VehicleEntersTrafficEventBuilder::default()
@@ -389,7 +387,7 @@ pub struct VehicleLeavesTrafficEvent {
 
 impl VehicleLeavesTrafficEvent {
     pub const TYPE: &'static str = "vehicle leaves traffic";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         VehicleLeavesTrafficEventBuilder::default()
@@ -416,7 +414,7 @@ pub struct PersonEntersVehicleEvent {
 
 impl PersonEntersVehicleEvent {
     pub const TYPE: &'static str = "PersonEntersVehicle";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         PersonEntersVehicleEventBuilder::default()
@@ -440,7 +438,7 @@ pub struct PersonLeavesVehicleEvent {
 
 impl PersonLeavesVehicleEvent {
     pub const TYPE: &'static str = "PersonLeavesVehicle";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         PersonLeavesVehicleEventBuilder::default()
@@ -466,7 +464,7 @@ pub struct PersonDepartureEvent {
 
 impl PersonDepartureEvent {
     pub const TYPE: &'static str = "departure";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         PersonDepartureEventBuilder::default()
@@ -493,7 +491,7 @@ pub struct PersonArrivalEvent {
 
 impl PersonArrivalEvent {
     pub const TYPE: &'static str = "arrival";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         PersonArrivalEventBuilder::default()
@@ -519,7 +517,7 @@ pub struct TeleportationArrivalEvent {
 
 impl TeleportationArrivalEvent {
     pub const TYPE: &'static str = "travelled";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         TeleportationArrivalEventBuilder::default()
@@ -547,7 +545,7 @@ pub struct PtTeleportationArrivalEvent {
 
 impl PtTeleportationArrivalEvent {
     pub const TYPE: &'static str = "travelled with pt";
-    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+    pub fn from_proto_event(event: &ProtoGenericEvent, time: SimTime) -> Self {
         let attrs = InternalAttributes::from(&event.attributes);
         assert!(event.r#type.eq(Self::TYPE));
         PtTeleportationArrivalEventBuilder::default()

@@ -1,10 +1,10 @@
-use crate::generated::events::GenericEvent;
 use crate::simulation::events::comparison::EventBatch;
 use crate::simulation::events::{EventTrait, EventsManager, GenericEventBuilder, comparison};
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::xml::events::{XmlEventsReader, XmlEventsWriter};
 use crate::simulation::logging::init_std_out_logging_thread_local;
 use crate::simulation::time::SimTime;
+use matsim_schemas::events::GenericEvent;
 use std::error::Error;
 use std::fmt::Display;
 use std::fs::File;

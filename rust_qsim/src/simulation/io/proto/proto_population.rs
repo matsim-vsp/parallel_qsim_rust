@@ -1,16 +1,16 @@
 use crate::generated;
 use crate::generated::MessageIter;
-use crate::generated::general::Coordinate;
-use crate::generated::population::leg::Route;
-use crate::generated::population::{
-    Activity, GenericRoute, Header, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,
-};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{
     InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
     InternalPlan, InternalPtRoute, InternalPtRouteDescription, InternalRoute, Population,
 };
 use crate::simulation::time::SimTime;
+use matsim_schemas::general::Coordinate;
+use matsim_schemas::population::{
+    Activity, GenericRoute, Header, Leg, NetworkRoute, Person, Plan, PtRoute, PtRouteDescription,
+    Route,
+};
 use prost::Message;
 use std::collections::HashMap;
 use std::fs;

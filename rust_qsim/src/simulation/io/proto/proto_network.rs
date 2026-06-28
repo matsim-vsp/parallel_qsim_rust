@@ -1,12 +1,12 @@
-use crate::generated::general::Coordinate;
-use crate::generated::network::{Link, Node};
 use crate::simulation::scenario::network::Network;
+use matsim_schemas::general::Coordinate;
+use matsim_schemas::network::{Link, Network as ProtoNetwork, Node};
 use std::path::Path;
 use tracing::info;
 
 pub fn load_from_proto(path: &Path) -> Network {
     info!("Start reading proto network from path: {path:?}");
-    let wire_net: crate::generated::network::Network = crate::generated::read_from_file(path);
+    let wire_net: ProtoNetwork = crate::generated::read_from_file(path);
     let res = Network::from(wire_net);
     info!("Finished reading proto network from path: {path:?}");
     res
@@ -19,7 +19,7 @@ pub fn write_to_proto(network: &Network, path: &Path) {
     info!("Finished writing proto network to path: {path:?}");
 }
 
-pub(crate) fn network_to_wire(network: &Network) -> crate::generated::network::Network {
+pub(crate) fn network_to_wire(network: &Network) -> ProtoNetwork {
     info!("Converting Network into wire format");
     let nodes: Vec<_> = network
         .nodes()
@@ -51,7 +51,7 @@ pub(crate) fn network_to_wire(network: &Network) -> crate::generated::network::N
         })
         .collect();
 
-    crate::generated::network::Network {
+    ProtoNetwork {
         nodes,
         links,
         effective_cell_size: network.effective_cell_size(),

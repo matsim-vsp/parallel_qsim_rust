@@ -1,5 +1,3 @@
-use crate::generated::population::leg::Route;
-use crate::generated::population::{Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription};
 use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
@@ -12,6 +10,9 @@ use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use itertools::{EitherOrBoth, Itertools};
+use matsim_schemas::population::{
+    Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription, Route,
+};
 use serde_json::{Error, Value};
 use std::collections::HashMap;
 use std::path::Path;

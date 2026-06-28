@@ -8,6 +8,7 @@ use crate::simulation::scenario::population::{InternalActivity, InternalLeg, Int
 use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
+use matsim_schemas::general::Coordinate as ProtoCoordinate;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot::Sender;
 use tokio::task::JoinHandle;
@@ -113,8 +114,8 @@ impl From<Response> for InternalRoutingResponse {
     }
 }
 
-fn coordinate_to_wire(c: Coordinate) -> crate::generated::general::Coordinate {
-    crate::generated::general::Coordinate {
+fn coordinate_to_wire(c: Coordinate) -> ProtoCoordinate {
+    ProtoCoordinate {
         x: c.x,
         y: c.y,
         z: c.z,
@@ -122,7 +123,7 @@ fn coordinate_to_wire(c: Coordinate) -> crate::generated::general::Coordinate {
 }
 
 #[allow(dead_code)]
-fn coordinate_from_wire(c: crate::generated::general::Coordinate) -> Coordinate {
+fn coordinate_from_wire(c: ProtoCoordinate) -> Coordinate {
     Coordinate {
         x: c.x,
         y: c.y,

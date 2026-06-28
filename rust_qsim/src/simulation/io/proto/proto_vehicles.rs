@@ -1,7 +1,7 @@
 use crate::generated;
-use crate::generated::vehicles::{Vehicle, VehicleType, VehiclesContainer};
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
+use matsim_schemas::vehicles::{Vehicle, VehicleType, VehiclesContainer};
 use std::path::Path;
 use tracing::info;
 

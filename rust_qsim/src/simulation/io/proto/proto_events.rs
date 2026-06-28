@@ -1,5 +1,3 @@
-use crate::generated::events::{GenericEvent, TimeStep};
-use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
     ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
     LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
@@ -7,6 +5,8 @@ use crate::simulation::events::{
     TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use crate::simulation::time::SimTime;
+use matsim_schemas::events::{GenericEvent, TimeStep};
+use matsim_schemas::general::AttributeValue;
 use prost::Message;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -540,7 +540,6 @@ pub fn process_events(time: SimTime, events: &Vec<GenericEvent>, manager: &mut E
 
 #[cfg(test)]
 mod tests {
-    use crate::generated::events::GenericEvent;
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
         ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
@@ -551,6 +550,7 @@ mod tests {
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::time::SimTime;
     use macros::integration_test;
+    use matsim_schemas::events::GenericEvent;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;

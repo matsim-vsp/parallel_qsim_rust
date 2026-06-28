@@ -6,35 +6,8 @@ use std::marker::PhantomData;
 use std::path::Path;
 use tracing::info;
 
-pub mod events {
-    pub use matsim_schemas::events::{GenericEvent, TimeStep};
-}
 pub mod ids {
     include!(concat!(env!("OUT_DIR"), "/ids.rs"));
-}
-
-pub mod network {
-    pub use matsim_schemas::network::*;
-}
-
-pub mod population {
-    pub use matsim_schemas::population::*;
-
-    pub mod leg {
-        pub use matsim_schemas::matsim::simulation::io::types::leg::*;
-    }
-}
-
-pub mod vehicles {
-    pub use matsim_schemas::vehicles::*;
-}
-
-pub mod general {
-    pub use matsim_schemas::general::{AttributeValue, Coordinate};
-
-    pub mod attribute_value {
-        pub use matsim_schemas::matsim::simulation::io::types::attribute_value::*;
-    }
 }
 
 pub mod routing {
