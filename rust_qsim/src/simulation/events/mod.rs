@@ -236,7 +236,7 @@ pub struct ActivityStartEvent {
     pub time: SimTime,
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
-    pub coordinate: Option<Coordinate>, // this is temporarily set to Option<Coordinate>. When issue #275 is implemented, they will be mandatory. June '26 Andreas + Paul
+    pub coordinate: Coordinate,
     pub act_type: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,
@@ -252,9 +252,10 @@ impl ActivityStartEvent {
             .person(Id::create(required_string_attr(event, "person")))
             .link(Id::create(required_string_attr(event, "link")))
             .act_type(Id::create(required_string_attr(event, "act_type")))
-            .coordinate(Coordinate::new_2d(
+            .coordinate(Coordinate::new_3d(
                 required_double_attr(event, "x"),
                 required_double_attr(event, "y"),
+                required_double_attr(event, "z"),
             ))
             .attributes(attrs)
             .build()
@@ -267,7 +268,7 @@ pub struct ActivityEndEvent {
     pub time: SimTime,
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
-    pub coordinate: Option<Coordinate>, // this is temporarily set to Option<Coordinate>. When issue #275 is implemented, they will be mandatory. June '26 Andreas + Paul
+    pub coordinate: Coordinate,
     pub act_type: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,

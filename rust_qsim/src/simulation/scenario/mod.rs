@@ -17,22 +17,22 @@ use vehicles::Garage;
 pub struct Coordinate {
     pub x: f64,
     pub y: f64,
-    pub z: Option<f64>,
+    pub z: f64,
 }
 
 impl Coordinate {
-    pub fn new(x: f64, y: f64) -> Self {
-        Self { x, y, z: None }
+    pub fn new_2d(x: f64, y: f64) -> Self {
+        Self { x, y, z: 0. }
     }
 
-    pub fn with_z(x: f64, y: f64, z: Option<f64>) -> Self {
+    pub fn new_3d(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
     }
 }
 
 impl Default for Coordinate {
     fn default() -> Self {
-        Self::new(0.0, 0.0)
+        Self::new_2d(0.0, 0.0)
     }
 }
 
