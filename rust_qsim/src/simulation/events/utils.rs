@@ -142,7 +142,7 @@ pub fn read_events(
         .map(|s| s.to_ascii_lowercase())
         .as_deref()
     {
-        Some("xml") | Some("xml.gz") => Box::new(StatefulXmlReader::from_file(path)),
+        Some("xml") | Some("gz") => Box::new(StatefulXmlReader::from_file(path)),
         Some("binpb") | Some("pbf") => Box::new(StatefulProtoReader::from_file(path)),
         Some(other) => return Err(FileTypeError::Unimplemented(other.to_string())),
         None => return Err(FileTypeError::NotValidUnicode),
