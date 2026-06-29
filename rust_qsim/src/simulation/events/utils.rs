@@ -193,7 +193,7 @@ pub fn read_partitioned_events(
         // create stateful reader based on given file extension, return error if unsupported
         let mut reader: Box<dyn StatefulReader> = match normalized_extension.as_str() {
             "binpb" | "pbf" => Box::new(StatefulProtoReader::from_file(path)),
-            "xml" | "gz" => Box::new(StatefulXmlReader::from_file(path)),
+            "xml" | "xml.gz" => Box::new(StatefulXmlReader::from_file(path)),
             _ => return Err(FileTypeError::Unimplemented(normalized_extension)),
         };
 
