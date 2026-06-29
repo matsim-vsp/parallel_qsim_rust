@@ -104,6 +104,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                     vehicle_hash(num_collectors),
                     num_parts as usize,
                     num_collectors as usize,
+                    config.scoring().sync_interval,
                     receiver,
                     vec![],
                     io::resolve_path(config.context(), &config.output().output_dir)

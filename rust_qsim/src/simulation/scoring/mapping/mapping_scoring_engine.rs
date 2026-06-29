@@ -29,11 +29,12 @@ impl MappingCollectorEngine {
         vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>,
         num_partitions: usize,
         num_collectors: usize,
+        sync_interval: u32,
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
         output_path: PathBuf,
     ) -> Self {
-        let mapping_message_broker = MappingCollectorMessageBroker::new(receiver, senders, rank, num_partitions, num_collectors);
+        let mapping_message_broker = MappingCollectorMessageBroker::new(receiver, senders, rank, num_partitions, num_collectors, sync_interval);
         let mapping_data_forwarder = MappingDataForwarder::new(person_hash_function, vehicle_hash_function, rank, num_partitions as u32, Arc::clone(&mapping_message_broker));
         MappingCollectorMessageBroker::init(&mapping_message_broker, Arc::downgrade(&mapping_data_forwarder));
 
