@@ -64,10 +64,8 @@ impl MappingDataForwarder {
         } else if let Some(e) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
             self.forward_person_event(e.person.clone(), Box::new(e.clone()));
         } else if let Some(e) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
-            self.forward_person_event(e.person.clone(), Box::new(e.clone()));
             self.forward_vehicle_event(e.vehicle.clone(), Box::new(e.clone()));
         } else if let Some(e) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
-            self.forward_person_event(e.person.clone(), Box::new(e.clone()));
             self.forward_vehicle_event(e.vehicle.clone(), Box::new(e.clone()));
         } else if let Some(e) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
             self.forward_vehicle_event(e.vehicle.clone(), Box::new(e.clone()));
