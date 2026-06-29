@@ -57,7 +57,15 @@ impl MappingDataCollector {
                     }
                 } else if let Some(e) = event_ref.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
                     self.vehicle_id2person_ids.entry(e.vehicle.clone()).or_default().insert(e.person.clone());
+
+                    for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
+                        buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
+                    }
                 } else if let Some(e) = event_ref.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+                    for person_id in self.vehicle_id2person_ids.get(&vehicle_id).unwrap() {
+                        buffer_events.entry((self.person_hash_function)(person_id.clone()) + self.num_partitions).or_insert(HashMap::new()).entry(person_id.clone()).or_insert(vec![]).push(Box::new(e.clone()));
+                    }
+
                     self.vehicle_id2person_ids.get_mut(&e.vehicle).unwrap().remove(&e.person);
                 } else {
                     panic!("Unknown event type: '{}'", event_ref.type_())
