@@ -580,6 +580,7 @@ pub struct Scoring {
     #[serde(default)]
     pub plans_collection_type: ScoringPlansCollectionType,
     pub collector_threads: u32,
+    pub sync_interval: u32,
 }
 
 register_override!("scoring.enabled", |config, value| {
@@ -603,6 +604,12 @@ register_override!("scoring.collector_threads", |config, value| {
     }
 });
 
+register_override!("scoring.sync_interval", |config, value| {
+    if let Ok(v) = value.parse() {
+        config.scoring_mut().enabled = v;
+    }
+});
+
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
 pub enum ScoringPlansCollectionType {
     #[default]
@@ -617,6 +624,7 @@ impl Default for Scoring {
             enabled: true,
             plans_collection_type: ScoringPlansCollectionType::default(),
             collector_threads: 1,
+            sync_interval: 1,
         }
     }
 }
