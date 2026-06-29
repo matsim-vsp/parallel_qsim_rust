@@ -65,8 +65,10 @@ impl PartialPlan {
 
         if self.current_leg.is_some() {
             self.current_leg.as_mut().unwrap().handle_event(event);
-        } else {
+        } else if self.current_activity.is_some() {
             self.current_activity.as_mut().unwrap().handle_event(event);
+        } else {
+            panic!("Tried to handle an event with neither leg nor activity being initialized! Event type: {}", event.type_())
         }
 
         if let Some(_) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
