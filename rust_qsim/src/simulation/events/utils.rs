@@ -142,7 +142,7 @@ pub fn read_events(
         .map(|s| s.to_ascii_lowercase())
         .as_deref()
     {
-        Some("xml") | Some("xml.gz") => Box::new(StatefulXmlReader::from_file(path)),
+        Some("xml") | Some("gz") => Box::new(StatefulXmlReader::from_file(path)),
         Some("binpb") | Some("pbf") => Box::new(StatefulProtoReader::from_file(path)),
         Some(other) => return Err(FileTypeError::Unimplemented(other.to_string())),
         None => return Err(FileTypeError::NotValidUnicode),
@@ -374,6 +374,42 @@ mod test {
         }
     }
 
+    /// returns a vector with the event strings (as used in XML files) expected to be written from
+    /// the EventsToVecCollector when reading the files
+    /// `/tests/resources/events/expected_events.0.xml`,
+    /// `/tests/resources/events/expected_events.0.xml.gz` and
+    /// `/tests/resources/events/events.0.binpb`.
+    ///
+    /// When reading the files `.../expected_events.0.xml` and `.../expected_events.1.xml` together
+    /// (with `read_partitioned_events`) it is expected that an additional line appears between
+    /// lines 2 and 3
+    fn get_expected_event_strings_single_file() -> Vec<String> {
+        [
+            "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"10\" actType=\"home\"/>\n",
+            "<event time=\"32400.5\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
+            "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n",
+            "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\"/>\n",
+            "<event time=\"32409\" type=\"actstart\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
+            "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
+            "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" computationalRoutingMode=\"car\"/>\n",
+            "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
+            "<event time=\"32409.123456789\" type=\"vehicle enters traffic\" person=\"100\" link=\"link1\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
+            "<event time=\"32410\" type=\"left link\" link=\"link1\" vehicle=\"100_car\"/>\n",
+            "<event time=\"32410\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\"/>\n",
+            "<event time=\"32511\" type=\"left link\" link=\"link2\" vehicle=\"100_car\"/>\n",
+            "<event time=\"32511\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\"/>\n",
+            "<event time=\"32521\" type=\"vehicle leaves traffic\" person=\"100\" link=\"link3\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
+            "<event time=\"32521\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
+            "<event time=\"32521\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\"/>\n",
+            "<event time=\"32522\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
+            "<event time=\"32522\" type=\"actend\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
+            "<event time=\"32522\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
+            "<event time=\"32538\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\"/>\n",
+            "<event time=\"32538\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\"/>\n",
+            "<event time=\"32539\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"20\" actType=\"errands\"/>\n",
+        ].iter().map(|s| s.to_string()).collect()
+    }
+
     /// test the read_events function on a single xml file. Publishes the read events to an event
     /// manager where the above `EventsToVecCollector` is registered, and then compares the
     /// collected event strings with the expected event strings.
@@ -404,30 +440,41 @@ mod test {
         // the read file "expected_events.0.xml"
         assert_eq!(
             event_string_collection.lock().unwrap().clone(),
-            vec![
-                "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"10\" actType=\"home\"/>\n",
-                "<event time=\"32400.5\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n",
-                "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\"/>\n",
-                "<event time=\"32409\" type=\"actstart\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32409.123456789\" type=\"vehicle enters traffic\" person=\"100\" link=\"link1\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
-                "<event time=\"32410\" type=\"left link\" link=\"link1\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32410\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32511\" type=\"left link\" link=\"link2\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32511\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32521\" type=\"vehicle leaves traffic\" person=\"100\" link=\"link3\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
-                "<event time=\"32521\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32521\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\"/>\n",
-                "<event time=\"32522\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32522\" type=\"actend\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32522\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32538\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\"/>\n",
-                "<event time=\"32538\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\"/>\n",
-                "<event time=\"32539\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"20\" actType=\"errands\"/>\n"
-            ]
+            get_expected_event_strings_single_file()
+        );
+    }
+
+    /// test the read_events function on a single xml.gz file. Publishes the read events to an event
+    /// manager where the above `EventsToVecCollector` is registered, and then compares the
+    /// collected event strings with the expected event strings.
+    #[integration_test]
+    fn test_read_single_xml_gz_file() {
+        let _guard = init_std_out_logging_thread_local();
+        let resource_folder = "./tests/resources/events/".to_string();
+        let path = PathBuf::from(resource_folder).join("expected_events.0.xml.gz");
+
+        let mut events_mgr = EventsManager::new();
+
+        // the event strings read from the xml.gz file will be collected in this vector, to be
+        // compared with the expected event strings
+        let event_string_collection = Arc::new(Mutex::new(Vec::new()));
+
+        // XmlEventsVecCollector is an event handler that writes event strings, like those written
+        // into XML, into a given vector.
+        let register_xml_event_collector =
+            EventsToVecCollector::register_fn(event_string_collection.clone());
+
+        register_xml_event_collector(&mut events_mgr);
+
+        // read the events from the xml.gz file and publish them to the events manager, which will
+        // trigger the event handler above and fill the event_string_collection vector
+        read_events(&mut events_mgr, &path).unwrap();
+
+        // assert that the event strings that the events handler handled are all the events inside
+        // the read file "expected_events.0.xml.gz"
+        assert_eq!(
+            event_string_collection.lock().unwrap().clone(),
+            get_expected_event_strings_single_file()
         );
     }
 
@@ -438,12 +485,12 @@ mod test {
     fn test_read_single_proto_file() {
         let _guard = init_std_out_logging_thread_local();
         let resource_folder = "./tests/resources/events/".to_string();
-        let path = PathBuf::from(resource_folder).join("expected_events.0.xml");
+        let path = PathBuf::from(resource_folder).join("events.0.binpb");
 
         let mut events_mgr = EventsManager::new();
 
-        // the event strings read from the XML file will be collected in this vector, to be compared
-        // with the expected event strings
+        // the event strings read from the proto file will be collected in this vector, to be
+        // compared with the expected event strings
         let event_string_collection = Arc::new(Mutex::new(Vec::new()));
 
         // XmlEventsVecCollector is an event handler that writes event strings, like those written
@@ -453,38 +500,17 @@ mod test {
 
         register_xml_event_collector(&mut events_mgr);
 
-        // read the XML events and publish them to the events manager, which will trigger the event
-        // handler above and fill the event_string_collection vector
+        // read the proto events and publish them to the events manager, which will trigger the
+        // event handler above and fill the event_string_collection vector
         read_events(&mut events_mgr, &path).unwrap();
 
         // assert that the event strings that the events handler handled are all the events inside
-        // the read file "expected_events.0.xml"
+        // the read file "expected_events.0.binpb"
+        // while we cannot inspect that file manually in a text editor, expected_events.0.binpb
+        // contains the same events as expected_events.xml; as used in tests/io/events.rs as well
         assert_eq!(
             event_string_collection.lock().unwrap().clone(),
-            vec![
-                "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"10\" actType=\"home\"/>\n",
-                "<event time=\"32400.5\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n",
-                "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\"/>\n",
-                "<event time=\"32409\" type=\"actstart\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32409.123456789\" type=\"vehicle enters traffic\" person=\"100\" link=\"link1\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
-                "<event time=\"32410\" type=\"left link\" link=\"link1\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32410\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32511\" type=\"left link\" link=\"link2\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32511\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32521\" type=\"vehicle leaves traffic\" person=\"100\" link=\"link3\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
-                "<event time=\"32521\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32521\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\"/>\n",
-                "<event time=\"32522\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32522\" type=\"actend\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32522\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32538\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\"/>\n",
-                "<event time=\"32538\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\"/>\n",
-                "<event time=\"32539\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"20\" actType=\"errands\"/>\n"
-            ]
+            get_expected_event_strings_single_file()
         );
     }
 
@@ -523,35 +549,19 @@ mod test {
         )
         .unwrap();
 
+        let mut expected_string_collection = get_expected_event_strings_single_file();
+
+        // add one line between lines 2 and 3, which is the event in the file
+        // "expected_events.1.xml" that is not in "expected_events.0.xml".
+        // Note that the new line has time 32406, which is between the times of the events in lines
+        // 2 and 3 (32400.5 and 32408).
+        expected_string_collection.insert(2, "<event time=\"32406\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n".to_string() );
+
         // assert that the event strings that the events handler handled are all the events inside
         // the read files "expected_events.0.xml" and "expected_events.1.xml", in correct order.
         assert_eq!(
             event_string_collection.lock().unwrap().clone(),
-            vec![
-                "<event time=\"32400\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"10\" actType=\"home\"/>\n",
-                "<event time=\"32400.5\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32406\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n", // this row comes from the file expected_events.1.xml
-                "<event time=\"32408\" type=\"travelled\" person=\"100\" distance=\"10\" mode=\"walk\"/>\n",
-                "<event time=\"32408\" type=\"arrival\" person=\"100\" link=\"link1\" legMode=\"walk\"/>\n",
-                "<event time=\"32409\" type=\"actstart\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32409\" type=\"actend\" person=\"100\" link=\"link1\" x=\"5\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32409\" type=\"departure\" person=\"100\" link=\"link1\" legMode=\"car\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32409\" type=\"PersonEntersVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32409.123456789\" type=\"vehicle enters traffic\" person=\"100\" link=\"link1\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
-                "<event time=\"32410\" type=\"left link\" link=\"link1\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32410\" type=\"entered link\" link=\"link2\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32511\" type=\"left link\" link=\"link2\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32511\" type=\"entered link\" link=\"link3\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32521\" type=\"vehicle leaves traffic\" person=\"100\" link=\"link3\" vehicle=\"100_car\" networkMode=\"car\" relativePosition=\"1\"/>\n",
-                "<event time=\"32521\" type=\"PersonLeavesVehicle\" person=\"100\" vehicle=\"100_car\"/>\n",
-                "<event time=\"32521\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"car\"/>\n",
-                "<event time=\"32522\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32522\" type=\"actend\" person=\"100\" link=\"link3\" x=\"1100\" y=\"0\" actType=\"car interaction\"/>\n",
-                "<event time=\"32522\" type=\"departure\" person=\"100\" link=\"link3\" legMode=\"walk\" computationalRoutingMode=\"car\"/>\n",
-                "<event time=\"32538\" type=\"travelled\" person=\"100\" distance=\"20\" mode=\"walk\"/>\n",
-                "<event time=\"32538\" type=\"arrival\" person=\"100\" link=\"link3\" legMode=\"walk\"/>\n",
-                "<event time=\"32539\" type=\"actstart\" person=\"100\" link=\"link3\" x=\"1100\" y=\"20\" actType=\"errands\"/>\n"
-            ]
+            expected_string_collection
         );
     }
 }
