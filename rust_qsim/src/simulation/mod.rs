@@ -1,6 +1,6 @@
-use crate::generated::general::AttributeValue;
-use crate::generated::general::attribute_value::Type;
 use io::xml::attributes::IOAttributes;
+use matsim_schemas::general::AttributeValue;
+use matsim_schemas::matsim::simulation::io::types::attribute_value::Type;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

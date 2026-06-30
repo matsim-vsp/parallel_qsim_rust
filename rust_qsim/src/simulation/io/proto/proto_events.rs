@@ -1,5 +1,3 @@
-use crate::generated::events::{GenericEvent, TimeStep};
-use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
     ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
     LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
@@ -7,6 +5,8 @@ use crate::simulation::events::{
     TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use crate::simulation::time::SimTime;
+use matsim_schemas::events::{GenericEvent, TimeStep};
+use matsim_schemas::general::AttributeValue;
 use prost::Message;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -30,10 +30,9 @@ impl From<&ActivityEndEvent> for GenericEvent {
             String::from("act_type"),
             AttributeValue::from(value.act_type.external()),
         );
-        if let Some(c) = value.coordinate.as_ref() {
-            attributes.insert(String::from("x"), AttributeValue::from(c.x));
-            attributes.insert(String::from("y"), AttributeValue::from(c.y));
-        }
+        attributes.insert(String::from("x"), AttributeValue::from(value.coordinate.x));
+        attributes.insert(String::from("y"), AttributeValue::from(value.coordinate.y));
+        attributes.insert(String::from("z"), AttributeValue::from(value.coordinate.z));
 
         GenericEvent {
             r#type: value.type_().to_string(),
@@ -57,10 +56,9 @@ impl From<&ActivityStartEvent> for GenericEvent {
             "act_type".to_string(),
             AttributeValue::from(value.act_type.external()),
         );
-        if let Some(c) = value.coordinate.as_ref() {
-            attributes.insert(String::from("x"), AttributeValue::from(c.x));
-            attributes.insert(String::from("y"), AttributeValue::from(c.y));
-        }
+        attributes.insert(String::from("x"), AttributeValue::from(value.coordinate.x));
+        attributes.insert(String::from("y"), AttributeValue::from(value.coordinate.y));
+        attributes.insert(String::from("z"), AttributeValue::from(value.coordinate.z));
 
         GenericEvent {
             r#type: value.type_().to_string(),
@@ -542,7 +540,6 @@ pub fn process_events(time: SimTime, events: &Vec<GenericEvent>, manager: &mut E
 
 #[cfg(test)]
 mod tests {
-    use crate::generated::events::GenericEvent;
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
         ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
@@ -553,6 +550,7 @@ mod tests {
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::time::SimTime;
     use macros::integration_test;
+    use matsim_schemas::events::GenericEvent;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
@@ -605,7 +603,7 @@ mod tests {
                     .person(Id::create("1"))
                     .link(Id::create("1"))
                     .act_type(Id::create("1"))
-                    .coordinate(Some(Coordinate::default()))
+                    .coordinate(Coordinate::default())
                     .build()
                     .unwrap(),
             ),
@@ -614,7 +612,7 @@ mod tests {
                     .time(SimTime::from_secs(103))
                     .person(Id::create("1"))
                     .link(Id::create("1"))
-                    .coordinate(Some(Coordinate::default()))
+                    .coordinate(Coordinate::default())
                     .act_type(Id::create("1"))
                     .build()
                     .unwrap(),
@@ -665,7 +663,7 @@ mod tests {
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
-                        .coordinate(Some(Coordinate::default()))
+                        .coordinate(Coordinate::default())
                         .build()
                         .unwrap(),
                 ),
@@ -675,7 +673,7 @@ mod tests {
                         .person(Id::create("1"))
                         .link(Id::create("1"))
                         .act_type(Id::create("1"))
-                        .coordinate(Some(Coordinate::default()))
+                        .coordinate(Coordinate::default())
                         .build()
                         .unwrap(),
                 ),
@@ -731,30 +729,42 @@ mod tests {
                 let typed_event = event.as_any().downcast_ref::<ActivityStartEvent>().unwrap();
                 assert_eq!(
                     typed_event.person.external(),
-                    other.attributes["person"].as_string()
+                    other.attributes["person"]
+                        .as_string()
+                        .expect("expected string person attribute")
                 );
                 assert_eq!(
                     typed_event.link.external(),
-                    other.attributes["link"].as_string()
+                    other.attributes["link"]
+                        .as_string()
+                        .expect("expected string link attribute")
                 );
                 assert_eq!(
                     typed_event.act_type.external(),
-                    other.attributes["act_type"].as_string()
+                    other.attributes["act_type"]
+                        .as_string()
+                        .expect("expected string act_type attribute")
                 );
             }
             ActivityEndEvent::TYPE => {
                 let typed_event = event.as_any().downcast_ref::<ActivityEndEvent>().unwrap();
                 assert_eq!(
                     typed_event.person.external(),
-                    other.attributes["person"].as_string()
+                    other.attributes["person"]
+                        .as_string()
+                        .expect("expected string person attribute")
                 );
                 assert_eq!(
                     typed_event.link.external(),
-                    other.attributes["link"].as_string()
+                    other.attributes["link"]
+                        .as_string()
+                        .expect("expected string link attribute")
                 );
                 assert_eq!(
                     typed_event.act_type.external(),
-                    other.attributes["act_type"].as_string()
+                    other.attributes["act_type"]
+                        .as_string()
+                        .expect("expected string act_type attribute")
                 );
             }
             _ => panic!("wrong type"),

@@ -75,7 +75,14 @@ impl ActivityEngine {
                     .person(agent.id().clone())
                     .link(agent.curr_act().link_id.clone())
                     .act_type(agent.curr_act().act_type.clone())
-                    .coordinate(agent.curr_act().coord.clone())
+                    .coordinate(
+                        agent
+                            .curr_act()
+                            .coord
+                            .as_ref()
+                            .expect("Coordinate not present.")
+                            .clone(),
+                    )
                     .build()
                     .unwrap(),
             );
@@ -116,7 +123,7 @@ impl ActivityEngine {
                 .person(agent.agent.id().clone())
                 .link(act.link_id.clone())
                 .act_type(act.act_type.clone())
-                .coordinate(act.coord.clone())
+                .coordinate(act.coord.as_ref().expect("Coordinate not present.").clone())
                 .build()
                 .unwrap(),
         );

@@ -2,31 +2,33 @@ extern crate prost_build;
 extern crate protobuf_src;
 
 use prost_build::Config;
+use std::path::PathBuf;
 
+/// This compiles the protobuf files declared in this repository. The matsim schema repository is used to provide the includes.
 fn main() {
     let proto_files = [
-        "src/simulation/io/proto/types/general.proto",
-        "src/simulation/io/proto/types/events.proto",
-        "src/simulation/io/proto/types/ids.proto",
-        "src/simulation/io/proto/types/network.proto",
-        "src/simulation/io/proto/types/population.proto",
-        "src/simulation/io/proto/types/vehicles.proto",
-        "src/external_services/routing/routing.proto",
+        PathBuf::from("src/simulation/io/proto/types/ids.proto"),
+        PathBuf::from("src/external_services/routing/routing.proto"),
     ];
 
-    // tell cargo to rerun this build script if any of the proto files change
+    println!(
+        "cargo:rerun-if-changed={}",
+        matsim_schemas::proto_dir().display()
+    );
     for proto in &proto_files {
-        println!("cargo:rerun-if-changed={}", proto);
+        println!("cargo:rerun-if-changed={}", proto.display());
     }
 
-    // Compiling the protobuf files
     let mut config = Config::new();
+    matsim_schemas::configure_extern_path(&mut config);
     // we use the protobuf-src which provides the protoc compiler. This line makes it available
     // to prost-build
     config.protoc_executable(protobuf_src::protoc());
 
-    tonic_build::configure()
+    let include_dirs = [PathBuf::from("src/"), matsim_schemas::proto_dir()];
+
+    tonic_prost_build::configure()
         .build_client(true)
-        .compile_protos_with_config(config, &proto_files, &["src/"])
+        .compile_with_config(config, &proto_files, &include_dirs)
         .unwrap();
 }

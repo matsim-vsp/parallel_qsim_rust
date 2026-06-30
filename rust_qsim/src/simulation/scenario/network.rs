@@ -265,8 +265,8 @@ impl From<IONetwork> for Network {
     }
 }
 
-impl From<crate::generated::network::Network> for Network {
-    fn from(value: crate::generated::network::Network) -> Self {
+impl From<matsim_schemas::network::Network> for Network {
+    fn from(value: matsim_schemas::network::Network) -> Self {
         let mut result = Network::new();
         result.set_effective_cell_size(value.effective_cell_size);
         for wn in &value.nodes {
@@ -274,7 +274,7 @@ impl From<crate::generated::network::Network> for Network {
                 Id::get_from_ext(&wn.id),
                 wn.coordinate
                     .as_ref()
-                    .map(|coordinate| Coordinate::with_z(coordinate.x, coordinate.y, coordinate.z))
+                    .map(|coordinate| Coordinate::new_3d(coordinate.x, coordinate.y, coordinate.z))
                     .unwrap(),
                 wn.partition,
                 wn.cmp_weight,
@@ -312,7 +312,7 @@ fn add_io_node(network: &mut Network, io_node: &IONode) {
 
     let mut node = Node::new(
         id,
-        Coordinate::new(io_node.x, io_node.y),
+        Coordinate::new_2d(io_node.x, io_node.y),
         partition,
         cmp_weight,
     );
@@ -447,7 +447,7 @@ mod tests {
     use macros::integration_test;
 
     fn coord(x: f64, y: f64) -> Coordinate {
-        Coordinate::new(x, y)
+        Coordinate::new_2d(x, y)
     }
 
     #[integration_test]

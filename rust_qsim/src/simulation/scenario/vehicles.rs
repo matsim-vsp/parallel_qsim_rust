@@ -1,4 +1,3 @@
-use crate::generated::vehicles::{Vehicle, VehicleType};
 use crate::simulation::InternalAttributes;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
@@ -8,6 +7,7 @@ use crate::simulation::io::xml::vehicles::{
 };
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::vehicles::SimulationVehicle;
+use matsim_schemas::vehicles::{Vehicle, VehicleType};
 use nohash_hasher::IntMap;
 use std::path::Path;
 use tracing::info;

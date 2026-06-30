@@ -1,7 +1,7 @@
 use crate::generated;
-use crate::generated::vehicles::{Vehicle, VehicleType, VehiclesContainer};
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
+use matsim_schemas::vehicles::{Vehicle, VehicleType, VehiclesContainer};
 use std::path::Path;
 use tracing::info;
 
@@ -10,9 +10,9 @@ pub(crate) fn write_to_proto(garage: &Garage, path: &Path) {
     let vehicle_types = garage
         .vehicle_types
         .values()
-        .map(VehicleType::from)
+        .map(vehicle_type_to_wire)
         .collect();
-    let vehicles = garage.vehicles.values().map(Vehicle::from).collect();
+    let vehicles = garage.vehicles.values().map(vehicle_to_wire).collect();
 
     let wire_format = VehiclesContainer {
         vehicle_types,
@@ -42,29 +42,25 @@ pub(crate) fn load_from_proto(path: &Path) -> Garage {
     }
 }
 
-impl Vehicle {
-    pub fn from(vehicle: &InternalVehicle) -> Self {
-        Self {
-            id: vehicle.id().internal(),
-            r#type: vehicle.vehicle_type.internal(),
-            max_v: vehicle.max_v,
-            pce: vehicle.pce,
-            attributes: vehicle.attributes.as_cloned_map(),
-        }
+fn vehicle_to_wire(vehicle: &InternalVehicle) -> Vehicle {
+    Vehicle {
+        id: vehicle.id().internal(),
+        r#type: vehicle.vehicle_type.internal(),
+        max_v: vehicle.max_v,
+        pce: vehicle.pce,
+        attributes: vehicle.attributes.as_cloned_map(),
     }
 }
 
-impl VehicleType {
-    pub fn from(vehicle: &InternalVehicleType) -> Self {
-        Self {
-            id: vehicle.id.internal(),
-            length: vehicle.length,
-            width: vehicle.width,
-            max_v: vehicle.max_v,
-            pce: vehicle.pce,
-            fef: vehicle.fef,
-            net_mode: vehicle.net_mode.internal(),
-        }
+fn vehicle_type_to_wire(vehicle: &InternalVehicleType) -> VehicleType {
+    VehicleType {
+        id: vehicle.id.internal(),
+        length: vehicle.length,
+        width: vehicle.width,
+        max_v: vehicle.max_v,
+        pce: vehicle.pce,
+        fef: vehicle.fef,
+        net_mode: vehicle.net_mode.internal(),
     }
 }
 

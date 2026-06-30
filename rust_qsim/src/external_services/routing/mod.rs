@@ -8,6 +8,7 @@ use crate::simulation::scenario::population::{InternalActivity, InternalLeg, Int
 use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use itertools::{EitherOrBoth, Itertools};
+use matsim_schemas::general::Coordinate as ProtoCoordinate;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot::Sender;
 use tokio::task::JoinHandle;
@@ -65,9 +66,9 @@ impl From<InternalRoutingRequestPayload> for Request {
         Request {
             person_id: req.person_id,
             from_link_id: req.from_link,
-            from: Some(req.from.into()),
+            from: Some(coordinate_to_wire(req.from)),
             to_link_id: req.to_link,
-            to: Some(req.to.into()),
+            to: Some(coordinate_to_wire(req.to)),
             mode: req.mode,
             departure_time_ns: req.departure_time.as_nanos(),
             now_ns: req.now.as_nanos(),
@@ -113,23 +114,20 @@ impl From<Response> for InternalRoutingResponse {
     }
 }
 
-impl From<Coordinate> for crate::generated::general::Coordinate {
-    fn from(c: Coordinate) -> Self {
-        crate::generated::general::Coordinate {
-            x: c.x,
-            y: c.y,
-            z: c.z,
-        }
+fn coordinate_to_wire(c: Coordinate) -> ProtoCoordinate {
+    ProtoCoordinate {
+        x: c.x,
+        y: c.y,
+        z: c.z,
     }
 }
 
-impl From<crate::generated::general::Coordinate> for Coordinate {
-    fn from(c: crate::generated::general::Coordinate) -> Self {
-        Coordinate {
-            x: c.x,
-            y: c.y,
-            z: c.z,
-        }
+#[allow(dead_code)]
+fn coordinate_from_wire(c: ProtoCoordinate) -> Coordinate {
+    Coordinate {
+        x: c.x,
+        y: c.y,
+        z: c.z,
     }
 }
 
@@ -242,9 +240,9 @@ mod tests {
             InternalRoutingRequestPayloadBuilder::default()
                 .person_id("person-1".to_string())
                 .from_link("from-link".to_string())
-                .from(Coordinate::new(1.0, 2.0))
+                .from(Coordinate::new_2d(1.0, 2.0))
                 .to_link("to-link".to_string())
-                .to(Coordinate::new(3.0, 4.0))
+                .to(Coordinate::new_2d(3.0, 4.0))
                 .mode("car".to_string())
                 .departure_time(SimTime::from_nanos(1_500_000))
                 .now(SimTime::from_nanos(2_750_000))

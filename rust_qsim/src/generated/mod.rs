@@ -1,9 +1,4 @@
-use crate::generated::general::AttributeValue;
-use crate::generated::general::attribute_value::Type;
-use crate::simulation::io::xml::attributes::IOAttribute;
 use prost::Message;
-use serde::ser::Error;
-use serde::{Serialize, Serializer};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, ErrorKind, Read, Seek, Write};
@@ -11,26 +6,8 @@ use std::marker::PhantomData;
 use std::path::Path;
 use tracing::info;
 
-// Include the `messages` module, which is generated from messages.proto
-pub mod events {
-    include!(concat!(env!("OUT_DIR"), "/events.rs"));
-}
 pub mod ids {
     include!(concat!(env!("OUT_DIR"), "/ids.rs"));
-}
-
-pub mod network {
-    include!(concat!(env!("OUT_DIR"), "/network.rs"));
-}
-pub mod population {
-    include!(concat!(env!("OUT_DIR"), "/population.rs"));
-}
-pub mod vehicles {
-    include!(concat!(env!("OUT_DIR"), "/vehicles.rs"));
-}
-
-pub mod general {
-    include!(concat!(env!("OUT_DIR"), "/general.rs"));
 }
 
 pub mod routing {
@@ -139,111 +116,6 @@ where
         Self {
             type_marker: Default::default(),
             internal_reader: BufReader::new(reader),
-        }
-    }
-}
-
-impl AttributeValue {
-    pub(crate) fn new_int(value: i64) -> Self {
-        AttributeValue {
-            r#type: Some(Type::IntValue(value)),
-        }
-    }
-
-    pub(crate) fn new_string(value: String) -> Self {
-        AttributeValue {
-            r#type: Some(Type::StringValue(value)),
-        }
-    }
-
-    pub(crate) fn new_double(value: f64) -> Self {
-        AttributeValue {
-            r#type: Some(Type::DoubleValue(value)),
-        }
-    }
-
-    pub(crate) fn new_bool(value: bool) -> Self {
-        AttributeValue {
-            r#type: Some(Type::BoolValue(value)),
-        }
-    }
-
-    pub fn as_int(&self) -> i64 {
-        match self.r#type.as_ref().unwrap() {
-            Type::IntValue(value) => *value,
-            _ => panic!("Expected int, got {:?}", self),
-        }
-    }
-
-    pub fn as_string(&self) -> String {
-        match self.r#type.as_ref().unwrap() {
-            Type::StringValue(value) => value.clone(),
-            _ => panic!("Expected string, got {:?}", self),
-        }
-    }
-
-    pub fn as_double(&self) -> f64 {
-        match self.r#type.as_ref().unwrap() {
-            Type::DoubleValue(value) => *value,
-            _ => panic!("Expected double, got {:?}", self),
-        }
-    }
-
-    pub fn as_bool(&self) -> bool {
-        match self.r#type.as_ref().unwrap() {
-            Type::BoolValue(value) => *value,
-            _ => panic!("Expected bool, got {:?}", self),
-        }
-    }
-
-    pub fn from_io_attr(attr: IOAttribute) -> AttributeValue {
-        match attr.class.as_str() {
-            "java.lang.String" => AttributeValue::new_string(attr.value),
-            "java.lang.Double" => AttributeValue::new_double(attr.value.parse().unwrap()),
-            "java.lang.Integer" => AttributeValue::new_int(attr.value.parse().unwrap()),
-            "java.lang.Boolean" => AttributeValue::new_bool(attr.value.parse().unwrap()),
-            _ => panic!("Unsupported attribute class: {}", attr.class),
-        }
-    }
-}
-
-impl From<bool> for AttributeValue {
-    fn from(value: bool) -> Self {
-        AttributeValue::new_bool(value)
-    }
-}
-
-impl From<String> for AttributeValue {
-    fn from(value: String) -> Self {
-        AttributeValue::new_string(value)
-    }
-}
-
-impl From<&str> for AttributeValue {
-    fn from(value: &str) -> Self {
-        AttributeValue::new_string(value.to_string())
-    }
-}
-
-impl From<f64> for AttributeValue {
-    fn from(value: f64) -> Self {
-        AttributeValue::new_double(value)
-    }
-}
-
-// we can't tag the enum as non-exhaustive because prost generates it. This is why the warning is manually disabled.
-#[allow(unreachable_patterns)]
-impl Serialize for AttributeValue {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self.r#type.as_ref().unwrap() {
-            Type::IntValue(i) => serializer.serialize_i64(*i),
-            Type::StringValue(s) => serializer.serialize_str(s),
-            Type::DoubleValue(d) => serializer.serialize_f64(*d),
-            Type::BoolValue(b) => serializer.serialize_bool(*b),
-            _ => Err(S::Error::custom("Unsupported type")),
         }
     }
 }
