@@ -1352,7 +1352,7 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "matsim-schemas"
 version = "0.1.0"
-source = "git+https://github.com/matsim-org/matsim-schemas.git#372b535b9c7b00d1edf74d3b3e7f2d761a21cc33"
+source = "git+https://github.com/matsim-org/matsim-schemas.git?tag=v0.1.0#32f14014e9491ae291a225ddfee6395acc886295"
 dependencies = [
  "prost",
  "prost-build",

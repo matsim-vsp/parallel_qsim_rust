@@ -54,7 +54,7 @@ inventory = "0.3.21"
 arrow2 = { version = "0.18.0", features = ["io_parquet", "io_parquet_compression"] }
 ordered-float = "5.3.0"
 rayon = "1.12.0"
-matsim-schemas = { git = "https://github.com/matsim-org/matsim-schemas.git", package = "matsim-schemas", features = ["serde"] }
+matsim-schemas = { git = "https://github.com/matsim-org/matsim-schemas.git", features = ["serde"], tag = "v0.1.0" }
 
 # arrow2 removed; we write parquet-proxy as JSON-lines implementation for now
 
@@ -68,4 +68,4 @@ prost-build = "0.14.4"
 # provides the protoc compiler - this makes the build slow but one doesn't need to install the protoc compiler as prerequisite.
 protobuf-src = "2.1.1"
 tonic-prost-build = "0.14.6"
-matsim-schemas = { git = "https://github.com/matsim-org/matsim-schemas.git", package = "matsim-schemas", features = ["build"] }
+matsim-schemas = { git = "https://github.com/matsim-org/matsim-schemas.git", features = ["build"], tag = "v0.1.0" }
