@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::hash::Hasher;
 use std::sync::{Arc, Mutex};
@@ -47,14 +47,23 @@ impl MappingDataCollector {
 
             self.watermark = time;
             self.watermark_buffer.remove(&time);
-            // TODO Flush Heap until watermark time
+
+            for (person_id, heap) in self.person_id2heap.iter_mut() {
+                while let Some(entry) = heap.peek() {
+                    if entry.0.0 <= self.watermark {
+                        self.person_id2partial_plan.get_mut(person_id).unwrap().handle_event(&*heap.pop().unwrap().2);
+                    } else {
+                        break;
+                    }
+                }
+            }
         }
     }
 
     pub(crate) fn add_arriving_person_events(&mut self, mut arriving_events: HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>) {
         for (person_id, mut arriving_events) in arriving_events {
             for (arriving_event, c) in arriving_events {
-                self.person_id2heap.entry(person_id.clone()).or_insert_with(BinaryHeap::new).push(HeapEntry(arriving_event.time(), c, arriving_event));
+                self.person_id2heap.entry(person_id.clone()).or_insert_with(BinaryHeap::new).push(HeapEntry(Reverse(arriving_event.time()), c, arriving_event));
 
 
                 // self.person_id2partial_plan.entry(person_id.clone()).or_default().handle_event(&*arriving_event);
@@ -106,7 +115,7 @@ impl MappingDataCollector {
     }
 }
 
-struct HeapEntry(u32, u32, Box<dyn EventTrait>);
+struct HeapEntry(Reverse<u32>, u32, Box<dyn EventTrait>);
 
 impl Ord for HeapEntry {
     fn cmp(&self, other: &Self) -> Ordering {

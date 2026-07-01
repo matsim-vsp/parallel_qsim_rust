@@ -14,7 +14,7 @@ pub struct MappingDataForwarder {
     rank: QSimId,
     num_partitions: u32,
 
-    person_id2internal_plan: HashMap<Id<InternalPerson>, InternalPerson>,
+    person_id2internal_person: HashMap<Id<InternalPerson>, InternalPerson>,
     message_broker: Arc<Mutex<MappingCollectorMessageBroker>>
 }
 
@@ -25,7 +25,7 @@ impl MappingDataForwarder {
             vehicle_hash_function,
             rank,
             num_partitions,
-            person_id2internal_plan: HashMap::new(),
+            person_id2internal_person: HashMap::new(),
             message_broker: mapping_collector_message_broker
         }))
     }
@@ -41,12 +41,12 @@ impl MappingDataForwarder {
     }
 
     pub(crate) fn add_arriving_plan(&mut self, person_id: Id<InternalPerson>, arriving_plan: InternalPlan){
-        self.person_id2internal_plan.insert(person_id.clone(), InternalPerson::new(person_id, arriving_plan));
+        self.person_id2internal_person.insert(person_id.clone(), InternalPerson::new(person_id, arriving_plan));
     }
 
     pub(crate) fn finish(&mut self) -> Population {
         Population {
-            persons: take(&mut self.person_id2internal_plan)
+            persons: take(&mut self.person_id2internal_person)
         }
     }
 

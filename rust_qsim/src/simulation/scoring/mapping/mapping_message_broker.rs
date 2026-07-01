@@ -17,7 +17,7 @@ pub struct MappingCollectorMessageBroker {
     num_partitions: usize,
     num_collectors: usize,
     sync_interval: u32,
-    
+
     counter: u32,
     buffer_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>>,
     buffer_vehicles: HashMap<u32, HashMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>>,
@@ -43,7 +43,7 @@ impl MappingCollectorMessageBroker {
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
                 match &e.payload {
                     MobsimEvent::AfterSimStep(i) => {
-                        broker.lock().unwrap().send();
+                        broker.lock().unwrap().send(i.time);
                     }
                     MobsimEvent::BeforeCleanup => {
                         broker.lock().unwrap().finish_send_recv();
@@ -66,7 +66,7 @@ impl MappingCollectorMessageBroker {
     }
 
     /// Called on every AfterSimStep: Flushes send buffers
-    fn send(&mut self) {
+    fn send(&mut self, time: u32) {
         for (target, vehicle_events) in self.buffer_vehicles.drain() {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
@@ -90,14 +90,22 @@ impl MappingCollectorMessageBroker {
                 panic!("Error sending PersonEventMessage to rank {} with error {}", target, e)
             });
         }
-        
-        // TODO Send watermark every x-th simstep
+
+        if time % self.sync_interval == 0 {
+            for target in self.num_partitions..(self.num_partitions + self.num_collectors) {
+                let msg = InternalScoringMessage {
+                    from_process: self.rank,
+                    to_process: target as QSimId,
+                    message: Box::new(WatermarkMessage { hop: 1, time: time, counter: self.counter }),
+                };
+            }
+        }
     }
 
     /// Called after the mobsim ends: Flushes the send buffers and sends a finish message to all scoring threads.
     /// Then collects incoming Experienced Plans and passes them to the forwarder
     fn finish_send_recv(&mut self) {
-        self.send();
+        self.send(u32::MAX);
 
         for target in (0..self.num_collectors).map(|t| t + self.num_partitions) {
             let msg = InternalScoringMessage {
@@ -194,9 +202,9 @@ impl MappingScoringMessageBroker {
             }
             _ if boxed_any.is::<WatermarkMessage>() => {
                 let m = boxed_any.downcast::<WatermarkMessage>().unwrap();
-                
+
                 match m.hop {
-                    1 => { 
+                    1 => {
                         for target in self.num_partitions..(self.num_partitions + self.num_collectors) {
                             self.buffer_watermarks.insert(target as QSimId, (msg.from_process, m.time, m.counter));
                         }
@@ -207,7 +215,7 @@ impl MappingScoringMessageBroker {
             }
             _ if boxed_any.is::<FinishMessage>() => {
                 let m = boxed_any.downcast::<FinishMessage>().unwrap();
-                
+
                 match m.hop {
                     1 => {
                         for target in self.num_partitions..(self.num_partitions + self.num_collectors) {
@@ -244,7 +252,7 @@ impl MappingScoringMessageBroker {
 
     fn finish_send(&mut self) {
         // TODO Process all remaining events in heap!
-        
+
         for target in 0..self.num_partitions {
             let plans = self.partition_id2person_id.get(&(target as QSimId)).unwrap().iter().map(|person_id|
                 (person_id.clone(), self.data_collector.upgrade().unwrap().lock().unwrap().remove_person_plan(person_id.clone()))
