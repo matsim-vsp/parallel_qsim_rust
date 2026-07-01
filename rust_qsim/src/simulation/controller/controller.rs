@@ -1,4 +1,5 @@
 use crate::external_services::AdapterHandle;
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
 use crate::simulation::controller::{
     ExternalServices, PartitionArgumentsBuilder, create_output_filename,
@@ -12,6 +13,8 @@ use crate::simulation::messaging::sim_communication::local_communicator::Channel
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
+use crate::simulation::scenario::network::Network;
+use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
 use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
 use crate::simulation::{controller, id, io};
@@ -34,6 +37,7 @@ pub enum Scenario {
 pub struct Controller {
     scenario: Scenario,
     config: Arc<Config>,
+    network: Arc<Network>,
     #[debug(skip)]
     agent_source: DynAgentSource,
     controller_events_manager: ControllerEventsManager,
@@ -90,10 +94,12 @@ impl ControllerBuilder {
         }
 
         let config = self.scenario.config.clone();
+        let network = self.scenario.network.clone();
 
         Ok(Controller {
             scenario: Scenario::Full(self.scenario),
             config,
+            network,
             agent_source: self.agent_source,
             controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_register_fn,
@@ -176,8 +182,16 @@ impl Controller {
             fs::create_dir_all(&log_path).expect("Failed to create logs output path");
         }
 
-        // TODO This needs to be shifted to the end once we have iterations. Therefore, the threads need the simulation agents. paul, mar '26
+        let end_iter = 0u32;
+        for iteration in 0..=end_iter {
+            self.run_iteration(iteration, end_iter);
+        }
+
         info!("Writing output files:");
+        if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
+            info!("    ... ID store ...");
+            Self::write_output_id_store(&output_path);
+        }
         info!("    ... Config ...");
         self.write_output_config(output_path.clone());
         info!("    ... Network ...");
@@ -185,33 +199,78 @@ impl Controller {
         info!("    ... Population ...");
         self.write_output_population(output_path.clone());
 
-        info!("=========== Start Iteration 0 ===========");
-
-        self.controller_events_manager
-            .process_event(ControllerEvent::before_mobsim(true));
-
-        let handles = self.run_channel();
-        controller::try_join(handles, mem::take(&mut self.adapter_handles));
-
-        self.controller_events_manager
-            .process_event(ControllerEvent::after_mobsim(true));
-
-        self.controller_events_manager
-            .process_event(ControllerEvent::iteration_ends(true));
-
-        info!("=========== End Iteration 0 ===========");
-
-        info!("Writing output files:");
-        if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
-            info!("    ... ID store ...");
-            Self::write_output_id_store(&output_path);
-        }
-
         self.controller_events_manager
             .process_event(ControllerEvent::shutdown(true));
     }
 
-    fn run_channel(&mut self) -> IntMap<u32, JoinHandle<()>> {
+    fn run_iteration(&mut self, iteration: u32, end_iter: u32) {
+        let is_last_iteration = iteration == end_iter;
+        info!("=========== Start Iteration {} ===========", iteration);
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::iteration_starts(is_last_iteration));
+
+        let population = self.run_mobsim_phase(iteration, is_last_iteration);
+        let population = self.run_scoring_phase(iteration, is_last_iteration, population);
+        let population = if is_last_iteration {
+            population
+        } else {
+            self.run_replanning_phase(iteration, population)
+        };
+
+        self.scenario = Scenario::Full(MutableScenario {
+            network: self.network.clone(),
+            garage: Default::default(),
+            population,
+            config: self.config.clone(),
+        });
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::iteration_ends(is_last_iteration));
+
+        info!("=========== End Iteration {} ===========", iteration);
+    }
+
+    fn run_mobsim_phase(&mut self, iteration: u32, is_last_iteration: bool) -> Population {
+        info!("Starting mobsim phase for iteration {iteration}");
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::before_mobsim(is_last_iteration));
+
+        let handles = self.run_channel();
+        let agents = controller::try_join(handles, mem::take(&mut self.adapter_handles));
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::after_mobsim(is_last_iteration));
+
+        let persons = agents.into_iter().filter_map(|a| a.into_person()).collect();
+        Population::from_persons(persons)
+    }
+
+    fn run_scoring_phase(
+        &mut self,
+        iteration: u32,
+        is_last_iteration: bool,
+        population: Population,
+    ) -> Population {
+        info!("Starting scoring phase for iteration {iteration}");
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::scoring(is_last_iteration));
+
+        population
+    }
+
+    fn run_replanning_phase(&mut self, iteration: u32, population: Population) -> Population {
+        info!("Starting replanning phase for iteration {iteration}");
+
+        self.controller_events_manager
+            .process_event(ControllerEvent::replanning(false));
+
+        population
+    }
+
+    fn run_channel(&mut self) -> IntMap<u32, JoinHandle<Vec<SimulationAgent>>> {
         let mut scenario = {
             let s = mem::replace(&mut self.scenario, Scenario::Partitioned);
             match s {
@@ -240,7 +299,7 @@ impl Controller {
         );
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
 
-        let handles: IntMap<u32, JoinHandle<()>> = comms
+        let handles: IntMap<u32, _> = comms
             .into_iter()
             .map(|comm| {
                 let rank = comm.rank();

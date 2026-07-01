@@ -37,9 +37,10 @@ impl Default for Coordinate {
 }
 
 /// The mod contains the full mod data.
+/// `Network` and `Config` are wrapped by `Arc` since they are shared between threads.
 #[derive(Debug)]
 pub struct MutableScenario {
-    pub network: Network,
+    pub network: Arc<Network>,
     pub garage: Garage,
     pub population: Population,
     pub config: Arc<Config>,
@@ -57,7 +58,7 @@ impl MutableScenario {
         }
 
         // mandatory content to create a mod
-        let network = Self::load_network(&config);
+        let network = Arc::new(Self::load_network(&config));
         let mut garage = Self::load_garage(&config);
         let population = Self::load_population(&config, &mut garage);
 
@@ -99,6 +100,8 @@ impl MutableScenario {
 }
 
 /// The ScenarioPartition contains the mod data for a specific partition.
+/// `Network` and `Config` are wrapped by `Arc` since they are shared between threads.
+/// TODO: This could hold a MutableScenario field and the network_partition.
 #[derive(Debug)]
 pub struct ScenarioPartition {
     pub network: Arc<Network>,
@@ -110,14 +113,12 @@ pub struct ScenarioPartition {
 
 impl ScenarioPartition {
     pub(crate) fn from(mut scenario: MutableScenario) -> Vec<Self> {
-        let network = Arc::new(scenario.network);
-
         let mut partitions = Vec::new();
         for i in 0..scenario.config.partitioning().num_parts {
             let partition = Self::create_partition(
                 i,
                 &mut scenario.population,
-                network.clone(),
+                scenario.network.clone(),
                 // this not very nice, since this is a full clone.
                 // but for now we are very liberal about when, where and how often agents can access their vehicles.
                 // Also, we just have an `unpark` method, no counterpart for adding vehicles. paul, feb '26

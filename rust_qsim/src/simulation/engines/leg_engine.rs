@@ -67,6 +67,14 @@ impl<C: SimCommunicator> LegEngine<C> {
         }
     }
 
+    pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
+        self.network_engine
+            .drain()
+            .into_iter()
+            .chain(self.teleportation_engine.drain())
+            .collect()
+    }
+
     /// Performs a sim step for the leg engine. Note that vehicles that leave a link and move to another link are always processed one time step later.
     /// This is in line with the Java reference implementation. The reason is that the order is:
     ///

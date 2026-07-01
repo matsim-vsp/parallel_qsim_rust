@@ -28,7 +28,7 @@ where
     C: SimCommunicator,
 {
     #[tracing::instrument(level = "info", skip(self), fields(rank = self.leg_engine.net_message_broker().rank()))]
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Vec<SimulationAgent> {
         // use fixed start and end times
         let mut now = self.start_tick;
         let start_time = self.clock.tick_to_secs(self.start_tick);
@@ -73,6 +73,12 @@ where
 
         // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
         self.comp_env.events_manager_borrow_mut().finish();
+
+        self.activity_engine
+            .drain()
+            .into_iter()
+            .chain(self.leg_engine.drain())
+            .collect()
     }
 
     /// Performs a sim step for the activity engine and the leg engine.

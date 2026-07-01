@@ -75,7 +75,7 @@ mod tests {
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::{Coordinate, MutableScenario};
     use macros::integration_test;
-    use std::collections::HashMap;
+    use nohash_hasher::IntMap;
     use std::sync::Arc;
 
     #[integration_test]
@@ -89,7 +89,7 @@ mod tests {
 
     #[integration_test]
     fn prepare_for_sim_visits_population_without_moving_persons() {
-        let mut persons = HashMap::new();
+        let mut persons = IntMap::default();
         persons.insert(Id::create("person-1"), person("person-1", "link-1"));
         persons.insert(Id::create("person-2"), person("person-2", "link-2"));
         let mut scenario = scenario_with_population(Population { persons });
@@ -113,7 +113,7 @@ mod tests {
 
     fn scenario_with_population(population: Population) -> MutableScenario {
         MutableScenario {
-            network: Network::new(),
+            network: Arc::new(Network::new()),
             garage: Garage::default(),
             population,
             config: Arc::new(Config::default()),

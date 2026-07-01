@@ -213,6 +213,10 @@ impl SimulationAgentLogic for PlanBasedSimulationLogic {
     fn wakeup_time(&self, _: SimTime) -> SimTime {
         self.activity_end_time.unwrap()
     }
+
+    fn into_person(self: Box<Self>) -> Option<InternalPerson> {
+        Some(self.basic_agent_delegate)
+    }
 }
 
 impl EndTime for PlanBasedSimulationLogic {
@@ -289,6 +293,10 @@ impl SimulationAgentLogic for AdaptivePlanBasedSimulationLogic {
         }
 
         end
+    }
+
+    fn into_person(self: Box<Self>) -> Option<InternalPerson> {
+        Box::new(self.delegate).into_person()
     }
 }
 

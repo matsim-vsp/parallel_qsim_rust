@@ -12,8 +12,8 @@ use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use itertools::{EitherOrBoth, Itertools};
+use nohash_hasher::IntMap;
 use serde_json::{Error, Value};
-use std::collections::HashMap;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
@@ -59,13 +59,13 @@ pub fn to_file(population: &Population, path: &Path) {
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Population {
-    pub persons: HashMap<Id<InternalPerson>, InternalPerson>,
+    pub persons: IntMap<Id<InternalPerson>, InternalPerson>,
 }
 
 impl Population {
     pub fn new() -> Self {
         Population {
-            persons: HashMap::default(),
+            persons: Default::default(),
         }
     }
 
@@ -93,8 +93,16 @@ impl Population {
         })
     }
 
+    pub fn from_persons(persons: Vec<InternalPerson>) -> Self {
+        let persons = persons
+            .into_iter()
+            .map(|p| (p.id().clone(), p))
+            .collect::<IntMap<_, _>>();
+        Population { persons }
+    }
+
     pub fn take_from_filter(&mut self, filter: impl Fn(&InternalPerson) -> bool) -> Self {
-        let mut persons = HashMap::new();
+        let mut persons = IntMap::default();
         let to_move: Vec<_> = self
             .persons
             .iter()

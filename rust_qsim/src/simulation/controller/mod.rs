@@ -2,6 +2,7 @@
 pub mod controller;
 
 use crate::external_services::{AdapterHandle, ExternalServiceType, RequestToAdapter};
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, WriteEvents};
 use crate::simulation::events::{EventHandlerRegisterFn, EventsManager};
 use crate::simulation::framework_events::{
@@ -161,7 +162,9 @@ pub struct PartitionArguments<C: SimCommunicator> {
     global_barrier: Arc<Barrier>,
 }
 
-fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments<C>) {
+fn execute_partition<C: SimCommunicator>(
+    partition_arguments: PartitionArguments<C>,
+) -> Vec<SimulationAgent> {
     let partition = partition_arguments.scenario_partition;
 
     let config = &partition.config;
@@ -226,16 +229,14 @@ fn execute_partition<C: SimCommunicator>(partition_arguments: PartitionArguments
         "Process #{rank} (0-indexed) of {size} processes has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier."
     );
     partition_arguments.global_barrier.wait();
-    simulation.run();
+    let result = simulation.run();
 
     // Drop guards here to make sure that the logging is flushed before we exit.
     // This is important for integration tests when the same test thread executes multiple simulations
     // one after another and consequently initializes logging for each test case.
     drop(_guards);
 
-    // TODO
-    // At some point, we want to return the population here such that the controller gets ownership back
-    // when the simulation is over.
+    result
 }
 
 fn create_events(
@@ -271,7 +272,12 @@ fn create_events(
 }
 
 /// Joins all simulation threads and then shuts down all adapter threads.
-fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandle>) {
+fn try_join(
+    mut handles: IntMap<u32, JoinHandle<Vec<SimulationAgent>>>,
+    adapters: Vec<AdapterHandle>,
+) -> Vec<SimulationAgent> {
+    let mut result = Vec::new();
+
     while !handles.is_empty() {
         sleep(Duration::from_secs(1)); // test for finished threads once a second
         let mut finished = Vec::new();
@@ -287,9 +293,10 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandl
                 .name()
                 .unwrap_or("unnamed_thread")
                 .to_string();
-            handle
+            let vec = handle
                 .join()
                 .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
+            result.extend(vec);
         }
     }
 
@@ -306,6 +313,8 @@ fn try_join(mut handles: IntMap<u32, JoinHandle<()>>, adapters: Vec<AdapterHandl
             .join()
             .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
     }
+
+    result
 }
 
 pub fn get_numbered_output_filename(

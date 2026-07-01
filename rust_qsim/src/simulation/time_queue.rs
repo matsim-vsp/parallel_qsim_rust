@@ -104,6 +104,10 @@ where
         result
     }
 
+    pub fn drain(&mut self) -> Vec<T> {
+        self.q.drain().map(|entry| entry.value).collect()
+    }
+
     #[cfg(test)]
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
