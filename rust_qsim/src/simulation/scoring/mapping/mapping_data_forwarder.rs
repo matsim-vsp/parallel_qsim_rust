@@ -41,7 +41,6 @@ impl MappingDataForwarder {
     }
 
     pub(crate) fn add_arriving_plan(&mut self, person_id: Id<InternalPerson>, arriving_plan: InternalPlan){
-        println!("Arriving Plan!");
         self.person_id2internal_person.insert(person_id.clone(), InternalPerson::new(person_id, arriving_plan));
     }
 

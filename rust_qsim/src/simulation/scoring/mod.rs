@@ -139,14 +139,16 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
     let mut collectors = Vec::new();
     if config.scoring().plans_collection_type == ScoringPlansCollectionType::Mapping {
         for i in 0..num_collectors {
-            // Prepare home_partition2person_id map needed for Mapping
-            let mut partition_id2person_id: HashMap<QSimId, Vec<Id<InternalPerson>>> = HashMap::new();
+            // Prepare person_id2home_partition map needed for Homesending
+            let mut person_id2home_partition: HashMap<Id<InternalPerson>, QSimId> = HashMap::new();
             for (i, partition) in partitions.iter().enumerate() {
                 let partition = partition.as_ref().unwrap();
 
-                partition_id2person_id.insert(i as QSimId, partition.population.persons.keys().cloned().collect());
+                for person in partition.population.persons.keys() {
+                    person_id2home_partition.insert(person.clone(), i as QSimId);
+                }
             }
-
+            
             let (sender, receiver) = channel();
 
             collectors.push(MappingScoringEngine::new(
@@ -154,7 +156,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                 person_hash(num_collectors),
                 num_parts as usize,
                 num_collectors as usize,
-                partition_id2person_id,
+                person_id2home_partition.clone(),
                 receiver,
                 vec![]
             ));

@@ -13,6 +13,7 @@ use crate::simulation::scoring::mapping::mapping_message_broker::{MappingCollect
 use crate::simulation::scoring::mapping::mapping_data_collector::MappingDataCollector;
 use crate::simulation::scoring::mapping::mapping_data_forwarder::MappingDataForwarder;
 
+// TODO Change name to MappingForwardingEngine
 /// Attached to the Mobsim threads listening for events and forwarding them to the scoring threads.
 pub struct MappingCollectorEngine {
     mapping_data_forwarder: Arc<Mutex<MappingDataForwarder>>,
@@ -61,6 +62,8 @@ impl ScoringEngine for MappingCollectorEngine {
     }
 
     fn finish(&self) {
+        self.mapping_message_broker.lock().unwrap().finish_send_recv();
+
         let population = self.mapping_data_forwarder.lock().unwrap().finish();
         let mut o = self.output_path.clone();
         o.push(format!("scoring/output_plans_{}.binpb", self.rank));
@@ -74,6 +77,7 @@ impl ScoringEngine for MappingCollectorEngine {
     }
 }
 
+// TODO Change name to MappingCollectorEngine
 /// Parallel thread set collecting the partial plans.
 pub struct MappingScoringEngine {
     mapping_data_collector: Arc<Mutex<MappingDataCollector>>,
@@ -87,12 +91,12 @@ impl MappingScoringEngine {
         person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
         num_partitions: usize,
         num_collectors: usize,
-        partition_id2person_id: HashMap<QSimId, Vec<Id<InternalPerson>>>,
+        person_id2home_partition: HashMap<Id<InternalPerson>, QSimId>,
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
     ) -> Self {
-        let mapping_message_broker = MappingScoringMessageBroker::new(receiver, senders, rank, num_partitions, num_collectors, partition_id2person_id);
-        let mapping_data_collector = MappingDataCollector::new(person_hash_function, num_partitions as u32, Arc::clone(&mapping_message_broker));
+        let mapping_message_broker = MappingScoringMessageBroker::new(receiver, senders, rank, num_partitions, num_collectors, person_id2home_partition);
+        let mapping_data_collector = MappingDataCollector::new(person_hash_function, num_partitions as u32, num_collectors as u32, Arc::clone(&mapping_message_broker));
         MappingScoringMessageBroker::init(&mapping_message_broker, Arc::downgrade(&mapping_data_collector));
 
         Self {

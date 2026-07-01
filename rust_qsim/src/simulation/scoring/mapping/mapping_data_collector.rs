@@ -13,21 +13,23 @@ use crate::simulation::scoring::partial_plans::PartialPlan;
 pub struct MappingDataCollector {
     person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
     num_partitions: u32,
+    num_collectors: u32,
 
     person_id2heap: HashMap<Id<InternalPerson>, BinaryHeap<HeapEntry>>,
     person_id2partial_plan: HashMap<Id<InternalPerson>, PartialPlan>,
     vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
     watermark: u32,
-    watermark_buffer: HashMap<u32, HashSet<QSimId>>,
+    watermark_buffer: HashMap<u32, HashSet<(QSimId, QSimId)>>,
 
     message_broker: Arc<Mutex<MappingScoringMessageBroker>>
 }
 
 impl MappingDataCollector {
-    pub fn new(person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>, num_partitions: u32, message_broker: Arc<Mutex<MappingScoringMessageBroker>>) -> Arc<Mutex<Self>> {
+    pub fn new(person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>, num_partitions: u32, num_collectors: u32, message_broker: Arc<Mutex<MappingScoringMessageBroker>>) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             person_hash_function,
             num_partitions,
+            num_collectors,
             person_id2heap: HashMap::new(),
             person_id2partial_plan: HashMap::new(),
             vehicle_id2person_ids: HashMap::new(),
@@ -36,10 +38,10 @@ impl MappingDataCollector {
             message_broker }))
     }
 
-    pub(crate) fn add_arriving_watermark(&mut self, from_process: QSimId, time: u32, counter: u32) {
-        self.watermark_buffer.entry(time).or_insert(HashSet::new()).insert(from_process);
+    pub(crate) fn add_arriving_watermark(&mut self, origin: QSimId, collector: QSimId, time: u32) {
+        self.watermark_buffer.entry(time).or_insert(HashSet::new()).insert((origin, collector));
 
-        if self.watermark_buffer.get(&time).unwrap().len() == self.num_partitions as usize {
+        if self.watermark_buffer.get(&time).unwrap().len() == (self.num_partitions*self.num_collectors) as usize {
             if self.watermark > time {
                 panic!("Broken assertion: Tried to decrease watermark from {} to {} ", self.watermark, time);
             }
@@ -62,7 +64,7 @@ impl MappingDataCollector {
     pub(crate) fn add_arriving_person_events(&mut self, mut arriving_events: HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>) {
         for (person_id, mut arriving_events) in arriving_events {
             for (arriving_event, c) in arriving_events {
-                self.person_id2heap.entry(person_id.clone()).or_insert_with(BinaryHeap::new).push(HeapEntry(Reverse(arriving_event.time()), c, arriving_event));
+                self.person_id2heap.entry(person_id.clone()).or_insert_with(BinaryHeap::new).push(HeapEntry(Reverse(arriving_event.time()), Reverse(c), arriving_event));
 
 
                 // self.person_id2partial_plan.entry(person_id.clone()).or_default().handle_event(&*arriving_event);
@@ -109,12 +111,12 @@ impl MappingDataCollector {
         buffer_events
     }
 
-    pub(crate) fn remove_person_plan(&mut self, person_id: Id<InternalPerson>) -> InternalPlan {
-        self.person_id2partial_plan.remove(&person_id).unwrap().finish()
+    pub(crate) fn take_person_plans(&mut self) -> HashMap<Id<InternalPerson>, PartialPlan> {
+        std::mem::take(&mut self.person_id2partial_plan)
     }
 }
 
-struct HeapEntry(Reverse<u32>, u32, Box<dyn EventTrait>);
+struct HeapEntry(Reverse<u32>, Reverse<u32>, Box<dyn EventTrait>);
 
 impl Ord for HeapEntry {
     fn cmp(&self, other: &Self) -> Ordering {
