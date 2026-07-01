@@ -7,7 +7,6 @@ use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::mapping::mapping_message_broker::MappingScoringMessageBroker;
 use crate::simulation::scoring::partial_plans::PartialPlan;
 
@@ -51,7 +50,7 @@ impl MappingDataCollector {
             for (person_id, heap) in self.person_id2heap.iter_mut() {
                 while let Some(entry) = heap.peek() {
                     if entry.0.0 <= self.watermark {
-                        self.person_id2partial_plan.get_mut(person_id).unwrap().handle_event(&*heap.pop().unwrap().2);
+                        self.person_id2partial_plan.entry(person_id.clone()).or_default().handle_event(&*heap.pop().unwrap().2);
                     } else {
                         break;
                     }

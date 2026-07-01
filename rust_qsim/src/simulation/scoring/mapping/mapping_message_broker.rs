@@ -96,8 +96,12 @@ impl MappingCollectorMessageBroker {
                 let msg = InternalScoringMessage {
                     from_process: self.rank,
                     to_process: target as QSimId,
-                    message: Box::new(WatermarkMessage { hop: 1, time: time, counter: self.counter }),
+                    message: Box::new(WatermarkMessage { hop: 1, time, counter: self.counter }),
                 };
+
+                self.senders[target].send(msg).unwrap_or_else(|e| {
+                    panic!("Error sending PersonEventMessage to rank {} with error {}", target, e)
+                });
             }
         }
     }
@@ -173,7 +177,6 @@ impl MappingScoringMessageBroker {
         let mut finished = HashSet::new();
         loop {
             let received_msg = self.receiver.recv().expect("Error receiving message");
-            self.send();
 
             if let Some(partition) = self.recv(received_msg) {
                 finished.insert(partition);
@@ -181,6 +184,8 @@ impl MappingScoringMessageBroker {
             if finished.len() == self.num_partitions {
                 break;
             }
+
+            self.send();
         }
 
         self.finish_send();
@@ -242,6 +247,18 @@ impl MappingScoringMessageBroker {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(PersonEventMessage { events }),
+            };
+
+            self.senders[target as usize].send(msg).unwrap_or_else(|e| {
+                panic!("Error sending VehicleMessage to rank {} with error {}", target, e)
+            });
+        }
+
+        for (target, (origin, time, counter)) in self.buffer_watermarks.drain() {
+            let msg = InternalScoringMessage {
+                from_process: origin,
+                to_process: target,
+                message: Box::new(WatermarkMessage { hop: 2, time, counter }),
             };
 
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
