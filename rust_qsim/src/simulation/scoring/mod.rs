@@ -17,8 +17,8 @@ use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
 use crate::simulation::scoring::homesending::homesending_scoring_engine::HomesendingScoringEngine;
+use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingForwardingEngine;
 use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingCollectorEngine;
-use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingScoringEngine;
 use crate::simulation::scoring::mapping::{person_hash, vehicle_hash};
 
 pub mod backpacking;
@@ -98,7 +98,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                 io::resolve_path(config.context(), &config.output().output_dir)
             )),
             ScoringPlansCollectionType::Mapping => {
-                Box::new(MappingCollectorEngine::new(
+                Box::new(MappingForwardingEngine::new(
                     rank,
                     person_hash(num_collectors),
                     vehicle_hash(num_collectors),
@@ -148,10 +148,10 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                     person_id2home_partition.insert(person.clone(), i as QSimId);
                 }
             }
-            
+
             let (sender, receiver) = channel();
 
-            collectors.push(MappingScoringEngine::new(
+            collectors.push(MappingCollectorEngine::new(
                 i + num_parts,
                 person_hash(num_collectors),
                 num_parts as usize,

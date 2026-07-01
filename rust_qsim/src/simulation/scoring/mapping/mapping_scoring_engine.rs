@@ -13,9 +13,8 @@ use crate::simulation::scoring::mapping::mapping_message_broker::{MappingCollect
 use crate::simulation::scoring::mapping::mapping_data_collector::MappingDataCollector;
 use crate::simulation::scoring::mapping::mapping_data_forwarder::MappingDataForwarder;
 
-// TODO Change name to MappingForwardingEngine
 /// Attached to the Mobsim threads listening for events and forwarding them to the scoring threads.
-pub struct MappingCollectorEngine {
+pub struct MappingForwardingEngine {
     mapping_data_forwarder: Arc<Mutex<MappingDataForwarder>>,
     mapping_message_broker: Arc<Mutex<MappingCollectorMessageBroker>>,
     rank: QSimId,
@@ -23,7 +22,7 @@ pub struct MappingCollectorEngine {
     output_path: PathBuf
 }
 
-impl MappingCollectorEngine {
+impl MappingForwardingEngine {
     pub(crate) fn new(
         rank: QSimId,
         person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
@@ -48,7 +47,7 @@ impl MappingCollectorEngine {
     }
 }
 
-impl ScoringEngine for MappingCollectorEngine {
+impl ScoringEngine for MappingForwardingEngine {
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
         self.mapping_message_broker.lock().unwrap().attach_senders(senders);
     }
@@ -77,15 +76,14 @@ impl ScoringEngine for MappingCollectorEngine {
     }
 }
 
-// TODO Change name to MappingCollectorEngine
 /// Parallel thread set collecting the partial plans.
-pub struct MappingScoringEngine {
+pub struct MappingCollectorEngine {
     mapping_data_collector: Arc<Mutex<MappingDataCollector>>,
     mapping_message_broker: Arc<Mutex<MappingScoringMessageBroker>>,
     rank: QSimId,
 }
 
-impl MappingScoringEngine {
+impl MappingCollectorEngine {
     pub(crate) fn new(
         rank: QSimId,
         person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
