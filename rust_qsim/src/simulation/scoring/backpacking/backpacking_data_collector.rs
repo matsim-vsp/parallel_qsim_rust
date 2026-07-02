@@ -4,7 +4,9 @@ use crate::simulation::events::{
     PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
     VehicleLeavesTrafficEvent,
 };
-use crate::simulation::framework_events::QSimId;
+use crate::simulation::framework_events::{
+    PartitionEvent, PartitionEventsManager, PartitionListenerRegisterFn, QSimId, RuntimeEvent,
+};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -61,7 +63,7 @@ impl BackpackingDataCollector {
         self.person_id2backpack.extend(arriving_backpack);
     }
 
-    pub(crate) fn remove_leaving_vehicles(
+    fn remove_leaving_vehicles(
         &mut self,
         vehicle_id: &Id<InternalVehicle>,
     ) -> HashSet<Id<InternalPerson>> {
@@ -74,7 +76,7 @@ impl BackpackingDataCollector {
             })
     }
 
-    pub(crate) fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
+    fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
         self.person_id2backpack
             .remove(person_id)
             .unwrap_or_else(|| {
@@ -162,6 +164,54 @@ impl BackpackingDataCollector {
                 let mut bdc = data_collector3.lock().unwrap();
                 // println!("Partition #{}: Left vehicle {}", bdc.rank, e.vehicle);
                 bdc.vehicle_id2person_ids.remove(&e.vehicle);
+            });
+        })
+    }
+
+    pub(crate) fn register_partition_fn(
+        data_collector: Arc<Mutex<BackpackingDataCollector>>,
+    ) -> Box<PartitionListenerRegisterFn> {
+        Box::new(move |events: &mut PartitionEventsManager| {
+            let data_collector1 = Arc::clone(&data_collector);
+            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
+                PartitionEvent::VehicleLeavesPartition(i) => {
+                    let mut bdc = data_collector1.lock().unwrap();
+
+                    let leaving_vehicle = bdc.remove_leaving_vehicles(&i.vehicle_id);
+                    bdc.message_broker.lock().unwrap().add_leaving_vehicle(
+                        i.to.clone(),
+                        i.vehicle_id.clone(),
+                        leaving_vehicle,
+                    );
+                }
+                PartitionEvent::AgentLeavesPartition(i) => {
+                    let mut bdc = data_collector1.lock().unwrap();
+
+                    let leaving_backpack = bdc.remove_leaving_backpack(&i.agent_id);
+                    bdc.message_broker.lock().unwrap().add_leaving_backpack(
+                        i.to.clone(),
+                        i.agent_id.clone(),
+                        leaving_backpack,
+                    );
+                }
+                PartitionEvent::AgentEntersPartition(i) => {
+                    data_collector1
+                        .lock()
+                        .unwrap()
+                        .message_broker
+                        .lock()
+                        .unwrap()
+                        .wait_for_backpack(i.agent_id.clone());
+                }
+                PartitionEvent::VehicleEntersPartition(i) => {
+                    data_collector1
+                        .lock()
+                        .unwrap()
+                        .message_broker
+                        .lock()
+                        .unwrap()
+                        .wait_for_vehicle(i.vehicle_id.clone());
+                }
             });
         })
     }

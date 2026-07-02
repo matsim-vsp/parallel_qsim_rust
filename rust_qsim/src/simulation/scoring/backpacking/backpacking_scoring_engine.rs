@@ -64,8 +64,8 @@ impl ScoringEngine for BackpackingScoringEngine {
     ) {
         (
             BackpackingDataCollector::register_event_fn(self.backpacking_data_collector.clone()),
-            BackpackingMessageBroker::register_partition_fn(
-                self.backpacking_message_broker.clone(),
+            BackpackingDataCollector::register_partition_fn(
+                self.backpacking_data_collector.clone(),
             ),
             BackpackingMessageBroker::register_mobsim_fn(self.backpacking_message_broker.clone()),
         )

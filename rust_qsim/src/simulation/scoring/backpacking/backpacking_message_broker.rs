@@ -71,60 +71,6 @@ impl BackpackingMessageBroker {
         })
     }
 
-    pub(crate) fn register_partition_fn(
-        scoring_broker: Arc<Mutex<BackpackingMessageBroker>>,
-    ) -> Box<PartitionListenerRegisterFn> {
-        Box::new(move |events: &mut PartitionEventsManager| {
-            let bmb = Arc::clone(&scoring_broker);
-            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
-                PartitionEvent::VehicleLeavesPartition(i) => {
-                    let leaving_vehicle = bmb
-                        .lock()
-                        .unwrap()
-                        .data_collector
-                        .upgrade()
-                        .unwrap()
-                        .lock()
-                        .unwrap()
-                        .remove_leaving_vehicles(&i.vehicle_id);
-                    bmb.lock().unwrap().add_leaving_vehicle(
-                        i.to.clone(),
-                        i.vehicle_id.clone(),
-                        leaving_vehicle,
-                    );
-                }
-                PartitionEvent::AgentLeavesPartition(i) => {
-                    let leaving_backpack = bmb
-                        .lock()
-                        .unwrap()
-                        .data_collector
-                        .upgrade()
-                        .unwrap()
-                        .lock()
-                        .unwrap()
-                        .remove_leaving_backpack(&i.agent_id);
-                    bmb.lock().unwrap().add_leaving_backpack(
-                        i.to.clone(),
-                        i.agent_id.clone(),
-                        leaving_backpack,
-                    );
-                }
-                PartitionEvent::AgentEntersPartition(i) => {
-                    bmb.lock()
-                        .unwrap()
-                        .wait_backpacks
-                        .insert(i.agent_id.clone());
-                }
-                PartitionEvent::VehicleEntersPartition(i) => {
-                    bmb.lock()
-                        .unwrap()
-                        .wait_vehicles
-                        .insert(i.vehicle_id.clone());
-                }
-            });
-        })
-    }
-
     pub(crate) fn add_leaving_backpack(
         &mut self,
         target: QSimId,
@@ -147,6 +93,14 @@ impl BackpackingMessageBroker {
             .entry(target)
             .or_insert_with(|| HashMap::new())
             .insert(vehicle_id, passengers);
+    }
+
+    pub(crate) fn wait_for_backpack(&mut self, person_id: Id<InternalPerson>) {
+        self.wait_backpacks.insert(person_id);
+    }
+
+    pub(crate) fn wait_for_vehicle(&mut self, vehicle_id: Id<InternalVehicle>) {
+        self.wait_vehicles.insert(vehicle_id);
     }
 
     pub(crate) fn send(&mut self) {
