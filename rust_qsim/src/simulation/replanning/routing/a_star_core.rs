@@ -1,4 +1,4 @@
-use crate::simulation::replanning::routing::a_star_router::{AStarHeuristic, ZeroHeuristic};
+use crate::simulation::replanning::routing::a_star::{AStarHeuristic, ZeroHeuristic};
 use crate::simulation::replanning::routing::graph::{
     GraphError, IndexableGraph, LinkIndex, NodeIndex,
 };
