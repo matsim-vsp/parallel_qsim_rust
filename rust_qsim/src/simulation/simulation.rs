@@ -7,7 +7,7 @@ use crate::simulation::framework_events::MobsimEvent;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
-use crate::simulation::scenario::ScenarioPartition;
+use crate::simulation::scenario::{MobsimInput, MobsimPartition};
 use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::vehicles::SimulationVehicle;
 use std::fmt::Debug;
@@ -75,6 +75,7 @@ where
             .drain()
             .into_iter()
             .chain(self.leg_engine.drain())
+            .chain(agents_changing_engine)
             .collect()
     }
 
@@ -108,7 +109,7 @@ impl<C: SimCommunicator + 'static> Debug for Simulation<C> {
 }
 
 pub struct SimulationBuilder<C: SimCommunicator> {
-    scenario: ScenarioPartition,
+    input: MobsimInput,
     net_message_broker: NetMessageBroker<C>,
     comp_env: ThreadLocalComputationalEnvironment,
     agent_source: DynAgentSource,
@@ -116,35 +117,51 @@ pub struct SimulationBuilder<C: SimCommunicator> {
 
 impl<C: SimCommunicator> SimulationBuilder<C> {
     pub fn new(
-        scenario: ScenarioPartition,
+        input: MobsimInput,
         net_message_broker: NetMessageBroker<C>,
         comp_env: ThreadLocalComputationalEnvironment,
         agent_source: DynAgentSource,
     ) -> Self {
         SimulationBuilder {
-            scenario,
+            input,
             net_message_broker,
             comp_env,
             agent_source,
         }
     }
 
-    pub fn build(mut self) -> Simulation<C> {
-        let clock = SimClock::new(self.scenario.config.simulation().ticks_per_second);
-        let agents = self.agent_source.create_agents(&mut self.scenario);
+    pub fn build(self) -> Simulation<C> {
+        let clock = SimClock::new(
+            self.input
+                .partition
+                .scenario
+                .config
+                .simulation()
+                .ticks_per_second,
+        );
+
+        let agents = self
+            .agent_source
+            .create_agents(self.input.population, &self.input.partition);
+
+        let MobsimPartition {
+            scenario,
+            network_partition,
+            ..
+        } = self.input.partition;
 
         let activity_engine = ActivityEngineBuilder::new(
             agents.into_values().collect(),
-            &self.scenario.config,
+            &scenario.config,
             self.comp_env.clone(),
         )
         .build();
 
         let leg_engine = LegEngine::new(
-            self.scenario.network_partition,
-            self.scenario.garage,
+            network_partition,
+            scenario.garage.clone(),
             self.net_message_broker,
-            self.scenario.config.simulation(),
+            scenario.config.simulation(),
             self.comp_env.clone(),
         );
 
@@ -152,8 +169,8 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             activity_engine,
             leg_engine,
             comp_env: self.comp_env,
-            start_tick: clock.secs_to_tick(self.scenario.config.simulation().start_time as u64),
-            end_tick: clock.secs_to_tick(self.scenario.config.simulation().end_time as u64),
+            start_tick: clock.secs_to_tick(scenario.config.simulation().start_time as u64),
+            end_tick: clock.secs_to_tick(scenario.config.simulation().end_time as u64),
             clock,
         }
     }

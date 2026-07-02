@@ -12,11 +12,9 @@ use crate::simulation::framework_events::{
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
-use crate::simulation::scenario::MutableScenario;
-use crate::simulation::scenario::network::Network;
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
-use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::scenario::{ControllerScenario, Scenario};
 use crate::simulation::{id, io};
 use derive_more::Debug;
 use std::collections::HashMap;
@@ -26,17 +24,9 @@ use std::{fs, mem};
 use tracing::info;
 
 #[derive(Debug)]
-pub enum Scenario {
-    Partitioned,
-    Full(MutableScenario),
-}
-
-#[derive(Debug)]
 pub struct Controller {
-    scenario: Scenario,
+    scenario: ControllerScenario,
     config: Arc<Config>,
-    network: Arc<Network>,
-    garage: Garage, //TODO check if this really needs to be hold as field
     #[debug(skip)]
     agent_source: DynAgentSource,
     controller_events_manager: ControllerEventsManager,
@@ -52,7 +42,7 @@ pub struct Controller {
 }
 
 pub struct ControllerBuilder {
-    scenario: MutableScenario,
+    scenario: Scenario,
     agent_source: DynAgentSource,
     controller_event_register_fn: Vec<Box<ControllerListenerRegisterFn>>,
     event_handler_register_fn: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
@@ -64,7 +54,7 @@ pub struct ControllerBuilder {
 }
 
 impl ControllerBuilder {
-    pub fn default_with_scenario(scenario: MutableScenario) -> Self {
+    pub fn default_with_scenario(scenario: Scenario) -> Self {
         ControllerBuilder {
             scenario,
             agent_source: Arc::new(PopulationAgentSource),
@@ -92,15 +82,12 @@ impl ControllerBuilder {
             register_fn(&mut controller_event_manager);
         }
 
-        let config = self.scenario.config.clone();
-        let network = self.scenario.network.clone();
-        let garage = self.scenario.garage.clone();
+        let scenario: ControllerScenario = self.scenario.into();
+        let config = scenario.core.config.clone();
 
         Ok(Controller {
-            scenario: Scenario::Full(self.scenario),
+            scenario,
             config,
-            network,
-            garage,
             agent_source: self.agent_source,
             controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_register_fn,
@@ -231,12 +218,7 @@ impl Controller {
             self.run_replanning_phase(iteration, replanning_pool, population)
         };
 
-        self.scenario = Scenario::Full(MutableScenario {
-            network: self.network.clone(),
-            garage: self.garage.clone(), //TODO this seems to be costly
-            population,
-            config: self.config.clone(),
-        });
+        self.scenario.replace_population(population);
 
         self.controller_events_manager
             .process_event(ControllerEvent::iteration_ends(is_last_iteration));
@@ -255,17 +237,9 @@ impl Controller {
         self.controller_events_manager
             .process_event(ControllerEvent::before_mobsim(is_last_iteration));
 
-        let mut scenario = self.take_full_scenario();
-        prepare_for_sim(&mut scenario).unwrap_or_else(|err| panic!("{err}"));
-
-        let num_parts = self.config.partitioning().num_parts;
-
-        // Replanning currently preserves the first activity location, so the start link remains
-        // the stable source of truth for assigning persons to MobSim partitions.
-        let populations = scenario
-            .population
-            .split_by_start_link_partition(&scenario.network, num_parts);
-        let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, populations);
+        prepare_for_sim(&mut self.scenario).unwrap_or_else(|err| panic!("{err}"));
+        let inputs = self.scenario.split_for_mobsim();
+        let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, inputs);
 
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(is_last_iteration));
@@ -301,23 +275,9 @@ impl Controller {
         replanning_pool.replan(population)
     }
 
-    fn take_full_scenario(&mut self) -> MutableScenario {
-        let scenario = mem::replace(&mut self.scenario, Scenario::Partitioned);
-        match scenario {
-            Scenario::Partitioned => {
-                panic!(
-                    "Wanted to run a phase that needs a full scenario, but the scenario is partitioned."
-                )
-            }
-            Scenario::Full(scenario) => scenario,
-        }
-    }
-
     fn start_mobsim_workers(&mut self) -> MobsimWorkerPool {
         let args = MobsimWorkerPoolArgumentsBuilder::default()
-            .config(self.config.clone())
-            .network(self.network.clone())
-            .garage(self.garage.clone())
+            .scenario_core(self.scenario.core.clone())
             .agent_source(self.agent_source.clone())
             .external_services(self.external_services.clone())
             .event_handler_per_partition(mem::take(&mut self.event_handler_per_partition))
@@ -358,27 +318,14 @@ impl Controller {
         let net_out_path =
             create_output_filename(&output_path, &PathBuf::from("output_network.xml.gz"));
 
-        match &self.scenario {
-            Scenario::Partitioned => {
-                panic!(
-                    "Tried to write network to file, but mod is partitioned. This shouldn't happen."
-                )
-            }
-            Scenario::Full(s) => {
-                s.network.to_file(&net_out_path);
-            }
-        }
+        self.scenario.core.network.to_file(&net_out_path);
     }
 
     fn write_output_population(&mut self, output_path: impl AsRef<Path>) {
         let pop_out_path =
             create_output_filename(&output_path, &PathBuf::from("output_population.xml.gz"));
 
-        if let Scenario::Full(mut_scen) = &self.scenario {
-            mut_scen.population.to_file(&pop_out_path);
-        } else {
-            panic!("Cannot write output population because it is split among the threads.");
-        }
+        self.scenario.population.to_file(&pop_out_path);
     }
 
     fn write_output_id_store(output_path: impl AsRef<Path>) {

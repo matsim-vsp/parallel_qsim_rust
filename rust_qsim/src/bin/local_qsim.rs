@@ -2,7 +2,7 @@ use clap::Parser;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
-use rust_qsim::simulation::scenario::MutableScenario;
+use rust_qsim::simulation::scenario::Scenario;
 use std::sync::Arc;
 use tracing::info;
 
@@ -16,7 +16,7 @@ fn main() {
     let config = Arc::new(Config::from_args(args));
 
     // Load and adapt mod
-    let scenario = MutableScenario::load(config);
+    let scenario = Scenario::load(config);
 
     // Create and run simulation
     let controller = ControllerBuilder::default_with_scenario(scenario)

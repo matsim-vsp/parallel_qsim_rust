@@ -14,10 +14,8 @@ use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
-use crate::simulation::scenario::ScenarioPartition;
-use crate::simulation::scenario::network::Network;
 use crate::simulation::scenario::population::Population;
-use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::scenario::{MobsimInput, ScenarioCore};
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
 use crate::simulation::{io, logging};
 use derive_builder::Builder;
@@ -181,15 +179,13 @@ pub(crate) struct MobsimWorkerResult {
 pub(crate) struct MobsimWorkerRun {
     iteration: u32,
     is_last_iteration: bool,
-    population: Population,
+    input: MobsimInput,
 }
 
 #[derive(Builder)]
 #[builder(pattern = "owned")]
 pub(crate) struct MobsimWorkerPoolArguments {
-    config: Arc<Config>,
-    network: Arc<Network>,
-    garage: Garage,
+    scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
     #[builder(default)]
     external_services: ExternalServices,
@@ -207,9 +203,7 @@ pub(crate) struct MobsimWorkerPoolArguments {
 struct MobsimWorkerArguments {
     rank: u32,
     communicator: ChannelSimCommunicator,
-    network: Arc<Network>,
-    garage: Garage,
-    config: Arc<Config>,
+    scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
     #[builder(default)]
     external_services: ExternalServices,
@@ -225,9 +219,7 @@ struct MobsimWorkerArguments {
 struct MobsimWorker {
     rank: u32,
     communicator: Rc<ChannelSimCommunicator>,
-    network: Arc<Network>,
-    garage: Garage,
-    config: Arc<Config>,
+    scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
     comp_env: ThreadLocalComputationalEnvironment,
     global_barrier: Arc<Barrier>,
@@ -236,7 +228,7 @@ struct MobsimWorker {
 
 impl MobsimWorkerPool {
     pub(crate) fn spawn(mut args: MobsimWorkerPoolArguments) -> Self {
-        let num_parts = args.config.partitioning().num_parts;
+        let num_parts = args.scenario_core.config.partitioning().num_parts;
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
         let (result_sender, result_receiver) = mpsc::channel();
         let mut command_senders = IntMap::default();
@@ -251,9 +243,7 @@ impl MobsimWorkerPool {
             let worker_args = MobsimWorkerArgumentsBuilder::default()
                 .rank(rank)
                 .communicator(comm)
-                .network(args.network.clone())
-                .garage(args.garage.clone())
-                .config(args.config.clone())
+                .scenario_core(args.scenario_core.clone())
                 .agent_source(args.agent_source.clone())
                 .external_services(args.external_services.clone())
                 .event_handler(
@@ -298,23 +288,24 @@ impl MobsimWorkerPool {
         &mut self,
         iteration: u32,
         is_last_iteration: bool,
-        populations: Vec<Population>,
+        inputs: Vec<MobsimInput>,
     ) -> Vec<SimulationAgent> {
         assert_eq!(
-            populations.len(),
+            inputs.len(),
             self.num_parts as usize,
-            "Expected one population shard per mobsim worker."
+            "Expected one mobsim input per mobsim worker."
         );
 
         // send commands to worker threads
-        for (rank, population) in populations.into_iter().enumerate() {
+        for input in inputs {
+            let rank = input.partition.rank;
             self.command_senders
-                .get(&(rank as u32))
+                .get(&rank)
                 .unwrap_or_else(|| panic!("No mobsim worker command sender for rank {rank}."))
                 .send(MobsimWorkerCommand::RunMobsim(MobsimWorkerRun {
                     iteration,
                     is_last_iteration,
-                    population,
+                    input,
                 }))
                 .unwrap_or_else(|err| {
                     panic!("Failed to send mobsim command to rank {rank}: {err}")
@@ -368,7 +359,7 @@ fn run_mobsim_worker(
     result_sender: StdSender<MobsimWorkerResult>,
 ) {
     let mut worker = MobsimWorker::new(args);
-    let _guards = logging::init_logging(&worker.config, worker.rank);
+    let _guards = logging::init_logging(&worker.scenario_core.config, worker.rank);
 
     worker.run_loop(command_receiver, result_sender);
 
@@ -380,9 +371,7 @@ impl MobsimWorker {
         let MobsimWorkerArguments {
             rank,
             communicator,
-            network,
-            garage,
-            config,
+            scenario_core,
             agent_source,
             external_services,
             mut event_handler,
@@ -391,7 +380,7 @@ impl MobsimWorker {
             global_barrier,
         } = args;
 
-        let events = create_events(&config, rank, mem::take(&mut event_handler));
+        let events = create_events(&scenario_core.config, rank, mem::take(&mut event_handler));
         let mobsim_events = Rc::new(RefCell::new(MobsimEventsManager::for_partition(rank, 0)));
         let partition_events =
             Rc::new(RefCell::new(PartitionEventsManager::for_partition(rank, 0)));
@@ -421,9 +410,7 @@ impl MobsimWorker {
         Self {
             rank,
             communicator: Rc::new(communicator),
-            network,
-            garage,
-            config,
+            scenario_core: scenario_core,
             agent_source,
             comp_env,
             global_barrier,
@@ -441,13 +428,13 @@ impl MobsimWorker {
                 MobsimWorkerCommand::RunMobsim(MobsimWorkerRun {
                     iteration,
                     is_last_iteration,
-                    population,
+                    input,
                 }) => {
                     info!(
                         "Mobsim worker #{} starting iteration {}. Last iteration: {}",
                         self.rank, iteration, is_last_iteration
                     );
-                    let agents = self.run_iteration(iteration, population);
+                    let agents = self.run_iteration(iteration, input);
                     result_sender
                         .send(MobsimWorkerResult {
                             rank: self.rank,
@@ -471,26 +458,28 @@ impl MobsimWorker {
         self.comp_env.finish_events();
     }
 
-    fn run_iteration(&mut self, iteration: u32, population: Population) -> Vec<SimulationAgent> {
+    fn run_iteration(&mut self, iteration: u32, input: MobsimInput) -> Vec<SimulationAgent> {
         self.comp_env.reset_iteration(iteration);
-
-        let partition = ScenarioPartition::for_run(
-            self.rank,
-            self.network.clone(),
-            self.garage.clone(),
-            self.config.clone(),
-            population,
+        assert_eq!(
+            input.partition.rank, self.rank,
+            "Mobsim worker rank {} received input for rank {}.",
+            self.rank, input.partition.rank
         );
 
         let net_message_broker = NetMessageBroker::new(
             self.communicator.clone(),
-            &partition.network,
-            &partition.network_partition,
-            partition.config.computational_setup().global_sync,
+            &input.partition.scenario.network,
+            &input.partition.network_partition,
+            input
+                .partition
+                .scenario
+                .config
+                .computational_setup()
+                .global_sync,
         );
 
         let mut simulation: Simulation<ChannelSimCommunicator> = SimulationBuilder::new(
-            partition,
+            input,
             net_message_broker,
             self.comp_env.clone(),
             self.agent_source.clone(),
@@ -498,7 +487,7 @@ impl MobsimWorker {
         .build();
 
         if !self.reached_initial_barrier {
-            let size = self.config.partitioning().num_parts;
+            let size = self.scenario_core.config.partitioning().num_parts;
             info!(
                 "Process #{} (0-indexed) of {} processes has arrived at initial barrier. Waiting for other processes and potential external services to reach global barrier.",
                 self.rank, size
@@ -627,10 +616,14 @@ mod tests {
     use super::{MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool};
     use crate::simulation::config::Config;
     use crate::simulation::id::Id;
+    use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::agent_source::PopulationAgentSource;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
     use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::{
+        MobsimInput, MobsimPartition, PopulationShard, ScenarioCore,
+    };
     use nohash_hasher::IntSet;
     use std::sync::{Arc, Barrier};
 
@@ -639,21 +632,24 @@ mod tests {
         let mut config = Config::default();
         config.simulation_mut().end_time = 0;
         let config = Arc::new(config);
+        let scenario_core = ScenarioCore {
+            network: Arc::new(Network::new()),
+            garage: Arc::new(Garage::default()),
+            config: config.clone(),
+        };
 
         let args = MobsimWorkerPoolArgumentsBuilder::default()
-            .config(config)
-            .network(Arc::new(Network::new()))
-            .garage(Garage::default())
+            .scenario_core(scenario_core.clone())
             .agent_source(Arc::new(PopulationAgentSource))
             .global_barrier(Arc::new(Barrier::new(1)))
             .build()
             .unwrap();
         let mut pool = MobsimWorkerPool::spawn(args);
 
-        let agents = pool.run_mobsim(0, false, vec![Population::new()]);
+        let agents = pool.run_mobsim(0, false, vec![empty_mobsim_input(&scenario_core)]);
         assert!(agents.is_empty());
 
-        let agents = pool.run_mobsim(1, true, vec![Population::new()]);
+        let agents = pool.run_mobsim(1, true, vec![empty_mobsim_input(&scenario_core)]);
         assert!(agents.is_empty());
 
         pool.shutdown();
@@ -679,5 +675,25 @@ mod tests {
 
     fn person(id: &str) -> InternalPerson {
         InternalPerson::new(Id::create(id), InternalPlan::default())
+    }
+
+    fn empty_mobsim_input(scenario: &ScenarioCore) -> MobsimInput {
+        let network_partition = SimNetworkPartition::from_network(
+            &scenario.network,
+            0,
+            scenario.config.simulation(),
+            scenario.config.computational_setup().random_seed,
+        );
+
+        MobsimInput {
+            partition: MobsimPartition {
+                rank: 0,
+                scenario: scenario.clone(),
+                network_partition,
+            },
+            population: PopulationShard {
+                population: Population::new(),
+            },
+        }
     }
 }

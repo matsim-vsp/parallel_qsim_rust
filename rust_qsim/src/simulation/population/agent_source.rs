@@ -1,19 +1,17 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::id::Id;
-use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::{MobsimPartition, PopulationShard};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 // needs to be an Arc since agents are inserted on every partition.
 pub type DynAgentSource = Arc<dyn AgentSource + Send + Sync>;
+pub type AgentSet = HashMap<Id<InternalPerson>, SimulationAgent>;
 
 pub trait AgentSource {
-    fn create_agents(
-        &self,
-        scenario: &mut ScenarioPartition,
-    ) -> HashMap<Id<InternalPerson>, SimulationAgent>;
+    fn create_agents(&self, population: PopulationShard, partition: &MobsimPartition) -> AgentSet;
 }
 
 pub trait IntoDynAgentSource {
@@ -47,13 +45,8 @@ impl IntoDynAgentSource for DynAgentSource {
 pub struct PopulationAgentSource;
 
 impl AgentSource for PopulationAgentSource {
-    fn create_agents(
-        &self,
-        scenario: &mut ScenarioPartition,
-    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
-        // take Persons and copy them into queues. This way we can keep the population around to translate
-        // ids for events processing...
-        let persons = std::mem::take(&mut scenario.population.persons);
+    fn create_agents(&self, population: PopulationShard, _partition: &MobsimPartition) -> AgentSet {
+        let persons = population.population.persons;
         let mut agents = HashMap::with_capacity(persons.len());
 
         for (id, person) in persons {
@@ -66,17 +59,12 @@ impl AgentSource for PopulationAgentSource {
 pub struct PreplanningHorizonAgentSource;
 
 impl AgentSource for PreplanningHorizonAgentSource {
-    fn create_agents(
-        &self,
-        scenario: &mut ScenarioPartition,
-    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
-        // take Persons and copy them into queues. This way we can keep the population around to translate
-        // ids for events processing...
-        let persons = std::mem::take(&mut scenario.population.persons);
+    fn create_agents(&self, population: PopulationShard, partition: &MobsimPartition) -> AgentSet {
+        let persons = population.population.persons;
         let mut agents = HashMap::with_capacity(persons.len());
 
         for (id, person) in persons {
-            identify_logic_and_insert(&mut agents, id, person, &scenario.config);
+            identify_logic_and_insert(&mut agents, id, person, &partition.scenario.config);
         }
         agents
     }
@@ -117,11 +105,16 @@ fn identify_logic_and_insert(
 
 #[cfg(test)]
 mod tests {
-    use super::{AgentSource, DynAgentSource, IntoDynAgentSource};
-    use crate::simulation::agents::agent::SimulationAgent;
+    use super::{AgentSet, AgentSource, DynAgentSource, IntoDynAgentSource, PopulationAgentSource};
+    use crate::simulation::config::Config;
     use crate::simulation::id::Id;
-    use crate::simulation::scenario::ScenarioPartition;
-    use crate::simulation::scenario::population::InternalPerson;
+    use crate::simulation::network::sim_network::SimNetworkPartition;
+    use crate::simulation::scenario::network::{Link, Network};
+    use crate::simulation::scenario::population::{
+        InternalActivity, InternalPerson, InternalPlan, Population,
+    };
+    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::{Coordinate, MobsimPartition, PopulationShard, ScenarioCore};
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -130,8 +123,9 @@ mod tests {
     impl AgentSource for TestAgentSource {
         fn create_agents(
             &self,
-            _scenario: &mut ScenarioPartition,
-        ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
+            _population: PopulationShard,
+            _partition: &MobsimPartition,
+        ) -> AgentSet {
             HashMap::new()
         }
     }
@@ -159,5 +153,50 @@ mod tests {
 
         assert_eq!(Arc::strong_count(&source), 2);
         assert_eq!(Arc::strong_count(&dyn_source), 2);
+    }
+
+    #[test]
+    fn population_agent_source_consumes_owned_population_shard() {
+        let core = empty_partition_core();
+        let population = Population::from_persons(vec![person("person-1")]);
+        let shard = PopulationShard { population };
+
+        let agents = PopulationAgentSource.create_agents(shard, &core);
+
+        assert_eq!(1, agents.len());
+        assert!(agents.contains_key(&Id::get_from_ext("person-1")));
+    }
+
+    fn empty_partition_core() -> MobsimPartition {
+        let config = Arc::new(Config::default());
+        let network = Arc::new(Network::new());
+        let network_partition = SimNetworkPartition::from_network(
+            &network,
+            0,
+            config.simulation(),
+            config.computational_setup().random_seed,
+        );
+        MobsimPartition {
+            rank: 0,
+            scenario: ScenarioCore {
+                network,
+                garage: Arc::new(Garage::default()),
+                config,
+            },
+            network_partition,
+        }
+    }
+
+    fn person(id: &str) -> InternalPerson {
+        let mut plan = InternalPlan::default();
+        plan.add_act(InternalActivity::new(
+            Some(Coordinate::default()),
+            "home",
+            Id::<Link>::create("link"),
+            None,
+            None,
+            None,
+        ));
+        InternalPerson::new(Id::create(id), plan)
     }
 }
