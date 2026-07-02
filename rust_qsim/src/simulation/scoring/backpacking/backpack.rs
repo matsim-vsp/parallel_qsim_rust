@@ -1,4 +1,4 @@
-use crate::simulation::events::{EventTrait, LinkEnterEvent};
+use crate::simulation::events::EventTrait;
 use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
@@ -8,12 +8,12 @@ use crate::simulation::scoring::partial_plans::PartialPlan;
 /// The Backpack is not managed by the agent itself but by the [BackpackDataCollector], which exists
 /// once for each partition. If an agent leaves the current partition, the Backpack is transmitted
 /// to the partition the agent is currently entering.
-pub struct Backpack{
+pub struct Backpack {
     person_id: Id<InternalPerson>,
     events: Vec<Box<dyn EventTrait>>,
     backpack_plan: PartialPlan,
     #[allow(unused)]
-    starting_partition: QSimId
+    starting_partition: QSimId,
 }
 
 impl Backpack {
@@ -22,7 +22,7 @@ impl Backpack {
             person_id,
             events: Default::default(),
             backpack_plan: PartialPlan::default(),
-            starting_partition
+            starting_partition,
         }
     }
 
@@ -41,7 +41,7 @@ impl Backpack {
         None
     }
 
-    pub fn get_starting_partion(&self) -> QSimId{
+    pub fn get_starting_partion(&self) -> QSimId {
         self.starting_partition
     }
 

@@ -1,11 +1,13 @@
 use crate::simulation::events::EventTrait;
-use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent};
+use crate::simulation::framework_events::{
+    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent,
+};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpacking_message_broker::VehicleMessage;
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
-use crate::simulation::scoring::InternalScoringMessage;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex, Weak};
@@ -43,30 +45,51 @@ impl HomeSendingMessageBroker {
         self.senders.extend(senders);
     }
 
-    pub(crate) fn init(message_broker: &Arc<Mutex<Self>>, data_collector: Weak<Mutex<HomeSendingDataCollector>>) {
+    pub(crate) fn init(
+        message_broker: &Arc<Mutex<Self>>,
+        data_collector: Weak<Mutex<HomeSendingDataCollector>>,
+    ) {
         message_broker.lock().unwrap().data_collector = data_collector;
     }
 
-    pub(crate) fn register_fn(scoring_broker: Arc<Mutex<HomeSendingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
+    pub(crate) fn register_fn(
+        scoring_broker: Arc<Mutex<HomeSendingMessageBroker>>,
+    ) -> Box<MobsimListenerRegisterFn> {
         Box::new(move |events: &mut MobsimEventsManager| {
             let broker = Arc::clone(&scoring_broker);
-            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
-                match &e.payload {
-                    MobsimEvent::AfterSimStep(_) => {
-                        broker.lock().unwrap().send_recv();
-                    }
-                    _ => {}
+            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
+                MobsimEvent::AfterSimStep(_) => {
+                    broker.lock().unwrap().send_recv();
                 }
+                _ => {}
             });
         })
     }
 
-    pub(crate) fn add_leaving_vehicle(&mut self, target: QSimId, vehicle_id: Id<InternalVehicle>, passengers: HashSet<Id<InternalPerson>>) {
-        self.buffer_vehicles.entry(target).or_insert_with(HashMap::new).insert(vehicle_id, passengers);
+    pub(crate) fn add_leaving_vehicle(
+        &mut self,
+        target: QSimId,
+        vehicle_id: Id<InternalVehicle>,
+        passengers: HashSet<Id<InternalPerson>>,
+    ) {
+        self.buffer_vehicles
+            .entry(target)
+            .or_insert_with(HashMap::new)
+            .insert(vehicle_id, passengers);
     }
 
-    pub(crate) fn add_leaving_event(&mut self, target: QSimId, person_id: Id<InternalPerson>, event: Box<dyn EventTrait>) {
-        self.buffer_events.entry(target).or_insert_with(HashMap::new).entry(person_id).or_default().push(event);
+    pub(crate) fn add_leaving_event(
+        &mut self,
+        target: QSimId,
+        person_id: Id<InternalPerson>,
+        event: Box<dyn EventTrait>,
+    ) {
+        self.buffer_events
+            .entry(target)
+            .or_insert_with(HashMap::new)
+            .entry(person_id)
+            .or_default()
+            .push(event);
     }
 
     fn send(&mut self) {
@@ -77,7 +100,10 @@ impl HomeSendingMessageBroker {
                 message: Box::new(VehicleMessage { vehicles }),
             };
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
-                panic!("Error sending VehicleMessage to rank {} with error {}", target, e)
+                panic!(
+                    "Error sending VehicleMessage to rank {} with error {}",
+                    target, e
+                )
             });
         }
 
@@ -88,7 +114,10 @@ impl HomeSendingMessageBroker {
                 message: Box::new(EventMessage { events }),
             };
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
-                panic!("Error sending EventMessage to rank {} with error {}", target, e)
+                panic!(
+                    "Error sending EventMessage to rank {} with error {}",
+                    target, e
+                )
             });
         }
     }
@@ -98,11 +127,21 @@ impl HomeSendingMessageBroker {
         match () {
             _ if boxed_any.is::<VehicleMessage>() => {
                 let m = boxed_any.downcast::<VehicleMessage>().unwrap();
-                self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_vehicles(m.vehicles);
+                self.data_collector
+                    .upgrade()
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .add_arriving_vehicles(m.vehicles);
             }
             _ if boxed_any.is::<EventMessage>() => {
                 let m = boxed_any.downcast::<EventMessage>().unwrap();
-                self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_events(m.events);
+                self.data_collector
+                    .upgrade()
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .add_arriving_events(m.events);
             }
             _ => {
                 panic!("Received unexpected message type during simulation step!");
@@ -139,23 +178,39 @@ impl HomeSendingMessageBroker {
                 message: Box::new(FinishMessage {}),
             };
             self.senders[target].send(msg).unwrap_or_else(|e| {
-                panic!("Error sending FinishMessage to rank {} with error {}", target, e)
+                panic!(
+                    "Error sending FinishMessage to rank {} with error {}",
+                    target, e
+                )
             });
         }
 
         let mut finished: HashSet<QSimId> = HashSet::new();
         while finished.len() < self.num_partitions - 1 {
-            let msg = self.receiver.recv().expect("Scoring channel disconnected during finish_sync");
+            let msg = self
+                .receiver
+                .recv()
+                .expect("Scoring channel disconnected during finish_sync");
             let from = msg.from_process;
             let boxed_any = msg.message.into_any();
             match () {
                 _ if boxed_any.is::<VehicleMessage>() => {
                     let m = boxed_any.downcast::<VehicleMessage>().unwrap();
-                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_vehicles(m.vehicles);
+                    self.data_collector
+                        .upgrade()
+                        .unwrap()
+                        .lock()
+                        .unwrap()
+                        .add_arriving_vehicles(m.vehicles);
                 }
                 _ if boxed_any.is::<EventMessage>() => {
                     let m = boxed_any.downcast::<EventMessage>().unwrap();
-                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_events(m.events);
+                    self.data_collector
+                        .upgrade()
+                        .unwrap()
+                        .lock()
+                        .unwrap()
+                        .add_arriving_events(m.events);
                 }
                 _ if boxed_any.is::<FinishMessage>() => {
                     finished.insert(from);

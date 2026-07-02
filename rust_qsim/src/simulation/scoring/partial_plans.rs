@@ -1,9 +1,16 @@
-use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventTrait, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
+use crate::simulation::events::{
+    ActivityEndEvent, ActivityStartEvent, EventTrait, LinkEnterEvent, PersonArrivalEvent,
+    PersonDepartureEvent, PersonEntersVehicleEvent, TeleportationArrivalEvent,
+    VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
+};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
-use crate::simulation::scenario::population::{InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPlan, InternalPlanElement, InternalRoute};
 use crate::simulation::scenario::population::InternalPlanElement::{Activity, Leg};
+use crate::simulation::scenario::population::{
+    InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPlan,
+    InternalPlanElement, InternalRoute,
+};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 
 pub struct PartialPlan {
@@ -37,7 +44,8 @@ impl PartialPlan {
             panic!("Illegal state: Person arrives while having no active leg!");
         }
 
-        self.elements.push(Leg(self.current_leg.take().unwrap().finish()));
+        self.elements
+            .push(Leg(self.current_leg.take().unwrap().finish()));
     }
 
     fn handle_activity_start(&mut self) {
@@ -53,10 +61,11 @@ impl PartialPlan {
             panic!("Illegal state: Person ends activity while not doing an activity!");
         }
 
-        self.elements.push(Activity(self.current_activity.take().unwrap().finish()))
+        self.elements
+            .push(Activity(self.current_activity.take().unwrap().finish()))
     }
 
-    pub(crate) fn handle_event(&mut self, event: &dyn EventTrait){
+    pub(crate) fn handle_event(&mut self, event: &dyn EventTrait) {
         if let Some(_) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
             self.handle_person_departure();
         } else if let Some(_) = event.as_any().downcast_ref::<ActivityStartEvent>() {
@@ -68,7 +77,10 @@ impl PartialPlan {
         } else if self.current_activity.is_some() {
             self.current_activity.as_mut().unwrap().handle_event(event);
         } else {
-            panic!("Tried to handle an event with neither leg nor activity being initialized! Event type: {}", event.type_())
+            panic!(
+                "Tried to handle an event with neither leg nor activity being initialized! Event type: {}",
+                event.type_()
+            )
         }
 
         if let Some(_) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
@@ -81,18 +93,19 @@ impl PartialPlan {
     pub(crate) fn finish(mut self) -> InternalPlan {
         // Check if plan is completely empty, in this case return an empty default plan
         if self.elements.is_empty() {
-            return InternalPlan::default()
+            return InternalPlan::default();
         }
 
         // Resolve remaining act
         if !self.current_activity.is_none() {
             // Finish remaining current act
-            self.elements.push(Activity(self.current_activity.unwrap().finish()));
+            self.elements
+                .push(Activity(self.current_activity.unwrap().finish()));
         }
 
         InternalPlan {
             selected: true,
-            elements: self.elements
+            elements: self.elements,
         }
     }
 }
@@ -153,7 +166,7 @@ impl PartialActivity {
                 .unwrap_or_else(|| panic!("Tried to finish PartialActivity without link!")),
             self.start_time,
             self.end_time,
-            None
+            None,
         )
     }
 }
@@ -202,8 +215,7 @@ impl PartialLeg {
     /// Consuming function turning PartialLeg into an InternalLeg
     fn finish(self) -> InternalLeg {
         InternalLeg::new(
-            self.partial_route
-                .finish(),
+            self.partial_route.finish(),
             self.mode
                 .unwrap_or_else(|| panic!("Tried to finish PartialLeg without mode!"))
                 .external(),
@@ -212,10 +224,9 @@ impl PartialLeg {
                 .external(),
             self.trav_time
                 .unwrap_or_else(|| panic!("Tried to finish PartialLeg without trav_time!")),
-            self.dep_time
+            self.dep_time,
         )
     }
-
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -240,9 +251,8 @@ struct PartialRoute {
     relative_position_on_arrival_link: Option<f64>,
 
     // Network Route Type
-    route: Vec<Id<Link>>
-    // Currently, route sequence does not contain start or end-link id even though internally
-    // the QSim needs them in the sequence (aleks, May'26)
+    route: Vec<Id<Link>>, // Currently, route sequence does not contain start or end-link id even though internally
+                          // the QSim needs them in the sequence (aleks, May'26)
 }
 
 impl Default for PartialRoute {
@@ -329,35 +339,38 @@ impl PartialRoute {
         if self.route_type == Some(PartialRouteTypes::Network) && self.vehicle.is_none() {
             panic!("Tried to finish NetworkPartialRoute without vehicle!");
         }
-        if self.route_type == Some(PartialRouteTypes::Network) &&
-            self.route.is_empty() &&
-            (self.start_link != self.end_link) {
+        if self.route_type == Some(PartialRouteTypes::Network)
+            && self.route.is_empty()
+            && (self.start_link != self.end_link)
+        {
             // TODO This case seems to happen in simulations sometimes. Check with PH if this is intended.
             // panic!("Tried to finish PartialRoute of type Network with empty vector but differing start and end link!");
         }
 
         let route_delegate = InternalGenericRoute::new(
-            self.start_link.unwrap_or_else(|| panic!("Tried to finish PartialRoute without start_link!")),
-            self.end_link.unwrap_or_else(|| panic!("Tried to finish PartialRoute without end_link!")),
-            Some(self.end_time.unwrap_or_else(|| panic!("Tried to finish PartialRoute without end_time!")) -
-                self.start_time.unwrap_or_else(|| panic!("Tried to finish PartialRoute without start_time!"))),
+            self.start_link
+                .unwrap_or_else(|| panic!("Tried to finish PartialRoute without start_link!")),
+            self.end_link
+                .unwrap_or_else(|| panic!("Tried to finish PartialRoute without end_link!")),
+            Some(
+                self.end_time
+                    .unwrap_or_else(|| panic!("Tried to finish PartialRoute without end_time!"))
+                    - self.start_time.unwrap_or_else(|| {
+                        panic!("Tried to finish PartialRoute without start_time!")
+                    }),
+            ),
             self.distance,
-            self.vehicle
+            self.vehicle,
         );
 
         match self.route_type {
-            Some(PartialRouteTypes::Generic) => {
-                InternalRoute::Generic(route_delegate)
-            }
+            Some(PartialRouteTypes::Generic) => InternalRoute::Generic(route_delegate),
             Some(PartialRouteTypes::Network) => {
-                let route = InternalNetworkRoute::new(
-                    route_delegate,
-                    self.route,
-                );
+                let route = InternalNetworkRoute::new(route_delegate, self.route);
 
                 InternalRoute::Network(route)
             }
-            None => panic!("Tried to finish a PartialRoute which has no route type!")
+            None => panic!("Tried to finish a PartialRoute which has no route type!"),
         }
     }
 }

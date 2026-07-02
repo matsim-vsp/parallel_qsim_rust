@@ -1,4 +1,9 @@
-use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
+use crate::simulation::events::{
+    ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
+    LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent,
+    PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
+    VehicleLeavesTrafficEvent,
+};
 use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
@@ -20,49 +25,67 @@ impl BackpackingDataCollector {
     pub fn new(
         population: &Population,
         rank: QSimId,
-        message_broker: Arc<Mutex<BackpackingMessageBroker>>
-    ) -> Arc<Mutex<Self>>
-    {
+        message_broker: Arc<Mutex<BackpackingMessageBroker>>,
+    ) -> Arc<Mutex<Self>> {
         let data_collector = Arc::new(Mutex::new(Self {
             person_id2backpack: Default::default(),
             vehicle_id2person_ids: Default::default(),
             rank,
-            message_broker
+            message_broker,
         }));
-        data_collector.lock().unwrap().generate_backpacks_for_population(&population);
+        data_collector
+            .lock()
+            .unwrap()
+            .generate_backpacks_for_population(&population);
         data_collector
     }
 
-    fn generate_backpacks_for_population(&mut self, population: &Population){
-        for person in population.persons.keys(){
-            self.person_id2backpack.insert(person.clone(), Backpack::new(person.clone(), self.rank));
+    fn generate_backpacks_for_population(&mut self, population: &Population) {
+        for person in population.persons.keys() {
+            self.person_id2backpack
+                .insert(person.clone(), Backpack::new(person.clone(), self.rank));
         }
     }
 
-    pub(crate) fn add_arriving_vehicles(&mut self, arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>) {
+    pub(crate) fn add_arriving_vehicles(
+        &mut self,
+        arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+    ) {
         self.vehicle_id2person_ids.extend(arriving_vehicles);
     }
 
-    pub(crate) fn add_arriving_backpacks(&mut self, arriving_backpack: HashMap<Id<InternalPerson>, Backpack>) {
+    pub(crate) fn add_arriving_backpacks(
+        &mut self,
+        arriving_backpack: HashMap<Id<InternalPerson>, Backpack>,
+    ) {
         self.person_id2backpack.extend(arriving_backpack);
     }
 
-    pub(crate) fn remove_leaving_vehicles(&mut self, vehicle_id: &Id<InternalVehicle>) -> HashSet<Id<InternalPerson>> {
+    pub(crate) fn remove_leaving_vehicles(
+        &mut self,
+        vehicle_id: &Id<InternalVehicle>,
+    ) -> HashSet<Id<InternalPerson>> {
         // TODO Build a checker, so that it only allows missing entries for teleported modes
-        self.vehicle_id2person_ids.remove(vehicle_id).unwrap_or_else(|| {
-            // warn!("Partition #{}: Tried to remove vehicle {}, which has no entry!", self.rank, vehicle_id);
-            return HashSet::default()
-        })
+        self.vehicle_id2person_ids
+            .remove(vehicle_id)
+            .unwrap_or_else(|| {
+                // warn!("Partition #{}: Tried to remove vehicle {}, which has no entry!", self.rank, vehicle_id);
+                return HashSet::default();
+            })
     }
 
     pub(crate) fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
-        self.person_id2backpack.remove(person_id).unwrap_or_else(|| panic!("Tried to remove an agent, for which no backpack is available!"))
+        self.person_id2backpack
+            .remove(person_id)
+            .unwrap_or_else(|| {
+                panic!("Tried to remove an agent, for which no backpack is available!")
+            })
     }
 
     pub fn get_backpacks(&self) -> &HashMap<Id<InternalPerson>, Backpack> {
         &self.person_id2backpack
     }
-    
+
     pub fn get_vehicles(&self) -> &HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>> {
         &self.vehicle_id2person_ids
     }
@@ -70,7 +93,7 @@ impl BackpackingDataCollector {
     /// This method's main purpose is to forward relevant events to the backpacks affected by given event.
     /// Events which do not affect the Backpack of any person will be ignored.
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
-    fn handle_event(&mut self, event: &dyn EventTrait ) {
+    fn handle_event(&mut self, event: &dyn EventTrait) {
         let affected_persons = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
             self.vehicle_id2person_ids
                 .get(&e.vehicle)
@@ -112,7 +135,9 @@ impl BackpackingDataCollector {
         });
     }
 
-    pub(crate) fn register_event_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<EventHandlerRegisterFn> {
+    pub(crate) fn register_event_fn(
+        data_collector: Arc<Mutex<BackpackingDataCollector>>,
+    ) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             // General backpacking event forwarding
             let data_collector1 = Arc::clone(&data_collector);
@@ -141,7 +166,7 @@ impl BackpackingDataCollector {
         })
     }
 
-    pub(crate) fn prepare_send_to_home(&mut self){
+    pub(crate) fn prepare_send_to_home(&mut self) {
         let mut leaving_person_ids: Vec<_> = Vec::default();
 
         // Send foreign backpacks to their home partition
@@ -153,17 +178,21 @@ impl BackpackingDataCollector {
 
         for person_id in leaving_person_ids.drain(..) {
             let leaving_backpack = self.remove_leaving_backpack(&person_id);
-            self.message_broker.lock().unwrap().add_leaving_backpack(leaving_backpack.get_starting_partion(), person_id, leaving_backpack);
+            self.message_broker.lock().unwrap().add_leaving_backpack(
+                leaving_backpack.get_starting_partion(),
+                person_id,
+                leaving_backpack,
+            );
         }
     }
 
     pub(crate) fn finish(&mut self) -> Population {
-        let persons: HashMap<Id<InternalPerson>, InternalPerson> = self.person_id2backpack.drain().map(|(person_id, backpack)| {
-            (person_id, backpack.finish())
-        }).collect();
+        let persons: HashMap<Id<InternalPerson>, InternalPerson> = self
+            .person_id2backpack
+            .drain()
+            .map(|(person_id, backpack)| (person_id, backpack.finish()))
+            .collect();
 
-        Population {
-            persons
-        }
+        Population { persons }
     }
 }

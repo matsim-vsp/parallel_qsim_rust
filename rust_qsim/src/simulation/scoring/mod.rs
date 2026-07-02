@@ -1,30 +1,32 @@
-use std::any::{Any};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::mpsc::{channel, Sender};
-use std::thread;
-use tracing::info;
 use crate::simulation::config::{Config, ScoringPlansCollectionType};
 use crate::simulation::events::EventHandlerRegisterFn;
-use crate::simulation::framework_events::{MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId};
+use crate::simulation::framework_events::{
+    MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId,
+};
 use crate::simulation::id::Id;
 use crate::simulation::io;
 use crate::simulation::network::link::SimLink;
+use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
 use crate::simulation::scoring::homesending::homesending_scoring_engine::HomesendingScoringEngine;
-use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingForwardingEngine;
 use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingCollectorEngine;
+use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingForwardingEngine;
 use crate::simulation::scoring::mapping::{person_hash, vehicle_hash};
+use std::any::Any;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::mpsc::{Sender, channel};
+use std::thread;
+use tracing::info;
 
 pub mod backpacking;
-pub mod partial_plans;
 pub mod homesending;
 pub mod mapping;
+pub mod partial_plans;
 
 pub trait Message: Any + Send {
     fn as_any(&self) -> &dyn Any;
@@ -47,19 +49,22 @@ pub struct InternalScoringMessage {
     from_process: QSimId,
     #[allow(unused)]
     to_process: QSimId,
-    message: Box<dyn Message>
+    message: Box<dyn Message>,
 }
 
 /// Trait for a scoring engine that can be initialized and finished by the controller.
 pub trait ScoringEngine: Send + Sync {
-
     /// Attaches the senders to the internal structs managing message handling.
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>);
 
     /// Returns the register functions, given to the Partitions
-    fn register_fn(&self) -> (Box<EventHandlerRegisterFn>,
-                              Box<PartitionListenerRegisterFn>,
-                              Box<MobsimListenerRegisterFn>);
+    fn register_fn(
+        &self,
+    ) -> (
+        Box<EventHandlerRegisterFn>,
+        Box<PartitionListenerRegisterFn>,
+        Box<MobsimListenerRegisterFn>,
+    );
 
     /// Called from the Controller after the mobsim is finished. Shall finish remaining tasks,
     /// that can only be done after the iteration end.
@@ -70,11 +75,19 @@ pub trait ScoringEngine: Send + Sync {
 }
 
 /// Initializing function, creating n ScoringEngines of the type, set in the config
-pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, config: Arc<Config>) -> (Vec<Box<dyn ScoringEngine>>,
-                                                                                                 Vec<Box<EventHandlerRegisterFn>>,
-                                                                                                 Vec<Box<PartitionListenerRegisterFn>>,
-                                                                                                 Vec<Box<MobsimListenerRegisterFn>>){
-    info!("Initializing Scoring with {:?}...", config.scoring().plans_collection_type);
+pub fn create_for_n_partitions(
+    partitions: &Vec<Option<ScenarioPartition>>,
+    config: Arc<Config>,
+) -> (
+    Vec<Box<dyn ScoringEngine>>,
+    Vec<Box<EventHandlerRegisterFn>>,
+    Vec<Box<PartitionListenerRegisterFn>>,
+    Vec<Box<MobsimListenerRegisterFn>>,
+) {
+    info!(
+        "Initializing Scoring with {:?}...",
+        config.scoring().plans_collection_type
+    );
 
     let num_parts = config.partitioning().num_parts;
     let num_collectors = config.scoring().collector_threads;
@@ -95,24 +108,23 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                 partition.network_partition.neighbors(),
                 receiver,
                 vec![],
-                io::resolve_path(config.context(), &config.output().output_dir)
+                io::resolve_path(config.context(), &config.output().output_dir),
             )),
-            ScoringPlansCollectionType::Mapping => {
-                Box::new(MappingForwardingEngine::new(
-                    rank,
-                    person_hash(num_collectors),
-                    vehicle_hash(num_collectors),
-                    num_parts as usize,
-                    num_collectors as usize,
-                    config.scoring().sync_interval,
-                    receiver,
-                    vec![],
-                    io::resolve_path(config.context(), &config.output().output_dir)
-                ))
-            },
+            ScoringPlansCollectionType::Mapping => Box::new(MappingForwardingEngine::new(
+                rank,
+                person_hash(num_collectors),
+                vehicle_hash(num_collectors),
+                num_parts as usize,
+                num_collectors as usize,
+                config.scoring().sync_interval,
+                receiver,
+                vec![],
+                io::resolve_path(config.context(), &config.output().output_dir),
+            )),
             ScoringPlansCollectionType::HomeSending => {
                 // Prepare person_id2home_partition map needed for Homesending
-                let mut person_id2home_partition: HashMap<Id<InternalPerson>, QSimId> = HashMap::new();
+                let mut person_id2home_partition: HashMap<Id<InternalPerson>, QSimId> =
+                    HashMap::new();
                 for (i, partition) in partitions.iter().enumerate() {
                     let partition = partition.as_ref().unwrap();
 
@@ -127,7 +139,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                     person_id2home_partition.clone(),
                     receiver,
                     vec![],
-                    io::resolve_path(config.context(), &config.output().output_dir)
+                    io::resolve_path(config.context(), &config.output().output_dir),
                 ))
             }
         };
@@ -158,7 +170,7 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
                 num_collectors as usize,
                 person_id2home_partition.clone(),
                 receiver,
-                vec![]
+                vec![],
             ));
 
             senders.push(sender);
@@ -169,12 +181,9 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
 
             thread::Builder::new()
                 .name(format!("scoring-{i}"))
-                .spawn(move || {
-                    collector.work()
-                })
+                .spawn(move || collector.work())
                 .unwrap();
         }
-
 
         for mut collector in collectors {
             collector.attach_senders(senders.clone());
@@ -194,5 +203,10 @@ pub fn create_for_n_partitions(partitions: &Vec<Option<ScenarioPartition>>, conf
         mobsim_register_functions.push(mobsim_fn);
     }
 
-    (scorings, event_register_functions, partition_register_functions, mobsim_register_functions)
+    (
+        scorings,
+        event_register_functions,
+        partition_register_functions,
+        mobsim_register_functions,
+    )
 }
