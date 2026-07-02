@@ -335,17 +335,15 @@ impl MobsimWorkerPool {
 
         let mut agents = Vec::new();
         for rank in 0..self.num_parts {
-            agents.extend(
-                results
-                    .remove(&rank)
-                    .unwrap_or_else(|| panic!("Missing mobsim result for rank {rank} in iteration {iteration}.")),
-            );
+            agents.extend(results.remove(&rank).unwrap_or_else(|| {
+                panic!("Missing mobsim result for rank {rank} in iteration {iteration}.")
+            }));
         }
         agents
     }
 
     pub(crate) fn shutdown(self) {
-        // send shoutdown signal
+        // send shutdown signal
         for (rank, sender) in &self.command_senders {
             sender
                 .send(MobsimWorkerCommand::Shutdown)

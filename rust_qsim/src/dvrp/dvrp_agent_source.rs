@@ -118,7 +118,7 @@ mod tests {
     //     let config_path = "./assets/drt/config.yml";
     //     let config = Config::from(CommandLineArgs::new_with_path(config_path));
     //
-    //     let mut scenario = LoadedScenario::load(config);
+    //     let mut scenario = Scenario::load(config);
     //
     //     let drt_source = DrtAgentSource {};
     //     let drt_agents = drt_source.create_agents(&mut mod, &config);

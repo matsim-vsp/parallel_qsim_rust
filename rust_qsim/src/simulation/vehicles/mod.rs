@@ -84,9 +84,11 @@ impl SimulationVehicle {
 
     pub fn into_agents(mut self) -> Vec<SimulationAgent> {
         let mut agents = Vec::with_capacity(1 + self.passengers.len());
-        if let Some(driver) = self.driver.take() {
-            agents.push(driver);
-        }
+        let driver = self
+            .driver
+            .take()
+            .expect("SimulationVehicle has no driver.");
+        agents.push(driver);
         agents.extend(self.passengers);
         agents
     }

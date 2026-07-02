@@ -15,7 +15,7 @@ Starting the simulation mostly works as in MATSim Java. All XML input files need
 faster reading. These files need to be referenced in a configuration file. Based on the config, a scenario is built,
 based on that the controller -- pretty much like in MATSim Java.
 
-Scenario ownership is split into three lifecycles. `LoadedScenario` owns the input data while files are read.
+Scenario ownership is split into three lifecycles. `Scenario` owns the input data while files are read.
 The controller turns it into `ControllerScenario`, which keeps immutable data in a shared `ScenarioCore`
 (`Arc<Network>`, `Arc<Garage>`, `Arc<Config>`) and owns the mutable `Population`.
 
