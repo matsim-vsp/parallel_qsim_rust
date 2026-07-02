@@ -12,7 +12,7 @@ pub type Disutility = f64;
 
 /// Travel time function, mapping any network link to a travel time, depending on the departure time
 /// and optionally the person and vehicle.
-pub trait TravelTime: Debug {
+pub trait TravelTime: Debug + Send + Sync {
     /// get travel time of given link at given time, optionally for a specific person and vehicle
     fn travel_time(
         &self,
@@ -21,10 +21,6 @@ pub trait TravelTime: Debug {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Duration;
-
-    /// helper function, returns a box of self.clone. This allows to implement Clone for
-    /// Box<dyn TravelTime>.
-    fn box_clone(&self) -> Box<dyn TravelTime>;
 }
 
 /// Travel disutility function, mapping any network link to a travel disutility, depending on the
@@ -37,7 +33,7 @@ pub trait TravelTime: Debug {
 ///   non-negative. NaN is treated as worse than infinity.
 /// - `get_link_min_travel_disutility(link)` must be a global lower bound on `travel_disutility`
 ///   for the given link across all times/persons/vehicles (so ALT remains admissible).
-pub trait TravelDisutility: Debug {
+pub trait TravelDisutility: Debug + Send + Sync {
     /// get travel disutility of the given link at the given time, optionally for a specific person
     /// and vehicle
     fn travel_disutility(
@@ -53,27 +49,6 @@ pub trait TravelDisutility: Debug {
     /// This is used when calculating landmark data, to ensure that the ALT heuristic never
     /// overestimates the travel disutility between two nodes.
     fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility;
-
-    /// helper function, returns a box of self.clone. This allows to implement Clone for
-    /// Box<dyn TravelDisutility>.
-    fn box_clone(&self) -> Box<dyn TravelDisutility>;
-}
-
-// we need Clone for Box<dyn TravelTime> and Box<dyn TravelDisutility>, since we want to clone them
-// when constructing multiple routers at once (e.g., for different modes) using the same travel time
-// and disutility. And since we cannot make Clone a supertrait of TravelTime and TravelDisutility,
-// since that makes them not dyn compatible, we implement Clone manually.
-
-impl Clone for Box<dyn TravelTime> {
-    fn clone(&self) -> Self {
-        self.box_clone()
-    }
-}
-
-impl Clone for Box<dyn TravelDisutility> {
-    fn clone(&self) -> Self {
-        self.box_clone()
-    }
 }
 
 /// An implementation of both `TravelTime` and `TravelDisutility`, purely based on freespeed travel
@@ -95,10 +70,6 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
         // the given vehicle type is ignored => true freespeed
         Duration::from_secs_f64(link.length / link.freespeed)
     }
-
-    fn box_clone(&self) -> Box<dyn TravelTime> {
-        Box::new(self.clone())
-    }
 }
 
 impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
@@ -118,9 +89,6 @@ impl TravelDisutility for FreeSpeedTravelTimeAndDisutility {
     // min travel disutility is equal to the travel disutility, since it does not depend on time, person or vehicle
     fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility {
         self.travel_disutility(link, SimTime::from_secs(0), None, None)
-    }
-    fn box_clone(&self) -> Box<dyn TravelDisutility> {
-        Box::new(self.clone())
     }
 }
 
@@ -148,9 +116,6 @@ impl TravelTime for FreeOrMaxSpeedTravelTimeAndDisutility {
 
         Duration::from_secs_f64(link.length / max_speed)
     }
-    fn box_clone(&self) -> Box<dyn TravelTime> {
-        Box::new(self.clone())
-    }
 }
 
 impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
@@ -173,9 +138,6 @@ impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
         // the travel time function, which respects the vehicle's max speed if given, and otherwise
         // uses the freespeed)
         self.travel_disutility(link, SimTime::from_secs(0), None, None)
-    }
-    fn box_clone(&self) -> Box<dyn TravelDisutility> {
-        Box::new(self.clone())
     }
 }
 
@@ -215,7 +177,7 @@ pub struct LeastCostPath {
 /// Router that calculates a least cost path between given from- and to-links.
 /// The router contains the network to route on (typically stored as a graph) and the cost function,
 /// which is in this case a travel disutility function.
-pub trait LeastCostPathCalculator {
+pub trait LeastCostPathCalculator: Send + Sync {
     /// Calculate the least cost path as defined in the request. Requests contain from- and
     /// to-links as well as the departure time and an optional person and vehicle.
     /// The network to route on and the cost function are properties of the implementation of the
@@ -257,13 +219,9 @@ mod tests {
         let network = get_triangle_test_network();
 
         // DijkstraRouter is an alias for AStarRouter<ZeroHeuristic>
-        let router = DijkstraRouter::new(
-            Arc::new(network),
-            None,
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        )
-        .unwrap();
+        let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
+        let router =
+            DijkstraRouter::new(Arc::new(network), None, travel_cost.clone(), travel_cost).unwrap();
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::create("1")) // these links are connected via

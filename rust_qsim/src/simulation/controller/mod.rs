@@ -218,6 +218,7 @@ struct MobsimWorkerArguments {
 
 struct MobsimWorker {
     rank: u32,
+    // the current implementation requires a new worker every iteration. Thus, the worker holds a reference to the communicator, but does not own it.
     communicator: Rc<ChannelSimCommunicator>,
     scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
@@ -418,7 +419,7 @@ impl MobsimWorker {
         Self {
             rank,
             communicator: Rc::new(communicator),
-            scenario_core: scenario_core,
+            scenario_core,
             agent_source,
             comp_env,
             global_barrier,
@@ -486,6 +487,7 @@ impl MobsimWorker {
                 .global_sync,
         );
 
+        // Create a new simulation for this worker each iteration. This makes sure that there is no state carried over from previous iterations, which could lead to bugs.
         let mut simulation: Simulation<ChannelSimCommunicator> = SimulationBuilder::new(
             input,
             net_message_broker,
