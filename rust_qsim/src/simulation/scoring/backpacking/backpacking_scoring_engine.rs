@@ -56,14 +56,14 @@ impl ScoringEngine for BackpackingScoringEngine {
     fn register_fn(&self) -> (Box<EventHandlerRegisterFn>, Box<PartitionListenerRegisterFn>, Box<MobsimListenerRegisterFn>) {
         (
             BackpackingDataCollector::register_event_fn(self.backpacking_data_collector.clone()),
-            BackpackingDataCollector::register_partition_fn(self.backpacking_data_collector.clone()),
-            BackpackingMessageBroker::register_fn(self.backpacking_message_broker.clone())
+            BackpackingMessageBroker::register_partition_fn(self.backpacking_message_broker.clone()),
+            BackpackingMessageBroker::register_mobsim_fn(self.backpacking_message_broker.clone())
         )
     }
 
     fn finish(&self) {
-        self.backpacking_data_collector.lock().unwrap().send_to_home();
-        self.backpacking_message_broker.lock().unwrap().send_recv(u32::MAX);
+        self.backpacking_data_collector.lock().unwrap().prepare_send_to_home();
+        self.backpacking_message_broker.lock().unwrap().finish_send_recv();
         
         let population = self.backpacking_data_collector.lock().unwrap().finish();
         let mut o = self.output_path.clone();

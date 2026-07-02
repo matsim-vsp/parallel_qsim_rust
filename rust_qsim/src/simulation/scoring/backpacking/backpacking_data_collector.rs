@@ -1,5 +1,5 @@
 use crate::simulation::events::{ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager, LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent};
-use crate::simulation::framework_events::{PartitionEvent, PartitionListenerRegisterFn, QSimId, RuntimeEvent};
+use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -47,7 +47,7 @@ impl BackpackingDataCollector {
         self.person_id2backpack.extend(arriving_backpack);
     }
 
-    fn remove_leaving_vehicles(&mut self, vehicle_id: &Id<InternalVehicle>) -> HashSet<Id<InternalPerson>> {
+    pub(crate) fn remove_leaving_vehicles(&mut self, vehicle_id: &Id<InternalVehicle>) -> HashSet<Id<InternalPerson>> {
         // TODO Build a checker, so that it only allows missing entries for teleported modes
         self.vehicle_id2person_ids.remove(vehicle_id).unwrap_or_else(|| {
             // warn!("Partition #{}: Tried to remove vehicle {}, which has no entry!", self.rank, vehicle_id);
@@ -55,12 +55,16 @@ impl BackpackingDataCollector {
         })
     }
 
-    fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
+    pub(crate) fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
         self.person_id2backpack.remove(person_id).unwrap_or_else(|| panic!("Tried to remove an agent, for which no backpack is available!"))
     }
 
     pub fn get_backpacks(&self) -> &HashMap<Id<InternalPerson>, Backpack> {
         &self.person_id2backpack
+    }
+    
+    pub fn get_vehicles(&self) -> &HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>> {
+        &self.vehicle_id2person_ids
     }
 
     /// This method's main purpose is to forward relevant events to the backpacks affected by given event.
@@ -137,26 +141,7 @@ impl BackpackingDataCollector {
         })
     }
 
-    pub(crate) fn register_partition_fn(data_collector: Arc<Mutex<BackpackingDataCollector>>) -> Box<PartitionListenerRegisterFn> {
-        Box::new(move |events| {
-            let data_collector1 = Arc::clone(&data_collector);
-            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| {
-                match &e.payload {
-                    PartitionEvent::VehicleLeavesPartition(i) => {
-                        let leaving_vehicle = data_collector1.lock().unwrap().remove_leaving_vehicles(&i.vehicle_id);
-                        data_collector1.lock().unwrap().message_broker.lock().unwrap().add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
-                    }
-                    PartitionEvent::AgentLeavesPartition(i) => {
-                        let leaving_backpack = data_collector1.lock().unwrap().remove_leaving_backpack(&i.agent_id);
-                        data_collector1.lock().unwrap().message_broker.lock().unwrap().add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
-                    },
-                    _ => {}
-                }
-            });
-        })
-    }
-
-    pub(crate) fn send_to_home(&mut self){
+    pub(crate) fn prepare_send_to_home(&mut self){
         let mut leaving_person_ids: Vec<_> = Vec::default();
 
         // Send foreign backpacks to their home partition

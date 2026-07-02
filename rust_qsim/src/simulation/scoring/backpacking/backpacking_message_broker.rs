@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, Weak};
 use std::sync::mpsc::{Receiver, Sender};
 use nohash_hasher::IntSet;
-use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent};
+use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, PartitionEvent, PartitionEventsManager, PartitionListenerRegisterFn, QSimId, RuntimeEvent};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -19,6 +19,8 @@ pub struct BackpackingMessageBroker
 
     buffer_backpacks: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
     buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
+    wait_backpacks: HashSet<Id<InternalPerson>>,
+    wait_vehicles: HashSet<Id<InternalVehicle>>,
     data_collector: Weak<Mutex<BackpackingDataCollector>>,
 }
 
@@ -37,6 +39,8 @@ impl BackpackingMessageBroker
             rank,
             buffer_backpacks: HashMap::new(),
             buffer_vehicles: HashMap::new(),
+            wait_backpacks: HashSet::new(),
+            wait_vehicles: HashSet::new(),
             data_collector: Weak::new()
         }))
     }
@@ -49,13 +53,42 @@ impl BackpackingMessageBroker
         message_broker.lock().unwrap().data_collector = data_collector;
     }
 
-    pub(crate) fn register_fn(scoring_broker: Arc<Mutex<BackpackingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
+    pub(crate) fn register_mobsim_fn(scoring_broker: Arc<Mutex<BackpackingMessageBroker>>) -> Box<MobsimListenerRegisterFn> {
         Box::new(move |events: &mut MobsimEventsManager| {
-            let bsb = Arc::clone(&scoring_broker);
+            let bmb = Arc::clone(&scoring_broker);
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
                 match &e.payload {
+                    MobsimEvent::BeforeSimStep(i) => {
+                        bmb.lock().unwrap().recv_backpacks();
+                        bmb.lock().unwrap().recv_vehicles();
+                    }
                     MobsimEvent::AfterSimStep(i) => {
-                        bsb.lock().unwrap().send_recv(i.time);
+                        bmb.lock().unwrap().send();
+                    }
+                    _ => {}
+                }
+            });
+        })
+    }
+
+    pub(crate) fn register_partition_fn(scoring_broker: Arc<Mutex<BackpackingMessageBroker>>) -> Box<PartitionListenerRegisterFn> {
+        Box::new(move |events: &mut PartitionEventsManager| {
+            let bmb = Arc::clone(&scoring_broker);
+            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| {
+                match &e.payload {
+                    PartitionEvent::VehicleLeavesPartition(i) => {
+                        let leaving_vehicle = bmb.lock().unwrap().data_collector.upgrade().unwrap().lock().unwrap().remove_leaving_vehicles(&i.vehicle_id);
+                        bmb.lock().unwrap().add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
+                    }
+                    PartitionEvent::AgentLeavesPartition(i) => {
+                        let leaving_backpack = bmb.lock().unwrap().data_collector.upgrade().unwrap().lock().unwrap().remove_leaving_backpack(&i.agent_id);
+                        bmb.lock().unwrap().add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
+                    },
+                    PartitionEvent::AgentEntersPartition(i) => {
+                        bmb.lock().unwrap().wait_backpacks.insert(i.agent_id.clone());
+                    }
+                    PartitionEvent::VehicleEntersPartition(i) => {
+                        bmb.lock().unwrap().wait_vehicles.insert(i.vehicle_id.clone());
                     }
                     _ => {}
                 }
@@ -71,7 +104,7 @@ impl BackpackingMessageBroker
         self.buffer_vehicles.entry(target).or_insert_with(|| HashMap::new()).insert(vehicle_id, passengers);
     }
 
-    pub(crate) fn send_recv(&mut self, now: u32) {
+    pub(crate) fn send(&mut self) {
         for (target, vehicles) in self.buffer_vehicles.drain() {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
@@ -79,14 +112,9 @@ impl BackpackingMessageBroker
                 message: Box::new(VehicleMessage { vehicles }),
             };
 
-            let sender = self.senders.get_mut(target as usize).unwrap();
-            sender.send(msg)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Error while sending message to rank {} with error {}",
-                        target, e
-                    )
-                });
+            self.senders[target as usize].send(msg).unwrap_or_else(|e| {
+                panic!("Error sending EventMessage to rank {} with error {}", target, e)
+            });
         }
         
         for (target, backpacks) in self.buffer_backpacks.drain() {
@@ -96,62 +124,110 @@ impl BackpackingMessageBroker
                 message: Box::new(BackpackingMessage { backpacks }),
             };
 
-            let sender = self.senders.get_mut(target as usize).unwrap();
-            sender.send(msg)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Error while sending message to rank {} with error {}",
-                        target, e
-                    )
-                });
+            self.senders[target as usize].send(msg).unwrap_or_else(|e| {
+                panic!("Error sending EventMessage to rank {} with error {}", target, e)
+            });
         }
+    }
 
-        for target in self.neighbours.iter() {
+
+    /// General receive logic for backpacking messages, called by recv_backpack() and recv_vehicle()
+    fn recv(&mut self, received_msg: InternalScoringMessage) {
+        let boxed_any = received_msg.message.into_any();
+
+        match () {
+            _ if boxed_any.is::<VehicleMessage>() => {
+                let m = boxed_any.downcast::<VehicleMessage>().unwrap();
+                self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_vehicles(m.vehicles);
+            }
+            _ if boxed_any.is::<BackpackingMessage>() => {
+                let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
+                self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_backpacks(m.backpacks);
+            }
+            _ => {
+                panic!("Received unknown message type!");
+            }
+        }
+    }
+
+    /// Called upon a PersonEntersPartitionEvent. It checks whether the backpacks of arrived
+    /// persons are present. If not, the function blocks the thread until said backpack has arrived.
+    /// This function is called once for each person, that has entered the partition and assures
+    /// that the scoring module is only using backpacks which are present.
+    fn recv_backpacks(&mut self) {
+        let pending_backpacks = self.wait_backpacks.drain().collect::<Vec<_>>();
+        for person_id in pending_backpacks {
+            // Check whether backpack is already there
+            if self.data_collector.upgrade().unwrap().lock().unwrap().get_backpacks().contains_key(&person_id) {
+                // Since the backpack is already there, there is no need to block the thread
+                return;
+            }
+
+            // Recv backpacks, until the backpack for the current person arrives
+            while !self.data_collector.upgrade().unwrap().lock().unwrap().get_backpacks().contains_key(&person_id) {
+                let received_msg = self.receiver.recv().expect("Error receiving message");
+                self.recv(received_msg);
+            }
+        }
+    }
+
+    /// Called upon a VehicleEntersPartitionEvent. It checks whether the passenger info of arrived
+    /// vehicles is present. If not, the function blocks the thread until said passenger info has arrived.
+    /// This function is called once for each vehicle, that has entered the partition and assures
+    /// that the scoring module is only using passenger info which is present.
+    fn recv_vehicles(&mut self) {
+        let pending_vehicles = self.wait_vehicles.drain().collect::<Vec<_>>();
+        for vehicle_id in pending_vehicles {
+            // Check whether backpack is already there
+            if self.data_collector.upgrade().unwrap().lock().unwrap().get_vehicles().contains_key(&vehicle_id) {
+                // Since the backpack is already there, there is no need to block the thread
+                return;
+            }
+
+            // Recv backpacks, until the backpack for the current person arrives
+            while !self.data_collector.upgrade().unwrap().lock().unwrap().get_vehicles().contains_key(&vehicle_id) {
+                let received_msg = self.receiver.recv().expect("Error receiving message");
+                self.recv(received_msg);
+            }
+        }
+    }
+
+    /// The last send-recv operation before the iteration ends.
+    /// Since there are no Partition Events that finalize the iteration, the certification is done
+    /// manually by sending O(n^2) messages.
+    pub(crate) fn finish_send_recv(&mut self) {
+        self.send();
+
+        // Send a finish message to all partitions
+        for target in 0..self.senders.len() {
+            if target == self.rank as usize {
+                continue;
+            }
+
             let msg = InternalScoringMessage {
                 from_process: self.rank,
-                to_process: *target as QSimId,
-                message: Box::new(FinishMessage{
-                    time: now
-                })
+                to_process: target as QSimId,
+                message: Box::new(FinishMessage{})
             };
 
-            let sender = self.senders.get_mut(*target as usize).unwrap();
-            sender.send(msg)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Error while sending message to rank {} with error {}",
-                        target, e
-                    )
-                })
+            self.senders[target].send(msg).unwrap_or_else(|e| {
+                panic!("Error sending EventMessage to rank {} with error {}", target, e)
+            });
         }
 
         let mut finished_partitions: HashSet<QSimId> = HashSet::new();
-        while finished_partitions.len() < self.neighbours.len() {
+        while finished_partitions.len() < self.senders.len()-1 {
             let received_msg = self.receiver.recv().expect("Error receiving message");
-
-            let boxed_any = received_msg.message.into_any();
+            let boxed_any = received_msg.message.as_any();
 
             match () {
-                _ if boxed_any.is::<VehicleMessage>() => {
-                    let m = boxed_any.downcast::<VehicleMessage>().unwrap();
-                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_vehicles(m.vehicles);
-                }
-                _ if boxed_any.is::<BackpackingMessage>() => {
-                    let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
-                    self.data_collector.upgrade().unwrap().lock().unwrap().add_arriving_backpacks(m.backpacks);
-                }
                 _ if boxed_any.is::<FinishMessage>() => {
-                    let m = boxed_any.downcast::<FinishMessage>().unwrap();
-                    if m.time != now {
-                        panic!("Received finish message from past or future time step!")
-                    }
-                    if !self.neighbours.contains(&received_msg.from_process) {
-                        panic!("Received finish message from non-neighbouring partition!")
-                    }
+                    // Add finish message to set for break condition
                     finished_partitions.insert(received_msg.from_process);
                 }
                 _ => {
-                    panic!("Received unknown message type!");
+                    // Process arriving data
+                    self.recv(received_msg);
                 }
             }
         }
@@ -167,6 +243,4 @@ pub struct BackpackingMessage {
     backpacks: HashMap<Id<InternalPerson>, Backpack>
 }
 
-pub struct FinishMessage {
-    pub(crate) time: u32
-}
+pub struct FinishMessage {}
