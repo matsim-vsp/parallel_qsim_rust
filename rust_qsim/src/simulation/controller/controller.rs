@@ -1,30 +1,28 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
 use crate::simulation::controller::{
-    ExternalServices, PartitionArgumentsBuilder, create_output_filename,
+    ExternalServices, MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool,
+    create_output_filename,
 };
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
     ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn,
     MobsimListenerRegisterFn, PartitionListenerRegisterFn,
 };
-use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
+use crate::simulation::scenario::MutableScenario;
 use crate::simulation::scenario::network::Network;
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
-use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
-use crate::simulation::{controller, id, io};
+use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::{id, io};
 use derive_more::Debug;
-use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
-use std::thread::JoinHandle;
-use std::{fs, mem, thread};
+use std::{fs, mem};
 use tracing::info;
 
 #[derive(Debug)]
@@ -38,6 +36,7 @@ pub struct Controller {
     scenario: Scenario,
     config: Arc<Config>,
     network: Arc<Network>,
+    garage: Garage, //TODO check if this really needs to be hold as field
     #[debug(skip)]
     agent_source: DynAgentSource,
     controller_events_manager: ControllerEventsManager,
@@ -95,11 +94,13 @@ impl ControllerBuilder {
 
         let config = self.scenario.config.clone();
         let network = self.scenario.network.clone();
+        let garage = self.scenario.garage.clone();
 
         Ok(Controller {
             scenario: Scenario::Full(self.scenario),
             config,
             network,
+            garage,
             agent_source: self.agent_source,
             controller_events_manager: controller_event_manager,
             event_handler_per_partition: self.event_handler_register_fn,
@@ -183,9 +184,15 @@ impl Controller {
         }
 
         let end_iter = 0u32;
+        let mut mobsim_workers = self.start_mobsim_workers();
+        let replanning_pool = ReplanningPool::new(&self.config);
+
         for iteration in 0..=end_iter {
-            self.run_iteration(iteration, end_iter);
+            self.run_iteration(iteration, end_iter, &mut mobsim_workers, &replanning_pool);
         }
+
+        mobsim_workers.shutdown();
+        self.shutdown_adapters();
 
         info!("Writing output files:");
         if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
@@ -203,24 +210,30 @@ impl Controller {
             .process_event(ControllerEvent::shutdown(true));
     }
 
-    fn run_iteration(&mut self, iteration: u32, end_iter: u32) {
+    fn run_iteration(
+        &mut self,
+        iteration: u32,
+        end_iter: u32,
+        mobsim_workers: &mut MobsimWorkerPool,
+        replanning_pool: &ReplanningPool,
+    ) {
         let is_last_iteration = iteration == end_iter;
         info!("=========== Start Iteration {} ===========", iteration);
 
         self.controller_events_manager
             .process_event(ControllerEvent::iteration_starts(is_last_iteration));
 
-        let population = self.run_mobsim_phase(iteration, is_last_iteration);
+        let population = self.run_mobsim_phase(iteration, is_last_iteration, mobsim_workers);
         let population = self.run_scoring_phase(iteration, is_last_iteration, population);
         let population = if is_last_iteration {
             population
         } else {
-            self.run_replanning_phase(iteration, population)
+            self.run_replanning_phase(iteration, replanning_pool, population)
         };
 
         self.scenario = Scenario::Full(MutableScenario {
             network: self.network.clone(),
-            garage: Default::default(),
+            garage: self.garage.clone(), //TODO this seems to be costly
             population,
             config: self.config.clone(),
         });
@@ -231,20 +244,33 @@ impl Controller {
         info!("=========== End Iteration {} ===========", iteration);
     }
 
-    fn run_mobsim_phase(&mut self, iteration: u32, is_last_iteration: bool) -> Population {
+    fn run_mobsim_phase(
+        &mut self,
+        iteration: u32,
+        is_last_iteration: bool,
+        mobsim_workers: &mut MobsimWorkerPool,
+    ) -> Population {
         info!("Starting mobsim phase for iteration {iteration}");
 
         self.controller_events_manager
             .process_event(ControllerEvent::before_mobsim(is_last_iteration));
 
-        let handles = self.run_channel();
-        let agents = controller::try_join(handles, mem::take(&mut self.adapter_handles));
+        let mut scenario = self.take_full_scenario();
+        prepare_for_sim(&mut scenario).unwrap_or_else(|err| panic!("{err}"));
+
+        let num_parts = self.config.partitioning().num_parts;
+
+        // Replanning currently preserves the first activity location, so the start link remains
+        // the stable source of truth for assigning persons to MobSim partitions.
+        let populations = scenario
+            .population
+            .split_by_start_link_partition(&scenario.network, num_parts);
+        let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, populations);
 
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(is_last_iteration));
 
-        let persons = agents.into_iter().filter_map(|a| a.into_person()).collect();
-        Population::from_persons(persons)
+        Population::from_agents(agents)
     }
 
     fn run_scoring_phase(
@@ -261,87 +287,67 @@ impl Controller {
         population
     }
 
-    fn run_replanning_phase(&mut self, iteration: u32, population: Population) -> Population {
+    fn run_replanning_phase(
+        &mut self,
+        iteration: u32,
+        replanning_pool: &ReplanningPool,
+        population: Population,
+    ) -> Population {
         info!("Starting replanning phase for iteration {iteration}");
 
         self.controller_events_manager
             .process_event(ControllerEvent::replanning(false));
 
-        population
+        replanning_pool.replan(population)
     }
 
-    fn run_channel(&mut self) -> IntMap<u32, JoinHandle<Vec<SimulationAgent>>> {
-        let mut scenario = {
-            let s = mem::replace(&mut self.scenario, Scenario::Partitioned);
-            match s {
-                Scenario::Partitioned => {
-                    panic!(
-                        "Wanted to create partitions, but mod is already partitioned. This shouldn't happen."
-                    )
-                }
-                Scenario::Full(s) => s,
-            }
-        };
-
-        prepare_for_sim(&mut scenario).unwrap_or_else(|err| panic!("{err}"));
-
-        // Is of type Vec<Option<>> because later we iteratively take the partition builder and construct
-        // the actual partitions.
-        let mut partitions: Vec<Option<ScenarioPartition>> = ScenarioPartition::from(scenario)
-            .into_iter()
-            .map(Some)
-            .collect();
-
-        let num_parts = self.config.partitioning().num_parts;
-        info!(
-            "Starting multithreaded Simulation with {} partitions.",
-            num_parts
-        );
-        let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
-
-        let handles: IntMap<u32, _> = comms
-            .into_iter()
-            .map(|comm| {
-                let rank = comm.rank();
-
-                // Replaces the Some(partition) with None
-                let partition = partitions[rank as usize]
-                    .take()
-                    .expect("No empty partition");
-
-                let args = PartitionArgumentsBuilder::default()
-                    .communicator(comm)
-                    .global_barrier(self.global_barrier.clone())
-                    .scenario_partition(partition)
-                    .agent_source(self.agent_source.clone())
-                    .external_services(self.external_services.clone())
-                    .event_handler(
-                        self.event_handler_per_partition
-                            .remove(&rank)
-                            .unwrap_or_default(),
-                    )
-                    .mobsim_event_listener(
-                        self.mobsim_event_listener_per_partition
-                            .remove(&rank)
-                            .unwrap_or_default(),
-                    )
-                    .partition_event_listener(
-                        self.partition_event_listener_per_partition
-                            .remove(&rank)
-                            .unwrap_or_default(),
-                    )
-                    .build()
-                    .unwrap();
-                (
-                    rank,
-                    thread::Builder::new()
-                        .name(format!("qsim-{}", rank))
-                        .spawn(move || controller::execute_partition(args))
-                        .unwrap(),
+    fn take_full_scenario(&mut self) -> MutableScenario {
+        let scenario = mem::replace(&mut self.scenario, Scenario::Partitioned);
+        match scenario {
+            Scenario::Partitioned => {
+                panic!(
+                    "Wanted to run a phase that needs a full scenario, but the scenario is partitioned."
                 )
-            })
-            .collect();
-        handles
+            }
+            Scenario::Full(scenario) => scenario,
+        }
+    }
+
+    fn start_mobsim_workers(&mut self) -> MobsimWorkerPool {
+        let args = MobsimWorkerPoolArgumentsBuilder::default()
+            .config(self.config.clone())
+            .network(self.network.clone())
+            .garage(self.garage.clone())
+            .agent_source(self.agent_source.clone())
+            .external_services(self.external_services.clone())
+            .event_handler_per_partition(mem::take(&mut self.event_handler_per_partition))
+            .mobsim_event_listener_per_partition(mem::take(
+                &mut self.mobsim_event_listener_per_partition,
+            ))
+            .partition_event_listener_per_partition(mem::take(
+                &mut self.partition_event_listener_per_partition,
+            ))
+            .global_barrier(self.global_barrier.clone())
+            .build()
+            .unwrap();
+
+        MobsimWorkerPool::spawn(args)
+    }
+
+    fn shutdown_adapters(&mut self) {
+        for adapter in mem::take(&mut self.adapter_handles) {
+            adapter.shutdown_sender.send(true).unwrap();
+            let name = adapter
+                .handle
+                .thread()
+                .name()
+                .unwrap_or("unnamed_thread")
+                .to_string();
+            adapter
+                .handle
+                .join()
+                .unwrap_or_else(|_| panic!("Error in adapter thread {:?}", name));
+        }
     }
 
     fn write_output_config(&mut self, output_path: PathBuf) {

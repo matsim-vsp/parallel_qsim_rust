@@ -4,36 +4,12 @@ use crate::simulation::time::Tick;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Barrier};
-use tracing::info;
-
-pub struct DummySimCommunicator();
 
 pub struct ChannelSimCommunicator {
     receiver: Receiver<InternalSimMessage>,
     senders: Vec<Sender<InternalSimMessage>>,
     rank: u32,
     barrier: Arc<Barrier>,
-}
-
-impl SimCommunicator for DummySimCommunicator {
-    fn send_receive_vehicles<F>(
-        &self,
-        _vehicles: HashMap<u32, InternalSyncMessage>,
-        _expected_vehicle_messages: &mut HashSet<u32>,
-        _now: Tick,
-        _on_msg: F,
-    ) where
-        F: FnMut(InternalSyncMessage),
-    {
-    }
-
-    fn barrier(&self) {
-        info!("Barrier was called on DummySimCommunicator, which doesn't do anything.")
-    }
-
-    fn rank(&self) -> u32 {
-        0
-    }
 }
 
 impl SimCommunicator for ChannelSimCommunicator {

@@ -527,6 +527,8 @@ pub struct ComputationalSetup {
     pub global_sync: bool,
     /// The number of threads to be used for the tokio runtime by the adapter.
     pub adapter_worker_threads: u32,
+    /// The number of threads to be used by the replanning pool. 0 uses Rayon's default.
+    pub replanning_threads: u32,
     pub retry_time_seconds: u64,
     pub random_seed: u64,
 }
@@ -537,6 +539,10 @@ register_override!(
         config.computational_setup_mut().adapter_worker_threads = value.parse().unwrap();
     }
 );
+
+register_override!("computational_setup.replanning_threads", |config, value| {
+    config.computational_setup_mut().replanning_threads = value.parse().unwrap();
+});
 
 register_override!("computational_setup.global_sync", |config, value| {
     config.computational_setup_mut().global_sync = value.parse().unwrap();
@@ -551,6 +557,7 @@ impl Default for ComputationalSetup {
         Self {
             global_sync: false,
             adapter_worker_threads: 3,
+            replanning_threads: 0,
             retry_time_seconds: 600,
             random_seed: DEFAULT_RANDOM_SEED,
         }
@@ -903,6 +910,7 @@ mod tests {
         let computational_setup = ComputationalSetup {
             global_sync: true,
             adapter_worker_threads: 42,
+            replanning_threads: 7,
             retry_time_seconds: 41,
             random_seed: config::DEFAULT_RANDOM_SEED,
         };
@@ -944,6 +952,7 @@ mod tests {
             parsed_config.computational_setup().adapter_worker_threads,
             42
         );
+        assert_eq!(parsed_config.computational_setup().replanning_threads, 7);
         assert_eq!(parsed_config.computational_setup().retry_time_seconds, 41);
 
         assert_eq!(parsed_config.simulation().start_time, 0);
@@ -1288,6 +1297,16 @@ modules:
         let mut config = base_config();
         config.apply_overrides(&[("partitioning.num_parts".to_string(), "7".to_string())]);
         assert_eq!(config.partitioning().num_parts, 7);
+    }
+
+    #[test]
+    fn override_replanning_threads() {
+        let mut config = base_config();
+        config.apply_overrides(&[(
+            "computational_setup.replanning_threads".to_string(),
+            "3".to_string(),
+        )]);
+        assert_eq!(config.computational_setup().replanning_threads, 3);
     }
 
     #[test]

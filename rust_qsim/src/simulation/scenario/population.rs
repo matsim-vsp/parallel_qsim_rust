@@ -1,6 +1,7 @@
 use crate::generated::population::leg::Route;
 use crate::generated::population::{Activity, GenericRoute, Leg, Person, Plan, PtRouteDescription};
 use crate::simulation::InternalAttributes;
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
 use crate::simulation::io::proto::proto_population::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::population::{
@@ -99,6 +100,41 @@ impl Population {
             .map(|p| (p.id().clone(), p))
             .collect::<IntMap<_, _>>();
         Population { persons }
+    }
+
+    pub fn from_agents(agents: Vec<SimulationAgent>) -> Self {
+        let persons = agents.into_iter().filter_map(|a| a.into_person()).collect();
+        Self::from_persons(persons)
+    }
+
+    pub fn split_by_start_link_partition(self, net: &Network, num_parts: u32) -> Vec<Self> {
+        let mut parts: Vec<_> = (0..num_parts).map(|_| Population::new()).collect();
+
+        for (id, person) in self.persons {
+            // Replanning is assumed to preserve this first activity location. If that changes,
+            // partition assignment needs an explicit migration/repartitioning policy.
+            let act = person
+                .plan_element_at(0)
+                .and_then(|p| p.as_activity())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "Person {} does not have an initial activity for partition assignment.",
+                        id.external()
+                    )
+                });
+            let partition = net.get_link(&act.link_id).partition;
+            assert!(
+                partition < num_parts,
+                "Person {} starts on link {} with partition {}, but only {} partitions exist.",
+                id.external(),
+                act.link_id.external(),
+                partition,
+                num_parts
+            );
+            parts[partition as usize].persons.insert(id, person);
+        }
+
+        parts
     }
 
     pub fn take_from_filter(&mut self, filter: impl Fn(&InternalPerson) -> bool) -> Self {

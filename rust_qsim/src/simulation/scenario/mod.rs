@@ -112,42 +112,27 @@ pub struct ScenarioPartition {
 }
 
 impl ScenarioPartition {
-    pub(crate) fn from(mut scenario: MutableScenario) -> Vec<Self> {
-        let mut partitions = Vec::new();
-        for i in 0..scenario.config.partitioning().num_parts {
-            let partition = Self::create_partition(
-                i,
-                &mut scenario.population,
-                scenario.network.clone(),
-                // this not very nice, since this is a full clone.
-                // but for now we are very liberal about when, where and how often agents can access their vehicles.
-                // Also, we just have an `unpark` method, no counterpart for adding vehicles. paul, feb '26
-                scenario.garage.clone(),
-                scenario.config.clone(),
-            );
-            partitions.push(partition);
-        }
-        partitions
-    }
-
-    fn create_partition(
+    pub(crate) fn for_run(
         partition_num: u32,
-        population: &mut Population,
         network: Arc<Network>,
         garage: Garage,
         config: Arc<Config>,
+        population: Population,
     ) -> Self {
-        let network_partition =
-            Self::create_network_partition(&config, partition_num, &network, population);
+        let network_partition = Self::create_network_partition(&config, partition_num, &network);
 
-        let population = population.take_from_filtered_part(&network, partition_num);
-
+        info!(
+            "Partition #{partition_num} network has: {} nodes and {} links. Population has {} agents",
+            network_partition.nodes.len(),
+            network_partition.links.len(),
+            population.persons.len()
+        );
         Self {
-            network: network.clone(),
+            network,
             garage,
             population,
             network_partition,
-            config: config.clone(),
+            config,
         }
     }
 
@@ -155,17 +140,8 @@ impl ScenarioPartition {
         config: &Config,
         rank: u32,
         network: &Network,
-        population: &Population,
     ) -> SimNetworkPartition {
         let base_seed = config.computational_setup().random_seed;
-        let partition =
-            SimNetworkPartition::from_network(network, rank, config.simulation(), base_seed);
-        info!(
-            "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
-            partition.nodes.len(),
-            partition.links.len(),
-            population.persons.len()
-        );
-        partition
+        SimNetworkPartition::from_network(network, rank, config.simulation(), base_seed)
     }
 }

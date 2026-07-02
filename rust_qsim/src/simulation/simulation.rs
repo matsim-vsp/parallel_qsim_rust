@@ -71,9 +71,6 @@ where
             now = now.next();
         }
 
-        // maybe this belongs into the controller? Then this would have to be a &mut instead of owned.
-        self.comp_env.events_manager_borrow_mut().finish();
-
         self.activity_engine
             .drain()
             .into_iter()
