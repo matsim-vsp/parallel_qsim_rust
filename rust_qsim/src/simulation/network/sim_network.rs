@@ -1,4 +1,5 @@
 use super::link::{LocalLink, SimLink, SplitInLink, SplitOutLink};
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{EventsManager, LinkEnterEventBuilder, LinkLeaveEventBuilder};
@@ -134,6 +135,14 @@ impl SimNetworkPartition {
             .collect();
 
         SimNetworkPartition::build(sim_nodes, sim_links, partition, base_seed, clock)
+    }
+
+    pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
+        self.links
+            .values_mut()
+            .flat_map(|link| link.drain())
+            .flat_map(SimulationVehicle::into_agents)
+            .collect()
     }
 
     fn create_sim_node(node: &Node) -> SimNode {

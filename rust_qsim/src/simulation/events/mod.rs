@@ -57,6 +57,7 @@ impl PartialEq for dyn EventTrait {
 }
 
 type HandleEventFn = dyn Fn(&dyn EventTrait) + 'static;
+type ResetIterationFn = dyn Fn(u32) + 'static;
 
 /// This is a meta function. It is used to register functions at the [EventsManager] that handle events. Also check the documentation there.
 /// This function gets a `&mut` to [EventsManager] and then registers the callbacks for the specific event types.
@@ -81,6 +82,7 @@ pub type EventHandlerRegisterFn = dyn FnOnce(&mut EventsManager) + Send;
 pub struct EventsManager {
     per_type: HashMap<TypeId, Vec<Rc<HandleEventFn>>>,
     catch_all: Vec<Box<HandleEventFn>>,
+    reset_iteration: Vec<Box<ResetIterationFn>>,
     finish: Vec<Box<dyn Fn() + 'static>>,
 }
 
@@ -88,9 +90,10 @@ impl Debug for EventsManager {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "EventsManager {{ per_type: {:?}, catch_all: {:?}, finish: {:?} }}",
+            "EventsManager {{ per_type: {:?}, catch_all: {:?}, reset_iteration: {:?}, finish: {:?} }}",
             self.per_type.len(),
             self.catch_all.len(),
+            self.reset_iteration.len(),
             self.finish.len()
         )
     }
@@ -101,6 +104,7 @@ impl EventsManager {
         EventsManager {
             per_type: HashMap::new(),
             catch_all: Vec::new(),
+            reset_iteration: Vec::new(),
             finish: Vec::new(),
         }
     }
@@ -120,6 +124,12 @@ impl EventsManager {
     pub fn finish(&mut self) {
         for f in self.finish.iter_mut() {
             f()
+        }
+    }
+
+    pub fn reset_iteration(&mut self, iteration: u32) {
+        for f in &self.reset_iteration {
+            f(iteration);
         }
     }
 
@@ -151,6 +161,13 @@ impl EventsManager {
         F: Fn() + 'static,
     {
         self.finish.push(Box::new(f));
+    }
+
+    pub fn on_reset_iteration<F>(&mut self, f: F)
+    where
+        F: Fn(u32) + 'static,
+    {
+        self.reset_iteration.push(Box::new(f));
     }
 }
 
@@ -572,11 +589,15 @@ mod tests {
         let collection_of_finish_strings: Rc<RefCell<Vec<String>>> =
             Rc::new(RefCell::new(Vec::new()));
 
+        let collection_of_reset_iterations: Rc<RefCell<Vec<u32>>> =
+            Rc::new(RefCell::new(Vec::new()));
+
         // clone the pointers, since we need to move them to the event managers
         let cloned_ptr_to_pa_collection = collection_of_person_arrival_events.clone();
         let cloned_ptr_to_nse_collection = collection_of_new_simple_events.clone();
         let cloned_ptr_to_any_collection = collection_of_any_event_strings.clone();
         let cloned_ptr_to_finish_collection = collection_of_finish_strings.clone();
+        let cloned_ptr_to_reset_collection = collection_of_reset_iterations.clone();
 
         // register functions in event manager:
 
@@ -609,6 +630,10 @@ mod tests {
             cloned_ptr_to_finish_collection
                 .borrow_mut()
                 .push(String::from("finished"));
+        });
+
+        events_manager.on_reset_iteration(move |iteration| {
+            cloned_ptr_to_reset_collection.borrow_mut().push(iteration);
         });
 
         // create example events
@@ -645,12 +670,14 @@ mod tests {
         events_manager.process_event(&event2);
         events_manager.process_event(&event3);
         events_manager.process_event(&event4);
+        events_manager.reset_iteration(7);
+        events_manager.process_event(&event1);
         events_manager.finish();
 
         // verify that the PA collection contains event1 and event2, but not event3 or event4
         assert_eq!(
             *collection_of_person_arrival_events.borrow(),
-            vec![event1, event2]
+            vec![event1.clone(), event2, event1]
         );
 
         // verify that the NewSimpleEvent collection contains event4, but not the other events
@@ -663,7 +690,8 @@ mod tests {
                 String::from("arrival"),
                 String::from("arrival"),
                 String::from("departure"),
-                String::from("new simple event")
+                String::from("new simple event"),
+                String::from("arrival")
             ]
         );
 
@@ -672,5 +700,7 @@ mod tests {
             *collection_of_finish_strings.borrow(),
             vec![String::from("finished")]
         );
+
+        assert_eq!(*collection_of_reset_iterations.borrow(), vec![7]);
     }
 }

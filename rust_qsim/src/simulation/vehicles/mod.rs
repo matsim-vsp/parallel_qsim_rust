@@ -81,6 +81,17 @@ impl SimulationVehicle {
     pub fn internal_vehicle(&self) -> &InternalVehicle {
         &self.vehicle
     }
+
+    pub fn into_agents(mut self) -> Vec<SimulationAgent> {
+        let mut agents = Vec::with_capacity(1 + self.passengers.len());
+        let driver = self
+            .driver
+            .take()
+            .expect("SimulationVehicle has no driver.");
+        agents.push(driver);
+        agents.extend(self.passengers);
+        agents
+    }
 }
 
 impl EnvironmentalEventObserver for SimulationVehicle {

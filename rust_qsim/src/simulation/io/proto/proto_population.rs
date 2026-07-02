@@ -11,8 +11,8 @@ use crate::simulation::scenario::population::{
     InternalPlan, InternalPtRoute, InternalPtRouteDescription, InternalRoute, Population,
 };
 use crate::simulation::time::SimTime;
+use nohash_hasher::IntMap;
 use prost::Message;
-use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Write};
@@ -44,7 +44,7 @@ where
         info!("Header Info: {header:?}");
     }
 
-    let mut persons = HashMap::new();
+    let mut persons = IntMap::default();
 
     for person in MessageIter::<Person, BufReader<File>>::new(reader) {
         let id = Id::get_from_ext(&person.id);

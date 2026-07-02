@@ -28,6 +28,8 @@ pub trait SimulationAgentLogic:
     fn curr_link_id(&self) -> Option<&Id<Link>>;
     fn peek_next_link_id(&self) -> Option<&Id<Link>>;
     fn wakeup_time(&self, now: SimTime) -> SimTime;
+
+    fn into_person(self: Box<Self>) -> Option<InternalPerson>;
 }
 
 pub trait EnvironmentalEventObserver {

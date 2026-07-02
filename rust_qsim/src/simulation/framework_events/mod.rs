@@ -182,7 +182,11 @@ impl EventRuntimeState {
     }
 
     fn next_iteration(&mut self) {
-        self.iteration += 1;
+        self.reset_iteration(self.iteration + 1);
+    }
+
+    fn reset_iteration(&mut self, iteration: u32) {
+        self.iteration = iteration;
         self.next_seq_no = 0;
     }
 }
@@ -228,6 +232,10 @@ impl<E> FrameworkEventsManager<E> {
 
     pub fn next_iteration(&mut self) {
         self.state.next_iteration();
+    }
+
+    pub fn reset_iteration(&mut self, iteration: u32) {
+        self.state.reset_iteration(iteration);
     }
 
     pub fn on_event<F>(&mut self, callback: F)
@@ -340,6 +348,25 @@ mod tests {
     }
 
     #[test]
+    fn controller_reset_iteration_sets_iteration_and_keeps_callbacks() {
+        let mut manager = ControllerEventsManager::for_controller(10);
+        let received: Rc<RefCell<Vec<ControllerRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let received_clone = received.clone();
+
+        manager.on_event(move |event| {
+            received_clone.borrow_mut().push(event.clone());
+        });
+
+        manager.process_event(ControllerEvent::startup(false));
+        manager.reset_iteration(42);
+        let event = manager.process_event(ControllerEvent::shutdown(true));
+
+        assert_eq!(42, event.meta.iteration);
+        assert_eq!(0, event.meta.seq_no);
+        assert_eq!(2, received.borrow().len());
+    }
+
+    #[test]
     fn mobsim_events_use_partition_origin_and_invoke_callbacks() {
         let mut manager = MobsimEventsManager::for_partition(7, 2);
         let received: Rc<RefCell<Vec<MobsimRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
@@ -391,6 +418,25 @@ mod tests {
         let second = manager.process_event(MobsimEvent::after_sim_step(SimTime::from_secs(2)));
         assert_eq!(6, second.meta.iteration);
         assert_eq!(0, second.meta.seq_no);
+    }
+
+    #[test]
+    fn mobsim_reset_iteration_sets_iteration_and_keeps_callbacks() {
+        let mut manager = MobsimEventsManager::for_partition(1, 5);
+        let received: Rc<RefCell<Vec<MobsimRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let received_clone = received.clone();
+
+        manager.on_event(move |event| {
+            received_clone.borrow_mut().push(event.clone());
+        });
+
+        manager.process_event(MobsimEvent::before_sim_step(SimTime::from_secs(1)));
+        manager.reset_iteration(12);
+        let event = manager.process_event(MobsimEvent::after_sim_step(SimTime::from_secs(2)));
+
+        assert_eq!(12, event.meta.iteration);
+        assert_eq!(0, event.meta.seq_no);
+        assert_eq!(2, received.borrow().len());
     }
 
     #[test]
@@ -521,6 +567,37 @@ mod tests {
         ));
         assert_eq!(9, second.meta.iteration);
         assert_eq!(0, second.meta.seq_no);
+    }
+
+    #[test]
+    fn partition_reset_iteration_sets_iteration_and_keeps_callbacks() {
+        let mut manager = PartitionEventsManager::for_partition(3, 8);
+        let received: Rc<RefCell<Vec<PartitionRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
+        let received_clone = received.clone();
+
+        manager.on_event(move |event| {
+            received_clone.borrow_mut().push(event.clone());
+        });
+
+        manager.process_event(PartitionEvent::VehicleEntersPartition(
+            VehicleEntersPartitionEvent {
+                vehicle_id: Id::create("veh-2"),
+                from: 6,
+                time: SimTime::from_secs(10),
+            },
+        ));
+        manager.reset_iteration(13);
+        let event = manager.process_event(PartitionEvent::AgentLeavesPartition(
+            AgentLeavesPartitionEvent {
+                agent_id: Id::create("agent-2"),
+                to: 7,
+                time: SimTime::from_secs(20),
+            },
+        ));
+
+        assert_eq!(13, event.meta.iteration);
+        assert_eq!(0, event.meta.seq_no);
+        assert_eq!(2, received.borrow().len());
     }
 
     #[test]

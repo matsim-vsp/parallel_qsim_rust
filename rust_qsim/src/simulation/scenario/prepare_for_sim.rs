@@ -1,5 +1,5 @@
 use crate::simulation::config::Config;
-use crate::simulation::scenario::MutableScenario;
+use crate::simulation::scenario::ControllerScenario;
 use crate::simulation::scenario::network::Network;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::Garage;
@@ -29,11 +29,11 @@ pub struct PrepareForSimIssue {
     pub message: String,
 }
 
-pub fn prepare_for_sim(scenario: &mut MutableScenario) -> Result<(), PrepareForSimError> {
+pub(crate) fn prepare_for_sim(scenario: &mut ControllerScenario) -> Result<(), PrepareForSimError> {
     let context = PrepareForSimContext {
-        network: &scenario.network,
-        garage: &scenario.garage,
-        config: scenario.config.as_ref(),
+        network: &scenario.core.network,
+        garage: &scenario.core.garage,
+        config: scenario.core.config.as_ref(),
     };
 
     let issues: Vec<_> = scenario
@@ -73,9 +73,9 @@ mod tests {
         InternalActivity, InternalPerson, InternalPlan, Population,
     };
     use crate::simulation::scenario::vehicles::Garage;
-    use crate::simulation::scenario::{Coordinate, MutableScenario};
+    use crate::simulation::scenario::{ControllerScenario, Coordinate, Scenario};
     use macros::integration_test;
-    use std::collections::HashMap;
+    use nohash_hasher::IntMap;
     use std::sync::Arc;
 
     #[integration_test]
@@ -89,7 +89,7 @@ mod tests {
 
     #[integration_test]
     fn prepare_for_sim_visits_population_without_moving_persons() {
-        let mut persons = HashMap::new();
+        let mut persons = IntMap::default();
         persons.insert(Id::create("person-1"), person("person-1", "link-1"));
         persons.insert(Id::create("person-2"), person("person-2", "link-2"));
         let mut scenario = scenario_with_population(Population { persons });
@@ -111,13 +111,14 @@ mod tests {
         );
     }
 
-    fn scenario_with_population(population: Population) -> MutableScenario {
-        MutableScenario {
+    fn scenario_with_population(population: Population) -> ControllerScenario {
+        Scenario {
             network: Network::new(),
             garage: Garage::default(),
             population,
             config: Arc::new(Config::default()),
         }
+        .into()
     }
 
     fn person(id: &str, link_id: &str) -> InternalPerson {

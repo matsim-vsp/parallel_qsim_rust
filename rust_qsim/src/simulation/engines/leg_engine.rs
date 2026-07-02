@@ -22,12 +22,13 @@ use crate::simulation::time::{SimClock, SimTime, Tick};
 use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 use nohash_hasher::IntSet;
+use std::sync::Arc;
 use tracing::instrument;
 
 pub struct LegEngine<C: SimCommunicator> {
     teleportation_engine: TeleportationEngine,
     network_engine: NetworkEngine,
-    garage: Garage,
+    garage: Arc<Garage>,
     net_message_broker: NetMessageBroker<C>,
     departure_handler: VehicularDepartureHandler,
     main_modes: IntSet<Id<String>>,
@@ -38,7 +39,7 @@ pub struct LegEngine<C: SimCommunicator> {
 impl<C: SimCommunicator> LegEngine<C> {
     pub fn new(
         network: SimNetworkPartition,
-        garage: Garage,
+        garage: Arc<Garage>,
         net_message_broker: NetMessageBroker<C>,
         config: &Simulation,
         comp_env: ThreadLocalComputationalEnvironment,
@@ -65,6 +66,14 @@ impl<C: SimCommunicator> LegEngine<C> {
             comp_env,
             clock,
         }
+    }
+
+    pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
+        self.network_engine
+            .drain()
+            .into_iter()
+            .chain(self.teleportation_engine.drain())
+            .collect()
     }
 
     /// Performs a sim step for the leg engine. Note that vehicles that leave a link and move to another link are always processed one time step later.
@@ -167,7 +176,7 @@ impl<C: SimCommunicator> LegEngine<C> {
                     .unwrap(),
             );
 
-            agents.extend(self.garage.park_veh(veh));
+            agents.extend(veh.into_agents());
         }
         agents
     }
@@ -178,7 +187,7 @@ impl<C: SimCommunicator> LegEngine<C> {
 
         let vehicle = self
             .departure_handler
-            .handle_departure(now_time, agent, &mut self.garage);
+            .handle_departure(now_time, agent, &self.garage);
 
         if let Some(vehicle) = vehicle {
             self.pass_vehicle_to_engine(now, vehicle, true);
@@ -263,7 +272,7 @@ impl VehicularDepartureHandler {
         &mut self,
         now: SimTime,
         agent: SimulationAgent,
-        garage: &mut Garage,
+        garage: &Garage,
     ) -> Option<SimulationVehicle> {
         assert_eq!(agent.state(), SimulationAgentState::LEG);
 

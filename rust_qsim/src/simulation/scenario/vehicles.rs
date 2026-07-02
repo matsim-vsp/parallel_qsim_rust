@@ -255,21 +255,8 @@ impl Garage {
         Id::get_from_ext(&external)
     }
 
-    pub(crate) fn park_veh(&mut self, vehicle: SimulationVehicle) -> Vec<SimulationAgent> {
-        let person = vehicle.driver;
-        let mut agents = vehicle.passengers;
-        let person = person.expect("Vehicle has no driver.");
-        agents.push(person);
-        agents
-
-        // This would be need for mass conservation, but is not implemented yet.
-        // Thus, we just take driver and passengers and forget about the vehicle itself.
-
-        // self.vehicles.insert(Id::get(vehicle.id), vehicle);
-    }
-
     pub fn unpark_veh_with_passengers(
-        &mut self,
+        &self,
         agent: SimulationAgent,
         passengers: Vec<SimulationAgent>,
         id: Id<InternalVehicle>,
@@ -297,11 +284,7 @@ impl Garage {
         // vehicle
     }
 
-    pub fn unpark_veh(
-        &mut self,
-        agent: SimulationAgent,
-        id: Id<InternalVehicle>,
-    ) -> SimulationVehicle {
+    pub fn unpark_veh(&self, agent: SimulationAgent, id: Id<InternalVehicle>) -> SimulationVehicle {
         self.unpark_veh_with_passengers(agent, vec![], id)
     }
 
@@ -316,7 +299,9 @@ impl Garage {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::sync::Arc;
 
+    use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
     use crate::simulation::io::xml::vehicles::{
@@ -325,6 +310,9 @@ mod tests {
     };
     use crate::test_utils::create_vehicle_type;
 
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::network::Link;
+    use crate::simulation::scenario::population::{InternalActivity, InternalPerson, InternalPlan};
     use crate::simulation::scenario::vehicles::{
         Garage, InternalVehicle, InternalVehicleType, add_io_veh_type,
     };
@@ -390,6 +378,23 @@ mod tests {
     }
 
     #[integration_test]
+    fn unpark_from_shared_garage_does_not_mutate_catalog() {
+        let mut garage = Garage::new();
+        let type_id = Id::create("car");
+        garage.add_veh_type(create_vehicle_type(&type_id, Id::create("car")));
+        let person_id = Id::create("person");
+        garage.add_veh_by_type(&person_id, &type_id);
+        let vehicle_id = garage.veh_id(&person_id, &type_id);
+        let garage = Arc::new(garage);
+        let agent = SimulationAgent::new_plan_based(person("person"));
+
+        let vehicle = garage.unpark_veh(agent, vehicle_id);
+
+        assert_eq!("person_car", vehicle.id().external());
+        assert_eq!(1, garage.vehicles.len());
+    }
+
+    #[integration_test]
     fn from_file() {
         let garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         assert_eq!(3, garage.vehicle_types.len());
@@ -424,6 +429,19 @@ mod tests {
 
         let veh_type_opt = garage.vehicle_types.values().next();
         assert!(veh_type_opt.is_some());
+    }
+
+    fn person(id: &str) -> InternalPerson {
+        let mut plan = InternalPlan::default();
+        plan.add_act(InternalActivity::new(
+            Some(Coordinate::default()),
+            "home",
+            Id::<Link>::create("link"),
+            None,
+            None,
+            None,
+        ));
+        InternalPerson::new(Id::create(id), plan)
     }
 
     #[integration_test]
