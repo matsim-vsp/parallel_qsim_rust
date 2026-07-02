@@ -32,7 +32,7 @@ impl HomesendingScoringEngine {
         output_path: PathBuf,
     ) -> Self {
         let homesending_message_broker =
-            HomeSendingMessageBroker::new(receiver, senders, num_partitions, rank);
+            HomeSendingMessageBroker::new(receiver, senders, num_partitions, rank, population);
         let homesending_data_collector = HomeSendingDataCollector::new(
             population,
             person_id2_partition_id,
@@ -73,7 +73,7 @@ impl ScoringEngine for HomesendingScoringEngine {
             HomeSendingDataCollector::register_partition_fn(
                 self.homesending_data_collector.clone(),
             ),
-            HomeSendingMessageBroker::register_fn(self.homesending_message_broker.clone()),
+            HomeSendingMessageBroker::register_events_fn(self.homesending_message_broker.clone()),
         )
     }
 
@@ -81,7 +81,7 @@ impl ScoringEngine for HomesendingScoringEngine {
         self.homesending_message_broker
             .lock()
             .unwrap()
-            .finish_sync();
+            .finish_send_recv();
         let population = self.homesending_data_collector.lock().unwrap().finish();
         let mut o = self.output_path.clone();
         o.push(format!("scoring/output_plans_{}.binpb", self.rank));

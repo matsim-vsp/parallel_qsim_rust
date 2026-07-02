@@ -1,9 +1,10 @@
 use crate::simulation::events::EventTrait;
 use crate::simulation::framework_events::{
-    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent,
+    AgentEntersPartitionEvent, AgentLeavesPartitionEvent, MobsimEvent, MobsimEventsManager,
+    MobsimListenerRegisterFn, PartitionEvent, QSimId, RuntimeEvent,
 };
 use crate::simulation::id::Id;
-use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpacking_message_broker::VehicleMessage;
@@ -18,8 +19,11 @@ pub struct HomeSendingMessageBroker {
     num_partitions: usize,
     rank: QSimId,
 
-    buffer_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
+    buffer_leaving_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
+    buffer_arriving_events: HashMap<Id<InternalPerson>, HashMap<QSimId, EventBlock>>,
+    buffer_partition_events: HashMap<QSimId, HashMap<Id<InternalPerson>, PartitionEvent>>,
     buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
+    person_id2current_partition: HashMap<Id<InternalPerson>, QSimId>,
     data_collector: Weak<Mutex<HomeSendingDataCollector>>,
 }
 
@@ -29,16 +33,33 @@ impl HomeSendingMessageBroker {
         senders: Vec<Sender<InternalScoringMessage>>,
         num_partitions: usize,
         rank: QSimId,
+        population: &Population,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,
             senders,
             num_partitions,
             rank,
-            buffer_events: HashMap::new(),
+            buffer_leaving_events: HashMap::new(),
+            buffer_arriving_events: HashMap::new(),
+            buffer_partition_events: HashMap::new(),
             buffer_vehicles: HashMap::new(),
+            person_id2current_partition: HomeSendingMessageBroker::default_current_partition_map(
+                population, rank,
+            ),
             data_collector: Weak::new(),
         }))
+    }
+
+    fn default_current_partition_map(
+        population: &Population,
+        rank: QSimId,
+    ) -> HashMap<Id<InternalPerson>, QSimId> {
+        let mut m = HashMap::new();
+        for (person_id, person) in population.persons.iter() {
+            m.insert(person_id.clone(), rank);
+        }
+        m
     }
 
     pub(crate) fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
@@ -52,7 +73,7 @@ impl HomeSendingMessageBroker {
         message_broker.lock().unwrap().data_collector = data_collector;
     }
 
-    pub(crate) fn register_fn(
+    pub(crate) fn register_events_fn(
         scoring_broker: Arc<Mutex<HomeSendingMessageBroker>>,
     ) -> Box<MobsimListenerRegisterFn> {
         Box::new(move |events: &mut MobsimEventsManager| {
@@ -84,12 +105,32 @@ impl HomeSendingMessageBroker {
         person_id: Id<InternalPerson>,
         event: Box<dyn EventTrait>,
     ) {
-        self.buffer_events
+        self.buffer_leaving_events
             .entry(target)
             .or_insert_with(HashMap::new)
             .entry(person_id)
             .or_default()
             .push(event);
+    }
+
+    pub(crate) fn add_leaving_partition_event(
+        &mut self,
+        target: QSimId,
+        person_id: Id<InternalPerson>,
+        event: PartitionEvent,
+    ) {
+        if self
+            .buffer_partition_events
+            .get(&target)
+            .is_some_and(|m| m.contains_key(&person_id))
+        {
+            panic!("Tried to overwrite partition event for {}", person_id);
+        }
+
+        self.buffer_partition_events
+            .entry(target)
+            .or_insert_with(HashMap::new)
+            .insert(person_id, event);
     }
 
     fn send(&mut self) {
@@ -107,7 +148,7 @@ impl HomeSendingMessageBroker {
             });
         }
 
-        for (target, events) in self.buffer_events.drain() {
+        for (target, events) in self.buffer_leaving_events.drain() {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
@@ -120,6 +161,21 @@ impl HomeSendingMessageBroker {
                 )
             });
         }
+
+        for (target, partition_events) in self.buffer_partition_events.drain() {
+            let msg = InternalScoringMessage {
+                from_process: self.rank,
+                to_process: target,
+                message: Box::new(PartitionEventMessage { partition_events }),
+            };
+            self.senders[target as usize].send(msg).unwrap_or_else(|e| {
+                panic!(
+                    "Error sending EventMessage to rank {} with error {}",
+                    target, e
+                )
+            });
+        }
+        // TODO Send partition events
     }
 
     fn recv(&mut self, msg: InternalScoringMessage) {
@@ -136,12 +192,83 @@ impl HomeSendingMessageBroker {
             }
             _ if boxed_any.is::<EventMessage>() => {
                 let m = boxed_any.downcast::<EventMessage>().unwrap();
-                self.data_collector
-                    .upgrade()
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .add_arriving_events(m.events);
+
+                for (person_id, events) in m.events {
+                    self.buffer_arriving_events.get_mut(&person_id)
+                        .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for person {}", person_id))
+                        .get_mut(&msg.from_process)
+                        .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for form_process {}", msg.from_process))
+                        .events
+                        .extend(events);
+                }
+            }
+            _ if boxed_any.is::<PartitionEventMessage>() => {
+                let m = *boxed_any.downcast::<PartitionEventMessage>().unwrap();
+
+                for (person_id, event) in m.partition_events {
+                    match event {
+                        PartitionEvent::AgentEntersPartition(i) => {
+                            if self
+                                .buffer_arriving_events
+                                .get(&person_id)
+                                .is_some_and(|m| m.contains_key(&msg.from_process))
+                            {
+                                panic!(
+                                    "Tried to overwrite partition event for {}, #{}",
+                                    person_id, msg.from_process
+                                );
+                            }
+
+                            self.buffer_arriving_events
+                                .entry(person_id)
+                                .or_default()
+                                .insert(
+                                    msg.from_process,
+                                    EventBlock {
+                                        enter_event: i,
+                                        events: Vec::new(),
+                                        leave_event: None,
+                                    },
+                                );
+                        }
+                        PartitionEvent::AgentLeavesPartition(i) => {
+                            self.buffer_arriving_events.get_mut(&person_id)
+                                .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for person {}", person_id))
+                                .get_mut(&msg.from_process)
+                                .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for form_process {}", msg.from_process))
+                                .leave_event = Some(i);
+
+                            while self
+                                .buffer_arriving_events
+                                .get(&person_id)
+                                .unwrap()
+                                .contains_key(
+                                    self.person_id2current_partition.get(&person_id).unwrap(),
+                                )
+                            {
+                                let block = self
+                                    .buffer_arriving_events
+                                    .get_mut(&person_id)
+                                    .unwrap()
+                                    .remove(
+                                        self.person_id2current_partition.get(&person_id).unwrap(),
+                                    )
+                                    .unwrap();
+
+                                self.data_collector
+                                    .upgrade()
+                                    .unwrap()
+                                    .lock()
+                                    .unwrap()
+                                    .add_arriving_events(person_id.clone(), block.events);
+
+                                self.person_id2current_partition
+                                    .insert(person_id.clone(), block.leave_event.unwrap().to);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
             }
             _ => {
                 panic!("Received unexpected message type during simulation step!");
@@ -165,9 +292,10 @@ impl HomeSendingMessageBroker {
     /// Called after the mobsim ends: flushes any remaining send buffers, broadcasts a
     /// FinishMessage to all other partitions, then blocks until every other partition has
     /// done the same. Incoming data messages are processed while waiting.
-    pub(crate) fn finish_sync(&mut self) {
+    pub(crate) fn finish_send_recv(&mut self) {
         self.send();
 
+        // Send a finish message to all partitions
         for target in 0..self.num_partitions {
             if target as QSimId == self.rank {
                 continue;
@@ -185,46 +313,59 @@ impl HomeSendingMessageBroker {
             });
         }
 
-        let mut finished: HashSet<QSimId> = HashSet::new();
-        while finished.len() < self.num_partitions - 1 {
-            let msg = self
-                .receiver
-                .recv()
-                .expect("Scoring channel disconnected during finish_sync");
-            let from = msg.from_process;
-            let boxed_any = msg.message.into_any();
+        let mut finished_partitions: HashSet<QSimId> = HashSet::new();
+        while finished_partitions.len() < self.senders.len() - 1 {
+            let received_msg = self.receiver.recv().expect("Error receiving message");
+            let boxed_any = received_msg.message.as_any();
+
             match () {
-                _ if boxed_any.is::<VehicleMessage>() => {
-                    let m = boxed_any.downcast::<VehicleMessage>().unwrap();
-                    self.data_collector
-                        .upgrade()
-                        .unwrap()
-                        .lock()
-                        .unwrap()
-                        .add_arriving_vehicles(m.vehicles);
-                }
-                _ if boxed_any.is::<EventMessage>() => {
-                    let m = boxed_any.downcast::<EventMessage>().unwrap();
-                    self.data_collector
-                        .upgrade()
-                        .unwrap()
-                        .lock()
-                        .unwrap()
-                        .add_arriving_events(m.events);
-                }
-                _ if boxed_any.is::<FinishMessage>() => {
-                    finished.insert(from);
+                _ if boxed_any.is::<crate::simulation::scoring::backpacking::backpacking_message_broker::FinishMessage>() => {
+                    // Add finish message to set for break condition
+                    finished_partitions.insert(received_msg.from_process);
                 }
                 _ => {
-                    panic!("Received unknown message type during finish_sync!");
+                    // Process arriving data
+                    self.recv(received_msg);
                 }
             }
+        }
+
+        // Finish remaining event-blocks. There should be exactly one event block per agent
+        // If there are more or less unfinished event-blocks, something went wrong.
+        // In such case, the check will panic.
+        for (person_id, mut buffer) in self.buffer_arriving_events.drain() {
+            if buffer.len() != 1 {
+                panic!(
+                    "Person {} has {} unfinished blocks at the end of the simulation!",
+                    person_id,
+                    buffer.len()
+                );
+            }
+
+            let block = buffer.into_values().next().unwrap();
+
+            self.data_collector
+                .upgrade()
+                .unwrap()
+                .lock()
+                .unwrap()
+                .add_arriving_events(person_id.clone(), block.events);
         }
     }
 }
 
+struct EventBlock {
+    enter_event: AgentEntersPartitionEvent,
+    events: Vec<Box<dyn EventTrait>>,
+    leave_event: Option<AgentLeavesPartitionEvent>,
+}
+
 pub struct EventMessage {
     pub(crate) events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
+}
+
+pub struct PartitionEventMessage {
+    pub(crate) partition_events: HashMap<Id<InternalPerson>, PartitionEvent>,
 }
 
 pub struct FinishMessage {}

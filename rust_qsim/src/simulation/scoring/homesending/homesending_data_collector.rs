@@ -16,12 +16,13 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 pub struct HomeSendingDataCollector {
-    person_id2partial_plan: HashMap<Id<InternalPerson>, PartialPlan>,
     person_id2home_partition: HashMap<Id<InternalPerson>, QSimId>,
-    vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
     rank: QSimId,
 
     message_broker: Arc<Mutex<HomeSendingMessageBroker>>,
+
+    person_id2events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
+    vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
 }
 
 impl HomeSendingDataCollector {
@@ -32,23 +33,22 @@ impl HomeSendingDataCollector {
         message_broker: Arc<Mutex<HomeSendingMessageBroker>>,
     ) -> Arc<Mutex<Self>> {
         let data_collector = Arc::new(Mutex::new(Self {
-            person_id2partial_plan: Default::default(),
             person_id2home_partition,
-            vehicle_id2person_ids: Default::default(),
             rank,
             message_broker,
+            person_id2events: HashMap::new(),
+            vehicle_id2person_ids: HashMap::new(),
         }));
         data_collector
             .lock()
             .unwrap()
-            .generate_partial_plans_for_population(&population);
+            .generate_event_vectors_for_population(&population);
         data_collector
     }
 
-    fn generate_partial_plans_for_population(&mut self, population: &Population) {
+    fn generate_event_vectors_for_population(&mut self, population: &Population) {
         for person in population.persons.keys() {
-            self.person_id2partial_plan
-                .insert(person.clone(), PartialPlan::default());
+            self.person_id2events.insert(person.clone(), Vec::default());
         }
     }
 
@@ -59,21 +59,21 @@ impl HomeSendingDataCollector {
         self.vehicle_id2person_ids.extend(arriving_vehicles);
     }
 
+    /// Adds the events to the corresponding event vectors. Assumes, that events as well as the
+    /// calls of this function are already sorted! Delivering unsorted events or blocks will cause
+    /// the scoring module to panic!
     pub(crate) fn add_arriving_events(
         &mut self,
-        arriving_events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
+        person_id: Id<InternalPerson>,
+        arriving_events: Vec<Box<dyn EventTrait>>,
     ) {
-        for (person_id, arriving_events) in arriving_events {
-            for arriving_event in arriving_events {
-                self.person_id2partial_plan
-                    .get_mut(&person_id)
-                    .unwrap()
-                    .handle_event(&*arriving_event);
-            }
-        }
+        self.person_id2events
+            .get_mut(&person_id)
+            .unwrap()
+            .extend(arriving_events);
     }
 
-    fn remove_leaving_vehicles(
+    pub(crate) fn remove_leaving_vehicles(
         &mut self,
         vehicle_id: &Id<InternalVehicle>,
     ) -> HashSet<Id<InternalPerson>> {
@@ -139,10 +139,10 @@ impl HomeSendingDataCollector {
                 let target = self.person_id2home_partition.get(&person).unwrap();
 
                 if *target == self.rank {
-                    self.person_id2partial_plan
+                    self.person_id2events
                         .get_mut(&person)
                         .unwrap()
-                        .handle_event(event);
+                        .push(boxed_event);
                 } else {
                     self.message_broker.lock().unwrap().add_leaving_event(
                         *target,
@@ -189,17 +189,40 @@ impl HomeSendingDataCollector {
             let data_collector1 = Arc::clone(&data_collector);
             events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
                 PartitionEvent::VehicleLeavesPartition(i) => {
-                    let leaving_vehicle = data_collector1
+                    let mut hdc = data_collector1.lock().unwrap();
+
+                    let leaving_vehicle = hdc.remove_leaving_vehicles(&i.vehicle_id);
+                    hdc.message_broker.lock().unwrap().add_leaving_vehicle(
+                        i.to.clone(),
+                        i.vehicle_id.clone(),
+                        leaving_vehicle,
+                    );
+                }
+                PartitionEvent::AgentLeavesPartition(i) => {
+                    let hdc = data_collector1.lock().unwrap();
+
+                    let home_partition = hdc.person_id2home_partition.get(&i.agent_id).unwrap();
+                    hdc.message_broker
                         .lock()
                         .unwrap()
-                        .remove_leaving_vehicles(&i.vehicle_id);
-                    data_collector1
+                        .add_leaving_partition_event(
+                            *home_partition,
+                            i.agent_id.clone(),
+                            e.payload.clone(),
+                        )
+                }
+                PartitionEvent::AgentEntersPartition(i) => {
+                    let hdc = data_collector1.lock().unwrap();
+
+                    let home_partition = hdc.person_id2home_partition.get(&i.agent_id).unwrap();
+                    hdc.message_broker
                         .lock()
                         .unwrap()
-                        .message_broker
-                        .lock()
-                        .unwrap()
-                        .add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
+                        .add_leaving_partition_event(
+                            *home_partition,
+                            i.agent_id.clone(),
+                            e.payload.clone(),
+                        )
                 }
                 _ => {}
             });
@@ -208,12 +231,18 @@ impl HomeSendingDataCollector {
 
     pub(crate) fn finish(&mut self) -> Population {
         let persons: HashMap<Id<InternalPerson>, InternalPerson> = self
-            .person_id2partial_plan
+            .person_id2events
             .drain()
-            .map(|(person_id, partial_plan)| {
+            .map(|(person_id, events)| {
+                let mut plan = PartialPlan::default();
+
+                for event in events {
+                    plan.handle_event(&*event);
+                }
+
                 (
                     person_id.clone(),
-                    InternalPerson::new(person_id, partial_plan.finish()),
+                    InternalPerson::new(person_id, plan.finish()),
                 )
             })
             .collect();
