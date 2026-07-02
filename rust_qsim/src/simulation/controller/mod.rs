@@ -324,12 +324,22 @@ impl MobsimWorkerPool {
                 "Received mobsim result for iteration {}, expected {}.",
                 result.iteration, iteration
             );
-            results.insert(result.rank, result.agents);
+            let previous = results.insert(result.rank, result.agents);
+            assert!(
+                previous.is_none(),
+                "Received duplicate mobsim result for rank {} in iteration {}.",
+                result.rank,
+                iteration
+            );
         }
 
         let mut agents = Vec::new();
         for rank in 0..self.num_parts {
-            agents.extend(results.remove(&rank).unwrap_or_default());
+            agents.extend(
+                results
+                    .remove(&rank)
+                    .unwrap_or_else(|| panic!("Missing mobsim result for rank {rank} in iteration {iteration}.")),
+            );
         }
         agents
     }
