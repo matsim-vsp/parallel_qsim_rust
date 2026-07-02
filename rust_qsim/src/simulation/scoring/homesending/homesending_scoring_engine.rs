@@ -3,7 +3,6 @@ use crate::simulation::framework_events::{
     MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId,
 };
 use crate::simulation::id::Id;
-use crate::simulation::io;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
 use crate::simulation::scoring::homesending::homesending_message_broker::HomeSendingMessageBroker;

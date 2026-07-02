@@ -257,7 +257,6 @@ impl MappingScoringMessageBroker {
     }
 
     fn recv(&mut self, msg: InternalScoringMessage) -> Option<(QSimId, QSimId)> {
-        let from = msg.from_process;
         let boxed_any = msg.message.into_any();
 
         match () {
@@ -395,13 +394,6 @@ impl MappingScoringMessageBroker {
         }
     }
 }
-
-enum RecvResult {
-    Data,
-    Sync(QSimId),
-    Finish(QSimId),
-}
-
 struct PersonEventMessage {
     events: HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
 }

@@ -1,22 +1,13 @@
-use crate::simulation::config::Config;
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
-    ControllerEvent, ControllerEventsManager, MobsimListenerRegisterFn,
-    PartitionListenerRegisterFn, QSimId, RuntimeEvent,
+    MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId,
 };
-use crate::simulation::id::Id;
-use crate::simulation::io;
-use crate::simulation::network::link::SimLink;
-use crate::simulation::scenario::ScenarioPartition;
-use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
 use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
 use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
-use nohash_hasher::IntSet;
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tracing::info;
 
@@ -32,13 +23,11 @@ impl BackpackingScoringEngine {
     pub(crate) fn new(
         rank: QSimId,
         population: &Population,
-        neighbours: IntSet<u32>,
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
         output_path: PathBuf,
     ) -> Self {
-        let backpacking_message_broker =
-            BackpackingMessageBroker::new(receiver, senders, neighbours, rank);
+        let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, rank);
         let backpacking_data_collector = BackpackingDataCollector::new(
             population,
             rank,

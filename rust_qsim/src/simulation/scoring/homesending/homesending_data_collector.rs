@@ -61,9 +61,9 @@ impl HomeSendingDataCollector {
 
     pub(crate) fn add_arriving_events(
         &mut self,
-        mut arriving_events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
+        arriving_events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
     ) {
-        for (person_id, mut arriving_events) in arriving_events {
+        for (person_id, arriving_events) in arriving_events {
             for arriving_event in arriving_events {
                 self.person_id2partial_plan
                     .get_mut(&person_id)

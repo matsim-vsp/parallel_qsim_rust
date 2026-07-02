@@ -1,5 +1,5 @@
 use crate::simulation::events::{
-    DynEq, EventTrait, LinkEnterEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
+    EventTrait, LinkEnterEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
     VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use crate::simulation::framework_events::QSimId;
@@ -23,6 +23,8 @@ pub struct MappingDataCollector {
     watermark: u32,
     watermark_buffer: HashMap<u32, HashSet<(QSimId, QSimId)>>,
 
+    // TODO: Check for the final version, whether this reference can be really removed
+    #[allow(unused)]
     message_broker: Arc<Mutex<MappingScoringMessageBroker>>,
 }
 
@@ -82,9 +84,9 @@ impl MappingDataCollector {
 
     pub(crate) fn add_arriving_person_events(
         &mut self,
-        mut arriving_events: HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
+        arriving_events: HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
     ) {
-        for (person_id, mut arriving_events) in arriving_events {
+        for (person_id, arriving_events) in arriving_events {
             for (arriving_event, c) in arriving_events {
                 self.person_id2heap
                     .entry(person_id.clone())
@@ -102,7 +104,7 @@ impl MappingDataCollector {
 
     pub(crate) fn add_arriving_vehicle_events(
         &mut self,
-        mut arriving_events: HashMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>,
+        arriving_events: HashMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>,
     ) -> HashMap<u32, HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>> {
         let mut buffer_events: HashMap<
             u32,

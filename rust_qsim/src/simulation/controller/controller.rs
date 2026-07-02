@@ -1,17 +1,20 @@
 use crate::external_services::AdapterHandle;
 use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
-use crate::simulation::config::ScoringPlansCollectionType::{Backpacking, Mapping, HomeSending};
 use crate::simulation::controller::{
     ExternalServices, PartitionArgumentsBuilder, create_output_filename,
     insert_number_in_proto_filename,
 };
 use crate::simulation::events::EventHandlerRegisterFn;
-use crate::simulation::framework_events::{ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn, MobsimListenerRegisterFn, PartitionListenerRegisterFn, RuntimeEvent};
+use crate::simulation::framework_events::{
+    ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn,
+    MobsimListenerRegisterFn, PartitionListenerRegisterFn, RuntimeEvent,
+};
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
 use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
+use crate::simulation::scoring::create_for_n_partitions;
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
 use nohash_hasher::IntMap;
@@ -21,9 +24,6 @@ use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
 use std::{fs, mem, thread};
 use tracing::info;
-use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
-use crate::simulation::scoring::create_for_n_partitions;
-use crate::simulation::scoring::homesending::homesending_scoring_engine::HomesendingScoringEngine;
 
 #[derive(Debug)]
 pub enum Scenario {
@@ -241,22 +241,30 @@ impl Controller {
         let comms = ChannelSimCommunicator::create_n_2_n(num_parts);
 
         if self.config.scoring().enabled {
-            let (scoring_engines, scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) = create_for_n_partitions(&partitions, self.config.clone());
+            let (scoring_engines, scoring_event_fn, scoring_partition_fn, scoring_mobsim_fn) =
+                create_for_n_partitions(&partitions, self.config.clone());
 
             for (i, e_fn) in scoring_event_fn.into_iter().enumerate() {
-                self.event_handler_per_partition.entry(i as u32).or_insert_with(Vec::new).push(e_fn);
+                self.event_handler_per_partition
+                    .entry(i as u32)
+                    .or_insert_with(Vec::new)
+                    .push(e_fn);
             }
             for (i, p_fn) in scoring_partition_fn.into_iter().enumerate() {
-                self.partition_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(p_fn);
+                self.partition_event_listener_per_partition
+                    .entry(i as u32)
+                    .or_insert_with(Vec::new)
+                    .push(p_fn);
             }
             for (i, m_fn) in scoring_mobsim_fn.into_iter().enumerate() {
-                self.mobsim_event_listener_per_partition.entry(i as u32).or_insert_with(Vec::new).push(m_fn);
+                self.mobsim_event_listener_per_partition
+                    .entry(i as u32)
+                    .or_insert_with(Vec::new)
+                    .push(m_fn);
             }
 
-            let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
-
-            self.controller_events_manager.on_event(move |e: &RuntimeEvent<ControllerEvent>| {
-                match e.payload {
+            self.controller_events_manager.on_event(
+                move |e: &RuntimeEvent<ControllerEvent>| match e.payload {
                     ControllerEvent::AfterMobsim(_) => {
                         thread::scope(|s| {
                             for (i, engine) in scoring_engines.iter().enumerate() {
@@ -268,15 +276,15 @@ impl Controller {
                                     .unwrap();
                             }
                         });
-                    },
+                    }
                     ControllerEvent::Scoring(_) => {
                         for engine in scoring_engines.iter() {
                             engine.scoring();
                         }
-                    },
+                    }
                     _ => {}
-                }
-            });
+                },
+            );
         }
 
         let handles: IntMap<u32, JoinHandle<()>> = comms

@@ -8,7 +8,6 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
-use nohash_hasher::IntSet;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, Weak};
@@ -16,7 +15,6 @@ use std::sync::{Arc, Mutex, Weak};
 pub struct BackpackingMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
     senders: Vec<Sender<InternalScoringMessage>>,
-    neighbours: IntSet<QSimId>,
     rank: QSimId,
 
     buffer_backpacks: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
@@ -30,13 +28,11 @@ impl BackpackingMessageBroker {
     pub(crate) fn new(
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
-        neighbours: IntSet<QSimId>,
         rank: QSimId,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,
             senders,
-            neighbours,
             rank,
             buffer_backpacks: HashMap::new(),
             buffer_vehicles: HashMap::new(),
@@ -63,11 +59,11 @@ impl BackpackingMessageBroker {
         Box::new(move |events: &mut MobsimEventsManager| {
             let bmb = Arc::clone(&scoring_broker);
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
-                MobsimEvent::BeforeSimStep(i) => {
+                MobsimEvent::BeforeSimStep(_) => {
                     bmb.lock().unwrap().recv_backpacks();
                     bmb.lock().unwrap().recv_vehicles();
                 }
-                MobsimEvent::AfterSimStep(i) => {
+                MobsimEvent::AfterSimStep(_) => {
                     bmb.lock().unwrap().send();
                 }
                 _ => {}
@@ -125,7 +121,6 @@ impl BackpackingMessageBroker {
                         .wait_vehicles
                         .insert(i.vehicle_id.clone());
                 }
-                _ => {}
             });
         })
     }

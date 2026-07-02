@@ -4,7 +4,6 @@ use crate::simulation::events::{
     PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
     VehicleLeavesTrafficEvent,
 };
-use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -16,7 +15,6 @@ use std::sync::{Arc, Mutex};
 pub struct MappingDataForwarder {
     person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
     vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>,
-    rank: QSimId,
     num_partitions: u32,
 
     person_id2internal_person: HashMap<Id<InternalPerson>, InternalPerson>,
@@ -27,14 +25,12 @@ impl MappingDataForwarder {
     pub fn new(
         person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
         vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>,
-        rank: QSimId,
         num_partitions: u32,
         mapping_collector_message_broker: Arc<Mutex<MappingCollectorMessageBroker>>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             person_hash_function,
             vehicle_hash_function,
-            rank,
             num_partitions,
             person_id2internal_person: HashMap::new(),
             message_broker: mapping_collector_message_broker,

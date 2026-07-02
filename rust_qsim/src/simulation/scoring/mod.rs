@@ -5,11 +5,8 @@ use crate::simulation::framework_events::{
 };
 use crate::simulation::id::Id;
 use crate::simulation::io;
-use crate::simulation::network::link::SimLink;
 use crate::simulation::scenario::ScenarioPartition;
-use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
 use crate::simulation::scoring::homesending::homesending_scoring_engine::HomesendingScoringEngine;
 use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingCollectorEngine;
@@ -17,7 +14,6 @@ use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingForwardi
 use crate::simulation::scoring::mapping::{person_hash, vehicle_hash};
 use std::any::Any;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
 use std::thread;
@@ -105,7 +101,6 @@ pub fn create_for_n_partitions(
             ScoringPlansCollectionType::Backpacking => Box::new(BackpackingScoringEngine::new(
                 rank,
                 &partition.population,
-                partition.network_partition.neighbors(),
                 receiver,
                 vec![],
                 io::resolve_path(config.context(), &config.output().output_dir),
@@ -194,7 +189,7 @@ pub fn create_for_n_partitions(
     let mut partition_register_functions = Vec::new();
     let mut mobsim_register_functions = Vec::new();
 
-    for mut scoring in scorings.iter_mut() {
+    for scoring in scorings.iter_mut() {
         scoring.attach_senders(senders.clone());
 
         let (event_fn, partition_fn, mobsim_fn) = scoring.register_fn();

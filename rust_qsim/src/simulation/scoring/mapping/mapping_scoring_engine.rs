@@ -1,9 +1,9 @@
 use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
-    MobsimListenerRegisterFn, PartitionEventsManager, PartitionListenerRegisterFn, QSimId,
+    MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId,
 };
 use crate::simulation::id::Id;
-use crate::simulation::scenario::population::{InternalPerson, Population};
+use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::mapping::mapping_data_collector::MappingDataCollector;
 use crate::simulation::scoring::mapping::mapping_data_forwarder::MappingDataForwarder;
@@ -49,7 +49,6 @@ impl MappingForwardingEngine {
         let mapping_data_forwarder = MappingDataForwarder::new(
             person_hash_function,
             vehicle_hash_function,
-            rank,
             num_partitions as u32,
             Arc::clone(&mapping_message_broker),
         );
@@ -110,9 +109,10 @@ impl ScoringEngine for MappingForwardingEngine {
 
 /// Parallel thread set collecting the partial plans.
 pub struct MappingCollectorEngine {
+    // TODO For the final version, Check whether this reference can be really removed
+    #[allow(unused)]
     mapping_data_collector: Arc<Mutex<MappingDataCollector>>,
     mapping_message_broker: Arc<Mutex<MappingScoringMessageBroker>>,
-    rank: QSimId,
 }
 
 impl MappingCollectorEngine {
@@ -147,7 +147,6 @@ impl MappingCollectorEngine {
         Self {
             mapping_data_collector,
             mapping_message_broker,
-            rank,
         }
     }
 
