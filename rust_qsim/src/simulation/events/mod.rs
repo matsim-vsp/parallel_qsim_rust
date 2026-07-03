@@ -240,10 +240,16 @@ impl ActivityStartEvent {
             .person(Id::create(&event.attributes["person"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
             .act_type(Id::create(&event.attributes["act_type"].as_string()))
-            .coordinate(Some(Coordinate::new(
-                event.attributes["x"].as_double(),
-                event.attributes["y"].as_double(),
-            )))
+            .coordinate(event.attributes.get("x").map(|x| {
+                Coordinate::new(
+                    x.as_double(),
+                    event
+                        .attributes
+                        .get("y")
+                        .expect("y coordinate should be given if x coordinate is given")
+                        .as_double(),
+                )
+            }))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -271,10 +277,16 @@ impl ActivityEndEvent {
             .person(Id::create(&event.attributes["person"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
             .act_type(Id::create(&event.attributes["act_type"].as_string()))
-            .coordinate(Some(Coordinate::new(
-                event.attributes["x"].as_double(),
-                event.attributes["y"].as_double(),
-            )))
+            .coordinate(event.attributes.get("x").map(|x| {
+                Coordinate::new(
+                    x.as_double(),
+                    event
+                        .attributes
+                        .get("y")
+                        .expect("y coordinate should be given if x coordinate is given")
+                        .as_double(),
+                )
+            }))
             .attributes(attrs)
             .build()
             .unwrap()
