@@ -1,3 +1,4 @@
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::emit_partition_leave_events;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -26,7 +27,16 @@ impl NetworkEngine {
         }
     }
 
-    pub fn receive_vehicle(&mut self, now: Tick, vehicle: SimulationVehicle, route_begin: bool) {
+    pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
+        self.network.drain()
+    }
+
+    pub(crate) fn receive_vehicle(
+        &mut self,
+        now: Tick,
+        vehicle: SimulationVehicle,
+        route_begin: bool,
+    ) {
         let events = if route_begin {
             //if route has just begun, no link enter event should be published
             None

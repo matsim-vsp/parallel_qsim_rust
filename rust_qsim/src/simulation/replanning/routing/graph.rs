@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 /// A (directed) graph whose nodes are Ids of network nodes, and edges are Ids of network links.
 /// The graph is used for routing. The actual network nodes and links can be accessed by their id.
-pub trait Graph: Debug {
+pub trait Graph: Debug + Send + Sync {
     /// get network node from node id
     fn node(&self, id: Id<Node>) -> Result<&Node, GraphError>;
     /// get network link from link id

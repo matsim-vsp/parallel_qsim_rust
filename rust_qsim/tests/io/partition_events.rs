@@ -6,7 +6,7 @@ use rust_qsim::simulation::framework_events::{
     PartitionListenerRegisterFn, PartitionRuntimeEvent, VehicleEntersPartitionEvent,
     VehicleLeavesPartitionEvent,
 };
-use rust_qsim::simulation::scenario::MutableScenario;
+use rust_qsim::simulation::scenario::Scenario;
 use rust_qsim::simulation::time::SimTime;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -104,7 +104,7 @@ fn collect_partition_events(config_path: &str) -> Vec<PartitionRuntimeEvent> {
     cc.partitioning_mut().method = PartitionMethod::None;
 
     let config = Arc::new(cc);
-    let scenario = MutableScenario::load(config.clone());
+    let scenario = Scenario::load(config.clone());
     let (sender, receiver) = channel::<PartitionRuntimeEvent>();
 
     let mut listeners: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>> = HashMap::new();

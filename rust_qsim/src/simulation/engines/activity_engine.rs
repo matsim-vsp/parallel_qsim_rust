@@ -33,6 +33,14 @@ impl ActivityEngine {
         }
     }
 
+    pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
+        self.awake_q
+            .drain(..)
+            .map(|a| a.agent)
+            .chain(self.asleep_q.drain().into_iter().map(|a| a.agent))
+            .collect()
+    }
+
     #[instrument(level = "trace", skip(self, now, agents))]
     pub(crate) fn do_step(
         &mut self,

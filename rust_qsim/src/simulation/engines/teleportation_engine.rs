@@ -32,7 +32,15 @@ impl TeleportationEngine {
         }
     }
 
-    pub fn receive_vehicle<C: SimCommunicator>(
+    pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
+        self.queue
+            .drain()
+            .into_iter()
+            .flat_map(|vehicle| vehicle.vehicle.into_agents())
+            .collect()
+    }
+
+    pub(crate) fn receive_vehicle<C: SimCommunicator>(
         &mut self,
         now: Tick,
         mut vehicle: SimulationVehicle,

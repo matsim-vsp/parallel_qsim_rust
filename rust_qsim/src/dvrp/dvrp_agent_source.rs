@@ -1,10 +1,10 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
-use crate::simulation::population::agent_source::AgentSource;
-use crate::simulation::scenario::ScenarioPartition;
+use crate::simulation::population::agent_source::{AgentSet, AgentSource};
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::scenario::{MobsimPartition, PopulationShard};
 use std::collections::HashMap;
 use tracing::info;
 
@@ -27,12 +27,11 @@ impl DrtAgentSource {
         Id::<String>::create("STAY");
     }
 
-    fn add_drt_driver(
-        scenario: &mut ScenarioPartition,
-    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
+    fn add_drt_driver(partition: &MobsimPartition) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         info!("Creating DRT drivers");
 
-        let drt_modes = scenario
+        let drt_modes = partition
+            .scenario
             .config
             .drt()
             .as_ref()
@@ -43,7 +42,8 @@ impl DrtAgentSource {
             .collect::<Vec<String>>();
 
         //fetch all drt vehicles starting on this partition
-        let local_drt_vehicles = scenario
+        let local_drt_vehicles = partition
+            .scenario
             .garage
             .vehicles
             .values()
@@ -62,7 +62,7 @@ impl DrtAgentSource {
                 let link_id = Id::<Link>::get_from_ext(link.as_str());
                 (link_id, v)
             })
-            .filter(|(l, _)| scenario.network_partition.get_link_ids().contains(l))
+            .filter(|(l, _)| partition.network_partition.get_link_ids().contains(l))
             .collect::<Vec<(_, &InternalVehicle)>>();
 
         let mut result = HashMap::new();
@@ -76,9 +76,9 @@ impl DrtAgentSource {
 
             let veh_id = vehicle.id.clone();
             let person_id = Id::<InternalPerson>::create(veh_id.external());
-            let from = scenario.network_partition.links.get(&link).unwrap().from();
-            let _x = scenario.network.get_node(from).coord.x;
-            let _y = scenario.network.get_node(from).coord.y;
+            let from = partition.network_partition.links.get(&link).unwrap().from();
+            let _x = partition.scenario.network.get_node(from).coord.x;
+            let _y = partition.scenario.network.get_node(from).coord.y;
 
             let plan = InternalPlan::default();
             //TODO is Some(start) as end time correct?
@@ -103,12 +103,9 @@ impl DrtAgentSource {
 }
 
 impl AgentSource for DrtAgentSource {
-    fn create_agents(
-        &self,
-        scenario: &mut ScenarioPartition,
-    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
+    fn create_agents(&self, _population: PopulationShard, partition: &MobsimPartition) -> AgentSet {
         Self::add_drt_ids();
-        Self::add_drt_driver(scenario)
+        Self::add_drt_driver(partition)
     }
 }
 
@@ -121,7 +118,7 @@ mod tests {
     //     let config_path = "./assets/drt/config.yml";
     //     let config = Config::from(CommandLineArgs::new_with_path(config_path));
     //
-    //     let mut mod = GlobalScenario::build(config, 0, &config.output().output_dir);
+    //     let mut scenario = Scenario::load(config);
     //
     //     let drt_source = DrtAgentSource {};
     //     let drt_agents = drt_source.create_agents(&mut mod, &config);

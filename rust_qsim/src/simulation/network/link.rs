@@ -154,6 +154,14 @@ impl SimLink {
             }
         }
     }
+
+    pub(super) fn drain(&mut self) -> Vec<SimulationVehicle> {
+        match self {
+            SimLink::Local(ll) => ll.drain(),
+            SimLink::In(il) => il.local_link.drain(),
+            SimLink::Out(ol) => ol.take_veh().into(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -460,6 +468,15 @@ impl LocalLink {
 
     pub fn is_available(&self) -> bool {
         self.storage_cap.is_available()
+    }
+
+    fn drain(&mut self) -> Vec<SimulationVehicle> {
+        let mut vehicles =
+            Vec::with_capacity(self.q.len() + self.buffer.len() + self.waiting_list.len());
+        vehicles.extend(self.q.drain(..).map(|entry| entry.vehicle));
+        vehicles.extend(self.buffer.drain(..));
+        vehicles.extend(self.waiting_list.drain(..));
+        vehicles
     }
 
     /// A link is active, if either the queue, waiting_list or buffer is not empty.

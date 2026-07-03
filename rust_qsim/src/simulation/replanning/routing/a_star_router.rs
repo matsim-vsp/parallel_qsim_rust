@@ -20,7 +20,7 @@ use tracing::{error, warn};
 /// Is not allowed to overestimate disutilities. It is expected of implementations to respect this.
 /// Heuristics are in general only valid for the graph they have been created for. Therefore, the
 /// estimate method does not take a graph as input, but only a to- and from-node.
-pub trait AStarHeuristic {
+pub trait AStarHeuristic: Send + Sync {
     /// Estimate travel disutility between from-node and to-node. Never overestimates the
     /// disutility.
     fn estimate(&self, from: Id<Node>, to: Id<Node>) -> Disutility;
@@ -123,8 +123,8 @@ impl AStarHeuristic for AltHeuristic {
 pub struct AStarRouter<H: AStarHeuristic> {
     graph: Box<dyn IndexableGraph>,
     heuristic: H,
-    travel_time: Box<dyn TravelTime>,
-    travel_disutility: Box<dyn TravelDisutility>,
+    travel_time: Arc<dyn TravelTime>,
+    travel_disutility: Arc<dyn TravelDisutility>,
 }
 
 pub type DijkstraRouter = AStarRouter<ZeroHeuristic>;
@@ -137,13 +137,13 @@ impl<H: AStarHeuristic> AStarRouter<H> {
     pub fn new(
         network: Arc<Network>,
         mode: Option<Id<String>>,
-        travel_time: Box<dyn TravelTime>,
-        travel_disutility: Box<dyn TravelDisutility>,
+        travel_time: Arc<dyn TravelTime>,
+        travel_disutility: Arc<dyn TravelDisutility>,
     ) -> Result<Self, GraphError> {
         let graph = convert_network_for_mode(network, mode);
         // create heuristic based on the graph. For instance, calculate landmark data in the case
         // of AltHeuristic
-        let heuristic = H::create(&graph, &*travel_disutility)?;
+        let heuristic = H::create(&graph, travel_disutility.as_ref())?;
 
         Ok(Self {
             graph: Box::new(graph),
@@ -160,15 +160,15 @@ impl<H: AStarHeuristic> AStarRouter<H> {
     pub fn new_for_modes(
         network: Arc<Network>,
         modes: &Vec<Id<String>>,
-        travel_time: Box<dyn TravelTime>,
-        travel_disutility: Box<dyn TravelDisutility>,
+        travel_time: Arc<dyn TravelTime>,
+        travel_disutility: Arc<dyn TravelDisutility>,
     ) -> Result<IntMap<Id<String>, Self>, GraphError> {
         let graphs = convert_network_with_modes(network, modes);
 
         graphs
             .into_iter()
             .try_fold(IntMap::default(), |mut map, (mode, graph)| {
-                let heuristic = H::create(&graph, &*travel_disutility)?;
+                let heuristic = H::create(&graph, travel_disutility.as_ref())?;
                 map.insert(
                     mode,
                     Self {
@@ -347,11 +347,11 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStarRouter<H> {
             }
         };
 
-        return Some(LeastCostPath {
+        Some(LeastCostPath {
             path: link_path,
             travel_time: associated_travel_time,
             travel_disutility: optimal_disutility,
-        });
+        })
     }
 }
 
@@ -383,6 +383,7 @@ mod tests {
     use crate::simulation::scenario::network::{Link, Network};
     use crate::simulation::scenario::vehicles::{Garage, InternalVehicle, InternalVehicleType};
     use crate::simulation::time::SimTime;
+    use rayon::prelude::*;
     use std::time::Duration;
 
     use macros::integration_test;
@@ -462,9 +463,6 @@ mod tests {
             // time, since the time dependent factor is 1 at time 0
             free_speed_calc.get_link_min_travel_disutility(link)
         }
-        fn box_clone(&self) -> Box<dyn TravelDisutility> {
-            Box::new(self.clone())
-        }
     }
 
     /// simple test of Dijkstra (A* with zero heuristic) and free speed travel disutility
@@ -472,13 +470,9 @@ mod tests {
     fn test_simple_dijkstra_routing() {
         let network = get_triangle_test_network();
 
-        let router = DijkstraRouter::new(
-            Arc::new(network),
-            None,
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-        )
-        .unwrap();
+        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility);
+        let router =
+            DijkstraRouter::new(Arc::new(network), None, travel_cost.clone(), travel_cost).unwrap();
 
         calc_route_and_check(
             &router,
@@ -555,11 +549,12 @@ mod tests {
         // So while in a normal use case, one would create two different routers, here, we
         // explicitly do not, to verify that the same router respects different travel times of
         // different modes
+        let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
         let router = AltRouter::new(
             Arc::new(network),
             None, // mode can be set to None here, since all links in the given network allow modes bike and car.
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            travel_cost.clone(),
+            travel_cost,
         )
         .unwrap();
 
@@ -634,11 +629,12 @@ mod tests {
 
         // Note: in this network, not all links can be used by both car and bike, so the two routers
         // are actually needed. This is is the usual case.
+        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility);
         let router_by_mode = AltRouter::new_for_modes(
             Arc::new(network),
             &vec![car_mode_id, bike_mode_id],
-            Box::new(FreeSpeedTravelTimeAndDisutility),
-            Box::new(FreeSpeedTravelTimeAndDisutility),
+            travel_cost.clone(),
+            travel_cost,
         )
         .unwrap();
 
@@ -673,11 +669,13 @@ mod tests {
         let network = Arc::new(get_triangle_test_network());
 
         // Router with zero heuristic (pure Dijkstra)
+        let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
+
         let zero_router = DijkstraRouter::new(
             network.clone(),
             None, // mode
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            travel_cost.clone(),
+            travel_cost.clone(),
         )
         .unwrap();
 
@@ -685,8 +683,8 @@ mod tests {
         let alt_router = AStarRouter::<AltHeuristic>::new(
             network.clone(),
             None, // mode
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            travel_cost.clone(),
+            travel_cost,
         )
         .unwrap();
 
@@ -706,18 +704,60 @@ mod tests {
         );
     }
 
+    /// Test that one shared ALT router can serve multiple route requests in parallel.
+    #[test]
+    fn test_shared_alt_router_parallel_routes() {
+        let network = Arc::new(get_triangle_test_network());
+        let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
+        let router =
+            Arc::new(AltRouter::new(network, None, travel_cost.clone(), travel_cost).unwrap());
+
+        let requests = vec![
+            LeastCostPathRequestBuilder::default()
+                .from(Id::get_from_ext("1"))
+                .to(Id::get_from_ext("2"))
+                .build()
+                .unwrap(),
+            LeastCostPathRequestBuilder::default()
+                .from(Id::get_from_ext("2"))
+                .to(Id::get_from_ext("3"))
+                .build()
+                .unwrap(),
+            LeastCostPathRequestBuilder::default()
+                .from(Id::get_from_ext("1"))
+                .to(Id::get_from_ext("5"))
+                .build()
+                .unwrap(),
+            LeastCostPathRequestBuilder::default()
+                .from(Id::get_from_ext("1"))
+                .to(Id::get_from_ext("4"))
+                .build()
+                .unwrap(),
+        ];
+
+        let sequential_results = requests
+            .iter()
+            .cloned()
+            .map(|request| router.calc_route(request))
+            .collect::<Vec<_>>();
+
+        let parallel_results = requests
+            .par_iter()
+            .cloned()
+            .map(|request| router.calc_route(request))
+            .collect::<Vec<_>>();
+
+        assert_eq!(parallel_results, sequential_results);
+    }
+
     /// Test routing when start and destination are the same (zero distance)
     #[test]
     fn test_same_start_and_destination() {
         let network = get_triangle_test_network();
 
-        let router = DijkstraRouter::new(
-            Arc::new(network),
-            None,
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        )
-        .unwrap();
+        let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
+        let router =
+            DijkstraRouter::new(Arc::new(network), None, travel_cost.clone(), travel_cost).unwrap();
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::get_from_ext("1")) // link 1 ends in node 2
@@ -744,11 +784,12 @@ mod tests {
 
         // Create a router with time-independent disutility
         // disutility = freespeed travel_time
+        let time_independent_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
         let router_time_indep = AStarRouter::<ZeroHeuristic>::new(
             network.clone(),
             None, // mode
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            time_independent_cost.clone(),
+            time_independent_cost,
         )
         .unwrap();
 
@@ -761,8 +802,8 @@ mod tests {
         let router_time_dep = DijkstraRouter::new(
             network.clone(),
             None,
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(TimeDependentDisutility),
+            Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility),
+            Arc::new(TimeDependentDisutility),
         )
         .unwrap();
 
@@ -805,13 +846,9 @@ mod tests {
             &PartitionMethod::Metis(MetisOptions::default()),
         );
 
-        let router = DijkstraRouter::new(
-            Arc::new(network),
-            None,
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-            Box::new(FreeOrMaxSpeedTravelTimeAndDisutility),
-        )
-        .unwrap();
+        let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
+        let router =
+            DijkstraRouter::new(Arc::new(network), None, travel_cost.clone(), travel_cost).unwrap();
 
         // Verify the behaviour when the from-link or to-link doesn't exist, and when they exist but
         // are not connected

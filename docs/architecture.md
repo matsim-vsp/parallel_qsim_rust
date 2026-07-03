@@ -15,11 +15,13 @@ Starting the simulation mostly works as in MATSim Java. All XML input files need
 faster reading. These files need to be referenced in a configuration file. Based on the config, a scenario is built,
 based on that the controller -- pretty much like in MATSim Java.
 
-As the simulation is partitioned, there are two datastructures for holding the scenario, `GlobalScenario` and
-`ScenarioPartition`. The `GlobalScenario` is built first when reading the input files.
+Scenario ownership is split into three lifecycles. `Scenario` owns the input data while files are read.
+The controller turns it into `ControllerScenario`, which keeps immutable data in a shared `ScenarioCore`
+(`Arc<Network>`, `Arc<Garage>`, `Arc<Config>`) and owns the mutable `Population`.
 
-The controller splits the `GlobalScenario` into a `ScenarioPartitionBuilder` for each partition. The `ScenarioPartition`
-is finally instantiated on each QSim separately.
+For mobsim, the controller splits the population into `MobsimInput`s. Each input contains a `MobsimPartition` with the
+shared scenario data and a fresh partition network runtime, plus a `PopulationShard`. Persistent QSim workers receive
+these inputs per iteration and return agents, which the controller materializes back into the next full population.
 
 ### External Services
 

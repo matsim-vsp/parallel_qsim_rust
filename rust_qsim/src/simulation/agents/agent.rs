@@ -37,6 +37,10 @@ impl SimulationAgent {
     pub fn new(logic: Box<dyn SimulationAgentLogic>) -> Self {
         Self { logic }
     }
+
+    pub fn into_person(self) -> Option<InternalPerson> {
+        self.logic.into_person()
+    }
 }
 
 impl EndTime for SimulationAgent {
@@ -87,5 +91,9 @@ impl SimulationAgentLogic for SimulationAgent {
     }
     fn wakeup_time(&self, now: SimTime) -> SimTime {
         self.logic.wakeup_time(now)
+    }
+
+    fn into_person(self: Box<Self>) -> Option<InternalPerson> {
+        self.logic.into_person()
     }
 }
