@@ -374,7 +374,7 @@ impl HomeSendingMessageBroker {
             let boxed_any = received_msg.message.as_any();
 
             match () {
-                _ if boxed_any.is::<crate::simulation::scoring::backpacking::backpacking_message_broker::FinishMessage>() => {
+                _ if boxed_any.is::<FinishMessage>() => {
                     // Add finish message to set for break condition
                     finished_partitions.insert(received_msg.from_process);
                 }
