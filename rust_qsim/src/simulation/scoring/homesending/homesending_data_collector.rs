@@ -52,6 +52,10 @@ impl HomeSendingDataCollector {
         }
     }
 
+    pub(crate) fn is_person_at_home(&self, person_id: &Id<InternalPerson>) -> bool {
+        *self.person_id2home_partition.get(person_id).unwrap() == self.rank
+    }
+
     pub(crate) fn add_arriving_vehicles(
         &mut self,
         arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
@@ -135,18 +139,21 @@ impl HomeSendingDataCollector {
 
         affected_persons
             .into_iter()
-            .for_each(move |(person, boxed_event)| {
-                let target = self.person_id2home_partition.get(&person).unwrap();
+            .for_each(move |(person_id, boxed_event)| {
+                let target = self.person_id2home_partition.get(&person_id).unwrap();
 
                 if *target == self.rank {
-                    self.person_id2events
-                        .get_mut(&person)
-                        .unwrap()
-                        .push(boxed_event);
+                    // For full correctness, the events need to pass the arriving_events buffer in the
+                    // message broker. Use the internal method to bypass the message sending
+                    self.message_broker.lock().unwrap().push_events_on_block(
+                        person_id,
+                        self.rank,
+                        vec![boxed_event],
+                    );
                 } else {
                     self.message_broker.lock().unwrap().add_leaving_event(
                         *target,
-                        person,
+                        person_id,
                         boxed_event,
                     );
                 }
@@ -201,6 +208,17 @@ impl HomeSendingDataCollector {
                 PartitionEvent::AgentLeavesPartition(i) => {
                     let hdc = data_collector1.lock().unwrap();
 
+                    if hdc.is_person_at_home(&i.agent_id) {
+                        // If this agent is currently in its home partition, there is no need to
+                        // send a leave message, as the events are already processed locally.
+                        hdc.message_broker.lock().unwrap().close_block(
+                            i.agent_id.clone(),
+                            hdc.rank,
+                            Some(i.clone()),
+                        );
+                        return;
+                    }
+
                     let home_partition = hdc.person_id2home_partition.get(&i.agent_id).unwrap();
                     hdc.message_broker
                         .lock()
@@ -213,6 +231,17 @@ impl HomeSendingDataCollector {
                 }
                 PartitionEvent::AgentEntersPartition(i) => {
                     let hdc = data_collector1.lock().unwrap();
+
+                    if hdc.is_person_at_home(&i.agent_id) {
+                        // If this agent is currently in its home partition, there is no need to
+                        // send a leave message, as the events are already processed locally.
+                        hdc.message_broker.lock().unwrap().open_block(
+                            i.agent_id.clone(),
+                            hdc.rank,
+                            Some(i.clone()),
+                        );
+                        return;
+                    }
 
                     let home_partition = hdc.person_id2home_partition.get(&i.agent_id).unwrap();
                     hdc.message_broker

@@ -12,6 +12,7 @@ use crate::simulation::scoring::homesending::homesending_data_collector::HomeSen
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex, Weak};
+use tracing::event;
 
 pub struct HomeSendingMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
@@ -41,7 +42,9 @@ impl HomeSendingMessageBroker {
             num_partitions,
             rank,
             buffer_leaving_events: HashMap::new(),
-            buffer_arriving_events: HashMap::new(),
+            buffer_arriving_events: HomeSendingMessageBroker::default_arriving_events_map(
+                population, rank,
+            ),
             buffer_partition_events: HashMap::new(),
             buffer_vehicles: HashMap::new(),
             person_id2current_partition: HomeSendingMessageBroker::default_current_partition_map(
@@ -58,6 +61,25 @@ impl HomeSendingMessageBroker {
         let mut m = HashMap::new();
         for (person_id, person) in population.persons.iter() {
             m.insert(person_id.clone(), rank);
+        }
+        m
+    }
+
+    fn default_arriving_events_map(
+        population: &Population,
+        rank: QSimId,
+    ) -> HashMap<Id<InternalPerson>, HashMap<QSimId, EventBlock>> {
+        let mut m = HashMap::new();
+        for (person_id, person) in population.persons.iter() {
+            m.insert(person_id.clone(), HashMap::new());
+            m.entry(person_id.clone())
+                .or_default()
+                .entry(rank)
+                .or_insert_with(|| EventBlock {
+                    enter_event: None,
+                    events: Vec::default(),
+                    leave_event: None,
+                });
         }
         m
     }
@@ -133,6 +155,98 @@ impl HomeSendingMessageBroker {
             .insert(person_id, event);
     }
 
+    pub(crate) fn open_block(
+        &mut self,
+        person_id: Id<InternalPerson>,
+        rank: QSimId,
+        enter_event: Option<AgentEntersPartitionEvent>,
+    ) {
+        if self
+            .buffer_arriving_events
+            .get(&person_id)
+            .is_some_and(|m| m.contains_key(&rank))
+        {
+            panic!("Tried to overwrite block for ({}, #{})", person_id, rank);
+        }
+
+        self.buffer_arriving_events
+            .entry(person_id)
+            .or_default()
+            .insert(
+                rank,
+                EventBlock {
+                    enter_event,
+                    events: Vec::new(),
+                    leave_event: None,
+                },
+            );
+    }
+
+    pub(crate) fn close_block(
+        &mut self,
+        person_id: Id<InternalPerson>,
+        rank: QSimId,
+        leave_event: Option<AgentLeavesPartitionEvent>,
+    ) {
+        self.buffer_arriving_events
+            .get_mut(&person_id)
+            .unwrap_or_else(|| panic!("Tried to access empty buffer for person {}", person_id))
+            .get_mut(&rank)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Tried to access empty internal block for person {} on rank {}",
+                    person_id, rank
+                )
+            })
+            .leave_event = leave_event;
+
+        while self
+            .buffer_arriving_events
+            .get(&person_id)
+            .is_some_and(|m| {
+                let cur = self.person_id2current_partition.get(&person_id).unwrap();
+                m.get(cur).is_some_and(|b| b.leave_event.is_some())
+            })
+        {
+            let block = self
+                .buffer_arriving_events
+                .get_mut(&person_id)
+                .unwrap()
+                .remove(self.person_id2current_partition.get(&person_id).unwrap())
+                .unwrap();
+
+            self.data_collector
+                .upgrade()
+                .unwrap()
+                .lock()
+                .unwrap()
+                .add_arriving_events(person_id.clone(), block.events);
+
+            self.person_id2current_partition
+                .insert(person_id.clone(), block.leave_event.unwrap().to);
+        }
+    }
+
+    pub(crate) fn push_events_on_block(
+        &mut self,
+        person_id: Id<InternalPerson>,
+        rank: QSimId,
+        events: Vec<Box<dyn EventTrait>>,
+    ) {
+        self.buffer_arriving_events
+            .get_mut(&person_id)
+            .unwrap_or_else(|| panic!("Tried to access empty buffer for person {}", person_id))
+            .get_mut(&rank)
+            .unwrap_or_else(|| {
+                panic!(
+                    "Tried to access empty block for person {} on rank {}",
+                    person_id, self.rank
+                )
+            })
+            .events
+            .extend(events);
+    }
+
     fn send(&mut self) {
         for (target, vehicles) in self.buffer_vehicles.drain() {
             let msg = InternalScoringMessage {
@@ -175,7 +289,6 @@ impl HomeSendingMessageBroker {
                 )
             });
         }
-        // TODO Send partition events
     }
 
     fn recv(&mut self, msg: InternalScoringMessage) {
@@ -194,12 +307,7 @@ impl HomeSendingMessageBroker {
                 let m = boxed_any.downcast::<EventMessage>().unwrap();
 
                 for (person_id, events) in m.events {
-                    self.buffer_arriving_events.get_mut(&person_id)
-                        .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for person {}", person_id))
-                        .get_mut(&msg.from_process)
-                        .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for form_process {}", msg.from_process))
-                        .events
-                        .extend(events);
+                    self.push_events_on_block(person_id, msg.from_process, events);
                 }
             }
             _ if boxed_any.is::<PartitionEventMessage>() => {
@@ -208,63 +316,10 @@ impl HomeSendingMessageBroker {
                 for (person_id, event) in m.partition_events {
                     match event {
                         PartitionEvent::AgentEntersPartition(i) => {
-                            if self
-                                .buffer_arriving_events
-                                .get(&person_id)
-                                .is_some_and(|m| m.contains_key(&msg.from_process))
-                            {
-                                panic!(
-                                    "Tried to overwrite partition event for {}, #{}",
-                                    person_id, msg.from_process
-                                );
-                            }
-
-                            self.buffer_arriving_events
-                                .entry(person_id)
-                                .or_default()
-                                .insert(
-                                    msg.from_process,
-                                    EventBlock {
-                                        enter_event: i,
-                                        events: Vec::new(),
-                                        leave_event: None,
-                                    },
-                                );
+                            self.open_block(person_id, msg.from_process, Some(i));
                         }
                         PartitionEvent::AgentLeavesPartition(i) => {
-                            self.buffer_arriving_events.get_mut(&person_id)
-                                .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for person {}", person_id))
-                                .get_mut(&msg.from_process)
-                                .unwrap_or_else(|| panic!("Tried to access empty field arriving event buffer for form_process {}", msg.from_process))
-                                .leave_event = Some(i);
-
-                            while self
-                                .buffer_arriving_events
-                                .get(&person_id)
-                                .unwrap()
-                                .contains_key(
-                                    self.person_id2current_partition.get(&person_id).unwrap(),
-                                )
-                            {
-                                let block = self
-                                    .buffer_arriving_events
-                                    .get_mut(&person_id)
-                                    .unwrap()
-                                    .remove(
-                                        self.person_id2current_partition.get(&person_id).unwrap(),
-                                    )
-                                    .unwrap();
-
-                                self.data_collector
-                                    .upgrade()
-                                    .unwrap()
-                                    .lock()
-                                    .unwrap()
-                                    .add_arriving_events(person_id.clone(), block.events);
-
-                                self.person_id2current_partition
-                                    .insert(person_id.clone(), block.leave_event.unwrap().to);
-                            }
+                            self.close_block(person_id, msg.from_process, Some(i));
                         }
                         _ => {}
                     }
@@ -355,7 +410,8 @@ impl HomeSendingMessageBroker {
 }
 
 struct EventBlock {
-    enter_event: AgentEntersPartitionEvent,
+    // TODO Do we even need the enter event?
+    enter_event: Option<AgentEntersPartitionEvent>,
     events: Vec<Box<dyn EventTrait>>,
     leave_event: Option<AgentLeavesPartitionEvent>,
 }
