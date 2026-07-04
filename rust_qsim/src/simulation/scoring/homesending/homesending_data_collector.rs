@@ -208,6 +208,10 @@ impl HomeSendingDataCollector {
                 PartitionEvent::AgentLeavesPartition(i) => {
                     let hdc = data_collector1.lock().unwrap();
 
+                    // TODO Calling close_block causes a deadlock, therefore the current fix is
+                    //      to let the message broker send a message to itself. Try to find a
+                    //      cleaner solution.
+                    /*
                     if hdc.is_person_at_home(&i.agent_id) {
                         // If this agent is currently in its home partition, there is no need to
                         // send a leave message, as the events are already processed locally.
@@ -218,6 +222,7 @@ impl HomeSendingDataCollector {
                         );
                         return;
                     }
+                    */
 
                     let home_partition = hdc.person_id2home_partition.get(&i.agent_id).unwrap();
                     hdc.message_broker
