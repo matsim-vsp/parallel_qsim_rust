@@ -78,6 +78,8 @@ fn run_and_verify(single_config: Config, two_config: Config) {
         .unwrap()
         .execute();
 
+    let network = Network::from_file_as_is(&single_output_dir.join("equil-network.1.xml"));
+
     let single_thread_population = Population::from_file(
         &single_output_dir.join("plans/output_plans_0.binpb"),
         &mut Garage::new(),
@@ -91,7 +93,7 @@ fn run_and_verify(single_config: Config, two_config: Config) {
         &mut Garage::new(),
     );
 
-    for (person_id, person_a) in single_thread_population.persons {
+    for (person_id, person_a) in &single_thread_population.persons {
         // Search the person in the two-thread population
         let person_b = if two_thread_population_0.persons.contains_key(&person_id) {
             two_thread_population_0.persons.get(&person_id).unwrap()
@@ -120,8 +122,8 @@ fn run_and_verify(single_config: Config, two_config: Config) {
         let person_b_plan = person_b.plans().get(0).unwrap();
 
         // Check if both plans pass integrity check
-        check_plan_integrity(person_a_plan);
-        check_plan_integrity(person_b_plan);
+        check_plan_integrity(person_a_plan, &network);
+        check_plan_integrity(person_b_plan, &network);
 
         // Make sure that the plans are equal -> Number of thread should not change the plans
         check_equal_plans(person_a_plan, person_b_plan);
@@ -133,7 +135,7 @@ fn run_and_verify(single_config: Config, two_config: Config) {
 }
 
 /// Checks if the plan components are in correct order and that start/end times do not overlap.
-fn check_plan_integrity(plan: &InternalPlan) {
+fn check_plan_integrity(plan: &InternalPlan, network: &Network) {
     let elements = &plan.elements;
 
     assert!(!elements.is_empty(), "Plan is empty.");
@@ -192,6 +194,77 @@ fn check_plan_integrity(plan: &InternalPlan) {
             }
             _ => {}
         }
+    }
+
+    // Assertion 4: network routes must form a valid connected sequence of links
+    for (i, elem) in elements.iter().enumerate() {
+        if let InternalPlanElement::Leg(leg) = elem {
+            check_route_integrity(leg, i, network);
+        }
+    }
+}
+
+/// Checks that a leg's network route forms a valid connected sequence of links.
+fn check_route_integrity(
+    leg: &rust_qsim::simulation::scenario::population::InternalLeg,
+    leg_pos: usize,
+    network: &Network,
+) {
+    use rust_qsim::simulation::scenario::population::InternalRoute;
+
+    let Some(InternalRoute::Network(route)) = &leg.route else {
+        return;
+    };
+
+    let links = route.route();
+
+    if links.is_empty() {
+        // Trip stays on the start link - start and end must be the same
+        assert_eq!(
+            route.generic_delegate().start_link(),
+            route.generic_delegate().end_link(),
+            "Leg at position {leg_pos}: empty route but start_link ({:?}) != end_link ({:?}).",
+            route.generic_delegate().start_link(),
+            route.generic_delegate().end_link()
+        );
+        return;
+    }
+
+    // First route link must be reachable from start_link
+    let start_to = network
+        .get_link(route.generic_delegate().start_link())
+        .to
+        .clone();
+    let first_from = network.get_link(&links[0]).from.clone();
+    assert_eq!(
+        start_to,
+        first_from,
+        "Leg at position {leg_pos}: start_link ({:?}) leads to node {start_to:?}, but first route link ({:?}) starts at {first_from:?}.",
+        route.generic_delegate().start_link(),
+        links[0]
+    );
+
+    // Last route link must equal end_link
+    assert_eq!(
+        links.last().unwrap(),
+        route.generic_delegate().end_link(),
+        "Leg at position {leg_pos}: last route link ({:?}) != end_link ({:?}).",
+        links.last().unwrap(),
+        route.generic_delegate().end_link()
+    );
+
+    // Consecutive links must share a node
+    for j in 0..links.len() - 1 {
+        let a_to = network.get_link(&links[j]).to.clone();
+        let b_from = network.get_link(&links[j + 1]).from.clone();
+        assert_eq!(
+            a_to,
+            b_from,
+            "Leg at position {leg_pos}: route link {j} ({:?}) ends at {a_to:?}, but link {} ({:?}) starts at {b_from:?}.",
+            links[j],
+            j + 1,
+            links[j + 1]
+        );
     }
 }
 
