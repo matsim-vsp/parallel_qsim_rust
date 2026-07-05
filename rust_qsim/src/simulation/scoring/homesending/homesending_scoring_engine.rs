@@ -84,7 +84,7 @@ impl ScoringEngine for HomesendingScoringEngine {
             .finish_send_recv();
         let population = self.homesending_data_collector.lock().unwrap().finish();
         let mut o = self.output_path.clone();
-        o.push(format!("scoring/output_plans_{}.binpb", self.rank));
+        o.push(format!("plans/output_plans_{}.binpb", self.rank));
         info!("Starting writing PartitionPlans to {:?}", o);
         population.to_file(o.as_path());
         info!("Finished writing PartitionPlans to {:?}", o);
