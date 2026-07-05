@@ -12,6 +12,7 @@ use crate::simulation::scoring::homesending::homesending_scoring_engine::Homesen
 use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingCollectorEngine;
 use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingForwardingEngine;
 use crate::simulation::scoring::mapping::{person_hash, vehicle_hash};
+use nohash_hasher::IntMap;
 use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -118,8 +119,8 @@ pub fn create_for_n_partitions(
             )),
             ScoringPlansCollectionType::HomeSending => {
                 // Prepare person_id2home_partition map needed for Homesending
-                let mut person_id2home_partition: HashMap<Id<InternalPerson>, QSimId> =
-                    HashMap::new();
+                let mut person_id2home_partition: IntMap<Id<InternalPerson>, QSimId> =
+                    IntMap::default();
                 for (i, partition) in partitions.iter().enumerate() {
                     let partition = partition.as_ref().unwrap();
 

@@ -7,12 +7,10 @@ use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
-use crate::simulation::scoring::backpacking::backpacking_message_broker::VehicleMessage;
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
-use std::collections::{HashMap, HashSet};
+use nohash_hasher::{IntMap, IntSet};
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex, Weak};
-use tracing::event;
 
 pub struct HomeSendingMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
@@ -20,12 +18,12 @@ pub struct HomeSendingMessageBroker {
     num_partitions: usize,
     rank: QSimId,
 
-    buffer_leaving_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
-    buffer_arriving_events: HashMap<Id<InternalPerson>, HashMap<QSimId, EventBlock>>,
-    buffer_partition_events: HashMap<QSimId, HashMap<Id<InternalPerson>, PartitionEvent>>,
-    buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
-    wait_vehicles: HashSet<Id<InternalVehicle>>,
-    person_id2current_partition: HashMap<Id<InternalPerson>, QSimId>,
+    buffer_leaving_events: IntMap<QSimId, IntMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>>,
+    buffer_arriving_events: IntMap<Id<InternalPerson>, IntMap<QSimId, EventBlock>>,
+    buffer_partition_events: IntMap<QSimId, IntMap<Id<InternalPerson>, PartitionEvent>>,
+    buffer_vehicles: IntMap<QSimId, IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>>,
+    wait_vehicles: IntSet<Id<InternalVehicle>>,
+    person_id2current_partition: IntMap<Id<InternalPerson>, QSimId>,
     data_collector: Weak<Mutex<HomeSendingDataCollector>>,
 }
 
@@ -42,13 +40,13 @@ impl HomeSendingMessageBroker {
             senders,
             num_partitions,
             rank,
-            buffer_leaving_events: HashMap::new(),
+            buffer_leaving_events: IntMap::default(),
             buffer_arriving_events: HomeSendingMessageBroker::default_arriving_events_map(
                 population, rank,
             ),
-            buffer_partition_events: HashMap::new(),
-            buffer_vehicles: HashMap::new(),
-            wait_vehicles: HashSet::new(),
+            buffer_partition_events: IntMap::default(),
+            buffer_vehicles: IntMap::default(),
+            wait_vehicles: IntSet::default(),
             person_id2current_partition: HomeSendingMessageBroker::default_current_partition_map(
                 population, rank,
             ),
@@ -59,8 +57,8 @@ impl HomeSendingMessageBroker {
     fn default_current_partition_map(
         population: &Population,
         rank: QSimId,
-    ) -> HashMap<Id<InternalPerson>, QSimId> {
-        let mut m = HashMap::new();
+    ) -> IntMap<Id<InternalPerson>, QSimId> {
+        let mut m = IntMap::default();
         for (person_id, person) in population.persons.iter() {
             m.insert(person_id.clone(), rank);
         }
@@ -70,10 +68,10 @@ impl HomeSendingMessageBroker {
     fn default_arriving_events_map(
         population: &Population,
         rank: QSimId,
-    ) -> HashMap<Id<InternalPerson>, HashMap<QSimId, EventBlock>> {
-        let mut m = HashMap::new();
+    ) -> IntMap<Id<InternalPerson>, IntMap<QSimId, EventBlock>> {
+        let mut m = IntMap::default();
         for (person_id, person) in population.persons.iter() {
-            m.insert(person_id.clone(), HashMap::new());
+            m.insert(person_id.clone(), IntMap::default());
             m.entry(person_id.clone())
                 .or_default()
                 .entry(rank)
@@ -122,11 +120,11 @@ impl HomeSendingMessageBroker {
         &mut self,
         target: QSimId,
         vehicle_id: Id<InternalVehicle>,
-        passengers: HashSet<Id<InternalPerson>>,
+        passengers: IntSet<Id<InternalPerson>>,
     ) {
         self.buffer_vehicles
             .entry(target)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(vehicle_id, passengers);
     }
 
@@ -174,7 +172,7 @@ impl HomeSendingMessageBroker {
     ) {
         self.buffer_leaving_events
             .entry(target)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .entry(person_id)
             .or_default()
             .push(event);
@@ -196,7 +194,7 @@ impl HomeSendingMessageBroker {
 
         self.buffer_partition_events
             .entry(target)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(person_id, event);
     }
 
@@ -413,7 +411,7 @@ impl HomeSendingMessageBroker {
             });
         }
 
-        let mut finished_partitions: HashSet<QSimId> = HashSet::new();
+        let mut finished_partitions: IntSet<QSimId> = IntSet::default();
         while finished_partitions.len() < self.senders.len() - 1 {
             let received_msg = self.receiver.recv().expect("Error receiving message");
             let boxed_any = received_msg.message.as_any();
@@ -462,11 +460,15 @@ struct EventBlock {
 }
 
 pub struct EventMessage {
-    pub(crate) events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
+    events: IntMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
+}
+
+pub struct VehicleMessage {
+    vehicles: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
 }
 
 pub struct PartitionEventMessage {
-    pub(crate) partition_events: HashMap<Id<InternalPerson>, PartitionEvent>,
+    partition_events: IntMap<Id<InternalPerson>, PartitionEvent>,
 }
 
 pub struct FinishMessage {}

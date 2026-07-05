@@ -7,6 +7,7 @@ use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
 use crate::simulation::scoring::homesending::homesending_message_broker::HomeSendingMessageBroker;
 use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
+use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
@@ -26,7 +27,7 @@ impl HomesendingScoringEngine {
         rank: QSimId,
         population: &Population,
         num_partitions: usize,
-        person_id2_partition_id: HashMap<Id<InternalPerson>, QSimId>,
+        person_id2_partition_id: IntMap<Id<InternalPerson>, QSimId>,
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
         output_path: PathBuf,

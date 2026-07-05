@@ -12,30 +12,31 @@ use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::homesending::homesending_message_broker::HomeSendingMessageBroker;
 use crate::simulation::scoring::partial_plans::PartialPlan;
-use std::collections::{HashMap, HashSet};
+use nohash_hasher::{IntMap, IntSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub struct HomeSendingDataCollector {
-    person_id2home_partition: HashMap<Id<InternalPerson>, QSimId>,
+    person_id2home_partition: IntMap<Id<InternalPerson>, QSimId>,
     rank: QSimId,
 
     message_broker: Arc<Mutex<HomeSendingMessageBroker>>,
 
-    person_id2events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
-    vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+    person_id2events: IntMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
+    vehicle_id2person_ids: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
 
     // Vehicles that crossed into this partition in the current step but whose scoring mapping has
     // not arrived yet (it travels via the broker's AfterSimStep -> BeforeSimStep cycle, one step
     // behind the vehicle body). LinkEnterEvents for these vehicles are stored in
     // deferred_link_events and replayed once the mapping is available.
-    pending_vehicles: HashSet<Id<InternalVehicle>>,
+    pending_vehicles: IntSet<Id<InternalVehicle>>,
     deferred_link_events: Vec<LinkEnterEvent>,
 }
 
 impl HomeSendingDataCollector {
     pub fn new(
         population: &Population,
-        person_id2home_partition: HashMap<Id<InternalPerson>, QSimId>,
+        person_id2home_partition: IntMap<Id<InternalPerson>, QSimId>,
         rank: QSimId,
         message_broker: Arc<Mutex<HomeSendingMessageBroker>>,
     ) -> Arc<Mutex<Self>> {
@@ -43,9 +44,9 @@ impl HomeSendingDataCollector {
             person_id2home_partition,
             rank,
             message_broker,
-            person_id2events: HashMap::new(),
-            vehicle_id2person_ids: HashMap::new(),
-            pending_vehicles: HashSet::new(),
+            person_id2events: IntMap::default(),
+            vehicle_id2person_ids: IntMap::default(),
+            pending_vehicles: IntSet::default(),
             deferred_link_events: Vec::new(),
         }));
         data_collector
@@ -67,7 +68,7 @@ impl HomeSendingDataCollector {
 
     pub(crate) fn add_arriving_vehicles(
         &mut self,
-        arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+        arriving_vehicles: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
     ) {
         for (vehicle_id, persons) in arriving_vehicles {
             self.pending_vehicles.remove(&vehicle_id);
@@ -75,7 +76,7 @@ impl HomeSendingDataCollector {
         }
     }
 
-    pub fn get_vehicles(&self) -> &HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>> {
+    pub fn get_vehicles(&self) -> &IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>> {
         &self.vehicle_id2person_ids
     }
 
@@ -105,13 +106,13 @@ impl HomeSendingDataCollector {
     pub(crate) fn remove_leaving_vehicles(
         &mut self,
         vehicle_id: &Id<InternalVehicle>,
-    ) -> HashSet<Id<InternalPerson>> {
+    ) -> IntSet<Id<InternalPerson>> {
         // TODO Build a checker, so that it only allows missing entries for teleported modes
         self.vehicle_id2person_ids
             .remove(vehicle_id)
             .unwrap_or_else(|| {
                 // warn!("Partition #{}: Tried to remove vehicle {}, which has no entry!", self.rank, vehicle_id);
-                return HashSet::default();
+                return IntSet::default();
             })
     }
 
