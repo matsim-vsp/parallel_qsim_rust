@@ -23,6 +23,13 @@ pub struct HomeSendingDataCollector {
 
     person_id2events: HashMap<Id<InternalPerson>, Vec<Box<dyn EventTrait>>>,
     vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+
+    // Vehicles that crossed into this partition in the current step but whose scoring mapping has
+    // not arrived yet (it travels via the broker's AfterSimStep -> BeforeSimStep cycle, one step
+    // behind the vehicle body). LinkEnterEvents for these vehicles are stored in
+    // deferred_link_events and replayed once the mapping is available.
+    pending_vehicles: HashSet<Id<InternalVehicle>>,
+    deferred_link_events: Vec<LinkEnterEvent>,
 }
 
 impl HomeSendingDataCollector {
@@ -38,6 +45,8 @@ impl HomeSendingDataCollector {
             message_broker,
             person_id2events: HashMap::new(),
             vehicle_id2person_ids: HashMap::new(),
+            pending_vehicles: HashSet::new(),
+            deferred_link_events: Vec::new(),
         }));
         data_collector
             .lock()
@@ -60,7 +69,23 @@ impl HomeSendingDataCollector {
         &mut self,
         arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
     ) {
-        self.vehicle_id2person_ids.extend(arriving_vehicles);
+        for (vehicle_id, persons) in arriving_vehicles {
+            self.pending_vehicles.remove(&vehicle_id);
+            self.vehicle_id2person_ids.insert(vehicle_id, persons);
+        }
+    }
+
+    pub fn get_vehicles(&self) -> &HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>> {
+        &self.vehicle_id2person_ids
+    }
+
+    /// Replays LinkEnterEvents that were buffered because the vehicle-to-person mapping had not
+    /// yet arrived when they fired. Only called from BeforeSimStep, after recv_vehicles() has
+    /// run, so the vehicle mapping is guaranteed to be present.
+    pub(crate) fn replay_deferred_link_events(&mut self) {
+        for event in std::mem::take(&mut self.deferred_link_events) {
+            self.handle_event(&event);
+        }
     }
 
     /// Adds the events to the corresponding event vectors. Assumes, that events as well as the
@@ -96,13 +121,21 @@ impl HomeSendingDataCollector {
     fn handle_event(&mut self, event: &dyn EventTrait) {
         let affected_persons: Vec<(Id<InternalPerson>, Box<dyn EventTrait>)> =
             if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
-                self.vehicle_id2person_ids
-                    .get(&e.vehicle)
-                    .into_iter()
-                    .flatten()
-                    .cloned()
-                    .map(|person| (person, Box::new(e.clone()) as Box<dyn EventTrait>))
-                    .collect::<Vec<_>>()
+                match self.vehicle_id2person_ids.get(&e.vehicle) {
+                    Some(persons) => persons
+                        .iter()
+                        .cloned()
+                        .map(|person| (person, Box::new(e.clone()) as Box<dyn EventTrait>))
+                        .collect::<Vec<_>>(),
+                    // The vehicle-to-person mapping arrives one step after the vehicle body
+                    // (broker AfterSimStep -> BeforeSimStep). Buffer for replay once the
+                    // mapping is present (see replay_deferred_link_events).
+                    None if self.pending_vehicles.contains(&e.vehicle) => {
+                        self.deferred_link_events.push(e.clone());
+                        return;
+                    }
+                    None => return, // untracked vehicle (e.g. teleportation)
+                }
             } else if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
                 vec![(e.person.clone(), Box::new(e.clone()))]
             } else if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
@@ -257,6 +290,14 @@ impl HomeSendingDataCollector {
                             i.agent_id.clone(),
                             e.payload.clone(),
                         )
+                }
+                PartitionEvent::VehicleEntersPartition(i) => {
+                    let mut hdc = data_collector1.lock().unwrap();
+                    hdc.pending_vehicles.insert(i.vehicle_id.clone());
+                    hdc.message_broker
+                        .lock()
+                        .unwrap()
+                        .wait_for_vehicle(i.vehicle_id.clone());
                 }
                 _ => {}
             });

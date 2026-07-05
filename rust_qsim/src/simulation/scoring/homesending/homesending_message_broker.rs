@@ -24,6 +24,7 @@ pub struct HomeSendingMessageBroker {
     buffer_arriving_events: HashMap<Id<InternalPerson>, HashMap<QSimId, EventBlock>>,
     buffer_partition_events: HashMap<QSimId, HashMap<Id<InternalPerson>, PartitionEvent>>,
     buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
+    wait_vehicles: HashSet<Id<InternalVehicle>>,
     person_id2current_partition: HashMap<Id<InternalPerson>, QSimId>,
     data_collector: Weak<Mutex<HomeSendingDataCollector>>,
 }
@@ -47,6 +48,7 @@ impl HomeSendingMessageBroker {
             ),
             buffer_partition_events: HashMap::new(),
             buffer_vehicles: HashMap::new(),
+            wait_vehicles: HashSet::new(),
             person_id2current_partition: HomeSendingMessageBroker::default_current_partition_map(
                 population, rank,
             ),
@@ -95,12 +97,19 @@ impl HomeSendingMessageBroker {
         message_broker.lock().unwrap().data_collector = data_collector;
     }
 
-    pub(crate) fn register_events_fn(
+    pub(crate) fn register_mobsim_fn(
         scoring_broker: Arc<Mutex<HomeSendingMessageBroker>>,
+        data_collector: Arc<Mutex<HomeSendingDataCollector>>,
     ) -> Box<MobsimListenerRegisterFn> {
         Box::new(move |events: &mut MobsimEventsManager| {
             let broker = Arc::clone(&scoring_broker);
+            let dc = Arc::clone(&data_collector);
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
+                MobsimEvent::BeforeSimStep(_) => {
+                    broker.lock().unwrap().recv_vehicles();
+                    // Broker lock released before replay; handle_event locks the broker internally.
+                    dc.lock().unwrap().replay_deferred_link_events();
+                }
                 MobsimEvent::AfterSimStep(_) => {
                     broker.lock().unwrap().send_recv();
                 }
@@ -119,6 +128,42 @@ impl HomeSendingMessageBroker {
             .entry(target)
             .or_insert_with(HashMap::new)
             .insert(vehicle_id, passengers);
+    }
+
+    pub(crate) fn wait_for_vehicle(&mut self, vehicle_id: Id<InternalVehicle>) {
+        self.wait_vehicles.insert(vehicle_id);
+    }
+
+    /// Blocks until all vehicles that crossed into this partition have their vehicle-to-person
+    /// mapping available. Called from BeforeSimStep before the next do_step, so that
+    /// replay_deferred_link_events fires in the correct order relative to subsequent link events.
+    fn recv_vehicles(&mut self) {
+        let pending = self.wait_vehicles.drain().collect::<Vec<_>>();
+        for vehicle_id in pending {
+            if self
+                .data_collector
+                .upgrade()
+                .unwrap()
+                .lock()
+                .unwrap()
+                .get_vehicles()
+                .contains_key(&vehicle_id)
+            {
+                continue;
+            }
+            while !self
+                .data_collector
+                .upgrade()
+                .unwrap()
+                .lock()
+                .unwrap()
+                .get_vehicles()
+                .contains_key(&vehicle_id)
+            {
+                let msg = self.receiver.recv().expect("Error receiving message");
+                self.recv(msg);
+            }
+        }
     }
 
     pub(crate) fn add_leaving_event(

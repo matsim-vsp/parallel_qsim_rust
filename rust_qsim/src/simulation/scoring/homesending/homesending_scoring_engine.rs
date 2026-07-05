@@ -73,7 +73,10 @@ impl ScoringEngine for HomesendingScoringEngine {
             HomeSendingDataCollector::register_partition_fn(
                 self.homesending_data_collector.clone(),
             ),
-            HomeSendingMessageBroker::register_events_fn(self.homesending_message_broker.clone()),
+            HomeSendingMessageBroker::register_mobsim_fn(
+                self.homesending_message_broker.clone(),
+                self.homesending_data_collector.clone(),
+            ),
         )
     }
 

@@ -121,7 +121,7 @@ impl BackpackingDataCollector {
             match self.vehicle_id2person_ids.get(&e.vehicle) {
                 Some(persons) => persons.iter().cloned().collect(),
                 // The vehicle-to-person mapping arrives one step after the vehicle body (broker
-                // AfterSimStep → BeforeSimStep). Buffer for replay once both the mapping and the
+                // AfterSimStep -> BeforeSimStep). Buffer for replay once both the mapping and the
                 // backpack are present (see replay_deferred_link_events).
                 None if self.pending_vehicles.contains(&e.vehicle) => {
                     self.deferred_link_events.push(e.clone());
