@@ -6,8 +6,10 @@ use macros::integration_test;
 use rust_qsim::simulation::config::ScoringPlansCollectionType::{HomeSending, Mapping};
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::io;
+use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::scenario::population::{InternalPlan, InternalPlanElement, Population};
 use rust_qsim::simulation::scenario::vehicles::Garage;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[integration_test(rust_qsim)]
@@ -122,10 +124,11 @@ fn run_and_verify(single_config: Config, two_config: Config) {
         check_plan_integrity(person_b_plan);
 
         // Make sure that the plans are equal -> Number of thread should not change the plans
-        equal_plans(person_a_plan, person_b_plan);
+        check_equal_plans(person_a_plan, person_b_plan);
 
         // Make sure, that the plans lie in their home partition
-        todo!()
+        check_plans_at_home(&two_output_dir, &two_thread_population_0, 0);
+        check_plans_at_home(&two_output_dir, &two_thread_population_1, 1);
     }
 }
 
@@ -193,7 +196,7 @@ fn check_plan_integrity(plan: &InternalPlan) {
 }
 
 /// Checks that two plans are identical element by element.
-fn equal_plans(plan_a: &InternalPlan, plan_b: &InternalPlan) {
+fn check_equal_plans(plan_a: &InternalPlan, plan_b: &InternalPlan) {
     assert_eq!(
         plan_a.elements.len(),
         plan_b.elements.len(),
@@ -202,10 +205,30 @@ fn equal_plans(plan_a: &InternalPlan, plan_b: &InternalPlan) {
         plan_b.elements.len()
     );
 
-    for (i, (elem_a, elem_b)) in plan_a.elements.iter().zip(plan_b.elements.iter()).enumerate() {
+    for (i, (elem_a, elem_b)) in plan_a
+        .elements
+        .iter()
+        .zip(plan_b.elements.iter())
+        .enumerate()
+    {
+        assert_eq!(elem_a, elem_b, "Plans differ at element {i}.");
+    }
+}
+
+/// Checks that every person in `population` has their first activity on a link belonging to `expected_partition`.
+fn check_plans_at_home(output_dir: &PathBuf, population: &Population, expected_partition: u32) {
+    let net = Network::from_file_as_is(&output_dir.join("equil-network.2.xml"));
+
+    for (person_id, person) in &population.persons {
+        let plan = person.plans().get(0).unwrap();
+        let first_act = plan.elements[0]
+            .as_activity()
+            .expect("First plan element is not an activity.");
+        let partition = net.get_link(&first_act.link_id).partition;
         assert_eq!(
-            elem_a, elem_b,
-            "Plans differ at element {i}."
+            partition, expected_partition,
+            "Person {person_id}: first activity is on link {:?} in partition {partition}, expected {expected_partition}.",
+            first_act.link_id
         );
     }
 }
