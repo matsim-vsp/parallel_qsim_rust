@@ -12,21 +12,25 @@ use std::sync::Arc;
 
 #[integration_test(rust_qsim)]
 fn test_scoring_backpacking() {
-    let single_config =
-        Config::from_args(CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1-scoring.yml"));
-    let two_config =
-        Config::from_args(CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2-scoring.yml"));
+    let single_config = Config::from_args(CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-1-scoring.yml",
+    ));
+    let two_config = Config::from_args(CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-2-scoring.yml",
+    ));
     run_and_verify(single_config, two_config);
 }
 
 #[integration_test(rust_qsim)]
 fn test_scoring_homesending() {
-    let mut single_config =
-        Config::from_args(CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1-scoring.yml"));
+    let mut single_config = Config::from_args(CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-1-scoring.yml",
+    ));
     single_config.scoring_mut().plans_collection_type = HomeSending;
 
-    let mut two_config =
-        Config::from_args(CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2-scoring.yml"));
+    let mut two_config = Config::from_args(CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-2-scoring.yml",
+    ));
     two_config.scoring_mut().plans_collection_type = HomeSending;
 
     run_and_verify(single_config, two_config);
@@ -34,12 +38,14 @@ fn test_scoring_homesending() {
 
 #[integration_test(rust_qsim)]
 fn test_scoring_mapping() {
-    let mut single_config =
-        Config::from_args(CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1-scoring.yml"));
+    let mut single_config = Config::from_args(CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-1-scoring.yml",
+    ));
     single_config.scoring_mut().plans_collection_type = Mapping;
 
-    let mut two_config =
-        Config::from_args(CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2-scoring.yml"));
+    let mut two_config = Config::from_args(CommandLineArgs::new_with_path(
+        "./tests/resources/equil/equil-config-2-scoring.yml",
+    ));
     two_config.scoring_mut().plans_collection_type = Mapping;
     two_config.scoring_mut().collector_threads = 2;
 
@@ -91,12 +97,32 @@ fn run_and_verify(single_config: Config, two_config: Config) {
             two_thread_population_1.persons.get(&person_id).unwrap()
         };
 
+        // Make sure, that both have only pne plan
+        assert_eq!(
+            person_a.plans().len(),
+            1,
+            "Person (Single partition) {} has {} plans, but test assumes exactly one!",
+            person_id,
+            person_a.plans().len()
+        );
+        assert_eq!(
+            person_b.plans().len(),
+            1,
+            "Person (Two partitions) {} has {} plans, but test assumes exactly one!",
+            person_id,
+            person_b.plans().len()
+        );
+
+        // Extract plans
+        let person_a_plan = person_a.plans().get(0).unwrap();
+        let person_b_plan = person_b.plans().get(0).unwrap();
+
         // Check if both plans pass integrity check
-        check_plan_integrity(person_a.plans());
-        check_plan_integrity(person_b.plans());
+        check_plan_integrity(person_a_plan);
+        check_plan_integrity(person_b_plan);
 
         // Make sure that the plans are equal -> Number of thread should not change the plans
-        equal_plans(person_a.plans(), person_b.plans());
+        equal_plans(person_a_plan, person_b_plan);
 
         // Make sure, that the plans lie in their home partition
         todo!()
@@ -104,72 +130,64 @@ fn run_and_verify(single_config: Config, two_config: Config) {
 }
 
 /// Checks if the plan components are in correct order and that start/end times do not overlap.
-fn check_plan_integrity(plans: &Vec<InternalPlan>) {
-    for (plan_idx, plan) in plans.iter().enumerate() {
-        let elements = &plan.elements;
+fn check_plan_integrity(plan: &InternalPlan) {
+    let elements = &plan.elements;
 
-        assert!(!elements.is_empty(), "Plan {plan_idx} is empty.");
+    assert!(!elements.is_empty(), "Plan is empty.");
 
-        // Assertion 1: must start with an activity that has no start_time
-        match &elements[0] {
-            InternalPlanElement::Activity(act) => {
-                assert!(
-                    act.start_time.is_none(),
-                    "Plan {plan_idx}: first activity must not have a start_time, got {:?}.",
-                    act.start_time
-                );
-            }
-            InternalPlanElement::Leg(_) => {
-                panic!("Plan {plan_idx}: first element must be an activity, not a leg.")
-            }
+    // Assertion 1: must start with an activity that has no start_time
+    match &elements[0] {
+        InternalPlanElement::Activity(act) => {
+            assert!(
+                act.start_time.is_none(),
+                "First activity must not have a start_time, got {:?}.",
+                act.start_time
+            );
         }
+        InternalPlanElement::Leg(_) => {
+            panic!("First element must be an activity, not a leg.")
+        }
+    }
 
-        // Assertion 2: elements must alternate act/leg/act/leg/...
-        for (i, window) in elements.windows(2).enumerate() {
-            match (&window[0], &window[1]) {
-                (InternalPlanElement::Activity(_), InternalPlanElement::Activity(_)) => {
-                    panic!(
-                        "Plan {plan_idx}: two consecutive activities at positions {i} and {}.",
-                        i + 1
+    // Assertion 2: elements must alternate act/leg/act/leg/...
+    for (i, window) in elements.windows(2).enumerate() {
+        match (&window[0], &window[1]) {
+            (InternalPlanElement::Activity(_), InternalPlanElement::Activity(_)) => {
+                panic!("Two consecutive activities at positions {i} and {}.", i + 1);
+            }
+            (InternalPlanElement::Leg(_), InternalPlanElement::Leg(_)) => {
+                panic!("Two consecutive legs at positions {i} and {}.", i + 1);
+            }
+            _ => {}
+        }
+    }
+
+    // Assertion 3: times must be contiguous — no gaps or overlaps
+    // act.end_time == next_leg.dep_time
+    // leg.dep_time + leg.trav_time + 1 == next_act.start_time
+    for i in 0..elements.len().saturating_sub(1) {
+        match (&elements[i], &elements[i + 1]) {
+            (InternalPlanElement::Activity(act), InternalPlanElement::Leg(leg)) => {
+                if let (Some(act_end), Some(dep)) = (act.end_time, leg.dep_time) {
+                    assert_eq!(
+                        act_end, dep,
+                        "Activity end_time ({act_end}) != leg dep_time ({dep}) at position {i}."
                     );
                 }
-                (InternalPlanElement::Leg(_), InternalPlanElement::Leg(_)) => {
-                    panic!(
-                        "Plan {plan_idx}: two consecutive legs at positions {i} and {}.",
-                        i + 1
+            }
+            (InternalPlanElement::Leg(leg), InternalPlanElement::Activity(act)) => {
+                if let (Some(dep), Some(trav), Some(act_start)) =
+                    (leg.dep_time, leg.trav_time, act.start_time)
+                {
+                    assert_eq!(
+                        dep + trav + 1,
+                        act_start,
+                        "Leg arrival ({dep} + {trav} + 1 = {}) != activity start_time ({act_start}) at position {i}.",
+                        dep + trav + 1
                     );
                 }
-                _ => {}
             }
-        }
-
-        // Assertion 3: times must be contiguous — no gaps or overlaps
-        // act.end_time == next_leg.dep_time
-        // leg.dep_time + leg.trav_time + 1 == next_act.start_time
-        for i in 0..elements.len().saturating_sub(1) {
-            match (&elements[i], &elements[i + 1]) {
-                (InternalPlanElement::Activity(act), InternalPlanElement::Leg(leg)) => {
-                    if let (Some(act_end), Some(dep)) = (act.end_time, leg.dep_time) {
-                        assert_eq!(
-                            act_end, dep,
-                            "Plan {plan_idx}: activity end_time ({act_end}) != leg dep_time ({dep}) at position {i}."
-                        );
-                    }
-                }
-                (InternalPlanElement::Leg(leg), InternalPlanElement::Activity(act)) => {
-                    if let (Some(dep), Some(trav), Some(act_start)) =
-                        (leg.dep_time, leg.trav_time, act.start_time)
-                    {
-                        assert_eq!(
-                            dep + trav + 1,
-                            act_start,
-                            "Plan {plan_idx}: leg arrival ({dep} + {trav} + 1 = {}) != activity start_time ({act_start}) at position {i}.",
-                            dep + trav + 1
-                        );
-                    }
-                }
-                _ => {}
-            }
+            _ => {}
         }
     }
 }
