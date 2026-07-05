@@ -11,10 +11,12 @@ use crate::simulation::framework_events::{
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
+use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
 use nohash_hasher::{IntMap, IntSet};
 use std::collections::HashMap;
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 pub struct BackpackingDataCollector {
@@ -58,6 +60,10 @@ impl BackpackingDataCollector {
             self.person_id2backpack
                 .insert(person.clone(), Backpack::new(person.clone(), self.rank));
         }
+    }
+
+    pub(crate) fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
+        self.message_broker.lock().unwrap().attach_senders(senders);
     }
 
     pub(crate) fn add_arriving_vehicles(

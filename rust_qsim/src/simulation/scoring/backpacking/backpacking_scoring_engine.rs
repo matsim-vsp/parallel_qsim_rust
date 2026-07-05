@@ -13,9 +13,7 @@ use tracing::info;
 
 pub struct BackpackingScoringEngine {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
-    backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker>>,
     rank: QSimId,
-
     output_path: PathBuf,
 }
 
@@ -36,7 +34,6 @@ impl BackpackingScoringEngine {
 
         Self {
             backpacking_data_collector,
-            backpacking_message_broker,
             rank,
             output_path,
         }
@@ -45,7 +42,7 @@ impl BackpackingScoringEngine {
 
 impl ScoringEngine for BackpackingScoringEngine {
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
-        self.backpacking_message_broker
+        self.backpacking_data_collector
             .lock()
             .unwrap()
             .attach_senders(senders);
