@@ -24,3 +24,9 @@ modules:
   simulation:
     type: Simulation
     main_modes: [ "car" ]
+  scoring:
+    type: Scoring
+    enabled: true
+    plans_collection_type: Backpacking
+    collector_threads: 1
+    sync_interval: 1
