@@ -5,7 +5,8 @@ use crate::simulation::events::{
     VehicleLeavesTrafficEvent,
 };
 use crate::simulation::framework_events::{
-    PartitionEvent, PartitionEventsManager, PartitionListenerRegisterFn, QSimId, RuntimeEvent,
+    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, PartitionEvent,
+    PartitionEventsManager, PartitionListenerRegisterFn, QSimId, RuntimeEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
@@ -244,7 +245,52 @@ impl BackpackingDataCollector {
         })
     }
 
-    pub(crate) fn prepare_send_to_home(&mut self) {
+    pub(crate) fn register_mobsim_fn(
+        data_collector: Arc<Mutex<BackpackingDataCollector>>,
+    ) -> Box<MobsimListenerRegisterFn> {
+        Box::new(move |events: &mut MobsimEventsManager| {
+            let bdc = Arc::clone(&data_collector);
+            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
+                MobsimEvent::BeforeSimStep(_) => {
+                    // Clone the broker Arc before locking the collector, so broker and collector
+                    // locks are never held simultaneously (avoids potential deadlock with
+                    // register_partition_fn which also acquires both in the same order).
+                    let broker = bdc.lock().unwrap().message_broker.clone();
+                    broker.lock().unwrap().recv_backpacks();
+                    broker.lock().unwrap().recv_vehicles();
+                    let arrived_backpacks = broker.lock().unwrap().drain_arrived_backpacks();
+                    let arrived_vehicles = broker.lock().unwrap().drain_arrived_vehicles();
+                    let mut collector = bdc.lock().unwrap();
+                    collector.add_arriving_backpacks(arrived_backpacks);
+                    collector.add_arriving_vehicles(arrived_vehicles);
+                    // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not
+                    // arrived yet. recv_backpacks() ran first, so backpacks are also present at
+                    // this point.
+                    collector.replay_deferred_link_events();
+                }
+                MobsimEvent::AfterSimStep(_) => {
+                    let broker = bdc.lock().unwrap().message_broker.clone();
+                    broker.lock().unwrap().send();
+                }
+                _ => {}
+            });
+        })
+    }
+
+    /// Drains all data that arrived in the broker's buffers during `finish_send_recv` into self.
+    /// Must be called immediately after `BackpackingMessageBroker::finish_send_recv`.
+    pub(crate) fn finish_recv(&mut self) {
+        let arrived_backpacks = self
+            .message_broker
+            .lock()
+            .unwrap()
+            .drain_arrived_backpacks();
+        let arrived_vehicles = self.message_broker.lock().unwrap().drain_arrived_vehicles();
+        self.add_arriving_backpacks(arrived_backpacks);
+        self.add_arriving_vehicles(arrived_vehicles);
+    }
+
+    pub(crate) fn finish(&mut self) -> Population {
         let mut leaving_person_ids: Vec<_> = Vec::default();
 
         // Send foreign backpacks to their home partition
@@ -262,9 +308,9 @@ impl BackpackingDataCollector {
                 leaving_backpack,
             );
         }
-    }
 
-    pub(crate) fn finish(&mut self) -> Population {
+        self.message_broker.lock().unwrap().finish_send_recv();
+
         let persons: HashMap<Id<InternalPerson>, InternalPerson> = self
             .person_id2backpack
             .drain()

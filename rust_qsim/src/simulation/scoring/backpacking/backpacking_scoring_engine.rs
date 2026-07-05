@@ -33,10 +33,6 @@ impl BackpackingScoringEngine {
             rank,
             Arc::clone(&backpacking_message_broker),
         );
-        BackpackingMessageBroker::init(
-            &backpacking_message_broker,
-            Arc::downgrade(&backpacking_data_collector),
-        );
 
         Self {
             backpacking_data_collector,
@@ -67,20 +63,11 @@ impl ScoringEngine for BackpackingScoringEngine {
             BackpackingDataCollector::register_partition_fn(
                 self.backpacking_data_collector.clone(),
             ),
-            BackpackingMessageBroker::register_mobsim_fn(self.backpacking_message_broker.clone()),
+            BackpackingDataCollector::register_mobsim_fn(self.backpacking_data_collector.clone()),
         )
     }
 
     fn finish(&self) {
-        self.backpacking_data_collector
-            .lock()
-            .unwrap()
-            .prepare_send_to_home();
-        self.backpacking_message_broker
-            .lock()
-            .unwrap()
-            .finish_send_recv();
-
         let population = self.backpacking_data_collector.lock().unwrap().finish();
         let mut o = self.output_path.clone();
         o.push(format!("plans/output_plans_{}.binpb", self.rank));

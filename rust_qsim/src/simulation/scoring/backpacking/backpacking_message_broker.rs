@@ -1,26 +1,25 @@
-use crate::simulation::framework_events::{
-    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent,
-};
+use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
-use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
 use nohash_hasher::{IntMap, IntSet};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 pub struct BackpackingMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
     senders: Vec<Sender<InternalScoringMessage>>,
     rank: QSimId,
 
-    buffer_backpacks: IntMap<QSimId, IntMap<Id<InternalPerson>, Backpack>>,
-    buffer_vehicles: IntMap<QSimId, IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>>,
+    leaving_buffer_backpacks: IntMap<QSimId, IntMap<Id<InternalPerson>, Backpack>>,
+    leaving_buffer_vehicles:
+        IntMap<QSimId, IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>>,
+    arriving_buffer_backpacks: IntMap<Id<InternalPerson>, Backpack>,
+    arriving_buffer_vehicles: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
     wait_backpacks: IntSet<Id<InternalPerson>>,
     wait_vehicles: IntSet<Id<InternalVehicle>>,
-    data_collector: Weak<Mutex<BackpackingDataCollector>>,
 }
 
 impl BackpackingMessageBroker {
@@ -33,41 +32,17 @@ impl BackpackingMessageBroker {
             receiver,
             senders,
             rank,
-            buffer_backpacks: IntMap::default(),
-            buffer_vehicles: IntMap::default(),
+            leaving_buffer_backpacks: IntMap::default(),
+            leaving_buffer_vehicles: IntMap::default(),
+            arriving_buffer_backpacks: IntMap::default(),
+            arriving_buffer_vehicles: IntMap::default(),
             wait_backpacks: IntSet::default(),
             wait_vehicles: IntSet::default(),
-            data_collector: Weak::new(),
         }))
     }
 
     pub(crate) fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
         self.senders.extend(senders);
-    }
-
-    pub(crate) fn init(
-        message_broker: &Arc<Mutex<Self>>,
-        data_collector: Weak<Mutex<BackpackingDataCollector>>,
-    ) {
-        message_broker.lock().unwrap().data_collector = data_collector;
-    }
-
-    pub(crate) fn register_mobsim_fn(
-        scoring_broker: Arc<Mutex<BackpackingMessageBroker>>,
-    ) -> Box<MobsimListenerRegisterFn> {
-        Box::new(move |events: &mut MobsimEventsManager| {
-            let bmb = Arc::clone(&scoring_broker);
-            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
-                MobsimEvent::BeforeSimStep(_) => {
-                    bmb.lock().unwrap().recv_backpacks();
-                    bmb.lock().unwrap().recv_vehicles();
-                }
-                MobsimEvent::AfterSimStep(_) => {
-                    bmb.lock().unwrap().send();
-                }
-                _ => {}
-            });
-        })
     }
 
     pub(crate) fn add_leaving_backpack(
@@ -76,7 +51,7 @@ impl BackpackingMessageBroker {
         agent_id: Id<InternalPerson>,
         backpack: Backpack,
     ) {
-        self.buffer_backpacks
+        self.leaving_buffer_backpacks
             .entry(target)
             .or_insert_with(|| IntMap::default())
             .insert(agent_id, backpack);
@@ -88,7 +63,7 @@ impl BackpackingMessageBroker {
         vehicle_id: Id<InternalVehicle>,
         passengers: IntSet<Id<InternalPerson>>,
     ) {
-        self.buffer_vehicles
+        self.leaving_buffer_vehicles
             .entry(target)
             .or_insert_with(|| IntMap::default())
             .insert(vehicle_id, passengers);
@@ -102,8 +77,18 @@ impl BackpackingMessageBroker {
         self.wait_vehicles.insert(vehicle_id);
     }
 
+    pub(crate) fn drain_arrived_backpacks(&mut self) -> IntMap<Id<InternalPerson>, Backpack> {
+        std::mem::take(&mut self.arriving_buffer_backpacks)
+    }
+
+    pub(crate) fn drain_arrived_vehicles(
+        &mut self,
+    ) -> IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>> {
+        std::mem::take(&mut self.arriving_buffer_vehicles)
+    }
+
     pub(crate) fn send(&mut self) {
-        for (target, vehicles) in self.buffer_vehicles.drain() {
+        for (target, vehicles) in self.leaving_buffer_vehicles.drain() {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
@@ -118,7 +103,7 @@ impl BackpackingMessageBroker {
             });
         }
 
-        for (target, backpacks) in self.buffer_backpacks.drain() {
+        for (target, backpacks) in self.leaving_buffer_backpacks.drain() {
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
@@ -141,21 +126,11 @@ impl BackpackingMessageBroker {
         match () {
             _ if boxed_any.is::<VehicleMessage>() => {
                 let m = boxed_any.downcast::<VehicleMessage>().unwrap();
-                self.data_collector
-                    .upgrade()
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .add_arriving_vehicles(m.vehicles);
+                self.arriving_buffer_vehicles.extend(m.vehicles);
             }
             _ if boxed_any.is::<BackpackingMessage>() => {
                 let m = boxed_any.downcast::<BackpackingMessage>().unwrap();
-                self.data_collector
-                    .upgrade()
-                    .unwrap()
-                    .lock()
-                    .unwrap()
-                    .add_arriving_backpacks(m.backpacks);
+                self.arriving_buffer_backpacks.extend(m.backpacks);
             }
             _ => {
                 panic!("Received unknown message type!");
@@ -167,33 +142,17 @@ impl BackpackingMessageBroker {
     /// persons are present. If not, the function blocks the thread until said backpack has arrived.
     /// This function is called once for each person, that has entered the partition and assures
     /// that the scoring module is only using backpacks which are present.
-    fn recv_backpacks(&mut self) {
+    pub(crate) fn recv_backpacks(&mut self) {
         let pending_backpacks = self.wait_backpacks.drain().collect::<Vec<_>>();
         for person_id in pending_backpacks {
             // Check whether backpack is already there
-            if self
-                .data_collector
-                .upgrade()
-                .unwrap()
-                .lock()
-                .unwrap()
-                .get_backpacks()
-                .contains_key(&person_id)
-            {
+            if self.arriving_buffer_backpacks.contains_key(&person_id) {
                 // Since the backpack is already there, there is no need to block the thread
                 continue;
             }
 
             // Recv backpacks, until the backpack for the current person arrives
-            while !self
-                .data_collector
-                .upgrade()
-                .unwrap()
-                .lock()
-                .unwrap()
-                .get_backpacks()
-                .contains_key(&person_id)
-            {
+            while !self.arriving_buffer_backpacks.contains_key(&person_id) {
                 let received_msg = self.receiver.recv().expect("Error receiving message");
                 self.recv(received_msg);
             }
@@ -204,45 +163,21 @@ impl BackpackingMessageBroker {
     /// vehicles is present. If not, the function blocks the thread until said passenger info has arrived.
     /// This function is called once for each vehicle, that has entered the partition and assures
     /// that the scoring module is only using passenger info which is present.
-    fn recv_vehicles(&mut self) {
+    pub(crate) fn recv_vehicles(&mut self) {
         let pending_vehicles = self.wait_vehicles.drain().collect::<Vec<_>>();
         for vehicle_id in pending_vehicles {
             // Check whether backpack is already there
-            if self
-                .data_collector
-                .upgrade()
-                .unwrap()
-                .lock()
-                .unwrap()
-                .get_vehicles()
-                .contains_key(&vehicle_id)
-            {
+            if self.arriving_buffer_vehicles.contains_key(&vehicle_id) {
                 // Since the vehicle is already there, there is no need to block the thread
                 continue;
             }
 
             // Recv backpacks, until the backpack for the current person arrives
-            while !self
-                .data_collector
-                .upgrade()
-                .unwrap()
-                .lock()
-                .unwrap()
-                .get_vehicles()
-                .contains_key(&vehicle_id)
-            {
+            while !self.arriving_buffer_vehicles.contains_key(&vehicle_id) {
                 let received_msg = self.receiver.recv().expect("Error receiving message");
                 self.recv(received_msg);
             }
         }
-        // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not arrived
-        // yet. recv_backpacks() ran first, so backpacks are also present at this point.
-        self.data_collector
-            .upgrade()
-            .unwrap()
-            .lock()
-            .unwrap()
-            .replay_deferred_link_events();
     }
 
     /// The last send-recv operation before the iteration ends.
