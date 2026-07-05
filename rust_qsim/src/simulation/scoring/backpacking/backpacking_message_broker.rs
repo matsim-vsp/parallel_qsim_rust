@@ -182,7 +182,7 @@ impl BackpackingMessageBroker {
                 .contains_key(&person_id)
             {
                 // Since the backpack is already there, there is no need to block the thread
-                return;
+                continue;
             }
 
             // Recv backpacks, until the backpack for the current person arrives
@@ -218,8 +218,8 @@ impl BackpackingMessageBroker {
                 .get_vehicles()
                 .contains_key(&vehicle_id)
             {
-                // Since the backpack is already there, there is no need to block the thread
-                return;
+                // Since the vehicle is already there, there is no need to block the thread
+                continue;
             }
 
             // Recv backpacks, until the backpack for the current person arrives
@@ -236,6 +236,14 @@ impl BackpackingMessageBroker {
                 self.recv(received_msg);
             }
         }
+        // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not arrived
+        // yet. recv_backpacks() ran first, so backpacks are also present at this point.
+        self.data_collector
+            .upgrade()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .replay_deferred_link_events();
     }
 
     /// The last send-recv operation before the iteration ends.

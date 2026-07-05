@@ -21,6 +21,13 @@ pub struct BackpackingDataCollector {
     rank: QSimId,
 
     message_broker: Arc<Mutex<BackpackingMessageBroker>>,
+
+    // Vehicles that crossed into this partition in the current step but whose scoring mapping has
+    // not arrived yet (it travels via the broker's AfterSimStep -> BeforeSimStep cycle, one step
+    // behind the vehicle body). LinkEnterEvents for these vehicles are stored in
+    // deferred_link_events and replayed once both the mapping and the backpack are available.
+    pending_vehicles: HashSet<Id<InternalVehicle>>,
+    deferred_link_events: Vec<LinkEnterEvent>,
 }
 
 impl BackpackingDataCollector {
@@ -34,6 +41,8 @@ impl BackpackingDataCollector {
             vehicle_id2person_ids: Default::default(),
             rank,
             message_broker,
+            pending_vehicles: Default::default(),
+            deferred_link_events: Default::default(),
         }));
         data_collector
             .lock()
@@ -53,7 +62,19 @@ impl BackpackingDataCollector {
         &mut self,
         arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
     ) {
-        self.vehicle_id2person_ids.extend(arriving_vehicles);
+        for (vehicle_id, persons) in arriving_vehicles {
+            self.pending_vehicles.remove(&vehicle_id);
+            self.vehicle_id2person_ids.insert(vehicle_id, persons);
+        }
+    }
+
+    /// Replays LinkEnterEvents that were buffered because the vehicle-to-person mapping had not
+    /// yet arrived when they fired. Only called from recv_vehicles(), after recv_backpacks() has
+    /// already run, so both backpacks and vehicle mappings are guaranteed to be present.
+    pub(crate) fn replay_deferred_link_events(&mut self) {
+        for event in std::mem::take(&mut self.deferred_link_events) {
+            self.handle_event(&event);
+        }
     }
 
     pub(crate) fn add_arriving_backpacks(
@@ -97,10 +118,17 @@ impl BackpackingDataCollector {
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
     fn handle_event(&mut self, event: &dyn EventTrait) {
         let affected_persons = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
-            self.vehicle_id2person_ids
-                .get(&e.vehicle)
-                .map(|persons| persons.iter().cloned().collect())
-                .unwrap_or_default()
+            match self.vehicle_id2person_ids.get(&e.vehicle) {
+                Some(persons) => persons.iter().cloned().collect(),
+                // The vehicle-to-person mapping arrives one step after the vehicle body (broker
+                // AfterSimStep → BeforeSimStep). Buffer for replay once both the mapping and the
+                // backpack are present (see replay_deferred_link_events).
+                None if self.pending_vehicles.contains(&e.vehicle) => {
+                    self.deferred_link_events.push(e.clone());
+                    return;
+                }
+                None => return, // untracked vehicle (e.g. teleportation)
+            }
         } else if let Some(e) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
             vec![e.person.clone()]
         } else if let Some(e) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
@@ -204,10 +232,9 @@ impl BackpackingDataCollector {
                         .wait_for_backpack(i.agent_id.clone());
                 }
                 PartitionEvent::VehicleEntersPartition(i) => {
-                    data_collector1
-                        .lock()
-                        .unwrap()
-                        .message_broker
+                    let mut bdc = data_collector1.lock().unwrap();
+                    bdc.pending_vehicles.insert(i.vehicle_id.clone());
+                    bdc.message_broker
                         .lock()
                         .unwrap()
                         .wait_for_vehicle(i.vehicle_id.clone());
