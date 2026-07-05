@@ -192,7 +192,20 @@ fn check_plan_integrity(plan: &InternalPlan) {
     }
 }
 
-/// Compares two plans, returns true if identical
-fn equal_plans(plan_a: &Vec<InternalPlan>, plan_b: &Vec<InternalPlan>) {
-    todo!()
+/// Checks that two plans are identical element by element.
+fn equal_plans(plan_a: &InternalPlan, plan_b: &InternalPlan) {
+    assert_eq!(
+        plan_a.elements.len(),
+        plan_b.elements.len(),
+        "Plans have different number of elements ({} vs {}).",
+        plan_a.elements.len(),
+        plan_b.elements.len()
+    );
+
+    for (i, (elem_a, elem_b)) in plan_a.elements.iter().zip(plan_b.elements.iter()).enumerate() {
+        assert_eq!(
+            elem_a, elem_b,
+            "Plans differ at element {i}."
+        );
+    }
 }
