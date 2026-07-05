@@ -11,7 +11,6 @@ use crate::simulation::scoring::mapping::mapping_message_broker::MappingCollecto
 use std::collections::HashMap;
 use std::mem::take;
 use std::sync::{Arc, Mutex};
-
 pub struct MappingDataForwarder {
     person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
     vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>,

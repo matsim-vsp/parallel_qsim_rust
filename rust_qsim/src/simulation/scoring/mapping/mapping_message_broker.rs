@@ -8,7 +8,8 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::mapping::mapping_data_collector::MappingDataCollector;
 use crate::simulation::scoring::mapping::mapping_data_forwarder::MappingDataForwarder;
-use std::collections::{HashMap, HashSet};
+use ahash::{HashSet, HashSetExt};
+use nohash_hasher::IntMap;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, Weak};
 
@@ -21,8 +22,8 @@ pub struct MappingCollectorMessageBroker {
     sync_interval: u32,
 
     counter: u32,
-    buffer_events: HashMap<QSimId, HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>>,
-    buffer_vehicles: HashMap<u32, HashMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>>,
+    buffer_events: IntMap<QSimId, IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>>,
+    buffer_vehicles: IntMap<u32, IntMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>>,
     data_forwarder: Weak<Mutex<MappingDataForwarder>>,
 }
 
@@ -43,8 +44,8 @@ impl MappingCollectorMessageBroker {
             num_collectors,
             sync_interval,
             counter: 0,
-            buffer_events: HashMap::new(),
-            buffer_vehicles: HashMap::new(),
+            buffer_events: IntMap::default(),
+            buffer_vehicles: IntMap::default(),
             data_forwarder: Weak::new(),
         }))
     }
@@ -82,7 +83,7 @@ impl MappingCollectorMessageBroker {
     ) {
         self.buffer_events
             .entry(target)
-            .or_insert_with(|| HashMap::new())
+            .or_insert_with(|| IntMap::default())
             .entry(person_id)
             .or_insert_with(|| Vec::default())
             .push((event, self.counter));
@@ -97,7 +98,7 @@ impl MappingCollectorMessageBroker {
     ) {
         self.buffer_vehicles
             .entry(target)
-            .or_insert_with(|| HashMap::new())
+            .or_insert_with(|| IntMap::default())
             .entry(vehicle_id)
             .or_insert_with(|| Vec::default())
             .push((event, self.counter));
@@ -196,10 +197,10 @@ pub struct MappingScoringMessageBroker {
     rank: QSimId,
     num_partitions: usize,
     num_collectors: usize,
-    person_id2home_partition: HashMap<Id<InternalPerson>, QSimId>,
+    person_id2home_partition: IntMap<Id<InternalPerson>, QSimId>,
 
-    buffer_events: HashMap<u32, HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>>,
-    buffer_watermarks: HashMap<QSimId, WatermarkMessage>,
+    buffer_events: IntMap<u32, IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>>,
+    buffer_watermarks: IntMap<QSimId, WatermarkMessage>,
     data_collector: Weak<Mutex<MappingDataCollector>>,
 }
 
@@ -210,7 +211,7 @@ impl MappingScoringMessageBroker {
         rank: QSimId,
         num_partitions: usize,
         num_collectors: usize,
-        person_id2home_partition: HashMap<Id<InternalPerson>, QSimId>,
+        person_id2home_partition: IntMap<Id<InternalPerson>, QSimId>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,
@@ -219,8 +220,8 @@ impl MappingScoringMessageBroker {
             num_partitions,
             num_collectors,
             person_id2home_partition,
-            buffer_events: HashMap::new(),
-            buffer_watermarks: HashMap::new(),
+            buffer_events: IntMap::default(),
+            buffer_watermarks: IntMap::default(),
             data_collector: Weak::new(),
         }))
     }
@@ -355,10 +356,10 @@ impl MappingScoringMessageBroker {
 
     fn finish_send(&mut self) {
         // TODO Check if heap is empty
-        let mut partition_id2partial_plan: HashMap<
+        let mut partition_id2partial_plan: IntMap<
             QSimId,
-            HashMap<Id<InternalPerson>, InternalPlan>,
-        > = HashMap::new();
+            IntMap<Id<InternalPerson>, InternalPlan>,
+        > = IntMap::default();
         for (person_id, partial_plan) in self
             .data_collector
             .upgrade()
@@ -395,11 +396,11 @@ impl MappingScoringMessageBroker {
     }
 }
 struct PersonEventMessage {
-    events: HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
+    events: IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
 }
 
 struct VehicleEventMessage {
-    events: HashMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>,
+    events: IntMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>,
 }
 
 struct WatermarkMessage {
@@ -409,5 +410,5 @@ struct WatermarkMessage {
 }
 
 struct InternalPlanMessage {
-    plans: HashMap<Id<InternalPerson>, InternalPlan>,
+    plans: IntMap<Id<InternalPerson>, InternalPlan>,
 }

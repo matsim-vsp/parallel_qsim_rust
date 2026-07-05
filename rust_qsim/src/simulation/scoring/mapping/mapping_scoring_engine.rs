@@ -11,6 +11,7 @@ use crate::simulation::scoring::mapping::mapping_message_broker::{
     MappingCollectorMessageBroker, MappingScoringMessageBroker,
 };
 use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
+use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
@@ -121,7 +122,7 @@ impl MappingCollectorEngine {
         person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
         num_partitions: usize,
         num_collectors: usize,
-        person_id2home_partition: HashMap<Id<InternalPerson>, QSimId>,
+        person_id2home_partition: IntMap<Id<InternalPerson>, QSimId>,
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
     ) -> Self {

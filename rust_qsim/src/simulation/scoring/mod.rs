@@ -148,7 +148,8 @@ pub fn create_for_n_partitions(
     if config.scoring().plans_collection_type == ScoringPlansCollectionType::Mapping {
         for i in 0..num_collectors {
             // Prepare person_id2home_partition map needed for Homesending
-            let mut person_id2home_partition: HashMap<Id<InternalPerson>, QSimId> = HashMap::new();
+            let mut person_id2home_partition: IntMap<Id<InternalPerson>, QSimId> =
+                IntMap::default();
             for (i, partition) in partitions.iter().enumerate() {
                 let partition = partition.as_ref().unwrap();
 

@@ -8,8 +8,10 @@ use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::mapping::mapping_message_broker::MappingScoringMessageBroker;
 use crate::simulation::scoring::partial_plans::PartialPlan;
+use ahash::HashSet;
+use nohash_hasher::{IntMap, IntSet};
 use std::cmp::{Ordering, Reverse};
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::BinaryHeap;
 use std::sync::{Arc, Mutex};
 
 pub struct MappingDataCollector {
@@ -17,11 +19,11 @@ pub struct MappingDataCollector {
     num_partitions: u32,
     num_collectors: u32,
 
-    person_id2heap: HashMap<Id<InternalPerson>, BinaryHeap<HeapEntry>>,
-    person_id2partial_plan: HashMap<Id<InternalPerson>, PartialPlan>,
-    vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+    person_id2heap: IntMap<Id<InternalPerson>, BinaryHeap<HeapEntry>>,
+    person_id2partial_plan: IntMap<Id<InternalPerson>, PartialPlan>,
+    vehicle_id2person_ids: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
     watermark: u32,
-    watermark_buffer: HashMap<u32, HashSet<(QSimId, QSimId)>>,
+    watermark_buffer: IntMap<u32, HashSet<(QSimId, QSimId)>>,
 
     // TODO: Check for the final version, whether this reference can be really removed
     #[allow(unused)]
@@ -39,11 +41,11 @@ impl MappingDataCollector {
             person_hash_function,
             num_partitions,
             num_collectors,
-            person_id2heap: HashMap::new(),
-            person_id2partial_plan: HashMap::new(),
-            vehicle_id2person_ids: HashMap::new(),
+            person_id2heap: IntMap::default(),
+            person_id2partial_plan: IntMap::default(),
+            vehicle_id2person_ids: IntMap::default(),
             watermark: 0,
-            watermark_buffer: HashMap::new(),
+            watermark_buffer: IntMap::default(),
             message_broker,
         }))
     }
@@ -51,7 +53,7 @@ impl MappingDataCollector {
     pub(crate) fn add_arriving_watermark(&mut self, origin: QSimId, collector: QSimId, time: u32) {
         self.watermark_buffer
             .entry(time)
-            .or_insert(HashSet::new())
+            .or_default()
             .insert((origin, collector));
 
         if self.watermark_buffer.get(&time).unwrap().len()
@@ -84,7 +86,7 @@ impl MappingDataCollector {
 
     pub(crate) fn add_arriving_person_events(
         &mut self,
-        arriving_events: HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
+        arriving_events: IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
     ) {
         for (person_id, arriving_events) in arriving_events {
             for (arriving_event, c) in arriving_events {
@@ -104,12 +106,12 @@ impl MappingDataCollector {
 
     pub(crate) fn add_arriving_vehicle_events(
         &mut self,
-        arriving_events: HashMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>,
-    ) -> HashMap<u32, HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>> {
-        let mut buffer_events: HashMap<
+        arriving_events: IntMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>,
+    ) -> IntMap<u32, IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>> {
+        let mut buffer_events: IntMap<
             u32,
-            HashMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
-        > = HashMap::new();
+            IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>,
+        > = IntMap::default();
 
         for (vehicle_id, mut events) in arriving_events {
             for (event, c) in events.drain(..) {
@@ -121,7 +123,7 @@ impl MappingDataCollector {
                                 (self.person_hash_function)(person_id.clone())
                                     + self.num_partitions,
                             )
-                            .or_insert(HashMap::new())
+                            .or_insert(IntMap::default())
                             .entry(person_id.clone())
                             .or_insert(vec![])
                             .push((Box::new(e.clone()), c));
@@ -136,7 +138,7 @@ impl MappingDataCollector {
                                 (self.person_hash_function)(person_id.clone())
                                     + self.num_partitions,
                             )
-                            .or_insert(HashMap::new())
+                            .or_insert(IntMap::default())
                             .entry(person_id.clone())
                             .or_insert(vec![])
                             .push((Box::new(e.clone()), c));
@@ -151,7 +153,7 @@ impl MappingDataCollector {
                                 (self.person_hash_function)(person_id.clone())
                                     + self.num_partitions,
                             )
-                            .or_insert(HashMap::new())
+                            .or_insert(IntMap::default())
                             .entry(person_id.clone())
                             .or_insert(vec![])
                             .push((Box::new(e.clone()), c));
@@ -171,7 +173,7 @@ impl MappingDataCollector {
                                 (self.person_hash_function)(person_id.clone())
                                     + self.num_partitions,
                             )
-                            .or_insert(HashMap::new())
+                            .or_insert(IntMap::default())
                             .entry(person_id.clone())
                             .or_insert(vec![])
                             .push((Box::new(e.clone()), c));
@@ -186,7 +188,7 @@ impl MappingDataCollector {
                                 (self.person_hash_function)(person_id.clone())
                                     + self.num_partitions,
                             )
-                            .or_insert(HashMap::new())
+                            .or_insert(IntMap::default())
                             .entry(person_id.clone())
                             .or_insert(vec![])
                             .push((Box::new(e.clone()), c));
@@ -205,7 +207,7 @@ impl MappingDataCollector {
         buffer_events
     }
 
-    pub(crate) fn take_person_plans(&mut self) -> HashMap<Id<InternalPerson>, PartialPlan> {
+    pub(crate) fn take_person_plans(&mut self) -> IntMap<Id<InternalPerson>, PartialPlan> {
         std::mem::take(&mut self.person_id2partial_plan)
     }
 }
