@@ -1,6 +1,5 @@
 use crate::simulation::framework_events::{
-    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, PartitionEvent,
-    PartitionEventsManager, PartitionListenerRegisterFn, QSimId, RuntimeEvent,
+    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, QSimId, RuntimeEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
@@ -8,7 +7,7 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
-use std::collections::{HashMap, HashSet};
+use nohash_hasher::{IntMap, IntSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, Weak};
 
@@ -17,10 +16,10 @@ pub struct BackpackingMessageBroker {
     senders: Vec<Sender<InternalScoringMessage>>,
     rank: QSimId,
 
-    buffer_backpacks: HashMap<QSimId, HashMap<Id<InternalPerson>, Backpack>>,
-    buffer_vehicles: HashMap<QSimId, HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>>,
-    wait_backpacks: HashSet<Id<InternalPerson>>,
-    wait_vehicles: HashSet<Id<InternalVehicle>>,
+    buffer_backpacks: IntMap<QSimId, IntMap<Id<InternalPerson>, Backpack>>,
+    buffer_vehicles: IntMap<QSimId, IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>>,
+    wait_backpacks: IntSet<Id<InternalPerson>>,
+    wait_vehicles: IntSet<Id<InternalVehicle>>,
     data_collector: Weak<Mutex<BackpackingDataCollector>>,
 }
 
@@ -34,10 +33,10 @@ impl BackpackingMessageBroker {
             receiver,
             senders,
             rank,
-            buffer_backpacks: HashMap::new(),
-            buffer_vehicles: HashMap::new(),
-            wait_backpacks: HashSet::new(),
-            wait_vehicles: HashSet::new(),
+            buffer_backpacks: IntMap::default(),
+            buffer_vehicles: IntMap::default(),
+            wait_backpacks: IntSet::default(),
+            wait_vehicles: IntSet::default(),
             data_collector: Weak::new(),
         }))
     }
@@ -79,7 +78,7 @@ impl BackpackingMessageBroker {
     ) {
         self.buffer_backpacks
             .entry(target)
-            .or_insert_with(|| HashMap::new())
+            .or_insert_with(|| IntMap::default())
             .insert(agent_id, backpack);
     }
 
@@ -87,11 +86,11 @@ impl BackpackingMessageBroker {
         &mut self,
         target: QSimId,
         vehicle_id: Id<InternalVehicle>,
-        passengers: HashSet<Id<InternalPerson>>,
+        passengers: IntSet<Id<InternalPerson>>,
     ) {
         self.buffer_vehicles
             .entry(target)
-            .or_insert_with(|| HashMap::new())
+            .or_insert_with(|| IntMap::default())
             .insert(vehicle_id, passengers);
     }
 
@@ -272,7 +271,7 @@ impl BackpackingMessageBroker {
             });
         }
 
-        let mut finished_partitions: HashSet<QSimId> = HashSet::new();
+        let mut finished_partitions: IntSet<QSimId> = IntSet::default();
         while finished_partitions.len() < self.senders.len() - 1 {
             let received_msg = self.receiver.recv().expect("Error receiving message");
             let boxed_any = received_msg.message.as_any();
@@ -291,13 +290,12 @@ impl BackpackingMessageBroker {
     }
 }
 
-// TODO Adjust access modifiers
-pub struct VehicleMessage {
-    pub(crate) vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+struct VehicleMessage {
+    vehicles: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
 }
 
-pub struct BackpackingMessage {
-    backpacks: HashMap<Id<InternalPerson>, Backpack>,
+struct BackpackingMessage {
+    backpacks: IntMap<Id<InternalPerson>, Backpack>,
 }
 
-pub struct FinishMessage {}
+struct FinishMessage {}

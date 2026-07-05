@@ -12,12 +12,13 @@ use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
-use std::collections::{HashMap, HashSet};
+use nohash_hasher::{IntMap, IntSet};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 pub struct BackpackingDataCollector {
-    person_id2backpack: HashMap<Id<InternalPerson>, Backpack>,
-    vehicle_id2person_ids: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+    person_id2backpack: IntMap<Id<InternalPerson>, Backpack>,
+    vehicle_id2person_ids: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
     rank: QSimId,
 
     message_broker: Arc<Mutex<BackpackingMessageBroker>>,
@@ -26,7 +27,7 @@ pub struct BackpackingDataCollector {
     // not arrived yet (it travels via the broker's AfterSimStep -> BeforeSimStep cycle, one step
     // behind the vehicle body). LinkEnterEvents for these vehicles are stored in
     // deferred_link_events and replayed once both the mapping and the backpack are available.
-    pending_vehicles: HashSet<Id<InternalVehicle>>,
+    pending_vehicles: IntSet<Id<InternalVehicle>>,
     deferred_link_events: Vec<LinkEnterEvent>,
 }
 
@@ -60,7 +61,7 @@ impl BackpackingDataCollector {
 
     pub(crate) fn add_arriving_vehicles(
         &mut self,
-        arriving_vehicles: HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>>,
+        arriving_vehicles: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
     ) {
         for (vehicle_id, persons) in arriving_vehicles {
             self.pending_vehicles.remove(&vehicle_id);
@@ -79,7 +80,7 @@ impl BackpackingDataCollector {
 
     pub(crate) fn add_arriving_backpacks(
         &mut self,
-        arriving_backpack: HashMap<Id<InternalPerson>, Backpack>,
+        arriving_backpack: IntMap<Id<InternalPerson>, Backpack>,
     ) {
         self.person_id2backpack.extend(arriving_backpack);
     }
@@ -87,13 +88,13 @@ impl BackpackingDataCollector {
     fn remove_leaving_vehicles(
         &mut self,
         vehicle_id: &Id<InternalVehicle>,
-    ) -> HashSet<Id<InternalPerson>> {
+    ) -> IntSet<Id<InternalPerson>> {
         // TODO Build a checker, so that it only allows missing entries for teleported modes
         self.vehicle_id2person_ids
             .remove(vehicle_id)
             .unwrap_or_else(|| {
                 // warn!("Partition #{}: Tried to remove vehicle {}, which has no entry!", self.rank, vehicle_id);
-                return HashSet::default();
+                return IntSet::default();
             })
     }
 
@@ -105,11 +106,11 @@ impl BackpackingDataCollector {
             })
     }
 
-    pub fn get_backpacks(&self) -> &HashMap<Id<InternalPerson>, Backpack> {
+    pub fn get_backpacks(&self) -> &IntMap<Id<InternalPerson>, Backpack> {
         &self.person_id2backpack
     }
 
-    pub fn get_vehicles(&self) -> &HashMap<Id<InternalVehicle>, HashSet<Id<InternalPerson>>> {
+    pub fn get_vehicles(&self) -> &IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>> {
         &self.vehicle_id2person_ids
     }
 
