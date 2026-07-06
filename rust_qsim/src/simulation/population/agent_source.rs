@@ -2,7 +2,7 @@ use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{Config, RoutingMode};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::scenario::{MobsimPartition, PopulationShard};
+use crate::simulation::scenario::{MobsimScenarioPartition, PopulationShard};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -11,7 +11,11 @@ pub type DynAgentSource = Arc<dyn AgentSource + Send + Sync>;
 pub type AgentSet = HashMap<Id<InternalPerson>, SimulationAgent>;
 
 pub trait AgentSource {
-    fn create_agents(&self, population: PopulationShard, partition: &MobsimPartition) -> AgentSet;
+    fn create_agents(
+        &self,
+        population: PopulationShard,
+        partition: &MobsimScenarioPartition,
+    ) -> AgentSet;
 }
 
 pub trait IntoDynAgentSource {
@@ -45,7 +49,11 @@ impl IntoDynAgentSource for DynAgentSource {
 pub struct PopulationAgentSource;
 
 impl AgentSource for PopulationAgentSource {
-    fn create_agents(&self, population: PopulationShard, _partition: &MobsimPartition) -> AgentSet {
+    fn create_agents(
+        &self,
+        population: PopulationShard,
+        _partition: &MobsimScenarioPartition,
+    ) -> AgentSet {
         let persons = population.population.persons;
         let mut agents = HashMap::with_capacity(persons.len());
 
@@ -59,7 +67,11 @@ impl AgentSource for PopulationAgentSource {
 pub struct PreplanningHorizonAgentSource;
 
 impl AgentSource for PreplanningHorizonAgentSource {
-    fn create_agents(&self, population: PopulationShard, partition: &MobsimPartition) -> AgentSet {
+    fn create_agents(
+        &self,
+        population: PopulationShard,
+        partition: &MobsimScenarioPartition,
+    ) -> AgentSet {
         let persons = population.population.persons;
         let mut agents = HashMap::with_capacity(persons.len());
 
@@ -114,7 +126,9 @@ mod tests {
         InternalActivity, InternalPerson, InternalPlan, Population,
     };
     use crate::simulation::scenario::vehicles::Garage;
-    use crate::simulation::scenario::{Coordinate, MobsimPartition, PopulationShard, ScenarioCore};
+    use crate::simulation::scenario::{
+        Coordinate, MobsimScenarioPartition, PopulationShard, ScenarioCore,
+    };
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -124,7 +138,7 @@ mod tests {
         fn create_agents(
             &self,
             _population: PopulationShard,
-            _partition: &MobsimPartition,
+            _partition: &MobsimScenarioPartition,
         ) -> AgentSet {
             HashMap::new()
         }
@@ -167,7 +181,7 @@ mod tests {
         assert!(agents.contains_key(&Id::get_from_ext("person-1")));
     }
 
-    fn empty_partition_core() -> MobsimPartition {
+    fn empty_partition_core() -> MobsimScenarioPartition {
         let config = Arc::new(Config::default());
         let network = Arc::new(Network::new());
         let network_partition = SimNetworkPartition::from_network(
@@ -176,7 +190,7 @@ mod tests {
             config.simulation(),
             config.computational_setup().random_seed,
         );
-        MobsimPartition {
+        MobsimScenarioPartition {
             rank: 0,
             scenario: ScenarioCore {
                 network,

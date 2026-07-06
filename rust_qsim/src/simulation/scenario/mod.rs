@@ -133,7 +133,7 @@ pub struct PopulationShard {
 
 /// Static and per-run runtime context for one mobsim partition.
 #[derive(Debug)]
-pub struct MobsimPartition {
+pub struct MobsimScenarioPartition {
     pub rank: u32,
     pub scenario: ScenarioCore,
     pub network_partition: SimNetworkPartition,
@@ -142,7 +142,7 @@ pub struct MobsimPartition {
 /// Input for one mobsim partition run.
 #[derive(Debug)]
 pub struct MobsimInput {
-    pub partition: MobsimPartition,
+    pub partition: MobsimScenarioPartition,
     pub population: PopulationShard,
 }
 
@@ -203,7 +203,7 @@ impl ControllerScenario {
         );
 
         MobsimInput {
-            partition: MobsimPartition {
+            partition: MobsimScenarioPartition {
                 rank,
                 // Since core holds Arcs, this clone is cheap.
                 scenario: self.core.clone(),
