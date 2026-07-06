@@ -1,3 +1,4 @@
+pub mod facility;
 pub mod network;
 pub mod population;
 pub mod prepare_for_sim;
@@ -27,6 +28,13 @@ impl Coordinate {
 
     pub fn with_z(x: f64, y: f64, z: Option<f64>) -> Self {
         Self { x, y, z }
+    }
+
+    pub fn euclidean_distance(a: &Coordinate, b: &Coordinate) -> f64 {
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dz = a.z.unwrap_or(0.0) - b.z.unwrap_or(0.0);
+        (dx * dx + dy * dy + dz * dz).sqrt()
     }
 }
 

@@ -202,7 +202,7 @@ pub enum InternalRoute {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalGenericRoute {
-    pub start_link: Id<Link>,
+    start_link: Id<Link>,
     end_link: Id<Link>,
     trav_time: Option<Duration>,
     distance: Option<f64>,
