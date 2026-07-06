@@ -731,7 +731,7 @@ impl From<IOActivity> for InternalActivity {
             act_type: Id::create(&io.r#type),
             link_id: Id::create(&io.link.expect("Activity must have a link id")),
             coord: io.x.map(|x| {
-                Coordinate::new(
+                Coordinate::new_2d(
                     x,
                     io.y.expect("y coordinate should be given when x coord is given"),
                 )
@@ -752,7 +752,7 @@ impl From<Activity> for InternalActivity {
         InternalActivity {
             act_type: Id::get_from_ext(&value.act_type),
             link_id: Id::get_from_ext(&value.link_id),
-            coord: Some(Coordinate::with_z(
+            coord: Some(Coordinate::new_3d(
                 value.coordinate.as_ref().unwrap().x,
                 value.coordinate.as_ref().unwrap().y,
                 value.coordinate.as_ref().unwrap().z,
@@ -936,7 +936,7 @@ mod tests {
     #[test]
     fn cmp_end_time_uses_bounded_open_ended_sentinel() {
         let activity = InternalActivity::new(
-            Some(Coordinate::new(0.0, 0.0)),
+            Some(Coordinate::new_2d(0.0, 0.0)),
             "home",
             Id::create("1"),
             None,

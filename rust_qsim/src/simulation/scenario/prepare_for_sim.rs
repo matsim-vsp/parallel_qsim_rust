@@ -1,9 +1,9 @@
 use crate::simulation::config::Config;
 use crate::simulation::scenario::ControllerScenario;
+use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Network;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::Garage;
-use crate::simulation::scenario::{Coordinate};
 use rayon::prelude::*;
 use thiserror::Error;
 
@@ -128,9 +128,6 @@ mod tests {
         );
     }
 
-    fn scenario_with_population(population: Population) -> ControllerScenario {
-        Scenario {
-            network: Network::new(),
     #[integration_test]
     fn prepare_for_sim_assigns_missing_activity_coordinates() {
         let person_id = Id::create("person-1");
@@ -145,7 +142,7 @@ mod tests {
             None,
         ));
 
-        let mut persons = HashMap::new();
+        let mut persons = IntMap::default();
         persons.insert(
             person_id.clone(),
             InternalPerson::new(person_id.clone(), plan),
@@ -165,15 +162,15 @@ mod tests {
         );
     }
 
-    fn scenario_with_population(population: Population) -> MutableScenario {
+    fn scenario_with_population(population: Population) -> ControllerScenario {
         scenario_with_network_and_population(Network::new(), population)
     }
 
     fn scenario_with_network_and_population(
         network: Network,
         population: Population,
-    ) -> MutableScenario {
-        MutableScenario {
+    ) -> ControllerScenario {
+        Scenario {
             network,
             garage: Garage::default(),
             population,
