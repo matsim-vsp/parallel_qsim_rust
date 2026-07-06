@@ -37,6 +37,8 @@ pub(crate) fn prepare_for_sim(scenario: &mut ControllerScenario) -> Result<(), P
         config: scenario.core.config.as_ref(),
     };
 
+    // todo set link ids and coordinate of facilities
+
     let issues: Vec<_> = scenario
         .population
         .persons

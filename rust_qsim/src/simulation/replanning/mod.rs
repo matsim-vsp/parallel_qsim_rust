@@ -1,7 +1,6 @@
 use crate::simulation::scenario::population::InternalPerson;
 
 pub mod routing;
-pub mod teleported_router;
 
 // General TODO:
 // Introduce TripRouter, NetworkRoutingModule
