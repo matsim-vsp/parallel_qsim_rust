@@ -1,7 +1,6 @@
 use crate::simulation::events::EventTrait;
 use crate::simulation::framework_events::{
-    AgentEntersPartitionEvent, AgentLeavesPartitionEvent, MobsimEvent, MobsimEventsManager,
-    MobsimListenerRegisterFn, PartitionEvent, QSimId, RuntimeEvent,
+    AgentEntersPartitionEvent, AgentLeavesPartitionEvent, PartitionEvent, QSimId,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
@@ -95,27 +94,6 @@ impl HomeSendingMessageBroker {
         message_broker.lock().unwrap().data_collector = data_collector;
     }
 
-    pub(crate) fn register_mobsim_fn(
-        scoring_broker: Arc<Mutex<HomeSendingMessageBroker>>,
-        data_collector: Arc<Mutex<HomeSendingDataCollector>>,
-    ) -> Box<MobsimListenerRegisterFn> {
-        Box::new(move |events: &mut MobsimEventsManager| {
-            let broker = Arc::clone(&scoring_broker);
-            let dc = Arc::clone(&data_collector);
-            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
-                MobsimEvent::BeforeSimStep(_) => {
-                    broker.lock().unwrap().recv_vehicles();
-                    // Broker lock released before replay; handle_event locks the broker internally.
-                    dc.lock().unwrap().replay_deferred_link_events();
-                }
-                MobsimEvent::AfterSimStep(_) => {
-                    broker.lock().unwrap().send_recv();
-                }
-                _ => {}
-            });
-        })
-    }
-
     pub(crate) fn add_leaving_vehicle(
         &mut self,
         target: QSimId,
@@ -135,7 +113,7 @@ impl HomeSendingMessageBroker {
     /// Blocks until all vehicles that crossed into this partition have their vehicle-to-person
     /// mapping available. Called from BeforeSimStep before the next do_step, so that
     /// replay_deferred_link_events fires in the correct order relative to subsequent link events.
-    fn recv_vehicles(&mut self) {
+    pub(crate) fn recv_vehicles(&mut self) {
         let pending = self.wait_vehicles.drain().collect::<Vec<_>>();
         for vehicle_id in pending {
             if self

@@ -1,12 +1,9 @@
 use crate::simulation::events::{
-    ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
-    LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent,
-    PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
-    VehicleLeavesTrafficEvent,
+    ActivityEndEvent, ActivityStartEvent, EventTrait, LinkEnterEvent, PersonArrivalEvent,
+    PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
+    TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
-use crate::simulation::framework_events::{
-    PartitionEvent, PartitionListenerRegisterFn, QSimId, RuntimeEvent,
-};
+use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -80,6 +77,24 @@ impl HomeSendingDataCollector {
         &self.vehicle_id2person_ids
     }
 
+    pub(crate) fn get_vehicles_mut(
+        &mut self,
+    ) -> &mut IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>> {
+        &mut self.vehicle_id2person_ids
+    }
+
+    pub(crate) fn get_persons(&self) -> &IntMap<Id<InternalPerson>, QSimId> {
+        &self.person_id2home_partition
+    }
+
+    pub(crate) fn get_pending_vehicles_mut(&mut self) -> &mut IntSet<Id<InternalVehicle>> {
+        &mut self.pending_vehicles
+    }
+
+    pub(crate) fn get_rank(&self) -> &QSimId {
+        &self.rank
+    }
+
     /// Replays LinkEnterEvents that were buffered because the vehicle-to-person mapping had not
     /// yet arrived when they fired. Only called from BeforeSimStep, after recv_vehicles() has
     /// run, so the vehicle mapping is guaranteed to be present.
@@ -119,7 +134,7 @@ impl HomeSendingDataCollector {
     /// This method's main purpose is to forward relevant events to the plan affected by given event.
     /// Events which do not affect the Plan of any person will be ignored.
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
-    fn handle_event(&mut self, event: &dyn EventTrait) {
+    pub(crate) fn handle_event(&mut self, event: &dyn EventTrait) {
         let affected_persons: Vec<(Id<InternalPerson>, Box<dyn EventTrait>)> =
             if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
                 match self.vehicle_id2person_ids.get(&e.vehicle) {
@@ -192,117 +207,6 @@ impl HomeSendingDataCollector {
                     );
                 }
             });
-    }
-
-    pub(crate) fn register_event_fn(
-        data_collector: Arc<Mutex<HomeSendingDataCollector>>,
-    ) -> Box<EventHandlerRegisterFn> {
-        Box::new(move |events: &mut EventsManager| {
-            // General event forwarding
-            let collector1 = Arc::clone(&data_collector);
-            events.on_any(move |e: &dyn EventTrait| {
-                let mut hdc = collector1.lock().unwrap();
-                hdc.handle_event(e);
-            });
-
-            // Events for Vehicle2Person mappings
-            let collector2 = Arc::clone(&data_collector);
-            events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                let mut bdc = collector2.lock().unwrap();
-                bdc.vehicle_id2person_ids
-                    .entry(e.vehicle.clone())
-                    .or_default()
-                    .insert(e.person.clone());
-            });
-
-            let collector3 = Arc::clone(&data_collector);
-            events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
-                let mut bdc = collector3.lock().unwrap();
-                bdc.vehicle_id2person_ids.remove(&e.vehicle);
-            });
-        })
-    }
-
-    pub(crate) fn register_partition_fn(
-        data_collector: Arc<Mutex<HomeSendingDataCollector>>,
-    ) -> Box<PartitionListenerRegisterFn> {
-        Box::new(move |events| {
-            let data_collector1 = Arc::clone(&data_collector);
-            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
-                PartitionEvent::VehicleLeavesPartition(i) => {
-                    let mut hdc = data_collector1.lock().unwrap();
-
-                    let leaving_vehicle = hdc.remove_leaving_vehicles(&i.vehicle_id);
-                    hdc.message_broker.lock().unwrap().add_leaving_vehicle(
-                        i.to.clone(),
-                        i.vehicle_id.clone(),
-                        leaving_vehicle,
-                    );
-                }
-                PartitionEvent::AgentLeavesPartition(i) => {
-                    let hdc = data_collector1.lock().unwrap();
-
-                    // TODO Calling close_block causes a deadlock, therefore the current fix is
-                    //      to let the message broker send a message to itself. Try to find a
-                    //      cleaner solution.
-                    /*
-                    if hdc.is_person_at_home(&i.agent_id) {
-                        // If this agent is currently in its home partition, there is no need to
-                        // send a leave message, as the events are already processed locally.
-                        hdc.message_broker.lock().unwrap().close_block(
-                            i.agent_id.clone(),
-                            hdc.rank,
-                            Some(i.clone()),
-                        );
-                        return;
-                    }
-                    */
-
-                    let home_partition = hdc.person_id2home_partition.get(&i.agent_id).unwrap();
-                    hdc.message_broker
-                        .lock()
-                        .unwrap()
-                        .add_leaving_partition_event(
-                            *home_partition,
-                            i.agent_id.clone(),
-                            e.payload.clone(),
-                        )
-                }
-                PartitionEvent::AgentEntersPartition(i) => {
-                    let hdc = data_collector1.lock().unwrap();
-
-                    if hdc.is_person_at_home(&i.agent_id) {
-                        // If this agent is currently in its home partition, there is no need to
-                        // send a leave message, as the events are already processed locally.
-                        hdc.message_broker.lock().unwrap().open_block(
-                            i.agent_id.clone(),
-                            hdc.rank,
-                            Some(i.clone()),
-                        );
-                        return;
-                    }
-
-                    let home_partition = hdc.person_id2home_partition.get(&i.agent_id).unwrap();
-                    hdc.message_broker
-                        .lock()
-                        .unwrap()
-                        .add_leaving_partition_event(
-                            *home_partition,
-                            i.agent_id.clone(),
-                            e.payload.clone(),
-                        )
-                }
-                PartitionEvent::VehicleEntersPartition(i) => {
-                    let mut hdc = data_collector1.lock().unwrap();
-                    hdc.pending_vehicles.insert(i.vehicle_id.clone());
-                    hdc.message_broker
-                        .lock()
-                        .unwrap()
-                        .wait_for_vehicle(i.vehicle_id.clone());
-                }
-                _ => {}
-            });
-        })
     }
 
     pub(crate) fn finish(&mut self) -> Population {
