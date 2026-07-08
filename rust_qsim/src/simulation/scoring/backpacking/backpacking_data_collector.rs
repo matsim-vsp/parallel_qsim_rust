@@ -188,7 +188,6 @@ impl BackpackingDataCollector {
             let data_collector2 = Arc::clone(&data_collector);
             events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
                 let mut bdc = data_collector2.lock().unwrap();
-                // println!("Partition #{}: Entered vehicle {}", bdc.rank, e.vehicle);
                 bdc.vehicle_id2person_ids
                     .entry(e.vehicle.clone())
                     .or_default()
@@ -198,7 +197,6 @@ impl BackpackingDataCollector {
             let data_collector3 = Arc::clone(&data_collector);
             events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
                 let mut bdc = data_collector3.lock().unwrap();
-                // println!("Partition #{}: Left vehicle {}", bdc.rank, e.vehicle);
                 bdc.vehicle_id2person_ids.remove(&e.vehicle);
             });
         })
