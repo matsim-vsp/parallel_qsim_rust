@@ -92,7 +92,7 @@ impl BackpackingDataCollector {
         self.person_id2backpack.extend(arriving_backpack);
     }
 
-    fn remove_leaving_vehicles(
+    pub(crate) fn remove_leaving_vehicles(
         &mut self,
         vehicle_id: &Id<InternalVehicle>,
     ) -> IntSet<Id<InternalPerson>> {
@@ -105,7 +105,7 @@ impl BackpackingDataCollector {
             })
     }
 
-    fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
+    pub(crate) fn remove_leaving_backpack(&mut self, person_id: &Id<InternalPerson>) -> Backpack {
         self.person_id2backpack
             .remove(person_id)
             .unwrap_or_else(|| {
@@ -113,18 +113,20 @@ impl BackpackingDataCollector {
             })
     }
 
-    pub fn get_backpacks(&self) -> &IntMap<Id<InternalPerson>, Backpack> {
-        &self.person_id2backpack
+    pub(crate) fn get_vehicles_mut(
+        &mut self,
+    ) -> &mut IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>> {
+        &mut self.vehicle_id2person_ids
     }
 
-    pub fn get_vehicles(&self) -> &IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>> {
-        &self.vehicle_id2person_ids
+    pub(crate) fn get_pending_vehicles_mut(&mut self) -> &mut IntSet<Id<InternalVehicle>> {
+        &mut self.pending_vehicles
     }
 
     /// This method's main purpose is to forward relevant events to the backpacks affected by given event.
     /// Events which do not affect the Backpack of any person will be ignored.
     /// TODO This method is quite clunky as there is no HasPersonId/HasVehicleId trait as there is in Java MATSim. Adding a trait could make the function much easier. Ask PH.
-    fn handle_event(&mut self, event: &dyn EventTrait) {
+    pub(crate) fn handle_event(&mut self, event: &dyn EventTrait) {
         let affected_persons = if let Some(e) = event.as_any().downcast_ref::<LinkEnterEvent>() {
             match self.vehicle_id2person_ids.get(&e.vehicle) {
                 Some(persons) => persons.iter().cloned().collect(),
@@ -171,114 +173,6 @@ impl BackpackingDataCollector {
                 .unwrap()
                 .handle_event(event);
         });
-    }
-
-    pub(crate) fn register_event_fn(
-        data_collector: Arc<Mutex<BackpackingDataCollector>>,
-    ) -> Box<EventHandlerRegisterFn> {
-        Box::new(move |events: &mut EventsManager| {
-            // General backpacking event forwarding
-            let data_collector1 = Arc::clone(&data_collector);
-            events.on_any(move |e: &dyn EventTrait| {
-                let mut bdc = data_collector1.lock().unwrap();
-                bdc.handle_event(e);
-            });
-
-            // Events for Vehicle2Person mappings
-            let data_collector2 = Arc::clone(&data_collector);
-            events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                let mut bdc = data_collector2.lock().unwrap();
-                bdc.vehicle_id2person_ids
-                    .entry(e.vehicle.clone())
-                    .or_default()
-                    .insert(e.person.clone());
-            });
-
-            let data_collector3 = Arc::clone(&data_collector);
-            events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
-                let mut bdc = data_collector3.lock().unwrap();
-                bdc.vehicle_id2person_ids.remove(&e.vehicle);
-            });
-        })
-    }
-
-    pub(crate) fn register_partition_fn(
-        data_collector: Arc<Mutex<BackpackingDataCollector>>,
-    ) -> Box<PartitionListenerRegisterFn> {
-        Box::new(move |events: &mut PartitionEventsManager| {
-            let data_collector1 = Arc::clone(&data_collector);
-            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
-                PartitionEvent::VehicleLeavesPartition(i) => {
-                    let mut bdc = data_collector1.lock().unwrap();
-
-                    let leaving_vehicle = bdc.remove_leaving_vehicles(&i.vehicle_id);
-                    bdc.message_broker.lock().unwrap().add_leaving_vehicle(
-                        i.to.clone(),
-                        i.vehicle_id.clone(),
-                        leaving_vehicle,
-                    );
-                }
-                PartitionEvent::AgentLeavesPartition(i) => {
-                    let mut bdc = data_collector1.lock().unwrap();
-
-                    let leaving_backpack = bdc.remove_leaving_backpack(&i.agent_id);
-                    bdc.message_broker.lock().unwrap().add_leaving_backpack(
-                        i.to.clone(),
-                        i.agent_id.clone(),
-                        leaving_backpack,
-                    );
-                }
-                PartitionEvent::AgentEntersPartition(i) => {
-                    data_collector1
-                        .lock()
-                        .unwrap()
-                        .message_broker
-                        .lock()
-                        .unwrap()
-                        .wait_for_backpack(i.agent_id.clone());
-                }
-                PartitionEvent::VehicleEntersPartition(i) => {
-                    let mut bdc = data_collector1.lock().unwrap();
-                    bdc.pending_vehicles.insert(i.vehicle_id.clone());
-                    bdc.message_broker
-                        .lock()
-                        .unwrap()
-                        .wait_for_vehicle(i.vehicle_id.clone());
-                }
-            });
-        })
-    }
-
-    pub(crate) fn register_mobsim_fn(
-        data_collector: Arc<Mutex<BackpackingDataCollector>>,
-    ) -> Box<MobsimListenerRegisterFn> {
-        Box::new(move |events: &mut MobsimEventsManager| {
-            let bdc = Arc::clone(&data_collector);
-            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
-                MobsimEvent::BeforeSimStep(_) => {
-                    // Clone the broker Arc before locking the collector, so broker and collector
-                    // locks are never held simultaneously (avoids potential deadlock with
-                    // register_partition_fn which also acquires both in the same order).
-                    let broker = bdc.lock().unwrap().message_broker.clone();
-                    broker.lock().unwrap().recv_backpacks();
-                    broker.lock().unwrap().recv_vehicles();
-                    let arrived_backpacks = broker.lock().unwrap().drain_arrived_backpacks();
-                    let arrived_vehicles = broker.lock().unwrap().drain_arrived_vehicles();
-                    let mut collector = bdc.lock().unwrap();
-                    collector.add_arriving_backpacks(arrived_backpacks);
-                    collector.add_arriving_vehicles(arrived_vehicles);
-                    // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not
-                    // arrived yet. recv_backpacks() ran first, so backpacks are also present at
-                    // this point.
-                    collector.replay_deferred_link_events();
-                }
-                MobsimEvent::AfterSimStep(_) => {
-                    let broker = bdc.lock().unwrap().message_broker.clone();
-                    broker.lock().unwrap().send();
-                }
-                _ => {}
-            });
-        })
     }
 
     /// Drains all data that arrived in the broker's buffers during `finish_send_recv` into self.

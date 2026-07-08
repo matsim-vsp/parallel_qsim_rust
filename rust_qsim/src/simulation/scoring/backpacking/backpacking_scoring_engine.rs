@@ -1,6 +1,10 @@
-use crate::simulation::events::EventHandlerRegisterFn;
+use crate::simulation::events::{
+    EventHandlerRegisterFn, EventTrait, EventsManager, PersonEntersVehicleEvent,
+    PersonLeavesVehicleEvent,
+};
 use crate::simulation::framework_events::{
-    MobsimListenerRegisterFn, PartitionListenerRegisterFn, QSimId,
+    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, PartitionEvent,
+    PartitionEventsManager, PartitionListenerRegisterFn, QSimId, RuntimeEvent,
 };
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scoring::backpacking::backpacking_data_collector::BackpackingDataCollector;
@@ -13,6 +17,7 @@ use tracing::info;
 
 pub struct BackpackingScoringEngine {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
+    backpacking_message_broker: Arc<Mutex<BackpackingMessageBroker>>,
     rank: QSimId,
     output_path: PathBuf,
 }
@@ -34,6 +39,7 @@ impl BackpackingScoringEngine {
 
         Self {
             backpacking_data_collector,
+            backpacking_message_broker,
             rank,
             output_path,
         }
@@ -56,11 +62,15 @@ impl ScoringEngine for BackpackingScoringEngine {
         Box<MobsimListenerRegisterFn>,
     ) {
         (
-            BackpackingDataCollector::register_event_fn(self.backpacking_data_collector.clone()),
-            BackpackingDataCollector::register_partition_fn(
+            Self::register_event_fn(self.backpacking_data_collector.clone()),
+            Self::register_partition_fn(
                 self.backpacking_data_collector.clone(),
+                self.backpacking_message_broker.clone(),
             ),
-            BackpackingDataCollector::register_mobsim_fn(self.backpacking_data_collector.clone()),
+            Self::register_mobsim_fn(
+                self.backpacking_data_collector.clone(),
+                self.backpacking_message_broker.clone(),
+            ),
         )
     }
 
@@ -75,5 +85,107 @@ impl ScoringEngine for BackpackingScoringEngine {
 
     fn scoring(&self) {
         // TODO
+    }
+}
+
+impl BackpackingScoringEngine {
+    pub(crate) fn register_event_fn(
+        data_collector: Arc<Mutex<BackpackingDataCollector>>,
+    ) -> Box<EventHandlerRegisterFn> {
+        Box::new(move |events: &mut EventsManager| {
+            // General backpacking event forwarding
+            let data_collector1 = Arc::clone(&data_collector);
+            events.on_any(move |e: &dyn EventTrait| {
+                let mut bdc = data_collector1.lock().unwrap();
+                bdc.handle_event(e);
+            });
+
+            // Events for Vehicle2Person mappings
+            let data_collector2 = Arc::clone(&data_collector);
+            events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
+                let mut bdc = data_collector2.lock().unwrap();
+                bdc.get_vehicles_mut()
+                    .entry(e.vehicle.clone())
+                    .or_default()
+                    .insert(e.person.clone());
+            });
+
+            let data_collector3 = Arc::clone(&data_collector);
+            events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
+                let mut bdc = data_collector3.lock().unwrap();
+                bdc.get_vehicles_mut().remove(&e.vehicle);
+            });
+        })
+    }
+
+    pub(crate) fn register_partition_fn(
+        data_collector: Arc<Mutex<BackpackingDataCollector>>,
+        message_broker: Arc<Mutex<BackpackingMessageBroker>>,
+    ) -> Box<PartitionListenerRegisterFn> {
+        Box::new(move |events: &mut PartitionEventsManager| {
+            let data_collector1 = Arc::clone(&data_collector);
+            let message_broker1 = Arc::clone(&message_broker);
+            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
+                PartitionEvent::VehicleLeavesPartition(i) => {
+                    let mut bdc = data_collector1.lock().unwrap();
+                    let mut bmb = message_broker1.lock().unwrap();
+
+                    let leaving_vehicle = bdc.remove_leaving_vehicles(&i.vehicle_id);
+                    bmb.add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
+                }
+                PartitionEvent::AgentLeavesPartition(i) => {
+                    let mut bdc = data_collector1.lock().unwrap();
+                    let mut bmb = message_broker1.lock().unwrap();
+
+                    let leaving_backpack = bdc.remove_leaving_backpack(&i.agent_id);
+                    bmb.add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
+                }
+                PartitionEvent::AgentEntersPartition(i) => {
+                    message_broker1
+                        .lock()
+                        .unwrap()
+                        .wait_for_backpack(i.agent_id.clone());
+                }
+                PartitionEvent::VehicleEntersPartition(i) => {
+                    let mut bdc = data_collector1.lock().unwrap();
+                    let mut bmb = message_broker1.lock().unwrap();
+
+                    bdc.get_pending_vehicles_mut().insert(i.vehicle_id.clone());
+                    bmb.wait_for_vehicle(i.vehicle_id.clone());
+                }
+            });
+        })
+    }
+
+    pub(crate) fn register_mobsim_fn(
+        data_collector: Arc<Mutex<BackpackingDataCollector>>,
+        message_broker: Arc<Mutex<BackpackingMessageBroker>>,
+    ) -> Box<MobsimListenerRegisterFn> {
+        Box::new(move |events: &mut MobsimEventsManager| {
+            let data_collector1 = Arc::clone(&data_collector);
+            let message_broker1 = Arc::clone(&message_broker);
+
+            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
+                MobsimEvent::BeforeSimStep(_) => {
+                    let mut bdc = data_collector1.lock().unwrap();
+                    let mut bmb = message_broker1.lock().unwrap();
+
+                    bmb.recv_backpacks();
+                    bmb.recv_vehicles();
+                    let arrived_backpacks = bmb.drain_arrived_backpacks();
+                    let arrived_vehicles = bmb.drain_arrived_vehicles();
+                    bdc.add_arriving_backpacks(arrived_backpacks);
+                    bdc.add_arriving_vehicles(arrived_vehicles);
+                    // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not
+                    // arrived yet. recv_backpacks() ran first, so backpacks are also present at
+                    // this point.
+                    bdc.replay_deferred_link_events();
+                }
+                MobsimEvent::AfterSimStep(_) => {
+                    message_broker1.lock().unwrap().send();
+                }
+                _ => {}
+            });
+        })
     }
 }
