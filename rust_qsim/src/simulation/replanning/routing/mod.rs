@@ -44,7 +44,7 @@ trait RoutingModule {
 struct TransitRoutingModule {}
 
 impl RoutingModule for TransitRoutingModule {
-    fn calc_route(&self, request: RoutingRequest) -> Vec<InternalPlanElement> {
+    fn calc_route(&self, _request: RoutingRequest) -> Vec<InternalPlanElement> {
         // calculate transit leg -> connect with Java router?
         todo!()
     }

@@ -6,7 +6,7 @@ use crate::simulation::scenario::population::{
 };
 use std::time::Duration;
 
-struct TeleportationRoutingModule {
+pub struct TeleportationRoutingModule {
     mode: Id<String>,
     beeline_distance_factor: f64,
     travel_speed: f64,
@@ -48,6 +48,16 @@ impl RoutingModule for TeleportationRoutingModule {
     }
 }
 
+impl TeleportationRoutingModule {
+    pub fn new(mode: Id<String>, beeline_distance_factor: f64, travel_speed: f64) -> Self {
+        Self {
+            mode,
+            beeline_distance_factor,
+            travel_speed,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::TeleportationRoutingModule;
@@ -68,7 +78,7 @@ mod tests {
 
     #[integration_test]
     fn calc_route_returns_single_generic_leg() {
-        let module = teleportation_module("walk", 1.3, 2.0);
+        let module = TeleportationRoutingModule::new(Id::create("walk"), 1.3, 2.0);
         let from = facility("from", 0.0, 0.0, "from-link", []);
         let to = facility("to", 3.0, 4.0, "to-link", []);
         let departure_time = SimTime::from_secs(42);

@@ -31,7 +31,7 @@ struct ReRouteModule {
 }
 
 impl PlanStrategyModule for ReRouteModule {
-    fn handle(&mut self, person: &mut InternalPerson, plan_index: usize) {
+    fn handle(&mut self, _person: &mut InternalPerson, _plan_index: usize) {
         //extract the trips from the plan
         //extract vehicle from the scenario
         //call the router correspondingly
