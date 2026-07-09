@@ -7,6 +7,9 @@ edition = "2024"
 test_util = []
 # Feature for activating remote file download. Might cause problems on hardware with no OpenSSL installed.
 http = ["dep:reqwest"]
+hotpath = ["hotpath/hotpath"]
+hotpath-cpu = ["hotpath/hotpath-cpu"]
+hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [dependencies]
 serde = { version = "1.0.137", features = ["derive"] }
@@ -51,6 +54,7 @@ uuid = { version = "1.18.1", features = ["v7"] }
 csv = "1.4.0"
 inventory = "0.3.21"
 arrow2 = { version = "0.18.0", features = ["io_parquet", "io_parquet_compression"] }
+hotpath = "0.21.1"
 
 # arrow2 removed; we write parquet-proxy as JSON-lines implementation for now
 
