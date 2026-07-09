@@ -24,6 +24,7 @@ pub struct HomeSendingMessageBroker {
     data_collector: Weak<Mutex<HomeSendingDataCollector>>,
 }
 
+#[hotpath::measure_all]
 impl HomeSendingMessageBroker {
     pub(crate) fn new(
         receiver: Receiver<InternalScoringMessage>,

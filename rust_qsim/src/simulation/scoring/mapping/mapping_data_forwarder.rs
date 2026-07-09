@@ -20,6 +20,7 @@ pub struct MappingDataForwarder {
     message_broker: Arc<Mutex<MappingCollectorMessageBroker>>,
 }
 
+#[hotpath::measure_all]
 impl MappingDataForwarder {
     pub fn new(
         person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
@@ -100,8 +101,10 @@ impl MappingDataForwarder {
             // General event forwarding
             let collector1 = Arc::clone(&data_collector);
             events.on_any(move |e: &dyn EventTrait| {
-                let mut mdf = collector1.lock().unwrap();
-                mdf.handle_event(e);
+                hotpath::measure_block!("MappingDataForwarder.EventsManager.on_any", {
+                    let mut mdf = collector1.lock().unwrap();
+                    mdf.handle_event(e);
+                });
             });
         })
     }

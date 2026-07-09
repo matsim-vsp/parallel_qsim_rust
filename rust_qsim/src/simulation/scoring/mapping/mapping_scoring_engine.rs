@@ -26,6 +26,7 @@ pub struct MappingForwardingEngine {
     output_path: PathBuf,
 }
 
+#[hotpath::measure_all]
 impl MappingForwardingEngine {
     pub(crate) fn new(
         rank: QSimId,
@@ -66,6 +67,7 @@ impl MappingForwardingEngine {
     }
 }
 
+#[hotpath::measure_all]
 impl ScoringEngine for MappingForwardingEngine {
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
         self.mapping_message_broker
@@ -115,6 +117,7 @@ pub struct MappingCollectorEngine {
     mapping_message_broker: Arc<Mutex<MappingScoringMessageBroker>>,
 }
 
+#[hotpath::measure_all]
 impl MappingCollectorEngine {
     pub(crate) fn new(
         rank: QSimId,

@@ -1,15 +1,16 @@
-use std::sync::Arc;
 use clap::Parser;
-use tracing::info;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::id::Id;
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::scenario::MutableScenario;
 use rust_qsim::simulation::scenario::vehicles::InternalVehicleType;
+use std::sync::Arc;
+use tracing::info;
 
 // TODO: This script is not meant to be a library function. It should be outsourced aleks Apr'26
 
+#[hotpath::main]
 fn main() {
     let _guard = init_std_out_logging_thread_local();
 

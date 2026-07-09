@@ -30,6 +30,7 @@ impl Default for PartialPlan {
     }
 }
 
+#[hotpath::measure_all]
 impl PartialPlan {
     fn handle_person_departure(&mut self) {
         if self.current_leg.is_some() {

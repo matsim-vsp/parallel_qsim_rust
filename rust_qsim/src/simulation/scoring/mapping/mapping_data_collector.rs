@@ -30,6 +30,7 @@ pub struct MappingDataCollector {
     message_broker: Arc<Mutex<MappingScoringMessageBroker>>,
 }
 
+#[hotpath::measure_all]
 impl MappingDataCollector {
     pub fn new(
         person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,

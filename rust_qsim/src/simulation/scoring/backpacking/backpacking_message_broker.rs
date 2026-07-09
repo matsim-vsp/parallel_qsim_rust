@@ -22,6 +22,7 @@ pub struct BackpackingMessageBroker {
     wait_vehicles: IntSet<Id<InternalVehicle>>,
 }
 
+#[hotpath::measure_all]
 impl BackpackingMessageBroker {
     pub(crate) fn new(
         receiver: Receiver<InternalScoringMessage>,

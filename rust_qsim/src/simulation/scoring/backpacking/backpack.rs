@@ -16,6 +16,7 @@ pub struct Backpack {
     starting_partition: QSimId,
 }
 
+#[hotpath::measure_all]
 impl Backpack {
     pub fn new(person_id: Id<InternalPerson>, starting_partition: QSimId) -> Self {
         Self {

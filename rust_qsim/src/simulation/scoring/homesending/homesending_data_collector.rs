@@ -30,6 +30,7 @@ pub struct HomeSendingDataCollector {
     deferred_link_events: Vec<LinkEnterEvent>,
 }
 
+#[hotpath::measure_all]
 impl HomeSendingDataCollector {
     pub fn new(
         population: &Population,

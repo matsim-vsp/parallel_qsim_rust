@@ -30,6 +30,7 @@ pub struct BackpackingDataCollector {
     deferred_link_events: Vec<LinkEnterEvent>,
 }
 
+#[hotpath::measure_all]
 impl BackpackingDataCollector {
     pub fn new(
         population: &Population,

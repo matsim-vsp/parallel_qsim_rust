@@ -25,6 +25,7 @@ pub struct HomesendingScoringEngine {
     output_path: PathBuf,
 }
 
+#[hotpath::measure_all]
 impl HomesendingScoringEngine {
     pub(crate) fn new(
         rank: QSimId,
@@ -57,6 +58,7 @@ impl HomesendingScoringEngine {
     }
 }
 
+#[hotpath::measure_all]
 impl ScoringEngine for HomesendingScoringEngine {
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
         self.homesending_message_broker
@@ -103,6 +105,7 @@ impl ScoringEngine for HomesendingScoringEngine {
     }
 }
 
+#[hotpath::measure_all]
 impl HomesendingScoringEngine {
     pub(crate) fn register_event_fn(
         data_collector: Arc<Mutex<HomeSendingDataCollector>>,
@@ -111,24 +114,30 @@ impl HomesendingScoringEngine {
             // General event forwarding
             let data_collector1 = Arc::clone(&data_collector);
             events.on_any(move |e: &dyn EventTrait| {
-                let mut hdc = data_collector1.lock().unwrap();
-                hdc.handle_event(e);
+                hotpath::measure_block!("HomeSending.EventsManager.on_any", {
+                    let mut hdc = data_collector1.lock().unwrap();
+                    hdc.handle_event(e);
+                })
             });
 
             // Events for Vehicle2Person mappings
             let data_collector2 = Arc::clone(&data_collector);
             events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                let mut hdc = data_collector2.lock().unwrap();
-                hdc.get_vehicles_mut()
-                    .entry(e.vehicle.clone())
-                    .or_default()
-                    .insert(e.person.clone());
+                hotpath::measure_block!("HomeSending.EventsManager.PersonEntersVehicleEvent", {
+                    let mut hdc = data_collector2.lock().unwrap();
+                    hdc.get_vehicles_mut()
+                        .entry(e.vehicle.clone())
+                        .or_default()
+                        .insert(e.person.clone());
+                })
             });
 
             let data_collector3 = Arc::clone(&data_collector);
             events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
-                let mut hdc = data_collector3.lock().unwrap();
-                hdc.get_vehicles_mut().remove(&e.vehicle);
+                hotpath::measure_block!("HomeSending.EventsManager.on_any", {
+                    let mut hdc = data_collector3.lock().unwrap();
+                    hdc.get_vehicles_mut().remove(&e.vehicle);
+                })
             });
         })
     }
@@ -141,66 +150,74 @@ impl HomesendingScoringEngine {
             let data_collector1 = Arc::clone(&data_collector);
             let message_broker1 = Arc::clone(&message_broker);
 
-            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
-                PartitionEvent::VehicleLeavesPartition(i) => {
-                    let mut hdc = data_collector1.lock().unwrap();
-                    let mut hmb = message_broker1.lock().unwrap();
+            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| {
+                hotpath::measure_block!("HomeSending.PartitionEventsManager", {
+                    match &e.payload {
+                        PartitionEvent::VehicleLeavesPartition(i) => {
+                            let mut hdc = data_collector1.lock().unwrap();
+                            let mut hmb = message_broker1.lock().unwrap();
 
-                    let leaving_vehicle = hdc.remove_leaving_vehicles(&i.vehicle_id);
-                    hmb.add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
-                }
-                PartitionEvent::AgentLeavesPartition(i) => {
-                    let hdc = data_collector1.lock().unwrap();
-                    let mut hmb = message_broker1.lock().unwrap();
+                            let leaving_vehicle = hdc.remove_leaving_vehicles(&i.vehicle_id);
+                            hmb.add_leaving_vehicle(
+                                i.to.clone(),
+                                i.vehicle_id.clone(),
+                                leaving_vehicle,
+                            );
+                        }
+                        PartitionEvent::AgentLeavesPartition(i) => {
+                            let hdc = data_collector1.lock().unwrap();
+                            let mut hmb = message_broker1.lock().unwrap();
 
-                    // TODO Calling close_block causes a deadlock, therefore the current fix is
-                    //      to let the message broker send a message to itself. Try to find a
-                    //      cleaner solution.
-                    /*
-                    if hdc.is_person_at_home(&i.agent_id) {
-                        // If this agent is currently in its home partition, there is no need to
-                        // send a leave message, as the events are already processed locally.
-                        hdc.message_broker.lock().unwrap().close_block(
-                            i.agent_id.clone(),
-                            hdc.rank,
-                            Some(i.clone()),
-                        );
-                        return;
+                            // TODO Calling close_block causes a deadlock, therefore the current fix is
+                            //      to let the message broker send a message to itself. Try to find a
+                            //      cleaner solution.
+                            /*
+                            if hdc.is_person_at_home(&i.agent_id) {
+                                // If this agent is currently in its home partition, there is no need to
+                                // send a leave message, as the events are already processed locally.
+                                hdc.message_broker.lock().unwrap().close_block(
+                                    i.agent_id.clone(),
+                                    hdc.rank,
+                                    Some(i.clone()),
+                                );
+                                return;
+                            }
+                            */
+
+                            let home_partition = hdc.get_persons().get(&i.agent_id).unwrap();
+                            hmb.add_leaving_partition_event(
+                                *home_partition,
+                                i.agent_id.clone(),
+                                e.payload.clone(),
+                            )
+                        }
+                        PartitionEvent::AgentEntersPartition(i) => {
+                            let hdc = data_collector1.lock().unwrap();
+                            let mut hmb = message_broker1.lock().unwrap();
+
+                            if hdc.is_person_at_home(&i.agent_id) {
+                                // If this agent is currently in its home partition, there is no need to
+                                // send a leave message, as the events are already processed locally.
+                                hmb.open_block(i.agent_id.clone(), *hdc.get_rank());
+                                return;
+                            }
+
+                            let home_partition = hdc.get_persons().get(&i.agent_id).unwrap();
+                            hmb.add_leaving_partition_event(
+                                *home_partition,
+                                i.agent_id.clone(),
+                                e.payload.clone(),
+                            )
+                        }
+                        PartitionEvent::VehicleEntersPartition(i) => {
+                            let mut hdc = data_collector1.lock().unwrap();
+                            let mut hmb = message_broker1.lock().unwrap();
+
+                            hdc.get_pending_vehicles_mut().insert(i.vehicle_id.clone());
+                            hmb.wait_for_vehicle(i.vehicle_id.clone());
+                        }
                     }
-                    */
-
-                    let home_partition = hdc.get_persons().get(&i.agent_id).unwrap();
-                    hmb.add_leaving_partition_event(
-                        *home_partition,
-                        i.agent_id.clone(),
-                        e.payload.clone(),
-                    )
-                }
-                PartitionEvent::AgentEntersPartition(i) => {
-                    let hdc = data_collector1.lock().unwrap();
-                    let mut hmb = message_broker1.lock().unwrap();
-
-                    if hdc.is_person_at_home(&i.agent_id) {
-                        // If this agent is currently in its home partition, there is no need to
-                        // send a leave message, as the events are already processed locally.
-                        hmb.open_block(i.agent_id.clone(), *hdc.get_rank());
-                        return;
-                    }
-
-                    let home_partition = hdc.get_persons().get(&i.agent_id).unwrap();
-                    hmb.add_leaving_partition_event(
-                        *home_partition,
-                        i.agent_id.clone(),
-                        e.payload.clone(),
-                    )
-                }
-                PartitionEvent::VehicleEntersPartition(i) => {
-                    let mut hdc = data_collector1.lock().unwrap();
-                    let mut hmb = message_broker1.lock().unwrap();
-
-                    hdc.get_pending_vehicles_mut().insert(i.vehicle_id.clone());
-                    hmb.wait_for_vehicle(i.vehicle_id.clone());
-                }
+                });
             });
         })
     }
@@ -213,19 +230,23 @@ impl HomesendingScoringEngine {
             let message_broker1 = Arc::clone(&message_broker);
             let data_collector1 = Arc::clone(&data_collector);
 
-            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
-                MobsimEvent::BeforeSimStep(_) => {
-                    message_broker1.lock().unwrap().recv_vehicles();
-                    // Broker lock released before replay; handle_event locks the broker internally.
-                    data_collector1
-                        .lock()
-                        .unwrap()
-                        .replay_deferred_link_events();
-                }
-                MobsimEvent::AfterSimStep(_) => {
-                    message_broker1.lock().unwrap().send_recv();
-                }
-                _ => {}
+            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
+                hotpath::measure_block!("HomeSending.MobsimEventsManager", {
+                    match &e.payload {
+                        MobsimEvent::BeforeSimStep(_) => {
+                            message_broker1.lock().unwrap().recv_vehicles();
+                            // Broker lock released before replay; handle_event locks the broker internally.
+                            data_collector1
+                                .lock()
+                                .unwrap()
+                                .replay_deferred_link_events();
+                        }
+                        MobsimEvent::AfterSimStep(_) => {
+                            message_broker1.lock().unwrap().send_recv();
+                        }
+                        _ => {}
+                    }
+                });
             });
         })
     }

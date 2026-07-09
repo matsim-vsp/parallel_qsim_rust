@@ -22,6 +22,7 @@ pub struct BackpackingScoringEngine {
     output_path: PathBuf,
 }
 
+#[hotpath::measure_all]
 impl BackpackingScoringEngine {
     pub(crate) fn new(
         rank: QSimId,
@@ -46,6 +47,7 @@ impl BackpackingScoringEngine {
     }
 }
 
+#[hotpath::measure_all]
 impl ScoringEngine for BackpackingScoringEngine {
     fn attach_senders(&mut self, senders: Vec<Sender<InternalScoringMessage>>) {
         self.backpacking_data_collector
@@ -88,6 +90,7 @@ impl ScoringEngine for BackpackingScoringEngine {
     }
 }
 
+#[hotpath::measure_all]
 impl BackpackingScoringEngine {
     pub(crate) fn register_event_fn(
         data_collector: Arc<Mutex<BackpackingDataCollector>>,
@@ -96,24 +99,30 @@ impl BackpackingScoringEngine {
             // General backpacking event forwarding
             let data_collector1 = Arc::clone(&data_collector);
             events.on_any(move |e: &dyn EventTrait| {
-                let mut bdc = data_collector1.lock().unwrap();
-                bdc.handle_event(e);
+                hotpath::measure_block!("Backpacking.EventsManager.on_any", {
+                    let mut bdc = data_collector1.lock().unwrap();
+                    bdc.handle_event(e);
+                })
             });
 
             // Events for Vehicle2Person mappings
             let data_collector2 = Arc::clone(&data_collector);
             events.on::<PersonEntersVehicleEvent, _>(move |e: &PersonEntersVehicleEvent| {
-                let mut bdc = data_collector2.lock().unwrap();
-                bdc.get_vehicles_mut()
-                    .entry(e.vehicle.clone())
-                    .or_default()
-                    .insert(e.person.clone());
+                hotpath::measure_block!("Backpacking.EventsManager.PersonEntersVehicleEvent", {
+                    let mut bdc = data_collector2.lock().unwrap();
+                    bdc.get_vehicles_mut()
+                        .entry(e.vehicle.clone())
+                        .or_default()
+                        .insert(e.person.clone());
+                })
             });
 
             let data_collector3 = Arc::clone(&data_collector);
             events.on::<PersonLeavesVehicleEvent, _>(move |e: &PersonLeavesVehicleEvent| {
-                let mut bdc = data_collector3.lock().unwrap();
-                bdc.get_vehicles_mut().remove(&e.vehicle);
+                hotpath::measure_block!("Backpacking.EventsManager.PersonLeavesVehicleEvent", {
+                    let mut bdc = data_collector3.lock().unwrap();
+                    bdc.get_vehicles_mut().remove(&e.vehicle);
+                })
             });
         })
     }
@@ -125,34 +134,46 @@ impl BackpackingScoringEngine {
         Box::new(move |events: &mut PartitionEventsManager| {
             let data_collector1 = Arc::clone(&data_collector);
             let message_broker1 = Arc::clone(&message_broker);
-            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| match &e.payload {
-                PartitionEvent::VehicleLeavesPartition(i) => {
-                    let mut bdc = data_collector1.lock().unwrap();
-                    let mut bmb = message_broker1.lock().unwrap();
+            events.on_event(move |e: &RuntimeEvent<PartitionEvent>| {
+                hotpath::measure_block!("Backpacking.PartitionEventsManager", {
+                    match &e.payload {
+                        PartitionEvent::VehicleLeavesPartition(i) => {
+                            let mut bdc = data_collector1.lock().unwrap();
+                            let mut bmb = message_broker1.lock().unwrap();
 
-                    let leaving_vehicle = bdc.remove_leaving_vehicles(&i.vehicle_id);
-                    bmb.add_leaving_vehicle(i.to.clone(), i.vehicle_id.clone(), leaving_vehicle);
-                }
-                PartitionEvent::AgentLeavesPartition(i) => {
-                    let mut bdc = data_collector1.lock().unwrap();
-                    let mut bmb = message_broker1.lock().unwrap();
+                            let leaving_vehicle = bdc.remove_leaving_vehicles(&i.vehicle_id);
+                            bmb.add_leaving_vehicle(
+                                i.to.clone(),
+                                i.vehicle_id.clone(),
+                                leaving_vehicle,
+                            );
+                        }
+                        PartitionEvent::AgentLeavesPartition(i) => {
+                            let mut bdc = data_collector1.lock().unwrap();
+                            let mut bmb = message_broker1.lock().unwrap();
 
-                    let leaving_backpack = bdc.remove_leaving_backpack(&i.agent_id);
-                    bmb.add_leaving_backpack(i.to.clone(), i.agent_id.clone(), leaving_backpack);
-                }
-                PartitionEvent::AgentEntersPartition(i) => {
-                    message_broker1
-                        .lock()
-                        .unwrap()
-                        .wait_for_backpack(i.agent_id.clone());
-                }
-                PartitionEvent::VehicleEntersPartition(i) => {
-                    let mut bdc = data_collector1.lock().unwrap();
-                    let mut bmb = message_broker1.lock().unwrap();
+                            let leaving_backpack = bdc.remove_leaving_backpack(&i.agent_id);
+                            bmb.add_leaving_backpack(
+                                i.to.clone(),
+                                i.agent_id.clone(),
+                                leaving_backpack,
+                            );
+                        }
+                        PartitionEvent::AgentEntersPartition(i) => {
+                            message_broker1
+                                .lock()
+                                .unwrap()
+                                .wait_for_backpack(i.agent_id.clone());
+                        }
+                        PartitionEvent::VehicleEntersPartition(i) => {
+                            let mut bdc = data_collector1.lock().unwrap();
+                            let mut bmb = message_broker1.lock().unwrap();
 
-                    bdc.get_pending_vehicles_mut().insert(i.vehicle_id.clone());
-                    bmb.wait_for_vehicle(i.vehicle_id.clone());
-                }
+                            bdc.get_pending_vehicles_mut().insert(i.vehicle_id.clone());
+                            bmb.wait_for_vehicle(i.vehicle_id.clone());
+                        }
+                    }
+                })
             });
         })
     }
@@ -162,30 +183,32 @@ impl BackpackingScoringEngine {
         message_broker: Arc<Mutex<BackpackingMessageBroker>>,
     ) -> Box<MobsimListenerRegisterFn> {
         Box::new(move |events: &mut MobsimEventsManager| {
-            let data_collector1 = Arc::clone(&data_collector);
-            let message_broker1 = Arc::clone(&message_broker);
+            hotpath::measure_block!("Backpacking.MobsimListenerRegisterFn", {
+                let data_collector1 = Arc::clone(&data_collector);
+                let message_broker1 = Arc::clone(&message_broker);
 
-            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
-                MobsimEvent::BeforeSimStep(_) => {
-                    let mut bdc = data_collector1.lock().unwrap();
-                    let mut bmb = message_broker1.lock().unwrap();
+                events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
+                    MobsimEvent::BeforeSimStep(_) => {
+                        let mut bdc = data_collector1.lock().unwrap();
+                        let mut bmb = message_broker1.lock().unwrap();
 
-                    bmb.recv_backpacks();
-                    bmb.recv_vehicles();
-                    let arrived_backpacks = bmb.drain_arrived_backpacks();
-                    let arrived_vehicles = bmb.drain_arrived_vehicles();
-                    bdc.add_arriving_backpacks(arrived_backpacks);
-                    bdc.add_arriving_vehicles(arrived_vehicles);
-                    // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not
-                    // arrived yet. recv_backpacks() ran first, so backpacks are also present at
-                    // this point.
-                    bdc.replay_deferred_link_events();
-                }
-                MobsimEvent::AfterSimStep(_) => {
-                    message_broker1.lock().unwrap().send();
-                }
-                _ => {}
-            });
+                        bmb.recv_backpacks();
+                        bmb.recv_vehicles();
+                        let arrived_backpacks = bmb.drain_arrived_backpacks();
+                        let arrived_vehicles = bmb.drain_arrived_vehicles();
+                        bdc.add_arriving_backpacks(arrived_backpacks);
+                        bdc.add_arriving_vehicles(arrived_vehicles);
+                        // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not
+                        // arrived yet. recv_backpacks() ran first, so backpacks are also present at
+                        // this point.
+                        bdc.replay_deferred_link_events();
+                    }
+                    MobsimEvent::AfterSimStep(_) => {
+                        message_broker1.lock().unwrap().send();
+                    }
+                    _ => {}
+                });
+            })
         })
     }
 }

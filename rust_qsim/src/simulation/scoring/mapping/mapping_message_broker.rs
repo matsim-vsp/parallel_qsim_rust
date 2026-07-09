@@ -27,6 +27,7 @@ pub struct MappingCollectorMessageBroker {
     data_forwarder: Weak<Mutex<MappingDataForwarder>>,
 }
 
+#[hotpath::measure_all]
 impl MappingCollectorMessageBroker {
     pub fn new(
         receiver: Receiver<InternalScoringMessage>,
@@ -66,11 +67,15 @@ impl MappingCollectorMessageBroker {
     ) -> Box<MobsimListenerRegisterFn> {
         Box::new(move |events: &mut MobsimEventsManager| {
             let broker = Arc::clone(&scoring_broker);
-            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
-                MobsimEvent::AfterSimStep(i) => {
-                    broker.lock().unwrap().send(i.time, false);
-                }
-                _ => {}
+            events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
+                hotpath::measure_block!("Backpacking.EventsManager.on_any", {
+                    match &e.payload {
+                        MobsimEvent::AfterSimStep(i) => {
+                            broker.lock().unwrap().send(i.time, false);
+                        }
+                        _ => {}
+                    }
+                });
             });
         })
     }
@@ -204,6 +209,7 @@ pub struct MappingScoringMessageBroker {
     data_collector: Weak<Mutex<MappingDataCollector>>,
 }
 
+#[hotpath::measure_all]
 impl MappingScoringMessageBroker {
     pub fn new(
         receiver: Receiver<InternalScoringMessage>,
