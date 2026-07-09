@@ -248,7 +248,9 @@ impl MappingScoringMessageBroker {
     pub fn work(&mut self) {
         let mut finished = HashSet::new();
         loop {
-            let received_msg = self.receiver.recv().expect("Error receiving message");
+            let received_msg = hotpath::measure_block!("MappingScoringMessageBroker.recv_wait", {
+                self.receiver.recv().expect("Error receiving message")
+            });
 
             if let Some(partition) = self.recv(received_msg) {
                 finished.insert(partition);
