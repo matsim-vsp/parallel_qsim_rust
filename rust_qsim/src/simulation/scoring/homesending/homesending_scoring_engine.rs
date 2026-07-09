@@ -183,7 +183,7 @@ impl HomesendingScoringEngine {
                     if hdc.is_person_at_home(&i.agent_id) {
                         // If this agent is currently in its home partition, there is no need to
                         // send a leave message, as the events are already processed locally.
-                        hmb.open_block(i.agent_id.clone(), *hdc.get_rank(), Some(i.clone()));
+                        hmb.open_block(i.agent_id.clone(), *hdc.get_rank());
                         return;
                     }
 
@@ -201,7 +201,6 @@ impl HomesendingScoringEngine {
                     hdc.get_pending_vehicles_mut().insert(i.vehicle_id.clone());
                     hmb.wait_for_vehicle(i.vehicle_id.clone());
                 }
-                _ => {}
             });
         })
     }

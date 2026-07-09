@@ -1,7 +1,5 @@
 use crate::simulation::events::EventTrait;
-use crate::simulation::framework_events::{
-    AgentEntersPartitionEvent, AgentLeavesPartitionEvent, PartitionEvent, QSimId,
-};
+use crate::simulation::framework_events::{AgentLeavesPartitionEvent, PartitionEvent, QSimId};
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -58,7 +56,7 @@ impl HomeSendingMessageBroker {
         rank: QSimId,
     ) -> IntMap<Id<InternalPerson>, QSimId> {
         let mut m = IntMap::default();
-        for (person_id, person) in population.persons.iter() {
+        for (person_id, _) in population.persons.iter() {
             m.insert(person_id.clone(), rank);
         }
         m
@@ -69,13 +67,12 @@ impl HomeSendingMessageBroker {
         rank: QSimId,
     ) -> IntMap<Id<InternalPerson>, IntMap<QSimId, EventBlock>> {
         let mut m = IntMap::default();
-        for (person_id, person) in population.persons.iter() {
+        for (person_id, _) in population.persons.iter() {
             m.insert(person_id.clone(), IntMap::default());
             m.entry(person_id.clone())
                 .or_default()
                 .entry(rank)
                 .or_insert_with(|| EventBlock {
-                    enter_event: None,
                     events: Vec::default(),
                     leave_event: None,
                 });
@@ -176,12 +173,7 @@ impl HomeSendingMessageBroker {
             .insert(person_id, event);
     }
 
-    pub(crate) fn open_block(
-        &mut self,
-        person_id: Id<InternalPerson>,
-        rank: QSimId,
-        enter_event: Option<AgentEntersPartitionEvent>,
-    ) {
+    pub(crate) fn open_block(&mut self, person_id: Id<InternalPerson>, rank: QSimId) {
         if self
             .buffer_arriving_events
             .get(&person_id)
@@ -196,7 +188,6 @@ impl HomeSendingMessageBroker {
             .insert(
                 rank,
                 EventBlock {
-                    enter_event,
                     events: Vec::new(),
                     leave_event: None,
                 },
@@ -336,8 +327,8 @@ impl HomeSendingMessageBroker {
 
                 for (person_id, event) in m.partition_events {
                     match event {
-                        PartitionEvent::AgentEntersPartition(i) => {
-                            self.open_block(person_id, msg.from_process, Some(i));
+                        PartitionEvent::AgentEntersPartition(_) => {
+                            self.open_block(person_id, msg.from_process);
                         }
                         PartitionEvent::AgentLeavesPartition(i) => {
                             self.close_block(person_id, msg.from_process, Some(i));
@@ -409,7 +400,7 @@ impl HomeSendingMessageBroker {
         // Finish remaining event-blocks. There should be exactly one event block per agent
         // If there are more or less unfinished event-blocks, something went wrong.
         // In such case, the check will panic.
-        for (person_id, mut buffer) in self.buffer_arriving_events.drain() {
+        for (person_id, buffer) in self.buffer_arriving_events.drain() {
             if buffer.len() != 1 {
                 panic!(
                     "Person {} has {} unfinished blocks at the end of the simulation!",
@@ -431,8 +422,6 @@ impl HomeSendingMessageBroker {
 }
 
 struct EventBlock {
-    // TODO Do we even need the enter event?
-    enter_event: Option<AgentEntersPartitionEvent>,
     events: Vec<Box<dyn EventTrait>>,
     leave_event: Option<AgentLeavesPartitionEvent>,
 }

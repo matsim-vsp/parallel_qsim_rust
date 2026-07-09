@@ -1,13 +1,9 @@
 use crate::simulation::events::{
-    ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
-    LinkEnterEvent, PersonArrivalEvent, PersonDepartureEvent, PersonEntersVehicleEvent,
-    PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
-    VehicleLeavesTrafficEvent,
+    ActivityEndEvent, ActivityStartEvent, EventTrait, LinkEnterEvent, PersonArrivalEvent,
+    PersonDepartureEvent, PersonEntersVehicleEvent, PersonLeavesVehicleEvent,
+    TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
-use crate::simulation::framework_events::{
-    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, PartitionEvent,
-    PartitionEventsManager, PartitionListenerRegisterFn, QSimId, RuntimeEvent,
-};
+use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -173,19 +169,6 @@ impl BackpackingDataCollector {
                 .unwrap()
                 .handle_event(event);
         });
-    }
-
-    /// Drains all data that arrived in the broker's buffers during `finish_send_recv` into self.
-    /// Must be called immediately after `BackpackingMessageBroker::finish_send_recv`.
-    pub(crate) fn finish_recv(&mut self) {
-        let arrived_backpacks = self
-            .message_broker
-            .lock()
-            .unwrap()
-            .drain_arrived_backpacks();
-        let arrived_vehicles = self.message_broker.lock().unwrap().drain_arrived_vehicles();
-        self.add_arriving_backpacks(arrived_backpacks);
-        self.add_arriving_vehicles(arrived_vehicles);
     }
 
     pub(crate) fn finish(&mut self) -> Population {

@@ -12,7 +12,6 @@ use crate::simulation::scoring::mapping::mapping_message_broker::{
 };
 use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
 use nohash_hasher::IntMap;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};

@@ -14,7 +14,6 @@ use crate::simulation::scoring::mapping::mapping_scoring_engine::MappingForwardi
 use crate::simulation::scoring::mapping::{person_hash, vehicle_hash};
 use nohash_hasher::IntMap;
 use std::any::Any;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
 use std::thread;
