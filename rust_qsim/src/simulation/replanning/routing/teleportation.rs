@@ -1,7 +1,6 @@
 use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::{RoutingModule, RoutingRequest};
 use crate::simulation::scenario::Coordinate;
-use crate::simulation::scenario::facilities::Facility;
 use crate::simulation::scenario::population::{
     InternalGenericRoute, InternalLeg, InternalPlanElement, InternalRoute,
 };
@@ -18,22 +17,30 @@ impl RoutingModule for TeleportationRoutingModule {
         let mode = self.mode.external();
         let dep_time = Some(request.departure_time);
 
-        let start = request.from.modal_link_id(&self.mode);
-        let end = request.to.modal_link_id(&self.mode);
+        let start = request
+            .from
+            .modal_link(&self.mode)
+            .unwrap_or_else(|| request.from.link())
+            .clone();
+        let end = request
+            .to
+            .modal_link(&self.mode)
+            .unwrap_or_else(|| request.to.link())
+            .clone();
 
-        let from_coord = request.from.coord().unwrap();
-        let to_coord = request.to.coord().unwrap();
+        let from_coord = request.from.coord();
+        let to_coord = request.to.coord();
 
         let distance =
             Coordinate::euclidean_distance(from_coord, to_coord) * self.beeline_distance_factor;
 
         let trav_time = Duration::from_secs_f64(distance / self.travel_speed);
         let route = InternalRoute::Generic(InternalGenericRoute::new(
-            start.clone(),
-            end.clone(),
+            start,
+            end,
             Some(trav_time),
             Some(distance),
-            None,
+            request.vehicle.map(|v| v.id().clone()),
         ));
 
         let leg = InternalLeg::new(route, mode, trav_time, dep_time);
@@ -46,9 +53,11 @@ mod tests {
     use super::TeleportationRoutingModule;
     use crate::simulation::InternalAttributes;
     use crate::simulation::id::Id;
-    use crate::simulation::replanning::routing::{RoutingModule, RoutingRequest};
+    use crate::simulation::replanning::routing::{
+        RoutingModule, RoutingRequest, RoutingRequestBuilder,
+    };
     use crate::simulation::scenario::Coordinate;
-    use crate::simulation::scenario::facilities::ActivityFacility;
+    use crate::simulation::scenario::facilities::{ActivityFacility, Facility};
     use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::population::{InternalPlanElement, InternalRoute};
     use crate::simulation::time::SimTime;
@@ -64,7 +73,7 @@ mod tests {
         let to = facility("to", 3.0, 4.0, "to-link", []);
         let departure_time = SimTime::from_secs(42);
 
-        let plan = module.calc_route(request(from, to, departure_time));
+        let plan = module.calc_route(request(&from, &to, departure_time));
 
         assert_eq!(1, plan.len());
         let InternalPlanElement::Leg(leg) = &plan[0] else {
@@ -102,7 +111,7 @@ mod tests {
         );
         let to = facility("to", 0.0, 1.0, "to-base-link", [("walk", "to-walk-link")]);
 
-        let plan = module.calc_route(request(from, to, SimTime::from_secs(0)));
+        let plan = module.calc_route(request(&from, &to, SimTime::from_secs(0)));
 
         let InternalPlanElement::Leg(leg) = &plan[0] else {
             panic!("Expected a single leg");
@@ -126,18 +135,17 @@ mod tests {
         }
     }
 
-    fn request(
-        from: ActivityFacility,
-        to: ActivityFacility,
+    fn request<'a>(
+        from: &'a Facility,
+        to: &'a Facility,
         departure_time: SimTime,
-    ) -> RoutingRequest<'static> {
-        // RoutingRequest {
-        //     from,
-        //     to,
-        //     departure_time,
-        //     person: None,
-        // }
-        unimplemented!()
+    ) -> RoutingRequest<'a> {
+        RoutingRequestBuilder::default()
+            .from(from)
+            .to(to)
+            .departure_time(departure_time)
+            .build()
+            .unwrap()
     }
 
     fn facility<const N: usize>(
@@ -146,20 +154,20 @@ mod tests {
         y: f64,
         base_link: &str,
         mode_links: [(&str, &str); N],
-    ) -> ActivityFacility {
+    ) -> Facility {
         let mut mode_to_link = IntMap::default();
         for (mode, link) in mode_links {
             mode_to_link.insert(Id::create(mode), Id::<Link>::create(link));
         }
 
-        ActivityFacility {
+        Facility::ActivityFacility(ActivityFacility {
             id: Id::create(id),
-            coord: Some(Coordinate::new_2d(x, y)),
-            link_id: Some(Id::create(base_link)),
+            coord: Coordinate::new_2d(x, y),
+            link_id: Id::create(base_link),
             mode_to_link,
             desc: None,
             activities: Vec::new(),
             attributes: InternalAttributes::default(),
-        }
+        })
     }
 }

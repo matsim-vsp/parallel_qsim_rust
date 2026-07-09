@@ -25,7 +25,7 @@ impl TimeInterpretation {
     /// Decides when an activity ends by preferring a fixed end time over start time plus maximum duration.
     pub fn decide_on_activity_end_time(
         activity: &InternalActivity,
-        start_time: SimTime,
+        start_time: &SimTime,
     ) -> Option<SimTime> {
         activity.end_time.or_else(|| {
             activity
@@ -45,7 +45,7 @@ impl TimeInterpretation {
     /// Decides the end time of one plan element from its start time.
     pub fn decide_on_element_end_time(
         element: &InternalPlanElement,
-        start_time: SimTime,
+        start_time: &SimTime,
     ) -> Option<SimTime> {
         match element {
             InternalPlanElement::Activity(activity) => {
@@ -59,11 +59,11 @@ impl TimeInterpretation {
     /// Decides the end time after processing a sequence of plan elements in order.
     pub fn decide_on_elements_end_time(
         elements: &[InternalPlanElement],
-        start_time: SimTime,
+        start_time: &SimTime,
     ) -> Option<SimTime> {
-        let mut current_time = start_time;
+        let mut current_time = *start_time;
         for element in elements {
-            current_time = Self::decide_on_element_end_time(element, current_time)?;
+            current_time = Self::decide_on_element_end_time(element, &current_time)?;
         }
         Some(current_time)
     }
@@ -80,10 +80,10 @@ impl TimeInterpretation {
                 InternalPlanElement::Activity(plan_activity)
                     if std::ptr::eq(plan_activity, activity) =>
                 {
-                    return Self::decide_on_activity_end_time(plan_activity, current_time);
+                    return Self::decide_on_activity_end_time(plan_activity, &current_time);
                 }
                 _ => {
-                    current_time = Self::decide_on_element_end_time(element, current_time)?;
+                    current_time = Self::decide_on_element_end_time(element, &current_time)?;
                 }
             }
         }
@@ -102,6 +102,7 @@ mod tests {
         InternalRoute,
     };
     use crate::simulation::time::SimTime;
+    use macros::integration_test;
     use std::time::Duration;
 
     fn activity(end_time: Option<SimTime>, max_dur: Option<Duration>) -> InternalActivity {
@@ -147,47 +148,47 @@ mod tests {
         }
     }
 
-    #[test]
+    #[integration_test]
     fn activity_end_time_wins_over_max_duration() {
         let activity = activity(Some(SimTime::from_secs(10)), Some(Duration::from_secs(100)));
 
         assert_eq!(
             Some(SimTime::from_secs(10)),
-            TimeInterpretation::decide_on_activity_end_time(&activity, SimTime::from_secs(5))
+            TimeInterpretation::decide_on_activity_end_time(&activity, &SimTime::from_secs(5))
         );
     }
 
-    #[test]
+    #[integration_test]
     fn activity_without_end_time_uses_max_duration() {
         let activity = activity(None, Some(Duration::from_secs(7)));
 
         assert_eq!(
             Some(SimTime::from_secs(12)),
-            TimeInterpretation::decide_on_activity_end_time(&activity, SimTime::from_secs(5))
+            TimeInterpretation::decide_on_activity_end_time(&activity, &SimTime::from_secs(5))
         );
     }
 
-    #[test]
+    #[integration_test]
     fn activity_without_end_time_or_max_duration_is_undefined() {
         let activity = activity(None, None);
 
         assert_eq!(
             None,
-            TimeInterpretation::decide_on_activity_end_time(&activity, SimTime::from_secs(5))
+            TimeInterpretation::decide_on_activity_end_time(&activity, &SimTime::from_secs(5))
         );
     }
 
-    #[test]
+    #[integration_test]
     fn fixed_activity_end_time_is_not_shifted_by_late_arrival() {
         let activity = activity(Some(SimTime::from_secs(10)), None);
 
         assert_eq!(
             Some(SimTime::from_secs(10)),
-            TimeInterpretation::decide_on_activity_end_time(&activity, SimTime::from_secs(15))
+            TimeInterpretation::decide_on_activity_end_time(&activity, &SimTime::from_secs(15))
         );
     }
 
-    #[test]
+    #[integration_test]
     fn leg_prefers_route_travel_time_over_leg_travel_time() {
         let leg = leg(Some(Duration::from_secs(3)), Some(Duration::from_secs(9)));
 
@@ -197,7 +198,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn leg_uses_leg_travel_time_when_route_travel_time_is_missing() {
         let leg = leg(None, Some(Duration::from_secs(9)));
 
@@ -207,29 +208,29 @@ mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn leg_without_any_travel_time_is_undefined() {
         let leg = leg_without_route(None);
 
         assert_eq!(None, TimeInterpretation::decide_on_leg_travel_time(&leg));
     }
 
-    #[test]
+    #[integration_test]
     fn element_end_time_handles_activities_and_legs() {
         let activity = InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(4))));
         let leg = InternalPlanElement::Leg(leg(Some(Duration::from_secs(6)), None));
 
         assert_eq!(
             Some(SimTime::from_secs(14)),
-            TimeInterpretation::decide_on_element_end_time(&activity, SimTime::from_secs(10))
+            TimeInterpretation::decide_on_element_end_time(&activity, &SimTime::from_secs(10))
         );
         assert_eq!(
             Some(SimTime::from_secs(16)),
-            TimeInterpretation::decide_on_element_end_time(&leg, SimTime::from_secs(10))
+            TimeInterpretation::decide_on_element_end_time(&leg, &SimTime::from_secs(10))
         );
     }
 
-    #[test]
+    #[integration_test]
     fn elements_end_time_runs_chain_until_end() {
         let elements = vec![
             InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(4)))),
@@ -239,11 +240,11 @@ mod tests {
 
         assert_eq!(
             Some(SimTime::from_secs(20)),
-            TimeInterpretation::decide_on_elements_end_time(&elements, SimTime::from_secs(10))
+            TimeInterpretation::decide_on_elements_end_time(&elements, &SimTime::from_secs(10))
         );
     }
 
-    #[test]
+    #[integration_test]
     fn elements_end_time_stops_on_undefined_time() {
         let elements = vec![
             InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(4)))),
@@ -253,11 +254,11 @@ mod tests {
 
         assert_eq!(
             None,
-            TimeInterpretation::decide_on_elements_end_time(&elements, SimTime::from_secs(10))
+            TimeInterpretation::decide_on_elements_end_time(&elements, &SimTime::from_secs(10))
         );
     }
 
-    #[test]
+    #[integration_test]
     fn activity_end_time_along_plan_uses_previous_elements_to_compute_start() {
         let plan = InternalPlan {
             selected: true,
@@ -275,7 +276,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn activity_end_time_along_plan_uses_configured_simulation_start() {
         let time_interpretation = TimeInterpretation::new(SimTime::from_secs(10));
         let plan = InternalPlan {
@@ -294,7 +295,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[integration_test]
     fn activity_end_time_along_plan_returns_none_for_activity_not_in_plan() {
         let plan = InternalPlan {
             selected: true,

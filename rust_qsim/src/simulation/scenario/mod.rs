@@ -40,6 +40,34 @@ impl Coordinate {
     pub fn middle(a: &Self, b: &Self) -> Self {
         Coordinate::new_3d((a.x + b.x) / 2., (a.y + b.y) / 2., (a.z + b.z) / 2.)
     }
+
+    /// Returns the orthogonal projection of `point` onto the infinite line
+    /// defined by `line_from` and `line_to`.
+    ///
+    /// The returned coordinate is the closest point on that line to `point`.
+    /// Note that the projection is not clamped to the segment between
+    /// `line_from` and `line_to`, so the result may lie outside that segment.
+    pub fn orthogonal_projection(point: &Self, line_from: &Self, line_to: &Self) -> Self {
+        // Orthogonal projection of point onto the line through from and to:
+        // v = from - to
+        // t = dot(point - from, v) / dot(v, v)
+        // projection = from + t * v
+
+        let dx = line_to.x - line_from.x;
+        let dy = line_to.y - line_from.y;
+        let dz = line_to.z - line_from.z;
+
+        let t = ((point.x - line_from.x) * dx
+            + (point.y - line_from.y) * dy
+            + (point.z - line_from.z) * dz)
+            / (dx * dx + dy * dy + dz * dz);
+
+        Coordinate::new_3d(
+            line_from.x + t * dx,
+            line_from.y + t * dy,
+            line_from.z + t * dz,
+        )
+    }
 }
 
 impl Default for Coordinate {

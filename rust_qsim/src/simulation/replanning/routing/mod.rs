@@ -1,6 +1,8 @@
+use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
-use crate::simulation::scenario::facilities::{ActivityFacility, Facility, LinkedFacility};
+use crate::simulation::scenario::facilities::Facility;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlanElement};
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
@@ -23,12 +25,16 @@ pub struct TripRouter {
 #[derive(Builder, Clone)]
 #[builder(pattern = "owned")]
 pub struct RoutingRequest<'r> {
-    from: &'r Box<dyn LinkedFacility>,
-    to: &'r Box<dyn LinkedFacility>,
+    from: &'r Facility,
+    to: &'r Facility,
     #[builder(default)]
     departure_time: SimTime,
     #[builder(default)]
     person: Option<&'r InternalPerson>,
+    #[builder(default)]
+    vehicle: Option<&'r InternalVehicle>,
+    #[builder(default)]
+    attributes: InternalAttributes,
 }
 
 trait RoutingModule {

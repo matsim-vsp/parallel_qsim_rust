@@ -437,6 +437,27 @@ pub fn to_file(network: &Network, path: &Path) {
     }
 }
 
+pub mod utils {
+    use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::network::{Link, Network};
+
+    pub fn find_nearest_point_on_link(
+        coordinate: &Coordinate,
+        link: &Id<Link>,
+        network: &Network,
+    ) -> Coordinate {
+        let from = &network.get_link(link).from;
+        let to = &network.get_link(link).to;
+
+        Coordinate::orthogonal_projection(
+            coordinate,
+            &network.get_node(from).coord,
+            &network.get_node(to).coord,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod};
