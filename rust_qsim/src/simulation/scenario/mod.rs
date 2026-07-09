@@ -1,4 +1,4 @@
-pub mod facility;
+pub mod facilities;
 pub mod network;
 pub mod population;
 pub mod prepare_for_sim;

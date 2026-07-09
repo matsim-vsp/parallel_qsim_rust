@@ -1,3 +1,4 @@
+use crate::simulation::Identifiable;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{
     ActivityStartedEvent, AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic,
@@ -8,7 +9,7 @@ use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{ActivityEndEventBuilder, ActivityStartEventBuilder};
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::time::{SimClock, SimTime, Tick};
-use crate::simulation::time_queue::{Identifiable, TimeQueue};
+use crate::simulation::time_queue::TimeQueue;
 use tracing::instrument;
 
 pub struct ActivityEngine {
@@ -280,6 +281,7 @@ mod tests {
     use crate::external_services::routing::{
         InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
     };
+    use crate::simulation::Identifiable;
     use crate::simulation::agents::SimulationAgentLogic;
     use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::config::Config;
@@ -297,7 +299,6 @@ mod tests {
         InternalPlanElement, InternalRoute,
     };
     use crate::simulation::time::SimTime;
-    use crate::simulation::time_queue::Identifiable;
     use macros::integration_test;
     use std::collections::HashMap;
     use std::sync::Arc;

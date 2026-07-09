@@ -1,12 +1,12 @@
 pub mod agent;
 pub mod agent_logic;
 
+use crate::simulation::Identifiable;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
 use crate::simulation::time::SimTime;
-use crate::simulation::time_queue::Identifiable;
 use std::fmt::Debug;
 
 pub trait EndTime {

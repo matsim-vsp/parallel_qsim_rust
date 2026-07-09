@@ -1,3 +1,4 @@
+use crate::simulation::Identifiable;
 use crate::simulation::agents::agent_logic::{
     AdaptivePlanBasedSimulationLogic, PlanBasedSimulationLogic,
 };
@@ -8,7 +9,6 @@ use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalActivity, InternalLeg, InternalPerson};
 use crate::simulation::time::SimTime;
-use crate::simulation::time_queue::Identifiable;
 
 #[derive(Debug)]
 pub struct SimulationAgent {

@@ -1,9 +1,9 @@
+use crate::simulation::Identifiable;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::framework_events::{
     AgentLeavesPartitionEvent, PartitionEvent, VehicleLeavesPartitionEvent,
 };
 use crate::simulation::time::SimTime;
-use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 
 pub mod activity_engine;

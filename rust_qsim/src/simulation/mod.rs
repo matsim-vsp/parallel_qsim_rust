@@ -1,5 +1,9 @@
 use crate::generated::general::AttributeValue;
 use crate::generated::general::attribute_value::Type;
+use crate::simulation::id::Id;
+use crate::simulation::id::serializable_type::StableTypeId;
+use crate::simulation::scenario::Coordinate;
+use crate::simulation::scenario::network::Link;
 use io::xml::attributes::IOAttributes;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -31,6 +35,23 @@ pub mod simulation;
 pub mod time;
 pub mod time_queue;
 pub mod vehicles;
+
+pub trait Identifiable<I: StableTypeId> {
+    fn id(&self) -> &Id<I>;
+}
+
+pub trait CoordinateLocation {
+    fn coordinate(&self) -> &Coordinate;
+}
+
+pub trait LinkLocation {
+    fn link_id(&self) -> &Id<Link>;
+}
+
+pub trait Attributable {
+    fn attributes(&self) -> &InternalAttributes;
+    fn attributes_mut(&mut self) -> &mut InternalAttributes;
+}
 
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
 pub struct InternalAttributes {

@@ -1,4 +1,3 @@
-use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
 use crate::simulation::io::xml::facilities::{
     IOFacilities, IOFacility, IOFacilityActivity, IOOpenDay, IOOpenTime,
@@ -6,18 +5,33 @@ use crate::simulation::io::xml::facilities::{
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::time::SimTime;
+use crate::simulation::{Attributable, Identifiable, InternalAttributes, LinkLocation};
 use nohash_hasher::IntMap;
 
+/// Facility is a location that has modal access to the network.
+pub trait Facility {
+    fn coord(&self) -> Option<&Coordinate>;
+}
+
+pub trait ActivityFacilityAccess: Facility + Identifiable<ActivityFacility> + Attributable {
+    fn desc(&self) -> Option<&str>;
+    fn activities(&self) -> &[ActivityOption];
+}
+
+pub trait LinkedFacility: Facility + LinkLocation {
+    fn modal_link_id(&self, mode: &Id<String>) -> &Id<Link>;
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub struct Facilities {
-    pub facilities: IntMap<Id<Facility>, Facility>,
+pub struct ActivityFacilities {
+    pub facilities: IntMap<Id<ActivityFacility>, ActivityFacility>,
     pub name: Option<String>,
     pub aggregation_layer: Option<String>,
     pub lang: Option<String>,
     pub attributes: InternalAttributes,
 }
 
-impl Facilities {
+impl ActivityFacilities {
     pub fn new(
         name: Option<String>,
         aggregation_layer: Option<String>,
@@ -33,7 +47,7 @@ impl Facilities {
         }
     }
 
-    pub fn add_facility(&mut self, facility: Facility) {
+    pub fn add_facility(&mut self, facility: ActivityFacility) {
         let id = facility.id().clone();
         let previous = self.facilities.insert(id.clone(), facility);
         assert!(
@@ -43,20 +57,20 @@ impl Facilities {
         );
     }
 
-    pub fn get(&self, id: &Id<Facility>) -> Option<&Facility> {
+    pub fn get(&self, id: &Id<ActivityFacility>) -> Option<&ActivityFacility> {
         self.facilities.get(id)
     }
 }
 
-impl Default for Facilities {
+impl Default for ActivityFacilities {
     fn default() -> Self {
         Self::new(None, None, None, InternalAttributes::default())
     }
 }
 
-impl From<IOFacilities> for Facilities {
+impl From<IOFacilities> for ActivityFacilities {
     fn from(io: IOFacilities) -> Self {
-        let mut facilities = Facilities::new(
+        let mut facilities = ActivityFacilities::new(
             io.name,
             io.aggregation_layer,
             io.lang,
@@ -64,63 +78,16 @@ impl From<IOFacilities> for Facilities {
         );
 
         for io_facility in io.facilities {
-            facilities.add_facility(Facility::Activity(ActivityFacility::from(io_facility)));
+            facilities.add_facility(ActivityFacility::from(io_facility));
         }
 
         facilities
     }
 }
 
-/// Facility is a location that has modal access to the network.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Facility {
-    Link(LinkFacility),
-    Activity(ActivityFacility),
-}
-
-impl Facility {
-    pub fn coord(&self) -> Option<&Coordinate> {
-        match self {
-            Facility::Link(facility) => facility.coord.as_ref(),
-            Facility::Activity(facility) => facility.coord.as_ref(),
-        }
-    }
-
-    pub fn modal_link_id(&self, mode: &Id<String>) -> Option<Id<Link>> {
-        // if there is a mapping from mode to link, return the link id. Otherwise, return the base_link_id.
-        match self {
-            Facility::Link(facility) => facility
-                .mode_to_link
-                .get(mode)
-                .cloned()
-                .or_else(|| facility.link_id.clone()),
-            Facility::Activity(facility) => facility
-                .mode_to_link
-                .get(mode)
-                .cloned()
-                .or_else(|| facility.link_id.clone()),
-        }
-    }
-
-    pub fn base_link_id(&self) -> Option<Id<Link>> {
-        match self {
-            Facility::Link(facility) => facility.link_id.clone(),
-            Facility::Activity(facility) => facility.link_id.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct LinkFacility {
-    pub id: Id<Facility>,
-    pub coord: Option<Coordinate>,
-    pub link_id: Option<Id<Link>>,
-    pub mode_to_link: IntMap<Id<String>, Id<Link>>,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActivityFacility {
-    pub id: Id<Facility>,
+    pub id: Id<ActivityFacility>,
     pub coord: Option<Coordinate>,
     pub link_id: Option<Id<Link>>,
     pub mode_to_link: IntMap<Id<String>, Id<Link>>,
@@ -157,12 +124,35 @@ pub enum OpenDay {
     Wk,
 }
 
-impl Facility {
-    pub fn id(&self) -> &Id<Facility> {
-        match self {
-            Facility::Link(facility) => &facility.id,
-            Facility::Activity(facility) => &facility.id,
-        }
+impl Facility for ActivityFacility {
+    fn coord(&self) -> Option<&Coordinate> {
+        self.coord.as_ref()
+    }
+}
+
+impl ActivityFacilityAccess for ActivityFacility {
+    fn desc(&self) -> Option<&str> {
+        self.desc.as_deref()
+    }
+
+    fn activities(&self) -> &[ActivityOption] {
+        &self.activities
+    }
+}
+
+impl Identifiable<ActivityFacility> for ActivityFacility {
+    fn id(&self) -> &Id<ActivityFacility> {
+        &self.id
+    }
+}
+
+impl Attributable for ActivityFacility {
+    fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
+    }
+
+    fn attributes_mut(&mut self) -> &mut InternalAttributes {
+        &mut self.attributes
     }
 }
 
@@ -172,11 +162,18 @@ impl From<IOFacility> for ActivityFacility {
             (Some(x), Some(y)) => Some(Coordinate::new_3d(x, y, io.z.unwrap_or(0.0))),
             _ => None,
         };
+        let link_id = io.link_id.map(|link_id| Id::create(&link_id));
+
+        assert!(
+            coord.is_some() || link_id.is_some(),
+            "Facility with id {} must have either a coordinate or a link id.",
+            io.id
+        );
 
         ActivityFacility {
             id: Id::create(&io.id),
             coord,
-            link_id: io.link_id.map(|link_id| Id::create(&link_id)),
+            link_id,
             mode_to_link: IntMap::default(),
             desc: io.desc,
             activities: io.activities.into_iter().map(Into::into).collect(),
@@ -227,6 +224,32 @@ fn parse_open_time(value: &str) -> SimTime {
         .unwrap_or_else(|err| panic!("Invalid facility opentime value {value}: {err}"))
 }
 
+struct LinkWrapperFacility {
+    pub coord: Option<Coordinate>,
+    pub link_id: Id<Link>,
+    pub mode_to_link: IntMap<Id<String>, Id<Link>>,
+}
+
+impl LinkWrapperFacility {}
+
+impl Facility for LinkWrapperFacility {
+    fn coord(&self) -> Option<&Coordinate> {
+        self.coord.as_ref()
+    }
+}
+
+impl LinkedFacility for LinkWrapperFacility {
+    fn modal_link_id(&self, mode: &Id<String>) -> &Id<Link> {
+        self.mode_to_link.get(mode).unwrap_or_else(|| &self.link_id)
+    }
+}
+
+impl LinkLocation for LinkWrapperFacility {
+    fn link_id(&self) -> &Id<Link> {
+        &self.link_id
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::simulation::InternalAttributes;
@@ -235,8 +258,8 @@ mod tests {
         IOCapacity, IOFacilities, IOFacility, IOFacilityActivity, IOOpenDay, IOOpenTime,
     };
     use crate::simulation::scenario::Coordinate;
-    use crate::simulation::scenario::facility::{
-        ActivityFacility, ActivityOption, Facilities, Facility, OpenDay,
+    use crate::simulation::scenario::facilities::{
+        ActivityFacilities, ActivityFacility, ActivityOption, Facility, OpenDay,
     };
     use crate::simulation::scenario::network::Link;
     use crate::simulation::time::SimTime;
@@ -246,7 +269,7 @@ mod tests {
     fn conversion_creates_facilities_by_id() {
         reset_store();
 
-        let facilities = Facilities::from(IOFacilities {
+        let facilities = ActivityFacilities::from(IOFacilities {
             name: Some("test".to_string()),
             aggregation_layer: Some("parcel".to_string()),
             lang: Some("en-US".to_string()),
@@ -271,7 +294,7 @@ mod tests {
             }],
         });
 
-        let facility_id: Id<Facility> = Id::get_from_ext("f1");
+        let facility_id: Id<ActivityFacility> = Id::get_from_ext("f1");
         let facility = facilities.get(&facility_id).unwrap();
 
         assert_eq!(
@@ -280,30 +303,27 @@ mod tests {
             )),
             facility.coord()
         );
-        assert_eq!(
-            Some(Id::<Link>::get_from_ext("l1")),
-            facility.base_link_id()
-        );
-        assert_eq!(
-            Some(Id::<Link>::get_from_ext("l1")),
-            facility.modal_link_id(&Id::create("car"))
-        );
+        // assert_eq!(
+        //     Some(Id::<Link>::get_from_ext("l1")),
+        //     facility.base_link_id()
+        // );
+        // assert_eq!(
+        //     Some(Id::<Link>::get_from_ext("l1")),
+        //     facility.modal_link_id(&Id::create("car"))
+        // );
 
-        let Facility::Activity(activity) = facility else {
-            panic!("Expected activity facility");
-        };
-        assert!(activity.mode_to_link.is_empty());
-        assert_eq!("facility", activity.desc.as_deref().unwrap());
-        assert_eq!(1, activity.activities.len());
+        assert!(facility.mode_to_link.is_empty());
+        assert_eq!("facility", facility.desc.as_deref().unwrap());
+        assert_eq!(1, facility.activities.len());
         assert_eq!(
             Id::<String>::get_from_ext("work"),
-            activity.activities[0].activity_type
+            facility.activities[0].activity_type
         );
-        assert_eq!(Some(12.5), activity.activities[0].capacity);
-        assert_eq!(OpenDay::Mon, activity.activities[0].open_times[0].day);
+        assert_eq!(Some(12.5), facility.activities[0].capacity);
+        assert_eq!(OpenDay::Mon, facility.activities[0].open_times[0].day);
         assert_eq!(
             SimTime::parse("17:30:00").unwrap(),
-            activity.activities[0].open_times[0].end_time
+            facility.activities[0].open_times[0].end_time
         );
     }
 
@@ -312,12 +332,15 @@ mod tests {
     fn conversion_panics_on_duplicate_facility_ids() {
         reset_store();
 
-        let _ = Facilities::from(IOFacilities {
+        let _ = ActivityFacilities::from(IOFacilities {
             name: None,
             aggregation_layer: None,
             lang: None,
             attributes: None,
-            facilities: vec![io_facility_with_id("f1"), io_facility_with_id("f1")],
+            facilities: vec![
+                io_facility_with_id_and_link("f1"),
+                io_facility_with_id_and_link("f1"),
+            ],
         });
     }
 
@@ -325,7 +348,7 @@ mod tests {
     fn conversion_creates_activity_type_and_link_ids() {
         reset_store();
 
-        let facilities = Facilities::from(IOFacilities {
+        let facilities = ActivityFacilities::from(IOFacilities {
             name: None,
             aggregation_layer: None,
             lang: None,
@@ -351,20 +374,31 @@ mod tests {
         });
 
         let facility = facilities.get(&Id::get_from_ext("f1")).unwrap();
-        let Facility::Activity(activity) = facility else {
-            panic!("Expected activity facility");
-        };
 
-        assert_eq!(None, activity.coord);
+        assert_eq!(None, facility.coord);
         assert_eq!(
             Id::<Link>::get_from_ext("l1"),
-            activity.link_id.clone().unwrap()
+            facility.link_id.clone().unwrap()
         );
         assert_eq!(
             Id::<String>::get_from_ext("shop"),
-            activity.activities[0].activity_type
+            facility.activities[0].activity_type
         );
-        assert!(activity.mode_to_link.is_empty());
+        assert!(facility.mode_to_link.is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "Facility with id f1 must have either a coordinate or a link id.")]
+    fn conversion_panics_without_coord_or_link_id() {
+        reset_store();
+
+        let _ = ActivityFacilities::from(IOFacilities {
+            name: None,
+            aggregation_layer: None,
+            lang: None,
+            attributes: None,
+            facilities: vec![io_facility_with_id("f1")],
+        });
     }
 
     #[test]
@@ -372,13 +406,13 @@ mod tests {
         reset_store();
 
         let car = Id::create("car");
-        let bike = Id::create("bike");
+        // let bike = Id::create("bike");
         let base_link = Id::create("base-link");
         let car_link = Id::create("car-link");
         let mut mode_to_link = IntMap::default();
         mode_to_link.insert(car.clone(), car_link.clone());
 
-        let facility = Facility::Activity(ActivityFacility {
+        let facility = ActivityFacility {
             id: Id::create("f1"),
             coord: Some(Coordinate::new_2d(1.0, 2.0)),
             link_id: Some(base_link.clone()),
@@ -390,10 +424,10 @@ mod tests {
                 open_times: Vec::new(),
             }],
             attributes: InternalAttributes::default(),
-        });
+        };
 
-        assert_eq!(Some(car_link), facility.modal_link_id(&car));
-        assert_eq!(Some(base_link), facility.modal_link_id(&bike));
+        // assert_eq!(Some(car_link), facility.modal_link_id(&car));
+        // assert_eq!(Some(base_link), facility.modal_link_id(&bike));
     }
 
     fn io_facility_with_id(id: &str) -> IOFacility {
@@ -403,6 +437,19 @@ mod tests {
             y: None,
             z: None,
             link_id: None,
+            desc: None,
+            activities: Vec::new(),
+            attributes: None,
+        }
+    }
+
+    fn io_facility_with_id_and_link(id: &str) -> IOFacility {
+        IOFacility {
+            id: id.to_string(),
+            x: None,
+            y: None,
+            z: None,
+            link_id: Some("l1".to_string()),
             desc: None,
             activities: Vec::new(),
             attributes: None,

@@ -1,3 +1,4 @@
+use crate::simulation::Identifiable;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
 use crate::simulation::config::Simulation;
@@ -19,7 +20,6 @@ use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::scenario::population::InternalRoute;
 use crate::simulation::scenario::vehicles::Garage;
 use crate::simulation::time::{SimClock, SimTime, Tick};
-use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 use nohash_hasher::IntSet;
 use std::sync::Arc;

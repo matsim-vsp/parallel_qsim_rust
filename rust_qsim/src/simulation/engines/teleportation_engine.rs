@@ -1,3 +1,4 @@
+use crate::simulation::Identifiable;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{
     AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic,
@@ -14,7 +15,7 @@ use crate::simulation::scenario::population::InternalRoute;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::time::{SimClock, SimTime, Tick};
-use crate::simulation::time_queue::{Identifiable, TimeQueue};
+use crate::simulation::time_queue::TimeQueue;
 use crate::simulation::vehicles::SimulationVehicle;
 
 pub(crate) struct TeleportationEngine {

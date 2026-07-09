@@ -1,5 +1,5 @@
 use crate::simulation::pt::{TransitDeparture, TransitLine, TransitRoute, TransitStopFacility};
-use crate::simulation::scenario::facility::Facility;
+use crate::simulation::scenario::facilities::ActivityFacility;
 use crate::simulation::scenario::network::{Link, Node};
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
@@ -97,7 +97,7 @@ impl StableTypeId for TransitDeparture {
     }
 }
 
-impl StableTypeId for Facility {
+impl StableTypeId for ActivityFacility {
     fn stable_type_id() -> u64 {
         FACILITY_TYPE_ID
     }

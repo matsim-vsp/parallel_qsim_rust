@@ -1,6 +1,7 @@
 use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::{RoutingModule, RoutingRequest};
 use crate::simulation::scenario::Coordinate;
+use crate::simulation::scenario::facilities::Facility;
 use crate::simulation::scenario::population::{
     InternalGenericRoute, InternalLeg, InternalPlanElement, InternalRoute,
 };
@@ -17,8 +18,8 @@ impl RoutingModule for TeleportationRoutingModule {
         let mode = self.mode.external();
         let dep_time = Some(request.departure_time);
 
-        let start = request.from.modal_link_id(&self.mode).unwrap();
-        let end = request.to.modal_link_id(&self.mode).unwrap();
+        let start = request.from.modal_link_id(&self.mode);
+        let end = request.to.modal_link_id(&self.mode);
 
         let from_coord = request.from.coord().unwrap();
         let to_coord = request.to.coord().unwrap();
@@ -28,8 +29,8 @@ impl RoutingModule for TeleportationRoutingModule {
 
         let trav_time = Duration::from_secs_f64(distance / self.travel_speed);
         let route = InternalRoute::Generic(InternalGenericRoute::new(
-            start,
-            end,
+            start.clone(),
+            end.clone(),
             Some(trav_time),
             Some(distance),
             None,
@@ -47,7 +48,7 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::{RoutingModule, RoutingRequest};
     use crate::simulation::scenario::Coordinate;
-    use crate::simulation::scenario::facility::{ActivityFacility, Facility};
+    use crate::simulation::scenario::facilities::ActivityFacility;
     use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::population::{InternalPlanElement, InternalRoute};
     use crate::simulation::time::SimTime;
@@ -125,13 +126,18 @@ mod tests {
         }
     }
 
-    fn request(from: Facility, to: Facility, departure_time: SimTime) -> RoutingRequest<'static> {
-        RoutingRequest {
-            from,
-            to,
-            departure_time,
-            person: None,
-        }
+    fn request(
+        from: ActivityFacility,
+        to: ActivityFacility,
+        departure_time: SimTime,
+    ) -> RoutingRequest<'static> {
+        // RoutingRequest {
+        //     from,
+        //     to,
+        //     departure_time,
+        //     person: None,
+        // }
+        unimplemented!()
     }
 
     fn facility<const N: usize>(
@@ -140,13 +146,13 @@ mod tests {
         y: f64,
         base_link: &str,
         mode_links: [(&str, &str); N],
-    ) -> Facility {
+    ) -> ActivityFacility {
         let mut mode_to_link = IntMap::default();
         for (mode, link) in mode_links {
             mode_to_link.insert(Id::create(mode), Id::<Link>::create(link));
         }
 
-        Facility::Activity(ActivityFacility {
+        ActivityFacility {
             id: Id::create(id),
             coord: Some(Coordinate::new_2d(x, y)),
             link_id: Some(Id::create(base_link)),
@@ -154,6 +160,6 @@ mod tests {
             desc: None,
             activities: Vec::new(),
             attributes: InternalAttributes::default(),
-        })
+        }
     }
 }

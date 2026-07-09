@@ -1,5 +1,5 @@
 use crate::simulation::id::Id;
-use crate::simulation::scenario::facility::Facility;
+use crate::simulation::scenario::facilities::{ActivityFacility, Facility, LinkedFacility};
 use crate::simulation::scenario::population::{InternalPerson, InternalPlanElement};
 use crate::simulation::time::SimTime;
 use derive_builder::Builder;
@@ -20,11 +20,11 @@ pub struct TripRouter {
     modules: IntMap<Id<String>, Arc<dyn RoutingModule>>,
 }
 
-#[derive(Builder, Debug)]
+#[derive(Builder, Clone)]
 #[builder(pattern = "owned")]
 pub struct RoutingRequest<'r> {
-    from: Facility,
-    to: Facility,
+    from: &'r Box<dyn LinkedFacility>,
+    to: &'r Box<dyn LinkedFacility>,
     #[builder(default)]
     departure_time: SimTime,
     #[builder(default)]
@@ -33,19 +33,6 @@ pub struct RoutingRequest<'r> {
 
 trait RoutingModule {
     fn calc_route(&self, request: RoutingRequest) -> Vec<InternalPlanElement>;
-}
-
-struct NetworkRoutingModule {
-    // ref to access routing module
-    // ref to egress routing module
-    // ref to network routing module
-}
-
-impl RoutingModule for NetworkRoutingModule {
-    fn calc_route(&self, request: RoutingRequest) -> Vec<InternalPlanElement> {
-        // calculate access + "normal" leg + egress
-        todo!()
-    }
 }
 
 struct TransitRoutingModule {}

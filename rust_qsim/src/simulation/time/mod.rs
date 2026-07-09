@@ -3,6 +3,8 @@ use std::num::NonZeroU32;
 use std::ops::{Add, AddAssign, Sub};
 use std::time::Duration;
 
+pub mod time_interpretation;
+
 const NANOS_PER_SECOND: u128 = 1_000_000_000;
 const NANOS_PER_SECOND_U64: u64 = 1_000_000_000;
 const MAX_SIMTIME_NANOS: u64 = u64::MAX;
