@@ -18,7 +18,7 @@ use crate::simulation::time::time_interpretation::TimeInterpretation;
 use std::sync::Arc;
 use std::time::Duration;
 
-struct NetworkRoutingModule {
+pub struct NetworkRoutingModule {
     mode: Id<String>,
     access_router: Arc<dyn RoutingModule>,
     egress_router: Arc<dyn RoutingModule>,
@@ -40,6 +40,10 @@ impl RoutingModule for NetworkRoutingModule {
         self.egress_routing(&request, now, &mut result);
 
         result
+    }
+
+    fn mode(&self) -> &Id<String> {
+        &self.mode
     }
 }
 

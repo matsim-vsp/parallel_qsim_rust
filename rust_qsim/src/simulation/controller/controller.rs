@@ -9,14 +9,21 @@ use crate::simulation::framework_events::{
     ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn,
     MobsimListenerRegisterFn, PartitionListenerRegisterFn,
 };
+use crate::simulation::id::Id;
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
+use crate::simulation::replanning::routing::RoutingModule;
+use crate::simulation::replanning::routing::a_star::{AStar, AltHeuristic};
+use crate::simulation::replanning::routing::least_cost_path_calculator::FreeSpeedTravelTimeAndDisutility;
+use crate::simulation::replanning::routing::network_routing::NetworkRoutingModule;
+use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
 use crate::simulation::scenario::{ControllerScenario, Scenario};
 use crate::simulation::{id, io};
 use derive_more::Debug;
+use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
@@ -39,6 +46,7 @@ pub struct Controller {
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
+    routers: IntMap<Id<String>, Arc<dyn RoutingModule>>,
 }
 
 pub struct ControllerBuilder {
@@ -85,6 +93,8 @@ impl ControllerBuilder {
         let scenario: ControllerScenario = self.scenario.into();
         let config = scenario.core.config.clone();
 
+        let routers = Self::create_routing_modules(config.as_ref(), &scenario)?;
+
         Ok(Controller {
             scenario,
             config,
@@ -96,6 +106,7 @@ impl ControllerBuilder {
             external_services: self.external_services,
             global_barrier: barrier,
             adapter_handles: self.adapter_handles,
+            routers,
         })
     }
 
@@ -149,6 +160,62 @@ impl ControllerBuilder {
     pub fn adapter_handles(mut self, v: Vec<AdapterHandle>) -> Self {
         self.adapter_handles = v;
         self
+    }
+
+    fn create_routing_modules(
+        config: &Config,
+        controller_scenario: &ControllerScenario,
+    ) -> Result<IntMap<Id<String>, Arc<dyn RoutingModule>>, String> {
+        let mut routers: IntMap<Id<String>, Arc<dyn RoutingModule>> = IntMap::default();
+
+        // for every teleported mode, create the corresponding router.
+        if !config
+            .routing()
+            .teleported_mode_params
+            .iter()
+            .any(|t| t.mode.eq("walk"))
+        {
+            return Err(
+                "No walk teleported mode definition found. Walk is the fallback teleported mode and needs to be present.".to_string(),
+            );
+        }
+
+        for t in &config.routing().teleported_mode_params {
+            let id = Id::create(&t.mode);
+
+            let module = Arc::new(TeleportationRoutingModule::new(
+                id.clone(),
+                t.beeline_distance_factor,
+                t.teleported_mode_speed,
+            ));
+
+            routers.insert(id, module);
+        }
+
+        // for every main mode, create the corresponding router.
+        for mode in &config.simulation().main_modes {
+            let id = Id::create(mode);
+            let time_utility = Arc::new(FreeSpeedTravelTimeAndDisutility);
+            let astar = AStar::<AltHeuristic>::new(
+                controller_scenario.core.network.clone(),
+                Some(id.clone()),
+                time_utility.clone(),
+                time_utility,
+            )
+            .unwrap();
+
+            let access_egress = routers.get(&Id::create("walk")).unwrap().clone();
+            let module = Arc::new(NetworkRoutingModule::new(
+                id.clone(),
+                access_egress,
+                Box::new(astar),
+                controller_scenario.core.clone(),
+            ));
+
+            routers.insert(id, module);
+        }
+
+        Ok(routers)
     }
 }
 

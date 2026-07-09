@@ -465,6 +465,17 @@ register_override!("output.overwrite_files", |config, value| {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Routing {
     pub mode: RoutingMode,
+    #[serde(default)]
+    pub network_modes: Vec<String>,
+    #[serde(default)]
+    pub teleported_mode_params: Vec<TeleportedParams>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct TeleportedParams {
+    pub mode: String,
+    pub beeline_distance_factor: f64,
+    pub teleported_mode_speed: f64,
 }
 
 register_override!("routing.mode", |config, value| {
@@ -479,6 +490,8 @@ impl Default for Routing {
     fn default() -> Self {
         Routing {
             mode: RoutingMode::UsePlans,
+            network_modes: Vec::new(),
+            teleported_mode_params: Vec::new(),
         }
     }
 }
@@ -887,7 +900,8 @@ mod tests {
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
         CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight,
-        MetisOptions, PartitionMethod, Partitioning, Simulation, VertexWeight, parse_key_val,
+        MetisOptions, PartitionMethod, Partitioning, Routing, Simulation, TeleportedParams,
+        VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
@@ -1002,6 +1016,62 @@ mod tests {
                 contiguous: false,
             })
         );
+    }
+
+    #[test]
+    fn read_routing_modes_from_yaml() {
+        let yaml = r#"
+        modules:
+          routing:
+            type: Routing
+            mode: UsePlans
+            network_modes:
+              - car
+              - bike
+            teleported_mode_params:
+              - mode: walk
+                beeline_distance_factor: 1.3
+                teleported_mode_speed: 1.4
+              - mode: pt
+                beeline_distance_factor: 1.1
+                teleported_mode_speed: 8.0
+        "#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(parsed_config.routing().mode, RoutingMode::UsePlans);
+        assert_eq!(parsed_config.routing().network_modes, vec!["car", "bike"]);
+        assert_eq!(
+            parsed_config.routing().teleported_mode_params,
+            vec![
+                TeleportedParams {
+                    mode: "walk".to_string(),
+                    beeline_distance_factor: 1.3,
+                    teleported_mode_speed: 1.4,
+                },
+                TeleportedParams {
+                    mode: "pt".to_string(),
+                    beeline_distance_factor: 1.1,
+                    teleported_mode_speed: 8.0,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn read_routing_defaults_modes_to_empty_vectors() {
+        let yaml = r#"
+        modules:
+          routing:
+            type: Routing
+            mode: UsePlans
+        "#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(parsed_config.routing().mode, RoutingMode::UsePlans);
+        assert!(parsed_config.routing().network_modes.is_empty());
+        assert!(parsed_config.routing().teleported_mode_params.is_empty());
     }
 
     #[test]
@@ -1279,8 +1349,10 @@ modules:
             num_parts: 1,
             method: PartitionMethod::None,
         });
-        config.set_routing(crate::simulation::config::Routing {
+        config.set_routing(Routing {
             mode: RoutingMode::UsePlans,
+            network_modes: Vec::new(),
+            teleported_mode_params: Vec::new(),
         });
         config
     }

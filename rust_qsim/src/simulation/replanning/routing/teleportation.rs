@@ -46,6 +46,10 @@ impl RoutingModule for TeleportationRoutingModule {
         let leg = InternalLeg::new(route, mode, trav_time, dep_time);
         vec![InternalPlanElement::Leg(leg)]
     }
+
+    fn mode(&self) -> &Id<String> {
+        &self.mode
+    }
 }
 
 impl TeleportationRoutingModule {
