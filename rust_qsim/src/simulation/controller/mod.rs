@@ -14,6 +14,7 @@ use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
+use crate::simulation::replanning::replan_population;
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::{MobsimInput, ScenarioCore};
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
@@ -21,7 +22,6 @@ use crate::simulation::{io, logging};
 use derive_builder::Builder;
 use derive_more::Debug;
 use nohash_hasher::IntMap;
-use rayon::prelude::*;
 use std::any::Any;
 use std::cell::{RefCell, RefMut};
 use std::collections::HashMap;
@@ -531,24 +531,17 @@ impl ReplanningPool {
         Self { pool }
     }
 
-    pub(crate) fn replan(&self, population: Population) -> Population {
+    pub(crate) fn replan(
+        &self,
+        population: Population,
+        iteration: u32,
+        base_seed: u64,
+    ) -> Population {
         match &self.pool {
-            Some(pool) => pool.install(|| parallel_noop_replan(population)),
-            None => parallel_noop_replan(population),
+            Some(pool) => pool.install(|| replan_population(population, iteration, base_seed)),
+            None => replan_population(population, iteration, base_seed),
         }
     }
-}
-
-fn parallel_noop_replan(population: Population) -> Population {
-    let persons = population
-        .persons
-        .into_iter()
-        .collect::<Vec<_>>()
-        .into_par_iter()
-        .collect::<Vec<_>>()
-        .into_iter()
-        .collect();
-    Population { persons }
 }
 
 fn create_events(
@@ -677,7 +670,7 @@ mod tests {
         ]);
         let expected_ids: IntSet<_> = population.persons.keys().cloned().collect();
 
-        let replanned = pool.replan(population);
+        let replanned = pool.replan(population, 0, config.computational_setup().random_seed);
         let actual_ids: IntSet<_> = replanned.persons.keys().cloned().collect();
 
         assert_eq!(expected_ids, actual_ids);

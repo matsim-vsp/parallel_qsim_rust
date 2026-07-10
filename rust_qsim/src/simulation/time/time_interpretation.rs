@@ -261,6 +261,7 @@ mod tests {
     #[integration_test]
     fn activity_end_time_along_plan_uses_previous_elements_to_compute_start() {
         let plan = InternalPlan {
+            score: None,
             selected: true,
             elements: vec![
                 InternalPlanElement::Activity(activity(Some(SimTime::from_secs(5)), None)),
@@ -280,6 +281,7 @@ mod tests {
     fn activity_end_time_along_plan_uses_configured_simulation_start() {
         let time_interpretation = TimeInterpretation::new(SimTime::from_secs(10));
         let plan = InternalPlan {
+            score: None,
             selected: true,
             elements: vec![
                 InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(5)))),
@@ -298,6 +300,7 @@ mod tests {
     #[integration_test]
     fn activity_end_time_along_plan_returns_none_for_activity_not_in_plan() {
         let plan = InternalPlan {
+            score: None,
             selected: true,
             elements: vec![InternalPlanElement::Activity(activity(
                 Some(SimTime::from_secs(5)),
