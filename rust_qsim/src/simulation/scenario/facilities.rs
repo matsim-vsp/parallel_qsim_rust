@@ -55,6 +55,14 @@ impl Facility {
         f.coord = coordinate;
         Facility::LinkWrapperFacility(f)
     }
+
+    pub fn new_link_wrapper(coord: Coordinate, link_id: Id<Link>) -> Facility {
+        Facility::LinkWrapperFacility(LinkWrapperFacility {
+            coord,
+            link_id,
+            mode_to_link: IntMap::default(),
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

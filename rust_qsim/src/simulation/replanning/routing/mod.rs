@@ -8,6 +8,7 @@ use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
+use thiserror::Error;
 
 pub mod a_star;
 mod a_star_core;
@@ -19,8 +20,57 @@ pub mod network_routing;
 pub mod teleportation;
 pub mod travel_time_collector;
 
+#[derive(Debug)]
 pub struct TripRouter {
     modules: IntMap<Id<String>, Arc<dyn RoutingModule>>,
+}
+
+impl TripRouter {
+    pub fn new(modules: IntMap<Id<String>, Arc<dyn RoutingModule>>) -> Self {
+        TripRouter { modules }
+    }
+
+    pub fn has_module(&self, mode: &Id<String>) -> bool {
+        self.modules.contains_key(mode)
+    }
+
+    pub fn calc_route(
+        &self,
+        mode: &Id<String>,
+        request: RoutingRequest,
+    ) -> Result<Vec<InternalPlanElement>, RoutingError> {
+        let mut elements = self
+            .modules
+            .get(&mode)
+            .ok_or_else(|| RoutingError::MissingModule {
+                mode: mode.external().to_string(),
+            })?
+            .calc_route(request)?;
+
+        for element in &mut elements {
+            if let InternalPlanElement::Leg(leg) = element {
+                leg.routing_mode = Some(mode.clone());
+            }
+        }
+
+        Ok(elements)
+    }
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum RoutingError {
+    #[error("No routing module found for mode {mode}")]
+    MissingModule { mode: String },
+    #[error("No route found from {from} to {to} with mode {mode}")]
+    NoPath {
+        mode: String,
+        from: String,
+        to: String,
+    },
+    #[error("Routing for mode {mode} produced elements without a determinable end time")]
+    MissingEndTime { mode: String },
+    #[error("Routing for mode {mode} is not implemented")]
+    Unsupported { mode: String },
 }
 
 #[derive(Builder, Clone)]
@@ -38,17 +88,49 @@ pub struct RoutingRequest<'r> {
     attributes: InternalAttributes,
 }
 
-pub trait RoutingModule {
-    fn calc_route(&self, request: RoutingRequest) -> Vec<InternalPlanElement>;
+impl<'r> RoutingRequest<'r> {
+    pub fn from(&self) -> &'r Facility {
+        self.from
+    }
+
+    pub fn to(&self) -> &'r Facility {
+        self.to
+    }
+
+    pub fn departure_time(&self) -> SimTime {
+        self.departure_time
+    }
+
+    pub fn person(&self) -> Option<&'r InternalPerson> {
+        self.person
+    }
+
+    pub fn vehicle(&self) -> Option<&'r InternalVehicle> {
+        self.vehicle
+    }
+
+    pub fn attributes(&self) -> &InternalAttributes {
+        &self.attributes
+    }
+}
+
+// Implementors of this trait need to be thread-safe because routing may be called from multiple threads in parallel.
+pub trait RoutingModule: Send + Sync {
+    fn calc_route(&self, request: RoutingRequest)
+    -> Result<Vec<InternalPlanElement>, RoutingError>;
     fn mode(&self) -> &Id<String>;
 }
 
 struct TransitRoutingModule {}
 
 impl RoutingModule for TransitRoutingModule {
-    fn calc_route(&self, _request: RoutingRequest) -> Vec<InternalPlanElement> {
-        // calculate transit leg -> connect with Java router?
-        todo!()
+    fn calc_route(
+        &self,
+        _request: RoutingRequest,
+    ) -> Result<Vec<InternalPlanElement>, RoutingError> {
+        Err(RoutingError::Unsupported {
+            mode: "pt".to_string(),
+        })
     }
 
     fn mode(&self) -> &Id<String> {

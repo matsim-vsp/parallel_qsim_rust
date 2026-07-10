@@ -189,6 +189,10 @@ impl Network {
         self.links.get(id).unwrap()
     }
 
+    pub fn get_link_opt(&self, id: &Id<Link>) -> Option<&Link> {
+        self.links.get(id)
+    }
+
     pub fn get_node_mut(&mut self, id: &Id<Node>) -> &mut Node {
         self.nodes.get_mut(id).unwrap()
     }
@@ -328,6 +332,7 @@ fn add_io_link(network: &mut Network, io_link: &IOLink) {
         .modes
         .split(',')
         .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
         .map(Id::create)
         .collect();
     let from_id = Id::get_from_ext(&io_link.from);
@@ -409,7 +414,7 @@ impl Link {
     }
 
     pub fn contains_mode(&self, mode: &Id<String>) -> bool {
-        self.modes.iter().contains(mode)
+        self.modes.is_empty() || self.modes.iter().contains(mode)
     }
 }
 

@@ -95,10 +95,12 @@ impl AStarHeuristic for AltHeuristic {
             let from_disutility = lm_travel_disutility[from_idx]; // (SL,LS)
             let to_disutility = lm_travel_disutility[to_idx]; // (LT,TL)
 
-            let forward_estimate = from_disutility.0 - to_disutility.1;
-            let backward_estimate = to_disutility.0 - from_disutility.1;
-
-            h = h.max(forward_estimate.max(backward_estimate))
+            if from_disutility.0.is_finite() && to_disutility.1.is_finite() {
+                h = h.max(from_disutility.0 - to_disutility.1);
+            }
+            if to_disutility.0.is_finite() && from_disutility.1.is_finite() {
+                h = h.max(to_disutility.0 - from_disutility.1);
+            }
         }
 
         let result: Disutility = if h < 0.0 { 0.0 } else { h };

@@ -3,7 +3,7 @@ use crate::simulation::replanning::routing::least_cost_path_calculator::{
     LeastCostPath, LeastCostPathCalculator, LeastCostPathRequestBuilder,
 };
 use crate::simulation::replanning::routing::{
-    RoutingModule, RoutingRequest, RoutingRequestBuilder,
+    RoutingError, RoutingModule, RoutingRequest, RoutingRequestBuilder,
 };
 use crate::simulation::scenario::facilities::Facility;
 use crate::simulation::scenario::network::Link;
@@ -27,19 +27,22 @@ pub struct NetworkRoutingModule {
 }
 
 impl RoutingModule for NetworkRoutingModule {
-    fn calc_route(&self, request: RoutingRequest) -> Vec<InternalPlanElement> {
+    fn calc_route(
+        &self,
+        request: RoutingRequest,
+    ) -> Result<Vec<InternalPlanElement>, RoutingError> {
         let mut result = Vec::with_capacity(5);
 
         // ====== route access leg
-        let mut now = self.access_routing(&request, &mut result);
+        let mut now = self.access_routing(&request, &mut result)?;
 
         // ====== route "true" leg
-        now = self.network_leg(&request, now, &mut result);
+        now = self.network_leg(&request, now, &mut result)?;
 
         // ======= route egress leg
-        self.egress_routing(&request, now, &mut result);
+        self.egress_routing(&request, now, &mut result)?;
 
-        result
+        Ok(result)
     }
 
     fn mode(&self) -> &Id<String> {
@@ -67,7 +70,7 @@ impl NetworkRoutingModule {
         &self,
         original_request: &RoutingRequest,
         result: &mut Vec<InternalPlanElement>,
-    ) -> SimTime {
+    ) -> Result<SimTime, RoutingError> {
         let coord = network::utils::find_nearest_point_on_link(
             original_request.from.coord(),
             original_request.from.link(),
@@ -84,18 +87,20 @@ impl NetworkRoutingModule {
             .build()
             .unwrap();
 
-        let access = self.access_router.calc_route(new_req);
+        let access = self.access_router.calc_route(new_req)?;
         let now = TimeInterpretation::decide_on_elements_end_time(
             &access,
             &original_request.departure_time,
         )
-        .unwrap();
+        .ok_or_else(|| RoutingError::MissingEndTime {
+            mode: self.mode.external().to_string(),
+        })?;
         result.extend(access);
         let interaction_activity =
             self.create_interaction_activity(coord, &original_request.from.link());
         result.push(interaction_activity);
 
-        now
+        Ok(now)
     }
 
     fn egress_routing(
@@ -103,7 +108,7 @@ impl NetworkRoutingModule {
         original_request: &RoutingRequest,
         now: SimTime,
         result: &mut Vec<InternalPlanElement>,
-    ) {
+    ) -> Result<(), RoutingError> {
         let coord = network::utils::find_nearest_point_on_link(
             original_request.to.coord(),
             original_request.to.link(),
@@ -123,8 +128,9 @@ impl NetworkRoutingModule {
         let interaction_activity =
             self.create_interaction_activity(coord, original_request.to.link());
         result.push(interaction_activity);
-        let egress = self.egress_router.calc_route(new_req);
+        let egress = self.egress_router.calc_route(new_req)?;
         result.extend(egress);
+        Ok(())
     }
 
     fn network_leg(
@@ -132,7 +138,7 @@ impl NetworkRoutingModule {
         request: &RoutingRequest,
         now: SimTime,
         result: &mut Vec<InternalPlanElement>,
-    ) -> SimTime {
+    ) -> Result<SimTime, RoutingError> {
         let from = request
             .from
             .modal_link(&self.mode)
@@ -163,22 +169,22 @@ impl NetworkRoutingModule {
 
             self.least_cost_path_calculator
                 .calc_least_cost_path(r)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "No route found from {} to {} with mode {} for person {:?} at time {}",
-                        from,
-                        to,
-                        self.mode.external(),
-                        person.map(|p| p.id()),
-                        now
-                    )
-                })
+                .ok_or_else(|| RoutingError::NoPath {
+                    mode: self.mode.external().to_string(),
+                    from: from.external().to_string(),
+                    to: to.external().to_string(),
+                })?
         };
 
         let elements = self.path_to_elements(path, &from, &to, &self.mode, request.vehicle);
-        let time = TimeInterpretation::decide_on_elements_end_time(&elements, &now).unwrap();
+        let time =
+            TimeInterpretation::decide_on_elements_end_time(&elements, &now).ok_or_else(|| {
+                RoutingError::MissingEndTime {
+                    mode: self.mode.external().to_string(),
+                }
+            })?;
         result.extend(elements);
-        time
+        Ok(time)
     }
 
     fn path_to_elements(
@@ -442,7 +448,7 @@ mod tests {
             .build()
             .unwrap();
 
-        module.calc_route(request)
+        module.calc_route(request).unwrap()
     }
 
     fn facility(id: &str, x: f64, y: f64, link_id: &str) -> Facility {

@@ -1,9 +1,17 @@
 use crate::simulation::config::Config;
+use crate::simulation::id::Id;
+use crate::simulation::replanning::routing::{RoutingRequestBuilder, TripRouter};
 use crate::simulation::scenario::ControllerScenario;
 use crate::simulation::scenario::Coordinate;
-use crate::simulation::scenario::network::Network;
-use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::scenario::vehicles::Garage;
+use crate::simulation::scenario::facilities::Facility;
+use crate::simulation::scenario::network::{Link, Network};
+use crate::simulation::scenario::population::{
+    InternalGenericRoute, InternalPerson, InternalPlan, InternalPlanElement, InternalRoute,
+};
+use crate::simulation::scenario::trip_structure_utils::{TripSpan, get_trip_spans_default};
+use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
+use crate::simulation::time::SimTime;
+use crate::simulation::time::time_interpretation::TimeInterpretation;
 use rayon::prelude::*;
 use thiserror::Error;
 
@@ -15,7 +23,13 @@ pub struct PrepareForSimError {
 
 impl PrepareForSimError {
     fn new(mut issues: Vec<PrepareForSimIssue>) -> Self {
-        issues.sort_by(|a, b| a.person_id.cmp(&b.person_id));
+        issues.sort_by(|a, b| {
+            (&a.person_id, a.plan_index, a.trip_index).cmp(&(
+                &b.person_id,
+                b.plan_index,
+                b.trip_index,
+            ))
+        });
         Self { issues }
     }
 
@@ -27,23 +41,26 @@ impl PrepareForSimError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrepareForSimIssue {
     pub person_id: String,
+    pub plan_index: usize,
+    pub trip_index: Option<usize>,
     pub message: String,
 }
 
-pub(crate) fn prepare_for_sim(scenario: &mut ControllerScenario) -> Result<(), PrepareForSimError> {
+pub(crate) fn prepare_for_sim(
+    scenario: &mut ControllerScenario,
+    trip_router: &TripRouter,
+) -> Result<(), PrepareForSimError> {
     let context = PrepareForSimContext {
         network: &scenario.core.network,
         garage: &scenario.core.garage,
         config: scenario.core.config.as_ref(),
     };
 
-    // todo set link ids and coordinate of facilities
-
     let issues: Vec<_> = scenario
         .population
         .persons
         .par_iter_mut()
-        .flat_map(|(_, person)| prepare_person(&context, person))
+        .flat_map(|(_, person)| prepare_person(&context, person, trip_router))
         .collect();
 
     if issues.is_empty() {
@@ -59,49 +76,447 @@ pub struct PrepareForSimContext<'a> {
     pub config: &'a Config,
 }
 
+/// Prepares a single person for simulation by validating and potentially repairing their plans.
+/// This function works in two stages:
+/// (1) check if preparation is needed and perform it on a clone of the plan,
+/// (2) replace the old plans by the new ones.
+///
+/// This two-stage approach is necessary to avoid data races when multiple plans of the same person are being prepared in parallel.
 fn prepare_person(
     context: &PrepareForSimContext<'_>,
     person: &mut InternalPerson,
+    trip_router: &TripRouter,
 ) -> Vec<PrepareForSimIssue> {
-    person
-        .plans_mut()
-        .iter_mut()
-        .flat_map(|p| p.acts_mut())
-        .for_each(|a| {
-            if a.coord.is_none() {
-                let link = context.network.get_link(&a.link_id);
-                let from = context.network.get_node(&link.from);
-                let to = context.network.get_node(&link.to);
+    // Stage 1: check if preparation is needed and perform it on a clone of the plan
+    // This stage is parallelized by rayon
+    let outcomes: Vec<_> = person
+        .plans()
+        .par_iter()
+        .enumerate()
+        .map(|(plan_index, plan)| prepare_plan(context, person, plan_index, plan, trip_router))
+        .collect();
 
-                let coord = Coordinate::middle(&from.coord, &to.coord);
+    let mut issues = Vec::new();
 
-                a.coord = Some(coord);
+    // Stage 2: replace the old plans by the new ones
+    for outcome in outcomes {
+        if outcome.issues.is_empty() {
+            if let Some(plan) = outcome.replacement {
+                person.plans_mut()[outcome.plan_index] = plan;
             }
-        });
+        } else {
+            // If there are issues, we do not replace the plan and report the issues instead
+            issues.extend(outcome.issues);
+        }
+    }
 
-    Vec::new()
+    issues
+}
+
+struct PlanPreparation {
+    plan_index: usize,
+    replacement: Option<InternalPlan>,
+    issues: Vec<PrepareForSimIssue>,
+}
+
+fn prepare_plan(
+    context: &PrepareForSimContext<'_>,
+    person: &InternalPerson,
+    plan_index: usize,
+    plan: &InternalPlan,
+    trip_router: &TripRouter,
+) -> PlanPreparation {
+    if !plan_needs_preparation(context, plan) {
+        // No preparation needed, return a dummy result that does not replace the plan.
+        return PlanPreparation {
+            plan_index,
+            replacement: None,
+            issues: Vec::new(),
+        };
+    }
+
+    // Changes need, run algorithm
+    run_preparation(context, person, plan_index, plan, trip_router)
+}
+
+fn run_preparation(
+    context: &PrepareForSimContext,
+    person: &InternalPerson,
+    plan_index: usize,
+    plan: &InternalPlan,
+    trip_router: &TripRouter,
+) -> PlanPreparation {
+    let mut working_plan = plan.clone();
+    if let Err(message) = assign_and_validate_activity_coordinates(context, &mut working_plan) {
+        return failed_plan(person, plan_index, None, message);
+    }
+
+    let trip_count = get_trip_spans_default(&working_plan.elements).len();
+    for trip_index in 0..trip_count {
+        let spans = get_trip_spans_default(&working_plan.elements);
+        let span = spans.get(trip_index).copied().unwrap();
+
+        let mode = match check_and_resolve_main_mode(span, &working_plan.elements) {
+            Ok(mode) => mode,
+            Err(message) => {
+                return failed_plan(person, plan_index, Some(trip_index), message);
+            }
+        };
+
+        if trip_is_valid(context, span, &working_plan.elements, &mode) {
+            continue;
+        }
+
+        if !trip_router.has_module(&mode) {
+            return failed_plan(
+                person,
+                plan_index,
+                Some(trip_index),
+                format!("No routing module found for mode {}", mode.external()),
+            );
+        }
+
+        let departure_time = match TimeInterpretation::decide_on_elements_end_time(
+            &working_plan.elements[..=span.origin_index()],
+            &SimTime::default(),
+        ) {
+            Some(time) => time,
+            None => {
+                return failed_plan(
+                    person,
+                    plan_index,
+                    Some(trip_index),
+                    "Could not derive the trip departure time from the plan".to_string(),
+                );
+            }
+        };
+
+        let origin = span.origin(&working_plan.elements);
+        let destination = span.destination(&working_plan.elements);
+        let from_facility = Facility::new_link_wrapper(
+            origin.coord.clone().expect("coordinates were assigned"),
+            origin.link_id.clone(),
+        );
+        let to_facility = Facility::new_link_wrapper(
+            destination
+                .coord
+                .clone()
+                .expect("coordinates were assigned"),
+            destination.link_id.clone(),
+        );
+
+        let vehicle = match vehicle_for_trip(context, person, span, &working_plan.elements, &mode) {
+            Ok(vehicle) => vehicle,
+            Err(message) => {
+                return failed_plan(person, plan_index, Some(trip_index), message);
+            }
+        };
+
+        let request = RoutingRequestBuilder::default()
+            .from(&from_facility)
+            .to(&to_facility)
+            .departure_time(departure_time)
+            .person(Some(person))
+            .vehicle(vehicle)
+            .build()
+            .expect("all required routing request fields are set");
+
+        let new_elements = match trip_router.calc_route(&mode, request) {
+            Ok(elements) => elements,
+            Err(error) => {
+                return failed_plan(person, plan_index, Some(trip_index), error.to_string());
+            }
+        };
+
+        let new_span = span.replace_trip_elements(&mut working_plan.elements, new_elements);
+        if !trip_is_valid(context, new_span, &working_plan.elements, &mode) {
+            return failed_plan(
+                person,
+                plan_index,
+                Some(trip_index),
+                format!(
+                    "Routing module for mode {} produced an invalid trip",
+                    mode.external()
+                ),
+            );
+        }
+    }
+
+    PlanPreparation {
+        plan_index,
+        replacement: Some(working_plan),
+        issues: Vec::new(),
+    }
+}
+
+fn failed_plan(
+    person: &InternalPerson,
+    plan_index: usize,
+    trip_index: Option<usize>,
+    message: String,
+) -> PlanPreparation {
+    PlanPreparation {
+        plan_index,
+        replacement: None,
+        issues: vec![PrepareForSimIssue {
+            person_id: person.id().external().to_string(),
+            plan_index,
+            trip_index,
+            message,
+        }],
+    }
+}
+
+fn plan_needs_preparation(context: &PrepareForSimContext<'_>, plan: &InternalPlan) -> bool {
+    // Check activities
+    if plan.acts().iter().any(|activity| {
+        activity.coord.is_none() || context.network.get_link_opt(&activity.link_id).is_none()
+    }) {
+        return true;
+    }
+
+    // Check legs and routes
+    get_trip_spans_default(&plan.elements)
+        .into_iter()
+        .any(|span| {
+            check_and_resolve_main_mode(span, &plan.elements)
+                .map(|mode| !trip_is_valid(context, span, &plan.elements, &mode))
+                .unwrap_or(true)
+        })
+}
+
+fn assign_and_validate_activity_coordinates(
+    context: &PrepareForSimContext<'_>,
+    plan: &mut InternalPlan,
+) -> Result<(), String> {
+    for element in &mut plan.elements {
+        let InternalPlanElement::Activity(activity) = element else {
+            continue;
+        };
+        let link = context
+            .network
+            .get_link_opt(&activity.link_id)
+            .ok_or_else(|| format!("Activity references unknown link {}", activity.link_id))?;
+
+        if activity.coord.is_none() {
+            let from = context.network.get_node(&link.from);
+            let to = context.network.get_node(&link.to);
+            activity.coord = Some(Coordinate::middle(&from.coord, &to.coord));
+        }
+    }
+    Ok(())
+}
+
+/// Returns the main mode of a trip. Checks the routing mode as well.
+fn check_and_resolve_main_mode(
+    span: TripSpan,
+    elements: &[InternalPlanElement],
+) -> Result<Id<String>, String> {
+    let legs: Vec<_> = span.legs(elements).collect();
+    if legs.is_empty() {
+        return Err("Trip contains no legs".to_string());
+    }
+
+    let mut routing_modes = Vec::new();
+    for mode in legs.iter().filter_map(|leg| leg.routing_mode.as_ref()) {
+        if !routing_modes.iter().any(|candidate| candidate == mode) {
+            routing_modes.push(mode.clone());
+        }
+    }
+    if routing_modes.len() == 1 {
+        return Ok(routing_modes.pop().unwrap());
+    }
+    if legs.len() == 1 {
+        return Ok(legs[0].mode.clone());
+    }
+
+    Err("Trip has no unambiguous routing mode".to_string())
+}
+
+fn trip_is_valid(
+    context: &PrepareForSimContext<'_>,
+    span: TripSpan,
+    elements: &[InternalPlanElement],
+    mode: &Id<String>,
+) -> bool {
+    let trip_with_boundaries = &elements[span.origin_index()..=span.destination_index()];
+
+    let legs: Vec<_> = span.legs(elements).collect();
+    let any_leg_wrong_routing_mode = legs
+        .iter()
+        .any(|leg| leg.routing_mode.as_ref() != Some(mode));
+    if legs.is_empty() || any_leg_wrong_routing_mode {
+        return false;
+    }
+
+    for (index, element) in trip_with_boundaries.iter().enumerate() {
+        let InternalPlanElement::Leg(leg) = element else {
+            continue;
+        };
+        let previous = index
+            .checked_sub(1)
+            .and_then(|i| trip_with_boundaries.get(i))
+            .and_then(|previous| previous.as_activity());
+        let next = index
+            .checked_add(1)
+            .and_then(|i| trip_with_boundaries.get(i))
+            .and_then(|next| next.as_activity());
+        let (Some(previous_activity), Some(next_activity)) = (previous, next) else {
+            return false;
+        };
+
+        // Check if travel time is present
+        if leg.trav_time.is_none() {
+            return false;
+        }
+
+        // Check if route is present
+        let Some(route) = leg.route.as_ref() else {
+            return false;
+        };
+        let generic = route.as_generic();
+        if !generic_route_is_valid(context.network, generic) {
+            return false;
+        }
+
+        if let InternalRoute::Network(network_route) = route {
+            if !network_route_is_valid(context.network, network_route.route(), &leg.mode, generic) {
+                return false;
+            }
+        }
+    }
+
+    if is_network_mode(context, mode) {
+        let first_is_walk = legs
+            .first()
+            .is_some_and(|leg| leg.mode.external() == "walk");
+        let last_is_walk = legs.last().is_some_and(|leg| leg.mode.external() == "walk");
+        let has_network_main_leg = legs
+            .iter()
+            .any(|leg| &leg.mode == mode && matches!(leg.route, Some(InternalRoute::Network(_))));
+        let interaction_count = span
+            .trip_elements(elements)
+            .iter()
+            .filter_map(InternalPlanElement::as_activity)
+            .filter(|activity| activity.is_interaction())
+            .count();
+        if !first_is_walk || !last_is_walk || !has_network_main_leg || interaction_count < 2 {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn generic_route_is_valid(network: &Network, route: &InternalGenericRoute) -> bool {
+    let Some(distance) = route.distance() else {
+        return false;
+    };
+    route.trav_time().is_some()
+        && distance.is_finite()
+        && distance >= 0.0
+        && network.get_link_opt(route.start_link()).is_some()
+        && network.get_link_opt(route.end_link()).is_some()
+}
+
+/// Checks if a given network route is valid. This is the case if the route starts and ends with the correct links,
+/// all links in the route support the given mode, and all links are connected in sequence.
+fn network_route_is_valid(
+    network: &Network,
+    route: &[Id<Link>],
+    mode: &Id<String>,
+    generic: &InternalGenericRoute,
+) -> bool {
+    if route.first() != Some(generic.start_link()) || route.last() != Some(generic.end_link()) {
+        return false;
+    }
+
+    let Some(links) = route
+        .iter()
+        .map(|link_id| network.get_link_opt(link_id))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    links.iter().all(|link| link.contains_mode(mode))
+        && links.windows(2).all(|pair| pair[0].to == pair[1].from)
+}
+
+fn vehicle_for_trip<'a>(
+    context: &'a PrepareForSimContext<'_>,
+    person: &InternalPerson,
+    span: TripSpan,
+    elements: &[InternalPlanElement],
+    mode: &Id<String>,
+) -> Result<Option<&'a InternalVehicle>, String> {
+    if !is_network_mode(context, mode) {
+        return Ok(None);
+    }
+
+    if let Some(vehicle) = span
+        .legs(elements)
+        .filter(|leg| &leg.mode == mode)
+        .filter_map(|leg| leg.route.as_ref())
+        .filter(|route| matches!(route, InternalRoute::Network(_)))
+        .filter_map(|route| route.as_generic().vehicle().as_ref())
+        .find_map(|vehicle_id| context.garage.vehicles.get(vehicle_id))
+    {
+        return Ok(Some(vehicle));
+    }
+
+    let default_id = format!("{}_{}", person.id().external(), mode.external());
+    context
+        .garage
+        .vehicles
+        .iter()
+        .find(|(id, _)| id.external() == default_id)
+        .map(|(_, vehicle)| Some(vehicle))
+        .ok_or_else(|| {
+            format!(
+                "No vehicle found for network mode {} (expected default vehicle {})",
+                mode.external(),
+                default_id
+            )
+        })
+}
+
+fn is_network_mode(context: &PrepareForSimContext<'_>, mode: &Id<String>) -> bool {
+    context
+        .config
+        .simulation()
+        .main_modes
+        .iter()
+        .any(|candidate| candidate == mode.external())
 }
 
 #[cfg(test)]
 mod tests {
     use super::prepare_for_sim;
+    use crate::simulation::InternalAttributes;
     use crate::simulation::config::Config;
     use crate::simulation::id::Id;
+    use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
+    use crate::simulation::replanning::routing::{
+        RoutingError, RoutingModule, RoutingRequest, TripRouter,
+    };
     use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::scenario::population::{
-        InternalActivity, InternalPerson, InternalPlan, Population,
+        InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
+        InternalPlan, InternalPlanElement, InternalRoute, Population,
     };
-    use crate::simulation::scenario::vehicles::Garage;
+    use crate::simulation::scenario::vehicles::{Garage, InternalVehicle, InternalVehicleType};
     use crate::simulation::scenario::{ControllerScenario, Coordinate, Scenario};
+    use crate::simulation::time::SimTime;
     use macros::integration_test;
-    use nohash_hasher::IntMap;
-    use std::sync::Arc;
+    use nohash_hasher::{IntMap, IntSet};
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     #[integration_test]
     fn prepare_for_sim_succeeds_for_empty_population() {
         let mut scenario = scenario_with_population(Population::new());
 
-        prepare_for_sim(&mut scenario).unwrap();
+        prepare_for_sim(&mut scenario, &empty_router()).unwrap();
 
         assert!(scenario.population.persons.is_empty());
     }
@@ -110,10 +525,13 @@ mod tests {
     fn prepare_for_sim_visits_population_without_moving_persons() {
         let mut persons = IntMap::default();
         persons.insert(Id::create("person-1"), person("person-1", "link-1"));
-        persons.insert(Id::create("person-2"), person("person-2", "link-2"));
-        let mut scenario = scenario_with_population(Population { persons });
+        persons.insert(Id::create("person-2"), person("person-2", "link-1"));
+        let mut scenario = scenario_with_network_and_population(
+            network_with_link(Id::create("link-1")),
+            Population { persons },
+        );
 
-        prepare_for_sim(&mut scenario).unwrap();
+        prepare_for_sim(&mut scenario, &empty_router()).unwrap();
 
         assert_eq!(2, scenario.population.persons.len());
         assert!(
@@ -154,7 +572,7 @@ mod tests {
             Population { persons },
         );
 
-        prepare_for_sim(&mut scenario).unwrap();
+        prepare_for_sim(&mut scenario, &empty_router()).unwrap();
 
         let person = scenario.population.persons.get(&person_id).unwrap();
         let act = person.selected_plan().unwrap().acts()[0];
@@ -164,8 +582,221 @@ mod tests {
         );
     }
 
+    #[integration_test]
+    fn repairs_all_teleported_plans_and_keeps_valid_shape() {
+        let network = sequential_network(2, None);
+        let mut first_plan = unrouted_plan("walk", "link-1", "link-2", 10);
+        let second_plan = unrouted_plan("walk", "link-1", "link-2", 20);
+        let person_id = Id::create("person-1");
+        let mut person = InternalPerson::new(person_id.clone(), first_plan.clone());
+        person.plans_mut().push(second_plan);
+        let mut persons = IntMap::default();
+        persons.insert(person_id.clone(), person);
+
+        let router = teleportation_router("walk");
+        let mut scenario = scenario_with_parts(
+            network,
+            Garage::default(),
+            Population { persons },
+            Config::default(),
+        );
+
+        prepare_for_sim(&mut scenario, &router).unwrap();
+
+        let person = scenario.population.persons.get(&person_id).unwrap();
+        assert_eq!(2, person.plans().len());
+        for (index, plan) in person.plans().iter().enumerate() {
+            let legs = plan.legs();
+            assert_eq!(1, legs.len());
+            assert!(matches!(legs[0].route, Some(InternalRoute::Generic(_))));
+            assert_eq!(
+                Some(SimTime::from_secs(if index == 0 { 10 } else { 20 })),
+                legs[0].dep_time
+            );
+            assert_eq!(Some(Id::get_from_ext("walk")), legs[0].routing_mode);
+        }
+
+        first_plan = person.plans()[0].clone();
+        prepare_for_sim(&mut scenario, &empty_router()).unwrap();
+        assert_eq!(
+            &first_plan,
+            &scenario.population.persons.get(&person_id).unwrap().plans()[0]
+        );
+    }
+
+    #[integration_test]
+    fn missing_module_returns_issue_and_keeps_original_plan() {
+        let network = sequential_network(2, None);
+        let plan = unrouted_plan_with_missing_coordinate("walk", "link-1", "link-2", 10);
+        let original = plan.clone();
+        let person_id = Id::create("person-1");
+        let mut persons = IntMap::default();
+        persons.insert(
+            person_id.clone(),
+            InternalPerson::new(person_id.clone(), plan),
+        );
+        let mut scenario = scenario_with_parts(
+            network,
+            Garage::default(),
+            Population { persons },
+            Config::default(),
+        );
+
+        let error = prepare_for_sim(&mut scenario, &empty_router()).unwrap_err();
+
+        assert_eq!(1, error.issues().len());
+        assert_eq!(0, error.issues()[0].plan_index);
+        assert_eq!(Some(0), error.issues()[0].trip_index);
+        assert!(error.issues()[0].message.contains("No routing module"));
+        assert_eq!(
+            &original,
+            scenario
+                .population
+                .persons
+                .get(&person_id)
+                .unwrap()
+                .selected_plan()
+                .unwrap()
+        );
+    }
+
+    #[integration_test]
+    fn repairs_network_trip_with_access_egress_vehicle_and_routing_mode() {
+        let departures = Arc::new(Mutex::new(Vec::new()));
+        let router = network_test_router(departures.clone());
+        let mut config = Config::default();
+        config.simulation_mut().main_modes = vec!["car".to_string()];
+        let mut garage = Garage::default();
+        garage.add_veh(test_vehicle("person-1_car"));
+        let person_id = Id::create("person-1");
+        let mut persons = IntMap::default();
+        persons.insert(
+            person_id.clone(),
+            InternalPerson::new(
+                person_id.clone(),
+                unrouted_plan("car", "link-1", "link-2", 10),
+            ),
+        );
+        let mut scenario = scenario_with_parts(
+            sequential_network(2, Some("car")),
+            garage,
+            Population { persons },
+            config,
+        );
+
+        prepare_for_sim(&mut scenario, &router).unwrap();
+
+        let plan = scenario
+            .population
+            .persons
+            .get(&person_id)
+            .unwrap()
+            .selected_plan()
+            .unwrap();
+        let legs = plan.legs();
+        assert_eq!(vec!["walk", "car", "walk"], leg_modes(plan));
+        assert!(
+            legs.iter()
+                .all(|leg| leg.routing_mode.as_ref().unwrap().external() == "car")
+        );
+        let network_route = legs[1].route.as_ref().unwrap().as_network().unwrap();
+        assert_eq!(
+            "person-1_car",
+            network_route
+                .generic_delegate()
+                .vehicle()
+                .as_ref()
+                .unwrap()
+                .external()
+        );
+        assert_eq!(vec![SimTime::from_secs(10)], *departures.lock().unwrap());
+    }
+
+    #[integration_test]
+    fn routes_trips_sequentially_using_prepared_plan_times() {
+        let departures = Arc::new(Mutex::new(Vec::new()));
+        let router = network_test_router(departures.clone());
+        let mut config = Config::default();
+        config.simulation_mut().main_modes = vec!["car".to_string()];
+        let mut garage = Garage::default();
+        garage.add_veh(test_vehicle("person-1_car"));
+        let person_id = Id::create("person-1");
+        let mut plan = unrouted_plan("car", "link-1", "link-2", 10);
+        plan.elements
+            .push(InternalPlanElement::Leg(unrouted_leg("car")));
+        plan.elements
+            .push(InternalPlanElement::Activity(InternalActivity::new(
+                Some(Coordinate::new_2d(30.0, 0.0)),
+                "shop",
+                Id::create("link-3"),
+                None,
+                None,
+                None,
+            )));
+        let work = plan.elements[2].as_activity().unwrap().clone();
+        plan.elements[2] = InternalPlanElement::Activity(InternalActivity {
+            max_dur: Some(Duration::from_secs(5)),
+            ..work
+        });
+        let mut persons = IntMap::default();
+        persons.insert(
+            person_id.clone(),
+            InternalPerson::new(person_id.clone(), plan),
+        );
+        let mut scenario = scenario_with_parts(
+            sequential_network(3, Some("car")),
+            garage,
+            Population { persons },
+            config,
+        );
+
+        prepare_for_sim(&mut scenario, &router).unwrap();
+
+        assert_eq!(
+            vec![SimTime::from_secs(10), SimTime::from_secs(19)],
+            *departures.lock().unwrap()
+        );
+    }
+
+    #[integration_test]
+    fn missing_default_vehicle_is_reported_without_calling_router() {
+        let departures = Arc::new(Mutex::new(Vec::new()));
+        let router = network_test_router(departures.clone());
+        let mut config = Config::default();
+        config.simulation_mut().main_modes = vec!["car".to_string()];
+        let plan = unrouted_plan("car", "link-1", "link-2", 10);
+        let original = plan.clone();
+        let person_id = Id::create("person-1");
+        let mut persons = IntMap::default();
+        persons.insert(
+            person_id.clone(),
+            InternalPerson::new(person_id.clone(), plan),
+        );
+        let mut scenario = scenario_with_parts(
+            sequential_network(2, Some("car")),
+            Garage::default(),
+            Population { persons },
+            config,
+        );
+
+        let error = prepare_for_sim(&mut scenario, &router).unwrap_err();
+
+        assert!(error.issues()[0].message.contains("person-1_car"));
+        assert!(departures.lock().unwrap().is_empty());
+        assert_eq!(
+            &original,
+            scenario.population.persons[&person_id]
+                .selected_plan()
+                .unwrap()
+        );
+    }
+
     fn scenario_with_population(population: Population) -> ControllerScenario {
         scenario_with_network_and_population(Network::new(), population)
+    }
+
+    fn empty_router() -> TripRouter {
+        TripRouter::new(IntMap::default())
     }
 
     fn scenario_with_network_and_population(
@@ -177,6 +808,21 @@ mod tests {
             garage: Garage::default(),
             population,
             config: Arc::new(Config::default()),
+        }
+        .into()
+    }
+
+    fn scenario_with_parts(
+        network: Network,
+        garage: Garage,
+        population: Population,
+        config: Config,
+    ) -> ControllerScenario {
+        Scenario {
+            network,
+            garage,
+            population,
+            config: Arc::new(config),
         }
         .into()
     }
@@ -214,5 +860,218 @@ mod tests {
             None,
         ));
         InternalPerson::new(Id::create(id), plan)
+    }
+
+    fn teleportation_router(mode: &str) -> TripRouter {
+        let mut modules: IntMap<Id<String>, Arc<dyn RoutingModule>> = IntMap::default();
+        let mode_id = Id::create(mode);
+        modules.insert(
+            mode_id.clone(),
+            Arc::new(TeleportationRoutingModule::new(mode_id, 1.0, 1.0)),
+        );
+        TripRouter::new(modules)
+    }
+
+    fn network_test_router(departures: Arc<Mutex<Vec<SimTime>>>) -> TripRouter {
+        let mut modules: IntMap<Id<String>, Arc<dyn RoutingModule>> = IntMap::default();
+        let mode = Id::create("car");
+        modules.insert(
+            mode.clone(),
+            Arc::new(TestNetworkRoutingModule { mode, departures }),
+        );
+        TripRouter::new(modules)
+    }
+
+    fn unrouted_plan(mode: &str, from: &str, to: &str, departure: u64) -> InternalPlan {
+        let mut plan = InternalPlan::default();
+        plan.add_act(InternalActivity::new(
+            Some(Coordinate::new_2d(0.0, 0.0)),
+            "home",
+            Id::create(from),
+            None,
+            Some(SimTime::from_secs(departure)),
+            None,
+        ));
+        plan.elements
+            .push(InternalPlanElement::Leg(unrouted_leg(mode)));
+        plan.add_act(InternalActivity::new(
+            Some(Coordinate::new_2d(20.0, 0.0)),
+            "work",
+            Id::create(to),
+            None,
+            None,
+            None,
+        ));
+        plan
+    }
+
+    fn unrouted_plan_with_missing_coordinate(
+        mode: &str,
+        from: &str,
+        to: &str,
+        departure: u64,
+    ) -> InternalPlan {
+        let mut plan = unrouted_plan(mode, from, to, departure);
+        let InternalPlanElement::Activity(activity) = &mut plan.elements[0] else {
+            unreachable!()
+        };
+        activity.coord = None;
+        plan
+    }
+
+    fn unrouted_leg(mode: &str) -> InternalLeg {
+        InternalLeg {
+            mode: Id::create(mode),
+            routing_mode: Some(Id::create(mode)),
+            dep_time: None,
+            trav_time: None,
+            route: None,
+            attributes: InternalAttributes::default(),
+        }
+    }
+
+    fn sequential_network(link_count: usize, mode: Option<&str>) -> Network {
+        let mut network = Network::new();
+        let nodes: Vec<_> = (0..=link_count)
+            .map(|index| {
+                Node::new(
+                    Id::create(&format!("node-{index}")),
+                    Coordinate::new_2d(index as f64 * 10.0, 0.0),
+                    0,
+                    1,
+                )
+            })
+            .collect();
+        for node in &nodes {
+            network.add_node(node.clone());
+        }
+        for index in 0..link_count {
+            let mut modes = IntSet::default();
+            if let Some(mode) = mode {
+                modes.insert(Id::create(mode));
+            }
+            network.add_link(Link::new(
+                Id::create(&format!("link-{}", index + 1)),
+                nodes[index].id.clone(),
+                nodes[index + 1].id.clone(),
+                10.0,
+                1.0,
+                1.0,
+                1.0,
+                modes,
+                0,
+            ));
+        }
+        network
+    }
+
+    fn test_vehicle(id: &str) -> InternalVehicle {
+        InternalVehicle {
+            id: Id::create(id),
+            max_v: 10.0,
+            pce: 1.0,
+            vehicle_type: Id::<InternalVehicleType>::create("car"),
+            attributes: InternalAttributes::default(),
+        }
+    }
+
+    fn leg_modes(plan: &InternalPlan) -> Vec<&str> {
+        plan.legs()
+            .into_iter()
+            .map(|leg| leg.mode.external())
+            .collect()
+    }
+
+    struct TestNetworkRoutingModule {
+        mode: Id<String>,
+        departures: Arc<Mutex<Vec<SimTime>>>,
+    }
+
+    impl RoutingModule for TestNetworkRoutingModule {
+        fn calc_route(
+            &self,
+            request: RoutingRequest,
+        ) -> Result<Vec<InternalPlanElement>, RoutingError> {
+            self.departures
+                .lock()
+                .unwrap()
+                .push(request.departure_time());
+            let from = request.from().link().clone();
+            let to = request.to().link().clone();
+            let one_second = Duration::from_secs(1);
+            let two_seconds = Duration::from_secs(2);
+
+            let access_route = InternalRoute::Generic(InternalGenericRoute::new(
+                from.clone(),
+                from.clone(),
+                Some(one_second),
+                Some(0.0),
+                None,
+            ));
+            let access = InternalPlanElement::Leg(InternalLeg::new(
+                access_route,
+                "walk",
+                one_second,
+                Some(request.departure_time()),
+            ));
+            let access_interaction = InternalPlanElement::Activity(InternalActivity::new(
+                Some(request.from().coord().clone()),
+                "car interaction",
+                from.clone(),
+                None,
+                None,
+                Some(Duration::ZERO),
+            ));
+
+            let network_generic = InternalGenericRoute::new(
+                from.clone(),
+                to.clone(),
+                Some(two_seconds),
+                Some(10.0),
+                request.vehicle().map(|vehicle| vehicle.id().clone()),
+            );
+            let network_route = InternalRoute::Network(InternalNetworkRoute::new(
+                network_generic,
+                vec![from.clone(), to.clone()],
+            ));
+            let network_leg =
+                InternalPlanElement::Leg(InternalLeg::new(network_route, "car", two_seconds, None));
+            let egress_interaction = InternalPlanElement::Activity(InternalActivity::new(
+                Some(request.to().coord().clone()),
+                "car interaction",
+                to.clone(),
+                None,
+                None,
+                Some(Duration::ZERO),
+            ));
+            let egress_route = InternalRoute::Generic(InternalGenericRoute::new(
+                to.clone(),
+                to,
+                Some(one_second),
+                Some(0.0),
+                None,
+            ));
+            let egress =
+                InternalPlanElement::Leg(InternalLeg::new(egress_route, "walk", one_second, None));
+
+            Ok(vec![
+                access,
+                access_interaction,
+                network_leg,
+                egress_interaction,
+                egress,
+            ])
+        }
+
+        fn mode(&self) -> &Id<String> {
+            &self.mode
+        }
+    }
+
+    fn assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn trip_router_is_send_and_sync() {
+        assert_send_sync::<TripRouter>();
     }
 }

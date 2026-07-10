@@ -13,11 +13,11 @@ use crate::simulation::id::Id;
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
-use crate::simulation::replanning::routing::RoutingModule;
 use crate::simulation::replanning::routing::a_star::{AStar, AltHeuristic};
 use crate::simulation::replanning::routing::least_cost_path_calculator::FreeSpeedTravelTimeAndDisutility;
 use crate::simulation::replanning::routing::network_routing::NetworkRoutingModule;
 use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
+use crate::simulation::replanning::routing::{RoutingModule, TripRouter};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
 use crate::simulation::scenario::{ControllerScenario, Scenario};
@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 use std::{fs, mem};
-use tracing::info;
+use tracing::{info, warn};
 
 #[derive(Debug)]
 pub struct Controller {
@@ -46,7 +46,7 @@ pub struct Controller {
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
-    routers: IntMap<Id<String>, Arc<dyn RoutingModule>>,
+    trip_router: TripRouter,
 }
 
 pub struct ControllerBuilder {
@@ -93,7 +93,7 @@ impl ControllerBuilder {
         let scenario: ControllerScenario = self.scenario.into();
         let config = scenario.core.config.clone();
 
-        let routers = Self::create_routing_modules(config.as_ref(), &scenario)?;
+        let router = Self::create_trip_router(config.as_ref(), &scenario)?;
 
         Ok(Controller {
             scenario,
@@ -106,7 +106,7 @@ impl ControllerBuilder {
             external_services: self.external_services,
             global_barrier: barrier,
             adapter_handles: self.adapter_handles,
-            routers,
+            trip_router: router,
         })
     }
 
@@ -162,24 +162,13 @@ impl ControllerBuilder {
         self
     }
 
-    fn create_routing_modules(
+    fn create_trip_router(
         config: &Config,
         controller_scenario: &ControllerScenario,
-    ) -> Result<IntMap<Id<String>, Arc<dyn RoutingModule>>, String> {
+    ) -> Result<TripRouter, String> {
         let mut routers: IntMap<Id<String>, Arc<dyn RoutingModule>> = IntMap::default();
 
         // for every teleported mode, create the corresponding router.
-        if !config
-            .routing()
-            .teleported_mode_params
-            .iter()
-            .any(|t| t.mode.eq("walk"))
-        {
-            return Err(
-                "No walk teleported mode definition found. Walk is the fallback teleported mode and needs to be present.".to_string(),
-            );
-        }
-
         for t in &config.routing().teleported_mode_params {
             let id = Id::create(&t.mode);
 
@@ -195,6 +184,12 @@ impl ControllerBuilder {
         // for every main mode, create the corresponding router.
         for mode in &config.simulation().main_modes {
             let id = Id::create(mode);
+            let Some(access_egress) = routers.get(&Id::create("walk")).cloned() else {
+                return Err(format!(
+                    "No walk router found for mode {}. Please ensure that the teleported mode params include a walk mode.",
+                    id.external()
+                ));
+            };
             let time_utility = Arc::new(FreeSpeedTravelTimeAndDisutility);
             let astar = AStar::<AltHeuristic>::new(
                 controller_scenario.core.network.clone(),
@@ -202,10 +197,14 @@ impl ControllerBuilder {
                 time_utility.clone(),
                 time_utility,
             )
-            .unwrap();
+            .map_err(|error| {
+                format!(
+                    "Failed to create network router for mode {}: {error}",
+                    id.external()
+                )
+            })?;
 
-            let access_egress = routers.get(&Id::create("walk")).unwrap().clone();
-            let module = Arc::new(NetworkRoutingModule::new(
+            let module: Arc<dyn RoutingModule> = Arc::new(NetworkRoutingModule::new(
                 id.clone(),
                 access_egress,
                 Box::new(astar),
@@ -215,7 +214,7 @@ impl ControllerBuilder {
             routers.insert(id, module);
         }
 
-        Ok(routers)
+        Ok(TripRouter::new(routers))
     }
 }
 
@@ -304,7 +303,8 @@ impl Controller {
         self.controller_events_manager
             .process_event(ControllerEvent::before_mobsim(is_last_iteration));
 
-        prepare_for_sim(&mut self.scenario).unwrap_or_else(|err| panic!("{err}"));
+        prepare_for_sim(&mut self.scenario, &self.trip_router)
+            .unwrap_or_else(|err| panic!("{err}: {:?}", err.issues()));
         let inputs = self.scenario.split_for_mobsim();
         let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, inputs);
 

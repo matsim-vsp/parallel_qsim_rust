@@ -1,5 +1,5 @@
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::{RoutingModule, RoutingRequest};
+use crate::simulation::replanning::routing::{RoutingError, RoutingModule, RoutingRequest};
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::population::{
     InternalGenericRoute, InternalLeg, InternalPlanElement, InternalRoute,
@@ -13,7 +13,10 @@ pub struct TeleportationRoutingModule {
 }
 
 impl RoutingModule for TeleportationRoutingModule {
-    fn calc_route(&self, request: RoutingRequest) -> Vec<InternalPlanElement> {
+    fn calc_route(
+        &self,
+        request: RoutingRequest,
+    ) -> Result<Vec<InternalPlanElement>, RoutingError> {
         let mode = self.mode.external();
         let dep_time = Some(request.departure_time);
 
@@ -44,7 +47,7 @@ impl RoutingModule for TeleportationRoutingModule {
         ));
 
         let leg = InternalLeg::new(route, mode, trav_time, dep_time);
-        vec![InternalPlanElement::Leg(leg)]
+        Ok(vec![InternalPlanElement::Leg(leg)])
     }
 
     fn mode(&self) -> &Id<String> {
@@ -87,7 +90,9 @@ mod tests {
         let to = facility("to", 3.0, 4.0, "to-link", []);
         let departure_time = SimTime::from_secs(42);
 
-        let plan = module.calc_route(request(&from, &to, departure_time));
+        let plan = module
+            .calc_route(request(&from, &to, departure_time))
+            .unwrap();
 
         assert_eq!(1, plan.len());
         let InternalPlanElement::Leg(leg) = &plan[0] else {
@@ -125,7 +130,9 @@ mod tests {
         );
         let to = facility("to", 0.0, 1.0, "to-base-link", [("walk", "to-walk-link")]);
 
-        let plan = module.calc_route(request(&from, &to, SimTime::from_secs(0)));
+        let plan = module
+            .calc_route(request(&from, &to, SimTime::from_secs(0)))
+            .unwrap();
 
         let InternalPlanElement::Leg(leg) = &plan[0] else {
             panic!("Expected a single leg");
