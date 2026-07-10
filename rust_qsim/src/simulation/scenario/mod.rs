@@ -254,11 +254,11 @@ mod tests {
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::Population;
     use crate::simulation::scenario::vehicles::Garage;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn split_and_merge_mobsim_population_keeps_every_person_once() {
         let mut garage = Garage::from_file(&PathBuf::from("./assets/3-links/vehicles.xml"));
         let population = Population::from_file("./assets/3-links/3-agent.xml", &mut garage);

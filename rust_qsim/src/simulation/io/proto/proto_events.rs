@@ -550,12 +550,12 @@ mod tests {
     use crate::simulation::io::proto::proto_events::{ProtoEventsReader, ProtoEventsWriter};
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::collections::HashMap;
     use std::fs;
     use std::path::PathBuf;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn write_read_single() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_single/events.pbf");
@@ -581,7 +581,7 @@ mod tests {
         match_events(&event, events.first().unwrap());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn write_read_multiple() {
         let path =
             create_path_with_prefix("./test_output/io/proto_events/write_read_multiple/events.pbf");
@@ -635,7 +635,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn write_read_multiple_time_steps() {
         let path = create_path_with_prefix(
             "./test_output/io/proto_events/write_read_multiple_time_steps/events.pbf",

@@ -219,9 +219,9 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::population::{InternalLeg, InternalPlanElement};
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_identify_main_mode_routing_mode() {
         let leg = InternalLeg {
             mode: Id::create("car"),
@@ -236,7 +236,7 @@ mod tests {
         assert_eq!(mode, Some("car".to_string()));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_identify_main_mode_single_leg_mode() {
         let leg = InternalLeg {
             mode: Id::create("bike"),
@@ -251,7 +251,7 @@ mod tests {
         assert_eq!(mode, Some("bike".to_string()));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_identify_main_mode_no_mode() {
         let trip = vec![];
         let mode = identify_main_mode(&trip);
@@ -281,7 +281,7 @@ mod tests {
         })
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_get_trips_basic() {
         let plan = vec![
             make_activity("home", "1"),
@@ -300,7 +300,7 @@ mod tests {
         assert_eq!(spans[1].trip_elements(&plan).len(), 1);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_get_trips_with_stage_activity() {
         let plan = vec![
             make_activity("home", "1"),
@@ -316,21 +316,21 @@ mod tests {
         assert_eq!(spans[0].trip_elements(&plan).len(), 3);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_get_trips_no_trips() {
         let plan = vec![make_activity("home", "1"), make_activity("work", "2")];
         let spans = get_trip_spans_default(&plan);
         assert!(spans.is_empty());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_get_trips_empty() {
         let plan: Vec<InternalPlanElement> = vec![];
         let spans = get_trip_spans_default(&plan);
         assert!(spans.is_empty());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_get_trip_spans_default_basic() {
         let plan = vec![
             make_activity("home", "1"),
@@ -359,7 +359,7 @@ mod tests {
         assert_eq!(spans[1].destination(&plan).act_type.external(), "shop");
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_trip_span_legs_single_leg() {
         let plan = vec![
             make_activity("home", "1"),
@@ -376,7 +376,7 @@ mod tests {
         assert_eq!(modes, vec!["car"]);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_trip_span_legs_with_stage_activity() {
         let plan = vec![
             make_activity("home", "1"),
@@ -395,7 +395,7 @@ mod tests {
         assert_eq!(modes, vec!["car", "walk"]);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_trip_span_legs_stays_within_span() {
         let plan = vec![
             make_activity("home", "1"),
@@ -414,7 +414,7 @@ mod tests {
         assert_eq!(modes, vec!["car"]);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_trip_span_mutation_helpers() {
         let mut plan = vec![
             make_activity("home", "1"),
@@ -434,7 +434,7 @@ mod tests {
         assert_eq!(plan[4].as_activity().unwrap().act_type.external(), "mall");
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_trip_span_replace_middle() {
         let mut plan = vec![
             make_activity("home", "1"),
@@ -465,7 +465,7 @@ mod tests {
         assert_eq!(plan[4].as_activity().unwrap().act_type.external(), "work");
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_find_trip_span_starting_at_activity_default_basic_read_only() {
         let plan = vec![
             make_activity("home", "1"),
@@ -487,7 +487,7 @@ mod tests {
         assert!(find_trip_span_starting_at_activity_default(&plan, 4).is_none());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_find_trip_span_starting_at_activity_default_with_stage() {
         let plan = vec![
             make_activity("home", "1"),
@@ -503,7 +503,7 @@ mod tests {
         assert!(find_trip_span_starting_at_activity_default(&plan, 2).is_none());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_find_trip_span_starting_at_activity_default_empty() {
         let plan: Vec<InternalPlanElement> = vec![];
         assert!(find_trip_span_starting_at_activity_default(&plan, 0).is_none());

@@ -214,7 +214,7 @@ mod tests {
     };
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::path::PathBuf;
     use std::time::Duration;
 
@@ -337,7 +337,7 @@ mod tests {
         assert_eq!("person", person.subpopulation().external());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));
@@ -359,7 +359,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_filtered_proto() {
         let _net = Network::from_file_as_is(&PathBuf::from("./assets/equil/equil-network.xml"));
         let mut garage = Garage::from_file(&PathBuf::from("./assets/equil/equil-vehicles.xml"));

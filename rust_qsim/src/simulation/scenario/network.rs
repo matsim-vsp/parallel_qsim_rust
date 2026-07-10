@@ -466,13 +466,13 @@ mod tests {
     use crate::simulation::io::xml::network::{IOLink, IONode};
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network, Node, add_io_link, add_io_node};
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
     fn coord(x: f64, y: f64) -> Coordinate {
         Coordinate::new_2d(x, y)
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn add_node() {
         let mut network = Network::new();
         let id = Id::create("node-id");
@@ -484,7 +484,7 @@ mod tests {
         assert_eq!(id, network.get_node(&id).id);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic]
     fn add_node_reject_duplicate() {
         let mut network = Network::new();
@@ -497,7 +497,7 @@ mod tests {
         network.add_node(duplicate); // expecting panic here.
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn add_link() {
         let mut network = Network::new();
         let from = Node::new(Id::create("from"), coord(0., 0.), 0, 1);
@@ -526,7 +526,7 @@ mod tests {
         assert_eq!(&id, to.in_links.first().unwrap());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic]
     fn add_link_reject_duplicate() {
         let mut network = Network::new();
@@ -542,7 +542,7 @@ mod tests {
         network.add_link(duplicate); // expecting panic here
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn remove_link() {
         let mut network = Network::new();
         let from_id = Id::create("from");
@@ -563,14 +563,14 @@ mod tests {
         assert!(network.get_node(&to_id).in_links.is_empty());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic]
     fn remove_link_reject_missing() {
         let mut network = Network::new();
         network.remove_link(Id::create("does-not-exist"));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn remove_node() {
         let mut network = Network::new();
         let a_id = Id::create("a");
@@ -602,14 +602,14 @@ mod tests {
         assert!(network.get_node(&c_id).in_links.is_empty());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic]
     fn remove_node_reject_missing() {
         let mut network = Network::new();
         network.remove_node(Id::create("does-not-exist"));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[ignore] // ingore this test, because it keeps not working, due to non determined ordering of metis
     fn from_file() {
         let network = Network::from_file(
@@ -652,7 +652,7 @@ mod tests {
         assert_eq!(7.5, network.effective_cell_size);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn link_new_with_default() {
         let from = Node::new(Id::create("from"), coord(0., 0.), 0, 1);
         let to = Node::new(Id::create("to"), coord(3., 4.), 0, 1);
@@ -665,10 +665,10 @@ mod tests {
         assert_eq!(to.id, link.to);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_metis_with_large_graph() {}
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_add_io_node() {
         let external_id = String::from("some-id");
         let x = 1.;
@@ -693,7 +693,7 @@ mod tests {
         assert_eq!(id, node.id);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_add_io_link() {
         let ext_from_id = String::from("from");
         let ext_to_id = String::from("to");

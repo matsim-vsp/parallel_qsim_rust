@@ -366,9 +366,9 @@ fn compare_batch_of_events(
 #[cfg(test)]
 mod tests {
     use crate::simulation::events::utils::*;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_compare_identical_xml_event_files() {
         let file1 = "./tests/resources/events/expected_events.xml";
         let file2 = "./tests/resources/events/expected_events.xml";
@@ -379,7 +379,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_compare_equiv_but_diff_xml_event_files() {
         let file1 = "./tests/resources/events/expected_events.xml";
         // Here, the order of two events with same time was changed, which is legal and should not cause an error
@@ -393,7 +393,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_compare_xml_different_time_xml_event_files() {
         let file1 = "./tests/resources/events/expected_events.xml";
         // in this file, the order of the events was changed (illegally), so that the event with
@@ -415,7 +415,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_compare_incorrectly_ordered_xml_event_files() {
         // Here, we compare the file with incorrect (not chronological) order to itself, so that we
         // should get a NotChronologicalOrder error in line 2.
@@ -442,7 +442,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_compare_xml_event_files_w_data_mismatch() {
         let file1 = "./tests/resources/events/expected_events.xml";
 
@@ -472,7 +472,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_compare_xml_event_files_w_different_number_of_events() {
         let file1 = "./tests/resources/events/expected_events.xml";
         // Here, the last line was removed, so that file2 has one event less than file1.

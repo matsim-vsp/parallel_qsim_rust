@@ -431,13 +431,13 @@ mod tests {
     use crate::simulation::scenario::vehicles::{Garage, InternalVehicle, InternalVehicleType};
     use crate::simulation::scenario::{ControllerScenario, Coordinate, Scenario};
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use nohash_hasher::{IntMap, IntSet};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     // Before: no persons or plans; after: the population is still empty.
-    #[integration_test]
+    #[deterministic_id_test]
     fn prepare_for_sim_succeeds_for_empty_population() {
         let mut scenario = scenario_with_population(Population::new());
 
@@ -447,7 +447,7 @@ mod tests {
     }
 
     // Before: two persons with activity-only plans; after: both persons and plans are unchanged.
-    #[integration_test]
+    #[deterministic_id_test]
     fn prepare_for_sim_visits_population_without_moving_persons() {
         let mut persons = IntMap::default();
         persons.insert(Id::create("person-1"), person("person-1", "link-1"));
@@ -475,7 +475,7 @@ mod tests {
     }
 
     // Before: one activity without a coordinate; after: the activity has the link midpoint.
-    #[integration_test]
+    #[deterministic_id_test]
     fn prepare_for_sim_assigns_missing_activity_coordinates() {
         let person_id = Id::create("person-1");
         let link_id = Id::create("link-1");
@@ -510,7 +510,7 @@ mod tests {
     }
 
     // Before: two act--unrouted walk--act plans; after: both contain valid walk legs and remain stable.
-    #[integration_test]
+    #[deterministic_id_test]
     fn repairs_all_teleported_plans_and_keeps_valid_shape() {
         let network = sequential_network(2, None);
         let mut first_plan = unrouted_plan("walk", "link-1", "link-2", 10);
@@ -553,7 +553,7 @@ mod tests {
     }
 
     // Before: act--unrouted walk--act; after: routing fails and the original plan remains unchanged.
-    #[integration_test]
+    #[deterministic_id_test]
     fn missing_module_returns_issue_and_keeps_original_plan() {
         let network = sequential_network(2, None);
         let plan = unrouted_plan_with_missing_coordinate("walk", "link-1", "link-2", 10);
@@ -590,7 +590,7 @@ mod tests {
     }
 
     // Before: act--unrouted car--act; after: act--walk--car--walk--act with interaction activities.
-    #[integration_test]
+    #[deterministic_id_test]
     fn repairs_network_trip_with_access_egress_vehicle_and_routing_mode() {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());
@@ -651,7 +651,7 @@ mod tests {
     }
 
     // Before: act--unrouted car--act--unrouted car--act; after: both trips are valid access-car-egress chains.
-    #[integration_test]
+    #[deterministic_id_test]
     fn routes_trips_sequentially_using_prepared_plan_times() {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());
@@ -698,7 +698,7 @@ mod tests {
     }
 
     // Before: act--unrouted car--act without a vehicle; after: preparation fails and the plan is unchanged.
-    #[integration_test]
+    #[deterministic_id_test]
     fn missing_default_vehicle_is_reported_without_calling_router() {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());
@@ -732,7 +732,7 @@ mod tests {
     }
 
     // Before: act without an end time--unrouted car--act; after: preparation fails and the plan is unchanged.
-    #[integration_test]
+    #[deterministic_id_test]
     fn missing_departure_time_is_reported_without_calling_router_or_replacing_plan() {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());

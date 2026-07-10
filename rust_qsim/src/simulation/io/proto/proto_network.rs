@@ -65,9 +65,9 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Network, Node};
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn node_coordinate_round_trip_preserves_none_z() {
         let mut network = Network::new();
         network.add_node(Node::new(

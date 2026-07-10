@@ -152,10 +152,10 @@ pub enum IdError {
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::{Id, UntypedId};
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::sync::Arc;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_id_eq() {
         let id: Id<()> = Id::new(Arc::new(UntypedId::new(1, String::from("external-id"))));
         assert_eq!(id, id.clone());
@@ -170,7 +170,7 @@ mod tests {
         assert_ne!(id, unequal)
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn create_id() {
         let external = String::from("external-id");
 
@@ -179,7 +179,7 @@ mod tests {
         assert_eq!(0, id.internal());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn create_id_duplicate() {
         let external = String::from("external-id");
 
@@ -189,7 +189,7 @@ mod tests {
         assert_eq!(id, duplicate);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn create_id_multiple_types() {
         let external = String::from("external-id");
 
@@ -202,7 +202,7 @@ mod tests {
         assert_eq!(0, float_id.internal());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn get_id() {
         let external_1 = String::from("id-1");
         let external_2 = String::from("id-2");
@@ -215,7 +215,7 @@ mod tests {
         assert_eq!(fetched_2.external(), external_2);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn id_store_get_ext() {
         let external_1 = String::from("id-1");
         let external_2 = String::from("id-2");

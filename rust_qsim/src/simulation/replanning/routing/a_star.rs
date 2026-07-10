@@ -388,7 +388,7 @@ mod tests {
     use rayon::prelude::*;
     use std::time::Duration;
 
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
     use std::path::PathBuf;
     use std::sync::Arc;
@@ -509,7 +509,7 @@ mod tests {
     /// The network is such that all links are available for both modes, but the modes have
     /// different max speeds and thus different travel times on the same links, and thus different
     /// optimal paths.
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_mode_alt_routing_same_graphs() {
         // load network
         let network = Network::from_file(
@@ -590,7 +590,7 @@ mod tests {
     /// use different graphs internally. We deliberately use the FreeSpeed travel disutility (not
     /// respecting max speed) to test the different travel times and optimal paths due to the
     /// differing graphs (only).
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_mode_alt_routing_different_graphs() {
         // load network
         let network = Network::from_file(

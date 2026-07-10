@@ -169,13 +169,13 @@ mod tests {
     use crate::simulation::time::SimTime;
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils::create_agent;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::rc::Rc;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn send_recv_empty_msgs() {
         let sends = Arc::new(AtomicUsize::new(0));
 
@@ -212,7 +212,7 @@ mod tests {
 
     /// This test moves a vehicle from partition 0 to 2 and then to partition 3. The test involves
     /// Two send_recv steps.
-    #[integration_test]
+    #[deterministic_id_test]
     fn send_recv_local_vehicle_msg() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -267,7 +267,7 @@ mod tests {
         });
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn send_recv_remote_message() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -300,7 +300,7 @@ mod tests {
         });
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn send_recv_local_and_remote_msg() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);
@@ -380,7 +380,7 @@ mod tests {
         NetMessageBroker::new(Rc::new(communicator), &create_network(), &partition, false)
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn send_recv_storage_cap() {
         execute_test(|communicator| {
             let mut broker = create_net_message_broker(communicator);

@@ -1,6 +1,6 @@
 // needed for the `with` function on Registry
 use arrow2::array::FixedSizeBinaryArray;
-use macros::integration_test;
+use macros::deterministic_id_test;
 use rust_qsim::simulation::profiling::routing::{
     RoutingSpanDurationToFileLayer, RoutingWriterGuard,
 };
@@ -46,12 +46,12 @@ impl Mode {
 
 // all tests are marked with serial to avoid race conditions on the subscriber registry
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn creates_csv_output() {
     test_creation(Mode::Csv);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn creates_parquet_output() {
     test_creation(Mode::Parquet);
 }
@@ -62,12 +62,12 @@ fn test_creation(mode: Mode) {
     drop(guard);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn records_all_events_to_csv() {
     test_all_events(Mode::Csv);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn records_all_events_to_parquet() {
     test_all_events(Mode::Parquet);
 }
@@ -87,12 +87,12 @@ fn test_all_events(mode: Mode) {
     assert_eq!(rows.get(1), Some(&expected[1]));
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn records_info_events_to_csv() {
     test_info_events(Mode::Csv);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn records_info_events_to_parquet() {
     test_info_events(Mode::Parquet);
 }
@@ -111,12 +111,12 @@ fn test_info_events(mode: Mode) {
     assert_eq!(rows.first(), Some(&get_expected()[0]));
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn filters_modules_for_csv() {
     test_module_filtering(Mode::Csv);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn filters_modules_for_parquet() {
     test_module_filtering(Mode::Parquet);
 }
@@ -138,12 +138,12 @@ fn test_module_filtering(mode: Mode) {
     assert_eq!(rows.first(), Some(&get_expected()[0]));
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn filters_modules_with_level_for_csv() {
     test_module_filtering_with_level(Mode::Csv);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn filters_modules_with_level_for_parquet() {
     test_module_filtering_with_level(Mode::Parquet);
 }
@@ -164,12 +164,12 @@ fn test_module_filtering_with_level(mode: Mode) {
     assert_eq!(rows.len(), 0);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn records_subsecond_sim_time_to_csv() {
     test_subsecond_sim_time(Mode::Csv);
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn records_subsecond_sim_time_to_parquet() {
     test_subsecond_sim_time(Mode::Parquet);
 }

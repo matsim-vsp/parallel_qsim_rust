@@ -652,9 +652,9 @@ mod tests {
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils;
     use assert_approx_eq::assert_approx_eq;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn from_network() {
         let mut network = Network::new();
         let mut sim_nets = create_three_node_sim_network_with_partition(&mut network);
@@ -678,7 +678,7 @@ mod tests {
         assert!(matches!(in_link, SimLink::In(_)));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn vehicle_travels_local() {
         let mut env = ThreadLocalComputationalEnvironment::default();
         let register = XmlEventsWriter::register_fn("test_output/test.xml");
@@ -732,7 +732,7 @@ mod tests {
         assert_eq!(0, network.veh_on_net());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn vehicle_reaches_boundary() {
         let mut env = Default::default();
         let global_net = Network::from_file(
@@ -771,7 +771,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn move_nodes_enter_exit_constraint() {
         let mut env = Default::default();
         let global_net = Network::from_file(
@@ -806,7 +806,7 @@ mod tests {
     }
 
     /// Test that vehicles are released from out links in case there is no stuck timer.
-    #[integration_test]
+    #[deterministic_id_test]
     fn move_nodes_storage_cap_constraint() {
         let mut env = ThreadLocalComputationalEnvironment::default();
         let mut global_net = Network::from_file(
@@ -905,7 +905,7 @@ mod tests {
     }
 
     /// Tests that vehicles are released from out links when stuck timer is reached.
-    #[integration_test]
+    #[deterministic_id_test]
     fn move_nodes_stuck_threshold() {
         let mut env = ThreadLocalComputationalEnvironment::default();
         XmlEventsWriter::register_fn("test_output/test.xml")(&mut env.events_manager_borrow_mut());
@@ -1007,7 +1007,7 @@ mod tests {
     }
 
     /// Tests that move_node produces outcome as expected with different link loadings.
-    #[integration_test]
+    #[deterministic_id_test]
     fn move_nodes_transition_logic() {
         let mut net = Network::new();
         let node1 = Node {
@@ -1150,7 +1150,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn storage_cap_over_boundaries() {
         // use programmed network here, to avoid instabilities with metis algorithm for small
         // network graphs
@@ -1192,7 +1192,7 @@ mod tests {
         assert_approx_eq!(100., storage_cap.released, 0.00001);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn neighbors() {
         let mut net = Network::new();
         let node = Node::new(Id::create("node-1"), Coordinate::default(), 0, 1);

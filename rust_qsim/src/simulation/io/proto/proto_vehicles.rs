@@ -74,10 +74,10 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::vehicles::{InternalVehicleType, from_file, to_file};
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::path::PathBuf;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_to_from_file_proto() {
         let file = &PathBuf::from(
             "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.binpb",

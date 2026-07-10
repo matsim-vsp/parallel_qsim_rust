@@ -315,7 +315,7 @@ mod tests {
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
     use crate::test_utils::create_folders;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::io::{BufReader, BufWriter, Cursor};
     use std::ops::Sub;
     use std::path::PathBuf;
@@ -481,7 +481,7 @@ mod tests {
         println!("reading compressed took: {duration}ms");
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn performance_test_bulk_operations() {
         use std::time::Instant;
 
@@ -558,7 +558,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn performance_test_interleaved_operations() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::time::Instant;

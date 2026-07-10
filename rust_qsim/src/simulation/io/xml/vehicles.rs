@@ -183,7 +183,7 @@ mod test {
     use crate::simulation::io::xml::vehicles::IOVehicleDefinitions;
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::vehicles::{InternalVehicleType, from_file, to_file};
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use quick_xml::de::from_str;
 
     #[test]
@@ -271,7 +271,7 @@ mod test {
         assert_eq!("84000", attrs.find_or_else("serviceEndTime", || ""));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_to_from_file_xml() {
         let file = &PathBuf::from(
             "./test_output/simulation/vehicles/io/test_to_from_file_xml/vehicles.xml",

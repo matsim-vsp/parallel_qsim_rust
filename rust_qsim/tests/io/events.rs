@@ -1,4 +1,4 @@
-use macros::integration_test;
+use macros::deterministic_id_test;
 use rust_qsim::simulation::events::EventsManager;
 use rust_qsim::simulation::events::utils;
 use rust_qsim::simulation::events::utils::convert_proto_to_xml_events;
@@ -7,7 +7,7 @@ use rust_qsim::simulation::io::xml::events::XmlEventsReader;
 use std::fs;
 use std::path::PathBuf;
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn proto_events_convert_to_matching_xml() {
     let resource_folder = "./tests/resources/events/".to_string();
     let output_folder = "./test_output/io/xml_events/".to_string();

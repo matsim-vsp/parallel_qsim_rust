@@ -299,14 +299,14 @@ mod tests {
         InternalPlanElement, InternalRoute,
     };
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::JoinHandle;
     use std::time::Duration;
     use tokio::sync::mpsc::Receiver;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_activity_engine_build() {
         let mut engine =
             ActivityEngineBuilder::new(vec![], &Config::default(), Default::default()).build();
@@ -316,7 +316,7 @@ mod tests {
         engine.end(SimTime::from_secs(0));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_activity_engine_wake_up_plan() {
         let plan = create_plan();
 
@@ -335,7 +335,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_activity_engine_wake_up_subsecond_due_time() {
         let plan = create_plan();
         let agent = SimulationAgent::new_plan_based(InternalPerson::new(Id::create("1"), plan));
@@ -357,7 +357,7 @@ mod tests {
         assert_eq!(engine.awake_q.len(), 1);
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_activity_engine_end() {
         let plan = create_plan();
 
@@ -378,7 +378,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_activity_engine_with_preplanning_horizon() {
         // The new mode id needs to be created before the test, so that it gets the correct internal id.
         Id::<String>::create("new_mode");

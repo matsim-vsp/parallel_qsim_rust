@@ -469,7 +469,7 @@ mod tests {
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
     use crate::simulation::scenario::vehicles::Garage;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use quick_xml::de::from_str;
     use quick_xml::se::to_string;
 
@@ -718,7 +718,7 @@ mod tests {
         assert_eq!(34, population.persons.len())
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_conversion() {
         let _net = Network::from_file(
             "./assets/equil/equil-network.xml",
@@ -819,7 +819,7 @@ mod tests {
 
     /// compare input population XML to result of writing the same population to XML.
     /// Works via parsing both XMLs into IOPopulations and comparing those.
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_xml_writer() {
         let _guard = init_std_out_logging_thread_local();
 

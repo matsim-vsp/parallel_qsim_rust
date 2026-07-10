@@ -5,7 +5,7 @@ use quote::quote;
 use syn::{Fields, ItemFn, ItemStruct, parse_macro_input};
 
 #[proc_macro_attribute]
-pub fn integration_test(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn deterministic_id_test(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input_fn = parse_macro_input!(item as ItemFn);
     let module_path: syn::Path = if attr.is_empty() {
         syn::parse_quote!(crate)
