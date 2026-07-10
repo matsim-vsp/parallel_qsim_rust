@@ -20,6 +20,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 pub const PREPLANNING_HORIZON: &str = "preplanningHorizon";
+pub const SUBPOPULATION: &str = "subpopulation";
+pub const DEFAULT_SUBPOPULATION: &str = "person";
 
 trait FromIOPerson<T> {
     fn from_io(io: T, id: Id<InternalPerson>) -> Self;
@@ -238,6 +240,7 @@ pub enum InternalPlanElement {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalPlan {
+    pub score: Option<f64>,
     pub selected: bool,
     pub elements: Vec<InternalPlanElement>,
 }
@@ -246,6 +249,7 @@ pub struct InternalPlan {
 pub struct InternalPerson {
     id: Id<InternalPerson>,
     plans: Vec<InternalPlan>,
+    subpopulation: Id<String>,
     attributes: InternalAttributes,
 }
 
@@ -268,6 +272,7 @@ impl InternalPerson {
         InternalPerson {
             id,
             plans: vec![plan],
+            subpopulation: Id::create(DEFAULT_SUBPOPULATION),
             attributes: InternalAttributes::default(),
         }
     }
@@ -282,6 +287,10 @@ impl InternalPerson {
 
     pub fn plans_mut(&mut self) -> &mut Vec<InternalPlan> {
         &mut self.plans
+    }
+
+    pub fn subpopulation(&self) -> &Id<String> {
+        &self.subpopulation
     }
 
     pub fn plan_element_at(&self, index: usize) -> Option<&InternalPlanElement> {
@@ -304,6 +313,7 @@ impl InternalPerson {
 impl Default for InternalPlan {
     fn default() -> Self {
         Self {
+            score: None,
             selected: true,
             elements: Vec::new(),
         }
@@ -811,6 +821,13 @@ fn parse_duration(value: &str) -> Option<Duration> {
 impl From<IOPerson> for InternalPerson {
     fn from(io: IOPerson) -> Self {
         let id = Id::create(&io.id);
+        let attributes = io
+            .attributes
+            .map(InternalAttributes::from)
+            .unwrap_or_default();
+        let subpopulation = attributes
+            .get::<String>(SUBPOPULATION)
+            .unwrap_or_else(|| DEFAULT_SUBPOPULATION.to_string());
         InternalPerson {
             id: id.clone(),
             plans: io
@@ -818,10 +835,8 @@ impl From<IOPerson> for InternalPerson {
                 .into_iter()
                 .map(|p| InternalPlan::from_io(p, id.clone()))
                 .collect(),
-            attributes: io
-                .attributes
-                .map(InternalAttributes::from)
-                .unwrap_or_default(),
+            subpopulation: Id::create(&subpopulation),
+            attributes,
         }
     }
 }
@@ -829,9 +844,13 @@ impl From<IOPerson> for InternalPerson {
 impl From<Person> for InternalPerson {
     fn from(value: Person) -> Self {
         let id: Id<InternalPerson> = Id::get_from_ext(&value.id);
+        let subpopulation = value
+            .subpopulation
+            .unwrap_or_else(|| DEFAULT_SUBPOPULATION.to_string());
         InternalPerson {
             id: id.clone(),
             plans: value.plan.into_iter().map(InternalPlan::from).collect(),
+            subpopulation: Id::create(&subpopulation),
             attributes: InternalAttributes::from(&value.attributes),
         }
     }
@@ -869,6 +888,7 @@ impl InternalPlanElement {
 impl FromIOPerson<IOPlan> for InternalPlan {
     fn from_io(io: IOPlan, id: Id<InternalPerson>) -> Self {
         InternalPlan {
+            score: io.score,
             selected: io.selected,
             elements: io
                 .elements
@@ -909,6 +929,7 @@ impl From<Plan> for InternalPlan {
         }
 
         InternalPlan {
+            score: io.score,
             selected: io.selected,
             elements,
         }
@@ -919,7 +940,8 @@ impl From<Plan> for InternalPlan {
 mod tests {
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
-    use crate::simulation::io::xml::population::{IOLeg, IORoute};
+    use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
+    use crate::simulation::io::xml::population::{IOLeg, IOPerson, IOPlan, IORoute};
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network};
     use crate::simulation::scenario::population::{
@@ -948,6 +970,42 @@ mod tests {
             SimTime::from_nanos(u64::MAX),
             activity.cmp_end_time(SimTime::default())
         );
+    }
+
+    #[test]
+    fn person_from_xml_uses_subpopulation_attribute() {
+        let person = InternalPerson::from(IOPerson {
+            attributes: Some(IOAttributes {
+                attributes: vec![IOAttribute::new_with_class(
+                    "subpopulation".to_string(),
+                    "java.lang.String".to_string(),
+                    "freight".to_string(),
+                )],
+            }),
+            id: "1".to_string(),
+            plans: vec![IOPlan {
+                selected: true,
+                score: None,
+                elements: Vec::new(),
+            }],
+        });
+
+        assert_eq!("freight", person.subpopulation().external());
+    }
+
+    #[test]
+    fn person_from_xml_defaults_subpopulation_to_person() {
+        let person = InternalPerson::from(IOPerson {
+            attributes: None,
+            id: "1".to_string(),
+            plans: vec![IOPlan {
+                selected: true,
+                score: None,
+                elements: Vec::new(),
+            }],
+        });
+
+        assert_eq!("person", person.subpopulation().external());
     }
 
     #[integration_test]

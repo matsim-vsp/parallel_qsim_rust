@@ -95,6 +95,7 @@ impl Person {
             id: value.id().external().to_string(),
             plan: value.plans().iter().map(Plan::from).collect(),
             attributes: Default::default(),
+            subpopulation: Some(value.subpopulation().external().to_string()),
         }
     }
 }
@@ -105,6 +106,7 @@ impl Plan {
             selected: value.selected,
             legs: value.legs().iter().map(|p| Leg::from(p)).collect(),
             acts: value.acts().iter().map(|l| Activity::from(l)).collect(),
+            score: value.score,
         }
     }
 }
@@ -202,12 +204,12 @@ impl PtRouteDescription {
 #[cfg(test)]
 mod tests {
     use crate::generated::population::Activity;
-    use crate::generated::population::{Leg, PtRouteDescription};
+    use crate::generated::population::{Leg, Person, Plan, PtRouteDescription};
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::{
-        InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson,
+        InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalPtRouteDescription, InternalRoute, Population,
     };
     use crate::simulation::scenario::vehicles::Garage;
@@ -218,6 +220,7 @@ mod tests {
 
     #[test]
     fn activity_coordinate_round_trip_preserves_none_z() {
+        Id::<String>::create("home");
         let activity = InternalActivity::new(
             Some(Coordinate::new_2d(10.0, 20.0)),
             "home",
@@ -240,6 +243,7 @@ mod tests {
 
     #[test]
     fn leg_round_trip_preserves_sub_millisecond_times() {
+        Id::<String>::create("walk");
         let route = InternalRoute::Generic(InternalGenericRoute::new(
             Id::create("start"),
             Id::create("end"),
@@ -282,6 +286,55 @@ mod tests {
             Some(Duration::from_nanos(750_000)),
             round_trip.boarding_time
         );
+    }
+
+    #[test]
+    fn plan_round_trip_preserves_score() {
+        let plan = InternalPlan {
+            score: Some(42.5),
+            selected: true,
+            elements: Vec::new(),
+        };
+
+        let wire = Plan::from(&plan);
+        let round_trip = InternalPlan::from(wire);
+
+        assert_eq!(Some(42.5), round_trip.score);
+    }
+
+    #[test]
+    fn person_to_proto_always_writes_subpopulation() {
+        let person = InternalPerson::new(Id::create("1"), InternalPlan::default());
+
+        let wire = Person::from(&person);
+
+        assert_eq!(Some("person".to_string()), wire.subpopulation);
+    }
+
+    #[test]
+    fn person_from_proto_preserves_subpopulation() {
+        Id::<InternalPerson>::create("proto-subpopulation-freight");
+        let person = InternalPerson::from(Person {
+            id: "proto-subpopulation-freight".to_string(),
+            plan: Vec::new(),
+            attributes: Default::default(),
+            subpopulation: Some("freight".to_string()),
+        });
+
+        assert_eq!("freight", person.subpopulation().external());
+    }
+
+    #[test]
+    fn person_from_proto_defaults_missing_subpopulation_to_person() {
+        Id::<InternalPerson>::create("proto-subpopulation-default");
+        let person = InternalPerson::from(Person {
+            id: "proto-subpopulation-default".to_string(),
+            plan: Vec::new(),
+            attributes: Default::default(),
+            subpopulation: None,
+        });
+
+        assert_eq!("person", person.subpopulation().external());
     }
 
     #[integration_test]

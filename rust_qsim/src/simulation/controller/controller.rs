@@ -229,10 +229,12 @@ impl Controller {
 
         let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
         let events_path = output_path.join("events");
+        let iters_path = output_path.join("ITERS");
 
         prepare_output_directory(&output_path, self.config.output().overwrite_files)
             .unwrap_or_else(|err| panic!("{err}"));
         fs::create_dir_all(&events_path).expect("Failed to create events output path");
+        fs::create_dir_all(&iters_path).expect("Failed to create iters output path");
 
         if Logging::Info == self.config.output().logging {
             let log_path = output_path.join("logs");
@@ -244,7 +246,13 @@ impl Controller {
         let replanning_pool = ReplanningPool::new(&self.config);
 
         for iteration in 0..=end_iter {
-            self.run_iteration(iteration, end_iter, &mut mobsim_workers, &replanning_pool);
+            self.run_iteration(
+                iteration,
+                end_iter,
+                &mut mobsim_workers,
+                &replanning_pool,
+                &output_path,
+            );
         }
 
         mobsim_workers.shutdown();
@@ -272,6 +280,7 @@ impl Controller {
         end_iter: u32,
         mobsim_workers: &mut MobsimWorkerPool,
         replanning_pool: &ReplanningPool,
+        iters_path: impl AsRef<Path>,
     ) {
         let is_last_iteration = iteration == end_iter;
         info!("=========== Start Iteration {} ===========", iteration);
@@ -281,6 +290,9 @@ impl Controller {
 
         let population = self.run_mobsim_phase(iteration, is_last_iteration, mobsim_workers);
         let population = self.run_scoring_phase(iteration, is_last_iteration, population);
+
+        self.write_iteration_files(iteration, iters_path, &population);
+
         let population = if is_last_iteration {
             population
         } else {
@@ -342,7 +354,11 @@ impl Controller {
         self.controller_events_manager
             .process_event(ControllerEvent::replanning(false));
 
-        replanning_pool.replan(population)
+        replanning_pool.replan(
+            population,
+            iteration,
+            self.config.computational_setup().random_seed,
+        )
     }
 
     fn start_mobsim_workers(&mut self) -> MobsimWorkerPool {
@@ -400,6 +416,18 @@ impl Controller {
 
     fn write_output_id_store(output_path: impl AsRef<Path>) {
         id::store_to_file(&output_path.as_ref().join("output_ids.binpb"));
+    }
+
+    fn write_iteration_files(
+        &self,
+        iteration: u32,
+        iters_path: impl AsRef<Path>,
+        population: &Population,
+    ) {
+        let iter_path = iters_path.as_ref().join(format!("it.{}", iteration));
+        //TODO once we have a switch in the config for the type, use that one.
+        population.to_file(&iter_path.join("output_plans.xml.gz"));
+        //TODO also write the events & experienced plans
     }
 }
 
