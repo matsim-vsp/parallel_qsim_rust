@@ -2,10 +2,7 @@ use crate::simulation::scenario::population::InternalPerson;
 
 pub mod routing;
 
-// General TODO:
-// Introduce TripRouter, NetworkRoutingModule
-// rename ALT router to ALT least cost path calculator
-
+#[allow(dead_code)]
 struct StrategyManager {
     // store the weights of the strategies by subpopulation
 }
@@ -15,16 +12,19 @@ impl StrategyManager {
     // remove plans if memory is full
 }
 
+#[allow(dead_code)]
 // This is responsible for picking a plan, copying it and replanning it.
 trait PlanStrategy {
     fn handle(&mut self, person: &mut InternalPerson);
 }
 
+#[allow(dead_code)]
 // This is the smallest replanning unit (e.g., routes a plan).
 trait PlanStrategyModule {
     fn handle(&mut self, person: &mut InternalPerson, plan_index: usize);
 }
 
+#[allow(dead_code)]
 struct ReRouteModule {
     // hold reference to scenario
     // hold reference to router

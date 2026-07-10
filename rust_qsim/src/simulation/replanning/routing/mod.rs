@@ -126,6 +126,7 @@ pub trait RoutingModule: Send + Sync {
     fn mode(&self) -> &Id<String>;
 }
 
+#[allow(dead_code)]
 struct TransitRoutingModule {}
 
 impl RoutingModule for TransitRoutingModule {

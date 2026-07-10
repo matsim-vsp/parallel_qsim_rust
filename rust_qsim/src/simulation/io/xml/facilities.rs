@@ -6,6 +6,7 @@ use tracing::info;
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
 
+#[allow(dead_code)]
 pub(crate) fn load_from_xml(path: &Path) -> IOFacilities {
     let io_facilities = IOFacilities::from_file(path.to_str().unwrap());
 
