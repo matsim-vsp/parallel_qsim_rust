@@ -317,14 +317,6 @@ impl Config {
             .expect("Routing was not set.")
     }
 
-    pub fn drt(&self) -> Option<&Drt> {
-        self.module::<Drt>("drt")
-    }
-
-    pub fn drt_mut(&mut self) -> Option<&mut Drt> {
-        self.module_mut::<Drt>("drt")
-    }
-
     pub fn computational_setup(&self) -> &ComputationalSetup {
         self.module::<ComputationalSetup>("computational_setup")
             .expect("ComputationalSetup was not set.")
@@ -543,33 +535,6 @@ impl Default for Routing {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Drt {
-    #[serde(default)]
-    pub process_type: DrtProcessType,
-    pub services: Vec<DrtService>,
-}
-
-#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
-pub enum DrtProcessType {
-    #[default]
-    OneProcess,
-    OneProcessPerService,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct DrtService {
-    pub mode: String,
-    #[serde(default)]
-    pub stop_duration: u32,
-    #[serde(default)]
-    pub max_wait_time: u32,
-    #[serde(default)]
-    pub max_travel_time_alpha: f32,
-    #[serde(default)]
-    pub max_travel_time_beta: f32,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Simulation {
     pub start_time: u32,
@@ -711,16 +676,6 @@ impl ConfigModule for Simulation {
 
 #[typetag::serde]
 impl ConfigModule for ComputationalSetup {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-}
-
-#[typetag::serde]
-impl ConfigModule for Drt {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -945,9 +900,8 @@ mod tests {
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
-        CommandLineArgs, ComputationalSetup, Config, Drt, DrtProcessType, DrtService, EdgeWeight,
-        MetisOptions, PartitionMethod, Partitioning, Routing, Simulation, TeleportedParams,
-        VertexWeight, parse_key_val,
+        CommandLineArgs, ComputationalSetup, Config, EdgeWeight, MetisOptions, PartitionMethod,
+        Partitioning, Routing, Simulation, TeleportedParams, VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
@@ -1264,55 +1218,6 @@ mod tests {
         assert_eq!(
             MetisOptions::default().set_imbalance_factor(1.1).ufactor(),
             1100
-        );
-    }
-
-    #[test]
-    fn test_drt() {
-        let serde = r#"
-        modules:
-          drt:
-            type: Drt
-            process_type: OneProcess
-            services:
-              - mode: drt_a
-                stop_duration: 60
-                max_wait_time: 900
-                max_travel_time_alpha: 1.3
-                max_travel_time_beta: 600.
-        "#;
-
-        let mut config = Config::default();
-        let drt = Drt {
-            process_type: DrtProcessType::OneProcess,
-            services: vec![DrtService {
-                mode: "drt_a".to_string(),
-                stop_duration: 60,
-                max_wait_time: 900,
-                max_travel_time_alpha: 1.3,
-                max_travel_time_beta: 600.,
-            }],
-        };
-        config.modules.insert("drt".to_string(), Box::new(drt));
-
-        let parsed_config: Config = serde_yaml::from_str(serde).expect("failed to parse config");
-        assert_eq!(
-            parsed_config.drt().unwrap().process_type,
-            DrtProcessType::OneProcess
-        );
-        assert_eq!(
-            parsed_config.drt().unwrap().services[0].mode,
-            "drt_a".to_string()
-        );
-        assert_eq!(parsed_config.drt().unwrap().services[0].stop_duration, 60);
-        assert_eq!(parsed_config.drt().unwrap().services[0].max_wait_time, 900);
-        assert_eq!(
-            parsed_config.drt().unwrap().services[0].max_travel_time_alpha,
-            1.3
-        );
-        assert_eq!(
-            parsed_config.drt().unwrap().services[0].max_travel_time_beta,
-            600.
         );
     }
 

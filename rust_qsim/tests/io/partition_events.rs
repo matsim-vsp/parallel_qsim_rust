@@ -1,4 +1,4 @@
-use macros::integration_test;
+use macros::deterministic_id_test;
 use rust_qsim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::framework_events::{
@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::{Sender, channel};
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn network_route_emits_partition_events() {
     let events = collect_partition_events("./tests/resources/3-links/3-links-config-2.yml");
     assert_eq!(4, events.len(), "unexpected partition events: {:?}", events);
@@ -55,7 +55,7 @@ fn network_route_emits_partition_events() {
     );
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn teleported_route_emits_partition_events() {
     let events =
         collect_partition_events("./tests/resources/3-links/3-links-config-2-teleport.yml");

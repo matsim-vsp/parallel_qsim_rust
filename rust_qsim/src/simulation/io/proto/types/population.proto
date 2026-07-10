@@ -12,12 +12,14 @@ message Person {
   string id = 1;
   repeated Plan plan = 2;
   map<string, general.AttributeValue> attributes = 3;
+  optional string subpopulation = 4;
 }
 
 message Plan {
   bool selected = 1;
   repeated Leg legs = 2;
   repeated Activity acts = 3;
+  optional double score = 4;
 }
 
 message Activity {

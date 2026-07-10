@@ -79,11 +79,11 @@ mod tests {
     use crate::simulation::scenario::population::{InternalPlanElement, InternalRoute};
     use crate::simulation::time::SimTime;
     use assert_approx_eq::assert_approx_eq;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use nohash_hasher::IntMap;
     use std::time::Duration;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn calc_route_returns_single_generic_leg() {
         let module = TeleportationRoutingModule::new(Id::create("walk"), 1.3, 2.0);
         let from = facility("from", 0.0, 0.0, "from-link", []);
@@ -118,7 +118,7 @@ mod tests {
         assert_eq!(&None, generic_route.vehicle());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn calc_route_prefers_mode_specific_links() {
         let module = teleportation_module("walk", 1.0, 1.0);
         let from = facility(

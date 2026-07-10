@@ -557,8 +557,8 @@ mod tests {
         EventTrait, EventsManager, Id, InternalAttributes, PersonArrivalEvent, PersonDepartureEvent,
     };
     use crate::simulation::time::SimTime;
+    use macros::deterministic_id_test;
     use macros::event_struct;
-    use macros::integration_test;
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -574,7 +574,7 @@ mod tests {
         pub const TYPE: &'static str = "new simple event";
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_events_manager() {
         let mut events_manager = EventsManager::new();
 

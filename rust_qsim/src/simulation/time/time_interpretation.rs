@@ -102,7 +102,7 @@ mod tests {
         InternalRoute,
     };
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::time::Duration;
 
     fn activity(end_time: Option<SimTime>, max_dur: Option<Duration>) -> InternalActivity {
@@ -148,7 +148,7 @@ mod tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn activity_end_time_wins_over_max_duration() {
         let activity = activity(Some(SimTime::from_secs(10)), Some(Duration::from_secs(100)));
 
@@ -158,7 +158,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn activity_without_end_time_uses_max_duration() {
         let activity = activity(None, Some(Duration::from_secs(7)));
 
@@ -168,7 +168,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn activity_without_end_time_or_max_duration_is_undefined() {
         let activity = activity(None, None);
 
@@ -178,7 +178,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn fixed_activity_end_time_is_not_shifted_by_late_arrival() {
         let activity = activity(Some(SimTime::from_secs(10)), None);
 
@@ -188,7 +188,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn leg_prefers_route_travel_time_over_leg_travel_time() {
         let leg = leg(Some(Duration::from_secs(3)), Some(Duration::from_secs(9)));
 
@@ -198,7 +198,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn leg_uses_leg_travel_time_when_route_travel_time_is_missing() {
         let leg = leg(None, Some(Duration::from_secs(9)));
 
@@ -208,14 +208,14 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn leg_without_any_travel_time_is_undefined() {
         let leg = leg_without_route(None);
 
         assert_eq!(None, TimeInterpretation::decide_on_leg_travel_time(&leg));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn element_end_time_handles_activities_and_legs() {
         let activity = InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(4))));
         let leg = InternalPlanElement::Leg(leg(Some(Duration::from_secs(6)), None));
@@ -230,7 +230,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn elements_end_time_runs_chain_until_end() {
         let elements = vec![
             InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(4)))),
@@ -244,7 +244,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn elements_end_time_stops_on_undefined_time() {
         let elements = vec![
             InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(4)))),
@@ -258,9 +258,10 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn activity_end_time_along_plan_uses_previous_elements_to_compute_start() {
         let plan = InternalPlan {
+            score: None,
             selected: true,
             elements: vec![
                 InternalPlanElement::Activity(activity(Some(SimTime::from_secs(5)), None)),
@@ -276,10 +277,11 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn activity_end_time_along_plan_uses_configured_simulation_start() {
         let time_interpretation = TimeInterpretation::new(SimTime::from_secs(10));
         let plan = InternalPlan {
+            score: None,
             selected: true,
             elements: vec![
                 InternalPlanElement::Activity(activity(None, Some(Duration::from_secs(5)))),
@@ -295,9 +297,10 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn activity_end_time_along_plan_returns_none_for_activity_not_in_plan() {
         let plan = InternalPlan {
+            score: None,
             selected: true,
             elements: vec![InternalPlanElement::Activity(activity(
                 Some(SimTime::from_secs(5)),

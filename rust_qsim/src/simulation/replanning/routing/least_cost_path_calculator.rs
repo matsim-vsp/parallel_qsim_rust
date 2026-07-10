@@ -192,7 +192,7 @@ pub trait LeastCostPathCalculator: Send + Sync {
 mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::a_star::Dijkstra;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -213,7 +213,7 @@ mod tests {
 
     /// simple test just to make sure that the interface works. More precise testing is done
     /// in the respective files where implementations of LeastCostPathCaltulator are defined.
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_least_cost_path_interface() {
         // triangle graph
         let network = get_triangle_test_network();
@@ -243,7 +243,7 @@ mod tests {
     }
 
     /// Test the FreeOrMaxSpeedTravelTimeAndDisutility implementation of TravelTime and TravelDisutility
-    #[integration_test]
+    #[deterministic_id_test]
     fn test_free_or_max_speed_travel_time_and_disutility() {
         let fomsttad = FreeOrMaxSpeedTravelTimeAndDisutility;
 

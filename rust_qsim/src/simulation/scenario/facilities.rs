@@ -303,10 +303,10 @@ mod tests {
     };
     use crate::simulation::scenario::network::Link;
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use nohash_hasher::IntMap;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn conversion_creates_facilities_by_id() {
         let facilities = ActivityFacilities::from(IOFacilities {
             name: Some("test".to_string()),
@@ -353,7 +353,7 @@ mod tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic(expected = "Facility with id f1 already exists.")]
     fn conversion_panics_on_duplicate_facility_ids() {
         let _ = ActivityFacilities::from(IOFacilities {
@@ -368,7 +368,7 @@ mod tests {
         });
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn conversion_creates_activity_type_and_link_ids() {
         let facilities = ActivityFacilities::from(IOFacilities {
             name: None,
@@ -406,7 +406,7 @@ mod tests {
         assert!(facility.mode_to_link.is_empty());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic(expected = "Facility with id f1 must have x and y coordinates.")]
     fn conversion_panics_without_coord() {
         let _ = ActivityFacilities::from(IOFacilities {
@@ -418,7 +418,7 @@ mod tests {
         });
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic(expected = "Facility with id f1 must have a link id.")]
     fn conversion_panics_without_link_id() {
         let _ = ActivityFacilities::from(IOFacilities {
@@ -430,7 +430,7 @@ mod tests {
         });
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn activity_facility_modal_link_uses_mode_mapping() {
         let car = Id::create("car");
         let base_link = Id::create("base-link");
@@ -458,7 +458,7 @@ mod tests {
         assert_eq!(&base_link, facility.link());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn link_wrapper_facility_provides_coord_link_and_modal_link() {
         let walk = Id::create("walk");
         let base_link = Id::create("base-link");
@@ -478,7 +478,7 @@ mod tests {
         assert_eq!(None, facility.modal_link(&Id::create("car")));
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     #[should_panic(expected = "Transit facility with id stop-1 has no link id.")]
     fn transit_facility_link_panics_without_link_ref_id() {
         let facility = Facility::TransitFacility(TransitStopFacility {

@@ -1,5 +1,5 @@
 use crate::support::simulation_executor::TestExecutorBuilder;
-use macros::integration_test;
+use macros::deterministic_id_test;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn pt_tutorial_matches_expected_events() {
     TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
 
@@ -27,7 +27,7 @@ fn pt_tutorial_matches_expected_events() {
         .execute();
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 #[ignore]
 fn pt_adaptive_with_access_egress() {
     test_pt_adaptive(PathBuf::from(
@@ -35,7 +35,7 @@ fn pt_adaptive_with_access_egress() {
     ))
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 #[ignore]
 fn pt_adaptive_with_dummy() {
     test_pt_adaptive(PathBuf::from("./assets/pt_tutorial/plans_1-dummy.xml"))

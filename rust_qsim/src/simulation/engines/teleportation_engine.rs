@@ -169,9 +169,9 @@ mod tests {
     };
     use crate::simulation::time::{SimClock, SimTime, Tick};
     use crate::simulation::vehicles::SimulationVehicle;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn do_step_releases_subsecond_due_vehicle() {
         let clock = SimClock::new(10);
         let mut engine = TeleportationEngine::new(Default::default(), clock);

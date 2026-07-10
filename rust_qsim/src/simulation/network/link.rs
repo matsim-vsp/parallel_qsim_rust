@@ -583,9 +583,9 @@ mod sim_link_tests {
     use crate::test_utils;
     use crate::test_utils::create_agent_without_route;
     use assert_approx_eq::assert_approx_eq;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn storage_cap_consumed() {
         let mut link = SimLink::Local(LocalLink::build(
             Id::create("0"),
@@ -607,7 +607,7 @@ mod sim_link_tests {
         assert_eq!(1.5, link.used_storage())
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn storage_cap_released() {
         let mut link = SimLink::Local(LocalLink::build(
             Id::create("0"),
@@ -639,7 +639,7 @@ mod sim_link_tests {
         assert_eq!(0., link.used_storage());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn flow_cap_accumulates() {
         let mut link = SimLink::Local(LocalLink::build(
             Id::create("0"),
@@ -685,7 +685,7 @@ mod sim_link_tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn calculates_exit_time() {
         let mut link = SimLink::Local(LocalLink::build(
             Id::create("0"),
@@ -721,7 +721,7 @@ mod sim_link_tests {
         assert!(link.offers_veh(10).is_some())
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn fifo_ordering() {
         let id1 = 42;
         let id2 = 43;
@@ -768,7 +768,7 @@ mod sim_link_tests {
         assert_eq!(id2.to_string(), popped_vehicle2.id().external());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     pub fn stuck_time() {
         let stuck_threshold = 10;
         let config = config::Simulation {
@@ -818,7 +818,7 @@ mod sim_link_tests {
         );
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     pub fn stuck_time_reset() {
         let stuck_threshold = 10;
         let earliest_exit: u32 = 10;
@@ -889,9 +889,9 @@ mod out_link_tests {
     use crate::simulation::network::storage_cap::StorageCap;
     use crate::simulation::vehicles::SimulationVehicle;
     use crate::test_utils::create_agent_without_route;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn push_and_take() {
         let mut link = SimLink::Out(SplitOutLink {
             id: Id::new_internal(0),
@@ -929,7 +929,7 @@ mod out_link_tests {
         }
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn update_storage_caps() {
         // set up the link, so that we consume two units of storage.
         let mut cap = StorageCap::build(100., 1., 1., 1., 1.);

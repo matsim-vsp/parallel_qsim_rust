@@ -360,10 +360,10 @@ mod tests {
     };
     use crate::simulation::scenario::network::Link;
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::time::Duration;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn tutorial_schedule_is_loaded_as_domain_model() {
         let schedule =
             TransitSchedule::from_file("./assets/pt_tutorial/transitschedule.xml".as_ref());
@@ -388,7 +388,7 @@ mod tests {
         assert_eq!(50, route_1to3.departures.len());
     }
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn dresden_schedule_is_loaded_as_domain_model() {
         let schedule = TransitSchedule::from_file(
             "./assets/dresden/dresden-v1.0-transitSchedule.xml.gz".as_ref(),

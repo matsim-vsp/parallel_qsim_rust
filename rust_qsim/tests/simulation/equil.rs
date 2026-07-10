@@ -1,4 +1,4 @@
-use macros::integration_test;
+use macros::deterministic_id_test;
 use rust_qsim::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
 };
@@ -41,7 +41,7 @@ where
     garage.to_file(&out_dir.join("equil-vehicles.binpb"));
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn equil_single_part_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
     let config = Arc::new(Config::from_args(config_args));
@@ -54,7 +54,7 @@ fn equil_single_part_matches_expected_events() {
         .execute();
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn equil_single_part_with_10_ticks_per_second_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
     let mut config = Config::from_args(config_args);
@@ -71,7 +71,7 @@ fn equil_single_part_with_10_ticks_per_second_matches_expected_events() {
         .execute();
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn equil_two_parts_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
     let config = Arc::new(Config::from_args(config_args));
@@ -84,7 +84,7 @@ fn equil_two_parts_matches_expected_events() {
         .execute();
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 #[should_panic]
 fn equil_adaptive_planning_without_external_service_panics() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
@@ -102,7 +102,7 @@ fn equil_adaptive_planning_without_external_service_panics() {
     );
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn equil_adaptive_planning_single_part_matches_expected_events() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
@@ -140,7 +140,7 @@ fn equil_adaptive_planning_single_part_matches_expected_events() {
     );
 }
 
-#[integration_test(rust_qsim)]
+#[deterministic_id_test(rust_qsim)]
 fn equil_adaptive_planning_two_parts_matches_expected_events() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels-adaptive/");
     let config_path = "./tests/resources/equil/equil-config-2-adaptive.yml".to_string();

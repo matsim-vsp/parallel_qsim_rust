@@ -478,11 +478,11 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::time::SimTime;
-    use macros::integration_test;
+    use macros::deterministic_id_test;
     use std::fs;
     use std::path::PathBuf;
 
-    #[integration_test]
+    #[deterministic_id_test]
     fn xml_event_round_trip_preserves_nanoseconds() {
         let output_dir = PathBuf::from("./test_output/io/xml_events/nanos_round_trip");
         fs::create_dir_all(&output_dir).unwrap();
