@@ -262,12 +262,13 @@ mod tests {
     use crate::simulation::scenario::{Coordinate, ScenarioCore};
     use crate::simulation::time::SimTime;
     use assert_approx_eq::assert_approx_eq;
+    use macros::integration_test;
     use nohash_hasher::IntMap;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Duration;
 
-    #[test]
+    #[integration_test]
     fn calc_route_with_alt_returns_expected_network_trips() {
         assert_route_with_alt(
             facility("from_20", 2500.0, 100.0, "20"),
