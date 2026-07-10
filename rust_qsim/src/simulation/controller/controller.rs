@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
 use std::{fs, mem};
-use tracing::{info, warn};
+use tracing::info;
 
 #[derive(Debug)]
 pub struct Controller {
@@ -181,13 +181,16 @@ impl ControllerBuilder {
             routers.insert(id, module);
         }
 
+        let access_egress_mode = Id::create(&config.routing().access_egress_mode);
+
         // for every main mode, create the corresponding router.
         for mode in &config.simulation().main_modes {
             let id = Id::create(mode);
-            let Some(access_egress) = routers.get(&Id::create("walk")).cloned() else {
+            let Some(access_egress) = routers.get(&access_egress_mode).cloned() else {
                 return Err(format!(
-                    "No walk router found for mode {}. Please ensure that the teleported mode params include a walk mode.",
-                    id.external()
+                    "No {} access/egress router found for mode {}. Please ensure that the teleported mode params include the configured access/egress mode.",
+                    access_egress_mode.external(),
+                    id.external(),
                 ));
             };
             let time_utility = Arc::new(FreeSpeedTravelTimeAndDisutility);

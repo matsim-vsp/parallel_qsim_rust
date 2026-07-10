@@ -147,9 +147,7 @@ fn run_preparation(
     trip_router: &TripRouter,
 ) -> PlanPreparation {
     let mut working_plan = plan.clone();
-    if let Err(message) = assign_and_validate_activity_coordinates(context, &mut working_plan) {
-        return failed_plan(person, plan_index, None, message);
-    }
+    assign_activity_coordinates(context, &mut working_plan);
 
     let trip_count = get_trip_spans_default(&working_plan.elements).len();
     for trip_index in 0..trip_count {
@@ -269,9 +267,7 @@ fn failed_plan(
 
 fn plan_needs_preparation(context: &PrepareForSimContext<'_>, plan: &InternalPlan) -> bool {
     // Check activities
-    if plan.acts().iter().any(|activity| {
-        activity.coord.is_none() || context.network.get_link_opt(&activity.link_id).is_none()
-    }) {
+    if plan.acts().iter().any(|activity| activity.coord.is_none()) {
         return true;
     }
 
@@ -285,26 +281,19 @@ fn plan_needs_preparation(context: &PrepareForSimContext<'_>, plan: &InternalPla
         })
 }
 
-fn assign_and_validate_activity_coordinates(
-    context: &PrepareForSimContext<'_>,
-    plan: &mut InternalPlan,
-) -> Result<(), String> {
+fn assign_activity_coordinates(context: &PrepareForSimContext<'_>, plan: &mut InternalPlan) {
     for element in &mut plan.elements {
         let InternalPlanElement::Activity(activity) = element else {
             continue;
         };
-        let link = context
-            .network
-            .get_link_opt(&activity.link_id)
-            .ok_or_else(|| format!("Activity references unknown link {}", activity.link_id))?;
 
         if activity.coord.is_none() {
+            let link = context.network.get_link(&activity.link_id);
             let from = context.network.get_node(&link.from);
             let to = context.network.get_node(&link.to);
             activity.coord = Some(Coordinate::middle(&from.coord, &to.coord));
         }
     }
-    Ok(())
 }
 
 /// Returns the main mode of a trip. Checks the routing mode as well.
@@ -353,17 +342,6 @@ fn trip_is_valid(
         let InternalPlanElement::Leg(leg) = element else {
             continue;
         };
-        let previous = index
-            .checked_sub(1)
-            .and_then(|i| trip_with_boundaries.get(i))
-            .and_then(|previous| previous.as_activity());
-        let next = index
-            .checked_add(1)
-            .and_then(|i| trip_with_boundaries.get(i))
-            .and_then(|next| next.as_activity());
-        let (Some(previous_activity), Some(next_activity)) = (previous, next) else {
-            return false;
-        };
 
         // Check if travel time is present
         if leg.trav_time.is_none() {
@@ -375,7 +353,7 @@ fn trip_is_valid(
             return false;
         };
         let generic = route.as_generic();
-        if !generic_route_is_valid(context.network, generic) {
+        if !generic_route_is_valid(generic) {
             return false;
         }
 
@@ -387,10 +365,13 @@ fn trip_is_valid(
     }
 
     if is_network_mode(context, mode) {
-        let first_is_walk = legs
+        let access_egress_mode = &context.config.routing().access_egress_mode;
+        let first_is_access_egress = legs
             .first()
-            .is_some_and(|leg| leg.mode.external() == "walk");
-        let last_is_walk = legs.last().is_some_and(|leg| leg.mode.external() == "walk");
+            .is_some_and(|leg| leg.mode.external() == access_egress_mode);
+        let last_is_access_egress = legs
+            .last()
+            .is_some_and(|leg| leg.mode.external() == access_egress_mode);
         let has_network_main_leg = legs
             .iter()
             .any(|leg| &leg.mode == mode && matches!(leg.route, Some(InternalRoute::Network(_))));
@@ -400,7 +381,11 @@ fn trip_is_valid(
             .filter_map(InternalPlanElement::as_activity)
             .filter(|activity| activity.is_interaction())
             .count();
-        if !first_is_walk || !last_is_walk || !has_network_main_leg || interaction_count < 2 {
+        if !first_is_access_egress
+            || !last_is_access_egress
+            || !has_network_main_leg
+            || interaction_count < 2
+        {
             return false;
         }
     }
@@ -408,15 +393,11 @@ fn trip_is_valid(
     true
 }
 
-fn generic_route_is_valid(network: &Network, route: &InternalGenericRoute) -> bool {
+fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
     let Some(distance) = route.distance() else {
         return false;
     };
-    route.trav_time().is_some()
-        && distance.is_finite()
-        && distance >= 0.0
-        && network.get_link_opt(route.start_link()).is_some()
-        && network.get_link_opt(route.end_link()).is_some()
+    route.trav_time().is_some() && distance.is_finite() && distance >= 0.0
 }
 
 /// Checks if a given network route is valid. This is the case if the route starts and ends with the correct links,
@@ -431,13 +412,10 @@ fn network_route_is_valid(
         return false;
     }
 
-    let Some(links) = route
+    let links = route
         .iter()
-        .map(|link_id| network.get_link_opt(link_id))
-        .collect::<Option<Vec<_>>>()
-    else {
-        return false;
-    };
+        .map(|link_id| network.get_link(link_id))
+        .collect::<Vec<_>>();
     links.iter().all(|link| link.contains_mode(mode))
         && links.windows(2).all(|pair| pair[0].to == pair[1].from)
 }

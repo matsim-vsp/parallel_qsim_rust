@@ -5,7 +5,7 @@ use clap::{Parser, ValueEnum};
 use dyn_clone::DynClone;
 #[cfg(feature = "http")]
 use reqwest::Url;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::any::Any;
 use std::fmt::Debug;
 use std::fs::File;
@@ -467,7 +467,12 @@ pub struct Routing {
     pub mode: RoutingMode,
     #[serde(default)]
     pub network_modes: Vec<String>,
-    #[serde(default)]
+    #[serde(default = "default_access_egress_mode")]
+    pub access_egress_mode: String,
+    #[serde(
+        default = "default_teleported_mode_params",
+        deserialize_with = "deserialize_teleported_mode_params"
+    )]
     pub teleported_mode_params: Vec<TeleportedParams>,
 }
 
@@ -476,6 +481,46 @@ pub struct TeleportedParams {
     pub mode: String,
     pub beeline_distance_factor: f64,
     pub teleported_mode_speed: f64,
+}
+
+fn default_access_egress_mode() -> String {
+    "walk".to_string()
+}
+
+fn default_walk_teleported_params() -> TeleportedParams {
+    TeleportedParams {
+        mode: "walk".to_string(),
+        beeline_distance_factor: 1.3,
+        teleported_mode_speed: 3.0 / 3.6,
+    }
+}
+
+fn default_teleported_mode_params() -> Vec<TeleportedParams> {
+    vec![default_walk_teleported_params()]
+}
+
+fn deserialize_teleported_mode_params<'de, D>(
+    deserializer: D,
+) -> Result<Vec<TeleportedParams>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let mut params = Vec::<TeleportedParams>::deserialize(deserializer)?;
+    let last_walk_index = params.iter().rposition(|param| param.mode == "walk");
+
+    if let Some(last_walk_index) = last_walk_index {
+        params = params
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, param)| {
+                (param.mode != "walk" || index == last_walk_index).then_some(param)
+            })
+            .collect();
+    } else {
+        params.push(default_walk_teleported_params());
+    }
+
+    Ok(params)
 }
 
 register_override!("routing.mode", |config, value| {
@@ -491,7 +536,8 @@ impl Default for Routing {
         Routing {
             mode: RoutingMode::UsePlans,
             network_modes: Vec::new(),
-            teleported_mode_params: Vec::new(),
+            access_egress_mode: default_access_egress_mode(),
+            teleported_mode_params: default_teleported_mode_params(),
         }
     }
 }
@@ -1041,6 +1087,7 @@ mod tests {
 
         assert_eq!(parsed_config.routing().mode, RoutingMode::UsePlans);
         assert_eq!(parsed_config.routing().network_modes, vec!["car", "bike"]);
+        assert_eq!(parsed_config.routing().access_egress_mode, "walk");
         assert_eq!(
             parsed_config.routing().teleported_mode_params,
             vec![
@@ -1059,7 +1106,29 @@ mod tests {
     }
 
     #[test]
-    fn read_routing_defaults_modes_to_empty_vectors() {
+    fn routing_defaults_include_walk_access_egress_and_teleported_params() {
+        let default_routing = Routing::default();
+        assert_eq!(default_routing.access_egress_mode, "walk");
+        assert_eq!(
+            default_routing.teleported_mode_params,
+            vec![TeleportedParams {
+                mode: "walk".to_string(),
+                beeline_distance_factor: 1.3,
+                teleported_mode_speed: 3.0 / 3.6,
+            }]
+        );
+
+        let default_config = Config::default();
+        assert_eq!(default_config.routing().access_egress_mode, "walk");
+        assert_eq!(
+            default_config.routing().teleported_mode_params,
+            vec![TeleportedParams {
+                mode: "walk".to_string(),
+                beeline_distance_factor: 1.3,
+                teleported_mode_speed: 3.0 / 3.6,
+            }]
+        );
+
         let yaml = r#"
         modules:
           routing:
@@ -1071,7 +1140,97 @@ mod tests {
 
         assert_eq!(parsed_config.routing().mode, RoutingMode::UsePlans);
         assert!(parsed_config.routing().network_modes.is_empty());
-        assert!(parsed_config.routing().teleported_mode_params.is_empty());
+        assert_eq!(parsed_config.routing().access_egress_mode, "walk");
+        assert_eq!(
+            parsed_config.routing().teleported_mode_params,
+            vec![TeleportedParams {
+                mode: "walk".to_string(),
+                beeline_distance_factor: 1.3,
+                teleported_mode_speed: 3.0 / 3.6,
+            }]
+        );
+    }
+
+    #[test]
+    fn routing_empty_teleported_params_use_default_walk() {
+        let yaml = r#"
+        modules:
+          routing:
+            type: Routing
+            mode: UsePlans
+            teleported_mode_params: []
+        "#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(
+            parsed_config.routing().teleported_mode_params,
+            vec![TeleportedParams {
+                mode: "walk".to_string(),
+                beeline_distance_factor: 1.3,
+                teleported_mode_speed: 3.0 / 3.6,
+            }]
+        );
+    }
+
+    #[test]
+    fn routing_other_teleported_params_also_include_default_walk() {
+        let yaml = r#"
+        modules:
+          routing:
+            type: Routing
+            mode: UsePlans
+            teleported_mode_params:
+              - mode: pt
+                beeline_distance_factor: 1.1
+                teleported_mode_speed: 8.0
+        "#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(
+            parsed_config.routing().teleported_mode_params,
+            vec![
+                TeleportedParams {
+                    mode: "pt".to_string(),
+                    beeline_distance_factor: 1.1,
+                    teleported_mode_speed: 8.0,
+                },
+                TeleportedParams {
+                    mode: "walk".to_string(),
+                    beeline_distance_factor: 1.3,
+                    teleported_mode_speed: 3.0 / 3.6,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn routing_explicit_walk_params_replace_defaults_without_duplicates() {
+        let yaml = r#"
+        modules:
+          routing:
+            type: Routing
+            mode: UsePlans
+            teleported_mode_params:
+              - mode: walk
+                beeline_distance_factor: 1.1
+                teleported_mode_speed: 1.4
+              - mode: walk
+                beeline_distance_factor: 1.2
+                teleported_mode_speed: 1.5
+        "#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(
+            parsed_config.routing().teleported_mode_params,
+            vec![TeleportedParams {
+                mode: "walk".to_string(),
+                beeline_distance_factor: 1.2,
+                teleported_mode_speed: 1.5,
+            }]
+        );
     }
 
     #[test]
@@ -1352,7 +1511,12 @@ modules:
         config.set_routing(Routing {
             mode: RoutingMode::UsePlans,
             network_modes: Vec::new(),
-            teleported_mode_params: Vec::new(),
+            access_egress_mode: "walk".to_string(),
+            teleported_mode_params: vec![TeleportedParams {
+                mode: "walk".to_string(),
+                beeline_distance_factor: 1.3,
+                teleported_mode_speed: 3.0 / 3.6,
+            }],
         });
         config
     }

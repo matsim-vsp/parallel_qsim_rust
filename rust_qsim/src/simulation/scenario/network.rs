@@ -189,10 +189,6 @@ impl Network {
         self.links.get(id).unwrap()
     }
 
-    pub fn get_link_opt(&self, id: &Id<Link>) -> Option<&Link> {
-        self.links.get(id)
-    }
-
     pub fn get_node_mut(&mut self, id: &Id<Node>) -> &mut Node {
         self.nodes.get_mut(id).unwrap()
     }

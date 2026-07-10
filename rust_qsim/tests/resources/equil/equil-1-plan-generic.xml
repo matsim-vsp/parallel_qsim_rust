@@ -21,7 +21,7 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="1" end_link="20" distance="25000.0"/>
+                <route type="generic" start_link="1" end_link="20" trav_time="00:10:00" distance="25000.0"/>
             </leg>
             <activity type="w" link="20" x="3456.0" y="4242.0" max_dur="00:10:00">
             </activity>
@@ -29,7 +29,7 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="20" end_link="20" distance="0.0"/>
+                <route type="generic" start_link="20" end_link="20" trav_time="00:10:00" distance="0.0"/>
             </leg>
             <activity type="w" link="20" x="10000.0" y="0.0" max_dur="03:30:00">
             </activity>
@@ -37,7 +37,7 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="20" end_link="1" distance="65000.0"/>
+                <route type="generic" start_link="20" end_link="1" trav_time="00:10:00" distance="65000.0"/>
             </leg>
             <activity type="h" link="1" x="-25000.0" y="0.0">
             </activity>
@@ -50,7 +50,7 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="1" end_link="20" distance="25000.0"/>
+                <route type="generic" start_link="1" end_link="20" trav_time="00:08:59" distance="25000.0"/>
             </leg>
             <activity type="w" link="20" x="10000.0" y="0.0" max_dur="00:10:00">
             </activity>
@@ -58,7 +58,7 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="20" end_link="20" distance="0.0"/>
+                <route type="generic" start_link="20" end_link="20" trav_time="00:00:00" distance="0.0"/>
             </leg>
             <activity type="w" link="20" x="10000.0" y="0.0" max_dur="03:30:00">
             </activity>
@@ -66,7 +66,7 @@
                 <attributes>
                     <attribute name="routingMode" class="java.lang.String">car</attribute>
                 </attributes>
-                <route type="generic" start_link="20" end_link="1" distance="65000.0"/>
+                <route type="generic" start_link="20" end_link="1" trav_time="00:32:59" distance="65000.0"/>
             </leg>
             <activity type="h" link="1" x="-25000.0" y="0.0">
             </activity>
