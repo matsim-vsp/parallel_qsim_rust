@@ -202,7 +202,7 @@ pub enum InternalRoute {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalGenericRoute {
-    pub start_link: Id<Link>,
+    start_link: Id<Link>,
     end_link: Id<Link>,
     trav_time: Option<Duration>,
     distance: Option<f64>,
@@ -280,6 +280,10 @@ impl InternalPerson {
         &self.plans
     }
 
+    pub fn plans_mut(&mut self) -> &mut Vec<InternalPlan> {
+        &mut self.plans
+    }
+
     pub fn plan_element_at(&self, index: usize) -> Option<&InternalPlanElement> {
         self.selected_plan().unwrap().elements.get(index)
     }
@@ -330,6 +334,26 @@ impl InternalPlan {
             .iter()
             .filter_map(|e| match e {
                 InternalPlanElement::Activity(act) => Some(act),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn acts_mut(&mut self) -> Vec<&mut InternalActivity> {
+        self.elements
+            .iter_mut()
+            .filter_map(|e| match e {
+                InternalPlanElement::Activity(act) => Some(act),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn legs_mut(&mut self) -> Vec<&mut InternalLeg> {
+        self.elements
+            .iter_mut()
+            .filter_map(|e| match e {
+                InternalPlanElement::Leg(leg) => Some(leg),
                 _ => None,
             })
             .collect()
@@ -707,7 +731,7 @@ impl From<IOActivity> for InternalActivity {
             act_type: Id::create(&io.r#type),
             link_id: Id::create(&io.link.expect("Activity must have a link id")),
             coord: io.x.map(|x| {
-                Coordinate::new(
+                Coordinate::new_2d(
                     x,
                     io.y.expect("y coordinate should be given when x coord is given"),
                 )
@@ -728,7 +752,7 @@ impl From<Activity> for InternalActivity {
         InternalActivity {
             act_type: Id::get_from_ext(&value.act_type),
             link_id: Id::get_from_ext(&value.link_id),
-            coord: Some(Coordinate::with_z(
+            coord: Some(Coordinate::new_3d(
                 value.coordinate.as_ref().unwrap().x,
                 value.coordinate.as_ref().unwrap().y,
                 value.coordinate.as_ref().unwrap().z,
@@ -912,7 +936,7 @@ mod tests {
     #[test]
     fn cmp_end_time_uses_bounded_open_ended_sentinel() {
         let activity = InternalActivity::new(
-            Some(Coordinate::new(0.0, 0.0)),
+            Some(Coordinate::new_2d(0.0, 0.0)),
             "home",
             Id::create("1"),
             None,

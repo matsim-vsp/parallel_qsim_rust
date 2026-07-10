@@ -274,7 +274,7 @@ impl From<crate::generated::network::Network> for Network {
                 Id::get_from_ext(&wn.id),
                 wn.coordinate
                     .as_ref()
-                    .map(|coordinate| Coordinate::with_z(coordinate.x, coordinate.y, coordinate.z))
+                    .map(|coordinate| Coordinate::new_3d(coordinate.x, coordinate.y, coordinate.z))
                     .unwrap(),
                 wn.partition,
                 wn.cmp_weight,
@@ -312,7 +312,7 @@ fn add_io_node(network: &mut Network, io_node: &IONode) {
 
     let mut node = Node::new(
         id,
-        Coordinate::new(io_node.x, io_node.y),
+        Coordinate::new_2d(io_node.x, io_node.y),
         partition,
         cmp_weight,
     );
@@ -328,6 +328,7 @@ fn add_io_link(network: &mut Network, io_link: &IOLink) {
         .modes
         .split(',')
         .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
         .map(Id::create)
         .collect();
     let from_id = Id::get_from_ext(&io_link.from);
@@ -409,7 +410,7 @@ impl Link {
     }
 
     pub fn contains_mode(&self, mode: &Id<String>) -> bool {
-        self.modes.iter().contains(mode)
+        self.modes.is_empty() || self.modes.iter().contains(mode)
     }
 }
 
@@ -437,6 +438,27 @@ pub fn to_file(network: &Network, path: &Path) {
     }
 }
 
+pub mod utils {
+    use crate::simulation::id::Id;
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::network::{Link, Network};
+
+    pub fn find_nearest_point_on_link(
+        coordinate: &Coordinate,
+        link: &Id<Link>,
+        network: &Network,
+    ) -> Coordinate {
+        let from = &network.get_link(link).from;
+        let to = &network.get_link(link).to;
+
+        Coordinate::orthogonal_projection(
+            coordinate,
+            &network.get_node(from).coord,
+            &network.get_node(to).coord,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod};
@@ -447,7 +469,7 @@ mod tests {
     use macros::integration_test;
 
     fn coord(x: f64, y: f64) -> Coordinate {
-        Coordinate::new(x, y)
+        Coordinate::new_2d(x, y)
     }
 
     #[integration_test]

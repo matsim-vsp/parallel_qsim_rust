@@ -632,7 +632,7 @@ mod tests {
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
     use crate::simulation::scenario::vehicles::Garage;
     use crate::simulation::scenario::{
-        MobsimInput, MobsimPartition, PopulationShard, ScenarioCore,
+        MobsimInput, MobsimScenarioPartition, PopulationShard, ScenarioCore,
     };
     use nohash_hasher::IntSet;
     use std::sync::{Arc, Barrier};
@@ -696,7 +696,7 @@ mod tests {
         );
 
         MobsimInput {
-            partition: MobsimPartition {
+            partition: MobsimScenarioPartition {
                 rank: 0,
                 scenario: scenario.clone(),
                 network_partition,

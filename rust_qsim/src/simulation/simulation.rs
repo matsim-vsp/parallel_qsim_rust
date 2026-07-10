@@ -7,7 +7,7 @@ use crate::simulation::framework_events::MobsimEvent;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
-use crate::simulation::scenario::{MobsimInput, MobsimPartition};
+use crate::simulation::scenario::{MobsimInput, MobsimScenarioPartition};
 use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::vehicles::SimulationVehicle;
 use std::fmt::Debug;
@@ -144,7 +144,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             .agent_source
             .create_agents(self.input.population, &self.input.partition);
 
-        let MobsimPartition {
+        let MobsimScenarioPartition {
             scenario,
             network_partition,
             ..

@@ -2,6 +2,7 @@ use crate::external_services::ExternalServiceType;
 use crate::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayloadBuilder, InternalRoutingResponse,
 };
+use crate::simulation::Identifiable;
 use crate::simulation::agents::{
     AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
 };
@@ -15,7 +16,6 @@ use crate::simulation::scenario::trip_structure_utils::{
     find_trip_span_starting_at_activity_default, identify_main_mode,
 };
 use crate::simulation::time::SimTime;
-use crate::simulation::time_queue::Identifiable;
 use std::fmt::{Debug, Formatter};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;

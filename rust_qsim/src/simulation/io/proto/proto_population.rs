@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn activity_coordinate_round_trip_preserves_none_z() {
         let activity = InternalActivity::new(
-            Some(Coordinate::new(10.0, 20.0)),
+            Some(Coordinate::new_2d(10.0, 20.0)),
             "home",
             Id::create("1"),
             Some(SimTime::from_nanos(1_500_000)),
@@ -232,7 +232,7 @@ mod tests {
 
         assert_eq!(10.0, round_trip.coord.as_ref().unwrap().x);
         assert_eq!(20.0, round_trip.coord.as_ref().unwrap().y);
-        assert_eq!(None, round_trip.coord.as_ref().unwrap().z);
+        assert_eq!(0., round_trip.coord.as_ref().unwrap().z);
         assert_eq!(Some(SimTime::from_nanos(1_500_000)), round_trip.start_time);
         assert_eq!(Some(SimTime::from_nanos(2_250_000)), round_trip.end_time);
         assert_eq!(Some(Duration::from_nanos(3_500_000)), round_trip.max_dur);

@@ -72,7 +72,7 @@ mod tests {
         let mut network = Network::new();
         network.add_node(Node::new(
             Id::create("node-1"),
-            Coordinate::new(1.0, 2.0),
+            Coordinate::new_2d(1.0, 2.0),
             3,
             4,
         ));
@@ -83,6 +83,6 @@ mod tests {
         let node = round_trip.get_node(&Id::get_from_ext("node-1"));
         assert_eq!(1.0, node.coord.x);
         assert_eq!(2.0, node.coord.y);
-        assert_eq!(None, node.coord.z);
+        assert_eq!(0., node.coord.z);
     }
 }

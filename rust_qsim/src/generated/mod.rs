@@ -175,10 +175,24 @@ impl AttributeValue {
         }
     }
 
+    pub fn as_int_opt(&self) -> Option<i64> {
+        match self.r#type.as_ref().unwrap() {
+            Type::IntValue(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     pub fn as_string(&self) -> String {
         match self.r#type.as_ref().unwrap() {
             Type::StringValue(value) => value.clone(),
             _ => panic!("Expected string, got {:?}", self),
+        }
+    }
+
+    pub fn as_string_opt(&self) -> Option<String> {
+        match self.r#type.as_ref().unwrap() {
+            Type::StringValue(value) => Some(value.clone()),
+            _ => None,
         }
     }
 
@@ -189,10 +203,24 @@ impl AttributeValue {
         }
     }
 
+    pub fn as_double_opt(&self) -> Option<f64> {
+        match self.r#type.as_ref().unwrap() {
+            Type::DoubleValue(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     pub fn as_bool(&self) -> bool {
         match self.r#type.as_ref().unwrap() {
             Type::BoolValue(value) => *value,
             _ => panic!("Expected bool, got {:?}", self),
+        }
+    }
+
+    pub fn as_bool_opt(&self) -> Option<bool> {
+        match self.r#type.as_ref().unwrap() {
+            Type::BoolValue(value) => Some(*value),
+            _ => None,
         }
     }
 

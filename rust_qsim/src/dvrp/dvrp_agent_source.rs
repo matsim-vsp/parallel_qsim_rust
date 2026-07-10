@@ -4,7 +4,7 @@ use crate::simulation::population::agent_source::{AgentSet, AgentSource};
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
 use crate::simulation::scenario::vehicles::InternalVehicle;
-use crate::simulation::scenario::{MobsimPartition, PopulationShard};
+use crate::simulation::scenario::{MobsimScenarioPartition, PopulationShard};
 use std::collections::HashMap;
 use tracing::info;
 
@@ -27,7 +27,9 @@ impl DrtAgentSource {
         Id::<String>::create("STAY");
     }
 
-    fn add_drt_driver(partition: &MobsimPartition) -> HashMap<Id<InternalPerson>, SimulationAgent> {
+    fn add_drt_driver(
+        partition: &MobsimScenarioPartition,
+    ) -> HashMap<Id<InternalPerson>, SimulationAgent> {
         info!("Creating DRT drivers");
 
         let drt_modes = partition
@@ -103,7 +105,11 @@ impl DrtAgentSource {
 }
 
 impl AgentSource for DrtAgentSource {
-    fn create_agents(&self, _population: PopulationShard, partition: &MobsimPartition) -> AgentSet {
+    fn create_agents(
+        &self,
+        _population: PopulationShard,
+        partition: &MobsimScenarioPartition,
+    ) -> AgentSet {
         Self::add_drt_ids();
         Self::add_drt_driver(partition)
     }

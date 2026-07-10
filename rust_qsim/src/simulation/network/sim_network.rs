@@ -1245,9 +1245,9 @@ mod tests {
     fn create_three_node_sim_network_with_partition(
         network: &mut Network,
     ) -> Vec<SimNetworkPartition> {
-        let node1 = Node::new(Id::create("node1"), Coordinate::new(-100., 0.), 0, 1);
-        let node2 = Node::new(Id::create("node2"), Coordinate::new(0., 0.), 0, 1);
-        let mut node3 = Node::new(Id::create("node3"), Coordinate::new(100., 0.), 0, 1);
+        let node1 = Node::new(Id::create("node1"), Coordinate::new_2d(-100., 0.), 0, 1);
+        let node2 = Node::new(Id::create("node2"), Coordinate::new_2d(0., 0.), 0, 1);
+        let mut node3 = Node::new(Id::create("node3"), Coordinate::new_2d(100., 0.), 0, 1);
         node3.partition = 1;
         let mut link1 = Link::new_with_default(Id::create("link1"), &node1, &node2);
         link1.capacity = 3600.;

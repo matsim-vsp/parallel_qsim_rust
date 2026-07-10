@@ -10,6 +10,7 @@ use tracing::info;
 
 pub mod attributes;
 pub mod events;
+pub mod facilities;
 pub mod network;
 pub mod population;
 pub mod transit;

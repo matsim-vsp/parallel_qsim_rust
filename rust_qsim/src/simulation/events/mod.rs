@@ -224,7 +224,7 @@ pub struct ActivityStartEvent {
     pub time: SimTime,
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
-    pub coordinate: Option<Coordinate>, // this is temporarily set to Option<Coordinate>. When issue #275 is implemented, they will be mandatory. June '26 Andreas + Paul
+    pub coordinate: Coordinate,
     pub act_type: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,
@@ -240,16 +240,11 @@ impl ActivityStartEvent {
             .person(Id::create(&event.attributes["person"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
             .act_type(Id::create(&event.attributes["act_type"].as_string()))
-            .coordinate(event.attributes.get("x").map(|x| {
-                Coordinate::new(
-                    x.as_double(),
-                    event
-                        .attributes
-                        .get("y")
-                        .expect("y coordinate should be given if x coordinate is given")
-                        .as_double(),
-                )
-            }))
+            .coordinate(Coordinate::new_3d(
+                event.attributes["x"].as_double(),
+                event.attributes["y"].as_double(),
+                event.attributes["z"].as_double_opt().unwrap_or_default(),
+            ))
             .attributes(attrs)
             .build()
             .unwrap()
@@ -261,7 +256,7 @@ pub struct ActivityEndEvent {
     pub time: SimTime,
     pub person: Id<InternalPerson>,
     pub link: Id<Link>,
-    pub coordinate: Option<Coordinate>, // this is temporarily set to Option<Coordinate>. When issue #275 is implemented, they will be mandatory. June '26 Andreas + Paul
+    pub coordinate: Coordinate,
     pub act_type: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,
@@ -277,16 +272,11 @@ impl ActivityEndEvent {
             .person(Id::create(&event.attributes["person"].as_string()))
             .link(Id::create(&event.attributes["link"].as_string()))
             .act_type(Id::create(&event.attributes["act_type"].as_string()))
-            .coordinate(event.attributes.get("x").map(|x| {
-                Coordinate::new(
-                    x.as_double(),
-                    event
-                        .attributes
-                        .get("y")
-                        .expect("y coordinate should be given if x coordinate is given")
-                        .as_double(),
-                )
-            }))
+            .coordinate(Coordinate::new_3d(
+                event.attributes["x"].as_double(),
+                event.attributes["y"].as_double(),
+                event.attributes["z"].as_double_opt().unwrap_or_default(),
+            ))
             .attributes(attrs)
             .build()
             .unwrap()

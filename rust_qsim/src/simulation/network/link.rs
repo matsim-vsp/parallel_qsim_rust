@@ -1,3 +1,4 @@
+use crate::simulation::Identifiable;
 use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::config;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
@@ -11,7 +12,6 @@ use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::network::Node;
 use crate::simulation::time::{SimClock, Tick};
-use crate::simulation::time_queue::Identifiable;
 use crate::simulation::vehicles::SimulationVehicle;
 use std::collections::VecDeque;
 use std::fmt::Debug;

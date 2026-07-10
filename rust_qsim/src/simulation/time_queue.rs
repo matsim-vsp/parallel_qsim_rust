@@ -1,3 +1,4 @@
+use crate::simulation::Identifiable;
 use crate::simulation::agents::EndTime;
 use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
@@ -5,10 +6,6 @@ use crate::simulation::time::SimTime;
 use nohash_hasher::IntMap;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-
-pub trait Identifiable<I: StableTypeId> {
-    fn id(&self) -> &Id<I>;
-}
 
 struct Entry<T> {
     end_time: SimTime,

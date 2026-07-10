@@ -1,3 +1,4 @@
+pub mod facilities;
 pub mod network;
 pub mod population;
 pub mod prepare_for_sim;
@@ -17,22 +18,61 @@ use vehicles::Garage;
 pub struct Coordinate {
     pub x: f64,
     pub y: f64,
-    pub z: Option<f64>,
+    pub z: f64,
 }
 
 impl Coordinate {
-    pub fn new(x: f64, y: f64) -> Self {
-        Self { x, y, z: None }
+    pub fn new_2d(x: f64, y: f64) -> Self {
+        Self { x, y, z: 0. }
     }
 
-    pub fn with_z(x: f64, y: f64, z: Option<f64>) -> Self {
+    pub fn new_3d(x: f64, y: f64, z: f64) -> Self {
         Self { x, y, z }
+    }
+
+    pub fn euclidean_distance(a: &Coordinate, b: &Coordinate) -> f64 {
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dz = a.z - b.z;
+        (dx * dx + dy * dy + dz * dz).sqrt()
+    }
+
+    pub fn middle(a: &Self, b: &Self) -> Self {
+        Coordinate::new_3d((a.x + b.x) / 2., (a.y + b.y) / 2., (a.z + b.z) / 2.)
+    }
+
+    /// Returns the orthogonal projection of `point` onto the infinite line
+    /// defined by `line_from` and `line_to`.
+    ///
+    /// The returned coordinate is the closest point on that line to `point`.
+    /// Note that the projection is not clamped to the segment between
+    /// `line_from` and `line_to`, so the result may lie outside that segment.
+    pub fn orthogonal_projection(point: &Self, line_from: &Self, line_to: &Self) -> Self {
+        // Orthogonal projection of point onto the line through from and to:
+        // v = from - to
+        // t = dot(point - from, v) / dot(v, v)
+        // projection = from + t * v
+
+        let dx = line_to.x - line_from.x;
+        let dy = line_to.y - line_from.y;
+        let dz = line_to.z - line_from.z;
+
+        let t = ((point.x - line_from.x) * dx
+            + (point.y - line_from.y) * dy
+            + (point.z - line_from.z) * dz)
+            / (dx * dx + dy * dy + dz * dz);
+
+        Coordinate::new_3d(
+            line_from.x + t * dx,
+            line_from.y + t * dy,
+            line_from.z + t * dz,
+        )
     }
 }
 
 impl Default for Coordinate {
     fn default() -> Self {
-        Self::new(0.0, 0.0)
+        Self::new_3d(0.0, 0.0, 0.0)
     }
 }
 
@@ -121,7 +161,7 @@ pub struct PopulationShard {
 
 /// Static and per-run runtime context for one mobsim partition.
 #[derive(Debug)]
-pub struct MobsimPartition {
+pub struct MobsimScenarioPartition {
     pub rank: u32,
     pub scenario: ScenarioCore,
     pub network_partition: SimNetworkPartition,
@@ -130,7 +170,7 @@ pub struct MobsimPartition {
 /// Input for one mobsim partition run.
 #[derive(Debug)]
 pub struct MobsimInput {
-    pub partition: MobsimPartition,
+    pub partition: MobsimScenarioPartition,
     pub population: PopulationShard,
 }
 
@@ -191,7 +231,7 @@ impl ControllerScenario {
         );
 
         MobsimInput {
-            partition: MobsimPartition {
+            partition: MobsimScenarioPartition {
                 rank,
                 // Since core holds Arcs, this clone is cheap.
                 scenario: self.core.clone(),

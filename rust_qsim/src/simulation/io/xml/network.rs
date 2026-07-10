@@ -43,8 +43,8 @@ pub(crate) fn write_to_xml(network: &Network, path: &Path) {
             .modes
             .iter()
             .map(|m| m.external().to_string())
-            .reduce(|modes, mode| format!("{modes},{mode}"))
-            .unwrap();
+            .collect::<Vec<_>>()
+            .join(",");
         let attributes = IOAttributes {
             attributes: vec![IOAttribute {
                 name: String::from("partition"),

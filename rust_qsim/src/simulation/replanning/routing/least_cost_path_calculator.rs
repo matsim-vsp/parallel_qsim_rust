@@ -185,13 +185,13 @@ pub trait LeastCostPathCalculator: Send + Sync {
     /// If no path is found, either because the to-link is unreachable or because the from- or
     /// to-link do not exist in the graph, None is returned.
     /// Otherwise, the path is returned together with its travel time and disutility.
-    fn calc_route(&self, request: LeastCostPathRequest) -> Option<LeastCostPath>;
+    fn calc_least_cost_path(&self, request: LeastCostPathRequest) -> Option<LeastCostPath>;
 }
 
 #[cfg(test)]
 mod tests {
     use crate::simulation::id::Id;
-    use crate::simulation::replanning::routing::a_star_router::DijkstraRouter;
+    use crate::simulation::replanning::routing::a_star::Dijkstra;
     use macros::integration_test;
     use std::sync::Arc;
     use std::time::Duration;
@@ -221,7 +221,7 @@ mod tests {
         // DijkstraRouter is an alias for AStarRouter<ZeroHeuristic>
         let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
         let router =
-            DijkstraRouter::new(Arc::new(network), None, travel_cost.clone(), travel_cost).unwrap();
+            Dijkstra::new(Arc::new(network), None, travel_cost.clone(), travel_cost).unwrap();
 
         let request = LeastCostPathRequestBuilder::default()
             .from(Id::create("1")) // these links are connected via
@@ -231,7 +231,7 @@ mod tests {
 
         let expected_path: Vec<Id<Link>> = [Id::create("4")].into_iter().collect();
 
-        let result = router.calc_route(request);
+        let result = router.calc_least_cost_path(request);
         assert_eq!(
             result,
             Some(LeastCostPath {

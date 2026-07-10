@@ -288,7 +288,7 @@ impl From<IOStopFacility> for TransitStopFacility {
         Id::<String>::create(&io.id);
         TransitStopFacility {
             id: Id::create(&io.id),
-            coord: Coordinate::with_z(io.x, io.y, io.z),
+            coord: Coordinate::new_3d(io.x, io.y, io.z.unwrap_or_default()),
             link_ref_id: io.link_ref_id.map(|id| Id::create(&id)),
             name: io.name,
             stop_area_id: io.stop_area_id,
@@ -402,7 +402,7 @@ mod tests {
         let facility = schedule.get_facility(&facility_id);
         assert_eq!(733340.71, facility.coord.x);
         assert_eq!(5304341.79, facility.coord.y);
-        assert_eq!(None, facility.coord.z);
+        assert_eq!(0., facility.coord.z);
         assert_eq!(
             Some(Id::<Link>::get_from_ext("pt_99")),
             facility.link_ref_id.clone()

@@ -1,3 +1,4 @@
+use crate::simulation::Identifiable;
 use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
@@ -5,7 +6,6 @@ use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
-use crate::simulation::time_queue::Identifiable;
 
 #[derive(Debug)]
 pub struct SimulationVehicle {

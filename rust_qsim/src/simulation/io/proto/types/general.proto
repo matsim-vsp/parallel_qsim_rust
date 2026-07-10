@@ -15,5 +15,5 @@ message AttributeValue {
 message Coordinate {
   double x = 1;
   double y = 2;
-  optional double z = 3;
+  double z = 3;
 }
