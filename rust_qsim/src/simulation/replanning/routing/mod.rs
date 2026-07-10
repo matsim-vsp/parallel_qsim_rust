@@ -114,7 +114,12 @@ impl<'r> RoutingRequest<'r> {
     }
 }
 
-// Implementors of this trait need to be thread-safe because routing may be called from multiple threads in parallel.
+/// Calculates complete trip elements for one routing mode.
+///
+/// Implementors must be thread-safe because routing may be called from multiple threads in
+/// parallel. A successful result must form a valid trip: every leg must contain its required route
+/// data and times, and any activities must be stage activities that do not create new trips.
+/// `TripRouter` assigns the requested routing mode to every returned leg.
 pub trait RoutingModule: Send + Sync {
     fn calc_route(&self, request: RoutingRequest)
     -> Result<Vec<InternalPlanElement>, RoutingError>;
