@@ -584,9 +584,9 @@ pub struct Scoring {
 }
 
 register_override!("scoring.enabled", |config, value| {
-    if let Ok(v) = value.parse() {
-        config.scoring_mut().enabled = v;
-    }
+    config.scoring_mut().enabled = value
+        .parse()
+        .unwrap_or_else(|_| panic!("scoring.enabled: expected bool, got '{}'", value));
 });
 
 register_override!("scoring.plans_collection_type", |config, value| {
@@ -594,20 +594,20 @@ register_override!("scoring.plans_collection_type", |config, value| {
         "backpacking" => ScoringPlansCollectionType::Backpacking,
         "mapping" => ScoringPlansCollectionType::Mapping,
         "homesending" | "home-sending" => ScoringPlansCollectionType::HomeSending,
-        _ => panic!("Invalid scoring collection mode: {}", value),
+        _ => panic!("scoring.plans_collection_type: invalid value '{}'", value),
     };
 });
 
 register_override!("scoring.collector_threads", |config, value| {
-    if let Ok(v) = value.parse() {
-        config.scoring_mut().enabled = v;
-    }
+    config.scoring_mut().collector_threads = value
+        .parse()
+        .unwrap_or_else(|_| panic!("scoring.collector_threads: expected u32, got '{}'", value));
 });
 
 register_override!("scoring.sync_interval", |config, value| {
-    if let Ok(v) = value.parse() {
-        config.scoring_mut().enabled = v;
-    }
+    config.scoring_mut().sync_interval = value
+        .parse()
+        .unwrap_or_else(|_| panic!("scoring.sync_interval: expected u32, got '{}'", value));
 });
 
 #[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
@@ -615,7 +615,7 @@ pub enum ScoringPlansCollectionType {
     #[default]
     Backpacking,
     Mapping,
-    HomeSending
+    HomeSending,
 }
 
 impl Default for Scoring {
