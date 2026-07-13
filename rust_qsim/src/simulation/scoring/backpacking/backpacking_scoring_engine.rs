@@ -163,14 +163,14 @@ impl BackpackingScoringEngine {
                             message_broker1
                                 .lock()
                                 .unwrap()
-                                .wait_for_backpack(i.agent_id.clone());
+                                .wait_for_backpack(i.agent_id.clone(), i.from);
                         }
                         PartitionEvent::VehicleEntersPartition(i) => {
                             let mut bdc = data_collector1.lock().unwrap();
                             let mut bmb = message_broker1.lock().unwrap();
 
                             bdc.get_pending_vehicles_mut().insert(i.vehicle_id.clone());
-                            bmb.wait_for_vehicle(i.vehicle_id.clone());
+                            bmb.wait_for_vehicle(i.vehicle_id.clone(), i.from);
                         }
                     }
                 })

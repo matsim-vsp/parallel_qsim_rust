@@ -7,6 +7,8 @@ use crate::simulation::scoring::backpacking::backpack::Backpack;
 use nohash_hasher::{IntMap, IntSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tracing::warn;
 
 pub struct BackpackingMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
@@ -18,8 +20,9 @@ pub struct BackpackingMessageBroker {
         IntMap<QSimId, IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>>,
     arriving_buffer_backpacks: IntMap<Id<InternalPerson>, Backpack>,
     arriving_buffer_vehicles: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
-    wait_backpacks: IntSet<Id<InternalPerson>>,
-    wait_vehicles: IntSet<Id<InternalVehicle>>,
+    // Maps each waited-for ID to the partition it should arrive from, for diagnostic messages.
+    wait_backpacks: IntMap<Id<InternalPerson>, QSimId>,
+    wait_vehicles: IntMap<Id<InternalVehicle>, QSimId>,
 }
 
 #[hotpath::measure_all]
@@ -37,8 +40,8 @@ impl BackpackingMessageBroker {
             leaving_buffer_vehicles: IntMap::default(),
             arriving_buffer_backpacks: IntMap::default(),
             arriving_buffer_vehicles: IntMap::default(),
-            wait_backpacks: IntSet::default(),
-            wait_vehicles: IntSet::default(),
+            wait_backpacks: IntMap::default(),
+            wait_vehicles: IntMap::default(),
         }))
     }
 
@@ -70,12 +73,12 @@ impl BackpackingMessageBroker {
             .insert(vehicle_id, passengers);
     }
 
-    pub(crate) fn wait_for_backpack(&mut self, person_id: Id<InternalPerson>) {
-        self.wait_backpacks.insert(person_id);
+    pub(crate) fn wait_for_backpack(&mut self, person_id: Id<InternalPerson>, from: QSimId) {
+        self.wait_backpacks.insert(person_id, from);
     }
 
-    pub(crate) fn wait_for_vehicle(&mut self, vehicle_id: Id<InternalVehicle>) {
-        self.wait_vehicles.insert(vehicle_id);
+    pub(crate) fn wait_for_vehicle(&mut self, vehicle_id: Id<InternalVehicle>, from: QSimId) {
+        self.wait_vehicles.insert(vehicle_id, from);
     }
 
     pub(crate) fn drain_arrived_backpacks(&mut self) -> IntMap<Id<InternalPerson>, Backpack> {
@@ -90,6 +93,16 @@ impl BackpackingMessageBroker {
 
     pub(crate) fn send(&mut self) {
         for (target, vehicles) in self.leaving_buffer_vehicles.drain() {
+            for (vid, passengers) in &vehicles {
+                if passengers.is_empty() {
+                    warn!(
+                        "Partition #{}: sending empty passenger mapping for vehicle {:?} to \
+                         partition {}. The receiving partition will wait for this mapping \
+                         but no backpacks will be sent for its passengers.",
+                        self.rank, vid, target
+                    );
+                }
+            }
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
@@ -145,7 +158,7 @@ impl BackpackingMessageBroker {
     /// that the scoring module is only using backpacks which are present.
     pub(crate) fn recv_backpacks(&mut self) {
         let pending_backpacks = self.wait_backpacks.drain().collect::<Vec<_>>();
-        for person_id in pending_backpacks {
+        for (person_id, from_partition) in pending_backpacks {
             // Check whether backpack is already there
             if self.arriving_buffer_backpacks.contains_key(&person_id) {
                 // Since the backpack is already there, there is no need to block the thread
@@ -154,8 +167,18 @@ impl BackpackingMessageBroker {
 
             // Recv backpacks, until the backpack for the current person arrives
             while !self.arriving_buffer_backpacks.contains_key(&person_id) {
-                let received_msg = self.receiver.recv().expect("Error receiving message");
-                self.recv(received_msg);
+                match self.receiver.recv_timeout(Duration::from_secs(10)) {
+                    Ok(received_msg) => self.recv(received_msg),
+                    Err(_) => warn!(
+                        "Partition #{}: stuck waiting for backpack of person {:?} \
+                         expected FROM partition {}. \
+                         arriving_buffer currently holds {} backpack(s).",
+                        self.rank,
+                        person_id,
+                        from_partition,
+                        self.arriving_buffer_backpacks.len()
+                    ),
+                }
             }
         }
     }
@@ -166,17 +189,27 @@ impl BackpackingMessageBroker {
     /// that the scoring module is only using passenger info which is present.
     pub(crate) fn recv_vehicles(&mut self) {
         let pending_vehicles = self.wait_vehicles.drain().collect::<Vec<_>>();
-        for vehicle_id in pending_vehicles {
-            // Check whether backpack is already there
+        for (vehicle_id, from_partition) in pending_vehicles {
+            // Check whether vehicle mapping is already there
             if self.arriving_buffer_vehicles.contains_key(&vehicle_id) {
                 // Since the vehicle is already there, there is no need to block the thread
                 continue;
             }
 
-            // Recv backpacks, until the backpack for the current person arrives
+            // Recv vehicles, until the vehicle mapping for the current vehicle arrives
             while !self.arriving_buffer_vehicles.contains_key(&vehicle_id) {
-                let received_msg = self.receiver.recv().expect("Error receiving message");
-                self.recv(received_msg);
+                match self.receiver.recv_timeout(Duration::from_secs(10)) {
+                    Ok(received_msg) => self.recv(received_msg),
+                    Err(_) => warn!(
+                        "Partition #{}: stuck waiting for vehicle mapping of vehicle {:?} \
+                         expected FROM partition {}. \
+                         arriving_buffer currently holds {} mapping(s).",
+                        self.rank,
+                        vehicle_id,
+                        from_partition,
+                        self.arriving_buffer_vehicles.len()
+                    ),
+                }
             }
         }
     }

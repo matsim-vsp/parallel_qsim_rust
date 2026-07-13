@@ -14,6 +14,7 @@ use nohash_hasher::{IntMap, IntSet};
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
+use tracing::warn;
 
 pub struct BackpackingDataCollector {
     person_id2backpack: IntMap<Id<InternalPerson>, Backpack>,
@@ -97,8 +98,14 @@ impl BackpackingDataCollector {
         self.vehicle_id2person_ids
             .remove(vehicle_id)
             .unwrap_or_else(|| {
-                // warn!("Partition #{}: Tried to remove vehicle {}, which has no entry!", self.rank, vehicle_id);
-                return IntSet::default();
+                warn!(
+                    "Partition #{}: VehicleLeavesPartition fired for vehicle {:?} \
+                     but it has no entry in vehicle_id2person_ids. \
+                     The receiving partition will get an empty passenger mapping \
+                     and its AgentEntersPartition backpack waits will never be satisfied.",
+                    self.rank, vehicle_id
+                );
+                IntSet::default()
             })
     }
 
