@@ -168,17 +168,7 @@ impl BackpackingScoringEngine {
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| match &e.payload {
                 MobsimEvent::BeforeSimStep(_) => {
                     let mut bdc = data_collector1.lock().unwrap();
-                    let mut bmb = message_broker1.lock().unwrap();
-
-                    bmb.recv_backpacks();
-                    bmb.recv_vehicles();
-                    let arrived_backpacks = bmb.drain_arrived_backpacks();
-                    let arrived_vehicles = bmb.drain_arrived_vehicles();
-                    bdc.add_arriving_backpacks(arrived_backpacks);
-                    bdc.add_arriving_vehicles(arrived_vehicles);
-                    // Replay LinkEnterEvents that were buffered for vehicles whose mapping had not
-                    // arrived yet. recv_backpacks() ran first, so backpacks are also present at
-                    // this point.
+                    bdc.drain_scoring_messages();
                     bdc.replay_deferred_link_events();
                 }
                 MobsimEvent::AfterSimStep(_) => {
