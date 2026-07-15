@@ -155,11 +155,6 @@ impl StrategyManager {
             return None;
         }
 
-        if let Some(entry) = weights.single_positive_entry() {
-            return Some(self.strategy_by_name(&entry.strategy_name));
-        }
-
-        // TODO isn't there a bias towards the first entry?
         let mut rng = get_rng(
             context.base_seed,
             (
@@ -168,6 +163,8 @@ impl StrategyManager {
                 STRATEGY_RNG_PURPOSE,
             ),
         );
+
+        // Weighted random selection over positive strategy weights.
         let mut draw = rng.random_range(0.0..total_weight);
         for entry in weights.entries.iter().filter(|entry| entry.weight > 0.0) {
             if draw < entry.weight {
@@ -255,12 +252,6 @@ impl StrategyWeights {
             .filter(|entry| entry.weight > 0.0)
             .map(|entry| entry.weight)
             .sum()
-    }
-
-    fn single_positive_entry(&self) -> Option<&StrategyWeight> {
-        let mut positive_entries = self.entries.iter().filter(|entry| entry.weight > 0.0);
-        let entry = positive_entries.next()?;
-        positive_entries.next().is_none().then_some(entry)
     }
 }
 
