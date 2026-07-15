@@ -276,12 +276,11 @@ fn default_plan_remover() -> Box<dyn PlanSelector> {
     Box::new(WorstScoreSelector)
 }
 
-fn default_strategies() -> HashMap<Id<String>, Box<dyn PlanStrategy>> {
-    let mut strategies = HashMap::default();
     for selector in [
         DefaultSelector::KeepLastSelected,
         DefaultSelector::BestScore,
         DefaultSelector::SelectRandom,
+        DefaultSelector::WorstScore,
     ] {
         strategies.insert(
             Id::create(selector.as_str()),
