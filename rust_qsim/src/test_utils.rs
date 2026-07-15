@@ -81,6 +81,10 @@ pub fn create_vehicle_type(
 
 pub fn config() -> config::Simulation {
     config::Simulation {
+        first_iteration: 0,
+        last_iteration: 0,
+        write_events_interval: 50,
+        write_plans_interval: 50,
         start_time: 0,
         end_time: 0,
         ticks_per_second: 1,

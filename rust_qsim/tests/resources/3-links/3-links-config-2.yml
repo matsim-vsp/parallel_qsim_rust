@@ -20,6 +20,7 @@ modules:
     output_dir: ./test_output/simulation/execute_3_links_2_parts
   simulation:
     type: Simulation
+    last_iteration: 0
     main_modes: [ "car" ]
   routing:
     type: Routing

@@ -772,6 +772,10 @@ mod sim_link_tests {
     pub fn stuck_time() {
         let stuck_threshold = 10;
         let config = config::Simulation {
+            first_iteration: 0,
+            last_iteration: 0,
+            write_events_interval: 50,
+            write_plans_interval: 50,
             start_time: 0,
             end_time: 0,
             ticks_per_second: 1,
@@ -823,6 +827,10 @@ mod sim_link_tests {
         let stuck_threshold = 10;
         let earliest_exit: u32 = 10;
         let config = config::Simulation {
+            first_iteration: 0,
+            last_iteration: 0,
+            write_events_interval: 50,
+            write_plans_interval: 50,
             start_time: 0,
             end_time: 0,
             ticks_per_second: 1,

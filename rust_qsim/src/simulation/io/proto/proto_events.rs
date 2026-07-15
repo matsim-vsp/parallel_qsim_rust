@@ -390,7 +390,7 @@ impl ProtoEventsWriter {
         }
     }
 
-    fn on_any(&mut self, event: &dyn EventTrait) {
+    pub(crate) fn on_any(&mut self, event: &dyn EventTrait) {
         self.update_time_step(event.time());
         let event = self.convert_to_proto(event);
 
@@ -399,7 +399,7 @@ impl ProtoEventsWriter {
             .expect("Error encoding event.");
     }
 
-    fn finish(&mut self) {
+    pub(crate) fn finish(&mut self) {
         self.write_time_step();
         self.writer
             .flush()

@@ -1,5 +1,6 @@
 use crate::simulation::config::VertexWeight::InLinkCapacity;
 use crate::simulation::io::is_url;
+use crate::simulation::replanning::{KEEP_LAST_SELECTED_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME};
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use dyn_clone::DynClone;
@@ -129,6 +130,7 @@ impl Config {
         self.output_mut();
         self.simulation_mut();
         self.routing_mut();
+        self.replanning_mut();
         self.computational_setup_mut();
         self.network_mut();
         self.population_mut();
@@ -297,6 +299,24 @@ impl Config {
     pub fn set_routing(&mut self, routing: Routing) {
         self.modules
             .insert("routing".to_string(), Box::new(routing));
+    }
+
+    pub fn replanning(&self) -> &Replanning {
+        self.module::<Replanning>("replanning")
+            .expect("Replanning was not set.")
+    }
+
+    pub fn replanning_mut(&mut self) -> &mut Replanning {
+        if !self.modules.contains_key("replanning") {
+            self.modules
+                .insert("replanning".to_string(), Box::new(Replanning::default()));
+        }
+        self.module_mut::<Replanning>("replanning").unwrap()
+    }
+
+    pub fn set_replanning(&mut self, replanning: Replanning) {
+        self.modules
+            .insert("replanning".to_string(), Box::new(replanning));
     }
 
     pub fn simulation(&self) -> &Simulation {
@@ -534,9 +554,61 @@ impl Default for Routing {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct Replanning {
+    pub fraction_of_iterations_to_disable_innovation: f64,
+    pub max_agent_plan_memory: u32,
+    pub plan_selector_for_removal: String,
+    pub strategy_settings: Vec<StrategySetting>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct StrategySetting {
+    pub name: String,
+    pub weight: f64,
+    pub subpopulation: String,
+}
+
+register_override!(
+    "replanning.fraction_of_iterations_to_disable_innovation",
+    |config, value| {
+        config
+            .replanning_mut()
+            .fraction_of_iterations_to_disable_innovation = value.parse().unwrap();
+    }
+);
+
+register_override!("replanning.max_agent_plan_memory", |config, value| {
+    config.replanning_mut().max_agent_plan_memory = value.parse().unwrap();
+});
+
+register_override!("replanning.plan_selector_for_removal", |config, value| {
+    config.replanning_mut().plan_selector_for_removal = value.to_string();
+});
+
+impl Default for Replanning {
+    fn default() -> Self {
+        Self {
+            fraction_of_iterations_to_disable_innovation: 1.0,
+            max_agent_plan_memory: 5,
+            plan_selector_for_removal: WORST_SCORE_STRATEGY_NAME.to_string(),
+            strategy_settings: vec![StrategySetting {
+                name: KEEP_LAST_SELECTED_STRATEGY_NAME.to_string(),
+                weight: 1.0,
+                subpopulation: "person".to_string(),
+            }],
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Simulation {
+    pub first_iteration: u32,
+    pub last_iteration: u32,
+    pub write_events_interval: u32,
+    pub write_plans_interval: u32,
     pub start_time: u32,
     pub end_time: u32,
     pub ticks_per_second: u32,
@@ -544,6 +616,22 @@ pub struct Simulation {
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
 }
+
+register_override!("simulation.first_iteration", |config, value| {
+    config.simulation_mut().first_iteration = value.parse().unwrap();
+});
+
+register_override!("simulation.last_iteration", |config, value| {
+    config.simulation_mut().last_iteration = value.parse().unwrap();
+});
+
+register_override!("simulation.write_events_interval", |config, value| {
+    config.simulation_mut().write_events_interval = value.parse().unwrap();
+});
+
+register_override!("simulation.write_plans_interval", |config, value| {
+    config.simulation_mut().write_plans_interval = value.parse().unwrap();
+});
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
@@ -665,6 +753,16 @@ impl ConfigModule for Routing {
 }
 
 #[typetag::serde]
+impl ConfigModule for Replanning {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
 impl ConfigModule for Simulation {
     fn as_any(&self) -> &dyn Any {
         self
@@ -690,6 +788,10 @@ dyn_clone::clone_trait_object!(ConfigModule);
 impl Default for Simulation {
     fn default() -> Self {
         Self {
+            first_iteration: 0,
+            last_iteration: 1000,
+            write_events_interval: 50,
+            write_plans_interval: 50,
             start_time: 0,
             end_time: 86400,
             ticks_per_second: 1,
@@ -901,10 +1003,14 @@ mod tests {
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
         CommandLineArgs, ComputationalSetup, Config, EdgeWeight, MetisOptions, PartitionMethod,
-        Partitioning, Routing, Simulation, TeleportedParams, VertexWeight, parse_key_val,
+        Partitioning, Replanning, Routing, Simulation, StrategySetting, TeleportedParams,
+        VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
+    use crate::simulation::replanning::{
+        KEEP_LAST_SELECTED_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME,
+    };
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -930,6 +1036,10 @@ mod tests {
         };
 
         let simulation = Simulation {
+            first_iteration: 2,
+            last_iteration: 4,
+            write_events_interval: 3,
+            write_plans_interval: 5,
             start_time: 0,
             end_time: 42,
             ticks_per_second: 1,
@@ -969,12 +1079,26 @@ mod tests {
         assert_eq!(parsed_config.computational_setup().replanning_threads, 7);
         assert_eq!(parsed_config.computational_setup().retry_time_seconds, 41);
 
+        assert_eq!(parsed_config.simulation().first_iteration, 2);
+        assert_eq!(parsed_config.simulation().last_iteration, 4);
+        assert_eq!(parsed_config.simulation().write_events_interval, 3);
+        assert_eq!(parsed_config.simulation().write_plans_interval, 5);
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);
         assert_eq!(parsed_config.simulation().ticks_per_second, 1);
         assert_eq!(parsed_config.simulation().sample_size, 0.1);
         assert_eq!(parsed_config.simulation().stuck_threshold, 1);
         assert_eq!(parsed_config.simulation().main_modes, vec!["bike"]);
+    }
+
+    #[test]
+    fn simulation_defaults_include_iteration_range() {
+        let config = Config::default();
+
+        assert_eq!(config.simulation().first_iteration, 0);
+        assert_eq!(config.simulation().last_iteration, 1000);
+        assert_eq!(config.simulation().write_events_interval, 50);
+        assert_eq!(config.simulation().write_plans_interval, 50);
     }
 
     #[test]
@@ -1102,6 +1226,67 @@ mod tests {
                 beeline_distance_factor: 1.3,
                 teleported_mode_speed: 3.0 / 3.6,
             }]
+        );
+    }
+
+    #[test]
+    fn read_replanning_from_yaml() {
+        let yaml = r#"
+        modules:
+          replanning:
+            type: Replanning
+            fraction_of_iterations_to_disable_innovation: 0.8
+            max_agent_plan_memory: 7
+            plan_selector_for_removal: BestScore
+            strategy_settings:
+              - name: ReRoute
+                weight: 0.1
+                subpopulation: person
+              - name: BestScore
+                weight: 0.9
+                subpopulation: freight
+        "#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(
+            parsed_config.replanning(),
+            &Replanning {
+                fraction_of_iterations_to_disable_innovation: 0.8,
+                max_agent_plan_memory: 7,
+                plan_selector_for_removal: "BestScore".to_string(),
+                strategy_settings: vec![
+                    StrategySetting {
+                        name: "ReRoute".to_string(),
+                        weight: 0.1,
+                        subpopulation: "person".to_string(),
+                    },
+                    StrategySetting {
+                        name: "BestScore".to_string(),
+                        weight: 0.9,
+                        subpopulation: "freight".to_string(),
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn replanning_defaults_are_available_on_default_config() {
+        let config = Config::default();
+
+        assert_eq!(
+            config.replanning(),
+            &Replanning {
+                fraction_of_iterations_to_disable_innovation: 1.0,
+                max_agent_plan_memory: 5,
+                plan_selector_for_removal: WORST_SCORE_STRATEGY_NAME.to_string(),
+                strategy_settings: vec![StrategySetting {
+                    name: KEEP_LAST_SELECTED_STRATEGY_NAME.to_string(),
+                    weight: 1.0,
+                    subpopulation: "person".to_string(),
+                }],
+            }
         );
     }
 
@@ -1448,6 +1633,28 @@ modules:
             "3".to_string(),
         )]);
         assert_eq!(config.computational_setup().replanning_threads, 3);
+    }
+
+    #[test]
+    fn override_simulation_iteration_range() {
+        let mut config = base_config();
+        config.apply_overrides(&[
+            ("simulation.first_iteration".to_string(), "12".to_string()),
+            ("simulation.last_iteration".to_string(), "34".to_string()),
+            (
+                "simulation.write_events_interval".to_string(),
+                "7".to_string(),
+            ),
+            (
+                "simulation.write_plans_interval".to_string(),
+                "9".to_string(),
+            ),
+        ]);
+
+        assert_eq!(config.simulation().first_iteration, 12);
+        assert_eq!(config.simulation().last_iteration, 34);
+        assert_eq!(config.simulation().write_events_interval, 7);
+        assert_eq!(config.simulation().write_plans_interval, 9);
     }
 
     #[test]
