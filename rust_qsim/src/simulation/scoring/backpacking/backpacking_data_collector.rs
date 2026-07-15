@@ -63,30 +63,31 @@ impl BackpackingDataCollector {
         self.message_broker.lock().unwrap().attach_senders(senders);
     }
 
-    pub(crate) fn add_arriving_vehicles(
-        &mut self,
-        arriving_vehicles: IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
-    ) {
-        for (vehicle_id, persons) in arriving_vehicles {
-            self.pending_vehicles.remove(&vehicle_id);
-            self.vehicle_id2person_ids.insert(vehicle_id, persons);
-        }
+    /// Drains the scoring message channel into this collector's maps, blocking on each pending
+    /// wait_for_backpack/wait_for_vehicle registration until it is satisfied. Splits self into
+    /// disjoint field borrows so the broker can write directly into the maps and clear
+    /// pending_vehicles entries as vehicle mappings arrive. Called from the BeforeSimStep handler.
+    pub(crate) fn drain_scoring_messages(&mut self) {
+        let mut broker = self.message_broker.lock().unwrap();
+        broker.recv_backpacks(
+            &mut self.person_id2backpack,
+            &mut self.vehicle_id2person_ids,
+            &mut self.pending_vehicles,
+        );
+        broker.recv_vehicles(
+            &mut self.person_id2backpack,
+            &mut self.vehicle_id2person_ids,
+            &mut self.pending_vehicles,
+        );
     }
 
     /// Replays LinkEnterEvents that were buffered because the vehicle-to-person mapping had not
-    /// yet arrived when they fired. Only called from recv_vehicles(), after recv_backpacks() has
-    /// already run, so both backpacks and vehicle mappings are guaranteed to be present.
+    /// yet arrived when they fired. Only called after drain_scoring_messages(), so both backpacks
+    /// and vehicle mappings are guaranteed to be present.
     pub(crate) fn replay_deferred_link_events(&mut self) {
         for event in std::mem::take(&mut self.deferred_link_events) {
             self.handle_event(&event);
         }
-    }
-
-    pub(crate) fn add_arriving_backpacks(
-        &mut self,
-        arriving_backpack: IntMap<Id<InternalPerson>, Backpack>,
-    ) {
-        self.person_id2backpack.extend(arriving_backpack);
     }
 
     pub(crate) fn remove_leaving_vehicles(
@@ -191,7 +192,14 @@ impl BackpackingDataCollector {
             );
         }
 
-        self.message_broker.lock().unwrap().finish_send_recv();
+        {
+            let mut broker = self.message_broker.lock().unwrap();
+            broker.finish_send_recv(
+                &mut self.person_id2backpack,
+                &mut self.vehicle_id2person_ids,
+                &mut self.pending_vehicles,
+            );
+        }
 
         let persons: HashMap<Id<InternalPerson>, InternalPerson> = self
             .person_id2backpack
