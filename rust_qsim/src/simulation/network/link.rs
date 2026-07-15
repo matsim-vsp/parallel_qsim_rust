@@ -187,7 +187,7 @@ struct VehicleQEntry {
 }
 
 impl LocalLink {
-    pub fn from_link(link: &Link, effective_cell_size: f64, config: &config::Simulation) -> Self {
+    pub fn from_link(link: &Link, effective_cell_size: f64, config: &config::QSim) -> Self {
         LocalLink::build(
             link.id.clone(),
             link.capacity,
@@ -226,7 +226,7 @@ impl LocalLink {
         perm_lanes: f64,
         length: f64,
         effective_cell_size: f64,
-        config: &config::Simulation,
+        config: &config::QSim,
         from: Id<Node>,
         to: Id<Node>,
     ) -> Self {
@@ -771,11 +771,7 @@ mod sim_link_tests {
     #[deterministic_id_test]
     pub fn stuck_time() {
         let stuck_threshold = 10;
-        let config = config::Simulation {
-            first_iteration: 0,
-            last_iteration: 0,
-            write_events_interval: 50,
-            write_plans_interval: 50,
+        let config = config::QSim {
             start_time: 0,
             end_time: 0,
             ticks_per_second: 1,
@@ -826,11 +822,7 @@ mod sim_link_tests {
     pub fn stuck_time_reset() {
         let stuck_threshold = 10;
         let earliest_exit: u32 = 10;
-        let config = config::Simulation {
-            first_iteration: 0,
-            last_iteration: 0,
-            write_events_interval: 50,
-            write_plans_interval: 50,
+        let config = config::QSim {
             start_time: 0,
             end_time: 0,
             ticks_per_second: 1,

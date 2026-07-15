@@ -1,6 +1,8 @@
 use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::deterministic_id_test;
-use rust_qsim::simulation::config::{CommandLineArgs, Config, StrategySetting, WriteEvents};
+use rust_qsim::simulation::config::{
+    CommandLineArgs, CompressionType, Config, StrategySetting, WriteEvents,
+};
 use rust_qsim::simulation::events::utils::compare_xml_event_files;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -9,8 +11,8 @@ use std::sync::Arc;
 fn equil_single_part_runs_10_iterations() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
     let mut config = Config::from_args(config_args);
-    config.simulation_mut().first_iteration = 0;
-    config.simulation_mut().last_iteration = 9;
+    config.controller_mut().first_iteration = 0;
+    config.controller_mut().last_iteration = 9;
     config.output_mut().output_dir =
         PathBuf::from("./test_output/simulation/equil_single_part_10_iterations");
 
@@ -28,10 +30,11 @@ fn equil_single_part_writes_events_at_interval_and_last_iteration() {
     let mut config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-1.yml",
     ));
-    config.simulation_mut().first_iteration = 0;
-    config.simulation_mut().last_iteration = 5;
-    config.simulation_mut().write_events_interval = 3;
-    config.output_mut().write_events = WriteEvents::XmlGz;
+    config.controller_mut().first_iteration = 0;
+    config.controller_mut().last_iteration = 5;
+    config.controller_mut().write_events_interval = 3;
+    config.controller_mut().compression_type = CompressionType::Gz;
+    config.output_mut().write_events = WriteEvents::File;
     config.output_mut().output_dir = output_dir.clone();
 
     TestExecutorBuilder::default()
@@ -68,10 +71,11 @@ fn equil_single_part_keep_last_selected_produces_same_events_each_iteration() {
     let mut config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-1.yml",
     ));
-    config.simulation_mut().first_iteration = 1;
-    config.simulation_mut().last_iteration = 3;
-    config.simulation_mut().write_events_interval = 1;
-    config.output_mut().write_events = WriteEvents::XmlGz;
+    config.controller_mut().first_iteration = 1;
+    config.controller_mut().last_iteration = 3;
+    config.controller_mut().write_events_interval = 1;
+    config.controller_mut().compression_type = CompressionType::Gz;
+    config.output_mut().write_events = WriteEvents::File;
     config.output_mut().output_dir = output_dir.clone();
     config.replanning_mut().strategy_settings = vec![StrategySetting {
         name: "KeepLastSelected".to_string(),
@@ -96,10 +100,11 @@ fn equil_single_part_writes_events_for_single_last_iteration() {
     let mut config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-1.yml",
     ));
-    config.simulation_mut().first_iteration = 0;
-    config.simulation_mut().last_iteration = 0;
-    config.simulation_mut().write_events_interval = 50;
-    config.output_mut().write_events = WriteEvents::XmlGz;
+    config.controller_mut().first_iteration = 0;
+    config.controller_mut().last_iteration = 0;
+    config.controller_mut().write_events_interval = 50;
+    config.controller_mut().compression_type = CompressionType::Gz;
+    config.output_mut().write_events = WriteEvents::File;
     config.output_mut().output_dir = output_dir.clone();
 
     TestExecutorBuilder::default()
@@ -138,9 +143,9 @@ fn equil_single_part_write_events_none_creates_no_iteration_events() {
     let mut config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-1.yml",
     ));
-    config.simulation_mut().first_iteration = 0;
-    config.simulation_mut().last_iteration = 3;
-    config.simulation_mut().write_events_interval = 1;
+    config.controller_mut().first_iteration = 0;
+    config.controller_mut().last_iteration = 3;
+    config.controller_mut().write_events_interval = 1;
     config.output_mut().write_events = WriteEvents::None;
     config.output_mut().output_dir = output_dir.clone();
 
@@ -168,9 +173,10 @@ fn equil_single_part_writes_plans_at_interval_and_last_iteration() {
     let mut config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-1.yml",
     ));
-    config.simulation_mut().first_iteration = 0;
-    config.simulation_mut().last_iteration = 5;
-    config.simulation_mut().write_plans_interval = 3;
+    config.controller_mut().first_iteration = 0;
+    config.controller_mut().last_iteration = 5;
+    config.controller_mut().write_plans_interval = 3;
+    config.controller_mut().compression_type = CompressionType::Gz;
     config.output_mut().write_events = WriteEvents::None;
     config.output_mut().output_dir = output_dir.clone();
 
@@ -197,9 +203,10 @@ fn equil_single_part_writes_plans_for_single_last_iteration() {
     let mut config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-1.yml",
     ));
-    config.simulation_mut().first_iteration = 0;
-    config.simulation_mut().last_iteration = 0;
-    config.simulation_mut().write_plans_interval = 50;
+    config.controller_mut().first_iteration = 0;
+    config.controller_mut().last_iteration = 0;
+    config.controller_mut().write_plans_interval = 50;
+    config.controller_mut().compression_type = CompressionType::Gz;
     config.output_mut().write_events = WriteEvents::None;
     config.output_mut().output_dir = output_dir.clone();
 

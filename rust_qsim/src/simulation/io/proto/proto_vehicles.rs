@@ -102,4 +102,29 @@ mod tests {
         assert_eq!(garage.vehicle_types, loaded_garage.vehicle_types);
         assert_eq!(garage.vehicles, loaded_garage.vehicles);
     }
+
+    #[deterministic_id_test]
+    fn test_to_from_file_xml_zstd() {
+        let file = &PathBuf::from(
+            "./test_output/simulation/vehicles/io/test_to_from_file_xml_zstd/vehicles.xml.zst",
+        );
+        let mut garage = Garage::new();
+
+        garage.add_veh_type(InternalVehicleType {
+            id: Id::create("some-type"),
+            length: 10.,
+            width: 20.0,
+            max_v: 1000.0,
+            pce: 20.0,
+            fef: 0.3,
+            net_mode: Id::<String>::create("some-network-type"),
+            attributes: InternalAttributes::default(),
+        });
+        garage.add_veh_by_type(&Id::create("some-person"), &Id::get_from_ext("some-type"));
+
+        to_file(&garage, file);
+        let loaded_garage = from_file(file);
+
+        assert_eq!(garage.vehicle_types, loaded_garage.vehicle_types);
+    }
 }

@@ -1,7 +1,7 @@
 use crate::simulation::Identifiable;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
-use crate::simulation::config::Simulation;
+use crate::simulation::config::QSim;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
@@ -41,7 +41,7 @@ impl<C: SimCommunicator> LegEngine<C> {
         network: SimNetworkPartition,
         garage: Arc<Garage>,
         net_message_broker: NetMessageBroker<C>,
-        config: &Simulation,
+        config: &QSim,
         comp_env: ThreadLocalComputationalEnvironment,
     ) -> Self {
         let clock = SimClock::new(config.ticks_per_second);

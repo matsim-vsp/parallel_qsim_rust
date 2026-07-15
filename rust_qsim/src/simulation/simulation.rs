@@ -131,14 +131,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
     }
 
     pub fn build(self) -> Simulation<C> {
-        let clock = SimClock::new(
-            self.input
-                .partition
-                .scenario
-                .config
-                .simulation()
-                .ticks_per_second,
-        );
+        let clock = SimClock::new(self.input.partition.scenario.config.qsim().ticks_per_second);
 
         let agents = self
             .agent_source
@@ -161,7 +154,7 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             network_partition,
             scenario.garage.clone(),
             self.net_message_broker,
-            scenario.config.simulation(),
+            scenario.config.qsim(),
             self.comp_env.clone(),
         );
 
@@ -169,8 +162,8 @@ impl<C: SimCommunicator> SimulationBuilder<C> {
             activity_engine,
             leg_engine,
             comp_env: self.comp_env,
-            start_tick: clock.secs_to_tick(scenario.config.simulation().start_time as u64),
-            end_tick: clock.secs_to_tick(scenario.config.simulation().end_time as u64),
+            start_tick: clock.secs_to_tick(scenario.config.qsim().start_time as u64),
+            end_tick: clock.secs_to_tick(scenario.config.qsim().end_time as u64),
             clock,
         }
     }

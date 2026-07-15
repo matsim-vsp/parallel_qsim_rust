@@ -3,7 +3,7 @@ pub mod controller;
 
 use crate::external_services::{ExternalServiceType, RequestToAdapter};
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::config::{Config, WriteEvents};
+use crate::simulation::config::{CompressionType, Config, WriteEvents};
 use crate::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
 use crate::simulation::framework_events::{
     MobsimEventsManager, MobsimListenerRegisterFn, PartitionEventsManager,
@@ -536,8 +536,8 @@ impl ReplanningPool {
         Self {
             pool,
             strategy_manager: StrategyManager::from_replanning_config(config.replanning()),
-            first_iteration: config.simulation().first_iteration,
-            last_iteration: config.simulation().last_iteration,
+            first_iteration: config.controller().first_iteration,
+            last_iteration: config.controller().last_iteration,
             innovation_disable_fraction: config
                 .replanning()
                 .fraction_of_iterations_to_disable_innovation,
@@ -593,15 +593,16 @@ fn create_events(
 
     if config.output().write_events != WriteEvents::None {
         assert!(
-            config.simulation().write_events_interval > 0,
-            "Invalid simulation config: write_events_interval must be greater than 0 when event writing is enabled."
+            config.controller().write_events_interval > 0,
+            "Invalid controller config: write_events_interval must be greater than 0 when event writing is enabled."
         );
         IterationEventsWriter::register(
             output_path,
             rank,
             config.output().write_events.clone(),
-            config.simulation().write_events_interval,
-            config.simulation().last_iteration,
+            config.controller().compression_type,
+            config.controller().write_events_interval,
+            config.controller().last_iteration,
         )(&mut events);
     }
 
@@ -637,6 +638,7 @@ struct IterationEventsWriter {
     output_path: PathBuf,
     rank: u32,
     write_events: WriteEvents,
+    compression_type: CompressionType,
     write_events_interval: u32,
     last_iteration: u32,
     active_writer: RefCell<Option<ActiveIterationEventsWriter>>,
@@ -647,6 +649,7 @@ impl IterationEventsWriter {
         output_path: PathBuf,
         rank: u32,
         write_events: WriteEvents,
+        compression_type: CompressionType,
         write_events_interval: u32,
         last_iteration: u32,
     ) -> Box<EventHandlerRegisterFn> {
@@ -655,6 +658,7 @@ impl IterationEventsWriter {
                 output_path,
                 rank,
                 write_events,
+                compression_type,
                 write_events_interval,
                 last_iteration,
                 active_writer: RefCell::new(None),
@@ -692,15 +696,18 @@ impl IterationEventsWriter {
 
         let writer = match &self.write_events {
             WriteEvents::None => return,
-            WriteEvents::Proto => {
-                let events_path = events_dir.join(format!("events.{}.binpb", self.rank));
+            WriteEvents::File => {
+                let events_path = events_dir.join(format!(
+                    "events.{}.{}",
+                    self.rank,
+                    self.compression_type.extension()
+                ));
                 info!("adding events writer with path: {events_path:?}");
-                ActiveIterationEventsWriter::Proto(ProtoEventsWriter::new(events_path))
-            }
-            WriteEvents::XmlGz => {
-                let events_path = events_dir.join(format!("events.{}.xml.gz", self.rank));
-                info!("adding events writer with path: {events_path:?}");
-                ActiveIterationEventsWriter::XmlGz(XmlEventsWriter::new(events_path))
+                if self.compression_type.is_protobuf() {
+                    ActiveIterationEventsWriter::Proto(ProtoEventsWriter::new(events_path))
+                } else {
+                    ActiveIterationEventsWriter::XmlGz(XmlEventsWriter::new(events_path))
+                }
             }
         };
 
@@ -746,7 +753,9 @@ pub fn create_output_filename(
 pub(crate) fn insert_number_in_proto_filename(path: impl AsRef<Path>, part: u32) -> PathBuf {
     let filename = path.as_ref().file_name().unwrap().to_str().unwrap();
 
-    let (stripped, ext) = if filename.ends_with(".xml.gz") {
+    let (stripped, ext) = if filename.ends_with(".xml.zst") {
+        (filename.strip_suffix(".xml.zst").unwrap(), "xml.zst")
+    } else if filename.ends_with(".xml.gz") {
         (filename.strip_suffix(".xml.gz").unwrap(), "xml.gz")
     } else if filename.ends_with(".xml") {
         (filename.strip_suffix(".xml").unwrap(), "xml")
@@ -784,7 +793,7 @@ mod tests {
     #[deterministic_id_test]
     fn mobsim_worker_pool_runs_empty_population_and_shuts_down() {
         let mut config = Config::default();
-        config.simulation_mut().end_time = 0;
+        config.qsim_mut().end_time = 0;
         let config = Arc::new(config);
         let scenario_core = ScenarioCore {
             network: Arc::new(Network::new()),
@@ -835,7 +844,7 @@ mod tests {
         let network_partition = SimNetworkPartition::from_network(
             &scenario.network,
             0,
-            scenario.config.simulation(),
+            scenario.config.qsim(),
             scenario.config.computational_setup().random_seed,
         );
 
