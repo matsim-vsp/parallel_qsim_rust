@@ -22,6 +22,7 @@ modules:
     mode: UsePlans
   simulation:
     type: Simulation
+    last_iteration: 0
     start_time: 0
     end_time: 86400
     sample_size: 1.0

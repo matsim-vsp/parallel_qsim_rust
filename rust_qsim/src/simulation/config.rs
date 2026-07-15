@@ -537,6 +537,8 @@ impl Default for Routing {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Simulation {
+    pub first_iteration: u32,
+    pub last_iteration: u32,
     pub start_time: u32,
     pub end_time: u32,
     pub ticks_per_second: u32,
@@ -544,6 +546,14 @@ pub struct Simulation {
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
 }
+
+register_override!("simulation.first_iteration", |config, value| {
+    config.simulation_mut().first_iteration = value.parse().unwrap();
+});
+
+register_override!("simulation.last_iteration", |config, value| {
+    config.simulation_mut().last_iteration = value.parse().unwrap();
+});
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 #[serde(default)]
@@ -690,6 +700,8 @@ dyn_clone::clone_trait_object!(ConfigModule);
 impl Default for Simulation {
     fn default() -> Self {
         Self {
+            first_iteration: 0,
+            last_iteration: 1000,
             start_time: 0,
             end_time: 86400,
             ticks_per_second: 1,
@@ -930,6 +942,8 @@ mod tests {
         };
 
         let simulation = Simulation {
+            first_iteration: 2,
+            last_iteration: 4,
             start_time: 0,
             end_time: 42,
             ticks_per_second: 1,
@@ -969,12 +983,22 @@ mod tests {
         assert_eq!(parsed_config.computational_setup().replanning_threads, 7);
         assert_eq!(parsed_config.computational_setup().retry_time_seconds, 41);
 
+        assert_eq!(parsed_config.simulation().first_iteration, 2);
+        assert_eq!(parsed_config.simulation().last_iteration, 4);
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);
         assert_eq!(parsed_config.simulation().ticks_per_second, 1);
         assert_eq!(parsed_config.simulation().sample_size, 0.1);
         assert_eq!(parsed_config.simulation().stuck_threshold, 1);
         assert_eq!(parsed_config.simulation().main_modes, vec!["bike"]);
+    }
+
+    #[test]
+    fn simulation_defaults_include_iteration_range() {
+        let config = Config::default();
+
+        assert_eq!(config.simulation().first_iteration, 0);
+        assert_eq!(config.simulation().last_iteration, 1000);
     }
 
     #[test]
@@ -1448,6 +1472,18 @@ modules:
             "3".to_string(),
         )]);
         assert_eq!(config.computational_setup().replanning_threads, 3);
+    }
+
+    #[test]
+    fn override_simulation_iteration_range() {
+        let mut config = base_config();
+        config.apply_overrides(&[
+            ("simulation.first_iteration".to_string(), "12".to_string()),
+            ("simulation.last_iteration".to_string(), "34".to_string()),
+        ]);
+
+        assert_eq!(config.simulation().first_iteration, 12);
+        assert_eq!(config.simulation().last_iteration, 34);
     }
 
     #[test]

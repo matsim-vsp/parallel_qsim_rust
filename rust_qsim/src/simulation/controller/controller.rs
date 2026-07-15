@@ -224,8 +224,17 @@ impl ControllerBuilder {
 impl Controller {
     /// Runs the simulation and joins all threads before returning.
     pub fn run(mut self) {
+        let first_iteration = self.config.simulation().first_iteration;
+        let last_iteration = self.config.simulation().last_iteration;
+        assert!(
+            first_iteration <= last_iteration,
+            "Invalid simulation iteration range: first_iteration ({first_iteration}) must be less than or equal to last_iteration ({last_iteration})."
+        );
+
         self.controller_events_manager
-            .process_event(ControllerEvent::startup(true));
+            .reset_iteration(first_iteration);
+        self.controller_events_manager
+            .process_event(ControllerEvent::startup(first_iteration == last_iteration));
 
         let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
         let events_path = output_path.join("events");
@@ -241,14 +250,13 @@ impl Controller {
             fs::create_dir_all(&log_path).expect("Failed to create logs output path");
         }
 
-        let end_iter = 0u32;
         let mut mobsim_workers = self.start_mobsim_workers();
         let replanning_pool = ReplanningPool::new(&self.config);
 
-        for iteration in 0..=end_iter {
+        for iteration in first_iteration..=last_iteration {
             self.run_iteration(
                 iteration,
-                end_iter,
+                last_iteration,
                 &mut mobsim_workers,
                 &replanning_pool,
                 &output_path,

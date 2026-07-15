@@ -26,4 +26,5 @@ modules:
     mode: AdHoc
   simulation:
     type: Simulation
+    last_iteration: 0
     main_modes: [ "car" ]

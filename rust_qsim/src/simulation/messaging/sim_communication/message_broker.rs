@@ -351,6 +351,8 @@ mod tests {
     ) -> NetMessageBroker<ChannelSimCommunicator> {
         let rank = communicator.rank();
         let config = config::Simulation {
+            first_iteration: 0,
+            last_iteration: 0,
             start_time: 0,
             end_time: 0,
             ticks_per_second: 1,

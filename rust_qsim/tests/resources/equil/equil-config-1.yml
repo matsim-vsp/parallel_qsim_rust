@@ -24,4 +24,5 @@ modules:
     mode: UsePlans
   simulation:
     type: Simulation
+    last_iteration: 0
     main_modes: [ "car" ]
