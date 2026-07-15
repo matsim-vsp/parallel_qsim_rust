@@ -468,7 +468,7 @@ mod tests {
     }
 
     /// simple test of Dijkstra (A* with zero heuristic) and free speed travel disutility
-    #[test]
+    #[deterministic_id_test]
     fn test_simple_dijkstra_routing() {
         let network = get_triangle_test_network();
 
@@ -666,7 +666,7 @@ mod tests {
     }
 
     /// Test that ALT heuristic and zero heuristic find the same optimal path
-    #[test]
+    #[deterministic_id_test]
     fn test_alt_vs_zero_heuristic_same_result() {
         let network = Arc::new(get_triangle_test_network());
 
@@ -707,7 +707,7 @@ mod tests {
     }
 
     /// Test that one shared ALT router can serve multiple route requests in parallel.
-    #[test]
+    #[deterministic_id_test]
     fn test_shared_alt_router_parallel_routes() {
         let network = Arc::new(get_triangle_test_network());
         let travel_cost = Arc::new(FreeOrMaxSpeedTravelTimeAndDisutility);
@@ -752,7 +752,7 @@ mod tests {
     }
 
     /// Test routing when start and destination are the same (zero distance)
-    #[test]
+    #[deterministic_id_test]
     fn test_same_start_and_destination() {
         let network = get_triangle_test_network();
 
@@ -779,7 +779,7 @@ mod tests {
 
     /// Test time-dependent routing: when travel disutility varies with time, the returned travel
     /// disutility differs from the time-independent case, even if the travel times are the same.
-    #[test]
+    #[deterministic_id_test]
     fn test_time_dependent_routing() {
         let network = Arc::new(get_triangle_test_network());
 
@@ -841,7 +841,7 @@ mod tests {
     }
 
     /// Test routing with non-existing or disconnected links, should return None
-    #[test]
+    #[deterministic_id_test]
     fn test_nonexisting_or_disconnected_links() {
         let network = Network::from_file(
             "./assets/adhoc_routing/no_updates/network.xml",
@@ -887,7 +887,7 @@ mod tests {
 
     /// Test that ALT heuristic provides a valid admissible lower bound
     /// (never overestimates the actual distance)
-    #[test]
+    #[deterministic_id_test]
     fn test_alt_heuristic_admissibility() {
         let network = get_triangle_test_network();
         let graph = net_to_graph(&network);

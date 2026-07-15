@@ -1,5 +1,6 @@
 use crate::simulation::config::VertexWeight::InLinkCapacity;
 use crate::simulation::io::is_url;
+use crate::simulation::replanning::{KEEP_LAST_SELECTED_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME};
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
 use dyn_clone::DynClone;
@@ -591,9 +592,9 @@ impl Default for Replanning {
         Self {
             fraction_of_iterations_to_disable_innovation: 1.0,
             max_agent_plan_memory: 5,
-            plan_selector_for_removal: "WorstSelector".to_string(),
+            plan_selector_for_removal: WORST_SCORE_STRATEGY_NAME.to_string(),
             strategy_settings: vec![StrategySetting {
-                name: "KeepLastSelected".to_string(),
+                name: KEEP_LAST_SELECTED_STRATEGY_NAME.to_string(),
                 weight: 1.0,
                 subpopulation: "person".to_string(),
             }],
@@ -1007,6 +1008,9 @@ mod tests {
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
+    use crate::simulation::replanning::{
+        KEEP_LAST_SELECTED_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME,
+    };
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -1276,9 +1280,9 @@ mod tests {
             &Replanning {
                 fraction_of_iterations_to_disable_innovation: 1.0,
                 max_agent_plan_memory: 5,
-                plan_selector_for_removal: "WorstSelector".to_string(),
+                plan_selector_for_removal: WORST_SCORE_STRATEGY_NAME.to_string(),
                 strategy_settings: vec![StrategySetting {
-                    name: "KeepLastSelected".to_string(),
+                    name: KEEP_LAST_SELECTED_STRATEGY_NAME.to_string(),
                     weight: 1.0,
                     subpopulation: "person".to_string(),
                 }],

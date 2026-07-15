@@ -718,6 +718,7 @@ impl IterationEventsWriter {
         }
     }
 
+    /// Takes the active writer and calls finish on it, if it exists. This is called when the iteration is reset or when the simulation is finished.
     fn finish(&self) {
         if let Some(mut writer) = self.active_writer.borrow_mut().take() {
             writer.finish();
@@ -776,10 +777,11 @@ mod tests {
     use crate::simulation::scenario::{
         MobsimInput, MobsimScenarioPartition, PopulationShard, ScenarioCore,
     };
+    use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
     use std::sync::{Arc, Barrier};
 
-    #[test]
+    #[deterministic_id_test]
     fn mobsim_worker_pool_runs_empty_population_and_shuts_down() {
         let mut config = Config::default();
         config.simulation_mut().end_time = 0;
@@ -807,7 +809,7 @@ mod tests {
         pool.shutdown();
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn replanning_pool_noop_preserves_person_ids() {
         let mut config = Config::default();
         config.computational_setup_mut().replanning_threads = 2;

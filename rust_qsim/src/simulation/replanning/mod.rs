@@ -13,6 +13,11 @@ pub mod routing;
 
 const STRATEGY_RNG_PURPOSE: &str = "replanning.strategy";
 const RANDOM_SELECTOR_RNG_PURPOSE: &str = "replanning.selector.random";
+pub const KEEP_LAST_SELECTED_STRATEGY_NAME: &str = "KeepLastSelected";
+pub const BEST_SCORE_STRATEGY_NAME: &str = "BestScore";
+pub const SELECT_RANDOM_STRATEGY_NAME: &str = "SelectRandom";
+pub const WORST_SCORE_STRATEGY_NAME: &str = "WorstScore";
+pub const RE_ROUTE_STRATEGY_NAME: &str = "ReRoute";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DefaultSelector {
@@ -25,10 +30,10 @@ pub enum DefaultSelector {
 impl DefaultSelector {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::KeepLastSelected => "KeepLastSelected",
-            Self::BestScore => "BestScore",
-            Self::SelectRandom => "SelectRandom",
-            Self::WorstScore => "WorstScore",
+            Self::KeepLastSelected => KEEP_LAST_SELECTED_STRATEGY_NAME,
+            Self::BestScore => BEST_SCORE_STRATEGY_NAME,
+            Self::SelectRandom => SELECT_RANDOM_STRATEGY_NAME,
+            Self::WorstScore => WORST_SCORE_STRATEGY_NAME,
         }
     }
 
@@ -63,9 +68,10 @@ impl FromStr for DefaultSelector {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
-            "KeepLastSelected" => Ok(Self::KeepLastSelected),
-            "BestScore" => Ok(Self::BestScore),
-            "SelectRandom" => Ok(Self::SelectRandom),
+            KEEP_LAST_SELECTED_STRATEGY_NAME => Ok(Self::KeepLastSelected),
+            BEST_SCORE_STRATEGY_NAME => Ok(Self::BestScore),
+            SELECT_RANDOM_STRATEGY_NAME => Ok(Self::SelectRandom),
+            WORST_SCORE_STRATEGY_NAME => Ok(Self::WorstScore),
             _ => Err(format!("Unknown DefaultSelector: {value}")),
         }
     }
@@ -79,7 +85,7 @@ pub enum DefaultStrategy {
 impl DefaultStrategy {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::ReRoute => "ReRoute",
+            Self::ReRoute => RE_ROUTE_STRATEGY_NAME,
         }
     }
 
@@ -105,7 +111,7 @@ impl FromStr for DefaultStrategy {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
-            "ReRoute" => Ok(Self::ReRoute),
+            RE_ROUTE_STRATEGY_NAME => Ok(Self::ReRoute),
             _ => Err(format!("Unknown DefaultStrategy: {value}")),
         }
     }
