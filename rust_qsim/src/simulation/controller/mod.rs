@@ -615,21 +615,21 @@ fn create_events(
 
 enum ActiveIterationEventsWriter {
     Proto(ProtoEventsWriter),
-    XmlGz(XmlEventsWriter),
+    Xml(XmlEventsWriter),
 }
 
 impl ActiveIterationEventsWriter {
     fn on_any(&mut self, event: &dyn EventTrait) {
         match self {
             Self::Proto(writer) => writer.on_any(event),
-            Self::XmlGz(writer) => writer.on_any(event),
+            Self::Xml(writer) => writer.on_any(event),
         }
     }
 
     fn finish(&mut self) {
         match self {
             Self::Proto(writer) => writer.finish(),
-            Self::XmlGz(writer) => writer.finish(),
+            Self::Xml(writer) => writer.finish(),
         }
     }
 }
@@ -703,10 +703,13 @@ impl IterationEventsWriter {
                     self.compression_type.extension()
                 ));
                 info!("adding events writer with path: {events_path:?}");
-                if self.compression_type.is_protobuf() {
-                    ActiveIterationEventsWriter::Proto(ProtoEventsWriter::new(events_path))
-                } else {
-                    ActiveIterationEventsWriter::XmlGz(XmlEventsWriter::new(events_path))
+                match self.compression_type {
+                    CompressionType::Proto => {
+                        ActiveIterationEventsWriter::Proto(ProtoEventsWriter::new(events_path))
+                    }
+                    CompressionType::None | CompressionType::Gz | CompressionType::Zst => {
+                        ActiveIterationEventsWriter::Xml(XmlEventsWriter::new(events_path))
+                    }
                 }
             }
         };

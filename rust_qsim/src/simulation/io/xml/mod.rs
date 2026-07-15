@@ -140,87 +140,50 @@ where
     }
 }
 
+fn write_xml_payload<T: Serialize>(
+    serde_message: &T,
+    writer: &mut impl Write,
+    dtd_spec: &str,
+    include_xml_declaration: bool,
+) {
+    if include_xml_declaration {
+        writer
+            .write_all(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+            .expect("Failed to write XML declaration");
+    }
+
+    writer
+        .write_all(dtd_spec.as_bytes())
+        .expect("Failed to write header");
+    writer.write_all(b"\n\n").expect("Failed to write newlines");
+
+    let mut fmt_writer = ToFmtWrite(writer);
+    let mut serializer = quick_xml::se::Serializer::new(&mut fmt_writer);
+    serializer.indent(' ', 4);
+    serde_message
+        .serialize(serializer)
+        .expect("Failed to write message to file");
+}
+
 pub fn write_to_file<T: Serialize>(serde_message: &T, path: impl AsRef<Path>, dtd_spec: &str) {
     let prefix = path.as_ref().parent().unwrap();
     fs::create_dir_all(prefix).unwrap();
     let file = File::create(path.as_ref()).unwrap();
-    let mut file_writer = BufWriter::new(file);
+    let file_writer = BufWriter::new(file);
 
     info!("Starting to write file to: {:?}", path.as_ref());
     if path.as_ref().extension().unwrap().eq("gz") {
         let mut compressor = flate2::write::GzEncoder::new(file_writer, Compression::fast());
-
-        compressor
-            .write_all(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
-            .expect("Failed to write XML declaration");
-
-        // write header. first: dtd spec
-        compressor
-            .write_all(dtd_spec.as_bytes())
-            .expect("Failed to write header");
-
-        // then add two new lines for visual separation
-        compressor
-            .write_all(b"\n\n")
-            .expect("Failed to write newlines");
-
-        // set up serializer
-        let mut tfw_compressor = ToFmtWrite(&mut compressor);
-        let mut serializer = quick_xml::se::Serializer::new(&mut tfw_compressor);
-        serializer.indent(' ', 4); // configure indentation
-
-        // serialize the actual message
-        serde_message
-            .serialize(serializer)
-            .expect("Failed to write message to file");
+        write_xml_payload(serde_message, &mut compressor, dtd_spec, true);
         compressor.finish().expect("Failed to finish gz stream");
     } else if path.as_ref().extension().unwrap().eq("zst") {
         let mut compressor =
             ZstdEncoder::new(file_writer, 0).expect("Failed to create zstd encoder");
-
-        compressor
-            .write_all(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
-            .expect("Failed to write XML declaration");
-
-        compressor
-            .write_all(dtd_spec.as_bytes())
-            .expect("Failed to write header");
-
-        compressor
-            .write_all(b"\n\n")
-            .expect("Failed to write newlines");
-
-        {
-            let mut tfw_compressor = ToFmtWrite(&mut compressor);
-            let mut serializer = quick_xml::se::Serializer::new(&mut tfw_compressor);
-            serializer.indent(' ', 4);
-
-            serde_message
-                .serialize(serializer)
-                .expect("Failed to write message to file");
-        }
-
+        write_xml_payload(serde_message, &mut compressor, dtd_spec, true);
         compressor.finish().expect("Failed to finish zstd stream");
     } else if path.as_ref().extension().unwrap().eq("xml") {
-        // write header. first: dtd spec
-        file_writer
-            .write_all(dtd_spec.as_bytes())
-            .expect("Failed to write header");
-
-        // then add two new lines for visual separation
-        file_writer
-            .write_all(b"\n\n")
-            .expect("Failed to write newlines");
-
-        // set up serializer
-        let mut tfw_file_writer = ToFmtWrite(file_writer);
-        let mut serializer = quick_xml::se::Serializer::new(&mut tfw_file_writer);
-        serializer.indent(' ', 4);
-
-        // serialize the actual message
-        serde_message
-            .serialize(serializer)
-            .expect("failed to write serde message");
+        let mut file_writer = file_writer;
+        write_xml_payload(serde_message, &mut file_writer, dtd_spec, false);
     } else {
         panic!(
             "Tried to write {:?}. File format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension",
