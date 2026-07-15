@@ -1,5 +1,5 @@
 use crate::external_services::AdapterHandle;
-use crate::simulation::config::{Config, Logging, OverwriteFiles, write_config};
+use crate::simulation::config::{Config, Logging, OverwriteFiles, WriteEvents, write_config};
 use crate::simulation::controller::{
     ExternalServices, MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool,
     create_output_filename,
@@ -230,6 +230,11 @@ impl Controller {
             first_iteration <= last_iteration,
             "Invalid simulation iteration range: first_iteration ({first_iteration}) must be less than or equal to last_iteration ({last_iteration})."
         );
+        assert!(
+            self.config.output().write_events == WriteEvents::None
+                || self.config.simulation().write_events_interval > 0,
+            "Invalid simulation config: write_events_interval must be greater than 0 when event writing is enabled."
+        );
 
         self.controller_events_manager
             .reset_iteration(first_iteration);
@@ -237,12 +242,10 @@ impl Controller {
             .process_event(ControllerEvent::startup(first_iteration == last_iteration));
 
         let output_path = io::resolve_path(self.config.context(), &self.config.output().output_dir);
-        let events_path = output_path.join("events");
         let iters_path = output_path.join("ITERS");
 
         prepare_output_directory(&output_path, self.config.output().overwrite_files)
             .unwrap_or_else(|err| panic!("{err}"));
-        fs::create_dir_all(&events_path).expect("Failed to create events output path");
         fs::create_dir_all(&iters_path).expect("Failed to create iters output path");
 
         if Logging::Info == self.config.output().logging {
@@ -259,7 +262,7 @@ impl Controller {
                 last_iteration,
                 &mut mobsim_workers,
                 &replanning_pool,
-                &output_path,
+                &iters_path,
             );
         }
 
@@ -417,7 +420,7 @@ impl Controller {
 
     fn write_output_population(&mut self, output_path: impl AsRef<Path>) {
         let pop_out_path =
-            create_output_filename(&output_path, &PathBuf::from("output_population.xml.gz"));
+            create_output_filename(&output_path, &PathBuf::from("output_plans.xml.gz"));
 
         self.scenario.population.to_file(&pop_out_path);
     }

@@ -6,6 +6,8 @@ mod empty;
 mod equil;
 #[path = "simulation/equil_teleport.rs"]
 mod equil_teleport;
+#[path = "simulation/iterations.rs"]
+mod iterations;
 #[path = "simulation/pt.rs"]
 mod pt;
 #[path = "simulation/three_links.rs"]

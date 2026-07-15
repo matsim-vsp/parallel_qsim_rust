@@ -36,8 +36,9 @@ fn empty_simulation_uses_configured_iteration_range() {
         .unwrap();
     controller.run();
 
-    assert!(!output_dir.join("it.0").exists());
-    assert!(!output_dir.join("it.1").exists());
-    assert!(output_dir.join("it.2").exists());
-    assert!(output_dir.join("it.3").exists());
+    let iters_dir = output_dir.join("ITERS");
+    assert!(!iters_dir.join("it.0").exists());
+    assert!(!iters_dir.join("it.1").exists());
+    assert!(iters_dir.join("it.2").exists());
+    assert!(iters_dir.join("it.3").exists());
 }

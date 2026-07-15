@@ -187,7 +187,7 @@ impl XmlEventsWriter {
             .expect("Error while writing event");
     }
 
-    fn finish(&self) {
+    pub fn finish(&self) {
         let closing_tag = "</events>";
         self.write(closing_tag);
         info!("Finishing Events File. Calling flush on Buffered Writer.");

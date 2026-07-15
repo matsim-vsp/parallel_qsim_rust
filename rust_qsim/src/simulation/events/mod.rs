@@ -58,6 +58,7 @@ impl PartialEq for dyn EventTrait {
 
 type HandleEventFn = dyn Fn(&dyn EventTrait) + 'static;
 type ResetIterationFn = dyn Fn(u32) + 'static;
+type FinishFn = dyn Fn() + 'static;
 
 /// This is a meta function. It is used to register functions at the [EventsManager] that handle events. Also check the documentation there.
 /// This function gets a `&mut` to [EventsManager] and then registers the callbacks for the specific event types.
@@ -83,7 +84,7 @@ pub struct EventsManager {
     per_type: HashMap<TypeId, Vec<Rc<HandleEventFn>>>,
     catch_all: Vec<Box<HandleEventFn>>,
     reset_iteration: Vec<Box<ResetIterationFn>>,
-    finish: Vec<Box<dyn Fn() + 'static>>,
+    finish: Vec<Box<FinishFn>>,
 }
 
 impl Debug for EventsManager {
