@@ -27,6 +27,7 @@ fn empty_simulation_uses_configured_iteration_range() {
     config.simulation_mut().first_iteration = 2;
     config.simulation_mut().last_iteration = 3;
     config.simulation_mut().end_time = 0;
+    config.simulation_mut().write_plans_interval = 1;
     config.output_mut().overwrite_files = OverwriteFiles::DeleteDirectoryIfExists;
     config.output_mut().output_dir = output_dir.clone();
 

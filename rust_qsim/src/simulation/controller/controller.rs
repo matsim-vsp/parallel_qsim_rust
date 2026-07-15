@@ -235,6 +235,10 @@ impl Controller {
                 || self.config.simulation().write_events_interval > 0,
             "Invalid simulation config: write_events_interval must be greater than 0 when event writing is enabled."
         );
+        assert!(
+            self.config.simulation().write_plans_interval > 0,
+            "Invalid simulation config: write_plans_interval must be greater than 0."
+        );
 
         self.controller_events_manager
             .reset_iteration(first_iteration);
@@ -302,7 +306,9 @@ impl Controller {
         let population = self.run_mobsim_phase(iteration, is_last_iteration, mobsim_workers);
         let population = self.run_scoring_phase(iteration, is_last_iteration, population);
 
-        self.write_iteration_files(iteration, iters_path, &population);
+        if self.should_write_iteration_plans(iteration, is_last_iteration) {
+            self.write_iteration_files(iteration, iters_path, &population);
+        }
 
         let population = if is_last_iteration {
             population
@@ -439,6 +445,11 @@ impl Controller {
         //TODO once we have a switch in the config for the type, use that one.
         population.to_file(&iter_path.join("output_plans.xml.gz"));
         //TODO also write the events & experienced plans
+    }
+
+    fn should_write_iteration_plans(&self, iteration: u32, is_last_iteration: bool) -> bool {
+        is_last_iteration
+            || (iteration != 0 && iteration % self.config.simulation().write_plans_interval == 0)
     }
 }
 

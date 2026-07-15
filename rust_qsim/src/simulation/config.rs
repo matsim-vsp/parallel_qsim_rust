@@ -540,6 +540,7 @@ pub struct Simulation {
     pub first_iteration: u32,
     pub last_iteration: u32,
     pub write_events_interval: u32,
+    pub write_plans_interval: u32,
     pub start_time: u32,
     pub end_time: u32,
     pub ticks_per_second: u32,
@@ -558,6 +559,10 @@ register_override!("simulation.last_iteration", |config, value| {
 
 register_override!("simulation.write_events_interval", |config, value| {
     config.simulation_mut().write_events_interval = value.parse().unwrap();
+});
+
+register_override!("simulation.write_plans_interval", |config, value| {
+    config.simulation_mut().write_plans_interval = value.parse().unwrap();
 });
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -708,6 +713,7 @@ impl Default for Simulation {
             first_iteration: 0,
             last_iteration: 1000,
             write_events_interval: 50,
+            write_plans_interval: 50,
             start_time: 0,
             end_time: 86400,
             ticks_per_second: 1,
@@ -951,6 +957,7 @@ mod tests {
             first_iteration: 2,
             last_iteration: 4,
             write_events_interval: 3,
+            write_plans_interval: 5,
             start_time: 0,
             end_time: 42,
             ticks_per_second: 1,
@@ -993,6 +1000,7 @@ mod tests {
         assert_eq!(parsed_config.simulation().first_iteration, 2);
         assert_eq!(parsed_config.simulation().last_iteration, 4);
         assert_eq!(parsed_config.simulation().write_events_interval, 3);
+        assert_eq!(parsed_config.simulation().write_plans_interval, 5);
         assert_eq!(parsed_config.simulation().start_time, 0);
         assert_eq!(parsed_config.simulation().end_time, 42);
         assert_eq!(parsed_config.simulation().ticks_per_second, 1);
@@ -1008,6 +1016,7 @@ mod tests {
         assert_eq!(config.simulation().first_iteration, 0);
         assert_eq!(config.simulation().last_iteration, 1000);
         assert_eq!(config.simulation().write_events_interval, 50);
+        assert_eq!(config.simulation().write_plans_interval, 50);
     }
 
     #[test]
@@ -1493,11 +1502,16 @@ modules:
                 "simulation.write_events_interval".to_string(),
                 "7".to_string(),
             ),
+            (
+                "simulation.write_plans_interval".to_string(),
+                "9".to_string(),
+            ),
         ]);
 
         assert_eq!(config.simulation().first_iteration, 12);
         assert_eq!(config.simulation().last_iteration, 34);
         assert_eq!(config.simulation().write_events_interval, 7);
+        assert_eq!(config.simulation().write_plans_interval, 9);
     }
 
     #[test]
