@@ -14,7 +14,7 @@ use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
-use crate::simulation::replanning::replan_population;
+use crate::simulation::replanning::{StrategyManager, replan_population};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::{MobsimInput, ScenarioCore};
 use crate::simulation::simulation::{Simulation, SimulationBuilder};
@@ -513,6 +513,10 @@ impl MobsimWorker {
 
 pub(crate) struct ReplanningPool {
     pool: Option<rayon::ThreadPool>,
+    strategy_manager: StrategyManager,
+    first_iteration: u32,
+    last_iteration: u32,
+    innovation_disable_fraction: f64,
 }
 
 impl ReplanningPool {
@@ -529,7 +533,15 @@ impl ReplanningPool {
                     .expect("Failed to build replanning thread pool."),
             )
         };
-        Self { pool }
+        Self {
+            pool,
+            strategy_manager: StrategyManager::from_replanning_config(config.replanning()),
+            first_iteration: config.simulation().first_iteration,
+            last_iteration: config.simulation().last_iteration,
+            innovation_disable_fraction: config
+                .replanning()
+                .fraction_of_iterations_to_disable_innovation,
+        }
     }
 
     pub(crate) fn replan(
@@ -538,10 +550,35 @@ impl ReplanningPool {
         iteration: u32,
         base_seed: u64,
     ) -> Population {
+        let innovation_disabled = self.innovation_disabled(iteration);
         match &self.pool {
-            Some(pool) => pool.install(|| replan_population(population, iteration, base_seed)),
-            None => replan_population(population, iteration, base_seed),
+            Some(pool) => pool.install(|| {
+                replan_population(
+                    population,
+                    iteration,
+                    base_seed,
+                    &self.strategy_manager,
+                    innovation_disabled,
+                )
+            }),
+            None => replan_population(
+                population,
+                iteration,
+                base_seed,
+                &self.strategy_manager,
+                innovation_disabled,
+            ),
         }
+    }
+
+    fn innovation_disabled(&self, iteration: u32) -> bool {
+        let total_iterations = self.last_iteration.saturating_sub(self.first_iteration);
+        let progress = if total_iterations == 0 {
+            1.0
+        } else {
+            iteration.saturating_sub(self.first_iteration) as f64 / total_iterations as f64
+        };
+        progress >= self.innovation_disable_fraction
     }
 }
 

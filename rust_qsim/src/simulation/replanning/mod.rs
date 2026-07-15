@@ -1,3 +1,4 @@
+use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::random::get_rng;
 use crate::simulation::scenario::population::{DEFAULT_SUBPOPULATION, InternalPerson, Population};
@@ -18,6 +19,7 @@ pub enum DefaultSelector {
     KeepLastSelected,
     BestScore,
     SelectRandom,
+    WorstScore,
 }
 
 impl DefaultSelector {
@@ -26,20 +28,25 @@ impl DefaultSelector {
             Self::KeepLastSelected => "KeepLastSelected",
             Self::BestScore => "BestScore",
             Self::SelectRandom => "SelectRandom",
+            Self::WorstScore => "WorstScore",
         }
     }
 
-    pub(crate) fn generic_plan_strategy(self) -> Box<dyn PlanStrategy> {
-        let name = Id::create(self.as_str());
-        let selector: Box<dyn PlanSelector> = match self {
+    fn as_plan_selector(self) -> Box<dyn PlanSelector> {
+        match self {
             Self::KeepLastSelected => Box::new(KeepLastSelector),
             Self::BestScore => Box::new(BestScoreSelector),
             Self::SelectRandom => Box::new(RandomSelector),
-        };
+            Self::WorstScore => Box::new(WorstScoreSelector),
+        }
+    }
+
+    fn as_generic_plan_strategy(self) -> Box<dyn PlanStrategy> {
+        let name = Id::create(self.as_str());
 
         Box::new(GenericPlanStrategy {
             name,
-            selector,
+            selector: self.as_plan_selector(),
             modules: Vec::new(),
         })
     }
@@ -75,6 +82,16 @@ impl DefaultStrategy {
             Self::ReRoute => "ReRoute",
         }
     }
+
+    fn as_generic_plan_strategy(self) -> Box<dyn PlanStrategy> {
+        match self {
+            Self::ReRoute => Box::new(GenericPlanStrategy {
+                name: Id::create(self.as_str()),
+                selector: Box::new(KeepLastSelector),
+                modules: vec![Box::new(ReRouteModule {})],
+            }),
+        }
+    }
 }
 
 impl fmt::Display for DefaultStrategy {
@@ -98,15 +115,16 @@ pub(crate) fn replan_population(
     population: Population,
     iteration: u32,
     base_seed: u64,
+    strategy_manager: &StrategyManager,
+    innovation_disabled: bool,
 ) -> Population {
-    let manager = StrategyManager::default();
     let persons = population
         .persons
         .into_iter()
         .collect::<Vec<_>>()
         .into_par_iter()
         .map(|(id, mut person)| {
-            manager.run(iteration, base_seed, &mut person);
+            strategy_manager.run(iteration, base_seed, innovation_disabled, &mut person);
             (id, person)
         })
         .collect();
@@ -133,10 +151,32 @@ impl StrategyManager {
         StrategyManagerBuilder::default()
     }
 
-    fn run(&self, iteration: u32, base_seed: u64, person: &mut InternalPerson) {
+    pub(crate) fn from_replanning_config(replanning: &config::Replanning) -> Self {
+        let weights_per_subpopulation =
+            weights_per_subpopulation_from_settings(&replanning.strategy_settings);
+
+        StrategyManager::builder()
+            .weights_per_subpopulation(weights_per_subpopulation)
+            .max_memory_size(replanning.max_agent_plan_memory as usize)
+            .plan_remover(plan_selector_from_config_name(
+                &replanning.plan_selector_for_removal,
+            ))
+            .strategies(default_strategies())
+            .build()
+            .unwrap()
+    }
+
+    fn run(
+        &self,
+        iteration: u32,
+        base_seed: u64,
+        innovation_disabled: bool,
+        person: &mut InternalPerson,
+    ) {
         let context = ReplanningContext {
             iteration,
             base_seed,
+            innovation_disabled,
         };
         if let Some(strategy) = self.choose_strategy(&context, person) {
             strategy.handle(person, &context);
@@ -150,7 +190,16 @@ impl StrategyManager {
         person: &InternalPerson,
     ) -> Option<&dyn PlanStrategy> {
         let weights = self.weights_per_subpopulation.get(person.subpopulation())?;
-        let total_weight = weights.total_weight();
+        let allowed_entries = weights
+            .entries
+            .iter()
+            .filter(|entry| entry.weight > 0.0)
+            .filter(|entry| {
+                !context.innovation_disabled || is_non_innovative_strategy(&entry.strategy_name)
+            })
+            .collect::<Vec<_>>();
+
+        let total_weight: f64 = allowed_entries.iter().map(|entry| entry.weight).sum();
         if total_weight <= 0.0 {
             return None;
         }
@@ -166,19 +215,18 @@ impl StrategyManager {
 
         // Weighted random selection over positive strategy weights.
         let mut draw = rng.random_range(0.0..total_weight);
-        for entry in weights.entries.iter().filter(|entry| entry.weight > 0.0) {
+        for entry in &allowed_entries {
             if draw < entry.weight {
                 return Some(self.strategy_by_name(&entry.strategy_name));
             }
             draw -= entry.weight;
         }
 
-        weights
-            .entries
-            .iter()
+        allowed_entries
+            .into_iter()
             .rev()
-            .find(|entry| entry.weight > 0.0)
             .map(|entry| self.strategy_by_name(&entry.strategy_name))
+            .next()
     }
 
     fn remove_plans_if_needed(&self, person: &mut InternalPerson, context: &ReplanningContext) {
@@ -219,7 +267,7 @@ fn default_max_memory_size() -> usize {
 }
 
 fn default_plan_remover() -> Box<dyn PlanSelector> {
-    Box::new(WorstSelector)
+    Box::new(WorstScoreSelector)
 }
 
 fn default_strategies() -> HashMap<Id<String>, Box<dyn PlanStrategy>> {
@@ -231,10 +279,51 @@ fn default_strategies() -> HashMap<Id<String>, Box<dyn PlanStrategy>> {
     ] {
         strategies.insert(
             Id::create(selector.as_str()),
-            selector.generic_plan_strategy(),
+            selector.as_generic_plan_strategy(),
+        );
+    }
+    for strategy in [DefaultStrategy::ReRoute] {
+        strategies.insert(
+            Id::create(strategy.as_str()),
+            strategy.as_generic_plan_strategy(),
         );
     }
     strategies
+}
+
+fn weights_per_subpopulation_from_settings(
+    settings: &[config::StrategySetting],
+) -> HashMap<Id<String>, StrategyWeights> {
+    let mut weights_per_subpopulation = HashMap::default();
+    for setting in settings {
+        assert_known_strategy_name(&setting.name);
+        weights_per_subpopulation
+            .entry(Id::create(&setting.subpopulation))
+            .or_insert_with(|| StrategyWeights::new(Vec::new()))
+            .entries
+            .push(StrategyWeight::new(
+                Id::create(&setting.name),
+                setting.weight,
+            ));
+    }
+    weights_per_subpopulation
+}
+
+fn assert_known_strategy_name(name: &str) {
+    if DefaultSelector::from_str(name).is_ok() || DefaultStrategy::from_str(name).is_ok() {
+        return;
+    }
+    panic!("Unknown replanning strategy or selector configured: {name}");
+}
+
+fn plan_selector_from_config_name(name: &str) -> Box<dyn PlanSelector> {
+    DefaultSelector::from_str(name)
+        .map(DefaultSelector::as_plan_selector)
+        .unwrap_or_else(|_| panic!("Unknown plan_selector_for_removal configured: {name}"))
+}
+
+fn is_non_innovative_strategy(strategy_name: &Id<String>) -> bool {
+    DefaultSelector::from_str(strategy_name.external()).is_ok()
 }
 
 struct StrategyWeights {
@@ -244,14 +333,6 @@ struct StrategyWeights {
 impl StrategyWeights {
     fn new(entries: Vec<StrategyWeight>) -> Self {
         Self { entries }
-    }
-
-    fn total_weight(&self) -> f64 {
-        self.entries
-            .iter()
-            .filter(|entry| entry.weight > 0.0)
-            .map(|entry| entry.weight)
-            .sum()
     }
 }
 
@@ -325,16 +406,14 @@ struct ReRouteModule {
 
 impl PlanStrategyModule for ReRouteModule {
     fn handle(&self, _person: &mut InternalPerson, _plan_index: usize) {
-        //extract the trips from the plan
-        //extract vehicle from the scenario
-        //call the router correspondingly
-        todo!()
+        unimplemented!("ReRouteModule is a placeholder and does not implement routing yet.")
     }
 }
 
 struct ReplanningContext {
     iteration: u32,
     base_seed: u64,
+    innovation_disabled: bool,
 }
 
 trait PlanSelector: Send + Sync {
@@ -396,9 +475,9 @@ impl PlanSelector for RandomSelector {
     }
 }
 
-struct WorstSelector;
+struct WorstScoreSelector;
 
-impl PlanSelector for WorstSelector {
+impl PlanSelector for WorstScoreSelector {
     fn select(&self, person: &InternalPerson, _context: &ReplanningContext) -> usize {
         let plans = person.plans();
         let prefer_unselected = plans.iter().any(|plan| !plan.selected);
@@ -439,8 +518,9 @@ fn score_for_ordering(score: Option<f64>) -> Option<f64> {
 mod tests {
     use super::{
         DefaultSelector, GenericPlanStrategy, KeepLastSelector, PlanSelector, PlanStrategy,
-        PlanStrategyModule, RandomSelector, ReplanningContext, StrategyManager, WorstSelector,
+        PlanStrategyModule, RandomSelector, ReplanningContext, StrategyManager, WorstScoreSelector,
     };
+    use crate::simulation::config::{Replanning, StrategySetting};
     use crate::simulation::id::Id;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
 
@@ -475,7 +555,7 @@ mod tests {
     fn worst_selector_treats_missing_score_as_worst() {
         let person = person_with_scores([Some(1.0), None, Some(-5.0)]);
 
-        assert_eq!(1, WorstSelector.select(&person, &context()));
+        assert_eq!(1, WorstScoreSelector.select(&person, &context()));
     }
 
     #[test]
@@ -484,7 +564,7 @@ mod tests {
         person.plans_mut()[0].selected = true;
         person.plans_mut()[1].selected = false;
 
-        assert_eq!(1, WorstSelector.select(&person, &context()));
+        assert_eq!(1, WorstScoreSelector.select(&person, &context()));
     }
 
     #[test]
@@ -494,7 +574,7 @@ mod tests {
             DefaultSelector::BestScore,
             DefaultSelector::SelectRandom,
         ] {
-            let strategy = selector.generic_plan_strategy();
+            let strategy = selector.as_generic_plan_strategy();
 
             assert_eq!(&Id::create(selector.as_str()), strategy.name());
         }
@@ -510,6 +590,88 @@ mod tests {
 
         assert_eq!(first, second);
         assert!(first < person.plans().len());
+    }
+
+    #[test]
+    fn config_manager_uses_memory_limit_and_removal_selector() {
+        let replanning = Replanning {
+            max_agent_plan_memory: 1,
+            plan_selector_for_removal: DefaultSelector::BestScore.as_str().to_string(),
+            ..Replanning::default()
+        };
+        let manager = StrategyManager::from_replanning_config(&replanning);
+        let mut person = person_with_scores([Some(1.0), Some(2.0)]);
+
+        manager.run(0, 42, false, &mut person);
+
+        assert_eq!(1, person.plans().len());
+        assert_eq!(Some(1.0), person.plans()[0].score);
+    }
+
+    #[test]
+    fn config_manager_groups_strategy_weights_by_subpopulation() {
+        let replanning = Replanning {
+            strategy_settings: vec![
+                StrategySetting {
+                    name: DefaultSelector::KeepLastSelected.as_str().to_string(),
+                    weight: 0.3,
+                    subpopulation: "person".to_string(),
+                },
+                StrategySetting {
+                    name: DefaultSelector::BestScore.as_str().to_string(),
+                    weight: 0.7,
+                    subpopulation: "freight".to_string(),
+                },
+            ],
+            ..Replanning::default()
+        };
+        let manager = StrategyManager::from_replanning_config(&replanning);
+
+        let person_weights = manager
+            .weights_per_subpopulation
+            .get(&Id::create("person"))
+            .unwrap();
+        let freight_weights = manager
+            .weights_per_subpopulation
+            .get(&Id::create("freight"))
+            .unwrap();
+
+        assert_eq!(1, person_weights.entries.len());
+        assert_eq!(0.3, person_weights.entries[0].weight);
+        assert_eq!(1, freight_weights.entries.len());
+        assert_eq!(0.7, freight_weights.entries[0].weight);
+    }
+
+    #[test]
+    fn innovation_filter_keeps_selectors_and_excludes_default_strategies() {
+        let replanning = Replanning {
+            strategy_settings: vec![
+                StrategySetting {
+                    name: "ReRoute".to_string(),
+                    weight: 1.0,
+                    subpopulation: "person".to_string(),
+                },
+                StrategySetting {
+                    name: DefaultSelector::BestScore.as_str().to_string(),
+                    weight: 1.0,
+                    subpopulation: "person".to_string(),
+                },
+            ],
+            ..Replanning::default()
+        };
+        let manager = StrategyManager::from_replanning_config(&replanning);
+        let person = person_with_scores([Some(1.0), Some(2.0)]);
+        let context = ReplanningContext {
+            innovation_disabled: true,
+            ..context()
+        };
+
+        let strategy = manager.choose_strategy(&context, &person).unwrap();
+
+        assert_eq!(
+            &Id::create(DefaultSelector::BestScore.as_str()),
+            strategy.name()
+        );
     }
 
     #[test]
@@ -581,6 +743,7 @@ mod tests {
         ReplanningContext {
             iteration: 7,
             base_seed: 42,
+            innovation_disabled: false,
         }
     }
 
