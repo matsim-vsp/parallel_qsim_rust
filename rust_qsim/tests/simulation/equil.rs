@@ -1,3 +1,4 @@
+use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::deterministic_id_test;
 use rust_qsim::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
@@ -6,11 +7,6 @@ use rust_qsim::external_services::{
     AdapterHandle, AdapterHandleBuilder, AsyncExecutor, ExternalServiceType, RequestAdapter,
     RequestAdapterFactory,
 };
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Barrier};
-
-use crate::support::simulation_executor::TestExecutorBuilder;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
 use rust_qsim::simulation::id::{Id, store_to_file};
@@ -22,6 +18,10 @@ use rust_qsim::simulation::scenario::population::{
 };
 use rust_qsim::simulation::scenario::vehicles::Garage;
 use rust_qsim::simulation::time::SimTime;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Barrier};
+use tracing::info;
 
 // in the adaptive mod we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
@@ -82,6 +82,24 @@ fn equil_two_parts_matches_expected_events() {
         .build()
         .unwrap()
         .execute();
+}
+
+#[deterministic_id_test(rust_qsim)]
+fn equil_full_population_single_part_runs() {
+    execute_equil_with_population(
+        "./tests/resources/equil/equil-config-1.yml",
+        "./assets/equil/equil-plans.xml.gz",
+        "./test_output/simulation/equil_full_population_single_part",
+    );
+}
+
+#[deterministic_id_test(rust_qsim)]
+fn equil_full_population_two_parts_runs() {
+    execute_equil_with_population(
+        "./tests/resources/equil/equil-config-2.yml",
+        "./assets/equil/equil-plans.xml.gz",
+        "./test_output/simulation/equil_full_population_two_parts",
+    );
 }
 
 #[deterministic_id_test(rust_qsim)]
@@ -215,6 +233,23 @@ impl RequestAdapter<InternalRoutingRequest> for MockRoutingAdapter {
             })
         );
     }
+}
+
+fn execute_equil_with_population(
+    config_path: impl Into<String>,
+    population_path: impl Into<PathBuf>,
+    output_dir: impl Into<PathBuf>,
+) {
+    let mut config = Config::from_args(CommandLineArgs::new_with_path(config_path.into()));
+    config.population_mut().path = Some(population_path.into());
+    config.output_mut().output_dir = output_dir.into();
+
+    TestExecutorBuilder::default()
+        .config(Arc::new(config))
+        .expected_events(None)
+        .build()
+        .unwrap()
+        .execute();
 }
 
 fn execute_adaptive(
