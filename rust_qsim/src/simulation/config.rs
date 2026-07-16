@@ -63,11 +63,33 @@ fn parse_key_val(s: &str) -> Result<(String, String), String> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 pub struct Config {
     modules: HashMap<String, Box<dyn ConfigModule>>,
     #[serde(skip)]
     context: Option<PathBuf>,
+}
+
+/// We need this custom deserialization implementation in order to ensure that defaults are applied after deserialization. This is
+/// especially needed for moving deprecated modules.
+impl<'de> Deserialize<'de> for Config {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct ConfigSerde {
+            modules: HashMap<String, Box<dyn ConfigModule>>,
+        }
+
+        let config = ConfigSerde::deserialize(deserializer)?;
+        let mut config = Config {
+            modules: config.modules,
+            context: None,
+        };
+        config.ensure_defaults();
+        Ok(config)
+    }
 }
 
 impl Default for Config {
@@ -126,9 +148,11 @@ impl Config {
     /// Called after deserialization to guarantee that read accessors won't panic
     /// for modules that have sensible defaults.
     pub fn ensure_defaults(&mut self) {
+        self.migrate_deprecated_simulation_module();
         self.partitioning_mut();
         self.output_mut();
-        self.simulation_mut();
+        self.qsim_mut();
+        self.controller_mut();
         self.routing_mut();
         self.replanning_mut();
         self.computational_setup_mut();
@@ -266,9 +290,13 @@ impl Config {
             .insert("computational_setup".to_string(), Box::new(setup));
     }
 
-    pub fn set_simulation(&mut self, simulation: Simulation) {
+    pub fn set_qsim(&mut self, qsim: QSim) {
+        self.modules.insert("qsim".to_string(), Box::new(qsim));
+    }
+
+    pub fn set_controller(&mut self, controller: Controller) {
         self.modules
-            .insert("simulation".to_string(), Box::new(simulation));
+            .insert("controller".to_string(), Box::new(controller));
     }
 
     pub fn output(&self) -> &Output {
@@ -319,17 +347,29 @@ impl Config {
             .insert("replanning".to_string(), Box::new(replanning));
     }
 
-    pub fn simulation(&self) -> &Simulation {
-        self.module::<Simulation>("simulation")
-            .expect("Simulation was not set.")
+    pub fn qsim(&self) -> &QSim {
+        self.module::<QSim>("qsim").expect("QSim was not set.")
     }
 
-    pub fn simulation_mut(&mut self) -> &mut Simulation {
-        if !self.modules.contains_key("simulation") {
+    pub fn qsim_mut(&mut self) -> &mut QSim {
+        if !self.modules.contains_key("qsim") {
             self.modules
-                .insert("simulation".to_string(), Box::new(Simulation::default()));
+                .insert("qsim".to_string(), Box::new(QSim::default()));
         }
-        self.module_mut::<Simulation>("simulation").unwrap()
+        self.module_mut::<QSim>("qsim").unwrap()
+    }
+
+    pub fn controller(&self) -> &Controller {
+        self.module::<Controller>("controller")
+            .expect("ControllerConfig was not set.")
+    }
+
+    pub fn controller_mut(&mut self) -> &mut Controller {
+        if !self.modules.contains_key("controller") {
+            self.modules
+                .insert("controller".to_string(), Box::new(Controller::default()));
+        }
+        self.module_mut::<Controller>("controller").unwrap()
     }
 
     pub fn routing(&self) -> &Routing {
@@ -356,6 +396,29 @@ impl Config {
 
     pub fn context(&self) -> &Option<PathBuf> {
         &self.context
+    }
+
+    fn migrate_deprecated_simulation_module(&mut self) {
+        let simulation = self
+            .modules
+            .get("simulation")
+            .and_then(|module| module.as_ref().as_any().downcast_ref::<Simulation>())
+            .cloned();
+
+        if let Some(simulation) = simulation {
+            warn!(
+                "The config module `simulation` is deprecated. Use `qsim` and `controller` instead."
+            );
+
+            if !self.modules.contains_key("qsim") {
+                self.set_qsim(QSim::from(&simulation));
+            }
+            if !self.modules.contains_key("controller") {
+                self.set_controller(Controller::from(&simulation));
+            }
+
+            self.modules.remove("simulation");
+        }
     }
 
     fn local_file_reader(config_path: impl AsRef<Path>) -> Box<dyn BufRead> {
@@ -602,6 +665,28 @@ impl Default for Replanning {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct QSim {
+    pub start_time: u32,
+    pub end_time: u32,
+    pub ticks_per_second: u32,
+    pub sample_size: f64,
+    pub stuck_threshold: u32,
+    pub main_modes: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct Controller {
+    pub first_iteration: u32,
+    pub last_iteration: u32,
+    pub write_events_interval: u32,
+    pub write_plans_interval: u32,
+    pub compression_type: CompressionType,
+}
+
+#[deprecated(note = "Use `QSim` and `Controller` instead. This will be removed in the future.")]
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct Simulation {
@@ -617,20 +702,78 @@ pub struct Simulation {
     pub main_modes: Vec<String>,
 }
 
-register_override!("simulation.first_iteration", |config, value| {
-    config.simulation_mut().first_iteration = value.parse().unwrap();
+impl From<&Simulation> for QSim {
+    fn from(value: &Simulation) -> Self {
+        Self {
+            start_time: value.start_time,
+            end_time: value.end_time,
+            ticks_per_second: value.ticks_per_second,
+            sample_size: value.sample_size,
+            stuck_threshold: value.stuck_threshold,
+            main_modes: value.main_modes.clone(),
+        }
+    }
+}
+
+impl From<&Simulation> for Controller {
+    fn from(value: &Simulation) -> Self {
+        Self {
+            first_iteration: value.first_iteration,
+            last_iteration: value.last_iteration,
+            write_events_interval: value.write_events_interval,
+            write_plans_interval: value.write_plans_interval,
+            compression_type: CompressionType::Proto,
+        }
+    }
+}
+
+register_override!("qsim.start_time", |config, value| {
+    config.qsim_mut().start_time = value.parse().unwrap();
 });
 
-register_override!("simulation.last_iteration", |config, value| {
-    config.simulation_mut().last_iteration = value.parse().unwrap();
+register_override!("qsim.end_time", |config, value| {
+    config.qsim_mut().end_time = value.parse().unwrap();
 });
 
-register_override!("simulation.write_events_interval", |config, value| {
-    config.simulation_mut().write_events_interval = value.parse().unwrap();
+register_override!("qsim.ticks_per_second", |config, value| {
+    config.qsim_mut().ticks_per_second = value.parse().unwrap();
 });
 
-register_override!("simulation.write_plans_interval", |config, value| {
-    config.simulation_mut().write_plans_interval = value.parse().unwrap();
+register_override!("qsim.sample_size", |config, value| {
+    config.qsim_mut().sample_size = value.parse().unwrap();
+});
+
+register_override!("qsim.stuck_threshold", |config, value| {
+    config.qsim_mut().stuck_threshold = value.parse().unwrap();
+});
+
+register_override!("qsim.main_modes", |config, value| {
+    config.qsim_mut().main_modes = value
+        .split(',')
+        .map(str::trim)
+        .filter(|mode| !mode.is_empty())
+        .map(ToString::to_string)
+        .collect();
+});
+
+register_override!("controller.first_iteration", |config, value| {
+    config.controller_mut().first_iteration = value.parse().unwrap();
+});
+
+register_override!("controller.last_iteration", |config, value| {
+    config.controller_mut().last_iteration = value.parse().unwrap();
+});
+
+register_override!("controller.write_events_interval", |config, value| {
+    config.controller_mut().write_events_interval = value.parse().unwrap();
+});
+
+register_override!("controller.write_plans_interval", |config, value| {
+    config.controller_mut().write_plans_interval = value.parse().unwrap();
+});
+
+register_override!("controller.compression_type", |config, value| {
+    config.controller_mut().compression_type = parse_compression_type(value);
 });
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
@@ -763,6 +906,26 @@ impl ConfigModule for Replanning {
 }
 
 #[typetag::serde]
+impl ConfigModule for QSim {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Controller {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
 impl ConfigModule for Simulation {
     fn as_any(&self) -> &dyn Any {
         self
@@ -785,19 +948,46 @@ impl ConfigModule for ComputationalSetup {
 // This is needed to allow cloning of the trait object and thus cloning of the Config.
 dyn_clone::clone_trait_object!(ConfigModule);
 
-impl Default for Simulation {
+impl Default for QSim {
     fn default() -> Self {
         Self {
-            first_iteration: 0,
-            last_iteration: 1000,
-            write_events_interval: 50,
-            write_plans_interval: 50,
             start_time: 0,
             end_time: 86400,
             ticks_per_second: 1,
             sample_size: 1.0,
             stuck_threshold: 10,
             main_modes: vec![],
+        }
+    }
+}
+
+impl Default for Controller {
+    fn default() -> Self {
+        Self {
+            first_iteration: 0,
+            last_iteration: 1000,
+            write_events_interval: 50,
+            write_plans_interval: 50,
+            compression_type: CompressionType::Proto,
+        }
+    }
+}
+
+impl Default for Simulation {
+    fn default() -> Self {
+        let qsim = QSim::default();
+        let controller = Controller::default();
+        Self {
+            first_iteration: controller.first_iteration,
+            last_iteration: controller.last_iteration,
+            write_events_interval: controller.write_events_interval,
+            write_plans_interval: controller.write_plans_interval,
+            start_time: qsim.start_time,
+            end_time: qsim.end_time,
+            ticks_per_second: qsim.ticks_per_second,
+            sample_size: qsim.sample_size,
+            stuck_threshold: qsim.stuck_threshold,
+            main_modes: qsim.main_modes,
         }
     }
 }
@@ -850,10 +1040,49 @@ pub enum Logging {
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
 pub enum WriteEvents {
+    #[default]
     None,
+    // for backward compatability, we still allow "Proto" and "XmlGz"
+    #[serde(alias = "Proto", alias = "XmlGz")]
+    File,
+}
+
+#[derive(PartialEq, Debug, ValueEnum, Clone, Copy, Serialize, Deserialize, Default)]
+pub enum CompressionType {
+    None,
+    Gz,
     #[default]
     Proto,
-    XmlGz,
+    Zst,
+}
+
+impl CompressionType {
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::None => "xml",
+            Self::Gz => "xml.gz",
+            Self::Proto => "binpb",
+            Self::Zst => "xml.zst",
+        }
+    }
+
+    pub fn with_extension(self, stem: &str) -> String {
+        format!("{stem}.{}", self.extension())
+    }
+
+    pub fn is_protobuf(self) -> bool {
+        self == Self::Proto
+    }
+}
+
+fn parse_compression_type(value: &str) -> CompressionType {
+    match value.to_lowercase().replace(['-', '_'], "").as_str() {
+        "none" | "xml" => CompressionType::None,
+        "gz" | "gzip" | "xmlgz" => CompressionType::Gz,
+        "protobuf" | "proto" | "binpb" => CompressionType::Proto,
+        "zst" | "zstd" | "xmlzst" => CompressionType::Zst,
+        _ => panic!("Invalid compression_type: {}", value),
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
@@ -1002,9 +1231,9 @@ mod tests {
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
-        CommandLineArgs, ComputationalSetup, Config, EdgeWeight, MetisOptions, PartitionMethod,
-        Partitioning, Replanning, Routing, Simulation, StrategySetting, TeleportedParams,
-        VertexWeight, parse_key_val,
+        CommandLineArgs, CompressionType, ComputationalSetup, Config, Controller, EdgeWeight,
+        MetisOptions, PartitionMethod, Partitioning, QSim, Replanning, Routing, StrategySetting,
+        TeleportedParams, VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
@@ -1035,11 +1264,7 @@ mod tests {
             random_seed: config::DEFAULT_RANDOM_SEED,
         };
 
-        let simulation = Simulation {
-            first_iteration: 2,
-            last_iteration: 4,
-            write_events_interval: 3,
-            write_plans_interval: 5,
+        let qsim = QSim {
             start_time: 0,
             end_time: 42,
             ticks_per_second: 1,
@@ -1047,10 +1272,18 @@ mod tests {
             stuck_threshold: 1,
             main_modes: vec!["bike".to_string()],
         };
+        let controller = Controller {
+            first_iteration: 2,
+            last_iteration: 4,
+            write_events_interval: 3,
+            write_plans_interval: 5,
+            compression_type: CompressionType::Zst,
+        };
 
         config.set_partitioning(partitioning);
         config.set_computational_setup(computational_setup);
-        config.set_simulation(simulation);
+        config.set_qsim(qsim);
+        config.set_controller(controller);
 
         let yaml = serde_yaml::to_string(&config).expect("Failed to serialize yaml");
 
@@ -1079,26 +1312,66 @@ mod tests {
         assert_eq!(parsed_config.computational_setup().replanning_threads, 7);
         assert_eq!(parsed_config.computational_setup().retry_time_seconds, 41);
 
-        assert_eq!(parsed_config.simulation().first_iteration, 2);
-        assert_eq!(parsed_config.simulation().last_iteration, 4);
-        assert_eq!(parsed_config.simulation().write_events_interval, 3);
-        assert_eq!(parsed_config.simulation().write_plans_interval, 5);
-        assert_eq!(parsed_config.simulation().start_time, 0);
-        assert_eq!(parsed_config.simulation().end_time, 42);
-        assert_eq!(parsed_config.simulation().ticks_per_second, 1);
-        assert_eq!(parsed_config.simulation().sample_size, 0.1);
-        assert_eq!(parsed_config.simulation().stuck_threshold, 1);
-        assert_eq!(parsed_config.simulation().main_modes, vec!["bike"]);
+        assert_eq!(parsed_config.controller().first_iteration, 2);
+        assert_eq!(parsed_config.controller().last_iteration, 4);
+        assert_eq!(parsed_config.controller().write_events_interval, 3);
+        assert_eq!(parsed_config.controller().write_plans_interval, 5);
+        assert_eq!(
+            parsed_config.controller().compression_type,
+            CompressionType::Zst
+        );
+        assert_eq!(parsed_config.qsim().start_time, 0);
+        assert_eq!(parsed_config.qsim().end_time, 42);
+        assert_eq!(parsed_config.qsim().ticks_per_second, 1);
+        assert_eq!(parsed_config.qsim().sample_size, 0.1);
+        assert_eq!(parsed_config.qsim().stuck_threshold, 1);
+        assert_eq!(parsed_config.qsim().main_modes, vec!["bike"]);
     }
 
     #[test]
-    fn simulation_defaults_include_iteration_range() {
+    fn controller_defaults_include_iteration_range_and_compression() {
         let config = Config::default();
 
-        assert_eq!(config.simulation().first_iteration, 0);
-        assert_eq!(config.simulation().last_iteration, 1000);
-        assert_eq!(config.simulation().write_events_interval, 50);
-        assert_eq!(config.simulation().write_plans_interval, 50);
+        assert_eq!(config.controller().first_iteration, 0);
+        assert_eq!(config.controller().last_iteration, 1000);
+        assert_eq!(config.controller().write_events_interval, 50);
+        assert_eq!(config.controller().write_plans_interval, 50);
+        assert_eq!(config.controller().compression_type, CompressionType::Proto);
+    }
+
+    #[test]
+    fn deprecated_simulation_module_migrates_to_qsim_and_controller() {
+        let yaml = r#"
+        modules:
+          simulation:
+            type: Simulation
+            first_iteration: 2
+            last_iteration: 4
+            write_events_interval: 3
+            write_plans_interval: 5
+            start_time: 1
+            end_time: 42
+            ticks_per_second: 10
+            sample_size: 0.5
+            stuck_threshold: 99
+            main_modes: ["car", "bike"]
+        "#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+        assert_eq!(parsed_config.controller().first_iteration, 2);
+        assert_eq!(parsed_config.controller().last_iteration, 4);
+        assert_eq!(parsed_config.controller().write_events_interval, 3);
+        assert_eq!(parsed_config.controller().write_plans_interval, 5);
+        assert_eq!(
+            parsed_config.controller().compression_type,
+            CompressionType::Proto
+        );
+        assert_eq!(parsed_config.qsim().start_time, 1);
+        assert_eq!(parsed_config.qsim().end_time, 42);
+        assert_eq!(parsed_config.qsim().ticks_per_second, 10);
+        assert_eq!(parsed_config.qsim().sample_size, 0.5);
+        assert_eq!(parsed_config.qsim().stuck_threshold, 99);
+        assert_eq!(parsed_config.qsim().main_modes, vec!["car", "bike"]);
     }
 
     #[test]
@@ -1636,25 +1909,39 @@ modules:
     }
 
     #[test]
-    fn override_simulation_iteration_range() {
+    fn override_controller_and_qsim_settings() {
         let mut config = base_config();
         config.apply_overrides(&[
-            ("simulation.first_iteration".to_string(), "12".to_string()),
-            ("simulation.last_iteration".to_string(), "34".to_string()),
+            ("controller.first_iteration".to_string(), "12".to_string()),
+            ("controller.last_iteration".to_string(), "34".to_string()),
             (
-                "simulation.write_events_interval".to_string(),
+                "controller.write_events_interval".to_string(),
                 "7".to_string(),
             ),
             (
-                "simulation.write_plans_interval".to_string(),
+                "controller.write_plans_interval".to_string(),
                 "9".to_string(),
             ),
+            ("controller.compression_type".to_string(), "zst".to_string()),
+            ("qsim.start_time".to_string(), "1".to_string()),
+            ("qsim.end_time".to_string(), "2".to_string()),
+            ("qsim.ticks_per_second".to_string(), "10".to_string()),
+            ("qsim.sample_size".to_string(), "0.25".to_string()),
+            ("qsim.stuck_threshold".to_string(), "30".to_string()),
+            ("qsim.main_modes".to_string(), "car,bike".to_string()),
         ]);
 
-        assert_eq!(config.simulation().first_iteration, 12);
-        assert_eq!(config.simulation().last_iteration, 34);
-        assert_eq!(config.simulation().write_events_interval, 7);
-        assert_eq!(config.simulation().write_plans_interval, 9);
+        assert_eq!(config.controller().first_iteration, 12);
+        assert_eq!(config.controller().last_iteration, 34);
+        assert_eq!(config.controller().write_events_interval, 7);
+        assert_eq!(config.controller().write_plans_interval, 9);
+        assert_eq!(config.controller().compression_type, CompressionType::Zst);
+        assert_eq!(config.qsim().start_time, 1);
+        assert_eq!(config.qsim().end_time, 2);
+        assert_eq!(config.qsim().ticks_per_second, 10);
+        assert_eq!(config.qsim().sample_size, 0.25);
+        assert_eq!(config.qsim().stuck_threshold, 30);
+        assert_eq!(config.qsim().main_modes, vec!["car", "bike"]);
     }
 
     #[test]

@@ -243,7 +243,7 @@ impl ControllerScenario {
 
     fn create_network_partition(core: &ScenarioCore, rank: u32) -> SimNetworkPartition {
         let base_seed = core.config.computational_setup().random_seed;
-        SimNetworkPartition::from_network(&core.network, rank, core.config.simulation(), base_seed)
+        SimNetworkPartition::from_network(&core.network, rank, core.config.qsim(), base_seed)
     }
 }
 

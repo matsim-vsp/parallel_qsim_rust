@@ -8,7 +8,7 @@ use std::path::PathBuf;
 #[deterministic_id_test(rust_qsim)]
 fn empty_simulation_runs() {
     let mut config = Config::default();
-    config.simulation_mut().last_iteration = 0;
+    config.controller_mut().last_iteration = 0;
     config.output_mut().overwrite_files = OverwriteFiles::DeleteDirectoryIfExists;
     config.output_mut().output_dir = "./test_output/simulation/empty".parse().unwrap();
     let scenario = Scenario::load(config);
@@ -24,10 +24,10 @@ fn empty_simulation_runs() {
 fn empty_simulation_uses_configured_iteration_range() {
     let output_dir = PathBuf::from("./test_output/simulation/empty_iteration_range");
     let mut config = Config::default();
-    config.simulation_mut().first_iteration = 2;
-    config.simulation_mut().last_iteration = 3;
-    config.simulation_mut().end_time = 0;
-    config.simulation_mut().write_plans_interval = 1;
+    config.controller_mut().first_iteration = 2;
+    config.controller_mut().last_iteration = 3;
+    config.qsim_mut().end_time = 0;
+    config.controller_mut().write_plans_interval = 1;
     config.output_mut().overwrite_files = OverwriteFiles::DeleteDirectoryIfExists;
     config.output_mut().output_dir = output_dir.clone();
 

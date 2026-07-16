@@ -96,7 +96,7 @@ impl SimNetworkPartition {
     pub fn from_network(
         global_network: &Network,
         partition: u32,
-        config: &config::Simulation,
+        config: &config::QSim,
         base_seed: u64,
     ) -> Self {
         let clock = SimClock::new(config.ticks_per_second);
@@ -158,7 +158,7 @@ impl SimNetworkPartition {
         link: &Link,
         partition: u32,
         effective_cell_size: f64,
-        config: &config::Simulation,
+        config: &config::QSim,
         global_network: &Network,
     ) -> SimLink {
         let from_part = global_network.get_node(&link.from).partition; //all_nodes.get(link.from.internal()).unwrap().partition;

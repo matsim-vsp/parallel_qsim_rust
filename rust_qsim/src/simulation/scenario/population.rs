@@ -36,6 +36,7 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
         load_from_proto(path, filter)
     } else if path.as_ref().extension().unwrap().eq("xml")
         || path.as_ref().extension().unwrap().eq("gz")
+        || path.as_ref().extension().unwrap().eq("zst")
     {
         let persons = crate::simulation::io::xml::population::load_from_xml(path, garage)
             .into_iter()
@@ -44,7 +45,7 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
         Population { persons }
     } else {
         panic!(
-            "Tried to load {:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension",
+            "Tried to load {:?}. File format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension",
             path.as_ref()
         );
     }
@@ -53,10 +54,15 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
 pub fn to_file(population: &Population, path: &Path) {
     if path.extension().unwrap().eq("binpb") {
         write_to_proto(population, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.extension().unwrap().eq("xml")
+        || path.extension().unwrap().eq("gz")
+        || path.extension().unwrap().eq("zst")
+    {
         crate::simulation::io::xml::population::write_to_xml(population, path);
     } else {
-        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!(
+            "file format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
+        );
     }
 }
 

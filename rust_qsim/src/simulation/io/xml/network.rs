@@ -233,6 +233,31 @@ mod tests {
     }
 
     #[test]
+    fn write_and_read_simple_network_zstd() {
+        let test_name = "write_and_read_simple_network_zstd";
+        clear_output_folder(test_name);
+
+        let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+                <!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v1.dtd\">
+                <network name=\"test network\">
+                    <nodes>
+                        <node id=\"1\" x=\"-20000\" y=\"0\"/>
+                    </nodes>
+                    <links effectivecellsize=\"385.3\">
+                        <link id=\"23\" from=\"1\" to=\"1\" length=\"10000.00\" capacity=\"36000\" freespeed=\"27.78\" permlanes=\"1\" modes=\"car,bike\"  />
+                    </links>
+                </network>
+            ";
+
+        let network: IONetwork = from_str(xml).unwrap();
+        let file_path = get_output_folder(test_name).join("network.xml.zst");
+        network.to_file(&file_path);
+
+        let result = IONetwork::from_file(file_path.to_str().unwrap());
+        assert_eq!(network, result);
+    }
+
+    #[test]
     fn parse_simple_network() -> Result<(), Box<dyn Error>> {
         let xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
                 <!DOCTYPE network SYSTEM \"http://www.matsim.org/files/dtd/network_v1.dtd\">

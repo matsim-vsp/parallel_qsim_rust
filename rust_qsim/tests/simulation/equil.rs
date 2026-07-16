@@ -58,7 +58,7 @@ fn equil_single_part_matches_expected_events() {
 fn equil_single_part_with_10_ticks_per_second_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
     let mut config = Config::from_args(config_args);
-    config.simulation_mut().ticks_per_second = 10;
+    config.qsim_mut().ticks_per_second = 10;
     config.output_mut().output_dir =
         PathBuf::from("./test_output/simulation/equil_single_part_10_ticks_per_second");
     let config = Arc::new(config);

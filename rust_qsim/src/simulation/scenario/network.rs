@@ -417,11 +417,14 @@ impl Link {
 pub fn from_file(path: &Path) -> Network {
     if path.extension().unwrap().eq("binpb") {
         load_from_proto(path)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.extension().unwrap().eq("xml")
+        || path.extension().unwrap().eq("gz")
+        || path.extension().unwrap().eq("zst")
+    {
         network::load_from_xml(path)
     } else {
         panic!(
-            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
         );
     }
 }
@@ -429,11 +432,14 @@ pub fn from_file(path: &Path) -> Network {
 pub fn to_file(network: &Network, path: &Path) {
     if path.extension().unwrap().eq("binpb") {
         write_to_proto(network, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.extension().unwrap().eq("xml")
+        || path.extension().unwrap().eq("gz")
+        || path.extension().unwrap().eq("zst")
+    {
         write_to_xml(network, path);
     } else {
         panic!(
-            "Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+            "Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
         );
     }
 }
