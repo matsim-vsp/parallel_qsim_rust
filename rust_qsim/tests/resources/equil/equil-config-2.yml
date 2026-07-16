@@ -18,11 +18,14 @@ modules:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/equil_with_channels
-    write_events: XmlGz
+    write_events: File
   routing:
     type: Routing
     mode: UsePlans
-  simulation:
-    type: Simulation
+  controller:
+    type: Controller
     last_iteration: 0
+    compression_type: Zst
+  qsim:
+    type: QSim
     main_modes: [ "car" ]

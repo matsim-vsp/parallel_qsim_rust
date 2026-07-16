@@ -21,7 +21,6 @@ use rust_qsim::simulation::time::SimTime;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
-use tracing::info;
 
 // in the adaptive mod we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)

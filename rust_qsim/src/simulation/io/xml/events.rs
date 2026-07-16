@@ -30,26 +30,57 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 
 pub struct XmlEventsWriter {
-    writer: Mutex<Box<dyn Write + Send>>,
+    writer: Mutex<Option<XmlEventsOutputWriter>>,
+}
+
+enum XmlEventsOutputWriter {
+    Plain(BufWriter<File>),
+    Gz(GzEncoder<File>),
+    Zst(ZstdEncoder<'static, File>),
+}
+
+impl XmlEventsOutputWriter {
+    fn new(path: impl AsRef<Path>) -> Self {
+        let file = File::create(&path).expect("Failed to create File.");
+        match path.as_ref().extension().unwrap().to_str() {
+            Some("gz") => Self::Gz(GzEncoder::new(file, Compression::fast())),
+            Some("zst") => {
+                Self::Zst(ZstdEncoder::new(file, 0).expect("Failed to create zstd encoder"))
+            }
+            _ => Self::Plain(BufWriter::new(file)),
+        }
+    }
+
+    fn write_all(&mut self, bytes: &[u8]) {
+        match self {
+            Self::Plain(writer) => writer.write_all(bytes),
+            Self::Gz(writer) => writer.write_all(bytes),
+            Self::Zst(writer) => writer.write_all(bytes),
+        }
+        .expect("Error while writing event");
+    }
+
+    fn finish(self) {
+        match self {
+            Self::Plain(mut writer) => writer.flush().expect("Failed to flush events."),
+            Self::Gz(writer) => {
+                writer.finish().expect("Failed to finish gzip events.");
+            }
+            Self::Zst(writer) => {
+                writer.finish().expect("Failed to finish zstd events.");
+            }
+        }
+    }
 }
 
 impl XmlEventsWriter {
     pub fn new(path: impl AsRef<Path>) -> Self {
         info!("Creating file: {:?}", path.as_ref());
-        let file = File::create(&path).expect("Failed to create File.");
-        let mut writer: Box<dyn Write + Send> = match path.as_ref().extension().unwrap().to_str() {
-            Some("gz") => Box::new(GzEncoder::new(file, Compression::fast())),
-            Some("zst") => {
-                Box::new(ZstdEncoder::new(file, 0).expect("Failed to create zstd encoder"))
-            }
-            _ => Box::new(BufWriter::new(file)),
-        };
+        let mut writer = XmlEventsOutputWriter::new(path);
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
-        writer
-            .write_all(header.as_bytes())
-            .expect("Failed to write events file header");
+        writer.write_all(header.as_bytes());
         XmlEventsWriter {
-            writer: Mutex::new(writer),
+            writer: Mutex::new(Some(writer)),
         }
     }
 
@@ -185,18 +216,21 @@ impl XmlEventsWriter {
     }
 
     fn write(&self, text: &str) {
-        let mut writer = self.writer.lock().expect("Failed to lock writer");
-        writer
-            .write_all(text.as_bytes())
-            .expect("Error while writing event");
+        let mut guard = self.writer.lock().expect("Failed to lock writer");
+        let writer = guard
+            .as_mut()
+            .expect("Cannot write event after events writer was finished");
+        writer.write_all(text.as_bytes());
     }
 
     pub fn finish(&self) {
-        let closing_tag = "</events>";
-        self.write(closing_tag);
-        info!("Finishing Events File. Calling flush on Buffered Writer.");
-        let mut writer = self.writer.lock().expect("Failed to lock writer");
-        writer.flush().expect("Failed to flush events.");
+        info!("Finishing Events File.");
+        let mut guard = self.writer.lock().expect("Failed to lock writer");
+        let Some(mut writer) = guard.take() else {
+            return;
+        };
+        writer.write_all(b"</events>");
+        writer.finish();
     }
 
     pub fn register_fn(path: impl AsRef<Path> + Send + 'static) -> Box<EventHandlerRegisterFn> {
@@ -484,6 +518,7 @@ mod tests {
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use std::fs;
+    use std::io::Read;
     use std::path::PathBuf;
 
     #[deterministic_id_test]
@@ -556,5 +591,67 @@ mod tests {
         assert_eq!(Id::create("link-1"), parsed_event.link);
         assert_eq!(Id::create("home"), parsed_event.act_type);
         assert_eq!(Coordinate::new_2d(1.0, 2.0), parsed_event.coordinate);
+    }
+
+    #[deterministic_id_test]
+    fn gzip_xml_event_writer_finishes_compressed_stream() {
+        assert_compressed_event_stream_finishes(
+            PathBuf::from("./test_output/io/xml_events/gzip_finished/events.xml.gz"),
+            read_gzip_to_string,
+        );
+    }
+
+    #[deterministic_id_test]
+    fn zstd_xml_event_writer_finishes_compressed_stream() {
+        assert_compressed_event_stream_finishes(
+            PathBuf::from("./test_output/io/xml_events/zstd_finished/events.xml.zst"),
+            read_zstd_to_string,
+        );
+    }
+
+    fn assert_compressed_event_stream_finishes(
+        path: PathBuf,
+        read_to_string: fn(&PathBuf) -> String,
+    ) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+
+        let event: Box<dyn EventTrait> = Box::new(
+            ActivityStartEventBuilder::default()
+                .time(SimTime::from_nanos(42_123_456_789))
+                .person(Id::create("person-1"))
+                .link(Id::create("link-1"))
+                .act_type(Id::create("home"))
+                .coordinate(Coordinate::new_2d(1.0, 2.0))
+                .build()
+                .unwrap(),
+        );
+
+        let writer = XmlEventsWriter::new(&path);
+        writer.on_any(event.as_ref());
+        writer.finish();
+        writer.finish();
+
+        let xml = read_to_string(&path);
+        assert!(xml.contains("</events>"));
+
+        let mut reader = XmlEventsReader::new(&path);
+        let (time, _) = reader.read_next().unwrap();
+        assert_eq!(SimTime::from_nanos(42_123_456_789), time);
+    }
+
+    fn read_gzip_to_string(path: &PathBuf) -> String {
+        let file = fs::File::open(path).unwrap();
+        let mut decoder = flate2::read::GzDecoder::new(file);
+        let mut output = String::new();
+        decoder.read_to_string(&mut output).unwrap();
+        output
+    }
+
+    fn read_zstd_to_string(path: &PathBuf) -> String {
+        let file = fs::File::open(path).unwrap();
+        let mut decoder = zstd::stream::read::Decoder::new(file).unwrap();
+        let mut output = String::new();
+        decoder.read_to_string(&mut output).unwrap();
+        output
     }
 }

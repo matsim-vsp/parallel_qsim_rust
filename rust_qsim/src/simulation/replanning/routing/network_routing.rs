@@ -176,7 +176,8 @@ impl NetworkRoutingModule {
                 })?
         };
 
-        let elements = self.path_to_elements(path, &from, &to, &self.mode, request.vehicle);
+        let elements =
+            vec![self.path_to_elements(path, &from, &to, &self.mode, request.vehicle, now)];
         let time =
             TimeInterpretation::decide_on_elements_end_time(&elements, &now).ok_or_else(|| {
                 RoutingError::MissingEndTime {
@@ -194,7 +195,26 @@ impl NetworkRoutingModule {
         to: &Id<Link>,
         mode: &Id<String>,
         vehicle: Option<&InternalVehicle>,
-    ) -> Vec<InternalPlanElement> {
+        now: SimTime,
+    ) -> InternalPlanElement {
+        if from == to {
+            // If from and to are the same, we build a dummy node.
+            let generic = InternalGenericRoute::new(
+                from.clone(),
+                to.clone(),
+                Some(Duration::from_nanos(0)),
+                Some(0.),
+                vehicle.map(|v| v.id().clone()),
+            );
+            let net_route = InternalNetworkRoute::new(generic, vec![from.clone()]);
+            return InternalPlanElement::Leg(InternalLeg::new(
+                InternalRoute::Network(net_route),
+                mode.external(),
+                Duration::from_secs(0),
+                Some(now),
+            ));
+        }
+
         let mut route = Vec::with_capacity(path.path.len() + 2);
         route.push(from.clone());
         if from != to {
@@ -204,7 +224,16 @@ impl NetworkRoutingModule {
 
         let start = route.first().unwrap().clone();
         let end = route.last().unwrap().clone();
-        let time = path.travel_time;
+
+        // Correct travel time: the path doesn't contain the last link. Manually added here.
+        let to_link = self.scenario.network.get_link(to);
+        let vehicle_speed = if let Some(v) = vehicle {
+            v.max_v
+        } else {
+            f64::MAX
+        };
+        let max_speed = to_link.freespeed.min(vehicle_speed);
+        let trav_time = path.travel_time + Duration::from_secs_f64(to_link.length / max_speed);
 
         // calculate the distance of the path. Ignore the first link (since vehicle starts at the very end).
         let distance: f64 = route[1..]
@@ -216,15 +245,15 @@ impl NetworkRoutingModule {
         let generic = InternalGenericRoute::new(
             start,
             end,
-            Some(time),
+            Some(trav_time),
             Some(distance),
             vehicle.map(|v| v.id().clone()),
         );
 
         let net_route = InternalNetworkRoute::new(generic, route);
         let route = InternalRoute::Network(net_route);
-        let leg = InternalLeg::new(route, mode.external(), path.travel_time, None);
-        vec![InternalPlanElement::Leg(leg)]
+        let leg = InternalLeg::new(route, mode.external(), trav_time, Some(now));
+        InternalPlanElement::Leg(leg)
     }
 
     fn create_interaction_activity(
