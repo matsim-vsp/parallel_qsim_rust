@@ -13,7 +13,7 @@ pub type Disutility = f64;
 /// Travel time function, mapping any network link to a travel time, depending on the departure time
 /// and optionally the person and vehicle.
 pub trait TravelTime: Debug + Send + Sync {
-    /// get travel time of given link at given time, optionally for a specific person and vehicle
+    /// get travel time of a given link at a given time, optionally for a specific person and vehicle
     fn travel_time(
         &self,
         link: &Link,
