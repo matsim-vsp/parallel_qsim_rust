@@ -718,6 +718,16 @@ mod tests {
         assert_eq!(34, population.persons.len())
     }
 
+    #[test]
+    fn write_and_read_population_zstd() {
+        let population = IOPopulation::from_file("./assets/population-v6-34-persons.xml");
+        let path = PathBuf::from("./test_output/io/xml_population/population.xml.zst");
+        population.to_file(&path);
+
+        let result = IOPopulation::from_file(&path);
+        assert_eq!(population.persons.len(), result.persons.len());
+    }
+
     #[deterministic_id_test]
     fn test_conversion() {
         let _net = Network::from_file(

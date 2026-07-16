@@ -215,8 +215,8 @@ impl<'c> ActivityEngineBuilder<'c> {
     }
 
     pub fn build(self) -> ActivityEngine {
-        let clock = SimClock::new(self.config.simulation().ticks_per_second);
-        let now = clock.secs_to_tick(self.config.simulation().start_time as u64);
+        let clock = SimClock::new(self.config.qsim().ticks_per_second);
+        let now = clock.secs_to_tick(self.config.qsim().start_time as u64);
         let now_time = clock.tick_to_time(now);
 
         let mut asleep = TimeQueue::new();

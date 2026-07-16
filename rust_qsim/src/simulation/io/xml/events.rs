@@ -9,6 +9,8 @@ use tracing::info;
 use xml::EventReader;
 use xml::attribute::OwnedAttribute;
 use xml::reader::XmlEvent;
+use zstd::stream::read::Decoder as ZstdDecoder;
+use zstd::stream::write::Encoder as ZstdEncoder;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
@@ -35,10 +37,12 @@ impl XmlEventsWriter {
     pub fn new(path: impl AsRef<Path>) -> Self {
         info!("Creating file: {:?}", path.as_ref());
         let file = File::create(&path).expect("Failed to create File.");
-        let mut writer: Box<dyn Write + Send> = if path.as_ref().extension().unwrap() == "gz" {
-            Box::new(GzEncoder::new(file, Compression::fast()))
-        } else {
-            Box::new(BufWriter::new(file))
+        let mut writer: Box<dyn Write + Send> = match path.as_ref().extension().unwrap().to_str() {
+            Some("gz") => Box::new(GzEncoder::new(file, Compression::fast())),
+            Some("zst") => {
+                Box::new(ZstdEncoder::new(file, 0).expect("Failed to create zstd encoder"))
+            }
+            _ => Box::new(BufWriter::new(file)),
         };
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
         writer
@@ -219,14 +223,14 @@ impl XmlEventsReader {
     pub fn new(events_file: impl AsRef<Path>) -> Self {
         let file = File::open(events_file.as_ref())
             .unwrap_or_else(|_| panic!("Could not open events file: {:?}", events_file.as_ref()));
-        // if events_file is a gz file, read it with a GzDecoder, otherwise read it directly
-        let file_is_gz = events_file.as_ref().extension().unwrap() == "gz";
-        let buffered_reader: Box<dyn BufRead> = if file_is_gz {
-            let gz = flate2::read::GzDecoder::new(file);
-            Box::new(BufReader::new(gz))
-        } else {
-            Box::new(BufReader::new(file))
-        };
+        let buffered_reader: Box<dyn BufRead> =
+            match events_file.as_ref().extension().unwrap().to_str() {
+                Some("gz") => Box::new(BufReader::new(flate2::read::GzDecoder::new(file))),
+                Some("zst") => Box::new(BufReader::new(
+                    ZstdDecoder::new(file).expect("Failed to create zstd decoder"),
+                )),
+                _ => Box::new(BufReader::new(file)),
+            };
         let parser = EventReader::new(buffered_reader);
         Self { parser }
     }
@@ -487,6 +491,42 @@ mod tests {
         let output_dir = PathBuf::from("./test_output/io/xml_events/nanos_round_trip");
         fs::create_dir_all(&output_dir).unwrap();
         let path = output_dir.join("events.xml");
+
+        let event: Box<dyn EventTrait> = Box::new(
+            ActivityStartEventBuilder::default()
+                .time(SimTime::from_nanos(42_123_456_789))
+                .person(Id::create("person-1"))
+                .link(Id::create("link-1"))
+                .act_type(Id::create("home"))
+                .coordinate(Coordinate::new_2d(1.0, 2.0))
+                .build()
+                .unwrap(),
+        );
+
+        let writer = XmlEventsWriter::new(&path);
+        writer.on_any(event.as_ref());
+        writer.finish();
+
+        let mut reader = XmlEventsReader::new(&path);
+        let (time, parsed_event) = reader.read_next().unwrap();
+
+        assert_eq!(SimTime::from_nanos(42_123_456_789), time);
+
+        let parsed_event = parsed_event
+            .as_any()
+            .downcast_ref::<ActivityStartEvent>()
+            .unwrap();
+        assert_eq!(Id::create("person-1"), parsed_event.person);
+        assert_eq!(Id::create("link-1"), parsed_event.link);
+        assert_eq!(Id::create("home"), parsed_event.act_type);
+        assert_eq!(Coordinate::new_2d(1.0, 2.0), parsed_event.coordinate);
+    }
+
+    #[deterministic_id_test]
+    fn zstd_xml_event_round_trip_preserves_nanoseconds() {
+        let output_dir = PathBuf::from("./test_output/io/xml_events/zstd_nanos_round_trip");
+        fs::create_dir_all(&output_dir).unwrap();
+        let path = output_dir.join("events.xml.zst");
 
         let event: Box<dyn EventTrait> = Box::new(
             ActivityStartEventBuilder::default()

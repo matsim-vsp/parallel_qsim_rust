@@ -184,7 +184,7 @@ impl ControllerBuilder {
         let access_egress_mode = Id::create(&config.routing().access_egress_mode);
 
         // for every main mode, create the corresponding router.
-        for mode in &config.simulation().main_modes {
+        for mode in &config.qsim().main_modes {
             let id = Id::create(mode);
             let Some(access_egress) = routers.get(&access_egress_mode).cloned() else {
                 return Err(format!(
@@ -224,20 +224,20 @@ impl ControllerBuilder {
 impl Controller {
     /// Runs the simulation and joins all threads before returning.
     pub fn run(mut self) {
-        let first_iteration = self.config.simulation().first_iteration;
-        let last_iteration = self.config.simulation().last_iteration;
+        let first_iteration = self.config.controller().first_iteration;
+        let last_iteration = self.config.controller().last_iteration;
         assert!(
             first_iteration <= last_iteration,
             "Invalid simulation iteration range: first_iteration ({first_iteration}) must be less than or equal to last_iteration ({last_iteration})."
         );
         assert!(
             self.config.output().write_events == WriteEvents::None
-                || self.config.simulation().write_events_interval > 0,
-            "Invalid simulation config: write_events_interval must be greater than 0 when event writing is enabled."
+                || self.config.controller().write_events_interval > 0,
+            "Invalid controller config: write_events_interval must be greater than 0 when event writing is enabled."
         );
         assert!(
-            self.config.simulation().write_plans_interval > 0,
-            "Invalid simulation config: write_plans_interval must be greater than 0."
+            self.config.controller().write_plans_interval > 0,
+            "Invalid controller config: write_plans_interval must be greater than 0."
         );
 
         self.controller_events_manager
@@ -274,7 +274,7 @@ impl Controller {
         self.shutdown_adapters();
 
         info!("Writing output files:");
-        if self.config.output().write_events == crate::simulation::config::WriteEvents::Proto {
+        if self.config.controller().compression_type.is_protobuf() {
             info!("    ... ID store ...");
             Self::write_output_id_store(&output_path);
         }
@@ -418,15 +418,29 @@ impl Controller {
     }
 
     fn write_output_network(&mut self, output_path: PathBuf) {
-        let net_out_path =
-            create_output_filename(&output_path, &PathBuf::from("output_network.xml.gz"));
+        let net_out_path = create_output_filename(
+            &output_path,
+            &PathBuf::from(
+                self.config
+                    .controller()
+                    .compression_type
+                    .with_extension("output_network"),
+            ),
+        );
 
         self.scenario.core.network.to_file(&net_out_path);
     }
 
     fn write_output_population(&mut self, output_path: impl AsRef<Path>) {
-        let pop_out_path =
-            create_output_filename(&output_path, &PathBuf::from("output_plans.xml.gz"));
+        let pop_out_path = create_output_filename(
+            &output_path,
+            &PathBuf::from(
+                self.config
+                    .controller()
+                    .compression_type
+                    .with_extension("output_plans"),
+            ),
+        );
 
         self.scenario.population.to_file(&pop_out_path);
     }
@@ -442,14 +456,19 @@ impl Controller {
         population: &Population,
     ) {
         let iter_path = iters_path.as_ref().join(format!("it.{}", iteration));
-        //TODO once we have a switch in the config for the type, use that one.
-        population.to_file(&iter_path.join("output_plans.xml.gz"));
-        //TODO also write the events & experienced plans
+        population.to_file(
+            &iter_path.join(
+                self.config
+                    .controller()
+                    .compression_type
+                    .with_extension("output_plans"),
+            ),
+        );
     }
 
     fn should_write_iteration_plans(&self, iteration: u32, is_last_iteration: bool) -> bool {
         is_last_iteration
-            || (iteration != 0 && iteration % self.config.simulation().write_plans_interval == 0)
+            || (iteration != 0 && iteration % self.config.controller().write_plans_interval == 0)
     }
 }
 

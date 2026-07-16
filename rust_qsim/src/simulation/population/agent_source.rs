@@ -187,7 +187,7 @@ mod tests {
         let network_partition = SimNetworkPartition::from_network(
             &network,
             0,
-            config.simulation(),
+            config.qsim(),
             config.computational_setup().random_seed,
         );
         MobsimScenarioPartition {

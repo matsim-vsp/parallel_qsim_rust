@@ -44,7 +44,7 @@ fn main() {
             let net_partition = SimNetworkPartition::from_network(
                 &net,
                 partition,
-                &config::Simulation::default(),
+                &config::QSim::default(),
                 config::DEFAULT_RANDOM_SEED,
             );
             let neighbors = net_partition.neighbors().len();

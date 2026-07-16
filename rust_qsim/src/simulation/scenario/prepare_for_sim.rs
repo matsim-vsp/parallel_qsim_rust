@@ -407,7 +407,7 @@ fn vehicle_for_trip<'a>(
 fn is_network_mode(context: &PrepareForSimContext<'_>, mode: &Id<String>) -> bool {
     context
         .config
-        .simulation()
+        .qsim()
         .main_modes
         .iter()
         .any(|candidate| candidate == mode.external())
@@ -595,7 +595,7 @@ mod tests {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());
         let mut config = Config::default();
-        config.simulation_mut().main_modes = vec!["car".to_string()];
+        config.qsim_mut().main_modes = vec!["car".to_string()];
         let mut garage = Garage::default();
         garage.add_veh(test_vehicle("person-1_car"));
         let person_id = Id::create("person-1");
@@ -656,7 +656,7 @@ mod tests {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());
         let mut config = Config::default();
-        config.simulation_mut().main_modes = vec!["car".to_string()];
+        config.qsim_mut().main_modes = vec!["car".to_string()];
         let mut garage = Garage::default();
         garage.add_veh(test_vehicle("person-1_car"));
         let person_id = Id::create("person-1");
@@ -703,7 +703,7 @@ mod tests {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());
         let mut config = Config::default();
-        config.simulation_mut().main_modes = vec!["car".to_string()];
+        config.qsim_mut().main_modes = vec!["car".to_string()];
         let plan = unrouted_plan("car", "link-1", "link-2", 10);
         let original = plan.clone();
         let person_id = Id::create("person-1");
@@ -737,7 +737,7 @@ mod tests {
         let departures = Arc::new(Mutex::new(Vec::new()));
         let router = network_test_router(departures.clone());
         let mut config = Config::default();
-        config.simulation_mut().main_modes = vec!["car".to_string()];
+        config.qsim_mut().main_modes = vec!["car".to_string()];
         let mut garage = Garage::default();
         garage.add_veh(test_vehicle("person-1_car"));
         let mut plan = unrouted_plan("car", "link-1", "link-2", 10);

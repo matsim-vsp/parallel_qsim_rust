@@ -15,11 +15,14 @@ use tracing::info;
 pub fn from_file(path: &Path) -> Garage {
     if path.extension().unwrap().eq("binpb") {
         load_from_proto(path)
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.extension().unwrap().eq("xml")
+        || path.extension().unwrap().eq("gz")
+        || path.extension().unwrap().eq("zst")
+    {
         load_from_xml(path)
     } else {
         panic!(
-            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension"
+            "Tried to load {path:?}. File format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
         );
     }
 }
@@ -27,10 +30,15 @@ pub fn from_file(path: &Path) -> Garage {
 pub fn to_file(garage: &Garage, path: &Path) {
     if path.extension().unwrap().eq("binpb") {
         write_to_proto(garage, path);
-    } else if path.extension().unwrap().eq("xml") || path.extension().unwrap().eq("gz") {
+    } else if path.extension().unwrap().eq("xml")
+        || path.extension().unwrap().eq("gz")
+        || path.extension().unwrap().eq("zst")
+    {
         write_to_xml(garage, path);
     } else {
-        panic!("file format not supported. Either use `.xml`, `.xml.gz`, or `.binpb` as extension");
+        panic!(
+            "file format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
+        );
     }
 }
 
