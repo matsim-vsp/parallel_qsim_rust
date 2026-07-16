@@ -4,7 +4,7 @@ use crate::simulation::random::get_rng;
 use crate::simulation::scenario::population::{DEFAULT_SUBPOPULATION, InternalPerson, Population};
 use ahash::HashMap;
 use derive_builder::Builder;
-use rand::Rng;
+use rand::RngExt;
 use rayon::prelude::*;
 use std::fmt;
 use std::str::FromStr;

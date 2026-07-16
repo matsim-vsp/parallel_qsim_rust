@@ -484,8 +484,8 @@ impl InternalRoute {
                 let route = io
                     .route
                     .unwrap_or_default()
-                    .split(' ')
-                    .map(|link| Id::create(link.trim()))
+                    .split_whitespace()
+                    .map(Id::create)
                     .collect();
                 InternalRoute::Network(InternalNetworkRoute {
                     generic_delegate: generic,
@@ -1006,6 +1006,33 @@ mod tests {
         });
 
         assert_eq!("person", person.subpopulation().external());
+    }
+
+    #[deterministic_id_test]
+    fn network_route_ignores_xml_text_whitespace() {
+        let route = InternalRoute::from_io(
+            IORoute {
+                r#type: Some("links".to_string()),
+                start_link: Some("1".to_string()),
+                end_link: Some("20".to_string()),
+                trav_time: None,
+                distance: None,
+                vehicle: Some("1_car".to_string()),
+                route: Some("1 6 15 20\n                ".to_string()),
+            },
+            Id::create("1"),
+            Id::create("car"),
+        );
+
+        assert_eq!(
+            vec![
+                Id::<Link>::get_from_ext("1"),
+                Id::<Link>::get_from_ext("6"),
+                Id::<Link>::get_from_ext("15"),
+                Id::<Link>::get_from_ext("20"),
+            ],
+            route.as_network().unwrap().route
+        );
     }
 
     #[deterministic_id_test]

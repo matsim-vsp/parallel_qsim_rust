@@ -12,7 +12,7 @@ use crate::simulation::vehicles::SimulationVehicle;
 use crate::simulation::{config, random};
 use ahash::AHasher;
 use nohash_hasher::{IntMap, IntSet};
-use rand::Rng;
+use rand::RngExt;
 use rand::rngs::SmallRng;
 use std::cell::RefCell;
 use std::collections::HashSet;
