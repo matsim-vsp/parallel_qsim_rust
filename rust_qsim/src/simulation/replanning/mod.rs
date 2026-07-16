@@ -530,15 +530,16 @@ mod tests {
     use crate::simulation::config::{Replanning, StrategySetting};
     use crate::simulation::id::Id;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
+    use macros::deterministic_id_test;
 
-    #[test]
+    #[deterministic_id_test]
     fn keep_last_selector_returns_selected_plan_index() {
         let person = person_with_scores([Some(1.0), Some(2.0)]);
 
         assert_eq!(0, KeepLastSelector.select(&person, &context()));
     }
 
-    #[test]
+    #[deterministic_id_test]
     #[should_panic(expected = "KeepLastSelector could not find a selected plan.")]
     fn keep_last_selector_panics_without_selected_plan() {
         let mut person = person_with_scores([Some(1.0), Some(2.0)]);
@@ -549,7 +550,7 @@ mod tests {
         KeepLastSelector.select(&person, &context());
     }
 
-    #[test]
+    #[deterministic_id_test]
     #[should_panic(expected = "KeepLastSelector found multiple selected plans.")]
     fn keep_last_selector_panics_with_multiple_selected_plans() {
         let mut person = person_with_scores([Some(1.0), Some(2.0)]);
@@ -558,14 +559,14 @@ mod tests {
         KeepLastSelector.select(&person, &context());
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn worst_selector_treats_missing_score_as_worst() {
         let person = person_with_scores([Some(1.0), None, Some(-5.0)]);
 
         assert_eq!(1, WorstScoreSelector.select(&person, &context()));
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn worst_selector_prefers_removing_unselected_plans() {
         let mut person = person_with_scores([Some(-100.0), Some(1.0)]);
         person.plans_mut()[0].selected = true;
@@ -574,7 +575,7 @@ mod tests {
         assert_eq!(1, WorstScoreSelector.select(&person, &context()));
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn default_selectors_create_generic_strategies_with_matching_names() {
         for selector in [
             DefaultSelector::KeepLastSelected,
@@ -587,7 +588,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn random_selector_is_deterministic_for_same_context() {
         let person = person_with_scores([Some(1.0), Some(2.0), Some(3.0)]);
         let context = context();
@@ -599,7 +600,7 @@ mod tests {
         assert!(first < person.plans().len());
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn config_manager_uses_memory_limit_and_removal_selector() {
         let replanning = Replanning {
             max_agent_plan_memory: 1,
@@ -615,7 +616,7 @@ mod tests {
         assert_eq!(Some(1.0), person.plans()[0].score);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn config_manager_groups_strategy_weights_by_subpopulation() {
         let replanning = Replanning {
             strategy_settings: vec![
@@ -649,7 +650,7 @@ mod tests {
         assert_eq!(0.7, freight_weights.entries[0].weight);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn innovation_filter_keeps_selectors_and_excludes_default_strategies() {
         let replanning = Replanning {
             strategy_settings: vec![
@@ -681,7 +682,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn default_strategy_is_named_generic_keep_last_selected() {
         let manager = StrategyManager::default();
         let strategy_name = Id::create(DefaultSelector::KeepLastSelected.as_str());
@@ -696,7 +697,7 @@ mod tests {
         assert_eq!(strategy.name(), &default_weight.strategy_name);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn generic_strategy_without_modules_does_not_copy_plan() {
         let strategy = GenericPlanStrategy {
             name: Id::create("KeepLastSelected"),
@@ -712,7 +713,7 @@ mod tests {
         assert_eq!(Some(1.0), person.plans()[0].score);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn generic_strategy_with_modules_copies_plan_and_runs_modules_on_copy() {
         let strategy = GenericPlanStrategy {
             name: Id::create("ReRoute"),

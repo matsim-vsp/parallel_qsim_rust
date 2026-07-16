@@ -632,7 +632,7 @@ mod tests {
         assert_eq!(Some("person"), attributes.find("subpopulation"));
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn writes_non_default_subpopulation_attribute() {
         let person = InternalPerson::from(IOPerson {
             attributes: Some(IOAttributes {
