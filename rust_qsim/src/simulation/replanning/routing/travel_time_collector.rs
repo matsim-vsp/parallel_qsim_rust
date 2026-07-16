@@ -1,6 +1,5 @@
 use crate::simulation::events::{
-    LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent, VehicleEntersTrafficEvent,
-    VehicleLeavesTrafficEvent,
+    LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::Link;
@@ -21,6 +20,13 @@ struct TravelTimeBin {
     count: u64,
 }
 
+#[derive(Debug)]
+struct TravelTimeData {
+    travel_time_bins: Vec<TravelTimeBin>,
+    consolidated_travel_times: Option<Vec<Duration>>,
+    dirty: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TravelTimeGetter {
     Average,
@@ -34,10 +40,7 @@ pub struct TravelTimeCalculator {
     num_bins: usize,
     active_link_enters_by_vehicle: IntMap<Id<InternalVehicle>, ActiveLinkEnter>,
     ignored_vehicles: IntSet<Id<InternalVehicle>>,
-    travel_time_bins_by_link: IntMap<Id<Link>, Vec<TravelTimeBin>>,
-    consolidated_travel_times_by_link: IntMap<Id<Link>, Vec<Duration>>,
-    // Links that have been updated since the last time we consolidated travel times.
-    dirty_links: IntSet<Id<Link>>,
+    travel_time_data_by_link: IntMap<Id<Link>, TravelTimeData>,
 }
 
 #[allow(dead_code)]
@@ -58,9 +61,7 @@ impl TravelTimeCalculator {
             num_bins,
             active_link_enters_by_vehicle: IntMap::default(),
             ignored_vehicles: IntSet::default(),
-            travel_time_bins_by_link: IntMap::default(),
-            consolidated_travel_times_by_link: IntMap::default(),
-            dirty_links: IntSet::default(),
+            travel_time_data_by_link: IntMap::default(),
         }
     }
 
@@ -96,18 +97,10 @@ impl TravelTimeCalculator {
 
         let travel_time = event.time.duration_since(active_enter.time);
         let time_slot = self.time_slot(active_enter.time);
-        let bins = self
-            .travel_time_bins_by_link
-            .entry(active_enter.link.clone())
-            .or_insert_with(|| vec![TravelTimeBin::default(); self.num_bins]);
-
-        let bin = &mut bins[time_slot];
-        let next_count = bin.count + 1;
-        bin.mean_nanos = ((bin.mean_nanos * bin.count as f64) + duration_to_nanos_f64(travel_time))
-            / next_count as f64;
-        bin.count = next_count;
-
-        self.dirty_links.insert(active_enter.link);
+        self.travel_time_data_by_link
+            .entry(active_enter.link)
+            .or_insert_with(|| TravelTimeData::new(self.num_bins))
+            .observe(time_slot, travel_time);
     }
 
     pub fn process_vehicle_leaves_traffic_event(&mut self, event: &VehicleLeavesTrafficEvent) {
@@ -123,13 +116,11 @@ impl TravelTimeCalculator {
     ) -> Duration {
         let time_slot = self.time_slot(now);
         let bin_size = self.bin_size;
-        let travel_times = self.consolidated_travel_times(link);
-        let observed = match getter {
-            TravelTimeGetter::Average => travel_times[time_slot],
-            TravelTimeGetter::LinearInterpolation => {
-                interpolated_travel_time(travel_times, now, bin_size)
-            }
-        };
+        let observed = self
+            .travel_time_data_by_link
+            .entry(link.id.clone())
+            .or_insert_with(|| TravelTimeData::new(self.num_bins))
+            .get_travel_time(link, time_slot, now, bin_size, getter);
 
         if let Some(vehicle) = vehicle {
             if vehicle.max_v.is_finite() && vehicle.max_v > 0.0 {
@@ -141,9 +132,9 @@ impl TravelTimeCalculator {
     }
 
     pub fn flush(&mut self) {
-        self.travel_time_bins_by_link = IntMap::default();
-        self.consolidated_travel_times_by_link = IntMap::default();
-        self.dirty_links = IntSet::default();
+        for data in self.travel_time_data_by_link.values_mut() {
+            data.flush();
+        }
     }
 
     fn clear_vehicle_state(&mut self, vehicle: &Id<InternalVehicle>) {
@@ -157,38 +148,77 @@ impl TravelTimeCalculator {
         let slot = usize::try_from(slot).unwrap_or(usize::MAX);
         slot.min(self.num_bins - 1)
     }
+}
 
-    fn consolidated_travel_times(&mut self, link: &Link) -> &[Duration] {
-        let needs_update = self.dirty_links.remove(&link.id)
-            || !self
-                .consolidated_travel_times_by_link
-                .contains_key(&link.id);
+impl TravelTimeData {
+    fn new(num_bins: usize) -> Self {
+        TravelTimeData {
+            travel_time_bins: vec![TravelTimeBin::default(); num_bins],
+            consolidated_travel_times: None,
+            dirty: true,
+        }
+    }
 
-        if needs_update {
-            let consolidated = self.build_consolidated_travel_times(link);
-            self.consolidated_travel_times_by_link
-                .insert(link.id.clone(), consolidated);
+    fn observe(&mut self, slot: usize, travel_time: Duration) {
+        let bin = &mut self.travel_time_bins[slot];
+        let next_count = bin.count + 1;
+        bin.mean_nanos = ((bin.mean_nanos * bin.count as f64) + duration_to_nanos_f64(travel_time))
+            / next_count as f64;
+        bin.count = next_count;
+        self.dirty = true;
+    }
+
+    fn get_travel_time(
+        &mut self,
+        link: &Link,
+        slot: usize,
+        now: SimTime,
+        bin_size: Duration,
+        getter: TravelTimeGetter,
+    ) -> Duration {
+        let travel_times = self.consolidated_travel_times(link, bin_size);
+        match getter {
+            TravelTimeGetter::Average => travel_times[slot],
+            TravelTimeGetter::LinearInterpolation => {
+                interpolated_travel_time(travel_times, now, bin_size)
+            }
+        }
+    }
+
+    fn flush(&mut self) {
+        self.travel_time_bins.fill(TravelTimeBin::default());
+        self.consolidated_travel_times = None;
+        self.dirty = true;
+    }
+
+    fn consolidated_travel_times(&mut self, link: &Link, bin_size: Duration) -> &[Duration] {
+        if self.dirty || self.consolidated_travel_times.is_none() {
+            self.consolidated_travel_times =
+                Some(self.build_consolidated_travel_times(link, bin_size));
+            self.dirty = false;
         }
 
-        self.consolidated_travel_times_by_link
-            .get(&link.id)
+        self.consolidated_travel_times
+            .as_deref()
             .expect("consolidated travel times must exist after update")
     }
 
-    fn build_consolidated_travel_times(&self, link: &Link) -> Vec<Duration> {
+    fn build_consolidated_travel_times(&self, link: &Link, bin_size: Duration) -> Vec<Duration> {
         let freespeed_travel_time = travel_time_from_speed(link.length, link.freespeed);
-        let mut result = vec![freespeed_travel_time; self.num_bins];
+        let mut result = vec![freespeed_travel_time; self.travel_time_bins.len()];
 
-        if let Some(bins) = self.travel_time_bins_by_link.get(&link.id) {
-            for (i, bin) in bins.iter().enumerate() {
-                if bin.count > 0 {
-                    result[i] = Duration::from_secs_f64(bin.mean_nanos / 1_000_000_000.0);
-                }
+        for (i, bin) in self.travel_time_bins.iter().enumerate() {
+            if bin.count > 0 {
+                result[i] = Duration::from_secs_f64(bin.mean_nanos / 1_000_000_000.0);
             }
         }
 
+        // MATSim does not let an empty bin immediately fall back to freespeed after a very slow
+        // observed bin. Instead, each following bin may drop by at most one bin size. For example,
+        // with 900s bins and a 3000s observation in bin 0, empty later bins become 2100s, 1200s,
+        // 300s, and only then freespeed again.
         for i in 1..result.len() {
-            let lower_bound = result[i - 1].saturating_sub(self.bin_size);
+            let lower_bound = result[i - 1].saturating_sub(bin_size);
             if result[i] < lower_bound {
                 result[i] = lower_bound;
             }
@@ -247,8 +277,7 @@ fn interpolated_travel_time(
 mod test {
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
-        LinkEnterEvent, LinkLeaveEvent, PersonLeavesVehicleEvent, VehicleEntersTrafficEvent,
-        VehicleLeavesTrafficEvent,
+        LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
     };
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::travel_time_collector::{
@@ -261,6 +290,8 @@ mod test {
     use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
     use std::time::Duration;
+
+    use super::TravelTimeData;
 
     fn calculator(
         modes: IntSet<Id<String>>,
@@ -361,19 +392,6 @@ mod test {
         }
     }
 
-    fn person_leaves_vehicle_event(
-        time: SimTime,
-        person: &Id<InternalPerson>,
-        vehicle: &Id<InternalVehicle>,
-    ) -> PersonLeavesVehicleEvent {
-        PersonLeavesVehicleEvent {
-            time,
-            person: person.clone(),
-            vehicle: vehicle.clone(),
-            attributes: InternalAttributes::default(),
-        }
-    }
-
     fn average_travel_time(
         calculator: &mut TravelTimeCalculator,
         link: &Link,
@@ -409,23 +427,31 @@ mod test {
     fn records_travel_time_in_enter_time_slot() {
         let link = link("1", 100.0, 100.0);
         let vehicle = vehicle("v1", 20.0);
+
+        // 10 bin à 10s
         let mut calculator = calculator(IntSet::default(), 10, 100);
 
+        // in bin 1
         calculator.process_link_enter_event(&link_enter_event(
             SimTime::from_secs(9),
             &link.id,
             &vehicle.id,
         ));
+
+        // in bin 2
         calculator.process_link_leave_event(&link_leave_event(
             SimTime::from_secs(14),
             &link.id,
             &vehicle.id,
         ));
 
+        // observed travel time registered in bin 1
         assert_eq!(
             Duration::from_secs(5),
             average_travel_time(&mut calculator, &link, 0)
         );
+
+        // freespeed travel time registered in bin 2
         assert_eq!(
             Duration::from_secs(1),
             average_travel_time(&mut calculator, &link, 10)
@@ -439,6 +465,7 @@ mod test {
         let vehicle2 = vehicle("v2", 20.0);
         let mut calculator = calculator(IntSet::default(), 10, 100);
 
+        // Travel time 2
         calculator.process_link_enter_event(&link_enter_event(
             SimTime::from_secs(2),
             &link.id,
@@ -449,6 +476,8 @@ mod test {
             &link.id,
             &vehicle1.id,
         ));
+
+        // Travel time 4
         calculator.process_link_enter_event(&link_enter_event(
             SimTime::from_secs(3),
             &link.id,
@@ -460,6 +489,7 @@ mod test {
             &vehicle2.id,
         ));
 
+        // mean travel time is 3
         assert_eq!(
             Duration::from_secs(3),
             average_travel_time(&mut calculator, &link, 0)
@@ -518,6 +548,7 @@ mod test {
             &vehicle.id,
         ));
 
+        // returns freespeed travel time because the vehicle was ignored due to its network mode
         assert_eq!(
             Duration::from_secs(1),
             average_travel_time(&mut calculator, &link, 0)
@@ -541,6 +572,7 @@ mod test {
             &vehicle.id,
         ));
 
+        // returns the observed travel time
         assert_eq!(
             Duration::from_secs(5),
             average_travel_time(&mut calculator, &link, 10)
@@ -612,6 +644,10 @@ mod test {
             Duration::from_secs(300),
             average_travel_time(&mut calculator, &link, 2700)
         );
+        assert_eq!(
+            Duration::from_secs(1),
+            average_travel_time(&mut calculator, &link, 3600)
+        );
     }
 
     #[deterministic_id_test]
@@ -676,6 +712,153 @@ mod test {
                 &link,
                 SimTime::from_secs(0),
                 Some(&slow_vehicle),
+                TravelTimeGetter::Average,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn data_running_mean_per_slot() {
+        let link = link("1", 100.0, 100.0);
+        let mut data = TravelTimeData::new(3);
+
+        data.observe(0, Duration::from_secs(2));
+        data.observe(0, Duration::from_secs(4));
+
+        assert_eq!(
+            Duration::from_secs(3),
+            data.get_travel_time(
+                &link,
+                0,
+                SimTime::from_secs(0),
+                Duration::from_secs(10),
+                TravelTimeGetter::Average,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn data_empty_bins_use_freespeed() {
+        let link = link("1", 100.0, 10.0);
+        let mut data = TravelTimeData::new(3);
+
+        assert_eq!(
+            Duration::from_secs(10),
+            data.get_travel_time(
+                &link,
+                1,
+                SimTime::from_secs(10),
+                Duration::from_secs(10),
+                TravelTimeGetter::Average,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn data_consolidation_cascades_previous_bin_minus_bin_size() {
+        let link = link("1", 100.0, 100.0);
+        let mut data = TravelTimeData::new(4);
+        let bin_size = Duration::from_secs(900);
+
+        data.observe(0, Duration::from_secs(3000));
+
+        assert_eq!(
+            Duration::from_secs(2100),
+            data.get_travel_time(
+                &link,
+                1,
+                SimTime::from_secs(900),
+                bin_size,
+                TravelTimeGetter::Average,
+            )
+        );
+        assert_eq!(
+            Duration::from_secs(1200),
+            data.get_travel_time(
+                &link,
+                2,
+                SimTime::from_secs(1800),
+                bin_size,
+                TravelTimeGetter::Average,
+            )
+        );
+        assert_eq!(
+            Duration::from_secs(300),
+            data.get_travel_time(
+                &link,
+                3,
+                SimTime::from_secs(2700),
+                bin_size,
+                TravelTimeGetter::Average,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn data_linear_interpolation_uses_neighboring_bin_midpoints() {
+        let link = link("1", 100.0, 100.0);
+        let mut data = TravelTimeData::new(3);
+
+        data.observe(0, Duration::from_secs(10));
+        data.observe(1, Duration::from_secs(20));
+
+        assert_eq!(
+            Duration::from_secs(15),
+            data.get_travel_time(
+                &link,
+                1,
+                SimTime::from_secs(10),
+                Duration::from_secs(10),
+                TravelTimeGetter::LinearInterpolation,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn data_reconsolidates_after_new_observation() {
+        let link = link("1", 100.0, 100.0);
+        let mut data = TravelTimeData::new(3);
+
+        data.observe(0, Duration::from_secs(10));
+        assert_eq!(
+            Duration::from_secs(10),
+            data.get_travel_time(
+                &link,
+                0,
+                SimTime::from_secs(0),
+                Duration::from_secs(10),
+                TravelTimeGetter::Average,
+            )
+        );
+
+        data.observe(0, Duration::from_secs(20));
+        assert_eq!(
+            Duration::from_secs(15),
+            data.get_travel_time(
+                &link,
+                0,
+                SimTime::from_secs(0),
+                Duration::from_secs(10),
+                TravelTimeGetter::Average,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn data_flush_clears_observations() {
+        let link = link("1", 100.0, 100.0);
+        let mut data = TravelTimeData::new(3);
+
+        data.observe(0, Duration::from_secs(10));
+        data.flush();
+
+        assert_eq!(
+            Duration::from_secs(1),
+            data.get_travel_time(
+                &link,
+                0,
+                SimTime::from_secs(0),
+                Duration::from_secs(10),
                 TravelTimeGetter::Average,
             )
         );
