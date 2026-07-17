@@ -11,6 +11,9 @@ use crate::simulation::scoring::mapping::mapping_data_forwarder::MappingDataForw
 use ahash::{HashSet, HashSetExt};
 use nohash_hasher::IntMap;
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 
 pub struct MappingCollectorMessageBroker {
@@ -25,6 +28,9 @@ pub struct MappingCollectorMessageBroker {
     buffer_events: IntMap<QSimId, IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>>,
     buffer_vehicles: IntMap<u32, IntMap<Id<InternalVehicle>, Vec<(Box<dyn EventTrait>, u32)>>>,
     data_forwarder: Weak<Mutex<MappingDataForwarder>>,
+
+    payload_bytes_by_target: IntMap<QSimId, usize>,
+    bytes_path: PathBuf,
 }
 
 #[hotpath::measure_all]
@@ -36,6 +42,7 @@ impl MappingCollectorMessageBroker {
         num_partitions: usize,
         num_collectors: usize,
         sync_interval: u32,
+        bytes_path: PathBuf,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,
@@ -48,6 +55,8 @@ impl MappingCollectorMessageBroker {
             buffer_events: IntMap::default(),
             buffer_vehicles: IntMap::default(),
             data_forwarder: Weak::new(),
+            payload_bytes_by_target: IntMap::default(),
+            bytes_path,
         }))
     }
 
@@ -133,6 +142,7 @@ impl MappingCollectorMessageBroker {
                 }),
             };
             hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleEventMessage to rank {} with error {}",
@@ -160,6 +170,7 @@ impl MappingCollectorMessageBroker {
                 message: Box::new(PersonEventMessage { events }),
             };
             hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending PersonEventMessage to rank {} with error {}",
@@ -182,6 +193,7 @@ impl MappingCollectorMessageBroker {
                 };
                 hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent")
                     .inc(payload_bytes as f64);
+                *self.payload_bytes_by_target.entry(target as QSimId).or_insert(0) += payload_bytes;
                 self.senders[target].send(msg).unwrap_or_else(|e| {
                     panic!(
                         "Error sending PersonEventMessage to rank {} with error {}",
@@ -219,6 +231,19 @@ impl MappingCollectorMessageBroker {
                 }
             }
         }
+
+        let new_file = !self.bytes_path.exists();
+        std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
+        let mut file = OpenOptions::new().create(true).append(true).open(&self.bytes_path).unwrap();
+        if new_file {
+            writeln!(file, "type,target,bytes").unwrap();
+        }
+        let mut payload_entries: Vec<_> = self.payload_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        payload_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in payload_entries {
+            writeln!(file, "payload,{},{}", target, bytes).unwrap();
+        }
+        self.payload_bytes_by_target.clear();
     }
 }
 
@@ -233,6 +258,9 @@ pub struct MappingScoringMessageBroker {
     buffer_events: IntMap<u32, IntMap<Id<InternalPerson>, Vec<(Box<dyn EventTrait>, u32)>>>,
     buffer_watermarks: IntMap<QSimId, WatermarkMessage>,
     data_collector: Weak<Mutex<MappingDataCollector>>,
+
+    payload_bytes_by_target: IntMap<QSimId, usize>,
+    bytes_path: PathBuf,
 }
 
 #[hotpath::measure_all]
@@ -244,6 +272,7 @@ impl MappingScoringMessageBroker {
         num_partitions: usize,
         num_collectors: usize,
         person_id2home_partition: IntMap<Id<InternalPerson>, QSimId>,
+        bytes_path: PathBuf,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,
@@ -255,6 +284,8 @@ impl MappingScoringMessageBroker {
             buffer_events: IntMap::default(),
             buffer_watermarks: IntMap::default(),
             data_collector: Weak::new(),
+            payload_bytes_by_target: IntMap::default(),
+            bytes_path,
         }))
     }
 
@@ -376,6 +407,7 @@ impl MappingScoringMessageBroker {
                 message: Box::new(PersonEventMessage { events }),
             };
             hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -392,6 +424,7 @@ impl MappingScoringMessageBroker {
                 message: Box::new(m),
             };
             hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -442,12 +475,25 @@ impl MappingScoringMessageBroker {
                 message: Box::new(InternalPlanMessage { plans }),
             };
             hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target as QSimId).or_insert(0) += payload_bytes;
             self.senders[target].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
                     target, e
                 )
             });
+        }
+
+        let new_file = !self.bytes_path.exists();
+        std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
+        let mut file = OpenOptions::new().create(true).append(true).open(&self.bytes_path).unwrap();
+        if new_file {
+            writeln!(file, "type,target,bytes").unwrap();
+        }
+        let mut payload_entries: Vec<_> = self.payload_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        payload_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in payload_entries {
+            writeln!(file, "payload,{},{}", target, bytes).unwrap();
         }
     }
 }

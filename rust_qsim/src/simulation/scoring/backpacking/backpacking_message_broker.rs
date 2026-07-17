@@ -6,6 +6,9 @@ use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use nohash_hasher::{IntMap, IntSet};
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tracing::warn;
@@ -20,6 +23,10 @@ pub struct BackpackingMessageBroker {
         IntMap<QSimId, IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>>,
     wait_backpacks: IntSet<Id<InternalPerson>>,
     wait_vehicles: IntSet<Id<InternalVehicle>>,
+
+    payload_bytes_by_target: IntMap<QSimId, usize>,
+    vehicle_bytes_by_target: IntMap<QSimId, usize>,
+    bytes_path: PathBuf,
 }
 
 #[hotpath::measure_all]
@@ -28,6 +35,7 @@ impl BackpackingMessageBroker {
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
         rank: QSimId,
+        bytes_path: PathBuf,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,
@@ -37,6 +45,9 @@ impl BackpackingMessageBroker {
             leaving_buffer_vehicles: IntMap::default(),
             wait_backpacks: IntSet::default(),
             wait_vehicles: IntSet::default(),
+            payload_bytes_by_target: IntMap::default(),
+            vehicle_bytes_by_target: IntMap::default(),
+            bytes_path,
         }))
     }
 
@@ -92,6 +103,7 @@ impl BackpackingMessageBroker {
             };
             hotpath::gauge!("BackpackingMessageBroker.vehicle_mapping_bytes_sent")
                 .inc(payload_bytes as f64);
+            *self.vehicle_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -111,6 +123,7 @@ impl BackpackingMessageBroker {
                 message: Box::new(BackpackingMessage { backpacks }),
             };
             hotpath::gauge!("BackpackingMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -274,6 +287,25 @@ impl BackpackingMessageBroker {
                 }
             }
         }
+
+        let new_file = !self.bytes_path.exists();
+        std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
+        let mut file = OpenOptions::new().create(true).append(true).open(&self.bytes_path).unwrap();
+        if new_file {
+            writeln!(file, "type,target,bytes").unwrap();
+        }
+        let mut vehicle_entries: Vec<_> = self.vehicle_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        vehicle_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in vehicle_entries {
+            writeln!(file, "vehicle,{},{}", target, bytes).unwrap();
+        }
+        let mut payload_entries: Vec<_> = self.payload_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        payload_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in payload_entries {
+            writeln!(file, "payload,{},{}", target, bytes).unwrap();
+        }
+        self.vehicle_bytes_by_target.clear();
+        self.payload_bytes_by_target.clear();
     }
 }
 

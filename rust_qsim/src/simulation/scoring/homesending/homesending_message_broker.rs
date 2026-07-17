@@ -7,6 +7,9 @@ use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
 use nohash_hasher::{IntMap, IntSet};
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::mpsc::TryRecvError;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -23,6 +26,10 @@ pub struct HomeSendingMessageBroker {
     wait_vehicles: IntSet<Id<InternalVehicle>>,
     person_id2current_partition: IntMap<Id<InternalPerson>, QSimId>,
     data_collector: Weak<Mutex<HomeSendingDataCollector>>,
+
+    payload_bytes_by_target: IntMap<QSimId, usize>,
+    vehicle_bytes_by_target: IntMap<QSimId, usize>,
+    bytes_path: PathBuf,
 }
 
 #[hotpath::measure_all]
@@ -33,6 +40,7 @@ impl HomeSendingMessageBroker {
         num_partitions: usize,
         rank: QSimId,
         population: &Population,
+        bytes_path: PathBuf,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             receiver,
@@ -50,6 +58,9 @@ impl HomeSendingMessageBroker {
                 population, rank,
             ),
             data_collector: Weak::new(),
+            payload_bytes_by_target: IntMap::default(),
+            vehicle_bytes_by_target: IntMap::default(),
+            bytes_path,
         }))
     }
 
@@ -277,6 +288,7 @@ impl HomeSendingMessageBroker {
             };
             hotpath::gauge!("HomeSendingMessageBroker.vehicle_mapping_bytes_sent")
                 .inc(payload_bytes as f64);
+            *self.vehicle_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -302,6 +314,7 @@ impl HomeSendingMessageBroker {
                 message: Box::new(EventMessage { events }),
             };
             hotpath::gauge!("HomeSendingMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -320,6 +333,7 @@ impl HomeSendingMessageBroker {
                 message: Box::new(PartitionEventMessage { partition_events }),
             };
             hotpath::gauge!("HomeSendingMessageBroker.bytes_sent").inc(payload_bytes as f64);
+            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -444,6 +458,25 @@ impl HomeSendingMessageBroker {
                 .unwrap()
                 .add_arriving_events(person_id.clone(), block.events);
         }
+
+        let new_file = !self.bytes_path.exists();
+        std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
+        let mut file = OpenOptions::new().create(true).append(true).open(&self.bytes_path).unwrap();
+        if new_file {
+            writeln!(file, "type,target,bytes").unwrap();
+        }
+        let mut vehicle_entries: Vec<_> = self.vehicle_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        vehicle_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in vehicle_entries {
+            writeln!(file, "vehicle,{},{}", target, bytes).unwrap();
+        }
+        let mut payload_entries: Vec<_> = self.payload_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        payload_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in payload_entries {
+            writeln!(file, "payload,{},{}", target, bytes).unwrap();
+        }
+        self.vehicle_bytes_by_target.clear();
+        self.payload_bytes_by_target.clear();
     }
 }
 

@@ -36,8 +36,10 @@ impl HomesendingScoringEngine {
         senders: Vec<Sender<InternalScoringMessage>>,
         output_path: PathBuf,
     ) -> Self {
+        let mut bytes_path = output_path.clone();
+        bytes_path.push(format!("bytes/scoring_bytes_{}.csv", rank));
         let homesending_message_broker =
-            HomeSendingMessageBroker::new(receiver, senders, num_partitions, rank, population);
+            HomeSendingMessageBroker::new(receiver, senders, num_partitions, rank, population, bytes_path);
         let homesending_data_collector = HomeSendingDataCollector::new(
             population,
             person_id2_partition_id,

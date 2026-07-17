@@ -39,6 +39,8 @@ impl MappingForwardingEngine {
         senders: Vec<Sender<InternalScoringMessage>>,
         output_path: PathBuf,
     ) -> Self {
+        let mut bytes_path = output_path.clone();
+        bytes_path.push(format!("bytes/scoring_bytes_{}.csv", rank));
         let mapping_message_broker = MappingCollectorMessageBroker::new(
             receiver,
             senders,
@@ -46,6 +48,7 @@ impl MappingForwardingEngine {
             num_partitions,
             num_collectors,
             sync_interval,
+            bytes_path,
         );
         let mapping_data_forwarder = MappingDataForwarder::new(
             person_hash_function,
@@ -127,6 +130,7 @@ impl MappingCollectorEngine {
         person_id2home_partition: IntMap<Id<InternalPerson>, QSimId>,
         receiver: Receiver<InternalScoringMessage>,
         senders: Vec<Sender<InternalScoringMessage>>,
+        bytes_path: PathBuf,
     ) -> Self {
         let mapping_message_broker = MappingScoringMessageBroker::new(
             receiver,
@@ -135,6 +139,7 @@ impl MappingCollectorEngine {
             num_partitions,
             num_collectors,
             person_id2home_partition,
+            bytes_path,
         );
         let mapping_data_collector = MappingDataCollector::new(
             person_hash_function,

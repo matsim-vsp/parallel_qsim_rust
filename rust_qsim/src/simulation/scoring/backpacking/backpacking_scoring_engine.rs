@@ -31,7 +31,9 @@ impl BackpackingScoringEngine {
         senders: Vec<Sender<InternalScoringMessage>>,
         output_path: PathBuf,
     ) -> Self {
-        let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, rank);
+        let mut bytes_path = output_path.clone();
+        bytes_path.push(format!("bytes/scoring_bytes_{}.csv", rank));
+        let backpacking_message_broker = BackpackingMessageBroker::new(receiver, senders, rank, bytes_path);
         let backpacking_data_collector = BackpackingDataCollector::new(
             population,
             rank,

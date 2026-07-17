@@ -159,6 +159,8 @@ pub fn create_for_n_partitions(
 
             let (sender, receiver) = hotpath::channel!(std::sync::mpsc::channel::<InternalScoringMessage>(), label = format!("scoring-collector-{}", i + num_parts));
 
+            let mut bytes_path = io::resolve_path(config.context(), &config.output().output_dir);
+            bytes_path.push(format!("bytes/scoring_bytes_{}.csv", i + num_parts));
             collectors.push(MappingCollectorEngine::new(
                 i + num_parts,
                 person_hash(num_collectors),
@@ -167,6 +169,7 @@ pub fn create_for_n_partitions(
                 person_id2home_partition.clone(),
                 receiver,
                 vec![],
+                bytes_path,
             ));
 
             senders.push(sender);
