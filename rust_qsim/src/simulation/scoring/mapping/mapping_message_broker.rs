@@ -10,7 +10,7 @@ use crate::simulation::scoring::mapping::mapping_data_collector::MappingDataColl
 use crate::simulation::scoring::mapping::mapping_data_forwarder::MappingDataForwarder;
 use ahash::{HashSet, HashSetExt};
 use nohash_hasher::IntMap;
-use std::sync::mpsc::{Receiver, Sender};
+use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, Weak};
 
 pub struct MappingCollectorMessageBroker {
@@ -113,6 +113,18 @@ impl MappingCollectorMessageBroker {
     /// Called on every AfterSimStep: Flushes send buffers
     fn send(&mut self, time: u32, force_sync: bool) {
         for (target, vehicle_events) in self.buffer_vehicles.drain() {
+            let payload_bytes: usize = vehicle_events
+                .iter()
+                .map(|(_, evts)| {
+                    std::mem::size_of::<Id<InternalVehicle>>()
+                        + evts
+                            .iter()
+                            .map(|(e, _)| {
+                                std::mem::size_of_val(e.as_ref()) + std::mem::size_of::<u32>()
+                            })
+                            .sum::<usize>()
+                })
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
@@ -120,7 +132,7 @@ impl MappingCollectorMessageBroker {
                     events: vehicle_events,
                 }),
             };
-
+            hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleEventMessage to rank {} with error {}",
@@ -130,12 +142,24 @@ impl MappingCollectorMessageBroker {
         }
 
         for (target, events) in self.buffer_events.drain() {
+            let payload_bytes: usize = events
+                .iter()
+                .map(|(_, evts)| {
+                    std::mem::size_of::<Id<InternalPerson>>()
+                        + evts
+                            .iter()
+                            .map(|(e, _)| {
+                                std::mem::size_of_val(e.as_ref()) + std::mem::size_of::<u32>()
+                            })
+                            .sum::<usize>()
+                })
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(PersonEventMessage { events }),
             };
-
+            hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending PersonEventMessage to rank {} with error {}",
@@ -146,6 +170,7 @@ impl MappingCollectorMessageBroker {
 
         if time % self.sync_interval == 0 || force_sync {
             for target in self.num_partitions..(self.num_partitions + self.num_collectors) {
+                let payload_bytes = std::mem::size_of::<WatermarkMessage>();
                 let msg = InternalScoringMessage {
                     from_process: self.rank,
                     to_process: target as QSimId,
@@ -155,7 +180,8 @@ impl MappingCollectorMessageBroker {
                         time,
                     }),
                 };
-
+                hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent")
+                    .inc(payload_bytes as f64);
                 self.senders[target].send(msg).unwrap_or_else(|e| {
                     panic!(
                         "Error sending PersonEventMessage to rank {} with error {}",
@@ -332,12 +358,24 @@ impl MappingScoringMessageBroker {
 
     fn send(&mut self) {
         for (target, events) in self.buffer_events.drain() {
+            let payload_bytes: usize = events
+                .iter()
+                .map(|(_, evts)| {
+                    std::mem::size_of::<Id<InternalPerson>>()
+                        + evts
+                            .iter()
+                            .map(|(e, _)| {
+                                std::mem::size_of_val(e.as_ref()) + std::mem::size_of::<u32>()
+                            })
+                            .sum::<usize>()
+                })
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(PersonEventMessage { events }),
             };
-
+            hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -347,12 +385,13 @@ impl MappingScoringMessageBroker {
         }
 
         for (target, m) in self.buffer_watermarks.drain() {
+            let payload_bytes = std::mem::size_of::<WatermarkMessage>();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(m),
             };
-
+            hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -384,16 +423,25 @@ impl MappingScoringMessageBroker {
         }
 
         for target in 0..self.num_partitions {
+            let plans = partition_id2partial_plan
+                .remove(&(target as QSimId))
+                .unwrap_or_default();
+            let payload_bytes: usize = plans
+                .iter()
+                .map(|(_, p)| {
+                    std::mem::size_of::<Id<InternalPerson>>()
+                        + p.elements
+                            .iter()
+                            .map(|e| std::mem::size_of_val(e))
+                            .sum::<usize>()
+                })
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target as QSimId,
-                message: Box::new(InternalPlanMessage {
-                    plans: partition_id2partial_plan
-                        .remove(&(target as QSimId))
-                        .unwrap_or_default(),
-                }),
+                message: Box::new(InternalPlanMessage { plans }),
             };
-
+            hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",

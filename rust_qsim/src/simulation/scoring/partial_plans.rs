@@ -30,6 +30,15 @@ impl Default for PartialPlan {
     }
 }
 
+impl PartialPlan {
+    pub(crate) fn byte_size(&self) -> usize {
+        self.elements
+            .iter()
+            .map(|e| std::mem::size_of_val(e))
+            .sum::<usize>()
+    }
+}
+
 #[hotpath::measure_all]
 impl PartialPlan {
     fn handle_person_departure(&mut self) {

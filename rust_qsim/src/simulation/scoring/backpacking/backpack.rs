@@ -16,6 +16,16 @@ pub struct Backpack {
     starting_partition: QSimId,
 }
 
+impl Backpack {
+    pub(crate) fn byte_size(&self) -> usize {
+        self.events
+            .iter()
+            .map(|e| std::mem::size_of_val(e.as_ref()))
+            .sum::<usize>()
+            + self.backpack_plan.byte_size()
+    }
+}
+
 #[hotpath::measure_all]
 impl Backpack {
     pub fn new(person_id: Id<InternalPerson>, starting_partition: QSimId) -> Self {

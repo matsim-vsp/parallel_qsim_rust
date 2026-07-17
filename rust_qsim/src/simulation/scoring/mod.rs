@@ -15,7 +15,7 @@ use crate::simulation::scoring::mapping::{person_hash, vehicle_hash};
 use nohash_hasher::IntMap;
 use std::any::Any;
 use std::sync::Arc;
-use std::sync::mpsc::{Sender, channel};
+use hotpath::wrap::std::sync::mpsc::Sender;
 use std::thread;
 use tracing::info;
 
@@ -95,7 +95,7 @@ pub fn create_for_n_partitions(
     for rank in 0..num_parts {
         let partition = partitions.get(rank as usize).unwrap().as_ref().unwrap();
 
-        let (sender, receiver) = channel();
+        let (sender, receiver) = hotpath::channel!(std::sync::mpsc::channel::<InternalScoringMessage>(), label = format!("scoring-part-{rank}"));
 
         let scoring: Box<dyn ScoringEngine> = match config.scoring().plans_collection_type {
             ScoringPlansCollectionType::Backpacking => Box::new(BackpackingScoringEngine::new(
@@ -157,7 +157,7 @@ pub fn create_for_n_partitions(
                 }
             }
 
-            let (sender, receiver) = channel();
+            let (sender, receiver) = hotpath::channel!(std::sync::mpsc::channel::<InternalScoringMessage>(), label = format!("scoring-collector-{}", i + num_parts));
 
             collectors.push(MappingCollectorEngine::new(
                 i + num_parts,

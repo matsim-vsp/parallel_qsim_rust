@@ -13,7 +13,7 @@ use crate::simulation::scoring::mapping::mapping_message_broker::{
 use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
 use nohash_hasher::IntMap;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender};
+use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tracing::info;
 

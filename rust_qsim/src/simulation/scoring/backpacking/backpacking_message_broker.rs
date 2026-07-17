@@ -5,7 +5,7 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::backpacking::backpack::Backpack;
 use nohash_hasher::{IntMap, IntSet};
-use std::sync::mpsc::{Receiver, Sender};
+use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tracing::warn;
@@ -78,12 +78,20 @@ impl BackpackingMessageBroker {
 
     pub(crate) fn send(&mut self) {
         for (target, vehicles) in self.leaving_buffer_vehicles.drain() {
+            let payload_bytes: usize = vehicles
+                .iter()
+                .map(|(_, persons)| {
+                    std::mem::size_of::<Id<InternalVehicle>>()
+                        + persons.len() * std::mem::size_of::<Id<InternalPerson>>()
+                })
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(VehicleMessage { vehicles }),
             };
-
+            hotpath::gauge!("BackpackingMessageBroker.vehicle_mapping_bytes_sent")
+                .inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -93,12 +101,16 @@ impl BackpackingMessageBroker {
         }
 
         for (target, backpacks) in self.leaving_buffer_backpacks.drain() {
+            let payload_bytes: usize = backpacks
+                .iter()
+                .map(|(_, b)| std::mem::size_of::<Id<InternalPerson>>() + b.byte_size())
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(BackpackingMessage { backpacks }),
             };
-
+            hotpath::gauge!("BackpackingMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",

@@ -11,7 +11,7 @@ use crate::simulation::scoring::backpacking::backpacking_data_collector::Backpac
 use crate::simulation::scoring::backpacking::backpacking_message_broker::BackpackingMessageBroker;
 use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, Sender};
+use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tracing::info;
 

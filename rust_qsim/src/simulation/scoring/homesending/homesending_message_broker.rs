@@ -6,7 +6,8 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
 use nohash_hasher::{IntMap, IntSet};
-use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::TryRecvError;
 use std::sync::{Arc, Mutex, Weak};
 
 pub struct HomeSendingMessageBroker {
@@ -262,11 +263,20 @@ impl HomeSendingMessageBroker {
 
     fn send(&mut self) {
         for (target, vehicles) in self.buffer_vehicles.drain() {
+            let payload_bytes: usize = vehicles
+                .iter()
+                .map(|(_, persons)| {
+                    std::mem::size_of::<Id<InternalVehicle>>()
+                        + persons.len() * std::mem::size_of::<Id<InternalPerson>>()
+                })
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(VehicleMessage { vehicles }),
             };
+            hotpath::gauge!("HomeSendingMessageBroker.vehicle_mapping_bytes_sent")
+                .inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -276,11 +286,22 @@ impl HomeSendingMessageBroker {
         }
 
         for (target, events) in self.buffer_leaving_events.drain() {
+            let payload_bytes: usize = events
+                .iter()
+                .map(|(_, evts)| {
+                    std::mem::size_of::<Id<InternalPerson>>()
+                        + evts
+                            .iter()
+                            .map(|e| std::mem::size_of_val(e.as_ref()))
+                            .sum::<usize>()
+                })
+                .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(EventMessage { events }),
             };
+            hotpath::gauge!("HomeSendingMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -290,11 +311,15 @@ impl HomeSendingMessageBroker {
         }
 
         for (target, partition_events) in self.buffer_partition_events.drain() {
+            let payload_bytes = partition_events.len()
+                * (std::mem::size_of::<Id<InternalPerson>>()
+                    + std::mem::size_of::<PartitionEvent>());
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(PartitionEventMessage { partition_events }),
             };
+            hotpath::gauge!("HomeSendingMessageBroker.bytes_sent").inc(payload_bytes as f64);
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
