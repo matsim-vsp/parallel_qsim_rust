@@ -15,6 +15,7 @@ use crate::simulation::population::agent_source::{
 };
 use crate::simulation::scenario::{MutableScenario, ScenarioPartition};
 use crate::simulation::scoring::create_for_n_partitions;
+use crate::simulation::scoring::kP_counter::KPCounter;
 use crate::simulation::{controller, id, io};
 use derive_more::Debug;
 use nohash_hasher::IntMap;
@@ -286,6 +287,27 @@ impl Controller {
                 },
             );
         }
+
+        // k(P) counter
+        let mut counters = Vec::new();
+        for i in 0..num_parts {
+            let counter = KPCounter::new(self.config.output().output_dir.clone(), i);
+
+            self.partition_event_listener_per_partition
+                .entry(i)
+                .or_insert_with(Vec::new)
+                .push(KPCounter::register_fn(counter.clone()));
+
+            counters.push(counter);
+        }
+
+        self.controller_events_manager
+            .on_event(move |e: &RuntimeEvent<ControllerEvent>| match e.payload {
+                ControllerEvent::AfterMobsim(_) => {
+                    counters.iter().for_each(|c| c.lock().unwrap().finish());
+                }
+                _ => {}
+            });
 
         let handles: IntMap<u32, JoinHandle<()>> = comms
             .into_iter()

@@ -21,6 +21,7 @@ use tracing::info;
 
 pub mod backpacking;
 pub mod homesending;
+pub mod kP_counter;
 pub mod mapping;
 pub mod partial_plans;
 
