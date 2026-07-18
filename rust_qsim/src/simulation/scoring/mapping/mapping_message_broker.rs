@@ -30,6 +30,7 @@ pub struct MappingCollectorMessageBroker {
     data_forwarder: Weak<Mutex<MappingDataForwarder>>,
 
     payload_bytes_by_target: IntMap<QSimId, usize>,
+    wrapper_bytes_by_target: IntMap<QSimId, usize>,
     bytes_path: PathBuf,
 }
 
@@ -56,6 +57,7 @@ impl MappingCollectorMessageBroker {
             buffer_vehicles: IntMap::default(),
             data_forwarder: Weak::new(),
             payload_bytes_by_target: IntMap::default(),
+            wrapper_bytes_by_target: IntMap::default(),
             bytes_path,
         }))
     }
@@ -141,8 +143,8 @@ impl MappingCollectorMessageBroker {
                     events: vehicle_events,
                 }),
             };
-            hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent").inc(payload_bytes as f64);
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleEventMessage to rank {} with error {}",
@@ -169,8 +171,8 @@ impl MappingCollectorMessageBroker {
                 to_process: target,
                 message: Box::new(PersonEventMessage { events }),
             };
-            hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent").inc(payload_bytes as f64);
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending PersonEventMessage to rank {} with error {}",
@@ -191,9 +193,8 @@ impl MappingCollectorMessageBroker {
                         time,
                     }),
                 };
-                hotpath::gauge!("MappingCollectorMessageBroker.bytes_sent")
-                    .inc(payload_bytes as f64);
                 *self.payload_bytes_by_target.entry(target as QSimId).or_insert(0) += payload_bytes;
+                *self.wrapper_bytes_by_target.entry(target as QSimId).or_insert(0) += size_of::<InternalScoringMessage>();
                 self.senders[target].send(msg).unwrap_or_else(|e| {
                     panic!(
                         "Error sending PersonEventMessage to rank {} with error {}",
@@ -243,7 +244,13 @@ impl MappingCollectorMessageBroker {
         for (target, bytes) in payload_entries {
             writeln!(file, "payload,{},{}", target, bytes).unwrap();
         }
+        let mut wrapper_entries: Vec<_> = self.wrapper_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        wrapper_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in wrapper_entries {
+            writeln!(file, "wrapper,{},{}", target, bytes).unwrap();
+        }
         self.payload_bytes_by_target.clear();
+        self.wrapper_bytes_by_target.clear();
     }
 }
 
@@ -260,6 +267,7 @@ pub struct MappingScoringMessageBroker {
     data_collector: Weak<Mutex<MappingDataCollector>>,
 
     payload_bytes_by_target: IntMap<QSimId, usize>,
+    wrapper_bytes_by_target: IntMap<QSimId, usize>,
     bytes_path: PathBuf,
 }
 
@@ -285,6 +293,7 @@ impl MappingScoringMessageBroker {
             buffer_watermarks: IntMap::default(),
             data_collector: Weak::new(),
             payload_bytes_by_target: IntMap::default(),
+            wrapper_bytes_by_target: IntMap::default(),
             bytes_path,
         }))
     }
@@ -406,8 +415,8 @@ impl MappingScoringMessageBroker {
                 to_process: target,
                 message: Box::new(PersonEventMessage { events }),
             };
-            hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -423,8 +432,8 @@ impl MappingScoringMessageBroker {
                 to_process: target,
                 message: Box::new(m),
             };
-            hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -476,6 +485,7 @@ impl MappingScoringMessageBroker {
             };
             hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
             *self.payload_bytes_by_target.entry(target as QSimId).or_insert(0) += payload_bytes;
+            *self.wrapper_bytes_by_target.entry(target as QSimId).or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -494,6 +504,11 @@ impl MappingScoringMessageBroker {
         payload_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in payload_entries {
             writeln!(file, "payload,{},{}", target, bytes).unwrap();
+        }
+        let mut wrapper_entries: Vec<_> = self.wrapper_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        wrapper_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in wrapper_entries {
+            writeln!(file, "wrapper,{},{}", target, bytes).unwrap();
         }
     }
 }

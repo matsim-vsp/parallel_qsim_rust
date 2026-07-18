@@ -26,6 +26,7 @@ pub struct BackpackingMessageBroker {
 
     payload_bytes_by_target: IntMap<QSimId, usize>,
     vehicle_bytes_by_target: IntMap<QSimId, usize>,
+    wrapper_bytes_by_target: IntMap<QSimId, usize>,
     bytes_path: PathBuf,
 }
 
@@ -47,6 +48,7 @@ impl BackpackingMessageBroker {
             wait_vehicles: IntSet::default(),
             payload_bytes_by_target: IntMap::default(),
             vehicle_bytes_by_target: IntMap::default(),
+            wrapper_bytes_by_target: IntMap::default(),
             bytes_path,
         }))
     }
@@ -101,9 +103,8 @@ impl BackpackingMessageBroker {
                 to_process: target,
                 message: Box::new(VehicleMessage { vehicles }),
             };
-            hotpath::gauge!("BackpackingMessageBroker.vehicle_mapping_bytes_sent")
-                .inc(payload_bytes as f64);
             *self.vehicle_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -122,8 +123,8 @@ impl BackpackingMessageBroker {
                 to_process: target,
                 message: Box::new(BackpackingMessage { backpacks }),
             };
-            hotpath::gauge!("BackpackingMessageBroker.bytes_sent").inc(payload_bytes as f64);
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -304,8 +305,14 @@ impl BackpackingMessageBroker {
         for (target, bytes) in payload_entries {
             writeln!(file, "payload,{},{}", target, bytes).unwrap();
         }
+        let mut wrapper_entries: Vec<_> = self.wrapper_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        wrapper_entries.sort_by_key(|&(t, _)| t);
+        for (target, bytes) in wrapper_entries {
+            writeln!(file, "wrapper,{},{}", target, bytes).unwrap();
+        }
         self.vehicle_bytes_by_target.clear();
         self.payload_bytes_by_target.clear();
+        self.wrapper_bytes_by_target.clear();
     }
 }
 
