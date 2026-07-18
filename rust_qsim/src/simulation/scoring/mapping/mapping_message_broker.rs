@@ -9,8 +9,8 @@ use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::mapping::mapping_data_collector::MappingDataCollector;
 use crate::simulation::scoring::mapping::mapping_data_forwarder::MappingDataForwarder;
 use ahash::{HashSet, HashSetExt};
-use nohash_hasher::IntMap;
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
+use nohash_hasher::IntMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
@@ -31,6 +31,7 @@ pub struct MappingCollectorMessageBroker {
 
     payload_bytes_by_target: IntMap<QSimId, usize>,
     wrapper_bytes_by_target: IntMap<QSimId, usize>,
+    payload_count_by_target: IntMap<QSimId, usize>,
     bytes_path: PathBuf,
 }
 
@@ -58,6 +59,7 @@ impl MappingCollectorMessageBroker {
             data_forwarder: Weak::new(),
             payload_bytes_by_target: IntMap::default(),
             wrapper_bytes_by_target: IntMap::default(),
+            payload_count_by_target: IntMap::default(),
             bytes_path,
         }))
     }
@@ -127,12 +129,10 @@ impl MappingCollectorMessageBroker {
             let payload_bytes: usize = vehicle_events
                 .iter()
                 .map(|(_, evts)| {
-                    std::mem::size_of::<Id<InternalVehicle>>()
+                    size_of::<Id<InternalVehicle>>()
                         + evts
                             .iter()
-                            .map(|(e, _)| {
-                                std::mem::size_of_val(e.as_ref()) + std::mem::size_of::<u32>()
-                            })
+                            .map(|(e, _)| size_of_val(e.as_ref()) + size_of::<u32>())
                             .sum::<usize>()
                 })
                 .sum();
@@ -144,7 +144,9 @@ impl MappingCollectorMessageBroker {
                 }),
             };
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+                size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleEventMessage to rank {} with error {}",
@@ -157,12 +159,10 @@ impl MappingCollectorMessageBroker {
             let payload_bytes: usize = events
                 .iter()
                 .map(|(_, evts)| {
-                    std::mem::size_of::<Id<InternalPerson>>()
+                    size_of::<Id<InternalPerson>>()
                         + evts
                             .iter()
-                            .map(|(e, _)| {
-                                std::mem::size_of_val(e.as_ref()) + std::mem::size_of::<u32>()
-                            })
+                            .map(|(e, _)| size_of_val(e.as_ref()) + size_of::<u32>())
                             .sum::<usize>()
                 })
                 .sum();
@@ -172,7 +172,9 @@ impl MappingCollectorMessageBroker {
                 message: Box::new(PersonEventMessage { events }),
             };
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+                size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending PersonEventMessage to rank {} with error {}",
@@ -183,7 +185,7 @@ impl MappingCollectorMessageBroker {
 
         if time % self.sync_interval == 0 || force_sync {
             for target in self.num_partitions..(self.num_partitions + self.num_collectors) {
-                let payload_bytes = std::mem::size_of::<WatermarkMessage>();
+                let payload_bytes = size_of::<WatermarkMessage>();
                 let msg = InternalScoringMessage {
                     from_process: self.rank,
                     to_process: target as QSimId,
@@ -193,8 +195,18 @@ impl MappingCollectorMessageBroker {
                         time,
                     }),
                 };
-                *self.payload_bytes_by_target.entry(target as QSimId).or_insert(0) += payload_bytes;
-                *self.wrapper_bytes_by_target.entry(target as QSimId).or_insert(0) += size_of::<InternalScoringMessage>();
+                *self
+                    .payload_bytes_by_target
+                    .entry(target as QSimId)
+                    .or_insert(0) += payload_bytes;
+                *self
+                    .payload_count_by_target
+                    .entry(target as QSimId)
+                    .or_insert(0) += 1;
+                *self
+                    .wrapper_bytes_by_target
+                    .entry(target as QSimId)
+                    .or_insert(0) += size_of::<InternalScoringMessage>();
                 self.senders[target].send(msg).unwrap_or_else(|e| {
                     panic!(
                         "Error sending PersonEventMessage to rank {} with error {}",
@@ -233,24 +245,45 @@ impl MappingCollectorMessageBroker {
             }
         }
 
-        let new_file = !self.bytes_path.exists();
         std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.bytes_path).unwrap();
-        if new_file {
-            writeln!(file, "type,target,bytes").unwrap();
-        }
-        let mut payload_entries: Vec<_> = self.payload_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&self.bytes_path)
+            .unwrap();
+        writeln!(file, "type,target,bytes,count").unwrap();
+        let mut payload_entries: Vec<_> = self
+            .payload_bytes_by_target
+            .iter()
+            .map(|(&t, &b)| (t, b))
+            .collect();
         payload_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in payload_entries {
-            writeln!(file, "payload,{},{}", target, bytes).unwrap();
+            let count = self
+                .payload_count_by_target
+                .get(&target)
+                .copied()
+                .unwrap_or(0);
+            writeln!(file, "payload,{},{},{}", target, bytes, count).unwrap();
         }
-        let mut wrapper_entries: Vec<_> = self.wrapper_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        let mut wrapper_entries: Vec<_> = self
+            .wrapper_bytes_by_target
+            .iter()
+            .map(|(&t, &b)| (t, b))
+            .collect();
         wrapper_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in wrapper_entries {
-            writeln!(file, "wrapper,{},{}", target, bytes).unwrap();
+            let count = self
+                .payload_count_by_target
+                .get(&target)
+                .copied()
+                .unwrap_or(0);
+            writeln!(file, "wrapper,{},{},{}", target, bytes, count).unwrap();
         }
         self.payload_bytes_by_target.clear();
         self.wrapper_bytes_by_target.clear();
+        self.payload_count_by_target.clear();
     }
 }
 
@@ -268,6 +301,7 @@ pub struct MappingScoringMessageBroker {
 
     payload_bytes_by_target: IntMap<QSimId, usize>,
     wrapper_bytes_by_target: IntMap<QSimId, usize>,
+    payload_count_by_target: IntMap<QSimId, usize>,
     bytes_path: PathBuf,
 }
 
@@ -294,6 +328,7 @@ impl MappingScoringMessageBroker {
             data_collector: Weak::new(),
             payload_bytes_by_target: IntMap::default(),
             wrapper_bytes_by_target: IntMap::default(),
+            payload_count_by_target: IntMap::default(),
             bytes_path,
         }))
     }
@@ -401,12 +436,10 @@ impl MappingScoringMessageBroker {
             let payload_bytes: usize = events
                 .iter()
                 .map(|(_, evts)| {
-                    std::mem::size_of::<Id<InternalPerson>>()
+                    size_of::<Id<InternalPerson>>()
                         + evts
                             .iter()
-                            .map(|(e, _)| {
-                                std::mem::size_of_val(e.as_ref()) + std::mem::size_of::<u32>()
-                            })
+                            .map(|(e, _)| size_of_val(e.as_ref()) + size_of::<u32>())
                             .sum::<usize>()
                 })
                 .sum();
@@ -416,7 +449,9 @@ impl MappingScoringMessageBroker {
                 message: Box::new(PersonEventMessage { events }),
             };
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+                size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -426,14 +461,16 @@ impl MappingScoringMessageBroker {
         }
 
         for (target, m) in self.buffer_watermarks.drain() {
-            let payload_bytes = std::mem::size_of::<WatermarkMessage>();
+            let payload_bytes = size_of::<WatermarkMessage>();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(m),
             };
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+                size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -471,11 +508,8 @@ impl MappingScoringMessageBroker {
             let payload_bytes: usize = plans
                 .iter()
                 .map(|(_, p)| {
-                    std::mem::size_of::<Id<InternalPerson>>()
-                        + p.elements
-                            .iter()
-                            .map(|e| std::mem::size_of_val(e))
-                            .sum::<usize>()
+                    size_of::<Id<InternalPerson>>()
+                        + p.elements.iter().map(|e| size_of_val(e)).sum::<usize>()
                 })
                 .sum();
             let msg = InternalScoringMessage {
@@ -484,8 +518,18 @@ impl MappingScoringMessageBroker {
                 message: Box::new(InternalPlanMessage { plans }),
             };
             hotpath::gauge!("MappingScoringMessageBroker.bytes_sent").inc(payload_bytes as f64);
-            *self.payload_bytes_by_target.entry(target as QSimId).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target as QSimId).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self
+                .payload_bytes_by_target
+                .entry(target as QSimId)
+                .or_insert(0) += payload_bytes;
+            *self
+                .payload_count_by_target
+                .entry(target as QSimId)
+                .or_insert(0) += 1;
+            *self
+                .wrapper_bytes_by_target
+                .entry(target as QSimId)
+                .or_insert(0) += size_of::<InternalScoringMessage>();
             self.senders[target].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -494,21 +538,41 @@ impl MappingScoringMessageBroker {
             });
         }
 
-        let new_file = !self.bytes_path.exists();
         std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.bytes_path).unwrap();
-        if new_file {
-            writeln!(file, "type,target,bytes").unwrap();
-        }
-        let mut payload_entries: Vec<_> = self.payload_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&self.bytes_path)
+            .unwrap();
+        writeln!(file, "type,target,bytes,count").unwrap();
+        let mut payload_entries: Vec<_> = self
+            .payload_bytes_by_target
+            .iter()
+            .map(|(&t, &b)| (t, b))
+            .collect();
         payload_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in payload_entries {
-            writeln!(file, "payload,{},{}", target, bytes).unwrap();
+            let count = self
+                .payload_count_by_target
+                .get(&target)
+                .copied()
+                .unwrap_or(0);
+            writeln!(file, "payload,{},{},{}", target, bytes, count).unwrap();
         }
-        let mut wrapper_entries: Vec<_> = self.wrapper_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        let mut wrapper_entries: Vec<_> = self
+            .wrapper_bytes_by_target
+            .iter()
+            .map(|(&t, &b)| (t, b))
+            .collect();
         wrapper_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in wrapper_entries {
-            writeln!(file, "wrapper,{},{}", target, bytes).unwrap();
+            let count = self
+                .payload_count_by_target
+                .get(&target)
+                .copied()
+                .unwrap_or(0);
+            writeln!(file, "wrapper,{},{},{}", target, bytes, count).unwrap();
         }
     }
 }

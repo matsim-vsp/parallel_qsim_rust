@@ -5,8 +5,8 @@ use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
-use nohash_hasher::{IntMap, IntSet};
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
+use nohash_hasher::{IntMap, IntSet};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
@@ -30,6 +30,8 @@ pub struct HomeSendingMessageBroker {
     payload_bytes_by_target: IntMap<QSimId, usize>,
     vehicle_bytes_by_target: IntMap<QSimId, usize>,
     wrapper_bytes_by_target: IntMap<QSimId, usize>,
+    payload_count_by_target: IntMap<QSimId, usize>,
+    vehicle_count_by_target: IntMap<QSimId, usize>,
     bytes_path: PathBuf,
 }
 
@@ -62,6 +64,8 @@ impl HomeSendingMessageBroker {
             payload_bytes_by_target: IntMap::default(),
             vehicle_bytes_by_target: IntMap::default(),
             wrapper_bytes_by_target: IntMap::default(),
+            payload_count_by_target: IntMap::default(),
+            vehicle_count_by_target: IntMap::default(),
             bytes_path,
         }))
     }
@@ -279,8 +283,8 @@ impl HomeSendingMessageBroker {
             let payload_bytes: usize = vehicles
                 .iter()
                 .map(|(_, persons)| {
-                    std::mem::size_of::<Id<InternalVehicle>>()
-                        + persons.len() * std::mem::size_of::<Id<InternalPerson>>()
+                    size_of::<Id<InternalVehicle>>()
+                        + persons.len() * size_of::<Id<InternalPerson>>()
                 })
                 .sum();
             let msg = InternalScoringMessage {
@@ -289,7 +293,9 @@ impl HomeSendingMessageBroker {
                 message: Box::new(VehicleMessage { vehicles }),
             };
             *self.vehicle_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self.vehicle_count_by_target.entry(target).or_insert(0) += 1;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+                size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -302,11 +308,8 @@ impl HomeSendingMessageBroker {
             let payload_bytes: usize = events
                 .iter()
                 .map(|(_, evts)| {
-                    std::mem::size_of::<Id<InternalPerson>>()
-                        + evts
-                            .iter()
-                            .map(|e| std::mem::size_of_val(e.as_ref()))
-                            .sum::<usize>()
+                    size_of::<Id<InternalPerson>>()
+                        + evts.iter().map(|e| size_of_val(e.as_ref())).sum::<usize>()
                 })
                 .sum();
             let msg = InternalScoringMessage {
@@ -315,7 +318,9 @@ impl HomeSendingMessageBroker {
                 message: Box::new(EventMessage { events }),
             };
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+                size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -326,15 +331,16 @@ impl HomeSendingMessageBroker {
 
         for (target, partition_events) in self.buffer_partition_events.drain() {
             let payload_bytes = partition_events.len()
-                * (std::mem::size_of::<Id<InternalPerson>>()
-                    + std::mem::size_of::<PartitionEvent>());
+                * (size_of::<Id<InternalPerson>>() + size_of::<PartitionEvent>());
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(PartitionEventMessage { partition_events }),
             };
             *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) += size_of::<InternalScoringMessage>();
+            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+                size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -460,30 +466,66 @@ impl HomeSendingMessageBroker {
                 .add_arriving_events(person_id.clone(), block.events);
         }
 
-        let new_file = !self.bytes_path.exists();
         std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
-        let mut file = OpenOptions::new().create(true).append(true).open(&self.bytes_path).unwrap();
-        if new_file {
-            writeln!(file, "type,target,bytes").unwrap();
-        }
-        let mut vehicle_entries: Vec<_> = self.vehicle_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&self.bytes_path)
+            .unwrap();
+        writeln!(file, "type,target,bytes,count").unwrap();
+        let mut vehicle_entries: Vec<_> = self
+            .vehicle_bytes_by_target
+            .iter()
+            .map(|(&t, &b)| (t, b))
+            .collect();
         vehicle_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in vehicle_entries {
-            writeln!(file, "vehicle,{},{}", target, bytes).unwrap();
+            let count = self
+                .vehicle_count_by_target
+                .get(&target)
+                .copied()
+                .unwrap_or(0);
+            writeln!(file, "vehicle,{},{},{}", target, bytes, count).unwrap();
         }
-        let mut payload_entries: Vec<_> = self.payload_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        let mut payload_entries: Vec<_> = self
+            .payload_bytes_by_target
+            .iter()
+            .map(|(&t, &b)| (t, b))
+            .collect();
         payload_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in payload_entries {
-            writeln!(file, "payload,{},{}", target, bytes).unwrap();
+            let count = self
+                .payload_count_by_target
+                .get(&target)
+                .copied()
+                .unwrap_or(0);
+            writeln!(file, "payload,{},{},{}", target, bytes, count).unwrap();
         }
-        let mut wrapper_entries: Vec<_> = self.wrapper_bytes_by_target.iter().map(|(&t, &b)| (t, b)).collect();
+        let mut wrapper_entries: Vec<_> = self
+            .wrapper_bytes_by_target
+            .iter()
+            .map(|(&t, &b)| (t, b))
+            .collect();
         wrapper_entries.sort_by_key(|&(t, _)| t);
         for (target, bytes) in wrapper_entries {
-            writeln!(file, "wrapper,{},{}", target, bytes).unwrap();
+            let count = self
+                .vehicle_count_by_target
+                .get(&target)
+                .copied()
+                .unwrap_or(0)
+                + self
+                    .payload_count_by_target
+                    .get(&target)
+                    .copied()
+                    .unwrap_or(0);
+            writeln!(file, "wrapper,{},{},{}", target, bytes, count).unwrap();
         }
         self.vehicle_bytes_by_target.clear();
         self.payload_bytes_by_target.clear();
         self.wrapper_bytes_by_target.clear();
+        self.vehicle_count_by_target.clear();
+        self.payload_count_by_target.clear();
     }
 }
 
