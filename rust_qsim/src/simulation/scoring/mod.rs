@@ -5,6 +5,7 @@ use crate::simulation::framework_events::{
 };
 use crate::simulation::id::Id;
 use crate::simulation::io;
+use crate::simulation::logging::init_logging;
 use crate::simulation::scenario::ScenarioPartition;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scoring::backpacking::backpacking_scoring_engine::BackpackingScoringEngine;
@@ -178,9 +179,14 @@ pub fn create_for_n_partitions(
         for (i, mut collector) in collectors.drain(..).enumerate() {
             collector.attach_senders(senders.clone());
 
+            let collector_rank = (i as u32) + num_parts;
+            let config_for_thread = Arc::clone(&config);
             thread::Builder::new()
                 .name(format!("scoring-{i}"))
-                .spawn(move || collector.work())
+                .spawn(move || {
+                    let _guards = init_logging(&config_for_thread, collector_rank);
+                    collector.work();
+                })
                 .unwrap();
         }
 

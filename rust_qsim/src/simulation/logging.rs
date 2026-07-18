@@ -5,7 +5,6 @@ use tracing::dispatcher::DefaultGuard;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::filter::LevelFilter;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Layer};
 use tracing_subscriber::{fmt, registry};
@@ -54,7 +53,6 @@ pub(crate) fn init_logging(config: &Config, part: u32) -> LogGuards {
     let console_layer = (part == 0).then(|| {
         fmt::layer()
             .with_writer(io::stdout)
-            .with_span_events(FmtSpan::CLOSE)
             .with_filter(LevelFilter::INFO)
     });
 

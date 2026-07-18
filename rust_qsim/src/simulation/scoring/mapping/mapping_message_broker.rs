@@ -15,6 +15,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
+use tracing::info_span;
 
 pub struct MappingCollectorMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
@@ -78,13 +79,15 @@ impl MappingCollectorMessageBroker {
     pub(crate) fn register_fn(
         scoring_broker: Arc<Mutex<MappingCollectorMessageBroker>>,
     ) -> Box<MobsimListenerRegisterFn> {
+        let rank = scoring_broker.lock().unwrap().rank;
         Box::new(move |events: &mut MobsimEventsManager| {
             let broker = Arc::clone(&scoring_broker);
             events.on_event(move |e: &RuntimeEvent<MobsimEvent>| {
                 hotpath::measure_block!("Backpacking.EventsManager.on_any", {
                     match &e.payload {
                         MobsimEvent::AfterSimStep(i) => {
-                            broker.lock().unwrap().send(i.time, false);
+                            info_span!("scoring.messaging", rank = rank as u64)
+                                .in_scope(|| broker.lock().unwrap().send(i.time, false));
                         }
                         _ => {}
                     }
@@ -125,6 +128,7 @@ impl MappingCollectorMessageBroker {
 
     /// Called on every AfterSimStep: Flushes send buffers
     fn send(&mut self, time: u32, force_sync: bool) {
+        let _send_span = info_span!("scoring.send", rank = self.rank as u64).entered();
         for (target, vehicle_events) in self.buffer_vehicles.drain() {
             let payload_bytes: usize = vehicle_events
                 .iter()
@@ -220,11 +224,14 @@ impl MappingCollectorMessageBroker {
     /// Called after the mobsim ends: Flushes the send buffers and sends a finish message to all scoring threads.
     /// Then collects incoming Experienced Plans and passes them to the forwarder
     pub(crate) fn finish_send_recv(&mut self) {
+        let _finish_msg_span =
+            info_span!("scoring.finish.messaging", rank = self.rank as u64).entered();
         self.send(u32::MAX, true);
 
         // TODO Use finished instead of this for loop
         for _ in 0..self.num_collectors {
-            let received_msg = self.receiver.recv().unwrap();
+            let received_msg = info_span!("scoring.recv", rank = self.rank as u64)
+                .in_scope(|| self.receiver.recv().unwrap());
 
             let boxed_any = received_msg.message.into_any();
             match () {
@@ -349,8 +356,12 @@ impl MappingScoringMessageBroker {
     pub fn work(&mut self) {
         let mut finished = HashSet::new();
         loop {
-            let received_msg = hotpath::measure_block!("MappingScoringMessageBroker.recv_wait", {
-                self.receiver.recv().expect("Error receiving message")
+            let _messaging_span =
+                info_span!("scoring.messaging", rank = self.rank as u64).entered();
+            let received_msg = info_span!("scoring.recv", rank = self.rank as u64).in_scope(|| {
+                hotpath::measure_block!("MappingScoringMessageBroker.recv_wait", {
+                    self.receiver.recv().expect("Error receiving message")
+                })
             });
 
             if let Some(partition) = self.recv(received_msg) {
@@ -363,6 +374,9 @@ impl MappingScoringMessageBroker {
             self.send();
         }
 
+        let _finish_span = info_span!("scoring.finish", rank = self.rank as u64).entered();
+        let _finish_msg_span =
+            info_span!("scoring.finish.messaging", rank = self.rank as u64).entered();
         self.finish_send();
     }
 
@@ -432,6 +446,7 @@ impl MappingScoringMessageBroker {
     }
 
     fn send(&mut self) {
+        let _send_span = info_span!("scoring.send", rank = self.rank as u64).entered();
         for (target, events) in self.buffer_events.drain() {
             let payload_bytes: usize = events
                 .iter()

@@ -12,6 +12,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::mpsc::TryRecvError;
 use std::sync::{Arc, Mutex, Weak};
+use tracing::info_span;
 
 pub struct HomeSendingMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
@@ -130,6 +131,7 @@ impl HomeSendingMessageBroker {
     /// mapping available. Called from BeforeSimStep before the next do_step, so that
     /// replay_deferred_link_events fires in the correct order relative to subsequent link events.
     pub(crate) fn recv_vehicles(&mut self) {
+        let _messaging_span = info_span!("scoring.messaging", rank = self.rank as u64).entered();
         let pending = self.wait_vehicles.drain().collect::<Vec<_>>();
         for vehicle_id in pending {
             if self
@@ -152,7 +154,8 @@ impl HomeSendingMessageBroker {
                 .get_vehicles()
                 .contains_key(&vehicle_id)
             {
-                let msg = self.receiver.recv().expect("Error receiving message");
+                let msg = info_span!("scoring.recv", rank = self.rank as u64)
+                    .in_scope(|| self.receiver.recv().expect("Error receiving message"));
                 self.recv(msg);
             }
         }
@@ -279,6 +282,7 @@ impl HomeSendingMessageBroker {
     }
 
     fn send(&mut self) {
+        let _send_span = info_span!("scoring.send", rank = self.rank as u64).entered();
         for (target, vehicles) in self.buffer_vehicles.drain() {
             let payload_bytes: usize = vehicles
                 .iter()
@@ -392,10 +396,13 @@ impl HomeSendingMessageBroker {
 
     /// Called on every AfterSimStep: flushes send buffers, then non-blockingly drains any pending incoming messages.
     pub(crate) fn send_recv(&mut self) {
+        let _messaging_span = info_span!("scoring.messaging", rank = self.rank as u64).entered();
         self.send();
 
         loop {
-            match self.receiver.try_recv() {
+            let received = info_span!("scoring.recv", rank = self.rank as u64)
+                .in_scope(|| self.receiver.try_recv());
+            match received {
                 Ok(msg) => self.recv(msg),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => panic!("Scoring channel disconnected"),
@@ -407,6 +414,8 @@ impl HomeSendingMessageBroker {
     /// FinishMessage to all other partitions, then blocks until every other partition has
     /// done the same. Incoming data messages are processed while waiting.
     pub(crate) fn finish_send_recv(&mut self) {
+        let _finish_msg_span =
+            info_span!("scoring.finish.messaging", rank = self.rank as u64).entered();
         self.send();
 
         // Send a finish message to all partitions
@@ -429,7 +438,8 @@ impl HomeSendingMessageBroker {
 
         let mut finished_partitions: IntSet<QSimId> = IntSet::default();
         while finished_partitions.len() < self.senders.len() - 1 {
-            let received_msg = self.receiver.recv().expect("Error receiving message");
+            let received_msg = info_span!("scoring.recv", rank = self.rank as u64)
+                .in_scope(|| self.receiver.recv().expect("Error receiving message"));
             let boxed_any = received_msg.message.as_any();
 
             match () {

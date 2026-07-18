@@ -15,7 +15,7 @@ use nohash_hasher::IntMap;
 use std::path::PathBuf;
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use tracing::info;
+use tracing::{info, info_span};
 
 /// Attached to the Mobsim threads listening for events and forwarding them to the scoring threads.
 pub struct MappingForwardingEngine {
@@ -87,13 +87,14 @@ impl ScoringEngine for MappingForwardingEngine {
         Box<MobsimListenerRegisterFn>,
     ) {
         (
-            MappingDataForwarder::register_event_fn(self.mapping_data_forwarder.clone()),
+            MappingDataForwarder::register_event_fn(self.rank, self.mapping_data_forwarder.clone()),
             Box::new(|_| {}),
             MappingCollectorMessageBroker::register_fn(self.mapping_message_broker.clone()),
         )
     }
 
     fn finish(&self) {
+        let _finish_span = info_span!("scoring.finish", rank = self.rank as u64).entered();
         self.mapping_message_broker
             .lock()
             .unwrap()

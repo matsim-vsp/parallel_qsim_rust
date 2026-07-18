@@ -15,7 +15,7 @@ use nohash_hasher::IntMap;
 use std::path::PathBuf;
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use tracing::info;
+use tracing::{info, info_span};
 
 pub struct HomesendingScoringEngine {
     homesending_data_collector: Arc<Mutex<HomeSendingDataCollector>>,
@@ -77,12 +77,13 @@ impl ScoringEngine for HomesendingScoringEngine {
         Box<MobsimListenerRegisterFn>,
     ) {
         (
-            Self::register_event_fn(self.homesending_data_collector.clone()),
+            Self::register_event_fn(self.rank, self.homesending_data_collector.clone()),
             Self::register_partition_fn(
                 self.homesending_data_collector.clone(),
                 self.homesending_message_broker.clone(),
             ),
             Self::register_mobsim_fn(
+                self.rank,
                 self.homesending_data_collector.clone(),
                 self.homesending_message_broker.clone(),
             ),
@@ -90,6 +91,7 @@ impl ScoringEngine for HomesendingScoringEngine {
     }
 
     fn finish(&self) {
+        let _finish_span = info_span!("scoring.finish", rank = self.rank as u64).entered();
         self.homesending_message_broker
             .lock()
             .unwrap()
@@ -110,12 +112,14 @@ impl ScoringEngine for HomesendingScoringEngine {
 #[hotpath::measure_all]
 impl HomesendingScoringEngine {
     pub(crate) fn register_event_fn(
+        rank: QSimId,
         data_collector: Arc<Mutex<HomeSendingDataCollector>>,
     ) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             // General event forwarding
             let data_collector1 = Arc::clone(&data_collector);
             events.on_any(move |e: &dyn EventTrait| {
+                let _handle_span = info_span!("scoring.handle", rank = rank as u64).entered();
                 hotpath::measure_block!("HomeSending.EventsManager.on_any", {
                     let mut hdc = data_collector1.lock().unwrap();
                     hdc.handle_event(e);
@@ -225,6 +229,7 @@ impl HomesendingScoringEngine {
     }
 
     pub(crate) fn register_mobsim_fn(
+        rank: QSimId,
         data_collector: Arc<Mutex<HomeSendingDataCollector>>,
         message_broker: Arc<Mutex<HomeSendingMessageBroker>>,
     ) -> Box<MobsimListenerRegisterFn> {
@@ -238,10 +243,12 @@ impl HomesendingScoringEngine {
                         MobsimEvent::BeforeSimStep(_) => {
                             message_broker1.lock().unwrap().recv_vehicles();
                             // Broker lock released before replay; handle_event locks the broker internally.
-                            data_collector1
-                                .lock()
-                                .unwrap()
-                                .replay_deferred_link_events();
+                            info_span!("scoring.handle", rank = rank as u64).in_scope(|| {
+                                data_collector1
+                                    .lock()
+                                    .unwrap()
+                                    .replay_deferred_link_events();
+                            });
                         }
                         MobsimEvent::AfterSimStep(_) => {
                             message_broker1.lock().unwrap().send_recv();

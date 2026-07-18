@@ -11,7 +11,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tracing::warn;
+use tracing::{info_span, warn};
 
 pub struct BackpackingMessageBroker {
     receiver: Receiver<InternalScoringMessage>,
@@ -94,6 +94,7 @@ impl BackpackingMessageBroker {
     }
 
     pub(crate) fn send(&mut self) {
+        let _send_span = info_span!("scoring.send", rank = self.rank as u64).entered();
         for (target, vehicles) in self.leaving_buffer_vehicles.drain() {
             let payload_bytes: usize = vehicles
                 .iter()
@@ -182,6 +183,7 @@ impl BackpackingMessageBroker {
         vehicle_id2person_ids: &mut IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
         pending_vehicles: &mut IntSet<Id<InternalVehicle>>,
     ) {
+        let _messaging_span = info_span!("scoring.messaging", rank = self.rank as u64).entered();
         let pending_backpacks = self.wait_backpacks.drain().collect::<Vec<_>>();
         for person_id in pending_backpacks {
             // Check the map: the backpack may have been received in an earlier
@@ -193,7 +195,9 @@ impl BackpackingMessageBroker {
 
             // Recv backpacks, until the backpack for the current person arrives
             while !person_id2backpack.contains_key(&person_id) {
-                match self.receiver.recv_timeout(Duration::from_secs(10)) {
+                let received = info_span!("scoring.recv", rank = self.rank as u64)
+                    .in_scope(|| self.receiver.recv_timeout(Duration::from_secs(10)));
+                match received {
                     Ok(received_msg) => Self::recv(
                         received_msg,
                         person_id2backpack,
@@ -219,6 +223,7 @@ impl BackpackingMessageBroker {
         vehicle_id2person_ids: &mut IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
         pending_vehicles: &mut IntSet<Id<InternalVehicle>>,
     ) {
+        let _messaging_span = info_span!("scoring.messaging", rank = self.rank as u64).entered();
         let pending = self.wait_vehicles.drain().collect::<Vec<_>>();
         for vehicle_id in pending {
             // Same reasoning as recv_backpacks: the mapping may already be installed from an
@@ -228,7 +233,9 @@ impl BackpackingMessageBroker {
             }
 
             while !vehicle_id2person_ids.contains_key(&vehicle_id) {
-                match self.receiver.recv_timeout(Duration::from_secs(10)) {
+                let received = info_span!("scoring.recv", rank = self.rank as u64)
+                    .in_scope(|| self.receiver.recv_timeout(Duration::from_secs(10)));
+                match received {
                     Ok(received_msg) => Self::recv(
                         received_msg,
                         person_id2backpack,
@@ -253,6 +260,8 @@ impl BackpackingMessageBroker {
         vehicle_id2person_ids: &mut IntMap<Id<InternalVehicle>, IntSet<Id<InternalPerson>>>,
         pending_vehicles: &mut IntSet<Id<InternalVehicle>>,
     ) {
+        let _finish_msg_span =
+            info_span!("scoring.finish.messaging", rank = self.rank as u64).entered();
         self.send();
 
         // Send a finish message to all partitions
@@ -277,7 +286,8 @@ impl BackpackingMessageBroker {
 
         let mut finished_partitions: IntSet<QSimId> = IntSet::default();
         while finished_partitions.len() < self.senders.len() - 1 {
-            let received_msg = self.receiver.recv().expect("Error receiving message");
+            let received_msg = info_span!("scoring.recv", rank = self.rank as u64)
+                .in_scope(|| self.receiver.recv().expect("Error receiving message"));
             let boxed_any = received_msg.message.as_any();
 
             match () {

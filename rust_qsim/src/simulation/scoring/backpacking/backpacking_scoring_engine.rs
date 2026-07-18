@@ -13,7 +13,7 @@ use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
 use std::path::PathBuf;
 use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use tracing::info;
+use tracing::{info, info_span};
 
 pub struct BackpackingScoringEngine {
     backpacking_data_collector: Arc<Mutex<BackpackingDataCollector>>,
@@ -66,12 +66,13 @@ impl ScoringEngine for BackpackingScoringEngine {
         Box<MobsimListenerRegisterFn>,
     ) {
         (
-            Self::register_event_fn(self.backpacking_data_collector.clone()),
+            Self::register_event_fn(self.rank, self.backpacking_data_collector.clone()),
             Self::register_partition_fn(
                 self.backpacking_data_collector.clone(),
                 self.backpacking_message_broker.clone(),
             ),
             Self::register_mobsim_fn(
+                self.rank,
                 self.backpacking_data_collector.clone(),
                 self.backpacking_message_broker.clone(),
             ),
@@ -79,6 +80,7 @@ impl ScoringEngine for BackpackingScoringEngine {
     }
 
     fn finish(&self) {
+        let _finish_span = info_span!("scoring.finish", rank = self.rank as u64).entered();
         let population = self.backpacking_data_collector.lock().unwrap().finish();
         let mut o = self.output_path.clone();
         o.push(format!("plans/output_plans_{}.binpb", self.rank));
@@ -95,12 +97,14 @@ impl ScoringEngine for BackpackingScoringEngine {
 #[hotpath::measure_all]
 impl BackpackingScoringEngine {
     pub(crate) fn register_event_fn(
+        rank: QSimId,
         data_collector: Arc<Mutex<BackpackingDataCollector>>,
     ) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             // General backpacking event forwarding
             let data_collector1 = Arc::clone(&data_collector);
             events.on_any(move |e: &dyn EventTrait| {
+                let _handle_span = info_span!("scoring.handle", rank = rank as u64).entered();
                 hotpath::measure_block!("Backpacking.EventsManager.on_any", {
                     let mut bdc = data_collector1.lock().unwrap();
                     bdc.handle_event(e);
@@ -181,6 +185,7 @@ impl BackpackingScoringEngine {
     }
 
     pub(crate) fn register_mobsim_fn(
+        rank: QSimId,
         data_collector: Arc<Mutex<BackpackingDataCollector>>,
         message_broker: Arc<Mutex<BackpackingMessageBroker>>,
     ) -> Box<MobsimListenerRegisterFn> {
@@ -193,10 +198,12 @@ impl BackpackingScoringEngine {
                     MobsimEvent::BeforeSimStep(_) => {
                         let mut bdc = data_collector1.lock().unwrap();
                         bdc.drain_scoring_messages();
-                        bdc.replay_deferred_link_events();
+                        info_span!("scoring.handle", rank = rank as u64)
+                            .in_scope(|| bdc.replay_deferred_link_events());
                     }
                     MobsimEvent::AfterSimStep(_) => {
-                        message_broker1.lock().unwrap().send();
+                        info_span!("scoring.messaging", rank = rank as u64)
+                            .in_scope(|| message_broker1.lock().unwrap().send());
                     }
                     _ => {}
                 });

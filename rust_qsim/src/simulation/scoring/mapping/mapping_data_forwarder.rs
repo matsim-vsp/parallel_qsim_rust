@@ -4,6 +4,7 @@ use crate::simulation::events::{
     PersonLeavesVehicleEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
     VehicleLeavesTrafficEvent,
 };
+use crate::simulation::framework_events::QSimId;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
@@ -11,6 +12,7 @@ use crate::simulation::scoring::mapping::mapping_message_broker::MappingCollecto
 use std::collections::HashMap;
 use std::mem::take;
 use std::sync::{Arc, Mutex};
+use tracing::info_span;
 pub struct MappingDataForwarder {
     person_hash_function: Box<dyn Fn(Id<InternalPerson>) -> u32 + Send>,
     vehicle_hash_function: Box<dyn Fn(Id<InternalVehicle>) -> u32 + Send>,
@@ -95,12 +97,14 @@ impl MappingDataForwarder {
     }
 
     pub(crate) fn register_event_fn(
+        rank: QSimId,
         data_collector: Arc<Mutex<MappingDataForwarder>>,
     ) -> Box<EventHandlerRegisterFn> {
         Box::new(move |events: &mut EventsManager| {
             // General event forwarding
             let collector1 = Arc::clone(&data_collector);
             events.on_any(move |e: &dyn EventTrait| {
+                let _handle_span = info_span!("scoring.handle", rank = rank as u64).entered();
                 hotpath::measure_block!("MappingDataForwarder.EventsManager.on_any", {
                     let mut mdf = collector1.lock().unwrap();
                     mdf.handle_event(e);
