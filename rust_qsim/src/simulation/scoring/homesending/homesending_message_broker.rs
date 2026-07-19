@@ -5,12 +5,12 @@ use crate::simulation::scenario::population::{InternalPerson, Population};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::scoring::InternalScoringMessage;
 use crate::simulation::scoring::homesending::homesending_data_collector::HomeSendingDataCollector;
-use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
 use nohash_hasher::{IntMap, IntSet};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::mpsc::TryRecvError;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, Weak};
 use tracing::info_span;
 
@@ -282,24 +282,23 @@ impl HomeSendingMessageBroker {
     }
 
     fn send(&mut self) {
-        let _send_span = info_span!("scoring.send", rank = self.rank as u64).entered();
         for (target, vehicles) in self.buffer_vehicles.drain() {
-            let payload_bytes: usize = vehicles
-                .iter()
-                .map(|(_, persons)| {
-                    size_of::<Id<InternalVehicle>>()
-                        + persons.len() * size_of::<Id<InternalPerson>>()
-                })
-                .sum();
+            // let payload_bytes: usize = vehicles
+            //     .iter()
+            //     .map(|(_, persons)| {
+            //         size_of::<Id<InternalVehicle>>()
+            //             + persons.len() * size_of::<Id<InternalPerson>>()
+            //     })
+            //     .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(VehicleMessage { vehicles }),
             };
-            *self.vehicle_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.vehicle_count_by_target.entry(target).or_insert(0) += 1;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
-                size_of::<InternalScoringMessage>();
+            // *self.vehicle_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            // *self.vehicle_count_by_target.entry(target).or_insert(0) += 1;
+            // *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+            //     size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending VehicleMessage to rank {} with error {}",
@@ -309,22 +308,22 @@ impl HomeSendingMessageBroker {
         }
 
         for (target, events) in self.buffer_leaving_events.drain() {
-            let payload_bytes: usize = events
-                .iter()
-                .map(|(_, evts)| {
-                    size_of::<Id<InternalPerson>>()
-                        + evts.iter().map(|e| size_of_val(e.as_ref())).sum::<usize>()
-                })
-                .sum();
+            // let payload_bytes: usize = events
+            //     .iter()
+            //     .map(|(_, evts)| {
+            //         size_of::<Id<InternalPerson>>()
+            //             + evts.iter().map(|e| size_of_val(e.as_ref())).sum::<usize>()
+            //     })
+            //     .sum();
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(EventMessage { events }),
             };
-            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
-                size_of::<InternalScoringMessage>();
+            // *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            // *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            // *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+            //     size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -334,17 +333,17 @@ impl HomeSendingMessageBroker {
         }
 
         for (target, partition_events) in self.buffer_partition_events.drain() {
-            let payload_bytes = partition_events.len()
-                * (size_of::<Id<InternalPerson>>() + size_of::<PartitionEvent>());
+            // let payload_bytes = partition_events.len()
+            //     * (size_of::<Id<InternalPerson>>() + size_of::<PartitionEvent>());
             let msg = InternalScoringMessage {
                 from_process: self.rank,
                 to_process: target,
                 message: Box::new(PartitionEventMessage { partition_events }),
             };
-            *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
-            *self.payload_count_by_target.entry(target).or_insert(0) += 1;
-            *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
-                size_of::<InternalScoringMessage>();
+            // *self.payload_bytes_by_target.entry(target).or_insert(0) += payload_bytes;
+            // *self.payload_count_by_target.entry(target).or_insert(0) += 1;
+            // *self.wrapper_bytes_by_target.entry(target).or_insert(0) +=
+            //     size_of::<InternalScoringMessage>();
             self.senders[target as usize].send(msg).unwrap_or_else(|e| {
                 panic!(
                     "Error sending EventMessage to rank {} with error {}",
@@ -476,6 +475,7 @@ impl HomeSendingMessageBroker {
                 .add_arriving_events(person_id.clone(), block.events);
         }
 
+        /*
         std::fs::create_dir_all(self.bytes_path.parent().unwrap()).unwrap();
         let mut file = OpenOptions::new()
             .write(true)
@@ -536,6 +536,7 @@ impl HomeSendingMessageBroker {
         self.wrapper_bytes_by_target.clear();
         self.vehicle_count_by_target.clear();
         self.payload_count_by_target.clear();
+        */
     }
 }
 

@@ -13,7 +13,7 @@ use crate::simulation::scoring::homesending::homesending_message_broker::HomeSen
 use crate::simulation::scoring::{InternalScoringMessage, ScoringEngine};
 use nohash_hasher::IntMap;
 use std::path::PathBuf;
-use hotpath::wrap::std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use tracing::{info, info_span};
 
