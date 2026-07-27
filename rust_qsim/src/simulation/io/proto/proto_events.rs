@@ -1,7 +1,7 @@
 use crate::generated::events::{GenericEvent, TimeStep};
 use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
-    ActivityEndEvent, ActivityStartEvent, DynEq, EventHandlerRegisterFn, EventTrait, EventsManager,
+    ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
     LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PersonStuckEvent,
     PtTeleportationArrivalEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,

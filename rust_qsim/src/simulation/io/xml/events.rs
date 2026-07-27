@@ -14,7 +14,7 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
-    DynEq, EventHandlerRegisterFn, EventTrait, EventsManager, GenericEvent, LinkEnterEvent,
+    EventHandlerRegisterFn, EventTrait, EventsManager, GenericEvent, LinkEnterEvent,
     LinkEnterEventBuilder, LinkLeaveEvent, LinkLeaveEventBuilder, PersonArrivalEvent,
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,

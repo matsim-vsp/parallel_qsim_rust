@@ -130,6 +130,7 @@ impl StorageCap {
         }
     }
 
+    #[cfg(test)]
     pub fn build(
         length: f64,
         perm_lanes: f64,

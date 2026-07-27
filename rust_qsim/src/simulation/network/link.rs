@@ -8,6 +8,7 @@ use crate::simulation::events::{
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
 use crate::simulation::network::storage_cap::{StorageCap, StorageCapacityDefinition};
+use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::network::Node;
 use crate::simulation::time::{SimClock, Tick};
@@ -84,6 +85,17 @@ impl SimLink {
         }
     }
 
+    pub(super) fn is_veh_stuck(&self, now: impl Into<Tick>) -> bool {
+        let now = now.into();
+        match self {
+            SimLink::Local(ll) => ll.is_veh_stuck(now),
+            SimLink::In(il) => il.local_link.is_veh_stuck(now),
+            SimLink::Out(_) => {
+                panic!("Out links don't offer vehicles")
+            }
+        }
+    }
+
     pub fn is_available(&self) -> bool {
         match self {
             SimLink::Local(ll) => ll.is_available(),
@@ -139,10 +151,14 @@ impl SimLink {
         }
     }
 
-    pub fn pop_veh(&mut self) -> Option<SimulationVehicle> {
+    pub(super) fn pop_veh_and_restart_stuck_timer(
+        &mut self,
+        now: impl Into<Tick>,
+    ) -> Option<SimulationVehicle> {
+        let now = now.into();
         match self {
-            SimLink::Local(ll) => ll.pop_veh(),
-            SimLink::In(il) => il.local_link.pop_veh(),
+            SimLink::Local(ll) => ll.pop_veh_and_restart_stuck_timer(now),
+            SimLink::In(il) => il.local_link.pop_veh_and_restart_stuck_timer(now),
             SimLink::Out(_) => {
                 panic!("Can't pop vehicle from out link")
             }
@@ -168,6 +184,7 @@ pub struct LocalLink {
     free_speed: f64,
     storage_cap: StorageCap,
     flow_cap: Flowcap,
+    stuck_timer: StuckTimer,
     clock: SimClock,
     pub from: Id<Node>,
     pub to: Id<Node>,
@@ -255,6 +272,7 @@ impl LocalLink {
             free_speed,
             storage_cap,
             flow_cap: Flowcap::new(capacity_h, config.sample_size, capacity_per_tick),
+            stuck_timer: StuckTimer::new(clock.secs_to_tick(config.stuck_threshold as u64)),
             clock,
             from,
             to,
@@ -306,9 +324,13 @@ impl LocalLink {
     ) -> Vec<SimulationVehicle> {
         let now = now.into();
         let now_time = self.clock.tick_to_time(now);
+        let buffer_was_empty = self.buffer.is_empty();
         self.update_flow_cap(now);
         let mut ending_vehicles = self.add_waiting_to_buffer(comp_env, now);
         ending_vehicles.append(&mut self.add_queue_to_buffer(now));
+        if buffer_was_empty && !self.buffer.is_empty() {
+            self.restart_stuck_timer(now);
+        }
 
         for v in &ending_vehicles {
             comp_env.events_manager_borrow_mut().process_event(
@@ -435,14 +457,17 @@ impl LocalLink {
         self.flow_cap.remaining_capacity() - buffer_cap > 0.0
     }
 
-    /// This method returns the next/first vehicle from the buffer and removes it from the buffer.
-    fn pop_veh(&mut self) -> Option<SimulationVehicle> {
+    fn pop_veh_and_restart_stuck_timer(
+        &mut self,
+        now: impl Into<Tick>,
+    ) -> Option<SimulationVehicle> {
         if let Some(veh) = self.buffer.pop_front() {
-            // self.storage_cap.release(veh.pce);
             self.flow_cap.consume(veh.pce());
-            return Some(veh);
+            self.restart_stuck_timer(now);
+            Some(veh)
+        } else {
+            None
         }
-        None
     }
 
     fn update_flow_cap(&mut self, now: Tick) {
@@ -485,8 +510,12 @@ impl LocalLink {
         !self.q.is_empty() || !self.waiting_list.is_empty() || !self.buffer.is_empty()
     }
 
-    pub(super) fn buffer_is_empty(&self) -> bool {
-        self.buffer.is_empty()
+    pub(super) fn is_veh_stuck(&self, now: impl Into<Tick>) -> bool {
+        self.stuck_timer.is_stuck(now)
+    }
+
+    pub(super) fn restart_stuck_timer(&mut self, now: impl Into<Tick>) {
+        self.stuck_timer.restart(now);
     }
 
     fn from(&self) -> &Id<Node> {
@@ -631,7 +660,7 @@ mod sim_link_tests {
         };
 
         l.do_sim_step(1, &mut Default::default());
-        let _vehicle = link.pop_veh().unwrap();
+        let _vehicle = link.pop_veh_and_restart_stuck_timer(1).unwrap();
 
         // After popping, storage is 0.
         assert_eq!(0., link.used_storage());
@@ -666,7 +695,7 @@ mod sim_link_tests {
         l.do_sim_step(10, &mut Default::default());
 
         // this should reduce the flow capacity, so that no other vehicle can leave during this time step
-        let popped1 = l.pop_veh().unwrap();
+        let popped1 = l.pop_veh_and_restart_stuck_timer(10).unwrap();
         assert_eq!("1", popped1.id().external());
 
         // as the flow cap is 0.1/s the next vehicle can leave the link 15s after the first
@@ -720,6 +749,71 @@ mod sim_link_tests {
     }
 
     #[deterministic_id_test]
+    fn stuck_timer_starts_when_vehicle_enters_buffer() {
+        let mut config = test_utils::qsim_config();
+        config.stuck_threshold = 10;
+        let mut link = SimLink::Local(LocalLink::build(
+            Id::create("stuck-link"),
+            3600.,
+            1.,
+            1.,
+            10.,
+            7.5,
+            &config,
+            Id::create("from-node"),
+            Id::create("to-node"),
+        ));
+        let vehicle = SimulationVehicle::from_parts(1, 0, 10., 1., create_agent_without_route(1));
+        link.push_veh(vehicle, QStart, 0);
+
+        let SimLink::Local(local_link) = &mut link else {
+            unreachable!()
+        };
+        local_link.do_sim_step(9, &mut Default::default());
+        assert!(local_link.offers_veh().is_none());
+        assert!(!local_link.is_veh_stuck(100));
+
+        local_link.do_sim_step(10, &mut Default::default());
+        assert!(local_link.offers_veh().is_some());
+        assert!(!local_link.is_veh_stuck(19));
+        assert!(local_link.is_veh_stuck(20));
+    }
+
+    #[deterministic_id_test]
+    fn popping_front_vehicle_restarts_stuck_timer_for_next_vehicle() {
+        let mut config = test_utils::qsim_config();
+        config.stuck_threshold = 10;
+        let mut link = SimLink::Local(LocalLink::build(
+            Id::create("stuck-link"),
+            7200.,
+            1.,
+            1.,
+            1.,
+            7.5,
+            &config,
+            Id::create("from-node"),
+            Id::create("to-node"),
+        ));
+        for id in 1..=2 {
+            let vehicle =
+                SimulationVehicle::from_parts(id, 0, 10., 1., create_agent_without_route(id));
+            link.push_veh(vehicle, QStart, 0);
+        }
+
+        let SimLink::Local(local_link) = &mut link else {
+            unreachable!()
+        };
+        local_link.do_sim_step(1, &mut Default::default());
+        assert!(local_link.offers_veh().is_some());
+
+        let popped = local_link.pop_veh_and_restart_stuck_timer(5).unwrap();
+        assert_eq!("1", popped.id().external());
+        assert!(local_link.offers_veh().is_some());
+        assert!(!local_link.is_veh_stuck(14));
+        assert!(local_link.is_veh_stuck(15));
+    }
+
+    #[deterministic_id_test]
     fn fifo_ordering() {
         let id1 = 42;
         let id2 = 43;
@@ -754,15 +848,15 @@ mod sim_link_tests {
         l.do_sim_step(15, &mut Default::default());
 
         // First vehicle pops after 15 s
-        let popped_vehicle1 = l.pop_veh().unwrap();
+        let popped_vehicle1 = l.pop_veh_and_restart_stuck_timer(15).unwrap();
         assert_eq!(id1.to_string(), popped_vehicle1.id().external());
 
         l.do_sim_step(3614, &mut Default::default());
-        assert!(l.pop_veh().is_none());
+        assert!(l.pop_veh_and_restart_stuck_timer(3614).is_none());
 
         // Second vehicle pops after 3615 s
         l.do_sim_step(3615, &mut Default::default());
-        let popped_vehicle2 = link.pop_veh().unwrap();
+        let popped_vehicle2 = link.pop_veh_and_restart_stuck_timer(3615).unwrap();
         assert_eq!(id2.to_string(), popped_vehicle2.id().external());
     }
 }

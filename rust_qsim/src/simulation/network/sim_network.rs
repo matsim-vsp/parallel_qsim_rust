@@ -7,7 +7,6 @@ use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::network::LinkStorageCapacities;
 use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
-use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::scenario::network::{Link, Network, Node};
 use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::vehicles::SimulationVehicle;
@@ -82,7 +81,6 @@ pub struct SimNetworkPartition {
     // use int map as hash map variant with stable order
     pub links: IntMap<Id<Link>, SimLink>,
     rng: IntMap<Id<Node>, SmallRng>,
-    stuck_timers: IntMap<Id<Link>, StuckTimer>,
     active_nodes: ActiveCache<Node>,
     active_links: ActiveCache<Link>,
     veh_counter: usize,
@@ -121,7 +119,6 @@ impl SimNetworkPartition {
     ) -> Self {
         let qsim_config = config.qsim();
         let clock = SimClock::new(qsim_config.ticks_per_second);
-        let stuck_threshold = clock.secs_to_tick(qsim_config.stuck_threshold as u64);
         let nodes: Vec<&Node> = global_network
             .nodes()
             .iter()
@@ -162,7 +159,6 @@ impl SimNetworkPartition {
             partition,
             config.computational_setup().random_seed,
             clock,
-            stuck_threshold,
         )
     }
 
@@ -221,7 +217,6 @@ impl SimNetworkPartition {
         partition: u32,
         base_seed: u64,
         clock: SimClock,
-        stuck_threshold: Tick,
     ) -> Self {
         // Initialize RNG with a seed based on the base seed and node id
         let rng = nodes
@@ -233,17 +228,10 @@ impl SimNetworkPartition {
             })
             .collect();
 
-        let stuck_timers = nodes
-            .values()
-            .flat_map(|node| node.in_links.iter())
-            .map(|id| (id.clone(), StuckTimer::new(stuck_threshold)))
-            .collect();
-
         Self {
             nodes,
             links,
             rng,
-            stuck_timers,
             active_links: ActiveCache::<Link>::default(),
             active_nodes: ActiveCache::<Node>::default(),
             veh_counter: 0,
@@ -379,17 +367,12 @@ impl SimNetworkPartition {
         for id in &self.active_links {
             let link = self.links.get_mut(id).unwrap();
             let mut res = match link {
-                SimLink::Local(ll) => Self::move_local_link(
-                    ll,
-                    &mut self.active_nodes,
-                    &mut self.stuck_timers,
-                    now,
-                    comp_env,
-                ),
+                SimLink::Local(ll) => {
+                    Self::move_local_link(ll, &mut self.active_nodes, now, comp_env)
+                }
                 SimLink::In(il) => Self::move_in_link(
                     il,
                     &mut self.active_nodes,
-                    &mut self.stuck_timers,
                     &mut storage_cap_updates,
                     now,
                     comp_env,
@@ -422,15 +405,10 @@ impl SimNetworkPartition {
     fn move_local_link(
         link: &mut LocalLink,
         active_nodes: &mut ActiveCache<Node>,
-        stuck_timers: &mut IntMap<Id<Link>, StuckTimer>,
         now: Tick,
         comp_env: &mut ThreadLocalComputationalEnvironment,
     ) -> MoveSingleLinkResult {
-        let buffer_was_empty = link.buffer_is_empty();
         let vehicles_end_leg = link.do_sim_step(now, comp_env);
-        if buffer_was_empty && !link.buffer_is_empty() {
-            stuck_timers.get_mut(&link.id).unwrap().restart(now);
-        }
         if link.to_nodes_active() {
             active_nodes.activate(link.to.clone());
         }
@@ -447,7 +425,6 @@ impl SimNetworkPartition {
     fn move_in_link(
         link: &mut SplitInLink,
         active_nodes: &mut ActiveCache<Node>,
-        stuck_timers: &mut IntMap<Id<Link>, StuckTimer>,
         storage_cap_updates: &mut Vec<StorageUpdate>,
         now: Tick,
         events: &mut ThreadLocalComputationalEnvironment,
@@ -455,13 +432,7 @@ impl SimNetworkPartition {
         // if anything has changed on the link, we want to report the updated storage capacity to the
         // upstream partition.
         let before = link.occupied_storage();
-        let result = Self::move_local_link(
-            &mut link.local_link,
-            active_nodes,
-            stuck_timers,
-            now,
-            events,
-        );
+        let result = Self::move_local_link(&mut link.local_link, active_nodes, now, events);
         let diff = before - link.occupied_storage();
 
         assert!(
@@ -530,13 +501,11 @@ impl SimNetworkPartition {
             let selected_index = Self::weighted_index(&candidates, rnd_num);
             let selected = candidates.remove(selected_index);
             total_capacity -= selected.weight;
-            let stuck_timer = self.stuck_timers.get_mut(selected.id).unwrap();
 
             Self::drain_selected_inlink(
                 selected.id,
                 &mut self.links,
                 &mut self.active_links,
-                stuck_timer,
                 comp_env,
                 self.clock,
                 now,
@@ -588,7 +557,6 @@ impl SimNetworkPartition {
     fn evaluate_front_vehicle(
         in_id: &Id<Link>,
         links: &IntMap<Id<Link>, SimLink>,
-        stuck_timer: &StuckTimer,
         now: Tick,
     ) -> FrontDecision {
         let in_link = links.get(in_id).unwrap();
@@ -623,7 +591,7 @@ impl SimNetworkPartition {
         }
         if out_link.is_available() {
             FrontDecision::MoveNormally
-        } else if stuck_timer.is_stuck(now) {
+        } else if in_link.is_veh_stuck(now) {
             FrontDecision::MoveAlthoughStuck
         } else {
             FrontDecision::Wait
@@ -634,20 +602,17 @@ impl SimNetworkPartition {
         in_link_id: &Id<Link>,
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut ActiveCache<Link>,
-        stuck_timer: &mut StuckTimer,
         comp_env: &mut ThreadLocalComputationalEnvironment,
         clock: SimClock,
         now: Tick,
     ) {
         loop {
-            match Self::evaluate_front_vehicle(in_link_id, links, stuck_timer, now) {
+            match Self::evaluate_front_vehicle(in_link_id, links, now) {
                 FrontDecision::MoveNormally | FrontDecision::MoveAlthoughStuck => {
-                    let vehicle = links
-                        .get_mut(in_link_id)
-                        .unwrap()
-                        .pop_veh()
+                    let in_link = links.get_mut(in_link_id).unwrap();
+                    let vehicle = in_link
+                        .pop_veh_and_restart_stuck_timer(now)
                         .expect("No vehicle on selected link");
-                    stuck_timer.restart(now);
                     Self::move_vehicle(vehicle, links, active_links, comp_env, clock, now);
                 }
                 FrontDecision::Abort => {

@@ -1,27 +1,26 @@
 use crate::simulation::time::Tick;
-use std::cell::Cell;
 
 #[derive(Debug, Clone)]
 pub struct StuckTimer {
-    timer_started: Cell<Option<Tick>>,
+    timer_started: Option<Tick>,
     stuck_threshold: Tick,
 }
 
 impl StuckTimer {
     pub fn new(stuck_threshold: Tick) -> Self {
         StuckTimer {
-            timer_started: Cell::new(None),
+            timer_started: None,
             stuck_threshold,
         }
     }
 
-    pub fn restart(&self, now: impl Into<Tick>) {
-        self.timer_started.replace(Some(now.into()));
+    pub fn restart(&mut self, now: impl Into<Tick>) {
+        self.timer_started = Some(now.into());
     }
 
     pub fn is_stuck(&self, now: impl Into<Tick>) -> bool {
         let now = now.into();
-        if let Some(time) = self.timer_started.get() {
+        if let Some(time) = self.timer_started {
             now - time >= self.stuck_threshold
         } else {
             false
@@ -37,24 +36,24 @@ mod tests {
     #[test]
     fn init() {
         let timer = StuckTimer::new(Tick::new(42));
-        assert!(timer.timer_started.get().is_none());
+        assert!(timer.timer_started.is_none());
         assert_eq!(Tick::new(42), timer.stuck_threshold);
     }
 
     #[test]
     fn restart() {
-        let timer = StuckTimer::new(Tick::new(42));
+        let mut timer = StuckTimer::new(Tick::new(42));
 
         timer.restart(Tick::new(1));
         timer.restart(Tick::new(2));
 
-        assert!(timer.timer_started.get().is_some());
-        assert_eq!(Tick::new(2), timer.timer_started.get().unwrap());
+        assert!(timer.timer_started.is_some());
+        assert_eq!(Tick::new(2), timer.timer_started.unwrap());
     }
 
     #[test]
     fn is_stuck() {
-        let timer = StuckTimer::new(Tick::new(42));
+        let mut timer = StuckTimer::new(Tick::new(42));
 
         timer.restart(Tick::new(17));
         assert!(!timer.is_stuck(Tick::new(18)));
