@@ -1,7 +1,7 @@
 use crate::generated::events::{GenericEvent, TimeStep};
 use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
-    ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
+    ActivityEndEvent, ActivityStartEvent, DynEq, EventHandlerRegisterFn, EventTrait, EventsManager,
     LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
     PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PersonStuckEvent,
     PtTeleportationArrivalEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
@@ -300,6 +300,32 @@ impl From<&VehicleLeavesTrafficEvent> for GenericEvent {
     }
 }
 
+impl From<&PersonStuckEvent> for GenericEvent {
+    fn from(value: &PersonStuckEvent) -> Self {
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            "person".to_string(),
+            AttributeValue::from(value.person.external()),
+        );
+        attributes.insert(
+            "link".to_string(),
+            AttributeValue::from(value.link.external()),
+        );
+        attributes.insert(
+            "leg_mode".to_string(),
+            AttributeValue::from(value.leg_mode.external()),
+        );
+        attributes.insert(
+            "reason".to_string(),
+            AttributeValue::from(value.reason.to_string()),
+        );
+        GenericEvent {
+            r#type: value.type_().to_string(),
+            attributes,
+        }
+    }
+}
+
 impl From<&crate::simulation::events::GenericEvent> for GenericEvent {
     fn from(value: &crate::simulation::events::GenericEvent) -> Self {
         let mut attributes = HashMap::new();
@@ -384,6 +410,8 @@ impl ProtoEventsWriter {
         } else if let Some(event) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
             GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
+            GenericEvent::from(event)
+        } else if let Some(event) = event.as_any().downcast_ref::<PersonStuckEvent>() {
             GenericEvent::from(event)
         } else {
             // TODO use general event here and log warning

@@ -520,12 +520,16 @@ fn handle_person_stuck(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
     let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
     let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
     let leg_mode: Id<String> = Id::create(value_from_name(&attr, "legMode").unwrap());
+    let reason = value_from_name(&attr, "reason")
+        .cloned()
+        .unwrap_or_default();
     Box::new(
         PersonStuckEventBuilder::default()
             .time(time)
             .person(person)
             .link(link)
             .leg_mode(leg_mode)
+            .reason(reason)
             .build()
             .unwrap(),
     )

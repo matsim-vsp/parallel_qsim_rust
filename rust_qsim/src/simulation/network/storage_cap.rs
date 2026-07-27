@@ -23,10 +23,15 @@ impl StorageCapacityDefinition {
     ) -> Self {
         let flow_cap_s = capacity_h * sample_size / 3600.;
         let cap = length * perm_lanes * sample_size / effective_cell_size;
+
+        // set storage capacity to at least flow capacity. Otherwise, the flow capacity would never be fully used during `move_node`.
         let max_storage_cap = flow_cap_s.max(cap);
 
         let freespeed_travel_time = length / free_speed;
         let temp_storage_cap = freespeed_travel_time * flow_cap_s;
+
+        // set storage capacity to at least the freespeed travel time * flow capacity. Otherwise, the flow capacity would never be fully used,
+        // because vehicles would need at least need freespeed travel time to reach the end of the link.
         let adjusted = (max_storage_cap < temp_storage_cap).then_some(temp_storage_cap);
 
         Self {
@@ -39,6 +44,7 @@ impl StorageCapacityDefinition {
         self.qsim_override
     }
 
+    #[allow(dead_code)]
     pub(crate) fn original(&self) -> f64 {
         self.original
     }
