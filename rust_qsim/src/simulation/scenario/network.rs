@@ -1,10 +1,14 @@
 use crate::simulation::InternalAttributes;
 use crate::simulation::config::PartitionMethod;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::proto_network::{load_from_proto, write_to_proto};
+use crate::simulation::io::proto::proto_network::{
+    load_from_proto, write_to_proto_with_link_attribute_overrides,
+};
 use crate::simulation::io::xml::attributes::IOAttributes;
 use crate::simulation::io::xml::network;
-use crate::simulation::io::xml::network::{IOLink, IONetwork, IONode, write_to_xml};
+use crate::simulation::io::xml::network::{
+    IOLink, IONetwork, IONode, write_to_xml_with_link_attribute_overrides,
+};
 use crate::simulation::network::metis_partitioning;
 use crate::simulation::scenario::Coordinate;
 use itertools::Itertools;
@@ -45,6 +49,8 @@ pub struct Link {
     pub attributes: InternalAttributes,
 }
 
+pub(crate) type LinkAttributeOverrides = IntMap<Id<Link>, InternalAttributes>;
+
 impl Default for Network {
     fn default() -> Self {
         Network::new()
@@ -84,6 +90,14 @@ impl Network {
 
     pub fn to_file(&self, file_path: &Path) {
         to_file(self, file_path);
+    }
+
+    pub(crate) fn to_file_with_link_attribute_overrides(
+        &self,
+        file_path: &Path,
+        overrides: &LinkAttributeOverrides,
+    ) {
+        to_file_with_link_attribute_overrides(self, file_path, overrides);
     }
 
     pub fn add_node(&mut self, node: Node) {
@@ -285,7 +299,7 @@ impl From<crate::generated::network::Network> for Network {
             let modes: IntSet<Id<String>> =
                 wl.modes.iter().map(|id| Id::get_from_ext(id)).collect();
 
-            let link = Link::new(
+            let mut link = Link::new(
                 Id::get_from_ext(&wl.id),
                 Id::get_from_ext(&wl.from),
                 Id::get_from_ext(&wl.to),
@@ -296,6 +310,7 @@ impl From<crate::generated::network::Network> for Network {
                 modes,
                 wl.partition,
             );
+            link.attributes = InternalAttributes::from(&wl.attributes);
             result.add_link(link);
         }
         info!("Finished converting protobuf wire type into Network");
@@ -334,7 +349,7 @@ fn add_io_link(network: &mut Network, io_link: &IOLink) {
     let from_id = Id::get_from_ext(&io_link.from);
     let to_id = Id::get_from_ext(&io_link.to);
 
-    let link = Link::new(
+    let mut link = Link::new(
         id,
         from_id,
         to_id,
@@ -345,6 +360,17 @@ fn add_io_link(network: &mut Network, io_link: &IOLink) {
         modes,
         partition,
     );
+    link.attributes = io_link
+        .attributes
+        .clone()
+        .map(|mut attributes| {
+            // partition is stored in a field, thus can be omitted when reading the attributes.
+            attributes
+                .attributes
+                .retain(|attribute| attribute.name != "partition");
+            InternalAttributes::from(attributes)
+        })
+        .unwrap_or_default();
     network.add_link(link);
 }
 
@@ -430,18 +456,39 @@ pub fn from_file(path: &Path) -> Network {
 }
 
 pub fn to_file(network: &Network, path: &Path) {
+    to_file_with_link_attribute_overrides(network, path, &LinkAttributeOverrides::default());
+}
+
+pub(crate) fn to_file_with_link_attribute_overrides(
+    network: &Network,
+    path: &Path,
+    overrides: &LinkAttributeOverrides,
+) {
     if path.extension().unwrap().eq("binpb") {
-        write_to_proto(network, path);
+        write_to_proto_with_link_attribute_overrides(network, path, overrides);
     } else if path.extension().unwrap().eq("xml")
         || path.extension().unwrap().eq("gz")
         || path.extension().unwrap().eq("zst")
     {
-        write_to_xml(network, path);
+        write_to_xml_with_link_attribute_overrides(network, path, overrides);
     } else {
         panic!(
             "Tried to write {path:?} . File format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
         );
     }
+}
+
+pub(crate) fn merged_link_attributes(
+    link: &Link,
+    overrides: &LinkAttributeOverrides,
+) -> InternalAttributes {
+    let mut attributes = link.attributes.clone();
+    if let Some(link_overrides) = overrides.get(&link.id) {
+        for (key, value) in link_overrides.iter() {
+            attributes.insert(key.clone(), value);
+        }
+    }
+    attributes
 }
 
 pub mod utils {

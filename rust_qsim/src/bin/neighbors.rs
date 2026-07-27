@@ -8,6 +8,7 @@ use tracing::info;
 
 use rust_qsim::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod, VertexWeight};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
+use rust_qsim::simulation::network::LinkStorageCapacities;
 use rust_qsim::simulation::network::sim_network::SimNetworkPartition;
 use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::{config, id};
@@ -39,12 +40,15 @@ fn main() {
                 contiguous: true,
             }),
         );
+        let qsim_config = config::QSim::default();
+        let storage_capacities = LinkStorageCapacities::from_network(&net, &qsim_config);
         let distinct_partitions: HashSet<u32> = net.nodes().iter().map(|n| n.partition).collect();
         for partition in distinct_partitions {
             let net_partition = SimNetworkPartition::from_network(
                 &net,
+                &storage_capacities,
                 partition,
-                &config::QSim::default(),
+                &qsim_config,
                 config::DEFAULT_RANDOM_SEED,
             );
             let neighbors = net_partition.neighbors().len();

@@ -6,6 +6,7 @@ pub mod trip_structure_utils;
 pub mod vehicles;
 
 use crate::simulation::config::Config;
+use crate::simulation::network::LinkStorageCapacities;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::{id, io};
 use network::Network;
@@ -261,14 +262,19 @@ impl From<Scenario> for ControllerScenario {
 }
 
 impl ControllerScenario {
-    pub fn split_for_mobsim(&mut self) -> Vec<MobsimInput> {
+    pub(crate) fn split_for_mobsim(
+        &mut self,
+        storage_capacities: &LinkStorageCapacities,
+    ) -> Vec<MobsimInput> {
         let num_parts = self.core.config.partitioning().num_parts;
         let population = std::mem::take(&mut self.population);
         population
             .split_by_start_link_partition(&self.core.network, num_parts)
             .into_iter()
             .enumerate()
-            .map(|(rank, population)| self.create_mobsim_input(rank as u32, population))
+            .map(|(rank, population)| {
+                self.create_mobsim_input(rank as u32, population, storage_capacities)
+            })
             .collect()
     }
 
@@ -293,8 +299,14 @@ impl ControllerScenario {
         self.population = population;
     }
 
-    fn create_mobsim_input(&self, rank: u32, population: Population) -> MobsimInput {
-        let network_partition = Self::create_network_partition(&self.core, rank);
+    fn create_mobsim_input(
+        &self,
+        rank: u32,
+        population: Population,
+        storage_capacities: &LinkStorageCapacities,
+    ) -> MobsimInput {
+        let network_partition =
+            Self::create_network_partition(&self.core, storage_capacities, rank);
 
         info!(
             "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
@@ -314,9 +326,19 @@ impl ControllerScenario {
         }
     }
 
-    fn create_network_partition(core: &ScenarioCore, rank: u32) -> SimNetworkPartition {
+    fn create_network_partition(
+        core: &ScenarioCore,
+        storage_capacities: &LinkStorageCapacities,
+        rank: u32,
+    ) -> SimNetworkPartition {
         let base_seed = core.config.computational_setup().random_seed;
-        SimNetworkPartition::from_network(&core.network, rank, core.config.qsim(), base_seed)
+        SimNetworkPartition::from_network(
+            &core.network,
+            storage_capacities,
+            rank,
+            core.config.qsim(),
+            base_seed,
+        )
     }
 }
 
@@ -324,6 +346,7 @@ impl ControllerScenario {
 mod tests {
     use super::{ControllerScenario, Scenario};
     use crate::simulation::config::{Config, PartitionMethod};
+    use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::Population;
     use crate::simulation::scenario::vehicles::Garage;
@@ -343,6 +366,7 @@ mod tests {
             &PartitionMethod::None,
         );
 
+        let storage_capacities = LinkStorageCapacities::from_network(&network, config.qsim());
         let mut scenario: ControllerScenario = Scenario {
             network,
             garage,
@@ -351,7 +375,7 @@ mod tests {
         }
         .into();
 
-        let inputs = scenario.split_for_mobsim();
+        let inputs = scenario.split_for_mobsim(&storage_capacities);
 
         assert!(scenario.population.persons.is_empty());
 

@@ -7,7 +7,7 @@ use crate::simulation::events::{
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::flow_cap::Flowcap;
-use crate::simulation::network::storage_cap::StorageCap;
+use crate::simulation::network::storage_cap::{StorageCap, StorageCapacityDefinition};
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::network::Node;
 use crate::simulation::time::{SimClock, Tick};
@@ -116,6 +116,15 @@ impl SimLink {
         }
     }
 
+    #[cfg(test)]
+    pub fn max_storage(&self) -> f64 {
+        match self {
+            SimLink::Local(ll) => ll.storage_cap.max(),
+            SimLink::In(il) => il.local_link.storage_cap.max(),
+            SimLink::Out(ol) => ol.storage_cap.max(),
+        }
+    }
+
     pub(super) fn push_veh(
         &mut self,
         vehicle: SimulationVehicle,
@@ -171,37 +180,25 @@ struct VehicleQEntry {
 }
 
 impl LocalLink {
-    pub fn from_link(link: &Link, effective_cell_size: f64, config: &config::QSim) -> Self {
-        LocalLink::build(
+    pub(crate) fn from_link(
+        link: &Link,
+        storage_capacity: &StorageCapacityDefinition,
+        config: &config::QSim,
+    ) -> Self {
+        LocalLink::build_with_storage_capacity(
             link.id.clone(),
             link.capacity,
             link.freespeed,
-            link.permlanes,
             link.length,
-            effective_cell_size,
+            storage_capacity,
             config,
             link.from.clone(),
             link.to.clone(),
         )
     }
 
-    pub fn new_with_defaults(id: Id<Link>, from: Id<Node>, to: Id<Node>) -> Self {
-        let clock = SimClock::new(1);
-        LocalLink {
-            id,
-            q: VecDeque::new(),
-            buffer: VecDeque::new(),
-            waiting_list: VecDeque::new(),
-            length: 1.0,
-            free_speed: 1.0,
-            storage_cap: StorageCap::build(0., 1., 1., 1.0, 7.5),
-            flow_cap: Flowcap::new(3600., 1.0, 1.0),
-            clock,
-            from,
-            to,
-        }
-    }
     #[allow(clippy::too_many_arguments)]
+    #[cfg(test)]
     pub fn build(
         id: Id<Link>,
         capacity_h: f64,
@@ -213,16 +210,41 @@ impl LocalLink {
         from: Id<Node>,
         to: Id<Node>,
     ) -> Self {
-        let clock = SimClock::new(config.ticks_per_second);
-        let capacity_per_tick =
-            (capacity_h * config.sample_size / 3600.) * clock.tick_length().as_secs_f64();
-        let storage_cap = StorageCap::build(
+        let storage_capacity = StorageCapacityDefinition::build(
             length,
             perm_lanes,
             capacity_h,
             config.sample_size,
             effective_cell_size,
+            free_speed,
         );
+        Self::build_with_storage_capacity(
+            id,
+            capacity_h,
+            free_speed,
+            length,
+            &storage_capacity,
+            config,
+            from,
+            to,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_with_storage_capacity(
+        id: Id<Link>,
+        capacity_h: f64,
+        free_speed: f64,
+        length: f64,
+        storage_capacity: &StorageCapacityDefinition,
+        config: &config::QSim,
+        from: Id<Node>,
+        to: Id<Node>,
+    ) -> Self {
+        let clock = SimClock::new(config.ticks_per_second);
+        let capacity_per_tick =
+            (capacity_h * config.sample_size / 3600.) * clock.tick_length().as_secs_f64();
+        let storage_cap = StorageCap::from_definition(storage_capacity);
 
         LocalLink {
             id,
@@ -492,19 +514,12 @@ pub struct SplitOutLink {
 }
 
 impl SplitOutLink {
-    pub fn new(
+    pub(crate) fn new(
         link: &Link,
-        effective_cell_size: f64,
-        sample_size: f64,
+        storage_capacity: &StorageCapacityDefinition,
         to_part: u32,
     ) -> SplitOutLink {
-        let storage_cap = StorageCap::build(
-            link.length,
-            link.permlanes,
-            link.capacity,
-            sample_size,
-            effective_cell_size,
-        );
+        let storage_cap = StorageCap::from_definition(storage_capacity);
 
         SplitOutLink {
             id: link.id.clone(),
@@ -769,7 +784,7 @@ mod out_link_tests {
             from: Id::new_internal(0),
             to_part: 1,
             q: Default::default(),
-            storage_cap: StorageCap::build(100., 1., 1., 1., 1.),
+            storage_cap: StorageCap::build(100., 1., 1., 1., 1., 1.),
         });
         let id1 = 42;
         let id2 = 43;
@@ -804,7 +819,7 @@ mod out_link_tests {
     #[deterministic_id_test]
     fn update_storage_caps() {
         // set up the link, so that we consume two units of storage.
-        let mut cap = StorageCap::build(100., 1., 1., 1., 1.);
+        let mut cap = StorageCap::build(100., 1., 1., 1., 1., 1.);
         cap.consume(2.);
         let mut out_link = SplitOutLink {
             id: Id::new_internal(0),

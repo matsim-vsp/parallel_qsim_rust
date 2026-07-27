@@ -162,6 +162,7 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
+    use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::network::sim_network::StorageUpdate;
     use crate::simulation::scenario::Coordinate;
@@ -358,8 +359,11 @@ mod tests {
             stuck_threshold: 0,
             main_modes: vec![],
         };
+        let network = create_network();
+        let storage_capacities = LinkStorageCapacities::from_network(&network, &config);
         let partition = SimNetworkPartition::from_network(
-            &create_network(),
+            &network,
+            &storage_capacities,
             rank,
             &config,
             config::DEFAULT_RANDOM_SEED,
