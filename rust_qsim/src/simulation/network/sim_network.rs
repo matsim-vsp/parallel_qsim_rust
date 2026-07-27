@@ -464,7 +464,7 @@ impl SimNetworkPartition {
         // This ensures determinism while maintaining different behavior across time steps
         let (active, mut avail_capacity) =
             Self::get_active_in_links(&node.in_links, &self.active_links, &self.links);
-        let mut exhausted_links: Vec<Option<()>> = vec![None; active.len()];
+        let mut exhausted_links: Vec<bool> = vec![false; active.len()];
         let mut sel_cap: f64 = 0.;
 
         while avail_capacity > 1e-10 {
@@ -476,7 +476,7 @@ impl SimNetworkPartition {
             // go through all in links and fetch one, which is not exhausted yet.
             for i in 0..active.len() {
                 // if the link is exhausted, try next link
-                if exhausted_links[i].is_some() {
+                if exhausted_links[i] {
                     // reduce the available capacity a little bit. Sometimes we have rounding errors
                     // which will cause an infinite loop. Reducing the remaining capacity a little
                     // bit at least prevents infinite loops.
@@ -509,7 +509,7 @@ impl SimNetworkPartition {
                     // in case the vehicle on the link can't move, we add the link to the exhausted
                     // bookkeeping and reduce the available capacity, which makes it more likely for
                     // other links to be able to release vehicles.
-                    exhausted_links[i] = Some(());
+                    exhausted_links[i] = true;
                     let link = self.links.get(link_id).unwrap();
                     avail_capacity -= link.flow_cap();
                 }
@@ -642,6 +642,7 @@ mod tests {
     use crate::simulation::config;
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+    use crate::simulation::events::{LinkEnterEvent, LinkLeaveEvent};
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::events::XmlEventsWriter;
     use crate::simulation::network::link::LinkPosition::QStart;
@@ -653,6 +654,528 @@ mod tests {
     use crate::test_utils;
     use assert_approx_eq::assert_approx_eq;
     use macros::deterministic_id_test;
+    use rand::rngs::SmallRng;
+    use rand::{RngExt, SeedableRng};
+    use std::cell::RefCell;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    use std::rc::Rc;
+
+    #[derive(Clone, Default)]
+    // simple events handler that just records the events it receives.
+    struct TransitionEvents {
+        link_enters: Rc<RefCell<Vec<(String, String)>>>,
+        link_leaves: Rc<RefCell<Vec<(String, String)>>>,
+    }
+
+    impl TransitionEvents {
+        fn register(&self, env: &mut ThreadLocalComputationalEnvironment) {
+            let enters = self.link_enters.clone();
+            env.events_manager_borrow_mut()
+                .on::<LinkEnterEvent, _>(move |event| {
+                    enters.borrow_mut().push((
+                        event.link.external().to_owned(),
+                        event.vehicle.external().to_owned(),
+                    ));
+                });
+
+            let leaves = self.link_leaves.clone();
+            env.events_manager_borrow_mut()
+                .on::<LinkLeaveEvent, _>(move |event| {
+                    leaves.borrow_mut().push((
+                        event.link.external().to_owned(),
+                        event.vehicle.external().to_owned(),
+                    ));
+                });
+        }
+
+        fn leaving_vehicles(&self) -> Vec<String> {
+            self.link_leaves
+                .borrow()
+                .iter()
+                .map(|(_, vehicle)| vehicle.clone())
+                .collect()
+        }
+
+        fn leaves_on(&self, link: &str) -> Vec<String> {
+            self.link_leaves
+                .borrow()
+                .iter()
+                .filter(|(event_link, _)| event_link == link)
+                .map(|(_, vehicle)| vehicle.clone())
+                .collect()
+        }
+    }
+
+    fn environment_with_transition_events()
+    -> (ThreadLocalComputationalEnvironment, TransitionEvents) {
+        let mut env = ThreadLocalComputationalEnvironment::default();
+        let events = TransitionEvents::default();
+        events.register(&mut env);
+        (env, events)
+    }
+
+    fn add_test_nodes(network: &mut Network, ids: &[&str]) {
+        for id in ids {
+            network.add_node(Node::new(Id::create(id), Coordinate::default(), 0, 1));
+        }
+    }
+
+    fn add_test_link(
+        network: &mut Network,
+        id: &str,
+        from: &str,
+        to: &str,
+        length: f64,
+        capacity: f64,
+        freespeed: f64,
+    ) {
+        network.add_link(Link {
+            id: Id::create(id),
+            from: Id::create(from),
+            to: Id::create(to),
+            length,
+            capacity,
+            freespeed,
+            permlanes: 1.0,
+            modes: Default::default(),
+            partition: 0,
+            attributes: Default::default(),
+        });
+    }
+
+    fn test_vehicle(id: u64, route: Vec<&str>) -> SimulationVehicle {
+        SimulationVehicle::from_parts(id, 0, 100.0, 1.0, test_utils::create_agent(id, route))
+    }
+
+    fn push_vehicle_to_queue(
+        network: &mut SimNetworkPartition,
+        link: &str,
+        id: u64,
+        route: Vec<&str>,
+        now: u64,
+    ) {
+        network.links.get_mut(&Id::create(link)).unwrap().push_veh(
+            test_vehicle(id, route),
+            QStart,
+            now,
+        );
+    }
+
+    fn local_vehicle_count(network: &SimNetworkPartition, link: &str) -> usize {
+        match network.links.get(&Id::create(link)).unwrap() {
+            Local(link) => link.veh_count(),
+            _ => panic!("Expected {link} to be a local link"),
+        }
+    }
+
+    fn set_node_rng(network: &mut SimNetworkPartition, node: &str, seed: u64) {
+        network
+            .rng
+            .insert(Id::create(node), SmallRng::seed_from_u64(seed));
+    }
+
+    fn three_way_merge_network(in_link_order: &[&str]) -> Network {
+        let mut network = Network::new();
+        add_test_nodes(&mut network, &["SA", "SB", "SC", "K", "T"]);
+        for id in in_link_order {
+            let from = match *id {
+                "A" => "SA",
+                "B" => "SB",
+                "C" => "SC",
+                _ => panic!("Unexpected in-link id {id}"),
+            };
+            add_test_link(&mut network, id, from, "K", 1.0, 3600.0, 100.0);
+        }
+        add_test_link(&mut network, "D", "K", "T", 7.5, 3600.0, 100.0);
+        network
+    }
+
+    /// Setting: A offers A1 with capacity 1, while B offers B1/B2 with capacity 2; the fixed seed places the first selection in B's capacity interval.
+    /// Execution: A single node transition processes the offered vehicles using the current selection capacity, which accumulates across scans.
+    /// Expectation: The exact LinkLeave order is B1, A1, B2 (vehicle IDs 21, 11, 22).
+    #[deterministic_id_test]
+    fn current_transition_interleaves_selected_buffers() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["SA", "SB", "K", "TX", "TY"]);
+        add_test_link(&mut global_network, "A", "SA", "K", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "B", "SB", "K", 1.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "X", "K", "TX", 75.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "Y", "K", "TY", 75.0, 3600.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        set_node_rng(&mut network, "K", 4712);
+        let node_id = Id::create("K");
+        let first_draw = network.rng.get(&node_id).unwrap().clone().random::<f64>();
+        assert!(
+            first_draw > 1.0 / 3.0,
+            "The fixed seed must initially select B, draw was {first_draw}"
+        );
+
+        network.send_veh_en_route(test_vehicle(11, vec!["A", "X"]), None, 0);
+        network.send_veh_en_route(test_vehicle(21, vec!["B", "Y"]), None, 0);
+        network.send_veh_en_route(test_vehicle(22, vec!["B", "Y"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        network.move_nodes(&mut env, 1);
+
+        assert_eq!(vec!["21", "11", "22"], events.leaving_vehicles());
+    }
+
+    /// Setting: A can offer one vehicle per tick and B can offer two; their shared destination link C has storage capacity for exactly two vehicles and is emptied every tick.
+    /// Execution: 100 node transitions run while both incoming links remain supplied.
+    /// Expectation: In the current Rust implementation, exactly one vehicle leaves A and one leaves B per tick, resulting in 100 vehicles from each link.
+    #[deterministic_id_test]
+    fn current_merge_moves_one_vehicle_per_inlink_and_tick() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["SA", "SB", "K", "T"]);
+        add_test_link(&mut global_network, "A", "SA", "K", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "B", "SB", "K", 1.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "C", "K", "T", 15.0, 7200.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        for id in 1..=100 {
+            network.send_veh_en_route(test_vehicle(id, vec!["A", "C"]), None, 0);
+        }
+        for id in 101..=300 {
+            network.send_veh_en_route(test_vehicle(id, vec!["B", "C"]), None, 0);
+        }
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        for now in 1..=100 {
+            network.move_nodes(&mut env, now);
+            network.move_links(&mut env, now);
+        }
+
+        assert_eq!(100, events.leaves_on("A").len());
+        assert_eq!(100, events.leaves_on("B").len());
+        assert_eq!(200, events.link_leaves.borrow().len());
+    }
+
+    /// Setting: A1 wants to enter the already full link X, while B1 independently wants to enter the available link Y.
+    /// Execution: Both incoming links offer a vehicle at the shared node at the same time.
+    /// Expectation: A1 remains on A while B1 leaves B; the blocked turn does not block the entire node.
+    #[deterministic_id_test]
+    fn full_outlink_does_not_block_independent_turn() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["SA", "SB", "K", "TX", "TY", "END"]);
+        add_test_link(&mut global_network, "A", "SA", "K", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "B", "SB", "K", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "X", "K", "TX", 7.5, 3600.0, 100.0);
+        add_test_link(&mut global_network, "Y", "K", "TY", 7.5, 3600.0, 100.0);
+        add_test_link(&mut global_network, "X2", "TX", "END", 7.5, 3600.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        push_vehicle_to_queue(&mut network, "X", 90, vec!["X", "X2"], 0);
+        network.send_veh_en_route(test_vehicle(11, vec!["A", "X"]), None, 0);
+        network.send_veh_en_route(test_vehicle(21, vec!["B", "Y"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        network.move_nodes(&mut env, 1);
+
+        assert!(events.leaves_on("A").is_empty());
+        assert_eq!(vec!["21"], events.leaves_on("B"));
+        assert_eq!(1, local_vehicle_count(&network, "A"));
+        assert_eq!(0, local_vehicle_count(&network, "B"));
+    }
+
+    /// Setting: A's FIFO buffer contains A1 targeting X at the front and A2 targeting Y behind it; X is full and Y is available.
+    /// Execution: The node checks the front vehicle A1 but cannot move it onto X.
+    /// Expectation: Neither A1 nor A2 leaves A; the blocked front vehicle blocks the entire incoming buffer for this tick.
+    #[deterministic_id_test]
+    fn blocked_front_vehicle_blocks_vehicles_behind_it() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["S", "K", "TX", "TY", "END"]);
+        add_test_link(&mut global_network, "A", "S", "K", 1.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "X", "K", "TX", 7.5, 3600.0, 100.0);
+        add_test_link(&mut global_network, "Y", "K", "TY", 7.5, 3600.0, 100.0);
+        add_test_link(&mut global_network, "X2", "TX", "END", 7.5, 3600.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        push_vehicle_to_queue(&mut network, "X", 90, vec!["X", "X2"], 0);
+        network.send_veh_en_route(test_vehicle(11, vec!["A", "X"]), None, 0);
+        network.send_veh_en_route(test_vehicle(12, vec!["A", "Y"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        network.move_nodes(&mut env, 1);
+
+        assert!(events.leaves_on("A").is_empty());
+        assert_eq!(2, local_vehicle_count(&network, "A"));
+        assert_eq!(0, local_vehicle_count(&network, "Y"));
+    }
+
+    /// Setting: C has exactly one available slot, A offers A1 and A2, and the stuck threshold is ten ticks.
+    /// Execution: A1 occupies C's last slot at tick 1, making A2 the blocked front vehicle from tick 1 onward; A2 is checked again at ticks 10 and 11.
+    /// Expectation: A2 remains blocked at tick 10 after waiting nine ticks and leaves A exactly at tick 11 because the current implementation uses an inclusive `>=` comparison.
+    #[deterministic_id_test]
+    fn stuck_vehicle_moves_at_inclusive_threshold() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["S", "K", "T", "END"]);
+        add_test_link(&mut global_network, "A", "S", "K", 1.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "C", "K", "T", 15.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "C2", "T", "END", 7.5, 3600.0, 100.0);
+
+        let mut qsim_config = test_utils::config();
+        qsim_config.stuck_threshold = 10;
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &qsim_config,
+            config::DEFAULT_RANDOM_SEED,
+        );
+        push_vehicle_to_queue(&mut network, "C", 90, vec!["C", "C2"], 0);
+        network.send_veh_en_route(test_vehicle(11, vec!["A", "C"]), None, 0);
+        network.send_veh_en_route(test_vehicle(12, vec!["A", "C"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        network.move_nodes(&mut env, 1);
+        assert_eq!(vec!["11"], events.leaves_on("A"));
+
+        network.move_nodes(&mut env, 10);
+        assert_eq!(vec!["11"], events.leaves_on("A"));
+
+        network.move_nodes(&mut env, 11);
+        assert_eq!(vec!["11", "12"], events.leaves_on("A"));
+    }
+
+    /// Setting: The slow link C is 100 m long, has a free speed of 1 m/s, a capacity of 3600 vehicles/h, and already contains 14 vehicles; U offers one additional vehicle for C.
+    /// Execution: The current cell-based storage capacity of about 13.33 is evaluated without the free-speed adjustment, after which the turn from U to C is checked.
+    /// Expectation: C is considered full, U1 does not leave U, and no LinkLeave event is emitted.
+    #[deterministic_id_test]
+    fn slow_link_uses_current_cell_based_storage_capacity() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["S", "K", "T", "END"]);
+        add_test_link(&mut global_network, "U", "S", "K", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "C", "K", "T", 100.0, 3600.0, 1.0);
+        add_test_link(&mut global_network, "C2", "T", "END", 7.5, 3600.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        for id in 100..114 {
+            push_vehicle_to_queue(&mut network, "C", id, vec!["C", "C2"], 0);
+        }
+        network.send_veh_en_route(test_vehicle(1, vec!["U", "C"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        assert_eq!(
+            14.0,
+            network.links.get(&Id::create("C")).unwrap().used_storage()
+        );
+        assert!(!network.links.get(&Id::create("C")).unwrap().is_available());
+
+        network.move_nodes(&mut env, 1);
+        assert!(events.leaves_on("U").is_empty());
+        assert_eq!(1, local_vehicle_count(&network, "U"));
+    }
+
+    /// Setting: A vehicle is waiting on A and names `missing`, a link that is not present in the local network, as its next route element.
+    /// Execution: The node attempts to resolve the unknown destination link in `should_veh_move_out`.
+    /// Expectation: The current implementation panics before moving the vehicle; it remains on A and no LinkLeave event is emitted.
+    #[deterministic_id_test]
+    fn missing_next_link_panics_before_link_leave() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["S", "K"]);
+        add_test_link(&mut global_network, "A", "S", "K", 1.0, 3600.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        network.send_veh_en_route(test_vehicle(1, vec!["A", "missing"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        let result = catch_unwind(AssertUnwindSafe(|| network.move_nodes(&mut env, 1)));
+
+        assert!(result.is_err());
+        assert!(events.link_leaves.borrow().is_empty());
+        assert_eq!(1, local_vehicle_count(&network, "A"));
+    }
+
+    /// Setting: A ends at K1, while the next route link Z begins at the topologically disconnected node K2; both links belong to the same partition.
+    /// Execution: The vehicle is processed at K1 without validating the connection from A to Z.
+    /// Expectation: The current implementation accepts the turn, emits LinkLeave(A) and LinkEnter(Z), and places the vehicle directly on Z.
+    #[deterministic_id_test]
+    fn disconnected_next_link_is_accepted() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["S", "K1", "K2", "T"]);
+        add_test_link(&mut global_network, "A", "S", "K1", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "Z", "K2", "T", 75.0, 3600.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        network.send_veh_en_route(test_vehicle(1, vec!["A", "Z"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        network.move_nodes(&mut env, 1);
+
+        assert_eq!(vec!["1"], events.leaves_on("A"));
+        assert_eq!(
+            vec![("Z".to_owned(), "1".to_owned())],
+            *events.link_enters.borrow()
+        );
+        assert_eq!(0, local_vehicle_count(&network, "A"));
+        assert_eq!(1, local_vehicle_count(&network, "Z"));
+    }
+
+    /// Setting: A is active with capacity 100 but does not yet offer a vehicle at tick 1; B and C each offer a vehicle with capacity 1, and D has only one available slot.
+    /// Execution: A is nevertheless included with B and C in the candidate set and the total capacity of 102; the fixed seed makes the first scan select no vehicle.
+    /// Expectation: The current transition consumes three RNG draws, then moves only B's vehicle and emits no LinkLeave event for A or C.
+    #[deterministic_id_test]
+    fn non_offering_active_link_is_currently_a_candidate() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["SA", "SB", "SC", "K", "TA", "T"]);
+        add_test_link(&mut global_network, "A", "SA", "K", 100.0, 360000.0, 1.0);
+        add_test_link(&mut global_network, "B", "SB", "K", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "C", "SC", "K", 1.0, 3600.0, 100.0);
+        add_test_link(&mut global_network, "D", "K", "T", 7.5, 3600.0, 100.0);
+        add_test_link(&mut global_network, "A2", "K", "TA", 7.5, 3600.0, 100.0);
+
+        let base_seed = config::DEFAULT_RANDOM_SEED;
+        let mut network =
+            SimNetworkPartition::from_network(&global_network, 0, &test_utils::config(), base_seed);
+        set_node_rng(&mut network, "K", 4711);
+        let slow_vehicle = SimulationVehicle::from_parts(
+            1,
+            0,
+            1.0,
+            1.0,
+            test_utils::create_agent(1, vec!["A", "A2"]),
+        );
+        network
+            .links
+            .get_mut(&Id::create("A"))
+            .unwrap()
+            .push_veh(slow_vehicle, QStart, 0);
+        network.active_links.activate(Id::create("A"));
+        network.veh_counter += 1;
+        network.send_veh_en_route(test_vehicle(2, vec!["B", "D"]), None, 0);
+        network.send_veh_en_route(test_vehicle(3, vec!["C", "D"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        let node_id = Id::create("K");
+        let (active, capacity) = {
+            let node = network.nodes.get(&node_id).unwrap();
+            SimNetworkPartition::get_active_in_links(
+                &node.in_links,
+                &network.active_links,
+                &network.links,
+            )
+        };
+        assert_eq!(
+            vec![Id::create("A"), Id::create("B"), Id::create("C")],
+            active
+        );
+        assert_eq!(102.0, capacity);
+
+        let mut expected_rng = network.rng.get(&node_id).unwrap().clone();
+        let first_draw = expected_rng.random::<f64>();
+        assert!(
+            first_draw > 2.0 / 102.0,
+            "The first draw must miss B and C when A contributes capacity: {first_draw}"
+        );
+        expected_rng.random::<f64>();
+        expected_rng.random::<f64>();
+        let fourth_draw = expected_rng.random::<u64>();
+
+        // move nodes calls 3 times the rng: Choose A, mark it as exhausted; choose B, move vehicle & mark it as exhausted; choose C, but D is blocked, so mark it as exhausted.
+        network.move_nodes(&mut env, 1);
+        let actual_fourth_draw = network.rng.get_mut(&node_id).unwrap().random::<u64>();
+
+        // check if move nodes consumed 3 draws and produces the same fourth draw as expected
+        assert_eq!(fourth_draw, actual_fourth_draw);
+        assert_eq!(vec!["2"], events.leaves_on("B"));
+        assert!(events.leaves_on("A").is_empty());
+        assert!(events.leaves_on("C").is_empty());
+    }
+
+    /// Setting: Two semantically identical three-to-one merges are built with incoming links in A/B/C and C/B/A order respectively, and both use the same seed.
+    /// Execution: One vehicle from each incoming link competes for D's single available slot; the seed deliberately falls within an outer third of the selection distribution.
+    /// Expectation: Because the current implementation iterates in insertion order, mirrored incoming links—and therefore different vehicles—win in the two networks.
+    #[deterministic_id_test]
+    fn inlink_iteration_follows_network_insertion_order() {
+        let base_seed = config::DEFAULT_RANDOM_SEED;
+        let node_id = Id::create("K");
+        let mut abc_network = SimNetworkPartition::from_network(
+            &three_way_merge_network(&["A", "B", "C"]),
+            0,
+            &test_utils::config(),
+            base_seed,
+        );
+        set_node_rng(&mut abc_network, "K", 0);
+        let first_draw = abc_network
+            .rng
+            .get(&node_id)
+            .unwrap()
+            .clone()
+            .random::<f64>();
+        assert!(
+            first_draw < 1.0 / 3.0 || first_draw > 2.0 / 3.0,
+            "The fixed seed must select an outer third, draw was {first_draw}"
+        );
+
+        let mut cba_network = SimNetworkPartition::from_network(
+            &three_way_merge_network(&["C", "B", "A"]),
+            0,
+            &test_utils::config(),
+            base_seed,
+        );
+        set_node_rng(&mut cba_network, "K", 0);
+        for (id, link) in [(1, "A"), (2, "B"), (3, "C")] {
+            abc_network.send_veh_en_route(test_vehicle(id, vec![link, "D"]), None, 0);
+            cba_network.send_veh_en_route(test_vehicle(id, vec![link, "D"]), None, 0);
+        }
+
+        let (mut abc_env, abc_events) = environment_with_transition_events();
+        let (mut cba_env, cba_events) = environment_with_transition_events();
+        abc_network.move_links(&mut abc_env, 0);
+        cba_network.move_links(&mut cba_env, 0);
+        abc_network.move_nodes(&mut abc_env, 1);
+        cba_network.move_nodes(&mut cba_env, 1);
+
+        let expected_abc = if first_draw < 1.0 / 3.0 { "1" } else { "3" };
+        let expected_cba = if first_draw < 1.0 / 3.0 { "3" } else { "1" };
+        assert_eq!(vec![expected_abc], abc_events.leaving_vehicles());
+        assert_eq!(vec![expected_cba], cba_events.leaving_vehicles());
+        assert_ne!(abc_events.leaving_vehicles(), cba_events.leaving_vehicles());
+    }
 
     #[deterministic_id_test]
     fn from_network() {
