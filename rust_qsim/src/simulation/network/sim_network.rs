@@ -1,6 +1,6 @@
 use super::link::{LocalLink, SimLink, SplitInLink, SplitOutLink};
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver, SimulationAgentLogic};
+use crate::simulation::agents::{AgentEvent, EnvironmentalEventObserver};
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::events::{EventsManager, LinkEnterEventBuilder, LinkLeaveEventBuilder};
 use crate::simulation::id::Id;
@@ -58,6 +58,7 @@ impl<C: StableTypeId + 'static> ActiveCache<C> {
         self.active.len()
     }
 
+    #[cfg(test)]
     fn contains(&self, id: &Id<C>) -> bool {
         self.active.contains(id)
     }
@@ -90,6 +91,21 @@ pub struct SimNetworkPartition {
 pub struct SimNode {
     id: Id<Node>,
     in_links: Vec<Id<Link>>,
+}
+
+#[derive(Debug)]
+struct Candidate<'a> {
+    id: &'a Id<Link>,
+    weight: f64,
+}
+
+#[derive(Debug, PartialEq)]
+enum FrontDecision {
+    NoVehicle,
+    MoveNormally,
+    MoveAlthoughStuck,
+    Wait,
+    Abort,
 }
 
 impl SimNetworkPartition {
@@ -146,7 +162,8 @@ impl SimNetworkPartition {
     }
 
     fn create_sim_node(node: &Node) -> SimNode {
-        let in_links: Vec<_> = node.in_links.to_vec();
+        let mut in_links: Vec<_> = node.in_links.to_vec();
+        in_links.sort_unstable_by(|a, b| a.external().cmp(b.external()));
 
         SimNode {
             id: node.id.clone(),
@@ -377,7 +394,7 @@ impl SimNetworkPartition {
         comp_env: &mut ThreadLocalComputationalEnvironment,
     ) -> MoveSingleLinkResult {
         let vehicles_end_leg = link.do_sim_step(now, comp_env);
-        if link.to_nodes_active(now) {
+        if link.to_nodes_active() {
             active_nodes.activate(link.to.clone());
         }
 
@@ -460,82 +477,61 @@ impl SimNetworkPartition {
         now: Tick,
     ) -> bool {
         let node = self.nodes.get(node_id).unwrap();
-        // Get node-specific RNG using node id and current time as hash
-        // This ensures determinism while maintaining different behavior across time steps
-        let (active, mut avail_capacity) =
-            Self::get_active_in_links(&node.in_links, &self.active_links, &self.links);
-        let mut exhausted_links: Vec<bool> = vec![false; active.len()];
-        let mut sel_cap: f64 = 0.;
+        let (mut candidates, mut total_capacity) =
+            Self::get_candidates(&node.in_links, &self.links, now);
+        let rng = self.rng.get_mut(node_id).unwrap();
 
-        while avail_capacity > 1e-10 {
-            // draw random number between 0 and available capacity
-            let r = self.rng.get_mut(node_id).unwrap().random::<f64>();
-            let rnd_num: f64 = r * avail_capacity;
+        while !candidates.is_empty() && total_capacity > 1e-10 {
+            let rnd_num = rng.random::<f64>() * total_capacity;
+            let selected_index = Self::weighted_index(&candidates, rnd_num);
+            let selected = candidates.remove(selected_index);
+            total_capacity -= selected.weight;
 
-            #[allow(clippy::needless_range_loop)]
-            // go through all in links and fetch one, which is not exhausted yet.
-            for i in 0..active.len() {
-                // if the link is exhausted, try next link
-                if exhausted_links[i] {
-                    // reduce the available capacity a little bit. Sometimes we have rounding errors
-                    // which will cause an infinite loop. Reducing the remaining capacity a little
-                    // bit at least prevents infinite loops.
-                    avail_capacity -= 1e-6;
-                    continue;
-                }
-
-                // take the not exhausted link and check whether it could release a vehicle and if
-                // that vehicle can move to the next link
-                let link_id = active.get(i).unwrap();
-                if Self::should_veh_move_out(link_id, &self.links, now) {
-                    // the vehicle can move. Increase the selected capacity by the link's capacity
-                    // this way it becomes more and more likely that a link can release vehicles,
-                    // links with more capacity are more likely to release vehicles first though.
-                    let in_link = self.links.get_mut(link_id).unwrap();
-                    sel_cap += in_link.flow_cap();
-
-                    if sel_cap >= rnd_num {
-                        let veh = in_link.pop_veh().expect("No vehicle on link");
-                        Self::move_vehicle(
-                            veh,
-                            &mut self.links,
-                            &mut self.active_links,
-                            comp_env,
-                            self.clock,
-                            now,
-                        );
-                    }
-                } else {
-                    // in case the vehicle on the link can't move, we add the link to the exhausted
-                    // bookkeeping and reduce the available capacity, which makes it more likely for
-                    // other links to be able to release vehicles.
-                    exhausted_links[i] = true;
-                    let link = self.links.get(link_id).unwrap();
-                    avail_capacity -= link.flow_cap();
-                }
-            }
+            let aborted = Self::drain_selected_inlink(
+                selected.id,
+                &mut self.links,
+                &mut self.active_links,
+                comp_env,
+                self.clock,
+                now,
+            );
+            self.veh_counter -= aborted;
         }
+
         // check whether any link is offering next timestep. Otherwise the node can be de-activated
-        Self::any_link_offers(&active, &self.links, now.next())
+        Self::any_link_offers(&node.in_links, &self.links, now.next())
     }
 
-    fn get_active_in_links(
-        in_links: &Vec<Id<Link>>,
-        active_links: &ActiveCache<Link>,
+    fn get_candidates<'a>(
+        in_links: &'a [Id<Link>],
         links: &IntMap<Id<Link>, SimLink>,
-    ) -> (Vec<Id<Link>>, f64) {
-        let mut active = Vec::new();
-        let mut acc_cap = 0.;
+        now: Tick,
+    ) -> (Vec<Candidate<'a>>, f64) {
+        let mut candidates = Vec::with_capacity(in_links.len());
+        let mut total_capacity = 0.;
 
         for id in in_links {
-            if active_links.contains(id) {
-                active.push(id.clone());
-                let link = links.get(id).unwrap();
-                acc_cap += link.flow_cap();
+            let link = links.get(id).unwrap();
+            if link.offers_veh(now).is_some() {
+                let weight = link.flow_cap();
+                candidates.push(Candidate { id, weight });
+                total_capacity += weight;
             }
         }
 
-        (active, acc_cap)
+        (candidates, total_capacity)
+    }
+
+    fn weighted_index(candidates: &[Candidate], weighted_rnd_capacity: f64) -> usize {
+        let mut selected_capacity = 0.;
+        for (index, candidate) in candidates.iter().enumerate() {
+            selected_capacity += candidate.weight;
+            if selected_capacity >= weighted_rnd_capacity {
+                return index;
+            }
+        }
+
+        candidates.len() - 1
     }
 
     fn any_link_offers(
@@ -549,31 +545,85 @@ impl SimNetworkPartition {
             .any(|link| link.offers_veh(time).is_some())
     }
 
-    fn should_veh_move_out(in_id: &Id<Link>, links: &IntMap<Id<Link>, SimLink>, now: Tick) -> bool {
+    fn evaluate_front_vehicle(
+        in_id: &Id<Link>,
+        links: &IntMap<Id<Link>, SimLink>,
+        now: Tick,
+    ) -> FrontDecision {
         let in_link = links.get(in_id).unwrap();
-        if let Some(veh_ref) = in_link.offers_veh(now) {
-            return if let Some(next_id) = veh_ref.peek_next_route_element() {
-                // if the vehicle has a next link id, it should move out of the current link.
-                // if the vehicle has reached its stuck threshold, we push it to the next link regardless of the available
-                // storage capacity. Under normal conditions, we check whether the downstream link has storage capacity available
-                let out_link = links.get(next_id).unwrap_or_else(|| {
-                    panic!(
-                        "Link id {:?} was not in local network. Vehicle's leg is: {:?}",
-                        next_id,
-                        veh_ref.driver().curr_leg()
-                    )
-                });
-                in_link.is_veh_stuck(now) || out_link.is_available()
-            } else {
-                panic!(
-                    "Vehicle {:?} is offered by link {:?} but has no next link. This should not happen. Leg ends are handled in move_links, not move_nodes.",
-                    veh_ref.id(),
-                    in_link.id()
-                )
-            };
+        let Some(vehicle) = in_link.offers_veh(now) else {
+            return FrontDecision::NoVehicle;
+        };
+        let Some(next_id) = vehicle.peek_next_route_element() else {
+            return FrontDecision::Abort;
+        };
+        let Some(out_link) = links.get(next_id) else {
+            return FrontDecision::Abort;
+        };
+        if in_link.to() != out_link.from() {
+            return FrontDecision::Abort;
         }
-        // if the link doesn't have a vehicle to offer, we don't have to do anything.
-        false
+        if out_link.is_available() {
+            FrontDecision::MoveNormally
+        } else if in_link.is_veh_stuck(now) {
+            FrontDecision::MoveAlthoughStuck
+        } else {
+            FrontDecision::Wait
+        }
+    }
+
+    fn drain_selected_inlink(
+        in_link_id: &Id<Link>,
+        links: &mut IntMap<Id<Link>, SimLink>,
+        active_links: &mut ActiveCache<Link>,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        clock: SimClock,
+        now: Tick,
+    ) -> usize {
+        let mut aborted = 0;
+        loop {
+            match Self::evaluate_front_vehicle(in_link_id, links, now) {
+                FrontDecision::MoveNormally | FrontDecision::MoveAlthoughStuck => {
+                    let vehicle = links
+                        .get_mut(in_link_id)
+                        .unwrap()
+                        .pop_veh(now)
+                        .expect("No vehicle on selected link");
+                    Self::move_vehicle(vehicle, links, active_links, comp_env, clock, now);
+                }
+                FrontDecision::Abort => {
+                    let vehicle = links
+                        .get_mut(in_link_id)
+                        .unwrap()
+                        .pop_veh(now)
+                        .expect("No vehicle on selected link");
+                    Self::abort_vehicle(vehicle, comp_env, clock, now);
+                    aborted += 1;
+                }
+                FrontDecision::Wait | FrontDecision::NoVehicle => break,
+            }
+        }
+
+        if !links.get(in_link_id).unwrap().is_active() {
+            active_links.deactivate(in_link_id);
+        }
+        aborted
+    }
+
+    fn abort_vehicle(
+        vehicle: SimulationVehicle,
+        comp_env: &mut ThreadLocalComputationalEnvironment,
+        clock: SimClock,
+        now: Tick,
+    ) {
+        comp_env.events_manager_borrow_mut().process_event(
+            &LinkLeaveEventBuilder::default()
+                .vehicle(vehicle.id().clone())
+                .link(vehicle.curr_link_id().unwrap().clone())
+                .time(clock.tick_to_time(now))
+                .build()
+                .unwrap(),
+        );
     }
 
     /// Moves the vehicle from the current link to the next link.
@@ -638,7 +688,7 @@ struct MoveSingleLinkResult {
 
 #[cfg(test)]
 mod tests {
-    use super::SimNetworkPartition;
+    use super::{Candidate, SimNetworkPartition};
     use crate::simulation::config;
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::controller::ThreadLocalComputationalEnvironment;
@@ -657,7 +707,6 @@ mod tests {
     use rand::rngs::SmallRng;
     use rand::{RngExt, SeedableRng};
     use std::cell::RefCell;
-    use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::rc::Rc;
 
     #[derive(Clone, Default)]
@@ -790,11 +839,11 @@ mod tests {
         network
     }
 
-    /// Setting: A offers A1 with capacity 1, while B offers B1/B2 with capacity 2; the fixed seed places the first selection in B's capacity interval.
-    /// Execution: A single node transition processes the offered vehicles using the current selection capacity, which accumulates across scans.
-    /// Expectation: The exact LinkLeave order is B1, A1, B2 (vehicle IDs 21, 11, 22).
+    /// Setting: A offers A1 with capacity 1, while B offers B1/B2 with capacity 2; the fixed seed selects B first.
+    /// Execution: A single node transition drains the selected B buffer before selecting and processing A.
+    /// Expectation: The exact LinkLeave order is B1, B2, A1 (vehicle IDs 21, 22, 11).
     #[deterministic_id_test]
-    fn current_transition_interleaves_selected_buffers() {
+    fn selected_inlink_buffer_is_drained_before_next_selection() {
         let mut global_network = Network::new();
         add_test_nodes(&mut global_network, &["SA", "SB", "K", "TX", "TY"]);
         add_test_link(&mut global_network, "A", "SA", "K", 1.0, 3600.0, 100.0);
@@ -824,14 +873,14 @@ mod tests {
         network.move_links(&mut env, 0);
         network.move_nodes(&mut env, 1);
 
-        assert_eq!(vec!["21", "11", "22"], events.leaving_vehicles());
+        assert_eq!(vec!["21", "22", "11"], events.leaving_vehicles());
     }
 
-    /// Setting: A can offer one vehicle per tick and B can offer two; their shared destination link C has storage capacity for exactly two vehicles and is emptied every tick.
-    /// Execution: 100 node transitions run while both incoming links remain supplied.
-    /// Expectation: In the current Rust implementation, exactly one vehicle leaves A and one leaves B per tick, resulting in 100 vehicles from each link.
+    /// Setting: A has weight 1, B has weight 2, both remain supplied, and C has room for exactly two vehicles per tick.
+    /// Execution: 10,000 node transitions select each candidate at most once and drain the selected buffer until C is full.
+    /// Expectation: Total throughput is exactly two vehicles per tick, with approximately one third from A and five thirds from B per tick.
     #[deterministic_id_test]
-    fn current_merge_moves_one_vehicle_per_inlink_and_tick() {
+    fn merge_throughput_follows_buffer_weighted_selection() {
         let mut global_network = Network::new();
         add_test_nodes(&mut global_network, &["SA", "SB", "K", "T"]);
         add_test_link(&mut global_network, "A", "SA", "K", 1.0, 3600.0, 100.0);
@@ -844,23 +893,31 @@ mod tests {
             &test_utils::config(),
             config::DEFAULT_RANDOM_SEED,
         );
-        for id in 1..=100 {
+        set_node_rng(&mut network, "K", 4711);
+        for id in 1..=10_000 {
             network.send_veh_en_route(test_vehicle(id, vec!["A", "C"]), None, 0);
         }
-        for id in 101..=300 {
+        for id in 10_001..=30_000 {
             network.send_veh_en_route(test_vehicle(id, vec!["B", "C"]), None, 0);
         }
 
         let (mut env, events) = environment_with_transition_events();
         network.move_links(&mut env, 0);
-        for now in 1..=100 {
+        for now in 1..=10_000 {
             network.move_nodes(&mut env, now);
             network.move_links(&mut env, now);
         }
 
-        assert_eq!(100, events.leaves_on("A").len());
-        assert_eq!(100, events.leaves_on("B").len());
-        assert_eq!(200, events.link_leaves.borrow().len());
+        let from_a = events.leaves_on("A").len();
+        let from_b = events.leaves_on("B").len();
+        assert_eq!(20_000, from_a + from_b);
+
+        // assert 1/3 from A and 5/3 from B. There are the following cases:
+        // (1) A is chosen first (p=1/3) => A releases 1 and B releases 1
+        // (2) B is chosen first (p=2/3) => A releases 0 and B releases 2
+        // => Expected value E(A)=1*1/3+0=1/3; E(B)=1/3*1+2/3*2=5/3
+        assert!(from_a.abs_diff(10_000 / 3) <= 250, "A count was {from_a}");
+        assert!(from_b.abs_diff(50_000 / 3) <= 250, "B count was {from_b}");
     }
 
     /// Setting: A1 wants to enter the already full link X, while B1 independently wants to enter the available link Y.
@@ -998,10 +1055,10 @@ mod tests {
     }
 
     /// Setting: A vehicle is waiting on A and names `missing`, a link that is not present in the local network, as its next route element.
-    /// Execution: The node attempts to resolve the unknown destination link in `should_veh_move_out`.
-    /// Expectation: The current implementation panics before moving the vehicle; it remains on A and no LinkLeave event is emitted.
+    /// Execution: The selected A buffer evaluates the unknown destination as an invalid turn and aborts the vehicle.
+    /// Expectation: The vehicle leaves A without a LinkEnter event or panic, is discarded, and is removed from the network count.
     #[deterministic_id_test]
-    fn missing_next_link_panics_before_link_leave() {
+    fn missing_next_link_aborts_vehicle() {
         let mut global_network = Network::new();
         add_test_nodes(&mut global_network, &["S", "K"]);
         add_test_link(&mut global_network, "A", "S", "K", 1.0, 3600.0, 100.0);
@@ -1016,18 +1073,19 @@ mod tests {
 
         let (mut env, events) = environment_with_transition_events();
         network.move_links(&mut env, 0);
-        let result = catch_unwind(AssertUnwindSafe(|| network.move_nodes(&mut env, 1)));
+        network.move_nodes(&mut env, 1);
 
-        assert!(result.is_err());
-        assert!(events.link_leaves.borrow().is_empty());
-        assert_eq!(1, local_vehicle_count(&network, "A"));
+        assert_eq!(vec!["1"], events.leaves_on("A"));
+        assert!(events.link_enters.borrow().is_empty());
+        assert_eq!(0, local_vehicle_count(&network, "A"));
+        assert_eq!(0, network.veh_on_net());
     }
 
     /// Setting: A ends at K1, while the next route link Z begins at the topologically disconnected node K2; both links belong to the same partition.
-    /// Execution: The vehicle is processed at K1 without validating the connection from A to Z.
-    /// Expectation: The current implementation accepts the turn, emits LinkLeave(A) and LinkEnter(Z), and places the vehicle directly on Z.
+    /// Execution: The selected A buffer compares A's destination node with Z's origin node and aborts the invalid turn.
+    /// Expectation: The vehicle leaves A without entering Z, is discarded, and is removed from the network count.
     #[deterministic_id_test]
-    fn disconnected_next_link_is_accepted() {
+    fn disconnected_next_link_aborts_vehicle() {
         let mut global_network = Network::new();
         add_test_nodes(&mut global_network, &["S", "K1", "K2", "T"]);
         add_test_link(&mut global_network, "A", "S", "K1", 1.0, 3600.0, 100.0);
@@ -1046,19 +1104,17 @@ mod tests {
         network.move_nodes(&mut env, 1);
 
         assert_eq!(vec!["1"], events.leaves_on("A"));
-        assert_eq!(
-            vec![("Z".to_owned(), "1".to_owned())],
-            *events.link_enters.borrow()
-        );
+        assert!(events.link_enters.borrow().is_empty());
         assert_eq!(0, local_vehicle_count(&network, "A"));
-        assert_eq!(1, local_vehicle_count(&network, "Z"));
+        assert_eq!(0, local_vehicle_count(&network, "Z"));
+        assert_eq!(0, network.veh_on_net());
     }
 
     /// Setting: A is active with capacity 100 but does not yet offer a vehicle at tick 1; B and C each offer a vehicle with capacity 1, and D has only one available slot.
-    /// Execution: A is nevertheless included with B and C in the candidate set and the total capacity of 102; the fixed seed makes the first scan select no vehicle.
-    /// Expectation: The current transition consumes three RNG draws, then moves only B's vehicle and emits no LinkLeave event for A or C.
+    /// Execution: Candidate collection excludes A, and the fixed seed selects C before B from the externally sorted candidate list.
+    /// Expectation: The candidate capacity is 2, C moves first and fills D, and exactly two RNG draws are consumed.
     #[deterministic_id_test]
-    fn non_offering_active_link_is_currently_a_candidate() {
+    fn non_offering_active_link_is_not_a_candidate() {
         let mut global_network = Network::new();
         add_test_nodes(&mut global_network, &["SA", "SB", "SC", "K", "TA", "T"]);
         add_test_link(&mut global_network, "A", "SA", "K", 100.0, 360000.0, 1.0);
@@ -1091,46 +1147,43 @@ mod tests {
         let (mut env, events) = environment_with_transition_events();
         network.move_links(&mut env, 0);
         let node_id = Id::create("K");
-        let (active, capacity) = {
+        let (candidates, capacity) = {
             let node = network.nodes.get(&node_id).unwrap();
-            SimNetworkPartition::get_active_in_links(
-                &node.in_links,
-                &network.active_links,
-                &network.links,
-            )
+            SimNetworkPartition::get_candidates(&node.in_links, &network.links, 1.into())
         };
         assert_eq!(
-            vec![Id::create("A"), Id::create("B"), Id::create("C")],
-            active
+            vec!["B", "C"],
+            candidates
+                .iter()
+                .map(|candidate| candidate.id.external().to_owned())
+                .collect::<Vec<_>>()
         );
-        assert_eq!(102.0, capacity);
+        assert_eq!(2.0, capacity);
 
         let mut expected_rng = network.rng.get(&node_id).unwrap().clone();
         let first_draw = expected_rng.random::<f64>();
         assert!(
-            first_draw > 2.0 / 102.0,
-            "The first draw must miss B and C when A contributes capacity: {first_draw}"
+            first_draw > 0.5,
+            "The first draw must select C from equally weighted B and C: {first_draw}"
         );
         expected_rng.random::<f64>();
-        expected_rng.random::<f64>();
-        let fourth_draw = expected_rng.random::<u64>();
+        let third_draw = expected_rng.random::<u64>();
 
-        // move nodes calls 3 times the rng: Choose A, mark it as exhausted; choose B, move vehicle & mark it as exhausted; choose C, but D is blocked, so mark it as exhausted.
+        // move nodes calls 2 times the rng: choose B, move vehicle & mark it as exhausted; choose C, but D is blocked, so mark it as exhausted.
         network.move_nodes(&mut env, 1);
-        let actual_fourth_draw = network.rng.get_mut(&node_id).unwrap().random::<u64>();
+        let actual_third_draw = network.rng.get_mut(&node_id).unwrap().random::<u64>();
 
-        // check if move nodes consumed 3 draws and produces the same fourth draw as expected
-        assert_eq!(fourth_draw, actual_fourth_draw);
-        assert_eq!(vec!["2"], events.leaves_on("B"));
+        assert_eq!(third_draw, actual_third_draw);
+        assert_eq!(vec!["3"], events.leaves_on("C"));
         assert!(events.leaves_on("A").is_empty());
-        assert!(events.leaves_on("C").is_empty());
+        assert!(events.leaves_on("B").is_empty());
     }
 
     /// Setting: Two semantically identical three-to-one merges are built with incoming links in A/B/C and C/B/A order respectively, and both use the same seed.
-    /// Execution: One vehicle from each incoming link competes for D's single available slot; the seed deliberately falls within an outer third of the selection distribution.
-    /// Expectation: Because the current implementation iterates in insertion order, mirrored incoming links—and therefore different vehicles—win in the two networks.
+    /// Execution: Network construction sorts both nodes' incoming links by external ID before the same seeded selection is made.
+    /// Expectation: Both insertion orders select the same incoming link and produce the same LinkLeave event sequence.
     #[deterministic_id_test]
-    fn inlink_iteration_follows_network_insertion_order() {
+    fn inlink_selection_uses_external_id_order() {
         let base_seed = config::DEFAULT_RANDOM_SEED;
         let node_id = Id::create("K");
         let mut abc_network = SimNetworkPartition::from_network(
@@ -1170,11 +1223,73 @@ mod tests {
         abc_network.move_nodes(&mut abc_env, 1);
         cba_network.move_nodes(&mut cba_env, 1);
 
-        let expected_abc = if first_draw < 1.0 / 3.0 { "1" } else { "3" };
-        let expected_cba = if first_draw < 1.0 / 3.0 { "3" } else { "1" };
-        assert_eq!(vec![expected_abc], abc_events.leaving_vehicles());
-        assert_eq!(vec![expected_cba], cba_events.leaving_vehicles());
-        assert_ne!(abc_events.leaving_vehicles(), cba_events.leaving_vehicles());
+        let expected = if first_draw < 1.0 / 3.0 { "1" } else { "3" };
+        assert_eq!(vec![expected], abc_events.leaving_vehicles());
+        assert_eq!(vec![expected], cba_events.leaving_vehicles());
+        assert_eq!(abc_events.leaving_vehicles(), cba_events.leaving_vehicles());
+    }
+
+    /// Setting: The weighted candidate intervals are [0, 1] for A and (1, 3] for B.
+    /// Execution: Selection is evaluated exactly at the cumulative boundary and once beyond the accumulated weight to exercise the rounding fallback.
+    /// Expectation: The inclusive boundary selects A, while the fallback selects the final candidate B.
+    #[deterministic_id_test]
+    fn weighted_index_uses_inclusive_boundary_and_last_candidate_fallback() {
+        let a = Id::create("A");
+        let b = Id::create("B");
+        let candidates = vec![
+            Candidate {
+                id: &a,
+                weight: 1.0,
+            },
+            Candidate {
+                id: &b,
+                weight: 2.0,
+            },
+        ];
+
+        assert_eq!(
+            0,
+            SimNetworkPartition::weighted_index(&candidates, 0.9999999)
+        );
+        assert_eq!(0, SimNetworkPartition::weighted_index(&candidates, 1.0));
+        assert_eq!(
+            1,
+            SimNetworkPartition::weighted_index(&candidates, 1.0000001)
+        );
+        assert_eq!(1, SimNetworkPartition::weighted_index(&candidates, 3.1));
+    }
+
+    /// Setting: A's buffer contains an invalid vehicle targeting an unknown link followed by a valid vehicle targeting X.
+    /// Execution: Draining A aborts and removes the invalid front vehicle, then immediately evaluates the new front vehicle in the same tick.
+    /// Expectation: Both vehicles leave A in FIFO order, only the valid vehicle enters X, and one vehicle remains counted on the network.
+    #[deterministic_id_test]
+    fn aborted_front_vehicle_does_not_block_valid_vehicle_behind_it() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["S", "K", "T"]);
+        add_test_link(&mut global_network, "A", "S", "K", 1.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "X", "K", "T", 75.0, 3600.0, 100.0);
+
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &test_utils::config(),
+            config::DEFAULT_RANDOM_SEED,
+        );
+        network.send_veh_en_route(test_vehicle(1, vec!["A", "missing"]), None, 0);
+        network.send_veh_en_route(test_vehicle(2, vec!["A", "X"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        network.move_nodes(&mut env, 1);
+
+        assert_eq!(vec!["1", "2"], events.leaves_on("A"));
+        assert_eq!(
+            vec![("X".to_owned(), "2".to_owned())],
+            *events.link_enters.borrow()
+        );
+        assert_eq!(0, local_vehicle_count(&network, "A"));
+        assert_eq!(1, local_vehicle_count(&network, "X"));
+        assert_eq!(1, network.veh_on_net());
     }
 
     #[deterministic_id_test]
@@ -1486,38 +1601,28 @@ mod tests {
                 assert!(link1.offers_veh(now).is_none());
 
                 // veh0 reaches buffer at 1001 and is released immediately.
-                // veh1 reaches buffer at 1011 and is released at 1021; flow cap is refilled after 10
-                // veh2 reaches q end at 1021 and buffer at 1031 (because of flow cap refill from before) and is released at 1041 (because of stuck timer); flow cap is refilled after 10
+                // veh1 reaches the buffer at 1011 and is released at 1021.
+                // Each following vehicle enters the buffer after nine refill ticks and is released
+                // ten ticks later at the inclusive stuck threshold.
                 // ...
-                if (1011..=1021).contains(&now)
-                    || (1031..=1041).contains(&now)
-                    || (1051..=1061).contains(&now)
-                    || (1071..=1081).contains(&now)
-                    || (1091..=1101).contains(&now)
-                    || (1111..=1121).contains(&now)
-                    || (1131..=1141).contains(&now)
-                    || (1151..=1161).contains(&now)
-                    || (1171..=1181).contains(&now)
+                if (1011..1021).contains(&now)
+                    || (1030..1040).contains(&now)
+                    || (1049..1059).contains(&now)
+                    || (1068..1078).contains(&now)
+                    || (1087..1097).contains(&now)
+                    || (1106..1116).contains(&now)
+                    || (1125..1135).contains(&now)
+                    || (1144..1154).contains(&now)
+                    || (1163..1173).contains(&now)
                 {
                     assert!(
                         link2.offers_veh(now).is_some(),
                         "No vehicle offered at timestep {now}"
                     );
-                    if !(now == 1021
-                        || now == 1041
-                        || now == 1061
-                        || now == 1081
-                        || now == 1101
-                        || now == 1121
-                        || now == 1141
-                        || now == 1161
-                        || now == 1181)
-                    {
-                        assert!(
-                            !link3.is_available(),
-                            "Storage cap reached at timestep {now}"
-                        );
-                    }
+                    assert!(
+                        !link3.is_available(),
+                        "Storage cap reached at timestep {now}"
+                    );
                 } else {
                     assert!(
                         link2.offers_veh(now).is_none(),

@@ -41,9 +41,7 @@ impl SimLink {
         match self {
             SimLink::Local(l) => l.from(),
             SimLink::In(l) => l.local_link.from(),
-            SimLink::Out(_) => {
-                panic!("There is no from_id of a split out link.")
-            }
+            SimLink::Out(l) => &l.from,
         }
     }
 
@@ -80,8 +78,8 @@ impl SimLink {
     pub fn offers_veh(&self, now: impl Into<Tick>) -> Option<&SimulationVehicle> {
         let now = now.into();
         match self {
-            SimLink::Local(ll) => ll.offers_veh(now),
-            SimLink::In(il) => il.local_link.offers_veh(now),
+            SimLink::Local(ll) => ll.offers_veh(),
+            SimLink::In(il) => il.local_link.offers_veh(),
             SimLink::Out(_) => {
                 panic!("can't query out links to offer vehicles.")
             }
@@ -145,10 +143,11 @@ impl SimLink {
         }
     }
 
-    pub fn pop_veh(&mut self) -> Option<SimulationVehicle> {
+    pub fn pop_veh(&mut self, now: impl Into<Tick>) -> Option<SimulationVehicle> {
+        let now = now.into();
         match self {
-            SimLink::Local(ll) => ll.pop_veh(),
-            SimLink::In(il) => il.local_link.pop_veh(),
+            SimLink::Local(ll) => ll.pop_veh(now),
+            SimLink::In(il) => il.local_link.pop_veh(now),
             SimLink::Out(_) => {
                 panic!("Can't pop vehicle from out link")
             }
@@ -303,8 +302,14 @@ impl LocalLink {
         let now = now.into();
         let now_time = self.clock.tick_to_time(now);
         self.update_flow_cap(now);
+        let buffer_was_empty = self.buffer.is_empty();
         let mut ending_vehicles = self.add_waiting_to_buffer(comp_env, now);
         ending_vehicles.append(&mut self.add_queue_to_buffer(now));
+
+        if buffer_was_empty && !self.buffer.is_empty() {
+            // In this case, the buffer couldn't be flushed. Thus, a vehicle is stuck and the stuck timer starts.
+            self.stuck_timer.restart(now);
+        }
 
         for v in &ending_vehicles {
             comp_env.events_manager_borrow_mut().process_event(
@@ -432,11 +437,11 @@ impl LocalLink {
     }
 
     /// This method returns the next/first vehicle from the buffer and removes it from the buffer.
-    fn pop_veh(&mut self) -> Option<SimulationVehicle> {
+    fn pop_veh(&mut self, now: Tick) -> Option<SimulationVehicle> {
         if let Some(veh) = self.buffer.pop_front() {
             // self.storage_cap.release(veh.pce);
             self.flow_cap.consume(veh.pce());
-            self.stuck_timer.reset();
+            self.stuck_timer.restart(now);
             return Some(veh);
         }
         None
@@ -449,12 +454,10 @@ impl LocalLink {
 
     /// This method returns the next vehicle allowed to leave the connection and checks
     /// whether flow capacity is available.
-    fn offers_veh(&self, now: impl Into<Tick>) -> Option<&SimulationVehicle> {
-        let now = now.into();
+    fn offers_veh(&self) -> Option<&SimulationVehicle> {
         if let Some(entry) = self.buffer.front()
             && self.flow_cap.has_capacity_left()
         {
-            self.stuck_timer.start(now);
             return Some(entry);
         }
 
@@ -492,17 +495,17 @@ impl LocalLink {
         &self.to
     }
 
-    pub fn to_nodes_active(&self, now: impl Into<Tick>) -> bool {
-        let now = now.into();
+    pub fn to_nodes_active(&self) -> bool {
         // the node will only look at the vehicle at the at the top of the queue in the next timestep
         // therefore, peek whether vehicles are available for the next timestep.
-        self.offers_veh(now.next()).is_some()
+        self.offers_veh().is_some()
     }
 }
 
 #[derive(Debug)]
 pub struct SplitOutLink {
     pub id: Id<Link>,
+    from: Id<Node>,
     pub to_part: u32,
     q: VecDeque<SimulationVehicle>,
     storage_cap: StorageCap,
@@ -525,6 +528,7 @@ impl SplitOutLink {
 
         SplitOutLink {
             id: link.id.clone(),
+            from: link.from.clone(),
             to_part,
             q: VecDeque::default(),
             storage_cap,
@@ -633,7 +637,7 @@ mod sim_link_tests {
         };
 
         l.do_sim_step(1, &mut Default::default());
-        let _vehicle = link.pop_veh().unwrap();
+        let _vehicle = link.pop_veh(1).unwrap();
 
         // After popping, storage is 0.
         assert_eq!(0., link.used_storage());
@@ -668,13 +672,13 @@ mod sim_link_tests {
         l.do_sim_step(10, &mut Default::default());
 
         // this should reduce the flow capacity, so that no other vehicle can leave during this time step
-        let popped1 = l.pop_veh().unwrap();
+        let popped1 = l.pop_veh(10.into()).unwrap();
         assert_eq!("1", popped1.id().external());
 
         // as the flow cap is 0.1/s the next vehicle can leave the link 15s after the first
         for now in 11..24 {
             l.do_sim_step(now, &mut Default::default());
-            assert!(l.offers_veh(now).is_none());
+            assert!(l.offers_veh().is_none());
         }
         l.do_sim_step(25, &mut Default::default());
 
@@ -756,15 +760,15 @@ mod sim_link_tests {
         l.do_sim_step(15, &mut Default::default());
 
         // First vehicle pops after 15 s
-        let popped_vehicle1 = l.pop_veh().unwrap();
+        let popped_vehicle1 = l.pop_veh(15.into()).unwrap();
         assert_eq!(id1.to_string(), popped_vehicle1.id().external());
 
         l.do_sim_step(3614, &mut Default::default());
-        assert!(l.pop_veh().is_none());
+        assert!(l.pop_veh(3614.into()).is_none());
 
         // Second vehicle pops after 3615 s
         l.do_sim_step(3615, &mut Default::default());
-        let popped_vehicle2 = link.pop_veh().unwrap();
+        let popped_vehicle2 = link.pop_veh(3615).unwrap();
         assert_eq!(id2.to_string(), popped_vehicle2.id().external());
     }
 
@@ -799,14 +803,14 @@ mod sim_link_tests {
             unreachable!()
         };
         l.do_sim_step(9, &mut Default::default());
-        let offers = l.offers_veh(9);
+        let offers = l.offers_veh();
         assert!(offers.is_none());
         assert!(!l.stuck_timer.is_stuck(9));
 
-        // this should trigger the stuck timer
+        // Moving the first vehicle into the empty buffer records the movement time.
         let expected_timer_start = 10;
         l.do_sim_step(expected_timer_start, &mut Default::default());
-        let offers = l.offers_veh(expected_timer_start);
+        let offers = l.offers_veh();
         assert!(offers.is_some());
         assert!(
             !l.stuck_timer
@@ -863,18 +867,18 @@ mod sim_link_tests {
             unreachable!()
         };
 
-        // trigger stuck timer
+        // Moving the first vehicles into the empty buffer records the movement time.
         l.do_sim_step(earliest_exit, &mut Default::default());
-        assert!(l.offers_veh(earliest_exit).is_some());
+        assert!(l.offers_veh().is_some());
         // check that stuck timer works as expected
         let now = earliest_exit + stuck_threshold;
         assert!(l.stuck_timer.is_stuck(now));
-        // fetch the stuck vehicle, which should reset the timer, so that the next veh is not stuck
-        let _ = l.pop_veh();
+        // Fetching the stuck vehicle records the movement time, so the next vehicle is not stuck.
+        let _ = l.pop_veh(now.into());
         assert!(!l.stuck_timer.is_stuck(now));
         // the next vehicle should be ready to leave the link as well.
-        // This call should trigger the stuck timer again.
-        assert!(l.offers_veh(now).is_some());
+        // The read-only offer check must not change the movement time.
+        assert!(l.offers_veh().is_some());
         let now = now + stuck_threshold;
         assert!(!l.stuck_timer.is_stuck(now - 1));
         assert!(l.stuck_timer.is_stuck(now));
@@ -895,6 +899,7 @@ mod out_link_tests {
     fn push_and_take() {
         let mut link = SimLink::Out(SplitOutLink {
             id: Id::new_internal(0),
+            from: Id::new_internal(0),
             to_part: 1,
             q: Default::default(),
             storage_cap: StorageCap::build(100., 1., 1., 1., 1.),
@@ -936,6 +941,7 @@ mod out_link_tests {
         cap.consume(2.);
         let mut out_link = SplitOutLink {
             id: Id::new_internal(0),
+            from: Id::new_internal(0),
             to_part: 1,
             q: Default::default(),
             storage_cap: cap,
