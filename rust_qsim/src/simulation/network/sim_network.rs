@@ -19,6 +19,7 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::Hasher;
 use std::rc::Rc;
+use tracing::warn;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StorageUpdate {
@@ -523,7 +524,7 @@ impl SimNetworkPartition {
             total_capacity -= selected.weight;
             let stuck_timer = self.stuck_timers.get_mut(selected.id).unwrap();
 
-            let aborted = Self::drain_selected_inlink(
+            Self::drain_selected_inlink(
                 selected.id,
                 &mut self.links,
                 &mut self.active_links,
@@ -532,7 +533,6 @@ impl SimNetworkPartition {
                 self.clock,
                 now,
             );
-            self.veh_counter -= aborted;
         }
 
         // check whether any link is offering next timestep. Otherwise, the node can be de-activated
@@ -585,19 +585,32 @@ impl SimNetworkPartition {
     ) -> FrontDecision {
         let in_link = links.get(in_id).unwrap();
         let Some(vehicle) = in_link.offers_veh() else {
-            // In link empty
             return FrontDecision::NoVehicle;
         };
         let Some(next_id) = vehicle.peek_next_route_element() else {
-            // Vehicle has no next route element
+            warn!(
+                "Vehicle {} offered by link {} has no next route element.",
+                vehicle.id().external(),
+                in_link.id().external()
+            );
             return FrontDecision::Abort;
         };
         let Some(out_link) = links.get(next_id) else {
-            // Next link not found
+            warn!(
+                "Next link {} for vehicle {} offered by link {} is not present in this network partition.",
+                next_id.external(),
+                vehicle.id().external(),
+                in_link.id().external()
+            );
             return FrontDecision::Abort;
         };
         if in_link.to() != out_link.from() {
-            // In link and next link are not connected
+            warn!(
+                "Next link {} for vehicle {} is not connected to in-link {}.",
+                out_link.id().external(),
+                vehicle.id().external(),
+                in_link.id().external()
+            );
             return FrontDecision::Abort;
         }
         if out_link.is_available() {
@@ -617,8 +630,7 @@ impl SimNetworkPartition {
         comp_env: &mut ThreadLocalComputationalEnvironment,
         clock: SimClock,
         now: Tick,
-    ) -> usize {
-        let mut aborted = 0;
+    ) {
         loop {
             match Self::evaluate_front_vehicle(in_link_id, links, stuck_timer, now) {
                 FrontDecision::MoveNormally | FrontDecision::MoveAlthoughStuck => {
@@ -631,14 +643,7 @@ impl SimNetworkPartition {
                     Self::move_vehicle(vehicle, links, active_links, comp_env, clock, now);
                 }
                 FrontDecision::Abort => {
-                    let vehicle = links
-                        .get_mut(in_link_id)
-                        .unwrap()
-                        .pop_veh()
-                        .expect("No vehicle on selected link");
-                    stuck_timer.restart(now);
-                    Self::abort_vehicle(vehicle, comp_env, clock, now);
-                    aborted += 1;
+                    panic!("Invalid turn from in-link {}", in_link_id.external());
                 }
                 FrontDecision::Wait | FrontDecision::NoVehicle => break,
             }
@@ -647,23 +652,6 @@ impl SimNetworkPartition {
         if !links.get(in_link_id).unwrap().is_active() {
             active_links.deactivate(in_link_id);
         }
-        aborted
-    }
-
-    fn abort_vehicle(
-        vehicle: SimulationVehicle,
-        comp_env: &mut ThreadLocalComputationalEnvironment,
-        clock: SimClock,
-        now: Tick,
-    ) {
-        comp_env.events_manager_borrow_mut().process_event(
-            &LinkLeaveEventBuilder::default()
-                .vehicle(vehicle.id().clone())
-                .link(vehicle.curr_link_id().unwrap().clone())
-                .time(clock.tick_to_time(now))
-                .build()
-                .unwrap(),
-        );
     }
 
     /// Moves the vehicle from the current link to the next link.
@@ -747,6 +735,7 @@ mod tests {
     use rand::rngs::SmallRng;
     use rand::{RngExt, SeedableRng};
     use std::cell::RefCell;
+    use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::rc::Rc;
 
     #[derive(Clone, Default)]
@@ -1095,10 +1084,10 @@ mod tests {
     }
 
     /// Setting: A vehicle is waiting on A and names `missing`, a link that is not present in the local network, as its next route element.
-    /// Execution: The selected A buffer evaluates the unknown destination as an invalid turn and aborts the vehicle.
-    /// Expectation: The vehicle leaves A without a LinkEnter event or panic, is discarded, and is removed from the network count.
+    /// Execution: The selected A buffer logs the unknown destination and reaches the Abort decision.
+    /// Expectation: Node processing panics before popping the vehicle or emitting a LinkLeave event.
     #[deterministic_id_test]
-    fn missing_next_link_aborts_vehicle() {
+    fn missing_next_link_panics_before_vehicle_is_popped() {
         let mut global_network = Network::new();
         add_test_nodes(&mut global_network, &["S", "K"]);
         add_test_link(&mut global_network, "A", "S", "K", 1.0, 3600.0, 100.0);
@@ -1113,19 +1102,20 @@ mod tests {
 
         let (mut env, events) = environment_with_transition_events();
         network.move_links(&mut env, 0);
-        network.move_nodes(&mut env, 1);
+        let result = catch_unwind(AssertUnwindSafe(|| network.move_nodes(&mut env, 1)));
 
-        assert_eq!(vec!["1"], events.leaves_on("A"));
+        assert!(result.is_err());
+        assert!(events.leaves_on("A").is_empty());
         assert!(events.link_enters.borrow().is_empty());
-        assert_eq!(0, local_vehicle_count(&network, "A"));
-        assert_eq!(0, network.veh_on_net());
+        assert_eq!(1, local_vehicle_count(&network, "A"));
+        assert_eq!(1, network.veh_on_net());
     }
 
     /// Setting: A ends at K1, while the next route link Z begins at the topologically disconnected node K2; both links belong to the same partition.
-    /// Execution: The selected A buffer compares A's destination node with Z's origin node and aborts the invalid turn.
-    /// Expectation: The vehicle leaves A without entering Z, is discarded, and is removed from the network count.
+    /// Execution: The selected A buffer logs the disconnected destination and reaches the Abort decision.
+    /// Expectation: Node processing panics before popping the vehicle or emitting transition events.
     #[deterministic_id_test]
-    fn disconnected_next_link_aborts_vehicle() {
+    fn disconnected_next_link_panics_before_vehicle_is_popped() {
         let mut global_network = Network::new();
         add_test_nodes(&mut global_network, &["S", "K1", "K2", "T"]);
         add_test_link(&mut global_network, "A", "S", "K1", 1.0, 3600.0, 100.0);
@@ -1141,13 +1131,14 @@ mod tests {
 
         let (mut env, events) = environment_with_transition_events();
         network.move_links(&mut env, 0);
-        network.move_nodes(&mut env, 1);
+        let result = catch_unwind(AssertUnwindSafe(|| network.move_nodes(&mut env, 1)));
 
-        assert_eq!(vec!["1"], events.leaves_on("A"));
+        assert!(result.is_err());
+        assert!(events.leaves_on("A").is_empty());
         assert!(events.link_enters.borrow().is_empty());
-        assert_eq!(0, local_vehicle_count(&network, "A"));
+        assert_eq!(1, local_vehicle_count(&network, "A"));
         assert_eq!(0, local_vehicle_count(&network, "Z"));
-        assert_eq!(0, network.veh_on_net());
+        assert_eq!(1, network.veh_on_net());
     }
 
     /// Setting: A is active with capacity 100 but does not yet offer a vehicle at tick 1; B and C each offer a vehicle with capacity 1, and D has only one available slot.
@@ -1297,75 +1288,6 @@ mod tests {
             SimNetworkPartition::weighted_index(&candidates, 1.0000001)
         );
         assert_eq!(1, SimNetworkPartition::weighted_index(&candidates, 3.1));
-    }
-
-    /// Setting: A's buffer contains an invalid vehicle targeting an unknown link followed by a valid vehicle targeting X.
-    /// Execution: Draining A aborts and removes the invalid front vehicle, then immediately evaluates the new front vehicle in the same tick.
-    /// Expectation: Both vehicles leave A in FIFO order, only the valid vehicle enters X, and one vehicle remains counted on the network.
-    #[deterministic_id_test]
-    fn aborted_front_vehicle_does_not_block_valid_vehicle_behind_it() {
-        let mut global_network = Network::new();
-        add_test_nodes(&mut global_network, &["S", "K", "T"]);
-        add_test_link(&mut global_network, "A", "S", "K", 1.0, 7200.0, 100.0);
-        add_test_link(&mut global_network, "X", "K", "T", 75.0, 3600.0, 100.0);
-
-        let mut network = SimNetworkPartition::from_network(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
-        network.send_veh_en_route(test_vehicle(1, vec!["A", "missing"]), None, 0);
-        network.send_veh_en_route(test_vehicle(2, vec!["A", "X"]), None, 0);
-
-        let (mut env, events) = environment_with_transition_events();
-        network.move_links(&mut env, 0);
-        network.move_nodes(&mut env, 1);
-
-        assert_eq!(vec!["1", "2"], events.leaves_on("A"));
-        assert_eq!(
-            vec![("X".to_owned(), "2".to_owned())],
-            *events.link_enters.borrow()
-        );
-        assert_eq!(0, local_vehicle_count(&network, "A"));
-        assert_eq!(1, local_vehicle_count(&network, "X"));
-        assert_eq!(1, network.veh_on_net());
-    }
-
-    /// Setting: A contains an invalid front vehicle followed by A2 targeting the full link X, with a stuck threshold of ten ticks.
-    /// Execution: The invalid vehicle is aborted at tick 1, after which A2 remains blocked and is reconsidered at ticks 10 and 11.
-    /// Expectation: The external timer restarts after the abort, so A2 waits at tick 10 and moves at the inclusive threshold at tick 11.
-    #[deterministic_id_test]
-    fn abort_restarts_external_stuck_timer_for_next_front_vehicle() {
-        let mut global_network = Network::new();
-        add_test_nodes(&mut global_network, &["S", "K", "T", "END"]);
-        add_test_link(&mut global_network, "A", "S", "K", 1.0, 7200.0, 100.0);
-        add_test_link(&mut global_network, "X", "K", "T", 7.5, 3600.0, 100.0);
-        add_test_link(&mut global_network, "X2", "T", "END", 7.5, 3600.0, 100.0);
-
-        let mut qsim_config = test_utils::config();
-        qsim_config.stuck_threshold = 10;
-        let mut network = SimNetworkPartition::from_network(
-            &global_network,
-            0,
-            &qsim_config,
-            config::DEFAULT_RANDOM_SEED,
-        );
-        push_vehicle_to_queue(&mut network, "X", 90, vec!["X", "X2"], 0);
-        network.send_veh_en_route(test_vehicle(1, vec!["A", "missing"]), None, 0);
-        network.send_veh_en_route(test_vehicle(2, vec!["A", "X"]), None, 0);
-
-        let (mut env, events) = environment_with_transition_events();
-        network.move_links(&mut env, 0);
-        network.move_nodes(&mut env, 1);
-        assert_eq!(vec!["1"], events.leaves_on("A"));
-
-        network.move_nodes(&mut env, 10);
-        assert_eq!(vec!["1"], events.leaves_on("A"));
-
-        network.move_nodes(&mut env, 11);
-        assert_eq!(vec!["1", "2"], events.leaves_on("A"));
-        assert_eq!(1, network.veh_on_net());
     }
 
     #[deterministic_id_test]

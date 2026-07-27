@@ -14,13 +14,14 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 
 use crate::simulation::events::{
     ActivityEndEvent, ActivityEndEventBuilder, ActivityStartEvent, ActivityStartEventBuilder,
-    EventHandlerRegisterFn, EventTrait, EventsManager, GenericEvent, LinkEnterEvent,
+    DynEq, EventHandlerRegisterFn, EventTrait, EventsManager, GenericEvent, LinkEnterEvent,
     LinkEnterEventBuilder, LinkLeaveEvent, LinkLeaveEventBuilder, PersonArrivalEvent,
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
-    PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
-    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder,
-    VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
+    PersonLeavesVehicleEventBuilder, PersonStuckEvent, PersonStuckEventBuilder,
+    PtTeleportationArrivalEvent, TeleportationArrivalEvent, TeleportationArrivalEventBuilder,
+    VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder, VehicleLeavesTrafficEvent,
+    VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
@@ -206,6 +207,16 @@ impl XmlEventsWriter {
                 ev.network_mode,
                 ev.relative_position
             )
+        } else if let Some(stuck) = e.as_any().downcast_ref::<PersonStuckEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" reason=\"{}\"/>\n",
+                stuck.time().format_decimal_seconds(),
+                stuck.type_(),
+                stuck.person,
+                stuck.link,
+                stuck.leg_mode,
+                stuck.reason
+            )
         } else {
             panic!("Unknown event type");
         }
@@ -297,17 +308,18 @@ impl XmlEventsReader {
 fn handle(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
     let ev_type = &attr.get(1).unwrap().value;
     match ev_type.as_str() {
-        "actend" => handle_act_end(attr),
-        "departure" => handle_departure(attr),
-        "travelled" => travelled(attr),
-        "arrival" => handle_arrival(attr),
-        "actstart" => handle_act_start(attr),
-        "PersonEntersVehicle" => handle_person_enters_veh(attr),
-        "PersonLeavesVehicle" => handle_person_leaves_veh(attr),
-        "entered link" => handle_link_enter(attr),
-        "left link" => handle_link_leave(attr),
-        "vehicle enters traffic" => handle_vehicle_enters_traffic(attr),
-        "vehicle leaves traffic" => handle_vehicle_leaves_traffic(attr),
+        ActivityEndEvent::TYPE => handle_act_end(attr),
+        PersonDepartureEvent::TYPE => handle_departure(attr),
+        TeleportationArrivalEvent::TYPE => travelled(attr),
+        PersonArrivalEvent::TYPE => handle_arrival(attr),
+        ActivityStartEvent::TYPE => handle_act_start(attr),
+        PersonEntersVehicleEvent::TYPE => handle_person_enters_veh(attr),
+        PersonLeavesVehicleEvent::TYPE => handle_person_leaves_veh(attr),
+        LinkEnterEvent::TYPE => handle_link_enter(attr),
+        LinkLeaveEvent::TYPE => handle_link_leave(attr),
+        VehicleEntersTrafficEvent::TYPE => handle_vehicle_enters_traffic(attr),
+        VehicleLeavesTrafficEvent::TYPE => handle_vehicle_leaves_traffic(attr),
+        PersonStuckEvent::TYPE => handle_person_stuck(attr),
         _ => panic!("Unknown event type {ev_type}"),
     }
 }
@@ -498,6 +510,22 @@ fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
             .time(time)
             .link(link)
             .vehicle(vehicle)
+            .build()
+            .unwrap(),
+    )
+}
+
+fn handle_person_stuck(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let leg_mode: Id<String> = Id::create(value_from_name(&attr, "legMode").unwrap());
+    Box::new(
+        PersonStuckEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .leg_mode(leg_mode)
             .build()
             .unwrap(),
     )
