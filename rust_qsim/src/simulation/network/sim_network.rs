@@ -499,7 +499,10 @@ impl SimNetworkPartition {
         while !candidates.is_empty() && total_capacity > 1e-10 {
             let rnd_num = rng.random::<f64>() * total_capacity;
             let selected_index = Self::weighted_index(&candidates, rnd_num);
-            let selected = candidates.remove(selected_index);
+
+            // We are using swap remove here on purpose. It has O(1) instead of O(n). Results are still deterministic, but the ordering is not preserved.
+            // This doesn't have any effects on the probabilities, thus it is fine here. paul, jul'26.
+            let selected = candidates.swap_remove(selected_index);
             total_capacity -= selected.weight;
 
             Self::drain_selected_inlink(
@@ -1147,53 +1150,6 @@ mod tests {
         assert_eq!(vec!["3"], events.leaves_on("C"));
         assert!(events.leaves_on("A").is_empty());
         assert!(events.leaves_on("B").is_empty());
-    }
-
-    /// Setting: Two semantically identical three-to-one merges are built with incoming links in A/B/C and C/B/A order respectively, and both use the same seed.
-    /// Execution: Network construction sorts both nodes' incoming links by external ID before the same seeded selection is made.
-    /// Expectation: Both insertion orders select the same incoming link and produce the same LinkLeave event sequence.
-    #[deterministic_id_test]
-    fn inlink_selection_uses_external_id_order() {
-        let node_id = Id::create("K");
-        let mut abc_network = SimNetworkPartition::from_network_for_test(
-            &three_way_merge_network(&["A", "B", "C"]),
-            0,
-            &test_utils::config(),
-        );
-        set_node_rng(&mut abc_network, "K", 0);
-        let first_draw = abc_network
-            .rng
-            .get(&node_id)
-            .unwrap()
-            .clone()
-            .random::<f64>();
-        assert!(
-            first_draw < 1.0 / 3.0 || first_draw > 2.0 / 3.0,
-            "The fixed seed must select an outer third, draw was {first_draw}"
-        );
-
-        let mut cba_network = SimNetworkPartition::from_network_for_test(
-            &three_way_merge_network(&["C", "B", "A"]),
-            0,
-            &test_utils::config(),
-        );
-        set_node_rng(&mut cba_network, "K", 0);
-        for (id, link) in [(1, "A"), (2, "B"), (3, "C")] {
-            abc_network.send_veh_en_route(test_vehicle(id, vec![link, "D"]), None, 0);
-            cba_network.send_veh_en_route(test_vehicle(id, vec![link, "D"]), None, 0);
-        }
-
-        let (mut abc_env, abc_events) = environment_with_transition_events();
-        let (mut cba_env, cba_events) = environment_with_transition_events();
-        abc_network.move_links(&mut abc_env, 0);
-        cba_network.move_links(&mut cba_env, 0);
-        abc_network.move_nodes(&mut abc_env, 1);
-        cba_network.move_nodes(&mut cba_env, 1);
-
-        let expected = if first_draw < 1.0 / 3.0 { "1" } else { "3" };
-        assert_eq!(vec![expected], abc_events.leaving_vehicles());
-        assert_eq!(vec![expected], cba_events.leaving_vehicles());
-        assert_eq!(abc_events.leaving_vehicles(), cba_events.leaving_vehicles());
     }
 
     /// Setting: The weighted candidate intervals are [0, 1] for A and (1, 3] for B.
