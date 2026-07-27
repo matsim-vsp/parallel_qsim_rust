@@ -781,7 +781,6 @@ mod tests {
     use super::{MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool};
     use crate::simulation::config::Config;
     use crate::simulation::id::Id;
-    use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::agent_source::PopulationAgentSource;
     use crate::simulation::scenario::network::Network;
@@ -845,15 +844,8 @@ mod tests {
     }
 
     fn empty_mobsim_input(scenario: &ScenarioCore) -> MobsimInput {
-        let storage_capacities =
-            LinkStorageCapacities::from_network(&scenario.network, scenario.config.qsim());
-        let network_partition = SimNetworkPartition::from_network(
-            &scenario.network,
-            &storage_capacities,
-            0,
-            scenario.config.qsim(),
-            scenario.config.computational_setup().random_seed,
-        );
+        let network_partition =
+            SimNetworkPartition::from_network_for_test(&scenario.network, 0, &scenario.config);
 
         MobsimInput {
             partition: MobsimScenarioPartition {

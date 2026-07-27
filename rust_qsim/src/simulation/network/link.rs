@@ -592,7 +592,7 @@ mod sim_link_tests {
             3.,
             100.,
             7.5,
-            &test_utils::config(),
+            &test_utils::qsim_config(),
             Id::create("0"),
             Id::create("0"),
         ));
@@ -614,7 +614,7 @@ mod sim_link_tests {
             3.,
             10.,
             7.5,
-            &test_utils::config(),
+            &test_utils::qsim_config(),
             Id::create("0"),
             Id::create("0"),
         ));
@@ -646,7 +646,7 @@ mod sim_link_tests {
             3.,
             100.,
             7.5,
-            &test_utils::config(),
+            &test_utils::qsim_config(),
             Id::create("0"),
             Id::create("0"),
         ));
@@ -692,7 +692,7 @@ mod sim_link_tests {
             3.,
             100.,
             7.5,
-            &test_utils::config(),
+            &test_utils::qsim_config(),
             Id::create("0"),
             Id::create("0"),
         ));
@@ -730,7 +730,7 @@ mod sim_link_tests {
             1.,
             15.0,
             10.0,
-            &test_utils::config(),
+            &test_utils::qsim_config(),
             Id::create("0"),
             Id::create("0"),
         ));

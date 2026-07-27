@@ -162,7 +162,6 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
     use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
-    use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::network::sim_network::StorageUpdate;
     use crate::simulation::scenario::Coordinate;
@@ -351,23 +350,15 @@ mod tests {
         communicator: ChannelSimCommunicator,
     ) -> NetMessageBroker<ChannelSimCommunicator> {
         let rank = communicator.rank();
-        let config = config::QSim {
-            start_time: 0,
-            end_time: 0,
-            ticks_per_second: 1,
-            sample_size: 0.0,
-            stuck_threshold: 0,
-            main_modes: vec![],
-        };
+        let mut config = config::Config::default();
+        config.qsim_mut().start_time = 0;
+        config.qsim_mut().end_time = 0;
+        config.qsim_mut().ticks_per_second = 1;
+        config.qsim_mut().sample_size = 0.0;
+        config.qsim_mut().stuck_threshold = 0;
+        config.qsim_mut().main_modes.clear();
         let network = create_network();
-        let storage_capacities = LinkStorageCapacities::from_network(&network, &config);
-        let partition = SimNetworkPartition::from_network(
-            &network,
-            &storage_capacities,
-            rank,
-            &config,
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let partition = SimNetworkPartition::from_network_for_test(&network, rank, &config);
 
         assert_eq!(partition.get_node_ids().len(), 1);
 

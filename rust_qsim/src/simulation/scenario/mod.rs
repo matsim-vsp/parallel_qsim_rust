@@ -331,14 +331,7 @@ impl ControllerScenario {
         storage_capacities: &LinkStorageCapacities,
         rank: u32,
     ) -> SimNetworkPartition {
-        let base_seed = core.config.computational_setup().random_seed;
-        SimNetworkPartition::from_network(
-            &core.network,
-            storage_capacities,
-            rank,
-            core.config.qsim(),
-            base_seed,
-        )
+        SimNetworkPartition::from_network(&core.network, storage_capacities, rank, &core.config)
     }
 }
 

@@ -120,7 +120,6 @@ mod tests {
     use super::{AgentSet, AgentSource, DynAgentSource, IntoDynAgentSource, PopulationAgentSource};
     use crate::simulation::config::Config;
     use crate::simulation::id::Id;
-    use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::scenario::network::{Link, Network};
     use crate::simulation::scenario::population::{
@@ -185,14 +184,7 @@ mod tests {
     fn empty_partition_core() -> MobsimScenarioPartition {
         let config = Arc::new(Config::default());
         let network = Arc::new(Network::new());
-        let storage_capacities = LinkStorageCapacities::from_network(&network, config.qsim());
-        let network_partition = SimNetworkPartition::from_network(
-            &network,
-            &storage_capacities,
-            0,
-            config.qsim(),
-            config.computational_setup().random_seed,
-        );
+        let network_partition = SimNetworkPartition::from_network_for_test(&network, 0, &config);
         MobsimScenarioPartition {
             rank: 0,
             scenario: ScenarioCore {

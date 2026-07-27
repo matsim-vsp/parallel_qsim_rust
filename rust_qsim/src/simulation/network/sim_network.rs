@@ -117,11 +117,11 @@ impl SimNetworkPartition {
         global_network: &Network,
         storage_capacities: &LinkStorageCapacities,
         partition: u32,
-        config: &config::QSim,
-        base_seed: u64,
+        config: &config::Config,
     ) -> Self {
-        let clock = SimClock::new(config.ticks_per_second);
-        let stuck_threshold = clock.secs_to_tick(config.stuck_threshold as u64);
+        let qsim_config = config.qsim();
+        let clock = SimClock::new(qsim_config.ticks_per_second);
+        let stuck_threshold = clock.secs_to_tick(qsim_config.stuck_threshold as u64);
         let nodes: Vec<&Node> = global_network
             .nodes()
             .iter()
@@ -144,7 +144,7 @@ impl SimNetworkPartition {
                         link,
                         storage_capacities,
                         partition,
-                        config,
+                        qsim_config,
                         global_network,
                     ),
                 )
@@ -160,10 +160,20 @@ impl SimNetworkPartition {
             sim_nodes,
             sim_links,
             partition,
-            base_seed,
+            config.computational_setup().random_seed,
             clock,
             stuck_threshold,
         )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn from_network_for_test(
+        global_network: &Network,
+        partition: u32,
+        config: &config::Config,
+    ) -> Self {
+        let storage_capacities = LinkStorageCapacities::from_network(global_network, config.qsim());
+        Self::from_network(global_network, &storage_capacities, partition, config)
     }
 
     pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
@@ -715,13 +725,11 @@ struct MoveSingleLinkResult {
 #[cfg(test)]
 mod tests {
     use super::{Candidate, SimNetworkPartition};
-    use crate::simulation::config;
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::controller::ThreadLocalComputationalEnvironment;
     use crate::simulation::events::{LinkEnterEvent, LinkLeaveEvent};
     use crate::simulation::id::Id;
     use crate::simulation::io::xml::events::XmlEventsWriter;
-    use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::network::link::LinkPosition::QStart;
     use crate::simulation::network::link::SimLink;
     use crate::simulation::network::link::SimLink::Local;
@@ -736,22 +744,6 @@ mod tests {
     use std::cell::RefCell;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::rc::Rc;
-
-    fn test_network_partition(
-        network: &Network,
-        partition: u32,
-        config: &config::QSim,
-        base_seed: u64,
-    ) -> SimNetworkPartition {
-        let storage_capacities = LinkStorageCapacities::from_network(network, config);
-        SimNetworkPartition::from_network(
-            network,
-            &storage_capacities,
-            partition,
-            config,
-            base_seed,
-        )
-    }
 
     #[derive(Clone, Default)]
     // simple events handler that just records the events it receives.
@@ -895,12 +887,8 @@ mod tests {
         add_test_link(&mut global_network, "X", "K", "TX", 75.0, 3600.0, 100.0);
         add_test_link(&mut global_network, "Y", "K", "TY", 75.0, 3600.0, 100.0);
 
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         set_node_rng(&mut network, "K", 4712);
         let node_id = Id::create("K");
         let first_draw = network.rng.get(&node_id).unwrap().clone().random::<f64>();
@@ -931,12 +919,8 @@ mod tests {
         add_test_link(&mut global_network, "B", "SB", "K", 1.0, 7200.0, 100.0);
         add_test_link(&mut global_network, "C", "K", "T", 15.0, 7200.0, 100.0);
 
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         set_node_rng(&mut network, "K", 4711);
         for id in 1..=10_000 {
             network.send_veh_en_route(test_vehicle(id, vec!["A", "C"]), None, 0);
@@ -977,12 +961,8 @@ mod tests {
         add_test_link(&mut global_network, "Y", "K", "TY", 7.5, 3600.0, 100.0);
         add_test_link(&mut global_network, "X2", "TX", "END", 7.5, 3600.0, 100.0);
 
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         push_vehicle_to_queue(&mut network, "X", 90, vec!["X", "X2"], 0);
         network.send_veh_en_route(test_vehicle(11, vec!["A", "X"]), None, 0);
         network.send_veh_en_route(test_vehicle(21, vec!["B", "Y"]), None, 0);
@@ -1009,12 +989,8 @@ mod tests {
         add_test_link(&mut global_network, "Y", "K", "TY", 7.5, 3600.0, 100.0);
         add_test_link(&mut global_network, "X2", "TX", "END", 7.5, 3600.0, 100.0);
 
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         push_vehicle_to_queue(&mut network, "X", 90, vec!["X", "X2"], 0);
         network.send_veh_en_route(test_vehicle(11, vec!["A", "X"]), None, 0);
         network.send_veh_en_route(test_vehicle(12, vec!["A", "Y"]), None, 0);
@@ -1039,14 +1015,9 @@ mod tests {
         add_test_link(&mut global_network, "C", "K", "T", 15.0, 7200.0, 100.0);
         add_test_link(&mut global_network, "C2", "T", "END", 7.5, 3600.0, 100.0);
 
-        let mut qsim_config = test_utils::config();
-        qsim_config.stuck_threshold = 10;
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &qsim_config,
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut config = test_utils::config();
+        config.qsim_mut().stuck_threshold = 10;
+        let mut network = SimNetworkPartition::from_network_for_test(&global_network, 0, &config);
         push_vehicle_to_queue(&mut network, "C", 90, vec!["C", "C2"], 0);
         network.send_veh_en_route(test_vehicle(11, vec!["A", "C"]), None, 0);
         network.send_veh_en_route(test_vehicle(12, vec!["A", "C"]), None, 0);
@@ -1074,12 +1045,8 @@ mod tests {
         add_test_link(&mut global_network, "C", "K", "T", 100.0, 3600.0, 1.0);
         add_test_link(&mut global_network, "C2", "T", "END", 7.5, 3600.0, 100.0);
 
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         for id in 100..114 {
             push_vehicle_to_queue(&mut network, "C", id, vec!["C", "C2"], 0);
         }
@@ -1108,12 +1075,8 @@ mod tests {
         add_test_nodes(&mut global_network, &["S", "K"]);
         add_test_link(&mut global_network, "A", "S", "K", 1.0, 3600.0, 100.0);
 
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         network.send_veh_en_route(test_vehicle(1, vec!["A", "missing"]), None, 0);
 
         let (mut env, events) = environment_with_transition_events();
@@ -1137,12 +1100,8 @@ mod tests {
         add_test_link(&mut global_network, "A", "S", "K1", 1.0, 3600.0, 100.0);
         add_test_link(&mut global_network, "Z", "K2", "T", 75.0, 3600.0, 100.0);
 
-        let mut network = test_network_partition(
-            &global_network,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         network.send_veh_en_route(test_vehicle(1, vec!["A", "Z"]), None, 0);
 
         let (mut env, events) = environment_with_transition_events();
@@ -1170,9 +1129,8 @@ mod tests {
         add_test_link(&mut global_network, "D", "K", "T", 7.5, 3600.0, 100.0);
         add_test_link(&mut global_network, "A2", "K", "TA", 7.5, 3600.0, 100.0);
 
-        let base_seed = config::DEFAULT_RANDOM_SEED;
         let mut network =
-            test_network_partition(&global_network, 0, &test_utils::config(), base_seed);
+            SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
         set_node_rng(&mut network, "K", 4711);
         let slow_vehicle = SimulationVehicle::from_parts(
             1,
@@ -1231,13 +1189,11 @@ mod tests {
     /// Expectation: Both insertion orders select the same incoming link and produce the same LinkLeave event sequence.
     #[deterministic_id_test]
     fn inlink_selection_uses_external_id_order() {
-        let base_seed = config::DEFAULT_RANDOM_SEED;
         let node_id = Id::create("K");
-        let mut abc_network = test_network_partition(
+        let mut abc_network = SimNetworkPartition::from_network_for_test(
             &three_way_merge_network(&["A", "B", "C"]),
             0,
             &test_utils::config(),
-            base_seed,
         );
         set_node_rng(&mut abc_network, "K", 0);
         let first_draw = abc_network
@@ -1251,11 +1207,10 @@ mod tests {
             "The fixed seed must select an outer third, draw was {first_draw}"
         );
 
-        let mut cba_network = test_network_partition(
+        let mut cba_network = SimNetworkPartition::from_network_for_test(
             &three_way_merge_network(&["C", "B", "A"]),
             0,
             &test_utils::config(),
-            base_seed,
         );
         set_node_rng(&mut cba_network, "K", 0);
         for (id, link) in [(1, "A"), (2, "B"), (3, "C")] {
@@ -1341,12 +1296,8 @@ mod tests {
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
-        let mut network = test_network_partition(
-            &global_net,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_net, 0, &test_utils::config());
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
         let vehicle = SimulationVehicle::from_parts(1, 0, 10., 1., agent);
         network.send_veh_en_route(vehicle, None, 0);
@@ -1392,12 +1343,8 @@ mod tests {
             2,
             &PartitionMethod::None,
         );
-        let mut network = test_network_partition(
-            &global_net,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_net, 0, &test_utils::config());
         let agent = test_utils::create_agent(1, vec!["link1", "link2", "link3"]);
         let vehicle = SimulationVehicle::from_parts(1, 0, 10., 100., agent);
         network.send_veh_en_route(vehicle, None, 0);
@@ -1431,12 +1378,8 @@ mod tests {
             1,
             &PartitionMethod::Metis(MetisOptions::default()),
         );
-        let mut network = test_network_partition(
-            &global_net,
-            0,
-            &test_utils::config(),
-            config::DEFAULT_RANDOM_SEED,
-        );
+        let mut network =
+            SimNetworkPartition::from_network_for_test(&global_net, 0, &test_utils::config());
 
         // place 100 vehicles on first link
         for i in 0..100 {
@@ -1472,9 +1415,8 @@ mod tests {
         let id_2: Id<Link> = Id::get_from_ext("link2");
         let id_3: Id<Link> = Id::get_from_ext("link3");
         let mut config = test_utils::config();
-        config.stuck_threshold = u32::MAX;
-        let mut network =
-            test_network_partition(&global_net, 0, &config, config::DEFAULT_RANDOM_SEED);
+        config.qsim_mut().stuck_threshold = u32::MAX;
+        let mut network = SimNetworkPartition::from_network_for_test(&global_net, 0, &config);
 
         // Place 10 vehicles on link1. They will be released every 10s because PCE is 10 and flow_cap is 1.
         // Since they are super slow, they will leave link2 after 1000s.
@@ -1572,9 +1514,8 @@ mod tests {
         let id_2: Id<Link> = Id::get_from_ext("link2");
         let id_3: Id<Link> = Id::get_from_ext("link3");
         let mut config = test_utils::config();
-        config.stuck_threshold = 10;
-        let mut network =
-            test_network_partition(&global_net, 0, &config, config::DEFAULT_RANDOM_SEED);
+        config.qsim_mut().stuck_threshold = 10;
+        let mut network = SimNetworkPartition::from_network_for_test(&global_net, 0, &config);
 
         // Place 10 vehicles on link1. They will be released every 10s because PCE is 10 and flow_cap is 1.
         // Since they are super slow, they will leave link2 after 1000s.
@@ -1731,7 +1672,7 @@ mod tests {
             attributes: Default::default(),
         });
         let mut sim_net =
-            test_network_partition(&net, 0, &test_utils::config(), config::DEFAULT_RANDOM_SEED);
+            SimNetworkPartition::from_network_for_test(&net, 0, &test_utils::config());
 
         // Place 1000 vehicles on link1. Flow cap: 1 veh/s
         for i in 0..1000 {
@@ -1865,8 +1806,7 @@ mod tests {
         net.add_link(out_link_1_2);
         net.add_link(out_link_3_1);
 
-        let sim_net =
-            test_network_partition(&net, 0, &test_utils::config(), config::DEFAULT_RANDOM_SEED);
+        let sim_net = SimNetworkPartition::from_network_for_test(&net, 0, &test_utils::config());
 
         let neighbors = sim_net.neighbors();
         assert_eq!(3, neighbors.len());
@@ -1898,18 +1838,8 @@ mod tests {
         network.add_link(link2);
 
         vec![
-            test_network_partition(
-                network,
-                0,
-                &test_utils::config(),
-                config::DEFAULT_RANDOM_SEED,
-            ),
-            test_network_partition(
-                network,
-                1,
-                &test_utils::config(),
-                config::DEFAULT_RANDOM_SEED,
-            ),
+            SimNetworkPartition::from_network_for_test(network, 0, &test_utils::config()),
+            SimNetworkPartition::from_network_for_test(network, 1, &test_utils::config()),
         ]
     }
 }

@@ -6,7 +6,9 @@ use ahash::HashSet;
 use clap::Parser;
 use tracing::info;
 
-use rust_qsim::simulation::config::{EdgeWeight, MetisOptions, PartitionMethod, VertexWeight};
+use rust_qsim::simulation::config::{
+    Config, EdgeWeight, MetisOptions, PartitionMethod, VertexWeight,
+};
 use rust_qsim::simulation::logging::init_std_out_logging_thread_local;
 use rust_qsim::simulation::network::LinkStorageCapacities;
 use rust_qsim::simulation::network::sim_network::SimNetworkPartition;
@@ -40,17 +42,12 @@ fn main() {
                 contiguous: true,
             }),
         );
-        let qsim_config = config::QSim::default();
-        let storage_capacities = LinkStorageCapacities::from_network(&net, &qsim_config);
+        let config = Config::default();
+        let storage_capacities = LinkStorageCapacities::from_network(&net, config.qsim());
         let distinct_partitions: HashSet<u32> = net.nodes().iter().map(|n| n.partition).collect();
         for partition in distinct_partitions {
-            let net_partition = SimNetworkPartition::from_network(
-                &net,
-                &storage_capacities,
-                partition,
-                &qsim_config,
-                config::DEFAULT_RANDOM_SEED,
-            );
+            let net_partition =
+                SimNetworkPartition::from_network(&net, &storage_capacities, partition, &config);
             let neighbors = net_partition.neighbors().len();
             let serialized = format!("{},{},{}\n", num_parts, partition, neighbors);
             writer
