@@ -827,22 +827,6 @@ mod tests {
             .insert(Id::create(node), SmallRng::seed_from_u64(seed));
     }
 
-    fn three_way_merge_network(in_link_order: &[&str]) -> Network {
-        let mut network = Network::new();
-        add_test_nodes(&mut network, &["SA", "SB", "SC", "K", "T"]);
-        for id in in_link_order {
-            let from = match *id {
-                "A" => "SA",
-                "B" => "SB",
-                "C" => "SC",
-                _ => panic!("Unexpected in-link id {id}"),
-            };
-            add_test_link(&mut network, id, from, "K", 1.0, 3600.0, 100.0);
-        }
-        add_test_link(&mut network, "D", "K", "T", 7.5, 3600.0, 100.0);
-        network
-    }
-
     /// Setting: A offers A1 with capacity 1, while B offers B1/B2 with capacity 2; the fixed seed selects B first.
     /// Execution: A single node transition drains the selected B buffer before selecting and processing A.
     /// Expectation: The exact LinkLeave order is B1, B2, A1 (vehicle IDs 21, 22, 11).
