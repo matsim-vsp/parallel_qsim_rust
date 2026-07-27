@@ -6,6 +6,7 @@ use crate::simulation::events::{EventsManager, LinkEnterEventBuilder, LinkLeaveE
 use crate::simulation::id::Id;
 use crate::simulation::id::serializable_type::StableTypeId;
 use crate::simulation::network::link::LinkPosition::{QStart, Waiting};
+use crate::simulation::network::stuck_timer::StuckTimer;
 use crate::simulation::scenario::network::{Link, Network, Node};
 use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::vehicles::SimulationVehicle;
@@ -79,6 +80,7 @@ pub struct SimNetworkPartition {
     // use int map as hash map variant with stable order
     pub links: IntMap<Id<Link>, SimLink>,
     rng: IntMap<Id<Node>, SmallRng>,
+    stuck_timers: IntMap<Id<Link>, StuckTimer>,
     active_nodes: ActiveCache<Node>,
     active_links: ActiveCache<Link>,
     veh_counter: usize,
@@ -116,6 +118,7 @@ impl SimNetworkPartition {
         base_seed: u64,
     ) -> Self {
         let clock = SimClock::new(config.ticks_per_second);
+        let stuck_threshold = clock.secs_to_tick(config.stuck_threshold as u64);
         let nodes: Vec<&Node> = global_network
             .nodes()
             .iter()
@@ -150,7 +153,14 @@ impl SimNetworkPartition {
             .map(|n| (n.id.clone(), Self::create_sim_node(n)))
             .collect();
 
-        SimNetworkPartition::build(sim_nodes, sim_links, partition, base_seed, clock)
+        SimNetworkPartition::build(
+            sim_nodes,
+            sim_links,
+            partition,
+            base_seed,
+            clock,
+            stuck_threshold,
+        )
     }
 
     pub(crate) fn drain(&mut self) -> Vec<SimulationAgent> {
@@ -202,6 +212,7 @@ impl SimNetworkPartition {
         partition: u32,
         base_seed: u64,
         clock: SimClock,
+        stuck_threshold: Tick,
     ) -> Self {
         // Initialize RNG with a seed based on the base seed and node id
         let rng = nodes
@@ -213,10 +224,17 @@ impl SimNetworkPartition {
             })
             .collect();
 
+        let stuck_timers = nodes
+            .values()
+            .flat_map(|node| node.in_links.iter())
+            .map(|id| (id.clone(), StuckTimer::new(stuck_threshold)))
+            .collect();
+
         Self {
             nodes,
             links,
             rng,
+            stuck_timers,
             active_links: ActiveCache::<Link>::default(),
             active_nodes: ActiveCache::<Node>::default(),
             veh_counter: 0,
@@ -352,12 +370,17 @@ impl SimNetworkPartition {
         for id in &self.active_links {
             let link = self.links.get_mut(id).unwrap();
             let mut res = match link {
-                SimLink::Local(ll) => {
-                    Self::move_local_link(ll, &mut self.active_nodes, now, comp_env)
-                }
+                SimLink::Local(ll) => Self::move_local_link(
+                    ll,
+                    &mut self.active_nodes,
+                    &mut self.stuck_timers,
+                    now,
+                    comp_env,
+                ),
                 SimLink::In(il) => Self::move_in_link(
                     il,
                     &mut self.active_nodes,
+                    &mut self.stuck_timers,
                     &mut storage_cap_updates,
                     now,
                     comp_env,
@@ -390,10 +413,15 @@ impl SimNetworkPartition {
     fn move_local_link(
         link: &mut LocalLink,
         active_nodes: &mut ActiveCache<Node>,
+        stuck_timers: &mut IntMap<Id<Link>, StuckTimer>,
         now: Tick,
         comp_env: &mut ThreadLocalComputationalEnvironment,
     ) -> MoveSingleLinkResult {
+        let buffer_was_empty = link.buffer_is_empty();
         let vehicles_end_leg = link.do_sim_step(now, comp_env);
+        if buffer_was_empty && !link.buffer_is_empty() {
+            stuck_timers.get_mut(&link.id).unwrap().restart(now);
+        }
         if link.to_nodes_active() {
             active_nodes.activate(link.to.clone());
         }
@@ -410,6 +438,7 @@ impl SimNetworkPartition {
     fn move_in_link(
         link: &mut SplitInLink,
         active_nodes: &mut ActiveCache<Node>,
+        stuck_timers: &mut IntMap<Id<Link>, StuckTimer>,
         storage_cap_updates: &mut Vec<StorageUpdate>,
         now: Tick,
         events: &mut ThreadLocalComputationalEnvironment,
@@ -417,7 +446,13 @@ impl SimNetworkPartition {
         // if anything has changed on the link, we want to report the updated storage capacity to the
         // upstream partition.
         let before = link.occupied_storage();
-        let result = Self::move_local_link(&mut link.local_link, active_nodes, now, events);
+        let result = Self::move_local_link(
+            &mut link.local_link,
+            active_nodes,
+            stuck_timers,
+            now,
+            events,
+        );
         let diff = before - link.occupied_storage();
 
         assert!(
@@ -478,7 +513,7 @@ impl SimNetworkPartition {
     ) -> bool {
         let node = self.nodes.get(node_id).unwrap();
         let (mut candidates, mut total_capacity) =
-            Self::get_candidates(&node.in_links, &self.links, now);
+            Self::get_candidates(&node.in_links, &self.links);
         let rng = self.rng.get_mut(node_id).unwrap();
 
         while !candidates.is_empty() && total_capacity > 1e-10 {
@@ -486,11 +521,13 @@ impl SimNetworkPartition {
             let selected_index = Self::weighted_index(&candidates, rnd_num);
             let selected = candidates.remove(selected_index);
             total_capacity -= selected.weight;
+            let stuck_timer = self.stuck_timers.get_mut(selected.id).unwrap();
 
             let aborted = Self::drain_selected_inlink(
                 selected.id,
                 &mut self.links,
                 &mut self.active_links,
+                stuck_timer,
                 comp_env,
                 self.clock,
                 now,
@@ -498,21 +535,20 @@ impl SimNetworkPartition {
             self.veh_counter -= aborted;
         }
 
-        // check whether any link is offering next timestep. Otherwise the node can be de-activated
-        Self::any_link_offers(&node.in_links, &self.links, now.next())
+        // check whether any link is offering next timestep. Otherwise, the node can be de-activated
+        Self::any_link_offers(&node.in_links, &self.links)
     }
 
     fn get_candidates<'a>(
         in_links: &'a [Id<Link>],
         links: &IntMap<Id<Link>, SimLink>,
-        now: Tick,
     ) -> (Vec<Candidate<'a>>, f64) {
         let mut candidates = Vec::with_capacity(in_links.len());
         let mut total_capacity = 0.;
 
         for id in in_links {
             let link = links.get(id).unwrap();
-            if link.offers_veh(now).is_some() {
+            if link.offers_veh().is_some() {
                 let weight = link.flow_cap();
                 candidates.push(Candidate { id, weight });
                 total_capacity += weight;
@@ -534,38 +570,39 @@ impl SimNetworkPartition {
         candidates.len() - 1
     }
 
-    fn any_link_offers(
-        link_ids: &[Id<Link>],
-        links: &IntMap<Id<Link>, SimLink>,
-        time: Tick,
-    ) -> bool {
+    fn any_link_offers(link_ids: &[Id<Link>], links: &IntMap<Id<Link>, SimLink>) -> bool {
         link_ids
             .iter()
             .map(|id| links.get(id).unwrap())
-            .any(|link| link.offers_veh(time).is_some())
+            .any(|link| link.offers_veh().is_some())
     }
 
     fn evaluate_front_vehicle(
         in_id: &Id<Link>,
         links: &IntMap<Id<Link>, SimLink>,
+        stuck_timer: &StuckTimer,
         now: Tick,
     ) -> FrontDecision {
         let in_link = links.get(in_id).unwrap();
-        let Some(vehicle) = in_link.offers_veh(now) else {
+        let Some(vehicle) = in_link.offers_veh() else {
+            // In link empty
             return FrontDecision::NoVehicle;
         };
         let Some(next_id) = vehicle.peek_next_route_element() else {
+            // Vehicle has no next route element
             return FrontDecision::Abort;
         };
         let Some(out_link) = links.get(next_id) else {
+            // Next link not found
             return FrontDecision::Abort;
         };
         if in_link.to() != out_link.from() {
+            // In link and next link are not connected
             return FrontDecision::Abort;
         }
         if out_link.is_available() {
             FrontDecision::MoveNormally
-        } else if in_link.is_veh_stuck(now) {
+        } else if stuck_timer.is_stuck(now) {
             FrontDecision::MoveAlthoughStuck
         } else {
             FrontDecision::Wait
@@ -576,27 +613,30 @@ impl SimNetworkPartition {
         in_link_id: &Id<Link>,
         links: &mut IntMap<Id<Link>, SimLink>,
         active_links: &mut ActiveCache<Link>,
+        stuck_timer: &mut StuckTimer,
         comp_env: &mut ThreadLocalComputationalEnvironment,
         clock: SimClock,
         now: Tick,
     ) -> usize {
         let mut aborted = 0;
         loop {
-            match Self::evaluate_front_vehicle(in_link_id, links, now) {
+            match Self::evaluate_front_vehicle(in_link_id, links, stuck_timer, now) {
                 FrontDecision::MoveNormally | FrontDecision::MoveAlthoughStuck => {
                     let vehicle = links
                         .get_mut(in_link_id)
                         .unwrap()
-                        .pop_veh(now)
+                        .pop_veh()
                         .expect("No vehicle on selected link");
+                    stuck_timer.restart(now);
                     Self::move_vehicle(vehicle, links, active_links, comp_env, clock, now);
                 }
                 FrontDecision::Abort => {
                     let vehicle = links
                         .get_mut(in_link_id)
                         .unwrap()
-                        .pop_veh(now)
+                        .pop_veh()
                         .expect("No vehicle on selected link");
+                    stuck_timer.restart(now);
                     Self::abort_vehicle(vehicle, comp_env, clock, now);
                     aborted += 1;
                 }
@@ -1149,7 +1189,7 @@ mod tests {
         let node_id = Id::create("K");
         let (candidates, capacity) = {
             let node = network.nodes.get(&node_id).unwrap();
-            SimNetworkPartition::get_candidates(&node.in_links, &network.links, 1.into())
+            SimNetworkPartition::get_candidates(&node.in_links, &network.links)
         };
         assert_eq!(
             vec!["B", "C"],
@@ -1289,6 +1329,42 @@ mod tests {
         );
         assert_eq!(0, local_vehicle_count(&network, "A"));
         assert_eq!(1, local_vehicle_count(&network, "X"));
+        assert_eq!(1, network.veh_on_net());
+    }
+
+    /// Setting: A contains an invalid front vehicle followed by A2 targeting the full link X, with a stuck threshold of ten ticks.
+    /// Execution: The invalid vehicle is aborted at tick 1, after which A2 remains blocked and is reconsidered at ticks 10 and 11.
+    /// Expectation: The external timer restarts after the abort, so A2 waits at tick 10 and moves at the inclusive threshold at tick 11.
+    #[deterministic_id_test]
+    fn abort_restarts_external_stuck_timer_for_next_front_vehicle() {
+        let mut global_network = Network::new();
+        add_test_nodes(&mut global_network, &["S", "K", "T", "END"]);
+        add_test_link(&mut global_network, "A", "S", "K", 1.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "X", "K", "T", 7.5, 3600.0, 100.0);
+        add_test_link(&mut global_network, "X2", "T", "END", 7.5, 3600.0, 100.0);
+
+        let mut qsim_config = test_utils::config();
+        qsim_config.stuck_threshold = 10;
+        let mut network = SimNetworkPartition::from_network(
+            &global_network,
+            0,
+            &qsim_config,
+            config::DEFAULT_RANDOM_SEED,
+        );
+        push_vehicle_to_queue(&mut network, "X", 90, vec!["X", "X2"], 0);
+        network.send_veh_en_route(test_vehicle(1, vec!["A", "missing"]), None, 0);
+        network.send_veh_en_route(test_vehicle(2, vec!["A", "X"]), None, 0);
+
+        let (mut env, events) = environment_with_transition_events();
+        network.move_links(&mut env, 0);
+        network.move_nodes(&mut env, 1);
+        assert_eq!(vec!["1"], events.leaves_on("A"));
+
+        network.move_nodes(&mut env, 10);
+        assert_eq!(vec!["1"], events.leaves_on("A"));
+
+        network.move_nodes(&mut env, 11);
+        assert_eq!(vec!["1", "2"], events.leaves_on("A"));
         assert_eq!(1, network.veh_on_net());
     }
 
@@ -1484,12 +1560,12 @@ mod tests {
             // at 10, 20, 30, ... link1 offers a vehicle
             if now < 91 && (0..91).step_by(10).collect::<Vec<u32>>().contains(&now) {
                 assert!(
-                    link1.offers_veh(now).is_some(),
+                    link1.offers_veh().is_some(),
                     "No vehicle offered at timestep {now}"
                 );
             } else {
                 assert!(
-                    link1.offers_veh(now).is_none(),
+                    link1.offers_veh().is_none(),
                     "Vehicle offered at timestep {now}"
                 );
             }
@@ -1497,7 +1573,7 @@ mod tests {
             // From 1002, no vehicle if offered by link1
             if (1002..1911).contains(&now) {
                 // once the last vehicle has moved, link1 has nothing to offer.
-                assert!(link1.offers_veh(now).is_none());
+                assert!(link1.offers_veh().is_none());
 
                 // veh0 reaches buffer at 1001 and is released immediately.
                 // veh1 reaches buffer at 1011 and is released at 1102; flow cap is refilled after 10
@@ -1514,7 +1590,7 @@ mod tests {
                     || (1819..=1910).contains(&now)
                 {
                     assert!(
-                        link2.offers_veh(now).is_some(),
+                        link2.offers_veh().is_some(),
                         "No vehicle offered at timestep {now}"
                     );
                     if !(now == 1102
@@ -1534,7 +1610,7 @@ mod tests {
                     }
                 } else {
                     assert!(
-                        link2.offers_veh(now).is_none(),
+                        link2.offers_veh().is_none(),
                         "Vehicle offered at timestep {now}"
                     );
                 }
@@ -1585,12 +1661,12 @@ mod tests {
             // at 10, 20, 30, ... link1 offers a vehicle
             if now < 91 && (0..91).step_by(10).collect::<Vec<u32>>().contains(&now) {
                 assert!(
-                    link1.offers_veh(now).is_some(),
+                    link1.offers_veh().is_some(),
                     "No vehicle offered at timestep {now}"
                 );
             } else {
                 assert!(
-                    link1.offers_veh(now).is_none(),
+                    link1.offers_veh().is_none(),
                     "Vehicle offered at timestep {now}"
                 );
             }
@@ -1598,7 +1674,7 @@ mod tests {
             // From 1002, no vehicle if offered by link1
             if (1002..1911).contains(&now) {
                 // once the last vehicle has moved, link1 has nothing to offer.
-                assert!(link1.offers_veh(now).is_none());
+                assert!(link1.offers_veh().is_none());
 
                 // veh0 reaches buffer at 1001 and is released immediately.
                 // veh1 reaches the buffer at 1011 and is released at 1021.
@@ -1616,7 +1692,7 @@ mod tests {
                     || (1163..1173).contains(&now)
                 {
                     assert!(
-                        link2.offers_veh(now).is_some(),
+                        link2.offers_veh().is_some(),
                         "No vehicle offered at timestep {now}"
                     );
                     assert!(
@@ -1625,7 +1701,7 @@ mod tests {
                     );
                 } else {
                     assert!(
-                        link2.offers_veh(now).is_none(),
+                        link2.offers_veh().is_none(),
                         "Vehicle offered at timestep {now}"
                     );
                 }
