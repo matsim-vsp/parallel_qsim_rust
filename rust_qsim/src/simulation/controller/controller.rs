@@ -10,6 +10,7 @@ use crate::simulation::framework_events::{
     MobsimListenerRegisterFn, PartitionListenerRegisterFn,
 };
 use crate::simulation::id::Id;
+use crate::simulation::network::LinkStorageCapacities;
 use crate::simulation::population::agent_source::{
     DynAgentSource, IntoDynAgentSource, PopulationAgentSource,
 };
@@ -33,6 +34,7 @@ use tracing::info;
 #[derive(Debug)]
 pub struct Controller {
     scenario: ControllerScenario,
+    link_storage_capacities: LinkStorageCapacities,
     config: Arc<Config>,
     #[debug(skip)]
     agent_source: DynAgentSource,
@@ -90,6 +92,10 @@ impl ControllerBuilder {
             register_fn(&mut controller_event_manager);
         }
 
+        let link_storage_capacities = LinkStorageCapacities::from_network(
+            &self.scenario.network,
+            self.scenario.config.qsim(),
+        );
         let scenario: ControllerScenario = self.scenario.into();
         let config = scenario.core.config.clone();
 
@@ -97,6 +103,7 @@ impl ControllerBuilder {
 
         Ok(Controller {
             scenario,
+            link_storage_capacities,
             config,
             agent_source: self.agent_source,
             controller_events_manager: controller_event_manager,
@@ -337,7 +344,9 @@ impl Controller {
 
         prepare_for_sim(&mut self.scenario, &self.trip_router)
             .unwrap_or_else(|err| panic!("{err}: {:?}", err.issues()));
-        let inputs = self.scenario.split_for_mobsim();
+        let inputs = self
+            .scenario
+            .split_for_mobsim(&self.link_storage_capacities);
         let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, inputs);
 
         self.controller_events_manager
@@ -428,7 +437,11 @@ impl Controller {
             ),
         );
 
-        self.scenario.core.network.to_file(&net_out_path);
+        let attribute_overrides = self.link_storage_capacities.attribute_overrides();
+        self.scenario
+            .core
+            .network
+            .to_file_with_link_attribute_overrides(&net_out_path, &attribute_overrides);
     }
 
     fn write_output_population(&mut self, output_path: impl AsRef<Path>) {

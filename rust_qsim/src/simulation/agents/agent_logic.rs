@@ -496,6 +496,7 @@ mod tests {
     use crate::simulation::scenario::population::{
         InternalActivity, InternalLeg, InternalPlan, InternalRoute,
     };
+    use macros::deterministic_id_test;
     use uuid::Uuid;
 
     fn make_activity(act_type: &str, link: &str) -> InternalActivity {
@@ -529,7 +530,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn test_replace_next_trip_basic() {
         // Plan: home --leg1--> work --leg2--> shop
         let mut plan = InternalPlan::default();

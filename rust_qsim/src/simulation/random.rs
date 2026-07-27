@@ -21,7 +21,7 @@ pub fn get_rng<H: Hash>(base_seed: u64, hash: H) -> SmallRng {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::Rng;
+    use rand::RngExt;
 
     #[test]
     fn test_random_generator_deterministic() {

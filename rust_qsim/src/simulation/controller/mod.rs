@@ -844,12 +844,8 @@ mod tests {
     }
 
     fn empty_mobsim_input(scenario: &ScenarioCore) -> MobsimInput {
-        let network_partition = SimNetworkPartition::from_network(
-            &scenario.network,
-            0,
-            scenario.config.qsim(),
-            scenario.config.computational_setup().random_seed,
-        );
+        let network_partition =
+            SimNetworkPartition::from_network_for_test(&scenario.network, 0, &scenario.config);
 
         MobsimInput {
             partition: MobsimScenarioPartition {

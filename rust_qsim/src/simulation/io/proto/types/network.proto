@@ -26,4 +26,5 @@ message Link {
   double permlanes = 7;
   repeated string modes = 8;
   uint32 partition = 9;
+  map<string, general.AttributeValue> attributes = 10;
 }

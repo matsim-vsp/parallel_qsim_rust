@@ -552,6 +552,34 @@ impl PtTeleportationArrivalEvent {
     }
 }
 
+#[event_struct]
+pub struct PersonStuckEvent {
+    pub time: SimTime,
+    pub person: Id<InternalPerson>,
+    pub link: Id<Link>,
+    pub leg_mode: Id<String>,
+    pub reason: String,
+    #[builder(default)]
+    pub attributes: InternalAttributes,
+}
+
+impl PersonStuckEvent {
+    pub const TYPE: &'static str = "stuckAndAbort";
+    pub fn from_proto_event(event: &crate::generated::events::GenericEvent, time: SimTime) -> Self {
+        let attrs = InternalAttributes::from(&event.attributes);
+        assert!(event.r#type.eq(Self::TYPE));
+        PersonStuckEventBuilder::default()
+            .time(time)
+            .person(Id::create(&event.attributes["person"].as_string()))
+            .leg_mode(Id::create(&event.attributes["mode"].as_string()))
+            .link(Id::create(&event.attributes["link"].as_string()))
+            .reason(event.attributes["reason"].as_string())
+            .attributes(attrs)
+            .build()
+            .unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::simulation::events::{

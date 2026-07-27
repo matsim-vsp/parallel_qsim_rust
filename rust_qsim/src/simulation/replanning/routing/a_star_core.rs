@@ -154,12 +154,12 @@ impl<'a> LandmarkCalcAStarActions<'a> {
 }
 
 impl AStarActions for LandmarkCalcAStarActions<'_> {
-    /// when called to track parents, this implementation does nothing
-    fn set_parent_link_opt(&mut self, _child: NodeIndex, _parent_link: LinkIndex) {}
     /// this implementation will never return reached_end==true, since there is no to-node
     fn reached_end(&self, _current_node: NodeIndex) -> bool {
         false
     }
+    /// when called to track parents, this implementation does nothing
+    fn set_parent_link_opt(&mut self, _child: NodeIndex, _parent_link: LinkIndex) {}
     /// returns a DisutilityToAllWithoutParents result.
     fn build_result(
         self,
@@ -268,11 +268,7 @@ impl AStarActions for RoutingAStarActions<'_> {
         // We always return the arrival time at the to-node, regardless of whether the algorithm
         // reached it or not. Since if it didn't, the arrival time there will be SimTime::max(),
         // which is reasonable to return.
-        // Note that it can be that the disutility to the to-node is infinity, but a finite time is
-        // returned as travel time. This case could occur if the to-node is connected to a visited
-        // node via a link with finite travel time but infinite travel disutility.
 
-        // unwrap is okay, since the method will always return Some() in this implementation
         let current_arrival_time = self.get_arrival_time_at_node_opt(self.to_node).unwrap();
 
         // subtract departure time to get the actual travel time

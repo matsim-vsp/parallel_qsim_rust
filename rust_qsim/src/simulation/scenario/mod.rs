@@ -6,6 +6,7 @@ pub mod trip_structure_utils;
 pub mod vehicles;
 
 use crate::simulation::config::Config;
+use crate::simulation::network::LinkStorageCapacities;
 use crate::simulation::network::sim_network::SimNetworkPartition;
 use crate::simulation::{id, io};
 use network::Network;
@@ -41,14 +42,12 @@ impl Coordinate {
         Coordinate::new_3d((a.x + b.x) / 2., (a.y + b.y) / 2., (a.z + b.z) / 2.)
     }
 
-    /// Returns the orthogonal projection of `point` onto the infinite line
+    /// Returns the orthogonal projection of `point` onto the line segment
     /// defined by `line_from` and `line_to`.
     ///
-    /// The returned coordinate is the closest point on that line to `point`.
-    /// Note that the projection is not clamped to the segment between
-    /// `line_from` and `line_to`, so the result may lie outside that segment.
+    /// The returned coordinate is the closest point on that segment to `point`.
     pub fn orthogonal_projection(point: &Self, line_from: &Self, line_to: &Self) -> Self {
-        // Orthogonal projection of point onto the line through from and to:
+        // Orthogonal projection of point onto the segment from and to:
         // v = from - to
         // t = dot(point - from, v) / dot(v, v)
         // projection = from + t * v
@@ -56,11 +55,18 @@ impl Coordinate {
         let dx = line_to.x - line_from.x;
         let dy = line_to.y - line_from.y;
         let dz = line_to.z - line_from.z;
+        let segment_length_squared = dx * dx + dy * dy + dz * dz;
 
-        let t = ((point.x - line_from.x) * dx
+        // line has 0 length
+        if segment_length_squared == 0.0 {
+            return line_from.clone();
+        }
+
+        let t = (((point.x - line_from.x) * dx
             + (point.y - line_from.y) * dy
             + (point.z - line_from.z) * dz)
-            / (dx * dx + dy * dy + dz * dz);
+            / segment_length_squared)
+            .clamp(0.0, 1.0);
 
         Coordinate::new_3d(
             line_from.x + t * dx,
@@ -73,6 +79,74 @@ impl Coordinate {
 impl Default for Coordinate {
     fn default() -> Self {
         Self::new_3d(0.0, 0.0, 0.0)
+    }
+}
+
+#[cfg(test)]
+mod coordinate_tests {
+    use super::Coordinate;
+    use assert_approx_eq::assert_approx_eq;
+
+    fn assert_coordinate_eq(expected: Coordinate, actual: Coordinate) {
+        assert_approx_eq!(expected.x, actual.x);
+        assert_approx_eq!(expected.y, actual.y);
+        assert_approx_eq!(expected.z, actual.z);
+    }
+
+    #[test]
+    fn orthogonal_projection_inside_segment_keeps_projection() {
+        let projection = Coordinate::orthogonal_projection(
+            &Coordinate::new_2d(5.0, 4.0),
+            &Coordinate::new_2d(0.0, 0.0),
+            &Coordinate::new_2d(10.0, 0.0),
+        );
+
+        assert_coordinate_eq(Coordinate::new_2d(5.0, 0.0), projection);
+    }
+
+    #[test]
+    fn orthogonal_projection_before_segment_clamps_to_from() {
+        let projection = Coordinate::orthogonal_projection(
+            &Coordinate::new_2d(-5.0, 4.0),
+            &Coordinate::new_2d(0.0, 0.0),
+            &Coordinate::new_2d(10.0, 0.0),
+        );
+
+        assert_coordinate_eq(Coordinate::new_2d(0.0, 0.0), projection);
+    }
+
+    #[test]
+    fn orthogonal_projection_after_segment_clamps_to_to() {
+        let projection = Coordinate::orthogonal_projection(
+            &Coordinate::new_2d(15.0, 4.0),
+            &Coordinate::new_2d(0.0, 0.0),
+            &Coordinate::new_2d(10.0, 0.0),
+        );
+
+        assert_coordinate_eq(Coordinate::new_2d(10.0, 0.0), projection);
+    }
+
+    #[test]
+    fn orthogonal_projection_clamps_on_3d_segment() {
+        let projection = Coordinate::orthogonal_projection(
+            &Coordinate::new_3d(7.0, 7.0, 7.0),
+            &Coordinate::new_3d(0.0, 0.0, 0.0),
+            &Coordinate::new_3d(2.0, 2.0, 2.0),
+        );
+
+        assert_coordinate_eq(Coordinate::new_3d(2.0, 2.0, 2.0), projection);
+    }
+
+    #[test]
+    fn orthogonal_projection_zero_length_segment_returns_endpoint() {
+        let endpoint = Coordinate::new_3d(1.0, 2.0, 3.0);
+        let projection = Coordinate::orthogonal_projection(
+            &Coordinate::new_3d(7.0, 7.0, 7.0),
+            &endpoint,
+            &endpoint,
+        );
+
+        assert_coordinate_eq(endpoint, projection);
     }
 }
 
@@ -188,14 +262,19 @@ impl From<Scenario> for ControllerScenario {
 }
 
 impl ControllerScenario {
-    pub fn split_for_mobsim(&mut self) -> Vec<MobsimInput> {
+    pub(crate) fn split_for_mobsim(
+        &mut self,
+        storage_capacities: &LinkStorageCapacities,
+    ) -> Vec<MobsimInput> {
         let num_parts = self.core.config.partitioning().num_parts;
         let population = std::mem::take(&mut self.population);
         population
             .split_by_start_link_partition(&self.core.network, num_parts)
             .into_iter()
             .enumerate()
-            .map(|(rank, population)| self.create_mobsim_input(rank as u32, population))
+            .map(|(rank, population)| {
+                self.create_mobsim_input(rank as u32, population, storage_capacities)
+            })
             .collect()
     }
 
@@ -220,8 +299,14 @@ impl ControllerScenario {
         self.population = population;
     }
 
-    fn create_mobsim_input(&self, rank: u32, population: Population) -> MobsimInput {
-        let network_partition = Self::create_network_partition(&self.core, rank);
+    fn create_mobsim_input(
+        &self,
+        rank: u32,
+        population: Population,
+        storage_capacities: &LinkStorageCapacities,
+    ) -> MobsimInput {
+        let network_partition =
+            Self::create_network_partition(&self.core, storage_capacities, rank);
 
         info!(
             "Partition #{rank} network has: {} nodes and {} links. Population has {} agents",
@@ -241,9 +326,12 @@ impl ControllerScenario {
         }
     }
 
-    fn create_network_partition(core: &ScenarioCore, rank: u32) -> SimNetworkPartition {
-        let base_seed = core.config.computational_setup().random_seed;
-        SimNetworkPartition::from_network(&core.network, rank, core.config.qsim(), base_seed)
+    fn create_network_partition(
+        core: &ScenarioCore,
+        storage_capacities: &LinkStorageCapacities,
+        rank: u32,
+    ) -> SimNetworkPartition {
+        SimNetworkPartition::from_network(&core.network, storage_capacities, rank, &core.config)
     }
 }
 
@@ -251,6 +339,7 @@ impl ControllerScenario {
 mod tests {
     use super::{ControllerScenario, Scenario};
     use crate::simulation::config::{Config, PartitionMethod};
+    use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::Population;
     use crate::simulation::scenario::vehicles::Garage;
@@ -270,6 +359,7 @@ mod tests {
             &PartitionMethod::None,
         );
 
+        let storage_capacities = LinkStorageCapacities::from_network(&network, config.qsim());
         let mut scenario: ControllerScenario = Scenario {
             network,
             garage,
@@ -278,7 +368,7 @@ mod tests {
         }
         .into();
 
-        let inputs = scenario.split_for_mobsim();
+        let inputs = scenario.split_for_mobsim(&storage_capacities);
 
         assert!(scenario.population.persons.is_empty());
 

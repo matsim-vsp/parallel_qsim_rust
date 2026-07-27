@@ -18,9 +18,10 @@ use crate::simulation::events::{
     LinkEnterEventBuilder, LinkLeaveEvent, LinkLeaveEventBuilder, PersonArrivalEvent,
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
-    PersonLeavesVehicleEventBuilder, PtTeleportationArrivalEvent, TeleportationArrivalEvent,
-    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder,
-    VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
+    PersonLeavesVehicleEventBuilder, PersonStuckEvent, PersonStuckEventBuilder,
+    PtTeleportationArrivalEvent, TeleportationArrivalEvent, TeleportationArrivalEventBuilder,
+    VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder, VehicleLeavesTrafficEvent,
+    VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
@@ -30,26 +31,57 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 
 pub struct XmlEventsWriter {
-    writer: Mutex<Box<dyn Write + Send>>,
+    writer: Mutex<Option<XmlEventsOutputWriter>>,
+}
+
+enum XmlEventsOutputWriter {
+    Plain(BufWriter<File>),
+    Gz(GzEncoder<File>),
+    Zst(ZstdEncoder<'static, File>),
+}
+
+impl XmlEventsOutputWriter {
+    fn new(path: impl AsRef<Path>) -> Self {
+        let file = File::create(&path).expect("Failed to create File.");
+        match path.as_ref().extension().unwrap().to_str() {
+            Some("gz") => Self::Gz(GzEncoder::new(file, Compression::fast())),
+            Some("zst") => {
+                Self::Zst(ZstdEncoder::new(file, 0).expect("Failed to create zstd encoder"))
+            }
+            _ => Self::Plain(BufWriter::new(file)),
+        }
+    }
+
+    fn write_all(&mut self, bytes: &[u8]) {
+        match self {
+            Self::Plain(writer) => writer.write_all(bytes),
+            Self::Gz(writer) => writer.write_all(bytes),
+            Self::Zst(writer) => writer.write_all(bytes),
+        }
+        .expect("Error while writing event");
+    }
+
+    fn finish(self) {
+        match self {
+            Self::Plain(mut writer) => writer.flush().expect("Failed to flush events."),
+            Self::Gz(writer) => {
+                writer.finish().expect("Failed to finish gzip events.");
+            }
+            Self::Zst(writer) => {
+                writer.finish().expect("Failed to finish zstd events.");
+            }
+        }
+    }
 }
 
 impl XmlEventsWriter {
     pub fn new(path: impl AsRef<Path>) -> Self {
         info!("Creating file: {:?}", path.as_ref());
-        let file = File::create(&path).expect("Failed to create File.");
-        let mut writer: Box<dyn Write + Send> = match path.as_ref().extension().unwrap().to_str() {
-            Some("gz") => Box::new(GzEncoder::new(file, Compression::fast())),
-            Some("zst") => {
-                Box::new(ZstdEncoder::new(file, 0).expect("Failed to create zstd encoder"))
-            }
-            _ => Box::new(BufWriter::new(file)),
-        };
+        let mut writer = XmlEventsOutputWriter::new(path);
         let header = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<events version=\"1.0\">\n";
-        writer
-            .write_all(header.as_bytes())
-            .expect("Failed to write events file header");
+        writer.write_all(header.as_bytes());
         XmlEventsWriter {
-            writer: Mutex::new(writer),
+            writer: Mutex::new(Some(writer)),
         }
     }
 
@@ -175,6 +207,16 @@ impl XmlEventsWriter {
                 ev.network_mode,
                 ev.relative_position
             )
+        } else if let Some(stuck) = e.as_any().downcast_ref::<PersonStuckEvent>() {
+            format!(
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" link=\"{}\" legMode=\"{}\" reason=\"{}\"/>\n",
+                stuck.time().format_decimal_seconds(),
+                stuck.type_(),
+                stuck.person,
+                stuck.link,
+                stuck.leg_mode,
+                stuck.reason
+            )
         } else {
             panic!("Unknown event type");
         }
@@ -185,18 +227,21 @@ impl XmlEventsWriter {
     }
 
     fn write(&self, text: &str) {
-        let mut writer = self.writer.lock().expect("Failed to lock writer");
-        writer
-            .write_all(text.as_bytes())
-            .expect("Error while writing event");
+        let mut guard = self.writer.lock().expect("Failed to lock writer");
+        let writer = guard
+            .as_mut()
+            .expect("Cannot write event after events writer was finished");
+        writer.write_all(text.as_bytes());
     }
 
     pub fn finish(&self) {
-        let closing_tag = "</events>";
-        self.write(closing_tag);
-        info!("Finishing Events File. Calling flush on Buffered Writer.");
-        let mut writer = self.writer.lock().expect("Failed to lock writer");
-        writer.flush().expect("Failed to flush events.");
+        info!("Finishing Events File.");
+        let mut guard = self.writer.lock().expect("Failed to lock writer");
+        let Some(mut writer) = guard.take() else {
+            return;
+        };
+        writer.write_all(b"</events>");
+        writer.finish();
     }
 
     pub fn register_fn(path: impl AsRef<Path> + Send + 'static) -> Box<EventHandlerRegisterFn> {
@@ -263,17 +308,18 @@ impl XmlEventsReader {
 fn handle(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
     let ev_type = &attr.get(1).unwrap().value;
     match ev_type.as_str() {
-        "actend" => handle_act_end(attr),
-        "departure" => handle_departure(attr),
-        "travelled" => travelled(attr),
-        "arrival" => handle_arrival(attr),
-        "actstart" => handle_act_start(attr),
-        "PersonEntersVehicle" => handle_person_enters_veh(attr),
-        "PersonLeavesVehicle" => handle_person_leaves_veh(attr),
-        "entered link" => handle_link_enter(attr),
-        "left link" => handle_link_leave(attr),
-        "vehicle enters traffic" => handle_vehicle_enters_traffic(attr),
-        "vehicle leaves traffic" => handle_vehicle_leaves_traffic(attr),
+        ActivityEndEvent::TYPE => handle_act_end(attr),
+        PersonDepartureEvent::TYPE => handle_departure(attr),
+        TeleportationArrivalEvent::TYPE => travelled(attr),
+        PersonArrivalEvent::TYPE => handle_arrival(attr),
+        ActivityStartEvent::TYPE => handle_act_start(attr),
+        PersonEntersVehicleEvent::TYPE => handle_person_enters_veh(attr),
+        PersonLeavesVehicleEvent::TYPE => handle_person_leaves_veh(attr),
+        LinkEnterEvent::TYPE => handle_link_enter(attr),
+        LinkLeaveEvent::TYPE => handle_link_leave(attr),
+        VehicleEntersTrafficEvent::TYPE => handle_vehicle_enters_traffic(attr),
+        VehicleLeavesTrafficEvent::TYPE => handle_vehicle_leaves_traffic(attr),
+        PersonStuckEvent::TYPE => handle_person_stuck(attr),
         _ => panic!("Unknown event type {ev_type}"),
     }
 }
@@ -469,6 +515,26 @@ fn handle_link_leave(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
     )
 }
 
+fn handle_person_stuck(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let link: Id<Link> = Id::create(value_from_name(&attr, "link").unwrap());
+    let leg_mode: Id<String> = Id::create(value_from_name(&attr, "legMode").unwrap());
+    let reason = value_from_name(&attr, "reason")
+        .cloned()
+        .unwrap_or_default();
+    Box::new(
+        PersonStuckEventBuilder::default()
+            .time(time)
+            .person(person)
+            .link(link)
+            .leg_mode(leg_mode)
+            .reason(reason)
+            .build()
+            .unwrap(),
+    )
+}
+
 fn value_from_name<'a>(attr: &'a Vec<OwnedAttribute>, name: &str) -> Option<&'a String> {
     attr.iter()
         .find(|&a| a.name.local_name.eq(name))
@@ -484,6 +550,7 @@ mod tests {
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use std::fs;
+    use std::io::Read;
     use std::path::PathBuf;
 
     #[deterministic_id_test]
@@ -556,5 +623,67 @@ mod tests {
         assert_eq!(Id::create("link-1"), parsed_event.link);
         assert_eq!(Id::create("home"), parsed_event.act_type);
         assert_eq!(Coordinate::new_2d(1.0, 2.0), parsed_event.coordinate);
+    }
+
+    #[deterministic_id_test]
+    fn gzip_xml_event_writer_finishes_compressed_stream() {
+        assert_compressed_event_stream_finishes(
+            PathBuf::from("./test_output/io/xml_events/gzip_finished/events.xml.gz"),
+            read_gzip_to_string,
+        );
+    }
+
+    #[deterministic_id_test]
+    fn zstd_xml_event_writer_finishes_compressed_stream() {
+        assert_compressed_event_stream_finishes(
+            PathBuf::from("./test_output/io/xml_events/zstd_finished/events.xml.zst"),
+            read_zstd_to_string,
+        );
+    }
+
+    fn assert_compressed_event_stream_finishes(
+        path: PathBuf,
+        read_to_string: fn(&PathBuf) -> String,
+    ) {
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+
+        let event: Box<dyn EventTrait> = Box::new(
+            ActivityStartEventBuilder::default()
+                .time(SimTime::from_nanos(42_123_456_789))
+                .person(Id::create("person-1"))
+                .link(Id::create("link-1"))
+                .act_type(Id::create("home"))
+                .coordinate(Coordinate::new_2d(1.0, 2.0))
+                .build()
+                .unwrap(),
+        );
+
+        let writer = XmlEventsWriter::new(&path);
+        writer.on_any(event.as_ref());
+        writer.finish();
+        writer.finish();
+
+        let xml = read_to_string(&path);
+        assert!(xml.contains("</events>"));
+
+        let mut reader = XmlEventsReader::new(&path);
+        let (time, _) = reader.read_next().unwrap();
+        assert_eq!(SimTime::from_nanos(42_123_456_789), time);
+    }
+
+    fn read_gzip_to_string(path: &PathBuf) -> String {
+        let file = fs::File::open(path).unwrap();
+        let mut decoder = flate2::read::GzDecoder::new(file);
+        let mut output = String::new();
+        decoder.read_to_string(&mut output).unwrap();
+        output
+    }
+
+    fn read_zstd_to_string(path: &PathBuf) -> String {
+        let file = fs::File::open(path).unwrap();
+        let mut decoder = zstd::stream::read::Decoder::new(file).unwrap();
+        let mut output = String::new();
+        decoder.read_to_string(&mut output).unwrap();
+        output
     }
 }

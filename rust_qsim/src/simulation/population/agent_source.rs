@@ -129,6 +129,7 @@ mod tests {
     use crate::simulation::scenario::{
         Coordinate, MobsimScenarioPartition, PopulationShard, ScenarioCore,
     };
+    use macros::deterministic_id_test;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -169,7 +170,7 @@ mod tests {
         assert_eq!(Arc::strong_count(&dyn_source), 2);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn population_agent_source_consumes_owned_population_shard() {
         let core = empty_partition_core();
         let population = Population::from_persons(vec![person("person-1")]);
@@ -184,12 +185,7 @@ mod tests {
     fn empty_partition_core() -> MobsimScenarioPartition {
         let config = Arc::new(Config::default());
         let network = Arc::new(Network::new());
-        let network_partition = SimNetworkPartition::from_network(
-            &network,
-            0,
-            config.qsim(),
-            config.computational_setup().random_seed,
-        );
+        let network_partition = SimNetworkPartition::from_network_for_test(&network, 0, &config);
         MobsimScenarioPartition {
             rank: 0,
             scenario: ScenarioCore {

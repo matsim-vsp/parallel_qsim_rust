@@ -3,8 +3,9 @@ use crate::generated::general::AttributeValue;
 use crate::simulation::events::{
     ActivityEndEvent, ActivityStartEvent, EventHandlerRegisterFn, EventTrait, EventsManager,
     LinkEnterEvent, LinkLeaveEvent, PersonArrivalEvent, PersonDepartureEvent,
-    PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PtTeleportationArrivalEvent,
-    TeleportationArrivalEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
+    PersonEntersVehicleEvent, PersonLeavesVehicleEvent, PersonStuckEvent,
+    PtTeleportationArrivalEvent, TeleportationArrivalEvent, VehicleEntersTrafficEvent,
+    VehicleLeavesTrafficEvent,
 };
 use crate::simulation::time::SimTime;
 use prost::Message;
@@ -299,6 +300,32 @@ impl From<&VehicleLeavesTrafficEvent> for GenericEvent {
     }
 }
 
+impl From<&PersonStuckEvent> for GenericEvent {
+    fn from(value: &PersonStuckEvent) -> Self {
+        let mut attributes = HashMap::new();
+        attributes.insert(
+            "person".to_string(),
+            AttributeValue::from(value.person.external()),
+        );
+        attributes.insert(
+            "link".to_string(),
+            AttributeValue::from(value.link.external()),
+        );
+        attributes.insert(
+            "leg_mode".to_string(),
+            AttributeValue::from(value.leg_mode.external()),
+        );
+        attributes.insert(
+            "reason".to_string(),
+            AttributeValue::from(value.reason.to_string()),
+        );
+        GenericEvent {
+            r#type: value.type_().to_string(),
+            attributes,
+        }
+    }
+}
+
 impl From<&crate::simulation::events::GenericEvent> for GenericEvent {
     fn from(value: &crate::simulation::events::GenericEvent) -> Self {
         let mut attributes = HashMap::new();
@@ -383,6 +410,8 @@ impl ProtoEventsWriter {
         } else if let Some(event) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
             GenericEvent::from(event)
         } else if let Some(event) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
+            GenericEvent::from(event)
+        } else if let Some(event) = event.as_any().downcast_ref::<PersonStuckEvent>() {
             GenericEvent::from(event)
         } else {
             // TODO use general event here and log warning
@@ -532,6 +561,7 @@ pub fn process_events(time: SimTime, events: &Vec<GenericEvent>, manager: &mut E
             PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
             VehicleEntersTrafficEvent::TYPE => Box::new(VehicleEntersTrafficEvent::from_proto_event(proto_event, time)),
             VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
+            PersonStuckEvent::TYPE => Box::new(PersonStuckEvent::from_proto_event(proto_event, time)),
             _ => panic!("Unknown event type: {:?}", type_),
         };
         manager.process_event(internal_event.as_ref());
