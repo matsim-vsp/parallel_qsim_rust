@@ -620,7 +620,7 @@ mod tests {
         assert!(!without_score.contains("score="));
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn writes_default_subpopulation_attribute() {
         let population = Population::from_persons(vec![InternalPerson::new(
             Id::create("1"),

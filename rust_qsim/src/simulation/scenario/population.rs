@@ -961,7 +961,7 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Duration;
 
-    #[test]
+    #[deterministic_id_test]
     fn cmp_end_time_uses_bounded_open_ended_sentinel() {
         let activity = InternalActivity::new(
             Some(Coordinate::new_2d(0.0, 0.0)),
@@ -978,7 +978,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn person_from_xml_uses_subpopulation_attribute() {
         let person = InternalPerson::from(IOPerson {
             attributes: Some(IOAttributes {
@@ -999,7 +999,7 @@ mod tests {
         assert_eq!("freight", person.subpopulation().external());
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn person_from_xml_defaults_subpopulation_to_person() {
         let person = InternalPerson::from(IOPerson {
             attributes: None,

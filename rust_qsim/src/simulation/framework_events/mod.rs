@@ -299,6 +299,7 @@ impl Default for FrameworkEventsManager<ControllerEvent> {
 mod tests {
     use super::*;
     use crate::simulation::time::SimTime;
+    use macros::deterministic_id_test;
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -489,7 +490,7 @@ mod tests {
         assert_eq!(vec!["high", "default", "low"], order.borrow().clone());
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn partition_events_use_partition_origin_and_invoke_callbacks() {
         let mut manager = PartitionEventsManager::for_partition(4, 6);
         let received: Rc<RefCell<Vec<PartitionRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
@@ -542,7 +543,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn partition_next_iteration_resets_seq_counter() {
         let mut manager = PartitionEventsManager::for_partition(3, 8);
 
@@ -569,7 +570,7 @@ mod tests {
         assert_eq!(0, second.meta.seq_no);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn partition_reset_iteration_sets_iteration_and_keeps_callbacks() {
         let mut manager = PartitionEventsManager::for_partition(3, 8);
         let received: Rc<RefCell<Vec<PartitionRuntimeEvent>>> = Rc::new(RefCell::new(Vec::new()));
@@ -600,7 +601,7 @@ mod tests {
         assert_eq!(2, received.borrow().len());
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn partition_callbacks_are_called_by_descending_priority() {
         let mut manager = PartitionEventsManager::for_partition(5, 0);
         let order: Rc<RefCell<Vec<&'static str>>> = Rc::new(RefCell::new(Vec::new()));

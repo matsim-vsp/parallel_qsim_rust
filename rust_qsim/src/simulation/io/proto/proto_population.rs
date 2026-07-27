@@ -218,7 +218,7 @@ mod tests {
     use std::path::PathBuf;
     use std::time::Duration;
 
-    #[test]
+    #[deterministic_id_test]
     fn activity_coordinate_round_trip_preserves_none_z() {
         Id::<String>::create("home");
         let activity = InternalActivity::new(
@@ -241,7 +241,7 @@ mod tests {
         assert_eq!(Some(Duration::from_nanos(3_500_000)), round_trip.max_dur);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn leg_round_trip_preserves_sub_millisecond_times() {
         Id::<String>::create("walk");
         let route = InternalRoute::Generic(InternalGenericRoute::new(
@@ -302,7 +302,7 @@ mod tests {
         assert_eq!(Some(42.5), round_trip.score);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn person_to_proto_always_writes_subpopulation() {
         let person = InternalPerson::new(Id::create("1"), InternalPlan::default());
 
@@ -311,7 +311,7 @@ mod tests {
         assert_eq!(Some("person".to_string()), wire.subpopulation);
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn person_from_proto_preserves_subpopulation() {
         Id::<InternalPerson>::create("proto-subpopulation-freight");
         let person = InternalPerson::from(Person {
@@ -324,7 +324,7 @@ mod tests {
         assert_eq!("freight", person.subpopulation().external());
     }
 
-    #[test]
+    #[deterministic_id_test]
     fn person_from_proto_defaults_missing_subpopulation_to_person() {
         Id::<InternalPerson>::create("proto-subpopulation-default");
         let person = InternalPerson::from(Person {
