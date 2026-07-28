@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroU32;
-use std::ops::{Add, AddAssign, Sub};
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 use std::time::Duration;
 
 pub mod time_interpretation;
@@ -168,12 +168,12 @@ impl SimTime {
         self.0.saturating_sub(earlier.0)
     }
 
-    pub fn saturating_add(self, duration: Duration) -> Self {
-        Self::from_duration(self.0.saturating_add(duration))
+    pub fn saturating_add(self, duration: impl Into<Duration>) -> Self {
+        Self::from_duration(self.0.saturating_add(duration.into()))
     }
 
-    pub fn saturating_sub(self, duration: Duration) -> Self {
-        Self::from_duration(self.0.saturating_sub(duration))
+    pub fn saturating_sub(self, duration: impl Into<Duration>) -> Self {
+        Self::from_duration(self.0.saturating_sub(duration.into()))
     }
 
     /// Parses a time string in the format "HH:MM:SS" or "HH:MM:SS.<up to 9 digits>" into a SimTime.
@@ -274,6 +274,44 @@ impl SimTime {
 impl Display for SimTime {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.format_hh_mm_ss_trimmed())
+    }
+}
+
+impl Into<Duration> for SimTime {
+    fn into(self) -> Duration {
+        self.as_duration()
+    }
+}
+
+impl From<Duration> for SimTime {
+    fn from(duration: Duration) -> Self {
+        SimTime(duration)
+    }
+}
+
+impl Add for SimTime {
+    type Output = SimTime;
+    fn add(self, rhs: Self) -> Self::Output {
+        SimTime::from_duration(self.0 + rhs.0)
+    }
+}
+
+impl AddAssign for SimTime {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
+
+impl Sub for SimTime {
+    type Output = SimTime;
+    fn sub(self, rhs: Self) -> Self::Output {
+        SimTime::from_duration(self.0 - rhs.0)
+    }
+}
+
+impl SubAssign for SimTime {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0;
     }
 }
 
