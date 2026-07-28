@@ -5,6 +5,7 @@ use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use derive_builder::Builder;
 use std::fmt::Debug;
+use std::num::FpCategory;
 use std::time::Duration;
 
 /// Disutility is the unit of the cost values used in routing
@@ -68,7 +69,7 @@ impl TravelTime for FreeSpeedTravelTimeAndDisutility {
         _vehicle: Option<&InternalVehicle>,
     ) -> Duration {
         // the given vehicle type is ignored => true freespeed
-        Duration::from_secs_f64(link.length / link.freespeed)
+        travel_time(link.length, link.freespeed)
     }
 }
 
@@ -114,7 +115,7 @@ impl TravelTime for FreeOrMaxSpeedTravelTimeAndDisutility {
             link.freespeed
         };
 
-        Duration::from_secs_f64(link.length / max_speed)
+        travel_time(link.length, max_speed)
     }
 }
 
@@ -138,6 +139,19 @@ impl TravelDisutility for FreeOrMaxSpeedTravelTimeAndDisutility {
         // the travel time function, which respects the vehicle's max speed if given, and otherwise
         // uses the freespeed)
         self.travel_disutility(link, SimTime::from_secs(0), None, None)
+    }
+}
+
+fn travel_time(length: f64, speed: f64) -> Duration {
+    if length < 10e-10 {
+        return Duration::ZERO;
+    }
+    let duration = length / speed;
+    match duration.classify() {
+        FpCategory::Nan | FpCategory::Infinite => Duration::MAX,
+        FpCategory::Normal | FpCategory::Subnormal | FpCategory::Zero => {
+            Duration::from_secs_f64(duration)
+        }
     }
 }
 
