@@ -1,6 +1,6 @@
 use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::time::Tick;
-use std::collections::{HashMap, HashSet};
+use nohash_hasher::{IntMap, IntSet};
 
 pub mod local_communicator;
 pub mod message_broker;
@@ -8,8 +8,8 @@ pub mod message_broker;
 pub trait SimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        vehicles: HashMap<u32, InternalSyncMessage>,
-        expected_vehicle_messages: &mut HashSet<u32>,
+        vehicles: IntMap<u32, InternalSyncMessage>,
+        expected_vehicle_messages: &mut IntSet<u32>,
         now: Tick,
         on_msg: F,
     ) where

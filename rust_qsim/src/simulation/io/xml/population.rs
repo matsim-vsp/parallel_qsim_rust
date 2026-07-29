@@ -1,5 +1,5 @@
+use nohash_hasher::IntMap;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::collections::HashMap;
 use std::path::Path;
 use tracing::{info, warn};
 
@@ -18,7 +18,7 @@ use crate::simulation::time::SimTime;
 pub(crate) fn load_from_xml(
     path: impl AsRef<Path>,
     garage: &mut Garage,
-) -> HashMap<Id<InternalPerson>, InternalPerson> {
+) -> IntMap<Id<InternalPerson>, InternalPerson> {
     let io_pop = IOPopulation::from_file(path);
     create_ids(&io_pop, garage);
     create_population(io_pop)
@@ -73,8 +73,8 @@ fn create_ids(io_pop: &IOPopulation, garage: &mut Garage) {
         });
 }
 
-fn create_population(io_pop: IOPopulation) -> HashMap<Id<InternalPerson>, InternalPerson> {
-    let mut result = HashMap::new();
+fn create_population(io_pop: IOPopulation) -> IntMap<Id<InternalPerson>, InternalPerson> {
+    let mut result = IntMap::default();
     for io_person in io_pop.persons {
         let person = InternalPerson::from(io_person);
         result.insert(person.id().clone(), person);

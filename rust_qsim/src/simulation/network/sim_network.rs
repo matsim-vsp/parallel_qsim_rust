@@ -11,13 +11,11 @@ use crate::simulation::scenario::network::{Link, Network, Node};
 use crate::simulation::time::{SimClock, Tick};
 use crate::simulation::vehicles::SimulationVehicle;
 use crate::simulation::{config, random};
-use ahash::AHasher;
 use nohash_hasher::{IntMap, IntSet};
 use rand::RngExt;
-use rand::rngs::SmallRng;
+use rand_xoshiro::Xoshiro256PlusPlus;
 use std::cell::RefCell;
 use std::collections::HashSet;
-use std::hash::Hasher;
 use std::rc::Rc;
 use tracing::warn;
 
@@ -80,7 +78,7 @@ pub struct SimNetworkPartition {
     pub nodes: IntMap<Id<Node>, SimNode>,
     // use int map as hash map variant with stable order
     pub links: IntMap<Id<Link>, SimLink>,
-    rng: IntMap<Id<Node>, SmallRng>,
+    rng: IntMap<Id<Node>, Xoshiro256PlusPlus>,
     active_nodes: ActiveCache<Node>,
     active_links: ActiveCache<Link>,
     veh_counter: usize,
@@ -222,9 +220,10 @@ impl SimNetworkPartition {
         let rng = nodes
             .keys()
             .map(|n| {
-                let mut hasher = AHasher::default();
-                hasher.write(n.external().as_ref());
-                (n.clone(), random::get_rng(base_seed, hasher.finish()))
+                (
+                    n.clone(),
+                    random::get_rng(base_seed, "network.node", n.external().as_ref()),
+                )
             })
             .collect();
 
@@ -707,8 +706,8 @@ mod tests {
     use crate::test_utils;
     use assert_approx_eq::assert_approx_eq;
     use macros::deterministic_id_test;
-    use rand::rngs::SmallRng;
     use rand::{RngExt, SeedableRng};
+    use rand_xoshiro::Xoshiro256PlusPlus;
     use std::cell::RefCell;
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::rc::Rc;
@@ -824,7 +823,7 @@ mod tests {
     fn set_node_rng(network: &mut SimNetworkPartition, node: &str, seed: u64) {
         network
             .rng
-            .insert(Id::create(node), SmallRng::seed_from_u64(seed));
+            .insert(Id::create(node), Xoshiro256PlusPlus::seed_from_u64(seed));
     }
 
     /// Setting: A offers A1 with capacity 1, while B offers B1/B2 with capacity 2; the fixed seed selects B first.
