@@ -110,6 +110,29 @@ impl TeleportationEngine {
         let transit_route_id = Id::<String>::get_from_ext(
             route.as_pt().unwrap().description.transit_route_id.as_str(),
         );
+        let boarding_time = route
+            .as_pt()
+            .unwrap()
+            .description
+            .boarding_time
+            .expect("Boarding time needs to be set.");
+        let access_facility = Id::<String>::get_from_ext(
+            route
+                .as_pt()
+                .unwrap()
+                .description
+                .access_facility_id
+                .as_str(),
+        );
+        let egress_facility = Id::<String>::get_from_ext(
+            route
+                .as_pt()
+                .unwrap()
+                .description
+                .egress_facility_id
+                .as_str(),
+        );
+
         self.comp_env.events_manager_borrow_mut().process_event(
             &PtTeleportationArrivalEventBuilder::default()
                 .time(now_time)
@@ -123,6 +146,9 @@ impl TeleportationEngine {
                 )
                 .line(transit_line_id)
                 .route(transit_route_id)
+                .boarding_time(boarding_time)
+                .access_facility(access_facility)
+                .egress_facility(egress_facility)
                 .build()
                 .unwrap(),
         );

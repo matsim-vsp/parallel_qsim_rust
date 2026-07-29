@@ -19,9 +19,9 @@ use crate::simulation::events::{
     PersonArrivalEventBuilder, PersonDepartureEvent, PersonDepartureEventBuilder,
     PersonEntersVehicleEvent, PersonEntersVehicleEventBuilder, PersonLeavesVehicleEvent,
     PersonLeavesVehicleEventBuilder, PersonStuckEvent, PersonStuckEventBuilder,
-    PtTeleportationArrivalEvent, TeleportationArrivalEvent, TeleportationArrivalEventBuilder,
-    VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder, VehicleLeavesTrafficEvent,
-    VehicleLeavesTrafficEventBuilder,
+    PtTeleportationArrivalEvent, PtTeleportationArrivalEventBuilder, TeleportationArrivalEvent,
+    TeleportationArrivalEventBuilder, VehicleEntersTrafficEvent, VehicleEntersTrafficEventBuilder,
+    VehicleLeavesTrafficEvent, VehicleLeavesTrafficEventBuilder,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::Coordinate;
@@ -176,14 +176,17 @@ impl XmlEventsWriter {
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
             format!(
-                "<event time=\"{}\" type=\"{}\" person=\"{}\" distance=\"{}\" mode=\"{}\" line=\"{}\" route=\"{}\"/>\n",
+                "<event time=\"{}\" type=\"{}\" person=\"{}\" distance=\"{}\" mode=\"{}\" line=\"{}\" route=\"{}\" boardingTime=\"{}\" accessFacility=\"{}\" egressFacility=\"{}\"/>\n",
                 ev.time().format_decimal_seconds(),
                 ev.type_(),
                 ev.person,
                 ev.distance,
                 ev.mode,
                 ev.line,
-                ev.route
+                ev.route,
+                ev.boarding_time.format_decimal_seconds(),
+                ev.access_facility,
+                ev.egress_facility
             )
         } else if let Some(ev) = e.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
             format!(
@@ -311,6 +314,7 @@ fn handle(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
         ActivityEndEvent::TYPE => handle_act_end(attr),
         PersonDepartureEvent::TYPE => handle_departure(attr),
         TeleportationArrivalEvent::TYPE => travelled(attr),
+        PtTeleportationArrivalEvent::TYPE => handle_pt_travelled(attr),
         PersonArrivalEvent::TYPE => handle_arrival(attr),
         ActivityStartEvent::TYPE => handle_act_start(attr),
         PersonEntersVehicleEvent::TYPE => handle_person_enters_veh(attr),
@@ -454,6 +458,33 @@ fn travelled(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
             .person(person)
             .mode(mode)
             .distance(distance)
+            .build()
+            .unwrap(),
+    )
+}
+
+fn handle_pt_travelled(attr: Vec<OwnedAttribute>) -> Box<dyn EventTrait> {
+    let time = SimTime::parse_decimal_seconds(value_from_name(&attr, "time").unwrap()).unwrap();
+    let person: Id<InternalPerson> = Id::create(value_from_name(&attr, "person").unwrap());
+    let distance: f64 = value_from_name(&attr, "distance").unwrap().parse().unwrap();
+    let mode: Id<String> = Id::create(value_from_name(&attr, "mode").unwrap());
+    let line: Id<String> = Id::create(value_from_name(&attr, "line").unwrap());
+    let route: Id<String> = Id::create(value_from_name(&attr, "route").unwrap());
+    let boarding_time =
+        SimTime::parse_decimal_seconds(value_from_name(&attr, "boardingTime").unwrap()).unwrap();
+    let access_fac: Id<String> = Id::create(value_from_name(&attr, "accessFacility").unwrap());
+    let egress_fac: Id<String> = Id::create(value_from_name(&attr, "egressFacility").unwrap());
+    Box::new(
+        PtTeleportationArrivalEventBuilder::default()
+            .time(time)
+            .person(person)
+            .mode(mode)
+            .distance(distance)
+            .route(route)
+            .line(line)
+            .boarding_time(boarding_time)
+            .access_facility(access_fac)
+            .egress_facility(egress_fac)
             .build()
             .unwrap(),
     )

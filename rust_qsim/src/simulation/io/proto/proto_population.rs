@@ -193,7 +193,7 @@ impl PtRouteDescription {
     fn from(value: &InternalPtRouteDescription) -> Self {
         Self {
             transit_route_id: value.transit_route_id.clone(),
-            boarding_time_ns: value.boarding_time.map(duration_to_u64_nanos),
+            boarding_time_ns: value.boarding_time.map(SimTime::as_nanos),
             transit_line_id: value.transit_line_id.clone(),
             access_facility_id: value.access_facility_id.clone(),
             egress_facility_id: value.egress_facility_id.clone(),
@@ -273,7 +273,7 @@ mod tests {
     fn pt_route_description_round_trip_preserves_sub_millisecond_boarding_time() {
         let description = InternalPtRouteDescription {
             transit_route_id: "route-1".to_string(),
-            boarding_time: Some(Duration::from_nanos(750_000)),
+            boarding_time: Some(SimTime::from_nanos(750_000)),
             transit_line_id: "line-1".to_string(),
             access_facility_id: "access-1".to_string(),
             egress_facility_id: "egress-1".to_string(),
@@ -282,10 +282,7 @@ mod tests {
         let wire = PtRouteDescription::from(&description);
         let round_trip = InternalPtRouteDescription::from(wire);
 
-        assert_eq!(
-            Some(Duration::from_nanos(750_000)),
-            round_trip.boarding_time
-        );
+        assert_eq!(Some(SimTime::from_nanos(750_000)), round_trip.boarding_time);
     }
 
     #[test]

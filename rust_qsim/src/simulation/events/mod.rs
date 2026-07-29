@@ -530,6 +530,9 @@ pub struct PtTeleportationArrivalEvent {
     pub mode: Id<String>,
     pub route: Id<String>,
     pub line: Id<String>,
+    pub boarding_time: SimTime,
+    pub access_facility: Id<String>,
+    pub egress_facility: Id<String>,
     #[builder(default)]
     pub attributes: InternalAttributes,
 }
@@ -546,6 +549,14 @@ impl PtTeleportationArrivalEvent {
             .mode(Id::create(&event.attributes["mode"].as_string()))
             .route(Id::create(&event.attributes["route"].as_string()))
             .line(Id::create(&event.attributes["line"].as_string()))
+            .boarding_time(SimTime::from_nanos(
+                event.attributes["boardingTimeNs"]
+                    .as_string()
+                    .parse()
+                    .unwrap(),
+            ))
+            .access_facility(Id::create(&event.attributes["accessFacility"].as_string()))
+            .egress_facility(Id::create(&event.attributes["egressFacility"].as_string()))
             .attributes(attrs)
             .build()
             .unwrap()
