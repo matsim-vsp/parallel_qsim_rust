@@ -233,6 +233,18 @@ impl From<&PtTeleportationArrivalEvent> for GenericEvent {
             "line".to_string(),
             AttributeValue::from(value.line.external()),
         );
+        attributes.insert(
+            "boardingTimeNs".to_string(),
+            AttributeValue::from(value.boarding_time.as_nanos().to_string()),
+        );
+        attributes.insert(
+            "accessFacility".to_string(),
+            AttributeValue::from(value.access_facility.external()),
+        );
+        attributes.insert(
+            "egressFacility".to_string(),
+            AttributeValue::from(value.egress_facility.external()),
+        );
         GenericEvent {
             r#type: value.type_().to_string(),
             attributes,

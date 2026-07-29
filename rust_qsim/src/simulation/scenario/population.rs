@@ -232,7 +232,7 @@ pub struct InternalPtRoute {
 #[derive(Debug, PartialEq, Clone)]
 pub struct InternalPtRouteDescription {
     pub transit_route_id: String,
-    pub boarding_time: Option<Duration>,
+    pub boarding_time: Option<SimTime>,
     pub transit_line_id: String,
     pub access_facility_id: String,
     pub egress_facility_id: String,
@@ -422,7 +422,7 @@ impl FromStr for InternalPtRouteDescription {
 
         Ok(InternalPtRouteDescription {
             transit_route_id: trim_quotes(&desc["transitRouteId"]),
-            boarding_time: desc["boardingTime"].as_str().and_then(parse_duration),
+            boarding_time: desc["boardingTime"].as_str().and_then(parse_time),
             transit_line_id: trim_quotes(&desc["transitLineId"]),
             access_facility_id: trim_quotes(&desc["accessFacilityId"]),
             egress_facility_id: trim_quotes(&desc["egressFacilityId"]),
@@ -535,7 +535,7 @@ impl InternalRoute {
                     boarding_time: ptr
                         .description
                         .boarding_time
-                        .map(|t| SimTime::from_duration(t).format_hh_mm_ss_trimmed())
+                        .map(|t| t.format_hh_mm_ss_trimmed())
                         .unwrap_or_else(|| "undefined".to_string()),
                     transit_line_id: ptr.description.transit_line_id,
                     access_facility_id: ptr.description.access_facility_id,
@@ -583,7 +583,7 @@ impl From<PtRouteDescription> for InternalPtRouteDescription {
     fn from(value: PtRouteDescription) -> Self {
         InternalPtRouteDescription {
             transit_route_id: value.transit_route_id,
-            boarding_time: value.boarding_time_ns.map(Duration::from_nanos),
+            boarding_time: value.boarding_time_ns.map(SimTime::from_nanos),
             transit_line_id: value.transit_line_id,
             access_facility_id: value.access_facility_id,
             egress_facility_id: value.egress_facility_id,
