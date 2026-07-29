@@ -1,7 +1,7 @@
 use crate::simulation::messaging::messages::{InternalSimMessage, InternalSyncMessage};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::time::Tick;
-use std::collections::{HashMap, HashSet};
+use nohash_hasher::{IntMap, IntSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Barrier};
 
@@ -15,8 +15,8 @@ pub struct ChannelSimCommunicator {
 impl SimCommunicator for ChannelSimCommunicator {
     fn send_receive_vehicles<F>(
         &self,
-        vehicles: HashMap<u32, InternalSyncMessage>,
-        expected_vehicle_messages: &mut HashSet<u32>,
+        vehicles: IntMap<u32, InternalSyncMessage>,
+        expected_vehicle_messages: &mut IntSet<u32>,
         now: Tick,
         mut on_msg: F,
     ) where
