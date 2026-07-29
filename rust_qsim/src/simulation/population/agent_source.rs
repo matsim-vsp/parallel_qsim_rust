@@ -131,8 +131,7 @@ mod tests {
         Coordinate, MobsimScenarioPartition, PopulationShard, ScenarioCore,
     };
     use macros::deterministic_id_test;
-    use nohash_hasher::{IntMap, IntSet};
-    use std::collections::HashMap;
+    use nohash_hasher::IntMap;
     use std::sync::Arc;
 
     struct TestAgentSource;
