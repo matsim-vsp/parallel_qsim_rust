@@ -1,8 +1,8 @@
-use std::cmp::Ordering;
-
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::network::sim_network::StorageUpdate;
 use crate::simulation::time::Tick;
 use crate::simulation::vehicles::SimulationVehicle;
+use std::cmp::Ordering;
 
 pub enum InternalSimMessage {
     Sync(InternalSyncMessage),
@@ -15,6 +15,7 @@ pub struct InternalSyncMessage {
     from_process: u32,
     to_process: u32,
     vehicles: Vec<SimulationVehicle>,
+    agents: Vec<SimulationAgent>,
     storage_capacities: Vec<StorageUpdate>,
 }
 
@@ -42,12 +43,17 @@ impl InternalSyncMessage {
             from_process: from,
             to_process: to,
             vehicles: Vec::new(),
+            agents: Vec::new(),
             storage_capacities: Vec::new(),
         }
     }
 
     pub fn add_veh(&mut self, vehicle: SimulationVehicle) {
         self.vehicles.push(vehicle);
+    }
+
+    pub fn add_agent(&mut self, agent: SimulationAgent) {
+        self.agents.push(agent);
     }
 
     pub fn add_storage_cap(&mut self, storage_cap: StorageUpdate) {
@@ -74,6 +80,14 @@ impl InternalSyncMessage {
         &mut self.vehicles
     }
 
+    pub fn agents(&self) -> &Vec<SimulationAgent> {
+        &self.agents
+    }
+
+    pub fn agents_mut(&mut self) -> &mut Vec<SimulationAgent> {
+        &mut self.agents
+    }
+
     pub fn storage_capacities(&self) -> &Vec<StorageUpdate> {
         &self.storage_capacities
     }
@@ -84,6 +98,10 @@ impl InternalSyncMessage {
 
     pub fn take_vehicles(&mut self) -> Vec<SimulationVehicle> {
         std::mem::take(&mut self.vehicles)
+    }
+
+    pub fn take_agents(&mut self) -> Vec<SimulationAgent> {
+        std::mem::take(&mut self.agents)
     }
 }
 

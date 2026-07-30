@@ -9,7 +9,6 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::scenario::{MobsimInput, MobsimScenarioPartition};
 use crate::simulation::time::{SimClock, Tick};
-use crate::simulation::vehicles::SimulationVehicle;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tracing::info;
@@ -88,10 +87,10 @@ where
     }
 
     pub(crate) fn is_local_route(
-        veh: &SimulationVehicle,
+        agent: &SimulationAgent,
         message_broker: &NetMessageBroker<C>,
     ) -> bool {
-        let leg = veh.driver().curr_leg();
+        let leg = agent.curr_leg();
         let route = leg.route.as_ref().unwrap();
         let to = message_broker.rank_for_link(route.end_link());
         message_broker.rank() == to

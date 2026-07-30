@@ -1,6 +1,6 @@
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
-use crate::simulation::engines::emit_partition_leave_events;
+use crate::simulation::engines::emit_partition_leave_events_for_vehicle;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::network::sim_network::SimNetworkPartition;
@@ -66,7 +66,12 @@ impl NetworkEngine {
                 veh.curr_link_id()
                     .expect("Vehicles leaving a partition must have a destination link"),
             );
-            emit_partition_leave_events(&mut self.comp_env, &veh, to, self.clock.tick_to_time(now));
+            emit_partition_leave_events_for_vehicle(
+                &mut self.comp_env,
+                &veh,
+                to,
+                self.clock.tick_to_time(now),
+            );
             net_message_broker.add_veh(veh, now);
         }
 

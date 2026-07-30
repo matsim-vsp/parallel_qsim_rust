@@ -4,22 +4,21 @@ use crate::simulation::agents::{
     AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic,
 };
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
-use crate::simulation::engines::emit_partition_leave_events;
+use crate::simulation::engines::emit_partition_leave_events_for_agent;
 use crate::simulation::events::{
     PtTeleportationArrivalEventBuilder, TeleportationArrivalEventBuilder,
 };
 use crate::simulation::id::Id;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
-use crate::simulation::scenario::population::InternalRoute;
+use crate::simulation::scenario::population::{InternalPerson, InternalRoute};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::time::{SimClock, SimTime, Tick};
 use crate::simulation::time_queue::TimeQueue;
-use crate::simulation::vehicles::SimulationVehicle;
 
 pub(crate) struct TeleportationEngine {
-    queue: TimeQueue<TeleportingVehicle, InternalVehicle>,
+    queue: TimeQueue<TeleportingAgent, InternalVehicle>,
     comp_env: ThreadLocalComputationalEnvironment,
     clock: SimClock,
 }
@@ -37,37 +36,37 @@ impl TeleportationEngine {
         self.queue
             .drain()
             .into_iter()
-            .flat_map(|vehicle| vehicle.vehicle.into_agents())
+            .map(|agent| agent.agent)
             .collect()
     }
 
-    pub(crate) fn receive_vehicle<C: SimCommunicator>(
+    pub(crate) fn receive_agent<C: SimCommunicator>(
         &mut self,
         now: Tick,
-        mut vehicle: SimulationVehicle,
+        mut agent: SimulationAgent,
         net_message_broker: &mut NetMessageBroker<C>,
     ) {
         let now_time = self.clock.tick_to_time(now);
-        vehicle.notify_event(&mut AgentEvent::TeleportationStarted(), now_time);
+        agent.notify_event(&mut AgentEvent::TeleportationStarted(), now_time);
 
-        if Simulation::is_local_route(&vehicle, net_message_broker) {
+        if Simulation::is_local_route(&agent, net_message_broker) {
             self.queue
-                .add(TeleportingVehicle::build(vehicle, now_time), now_time);
+                .add(TeleportingAgent::build(agent, now_time), now_time);
         } else {
             let to = net_message_broker.rank_for_link(
-                vehicle
+                agent
                     .curr_link_id()
                     .expect("Remote teleported vehicles must have a destination link"),
             );
-            emit_partition_leave_events(&mut self.comp_env, &vehicle, to, now_time);
-            net_message_broker.add_veh(vehicle, now);
+            emit_partition_leave_events_for_agent(&mut self.comp_env, &agent, to, now_time);
+            net_message_broker.add_agent(agent, now);
         }
     }
 
-    pub fn do_step(&mut self, now: Tick) -> Vec<SimulationVehicle> {
-        let mut teleportation_vehicles = self.queue.pop(self.clock.tick_to_time(now));
-        for teleporting_vehicle in &mut teleportation_vehicles {
-            let agent = teleporting_vehicle.vehicle.driver();
+    pub fn do_step(&mut self, now: Tick) -> Vec<SimulationAgent> {
+        let mut teleportation_agents = self.queue.pop(self.clock.tick_to_time(now));
+        for teleporting_agent in &mut teleportation_agents {
+            let agent = &teleporting_agent.agent;
 
             match agent.curr_leg().route.as_ref().unwrap() {
                 InternalRoute::Generic(_) => self.emit_travelled(now, agent),
@@ -75,9 +74,9 @@ impl TeleportationEngine {
                 InternalRoute::Pt(_) => self.emit_travelled_with_pt(now, agent),
             }
         }
-        teleportation_vehicles
+        teleportation_agents
             .into_iter()
-            .map(|vehicle| vehicle.vehicle)
+            .map(|vehicle| vehicle.agent)
             .collect()
     }
 
@@ -155,36 +154,36 @@ impl TeleportationEngine {
     }
 }
 
-struct TeleportingVehicle {
-    vehicle: SimulationVehicle,
+struct TeleportingAgent {
+    agent: SimulationAgent,
     arrival_time: SimTime,
 }
 
-impl TeleportingVehicle {
-    fn build(vehicle: SimulationVehicle, now: SimTime) -> Self {
-        let arrival_time = vehicle.driver().end_time(now);
+impl TeleportingAgent {
+    fn build(agent: SimulationAgent, now: SimTime) -> Self {
+        let arrival_time = agent.end_time(now);
         Self {
-            vehicle,
+            agent: agent,
             arrival_time,
         }
     }
 }
 
-impl EndTime for TeleportingVehicle {
+impl EndTime for TeleportingAgent {
     fn end_time(&self, _now: SimTime) -> SimTime {
         self.arrival_time
     }
 }
 
-impl Identifiable<InternalVehicle> for TeleportingVehicle {
-    fn id(&self) -> &Id<InternalVehicle> {
-        self.vehicle.id()
+impl Identifiable<InternalPerson> for TeleportingAgent {
+    fn id(&self) -> &Id<InternalPerson> {
+        self.agent.id()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{TeleportationEngine, TeleportingVehicle};
+    use super::{TeleportationEngine, TeleportingAgent};
     use crate::simulation::agents::SimulationAgentLogic;
     use crate::simulation::agents::agent::SimulationAgent;
     use crate::simulation::id::Id;
@@ -194,19 +193,18 @@ mod tests {
         InternalRoute,
     };
     use crate::simulation::time::{SimClock, SimTime, Tick};
-    use crate::simulation::vehicles::SimulationVehicle;
     use macros::deterministic_id_test;
 
     #[deterministic_id_test]
     fn do_step_releases_subsecond_due_vehicle() {
         let clock = SimClock::new(10);
         let mut engine = TeleportationEngine::new(Default::default(), clock);
-        let vehicle = SimulationVehicle::from_parts(1, 0, 10.0, 1.0, create_generic_route_agent(1));
+        let agent = create_generic_route_agent(1);
         let due_time = SimTime::from_nanos(350_000_000);
 
         engine.queue.add(
-            TeleportingVehicle {
-                vehicle,
+            TeleportingAgent {
+                agent,
                 arrival_time: due_time,
             },
             SimTime::from_nanos(0),
