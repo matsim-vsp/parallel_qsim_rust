@@ -7,7 +7,9 @@ use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate
 use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::time::Tick;
 use crate::simulation::vehicles::SimulationVehicle;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use ahash::HashMapExt;
+use nohash_hasher::{IntMap, IntSet};
+use std::collections::BinaryHeap;
 use std::rc::Rc;
 
 pub struct NetMessageBroker<C>
@@ -15,12 +17,12 @@ where
     C: SimCommunicator,
 {
     communicator: Rc<C>,
-    out_messages: HashMap<u32, InternalSyncMessage>,
+    out_messages: IntMap<u32, InternalSyncMessage>,
     in_messages: BinaryHeap<InternalSyncMessage>,
     // store link mapping with internal ids instead of id structs, because vehicles only store internal
     // ids (usize) and this way we don't need to keep a reference to the global network's id store
-    link_mapping: HashMap<Id<Link>, u32>,
-    neighbors: HashSet<u32>,
+    link_mapping: IntMap<Id<Link>, u32>,
+    neighbors: IntSet<u32>,
     global_sync: bool,
 }
 
@@ -140,7 +142,7 @@ where
 
     fn pop_from_cache(
         &mut self,
-        expected_messages: &mut HashSet<u32>,
+        expected_messages: &mut IntSet<u32>,
         messages: &mut Vec<InternalSyncMessage>,
         now: Tick,
     ) {
@@ -154,10 +156,10 @@ where
         }
     }
 
-    fn prepare_send_recv(&mut self, now: Tick) -> HashMap<u32, InternalSyncMessage> {
+    fn prepare_send_recv(&mut self, now: Tick) -> IntMap<u32, InternalSyncMessage> {
         let capacity = self.out_messages.len();
         let mut messages =
-            std::mem::replace(&mut self.out_messages, HashMap::with_capacity(capacity));
+            std::mem::replace(&mut self.out_messages, IntMap::with_capacity(capacity));
 
         for partition in &self.neighbors {
             let neighbor_rank = *partition;

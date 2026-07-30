@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use tracing::error;
+use tracing::{error, info};
 
 pub fn spawn_event_reader(
     file_path: &Path,
@@ -150,7 +150,8 @@ pub fn comparator_thread(
     file1: PathBuf,
     file2: PathBuf,
 ) {
-    let mut event_count = 0;
+    let mut event_count = 0_u64;
+    let mut next_status_event = Some(1_u64);
     let mut last_time: Option<SimTime> = None;
 
     loop {
@@ -180,6 +181,13 @@ pub fn comparator_thread(
                     handle_missing_event(&should_stop, &comparison_result, &events1, id);
                 }
                 // otherwise, all good
+                else {
+                    record_processed_events(
+                        &mut event_count,
+                        &mut next_status_event,
+                        events1.len(),
+                    );
+                }
             }
 
             // wake up the reader threads one last time to let them break their loops
@@ -261,7 +269,11 @@ pub fn comparator_thread(
                 // If times are good, finally compare the batches of events
                 match compare_batch_of_events(&events1, &events2) {
                     Ok(()) => {
-                        event_count += events1.len() as u32;
+                        record_processed_events(
+                            &mut event_count,
+                            &mut next_status_event,
+                            events1.len(),
+                        );
                         last_time = Some(t1);
                     }
                     Err(id) => {
@@ -282,6 +294,23 @@ pub fn comparator_thread(
 
         // wake up the reader threads to let them read the next batches
         barrier.wait();
+    }
+}
+
+fn record_processed_events(
+    event_count: &mut u64,
+    next_status_event: &mut Option<u64>,
+    processed_events: usize,
+) {
+    *event_count += processed_events as u64;
+
+    while let Some(status_event) = *next_status_event {
+        if *event_count < status_event {
+            break;
+        }
+
+        info!("Processed event # {status_event}");
+        *next_status_event = status_event.checked_mul(4);
     }
 }
 
@@ -306,7 +335,7 @@ fn handle_missing_event(
 fn handle_different_event_times(
     should_stop: &Arc<AtomicBool>,
     comparison_result: &Arc<Mutex<Result<(), EventsFileNotEqualError>>>,
-    event_count: &mut u32,
+    event_count: &mut u64,
     events1: &Vec<Box<dyn EventTrait>>,
     events2: &Vec<Box<dyn EventTrait>>,
 ) {

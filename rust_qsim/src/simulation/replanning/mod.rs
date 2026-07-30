@@ -2,8 +2,8 @@ use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::random::get_rng;
 use crate::simulation::scenario::population::{DEFAULT_SUBPOPULATION, InternalPerson, Population};
-use ahash::HashMap;
 use derive_builder::Builder;
+use nohash_hasher::IntMap;
 use rand::RngExt;
 use rayon::prelude::*;
 use std::fmt;
@@ -143,13 +143,13 @@ pub(crate) fn replan_population(
 #[builder(pattern = "owned")]
 pub(crate) struct StrategyManager {
     #[builder(default = "default_weights_per_subpopulation()")]
-    weights_per_subpopulation: HashMap<Id<String>, StrategyWeights>,
+    weights_per_subpopulation: IntMap<Id<String>, StrategyWeights>,
     #[builder(default = "default_max_memory_size()")]
     max_memory_size: usize,
     #[builder(default = "default_plan_remover()")]
     plan_remover: Box<dyn PlanSelector>,
     #[builder(default = "default_strategies()")]
-    strategies: HashMap<Id<String>, Box<dyn PlanStrategy>>,
+    strategies: IntMap<Id<String>, Box<dyn PlanStrategy>>,
 }
 
 impl StrategyManager {
@@ -210,14 +210,8 @@ impl StrategyManager {
             return None;
         }
 
-        let mut rng = get_rng(
-            context.base_seed,
-            (
-                context.iteration,
-                person.id().external(),
-                STRATEGY_RNG_PURPOSE,
-            ),
-        );
+        let stream_id = format!("{}:{}", context.iteration, person.id().external());
+        let mut rng = get_rng(context.base_seed, STRATEGY_RNG_PURPOSE, &stream_id);
 
         // Weighted random selection over positive strategy weights.
         let mut draw = rng.random_range(0.0..total_weight);
@@ -256,8 +250,8 @@ impl Default for StrategyManager {
     }
 }
 
-fn default_weights_per_subpopulation() -> HashMap<Id<String>, StrategyWeights> {
-    let mut weights_per_subpopulation = HashMap::default();
+fn default_weights_per_subpopulation() -> IntMap<Id<String>, StrategyWeights> {
+    let mut weights_per_subpopulation = IntMap::default();
     weights_per_subpopulation.insert(
         Id::create(DEFAULT_SUBPOPULATION),
         StrategyWeights::new(vec![StrategyWeight::new(
@@ -276,8 +270,8 @@ fn default_plan_remover() -> Box<dyn PlanSelector> {
     Box::new(WorstScoreSelector)
 }
 
-fn default_strategies() -> HashMap<Id<String>, Box<dyn PlanStrategy>> {
-    let mut strategies = HashMap::default();
+fn default_strategies() -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
+    let mut strategies = IntMap::default();
     for selector in [
         DefaultSelector::KeepLastSelected,
         DefaultSelector::BestScore,
@@ -300,8 +294,8 @@ fn default_strategies() -> HashMap<Id<String>, Box<dyn PlanStrategy>> {
 
 fn weights_per_subpopulation_from_settings(
     settings: &[config::StrategySetting],
-) -> HashMap<Id<String>, StrategyWeights> {
-    let mut weights_per_subpopulation = HashMap::default();
+) -> IntMap<Id<String>, StrategyWeights> {
+    let mut weights_per_subpopulation = IntMap::default();
     for setting in settings {
         assert_known_strategy_name(&setting.name);
         weights_per_subpopulation
@@ -470,14 +464,8 @@ impl PlanSelector for RandomSelector {
     fn select(&self, person: &InternalPerson, context: &ReplanningContext) -> usize {
         let plan_count = person.plans().len();
         assert!(plan_count > 0, "RandomSelector could not find a plan.");
-        let mut rng = get_rng(
-            context.base_seed,
-            (
-                context.iteration,
-                person.id().external(),
-                RANDOM_SELECTOR_RNG_PURPOSE,
-            ),
-        );
+        let stream_id = format!("{}:{}", context.iteration, person.id().external());
+        let mut rng = get_rng(context.base_seed, RANDOM_SELECTOR_RNG_PURPOSE, &stream_id);
         rng.random_range(0..plan_count)
     }
 }
