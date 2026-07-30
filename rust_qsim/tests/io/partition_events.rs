@@ -59,32 +59,14 @@ fn network_route_emits_partition_events() {
 fn teleported_route_emits_partition_events() {
     let events =
         collect_partition_events("./tests/resources/3-links/3-links-config-2-teleport.yml");
-    assert_eq!(4, events.len(), "unexpected partition events: {:?}", events);
+    assert_eq!(2, events.len(), "unexpected partition events: {:?}", events);
 
-    assert_has_partition_handoff(
-        &events,
-        0,
-        PartitionEvent::VehicleLeavesPartition(VehicleLeavesPartitionEvent {
-            vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_walk"),
-            to: 1,
-            time: SimTime::default(),
-        }),
-    );
     assert_has_partition_handoff(
         &events,
         0,
         PartitionEvent::AgentLeavesPartition(AgentLeavesPartitionEvent {
             agent_id: rust_qsim::simulation::id::Id::get_from_ext("100"),
             to: 1,
-            time: SimTime::default(),
-        }),
-    );
-    assert_has_partition_handoff(
-        &events,
-        1,
-        PartitionEvent::VehicleEntersPartition(VehicleEntersPartitionEvent {
-            vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_walk"),
-            from: 0,
             time: SimTime::default(),
         }),
     );

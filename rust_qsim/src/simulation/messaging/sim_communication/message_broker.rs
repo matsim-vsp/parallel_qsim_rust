@@ -1,3 +1,5 @@
+use crate::simulation::agents::SimulationAgentLogic;
+use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
 use crate::simulation::messaging::messages::InternalSyncMessage;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
@@ -71,6 +73,18 @@ where
         message.add_veh(vehicle);
     }
 
+    pub fn add_agent(&mut self, agent: SimulationAgent, now: impl Into<Tick>) {
+        let now = now.into();
+        let link_id = agent.curr_link_id().unwrap();
+        let partition = *self.link_mapping.get(link_id).unwrap();
+        let rank = self.rank();
+        let message = self
+            .out_messages
+            .entry(partition)
+            .or_insert_with(|| InternalSyncMessage::new(now, rank, partition));
+        message.add_agent(agent);
+    }
+
     pub fn add_cap_update(&mut self, cap: StorageUpdate, now: impl Into<Tick>) {
         let now = now.into();
         let rank = self.rank();
@@ -87,7 +101,7 @@ where
 
     pub fn send_recv(&mut self, now: impl Into<Tick>) -> Vec<InternalSyncMessage> {
         let now = now.into();
-        let vehicles = self.prepare_send_recv_vehicles(now);
+        let vehicles = self.prepare_send_recv(now);
 
         let mut result: Vec<InternalSyncMessage> = Vec::new();
         let mut expected_vehicle_messages = self.neighbors.clone();
@@ -142,7 +156,7 @@ where
         }
     }
 
-    fn prepare_send_recv_vehicles(&mut self, now: Tick) -> IntMap<u32, InternalSyncMessage> {
+    fn prepare_send_recv(&mut self, now: Tick) -> IntMap<u32, InternalSyncMessage> {
         let capacity = self.out_messages.len();
         let mut messages =
             std::mem::replace(&mut self.out_messages, IntMap::with_capacity(capacity));
