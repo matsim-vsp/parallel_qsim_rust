@@ -87,10 +87,20 @@ impl<C: SimCommunicator> LegEngine<C> {
     ///
     /// 1. `move_nodes`
     /// 2. `move_links`
+    /// 3. `send_recv`
     ///
     /// Let's say, a vehicle's earliest exit time is `x`. The `move_links` call puts it into the buffer
     /// at time step `x` (assuming it is free), and the `move_nodes` call at time step `x+1` puts it onto the next link.
     /// The corresponding LinkEnter and LinkLeave events have time step `x+1`
+    ///
+    /// Vehicle's earliest exit time is always >=1 time step. This is required because then the partitioning doesn't matter.
+    /// Let's say, a vehicle starts in step `x` and has travel time 0 time steps. A normal link would put it in the buffer during `x` in `move_links`
+    /// and move it in `move_nodes` during `x+1`.
+    /// A split link would send it during `x` (prepared in `move_links` and executed in `send_recv`), put into the buffer in `move_links`
+    /// during `x+1` and moved over node in `move_nodes` during `x+2`.
+    ///
+    /// So, minimal time on a link is `2` steps. Thus, in the upper case without partitions, the link travel time is 1 time step + 1 time step due to
+    /// `move_nodes`. For all travel times greater than this, it is the same.
     #[instrument(level = "trace", skip(self, agents), fields(rank=self.net_message_broker.rank()))]
     pub(crate) fn do_step(
         &mut self,
