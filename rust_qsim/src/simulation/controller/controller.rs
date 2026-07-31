@@ -24,6 +24,7 @@ use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
 use crate::simulation::scenario::{ControllerScenario, Scenario};
 use crate::simulation::{id, io};
 use derive_more::Debug;
+use fs_extra::dir::CopyOptions;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -292,6 +293,11 @@ impl Controller {
         info!("    ... Population ...");
         self.write_output_population(output_path.clone());
 
+        if self.config.output().write_events == WriteEvents::File {
+            info!("Copying events to main output directory");
+            self.copy_events_file(output_path.clone(), last_iteration);
+        }
+
         self.controller_events_manager
             .process_event(ControllerEvent::shutdown(true));
     }
@@ -456,6 +462,18 @@ impl Controller {
         );
 
         self.scenario.population.to_file(&pop_out_path);
+    }
+
+    fn copy_events_file(&mut self, output_path: impl AsRef<Path>, last_iteration: u32) {
+        let events_folder = output_path
+            .as_ref()
+            .join("ITERS")
+            .join(format!("it.{}", last_iteration))
+            .join("events");
+
+        let options = CopyOptions::new().overwrite(true);
+        fs_extra::dir::copy(events_folder, output_path, &options)
+            .expect("Failed to copy events file");
     }
 
     fn write_output_id_store(output_path: impl AsRef<Path>) {

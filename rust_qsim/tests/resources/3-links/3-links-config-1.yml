@@ -22,6 +22,7 @@ modules:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/execute_3_links_single_part
+    write_events: File
   routing:
     type: Routing
     mode: UsePlans

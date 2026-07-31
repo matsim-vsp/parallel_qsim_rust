@@ -1,8 +1,9 @@
-use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::deterministic_id_test;
 use rust_qsim::simulation::config::Config;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
+use rust_qsim::simulation::events::utils::compare_event_folder;
+use rust_qsim::simulation::scenario::Scenario;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 #[deterministic_id_test(rust_qsim)]
 fn test_berlin_1() {
@@ -17,17 +18,21 @@ fn test_berlin_2() {
 fn test_berlin(parts: u32) {
     let mut config = Config::from_path("./assets/berlin-v6.4/config.yml");
     config.partitioning_mut().num_parts = parts;
-    config.output_mut().output_dir = PathBuf::from(format!(
+    let output_dir = PathBuf::from(format!(
         "./test_output/simulation/berlin-v6.4-0.1pct-{}",
         parts
     ));
+    config.output_mut().output_dir = output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(Some(
-            "./tests/resources/berlin-v6.4-0.1pct/events.0.xml.zst",
-        ))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+
+    compare_event_folder(
+        "./tests/resources/berlin-v6.4-0.1pct",
+        output_dir.join("events"),
+    )
+    .unwrap();
 }

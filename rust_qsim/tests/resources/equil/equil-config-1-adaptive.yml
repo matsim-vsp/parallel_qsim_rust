@@ -21,6 +21,7 @@ modules:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/equil_single_part_adaptive
+    write_events: File
   routing:
     type: Routing
     mode: AdHoc

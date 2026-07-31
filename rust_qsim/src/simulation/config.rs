@@ -1791,12 +1791,12 @@ modules:
     }
 
     #[test]
-    fn read_transit_schedule_file_from_yaml() {
+    fn read_transit_schedule_path_from_yaml() {
         let yaml = r#"
 modules:
   transit:
     type: Transit
-    schedule_file: schedule.xml.gz
+    schedule_path: schedule.xml.gz
 "#;
 
         let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
@@ -1808,18 +1808,18 @@ modules:
     }
 
     #[test]
-    fn test_override_transit_schedule_file() {
+    fn test_override_transit_schedule_path() {
         let yaml = r#"
 modules:
   transit:
     type: Transit
-    schedule_file: schedule.xml
+    schedule_path: schedule.xml
 "#;
         let file = write_temp_config(yaml);
         let args = CommandLineArgs {
             config: file.path().to_str().unwrap().to_string(),
             overrides: vec![(
-                "transit.schedule_file".to_string(),
+                "transit.schedule_path".to_string(),
                 "schedule.binpb".to_string(),
             )],
         };

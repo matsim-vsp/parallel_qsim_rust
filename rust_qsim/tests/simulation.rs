@@ -1,5 +1,3 @@
-mod support;
-
 #[path = "simulation/berlin.rs"]
 pub mod berlin;
 #[path = "simulation/empty.rs"]

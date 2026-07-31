@@ -41,7 +41,7 @@ fn proto_events_convert_to_matching_xml() {
     // assert origin xml = new xml
     let generated_file = PathBuf::from(&output_folder).join("events.xml.gz");
 
-    match utils::compare_xml_event_files(generated_file, expected_file) {
+    match utils::compare_event_files(generated_file, expected_file) {
         Ok(()) => (),
         Err(e) => panic!(
             "Generated XML event file ('file 1') and expected event file ('file 2') differ: {e}"

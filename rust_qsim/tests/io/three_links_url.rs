@@ -33,10 +33,14 @@ fn load_files_from_url_have_content() {
 
     // Load expected events and check if it's not empty
     let events_url = format!("{}/expected_events.xml", BASE_URL);
-    let events =
-        crate::support::simulation_executor::TestSubscriber::expected_events_from_file(&events_url);
+    let events = reqwest::blocking::get(&events_url)
+        .unwrap_or_else(|error| panic!("Failed to fetch events from {events_url}: {error}"))
+        .text()
+        .unwrap_or_else(|error| panic!("Failed to read events from {events_url}: {error}"));
     assert!(
-        !events.is_empty(),
+        events
+            .lines()
+            .any(|line| line.trim_start().starts_with("<event ")),
         "Expected events loaded from URL should not be empty"
     );
 

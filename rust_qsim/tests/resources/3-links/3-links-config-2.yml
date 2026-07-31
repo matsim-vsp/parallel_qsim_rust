@@ -18,6 +18,7 @@ modules:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/execute_3_links_2_parts
+    write_events: File
   simulation:
     type: Simulation
     last_iteration: 0
