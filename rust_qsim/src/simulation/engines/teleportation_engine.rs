@@ -4,21 +4,23 @@ use crate::simulation::agents::{
     AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic,
 };
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
-use crate::simulation::engines::emit_partition_leave_events_for_agent;
+use crate::simulation::engines::{
+    emit_partition_enter_events_for_agent, emit_partition_leave_events_for_agent,
+};
 use crate::simulation::events::{
     PtTeleportationArrivalEventBuilder, TeleportationArrivalEventBuilder,
 };
 use crate::simulation::id::Id;
+use crate::simulation::messaging::messages::ScheduledTeleportation;
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::scenario::population::{InternalPerson, InternalRoute};
-use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::simulation::Simulation;
 use crate::simulation::time::{SimClock, SimTime, Tick};
 use crate::simulation::time_queue::TimeQueue;
 
 pub(crate) struct TeleportationEngine {
-    queue: TimeQueue<TeleportingAgent, InternalVehicle>,
+    queue: TimeQueue<ScheduledTeleportation, InternalPerson>,
     comp_env: ThreadLocalComputationalEnvironment,
     clock: SimClock,
 }
@@ -36,7 +38,7 @@ impl TeleportationEngine {
         self.queue
             .drain()
             .into_iter()
-            .map(|agent| agent.agent)
+            .map(ScheduledTeleportation::into_agent)
             .collect()
     }
 
@@ -48,25 +50,70 @@ impl TeleportationEngine {
     ) {
         let now_time = self.clock.tick_to_time(now);
         agent.notify_event(&mut AgentEvent::TeleportationStarted(), now_time);
+        let end_time = agent.end_time(now_time);
+        let teleportation = ScheduledTeleportation::new(agent, end_time);
 
-        if Simulation::is_local_route(&agent, net_message_broker) {
-            self.queue
-                .add(TeleportingAgent::build(agent, now_time), now_time);
+        if Simulation::is_local_route(teleportation.agent(), net_message_broker) {
+            self.enqueue(teleportation, now_time);
         } else {
             let to = net_message_broker.rank_for_link(
-                agent
+                teleportation
+                    .agent()
                     .curr_link_id()
                     .expect("Remote teleported vehicles must have a destination link"),
             );
-            emit_partition_leave_events_for_agent(&mut self.comp_env, &agent, to, now_time);
-            net_message_broker.add_agent(agent, now);
+            emit_partition_leave_events_for_agent(
+                &mut self.comp_env,
+                teleportation.agent(),
+                to,
+                now_time,
+            );
+            net_message_broker.add_teleportation(teleportation, now);
         }
+    }
+
+    pub(crate) fn receive_remote_agent(
+        &mut self,
+        now: Tick,
+        teleportation: ScheduledTeleportation,
+        from: u32,
+        to: u32,
+    ) {
+        let due_tick = self.clock.time_to_tick(teleportation.end_time());
+        assert!(
+            now < due_tick,
+            "Remote teleportation for agent {} from partition {} to partition {} arrived at tick {} after its queue-processing deadline: end time {}, due tick {}. This might happen\
+            if teleportation messages are received one time step later than expected. To mitigate this problem, you might enable the global sync.",
+            teleportation.id().external(),
+            from,
+            to,
+            now.value(),
+            teleportation.end_time(),
+            due_tick.value(),
+        );
+
+        let now_time = self.clock.tick_to_time(now);
+        emit_partition_enter_events_for_agent(
+            &mut self.comp_env,
+            teleportation.agent(),
+            from,
+            now_time,
+        );
+        self.enqueue(teleportation, now_time);
+    }
+
+    fn enqueue(&mut self, teleportation: ScheduledTeleportation, now: SimTime) {
+        // Using the internal id is stable since...
+        // ... either proto ids were used (by definition stable)
+        // ... or the agent was loaded via XML and sorted by external id before creating internal ids. paul, jul'26
+        let stable_order = teleportation.id().internal();
+        self.queue.add_with_order(teleportation, now, stable_order);
     }
 
     pub fn do_step(&mut self, now: Tick) -> Vec<SimulationAgent> {
         let mut teleportation_agents = self.queue.pop(self.clock.tick_to_time(now));
         for teleporting_agent in &mut teleportation_agents {
-            let agent = &teleporting_agent.agent;
+            let agent = teleporting_agent.agent();
 
             match agent.curr_leg().route.as_ref().unwrap() {
                 InternalRoute::Generic(_) => self.emit_travelled(now, agent),
@@ -76,7 +123,7 @@ impl TeleportationEngine {
         }
         teleportation_agents
             .into_iter()
-            .map(|vehicle| vehicle.agent)
+            .map(ScheduledTeleportation::into_agent)
             .collect()
     }
 
@@ -154,46 +201,26 @@ impl TeleportationEngine {
     }
 }
 
-struct TeleportingAgent {
-    agent: SimulationAgent,
-    arrival_time: SimTime,
-}
-
-impl TeleportingAgent {
-    fn build(agent: SimulationAgent, now: SimTime) -> Self {
-        let arrival_time = agent.end_time(now);
-        Self {
-            agent: agent,
-            arrival_time,
-        }
-    }
-}
-
-impl EndTime for TeleportingAgent {
-    fn end_time(&self, _now: SimTime) -> SimTime {
-        self.arrival_time
-    }
-}
-
-impl Identifiable<InternalPerson> for TeleportingAgent {
-    fn id(&self) -> &Id<InternalPerson> {
-        self.agent.id()
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{TeleportationEngine, TeleportingAgent};
-    use crate::simulation::agents::SimulationAgentLogic;
+    use super::TeleportationEngine;
+    use crate::simulation::Identifiable;
     use crate::simulation::agents::agent::SimulationAgent;
+    use crate::simulation::agents::{
+        AgentEvent, EndTime, EnvironmentalEventObserver, SimulationAgentLogic, SimulationAgentState,
+    };
     use crate::simulation::id::Id;
+    use crate::simulation::messaging::messages::ScheduledTeleportation;
     use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::population::{
         InternalActivity, InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan,
         InternalRoute,
     };
     use crate::simulation::time::{SimClock, SimTime, Tick};
     use macros::deterministic_id_test;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[deterministic_id_test]
     fn do_step_releases_subsecond_due_vehicle() {
@@ -203,10 +230,7 @@ mod tests {
         let due_time = SimTime::from_nanos(350_000_000);
 
         engine.queue.add(
-            TeleportingAgent {
-                agent,
-                arrival_time: due_time,
-            },
+            ScheduledTeleportation::new(agent, due_time),
             SimTime::from_nanos(0),
         );
 
@@ -215,6 +239,174 @@ mod tests {
 
         let ready = engine.do_step(Tick::new(4));
         assert_eq!(ready.len(), 1);
+    }
+
+    #[deterministic_id_test]
+    fn remote_agent_received_before_due_uses_sender_end_time() {
+        let clock = SimClock::new(1);
+        let mut engine = TeleportationEngine::new(Default::default(), clock);
+        let agent = create_generic_route_agent(1);
+        let sender_end_time = SimTime::from_secs(4);
+
+        engine.receive_remote_agent(
+            Tick::new(3),
+            ScheduledTeleportation::new(agent, sender_end_time),
+            1,
+            2,
+        );
+
+        assert!(engine.do_step(Tick::new(3)).is_empty());
+        let ready = engine.do_step(Tick::new(4));
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].id().external(), "1");
+    }
+
+    #[deterministic_id_test]
+    fn remote_agent_received_at_or_after_due_tick_panics() {
+        for (id, receive_tick) in [(1, 4), (2, 5)] {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let clock = SimClock::new(1);
+                let mut engine = TeleportationEngine::new(Default::default(), clock);
+                engine.receive_remote_agent(
+                    Tick::new(receive_tick),
+                    ScheduledTeleportation::new(
+                        create_generic_route_agent(id),
+                        SimTime::from_secs(4),
+                    ),
+                    1,
+                    2,
+                );
+            }));
+
+            assert!(result.is_err(), "receive tick {receive_tick} must panic");
+        }
+    }
+
+    #[deterministic_id_test]
+    fn simultaneous_teleportations_use_person_id_order() {
+        let clock = SimClock::new(1);
+        let mut engine = TeleportationEngine::new(Default::default(), clock);
+        let agents = [
+            create_generic_route_agent(1),
+            create_generic_route_agent(2),
+            create_generic_route_agent(3),
+        ];
+        let [agent_1, agent_2, agent_3] = agents;
+
+        for agent in [agent_3, agent_1, agent_2] {
+            engine.enqueue(
+                ScheduledTeleportation::new(agent, SimTime::from_secs(10)),
+                SimTime::default(),
+            );
+        }
+
+        let ids: Vec<_> = engine
+            .do_step(Tick::new(10))
+            .into_iter()
+            .map(|agent| agent.id().external().to_owned())
+            .collect();
+        assert_eq!(ids, vec!["1", "2", "3"]);
+    }
+
+    #[deterministic_id_test]
+    fn remote_receive_does_not_restart_teleportation() {
+        let started = Arc::new(AtomicUsize::new(0));
+        let logic = CountingTeleportationLogic {
+            delegate: create_generic_route_agent(1),
+            started: Arc::clone(&started),
+        };
+        let mut agent = SimulationAgent::new(Box::new(logic));
+        agent.notify_event(
+            &mut AgentEvent::TeleportationStarted(),
+            SimTime::from_secs(1),
+        );
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+
+        let clock = SimClock::new(1);
+        let mut engine = TeleportationEngine::new(Default::default(), clock);
+        engine.receive_remote_agent(
+            Tick::new(2),
+            ScheduledTeleportation::new(agent, SimTime::from_secs(4)),
+            1,
+            2,
+        );
+
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+        assert!(engine.do_step(Tick::new(3)).is_empty());
+        assert_eq!(engine.do_step(Tick::new(4)).len(), 1);
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+    }
+
+    struct CountingTeleportationLogic {
+        delegate: SimulationAgent,
+        started: Arc<AtomicUsize>,
+    }
+
+    impl EndTime for CountingTeleportationLogic {
+        fn end_time(&self, now: SimTime) -> SimTime {
+            self.delegate.end_time(now)
+        }
+    }
+
+    impl Identifiable<InternalPerson> for CountingTeleportationLogic {
+        fn id(&self) -> &Id<InternalPerson> {
+            self.delegate.id()
+        }
+    }
+
+    impl EnvironmentalEventObserver for CountingTeleportationLogic {
+        fn notify_event(&mut self, event: &mut AgentEvent, now: SimTime) {
+            if matches!(event, AgentEvent::TeleportationStarted()) {
+                self.started.fetch_add(1, Ordering::SeqCst);
+            }
+            self.delegate.notify_event(event, now);
+        }
+    }
+
+    impl SimulationAgentLogic for CountingTeleportationLogic {
+        fn curr_act(&self) -> &InternalActivity {
+            self.delegate.curr_act()
+        }
+
+        fn next_act(&self) -> &InternalActivity {
+            self.delegate.next_act()
+        }
+
+        fn curr_leg(&self) -> &InternalLeg {
+            self.delegate.curr_leg()
+        }
+
+        fn next_leg(&self) -> Option<&InternalLeg> {
+            self.delegate.next_leg()
+        }
+
+        fn advance_plan(&mut self, now: SimTime) {
+            self.delegate.advance_plan(now);
+        }
+
+        fn state(&self) -> SimulationAgentState {
+            self.delegate.state()
+        }
+
+        fn is_wanting_to_arrive_on_current_link(&self) -> bool {
+            self.delegate.is_wanting_to_arrive_on_current_link()
+        }
+
+        fn curr_link_id(&self) -> Option<&Id<Link>> {
+            self.delegate.curr_link_id()
+        }
+
+        fn peek_next_link_id(&self) -> Option<&Id<Link>> {
+            self.delegate.peek_next_link_id()
+        }
+
+        fn wakeup_time(&self, now: SimTime) -> SimTime {
+            self.delegate.wakeup_time(now)
+        }
+
+        fn into_person(self: Box<Self>) -> Option<InternalPerson> {
+            self.delegate.into_person()
+        }
     }
 
     fn create_generic_route_agent(id: u64) -> SimulationAgent {

@@ -1,7 +1,6 @@
 use crate::simulation::agents::SimulationAgentLogic;
-use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::id::Id;
-use crate::simulation::messaging::messages::InternalSyncMessage;
+use crate::simulation::messaging::messages::{InternalSyncMessage, ScheduledTeleportation};
 use crate::simulation::messaging::sim_communication::SimCommunicator;
 use crate::simulation::network::sim_network::{SimNetworkPartition, StorageUpdate};
 use crate::simulation::scenario::network::{Link, Network};
@@ -73,16 +72,20 @@ where
         message.add_veh(vehicle);
     }
 
-    pub fn add_agent(&mut self, agent: SimulationAgent, now: impl Into<Tick>) {
+    pub(crate) fn add_teleportation(
+        &mut self,
+        teleportation: ScheduledTeleportation,
+        now: impl Into<Tick>,
+    ) {
         let now = now.into();
-        let link_id = agent.curr_link_id().unwrap();
+        let link_id = teleportation.agent().curr_link_id().unwrap();
         let partition = *self.link_mapping.get(link_id).unwrap();
         let rank = self.rank();
         let message = self
             .out_messages
             .entry(partition)
             .or_insert_with(|| InternalSyncMessage::new(now, rank, partition));
-        message.add_agent(agent);
+        message.add_teleportation(teleportation);
     }
 
     pub fn add_cap_update(&mut self, cap: StorageUpdate, now: impl Into<Tick>) {

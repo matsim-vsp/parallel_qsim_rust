@@ -3,12 +3,10 @@ use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
 use crate::simulation::config::QSim;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::engines::emit_partition_enter_events_for_vehicle;
 use crate::simulation::engines::leg_engine::ResponsibleEngine::{Leg, Teleportation};
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
-use crate::simulation::engines::{
-    emit_partition_enter_events_for_agent, emit_partition_enter_events_for_vehicle,
-};
 use crate::simulation::events::{
     PersonArrivalEventBuilder, PersonDepartureEventBuilder, PersonEntersVehicleEventBuilder,
     PersonLeavesVehicleEventBuilder,
@@ -134,14 +132,13 @@ impl<C: SimCommunicator> LegEngine<C> {
                 self.pass_to_leg_vehicle(now, veh, false);
             }
 
-            for agent in msg.take_agents() {
-                emit_partition_enter_events_for_agent(
-                    &mut self.comp_env,
-                    &agent,
+            for teleportation in msg.take_teleportations() {
+                self.teleportation_engine.receive_remote_agent(
+                    now,
+                    teleportation,
                     from,
-                    self.clock.tick_to_time(now),
+                    self.net_message_broker.rank(),
                 );
-                self.pass_to_teleportation(now, agent);
             }
         }
 
