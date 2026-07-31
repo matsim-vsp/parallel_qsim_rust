@@ -108,7 +108,7 @@ fn compare_published_batches(
 
         if time1 != time2 {
             error!(
-                "Event sources differ starting at event #{event_count}: time {time1} in {} and {time2} in {}",
+                "Event sources differ starting at event #{event_count+1}: time {time1} in {} and {time2} in {}",
                 source1.display(),
                 source2.display()
             );

@@ -472,8 +472,15 @@ impl Controller {
             .join("events");
 
         let options = CopyOptions::new().overwrite(true);
-        fs_extra::dir::copy(events_folder, output_path, &options)
-            .expect("Failed to copy events file");
+        fs_extra::dir::copy(&events_folder, output_path.as_ref(), &options).unwrap_or_else(
+            |error| {
+                panic!(
+                    "Failed to copy events folder from {} to {}: {error}",
+                    events_folder.display(),
+                    output_path.as_ref().display()
+                )
+            },
+        );
     }
 
     fn write_output_id_store(output_path: impl AsRef<Path>) {

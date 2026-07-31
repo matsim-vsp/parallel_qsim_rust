@@ -279,7 +279,7 @@ impl Display for EventsFileNotEqualError {
             }
             EventsFileNotEqualError::MissingEvent { event } => write!(
                 f,
-                "No identical event found in source 2 for an {event} in source 1."
+                "No identical event found in source 2 for {event} in source 1."
             ),
         }
     }
