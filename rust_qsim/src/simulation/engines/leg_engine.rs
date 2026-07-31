@@ -3,12 +3,10 @@ use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::agents::{SimulationAgentLogic, SimulationAgentState};
 use crate::simulation::config::QSim;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
+use crate::simulation::engines::emit_partition_enter_events_for_vehicle;
 use crate::simulation::engines::leg_engine::ResponsibleEngine::{Leg, Teleportation};
 use crate::simulation::engines::network_engine::NetworkEngine;
 use crate::simulation::engines::teleportation_engine::TeleportationEngine;
-use crate::simulation::engines::{
-    emit_partition_enter_events_for_agent, emit_partition_enter_events_for_vehicle,
-};
 use crate::simulation::events::{
     PersonArrivalEventBuilder, PersonDepartureEventBuilder, PersonEntersVehicleEventBuilder,
     PersonLeavesVehicleEventBuilder,
@@ -87,10 +85,20 @@ impl<C: SimCommunicator> LegEngine<C> {
     ///
     /// 1. `move_nodes`
     /// 2. `move_links`
+    /// 3. `send_recv`
     ///
     /// Let's say, a vehicle's earliest exit time is `x`. The `move_links` call puts it into the buffer
     /// at time step `x` (assuming it is free), and the `move_nodes` call at time step `x+1` puts it onto the next link.
     /// The corresponding LinkEnter and LinkLeave events have time step `x+1`
+    ///
+    /// Vehicle's earliest exit time is always >=1 time step. This is required because then the partitioning doesn't matter.
+    /// Let's say, a vehicle starts in step `x` and has travel time 0 time steps. A normal link would put it in the buffer during `x` in `move_links`
+    /// and move it in `move_nodes` during `x+1`.
+    /// A split link would send it during `x` (prepared in `move_links` and executed in `send_recv`), put into the buffer in `move_links`
+    /// during `x+1` and moved over node in `move_nodes` during `x+2`.
+    ///
+    /// So, minimal time on a link is `2` steps. Thus, in the upper case without partitions, the link travel time is 1 time step + 1 time step due to
+    /// `move_nodes`. For all travel times greater than this, it is the same.
     #[instrument(level = "trace", skip(self, agents), fields(rank=self.net_message_broker.rank()))]
     pub(crate) fn do_step(
         &mut self,
@@ -124,14 +132,13 @@ impl<C: SimCommunicator> LegEngine<C> {
                 self.pass_to_leg_vehicle(now, veh, false);
             }
 
-            for agent in msg.take_agents() {
-                emit_partition_enter_events_for_agent(
-                    &mut self.comp_env,
-                    &agent,
+            for teleportation in msg.take_teleportations() {
+                self.teleportation_engine.receive_remote_agent(
+                    now,
+                    teleportation,
                     from,
-                    self.clock.tick_to_time(now),
+                    self.net_message_broker.rank(),
                 );
-                self.pass_to_teleportation(now, agent);
             }
         }
 

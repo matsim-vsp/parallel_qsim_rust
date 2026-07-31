@@ -9,7 +9,7 @@ use std::collections::BinaryHeap;
 
 struct Entry<T> {
     end_time: SimTime,
-    order: usize,
+    order: u64,
     value: T,
 }
 
@@ -41,7 +41,7 @@ impl<T> Ord for Entry<T> {
 /// TimeQueue provides a priority queue ordered by time with stable FIFO ordering
 /// for entries with the same time.
 ///
-/// Note: The internal counter will wrap around after usize::MAX insertions (2^64 on 64-bit systems).
+/// Note: The internal counter will wrap around after u64::MAX insertions.
 /// This is acceptable for simulation purposes as it would take an astronomically large number
 /// of insertions to overflow, and wrapping would only affect ordering in the unlikely event
 /// of having entries with both the same time and counter values after overflow.
@@ -50,7 +50,7 @@ where
     T: EndTime,
 {
     q: BinaryHeap<Entry<T>>,
-    counter: usize,
+    counter: u64,
     _phantom: std::marker::PhantomData<I>,
 }
 
@@ -76,9 +76,15 @@ where
     }
 
     pub fn add(&mut self, value: T, now: SimTime) {
-        let end_time = value.end_time(now);
         let order = self.counter;
         self.counter = self.counter.wrapping_add(1);
+        self.add_with_order(value, now, order);
+    }
+
+    /// Adds a value using an explicit tie-break order for entries with the same end time.
+    /// Callers must provide unique, stable order values for their entries.
+    pub fn add_with_order(&mut self, value: T, now: SimTime, order: u64) {
+        let end_time = value.end_time(now);
         self.q.push(Entry {
             end_time,
             order,
@@ -237,6 +243,28 @@ mod tests {
         assert_eq!(results[0].id, 1);
         assert_eq!(results[1].id, 2);
         assert_eq!(results[2].id, 3);
+    }
+
+    #[test]
+    fn test_time_queue_explicit_order_is_independent_of_insertion_order() {
+        let mut queue: TimeQueue<TestItem, ()> = TimeQueue::new();
+        for id in [3, 1, 2] {
+            queue.add_with_order(
+                TestItem {
+                    id,
+                    end: SimTime::from_secs(10),
+                },
+                SimTime::from_secs(0),
+                u64::from(id),
+            );
+        }
+
+        let ids: Vec<_> = queue
+            .pop(SimTime::from_secs(10))
+            .into_iter()
+            .map(|item| item.id)
+            .collect();
+        assert_eq!(ids, vec![1, 2, 3]);
     }
 
     #[test]

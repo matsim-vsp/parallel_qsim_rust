@@ -19,7 +19,11 @@ pub(crate) fn load_from_xml(
     path: impl AsRef<Path>,
     garage: &mut Garage,
 ) -> IntMap<Id<InternalPerson>, InternalPerson> {
-    let io_pop = IOPopulation::from_file(path);
+    let mut io_pop = IOPopulation::from_file(path);
+
+    info!("Sorting population by id.");
+    io_pop.persons.sort_by(|a, b| a.id.cmp(&b.id));
+
     create_ids(&io_pop, garage);
     create_population(io_pop)
 }
@@ -398,6 +402,10 @@ pub struct IOPopulation {
 
 impl IOPopulation {
     pub fn from_file(file_path: impl AsRef<Path>) -> IOPopulation {
+        info!(
+            "IOPopulation: Reading population from file {}",
+            file_path.as_ref().display()
+        );
         let population: IOPopulation = xml::read_from_file(file_path);
         info!(
             "IOPopulation: Finished reading population. Population contains {} persons",

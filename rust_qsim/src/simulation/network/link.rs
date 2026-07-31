@@ -294,7 +294,12 @@ impl LocalLink {
 
     fn push_veh_to_queue(&mut self, vehicle: SimulationVehicle, now: Tick) {
         let speed = self.free_speed.min(vehicle.max_v());
-        let duration = self.clock.secs_to_ticks_floor(self.length / speed as f64);
+        // Requiring one queue-travel tick prevents a local zero-tick link from advancing one phase
+        // earlier than the same link split across partitions.
+        let duration = self
+            .clock
+            .secs_to_ticks_floor(self.length / speed)
+            .max(Tick::new(1));
         let earliest_exit_time = now.saturating_add(duration);
 
         // update state

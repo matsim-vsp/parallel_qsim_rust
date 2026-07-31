@@ -865,19 +865,20 @@ mod tests {
     #[deterministic_id_test]
     fn merge_throughput_follows_buffer_weighted_selection() {
         let mut global_network = Network::new();
-        add_test_nodes(&mut global_network, &["SA", "SB", "K", "T"]);
+        add_test_nodes(&mut global_network, &["SA", "SB", "K", "T", "TT"]);
         add_test_link(&mut global_network, "A", "SA", "K", 1.0, 3600.0, 100.0);
         add_test_link(&mut global_network, "B", "SB", "K", 1.0, 7200.0, 100.0);
-        add_test_link(&mut global_network, "C", "K", "T", 15.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "C", "K", "T", 30.0, 7200.0, 100.0);
+        add_test_link(&mut global_network, "D", "T", "TT", 30.0, 14_400.0, 100.0);
 
         let mut network =
             SimNetworkPartition::from_network_for_test(&global_network, 0, &test_utils::config());
-        set_node_rng(&mut network, "K", 4711);
+        set_node_rng(&mut network, "K", 4712);
         for id in 1..=10_000 {
-            network.send_veh_en_route(test_vehicle(id, vec!["A", "C"]), None, 0);
+            network.send_veh_en_route(test_vehicle(id, vec!["A", "C", "D"]), None, 0);
         }
         for id in 10_001..=30_000 {
-            network.send_veh_en_route(test_vehicle(id, vec!["B", "C"]), None, 0);
+            network.send_veh_en_route(test_vehicle(id, vec!["B", "C", "D"]), None, 0);
         }
 
         let (mut env, events) = environment_with_transition_events();
@@ -1617,8 +1618,9 @@ mod tests {
             unreachable!()
         };
 
-        // Not 1000 but 992 because at the beginning link3 is not saturated.
-        assert_eq!(link1 + link2, 992);
+        // Not 1000 but 993 because at the beginning link3 is not saturated and its first
+        // queue-to-buffer transition now observes the minimum travel tick.
+        assert_eq!(link1 + link2, 993);
 
         // link1 has flow cap of 1 veh/s, link2 has flow cap of 2 veh/s.
         // Since all go from link1 and link2 to link3 (flow cap: 1 veh/s), there is only one vehicle per time step moved over the node.
