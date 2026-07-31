@@ -1,5 +1,3 @@
-mod support;
-
 #[path = "io/events.rs"]
 mod events;
 #[path = "io/partition_events.rs"]

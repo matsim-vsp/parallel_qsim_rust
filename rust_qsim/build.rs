@@ -10,6 +10,7 @@ fn main() {
         "src/simulation/io/proto/types/ids.proto",
         "src/simulation/io/proto/types/network.proto",
         "src/simulation/io/proto/types/population.proto",
+        "src/simulation/io/proto/types/transit.proto",
         "src/simulation/io/proto/types/vehicles.proto",
         "src/external_services/routing/routing.proto",
     ];

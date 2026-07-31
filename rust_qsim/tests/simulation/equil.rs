@@ -1,4 +1,3 @@
-use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::deterministic_id_test;
 use rust_qsim::external_services::routing::{
     InternalRoutingRequest, InternalRoutingRequestPayload, InternalRoutingResponse,
@@ -8,15 +7,17 @@ use rust_qsim::external_services::{
     RequestAdapterFactory,
 };
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
+use rust_qsim::simulation::events::utils::compare_event_folder;
 use rust_qsim::simulation::id::{Id, store_to_file};
 use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
-use rust_qsim::simulation::scenario::Coordinate;
 use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::scenario::population::{
     InternalPlanElement, PREPLANNING_HORIZON, Population,
 };
 use rust_qsim::simulation::scenario::vehicles::Garage;
+use rust_qsim::simulation::scenario::{Coordinate, Scenario};
 use rust_qsim::simulation::time::SimTime;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -43,14 +44,19 @@ where
 #[deterministic_id_test(rust_qsim)]
 fn equil_single_part_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-1.yml");
-    let config = Arc::new(Config::from_args(config_args));
+    let config = Config::from_args(config_args);
+    let output_dir = config.output().output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(config)
-        .expected_events(Some("./tests/resources/equil/expected_events.xml"))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+    compare_event_folder(
+        "./tests/resources/equil/expected_events",
+        output_dir.join("events"),
+    )
+    .unwrap();
 }
 
 #[deterministic_id_test(rust_qsim)]
@@ -60,27 +66,36 @@ fn equil_single_part_with_10_ticks_per_second_matches_expected_events() {
     config.qsim_mut().ticks_per_second = 10;
     config.output_mut().output_dir =
         PathBuf::from("./test_output/simulation/equil_single_part_10_ticks_per_second");
-    let config = Arc::new(config);
+    let output_dir = config.output().output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(config)
-        .expected_events(Some("./tests/resources/equil/expected_events_10_ticks.xml"))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+    compare_event_folder(
+        "./tests/resources/equil/expected_events_10_ticks",
+        output_dir.join("events"),
+    )
+    .unwrap();
 }
 
 #[deterministic_id_test(rust_qsim)]
 fn equil_two_parts_matches_expected_events() {
     let config_args = CommandLineArgs::new_with_path("./tests/resources/equil/equil-config-2.yml");
-    let config = Arc::new(Config::from_args(config_args));
+    let config = Config::from_args(config_args);
+    let output_dir = config.output().output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(config)
-        .expected_events(Some("./tests/resources/equil/expected_events.xml"))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+    compare_event_folder(
+        "./tests/resources/equil/expected_events",
+        output_dir.join("events"),
+    )
+    .unwrap();
 }
 
 #[deterministic_id_test(rust_qsim)]
@@ -106,7 +121,7 @@ fn equil_full_population_two_parts_runs() {
 fn equil_adaptive_planning_without_external_service_panics() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
-    let expected_events = "./tests/resources/equil/expected_events.xml";
+    let expected_events = "./tests/resources/equil/expected_events";
 
     // panics because no external service is provided
     execute_adaptive(
@@ -123,7 +138,7 @@ fn equil_adaptive_planning_without_external_service_panics() {
 fn equil_adaptive_planning_single_part_matches_expected_events() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_single_part_adaptive/");
     let config_path = "./tests/resources/equil/equil-config-1-adaptive.yml".to_string();
-    let expected_events = "./tests/resources/equil/expected_events.xml";
+    let expected_events = "./tests/resources/equil/expected_events";
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
@@ -161,7 +176,7 @@ fn equil_adaptive_planning_single_part_matches_expected_events() {
 fn equil_adaptive_planning_two_parts_matches_expected_events() {
     let test_dir = PathBuf::from("./test_output/simulation/equil_with_channels-adaptive/");
     let config_path = "./tests/resources/equil/equil-config-2-adaptive.yml".to_string();
-    let expected_events = "./tests/resources/equil/expected_events.xml";
+    let expected_events = "./tests/resources/equil/expected_events";
 
     let mock_routing_adapter = MockRoutingAdapterFactory::default();
 
@@ -243,12 +258,11 @@ fn execute_equil_with_population(
     config.population_mut().path = Some(population_path.into());
     config.output_mut().output_dir = output_dir.into();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 }
 
 fn execute_adaptive(
@@ -275,14 +289,15 @@ fn execute_adaptive(
 
     create_resources(&test_dir, f);
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .agent_source(Arc::new(PreplanningHorizonAgentSource))
-        .expected_events(Some(expected_events))
+    let output_dir = config.output().output_dir.clone();
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
+        .agent_source(PreplanningHorizonAgentSource)
         .external_services(map)
         .adapter_handles(adapter_handles)
         .global_barrier(global_barrier)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+    compare_event_folder(expected_events, output_dir.join("events")).unwrap();
 }

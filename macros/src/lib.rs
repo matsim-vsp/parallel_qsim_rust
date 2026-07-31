@@ -22,6 +22,7 @@ pub fn deterministic_id_test(attr: TokenStream, item: TokenStream) -> TokenStrea
         #[test]
         #[serial_test::serial]
         fn #fn_name() #fn_return_type {
+            #module_path::simulation::logging::init_std_out_logging_thread_local();
             #module_path::simulation::id::reset_store();
             #fn_body
         }

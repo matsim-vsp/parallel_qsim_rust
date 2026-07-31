@@ -7,9 +7,9 @@ use tracing::info;
 
 use rust_qsim::simulation::config::PartitionMethod;
 use rust_qsim::simulation::id::Id;
-use rust_qsim::simulation::pt::TransitSchedule;
 use rust_qsim::simulation::scenario::network::{Link, Network};
 use rust_qsim::simulation::scenario::population::Population;
+use rust_qsim::simulation::scenario::transit::TransitSchedule;
 use rust_qsim::simulation::scenario::vehicles::Garage;
 
 #[derive(Parser, Debug)]
@@ -34,10 +34,10 @@ fn main() {
 
     let mut veh = Garage::from_file(&args.vehicles);
     let mut net = Network::from_file_path(&args.network, 1, &PartitionMethod::None);
-    if let Some(transit_schedule) = args.transit_schedule.as_ref() {
-        // For now, we only read the transit schedule to extract the ids. It is not used in the simulation.
-        TransitSchedule::from_file(transit_schedule);
-    }
+    let transit_schedule = args
+        .transit_schedule
+        .as_ref()
+        .map(|path| TransitSchedule::from_file(path));
     let pop = Population::from_file(&args.population, &mut veh);
 
     let cmp_weights = compute_computational_weights(&pop);
@@ -47,6 +47,9 @@ fn main() {
     net.to_file(&create_file_path(&args, "network"));
     veh.to_file(&create_file_path(&args, "vehicles"));
     pop.to_file(&create_file_path(&args, "plans"));
+    if let Some(transit_schedule) = transit_schedule.as_ref() {
+        transit_schedule.to_file(&create_file_path(&args, "transit_schedule"));
+    }
     info!("Finished conversion. Exiting.")
 }
 

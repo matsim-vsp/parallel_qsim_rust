@@ -5,6 +5,7 @@ use tracing::info;
 
 use crate::simulation::io::xml;
 use crate::simulation::io::xml::attributes::IOAttributes;
+use crate::simulation::scenario::transit::TransitSchedule;
 
 pub fn load_from_xml(path: &Path) -> IOTransitSchedule {
     let io_schedule = IOTransitSchedule::from_file(path.to_str().unwrap());
@@ -23,6 +24,15 @@ pub fn load_from_xml(path: &Path) -> IOTransitSchedule {
     );
 
     io_schedule
+}
+
+pub fn write_to_xml(schedule: &TransitSchedule, path: &Path) {
+    info!("Writing transit schedule to XML at {path:?}");
+    xml::write_to_file(
+        &IOTransitSchedule::from(schedule),
+        path,
+        "<!DOCTYPE transitSchedule SYSTEM \"http://www.matsim.org/files/dtd/transitSchedule_v2.dtd\">",
+    );
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -61,15 +71,15 @@ pub struct IOStopFacility {
     pub x: f64,
     #[serde(rename = "@y")]
     pub y: f64,
-    #[serde(rename = "@z")]
+    #[serde(rename = "@z", skip_serializing_if = "Option::is_none")]
     pub z: Option<f64>,
-    #[serde(rename = "@linkRefId")]
+    #[serde(rename = "@linkRefId", skip_serializing_if = "Option::is_none")]
     pub link_ref_id: Option<String>,
-    #[serde(rename = "@name")]
+    #[serde(rename = "@name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(rename = "@stopAreaId")]
+    #[serde(rename = "@stopAreaId", skip_serializing_if = "Option::is_none")]
     pub stop_area_id: Option<String>,
-    #[serde(rename = "@isBlocking")]
+    #[serde(rename = "@isBlocking", skip_serializing_if = "Option::is_none")]
     pub is_blocking: Option<bool>,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<IOAttributes>,
@@ -95,7 +105,7 @@ pub struct IOMinimalTransferRelation {
 pub struct IOTransitLine {
     #[serde(rename = "@id")]
     pub id: String,
-    #[serde(rename = "@name")]
+    #[serde(rename = "@name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<IOAttributes>,
@@ -107,7 +117,7 @@ pub struct IOTransitLine {
 pub struct IOTransitRoute {
     #[serde(rename = "@id")]
     pub id: String,
-    #[serde(rename = "description")]
+    #[serde(rename = "description", skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(rename = "transportMode")]
     pub transport_mode: String,
@@ -131,11 +141,15 @@ pub struct IORouteProfile {
 pub struct IORouteStop {
     #[serde(rename = "@refId")]
     pub ref_id: String,
-    #[serde(rename = "@arrivalOffset")]
+    #[serde(rename = "@arrivalOffset", skip_serializing_if = "Option::is_none")]
     pub arrival_offset: Option<String>,
-    #[serde(rename = "@departureOffset")]
+    #[serde(rename = "@departureOffset", skip_serializing_if = "Option::is_none")]
     pub departure_offset: Option<String>,
-    #[serde(rename = "@awaitDepartureTime", alias = "@awaitDeparture")]
+    #[serde(
+        rename = "@awaitDepartureTime",
+        alias = "@awaitDeparture",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub await_departure: Option<bool>,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<IOAttributes>,
@@ -165,7 +179,7 @@ pub struct IODeparture {
     pub id: String,
     #[serde(rename = "@departureTime")]
     pub departure_time: String,
-    #[serde(rename = "@vehicleRefId")]
+    #[serde(rename = "@vehicleRefId", skip_serializing_if = "Option::is_none")]
     pub vehicle_ref_id: Option<String>,
     #[serde(rename = "attributes", skip_serializing_if = "Option::is_none")]
     pub attributes: Option<IOAttributes>,

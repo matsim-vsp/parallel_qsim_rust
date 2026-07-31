@@ -1,7 +1,9 @@
-use crate::simulation::pt::{TransitDeparture, TransitLine, TransitRoute, TransitStopFacility};
 use crate::simulation::scenario::facilities::ActivityFacility;
 use crate::simulation::scenario::network::{Link, Node};
 use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::transit::{
+    TransitDeparture, TransitLine, TransitRoute, TransitStopFacility,
+};
 use crate::simulation::scenario::vehicles::{InternalVehicle, InternalVehicleType};
 pub trait StableTypeId {
     fn stable_type_id() -> u64;

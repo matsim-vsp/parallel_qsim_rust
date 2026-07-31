@@ -1,18 +1,14 @@
 use crate::generated::events::GenericEvent;
-use crate::simulation::events::comparison::EventBatch;
 use crate::simulation::events::{EventTrait, EventsManager, GenericEventBuilder, comparison};
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, process_events};
 use crate::simulation::io::xml::events::{XmlEventsReader, XmlEventsWriter};
-use crate::simulation::logging::init_std_out_logging_thread_local;
 use crate::simulation::time::SimTime;
 use std::error::Error;
+use std::fmt;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Barrier, Mutex};
-use std::{fmt, thread};
 use tracing::info;
 
 /// An event file reader with a state, containing the time and event data of the next time step.
@@ -267,7 +263,7 @@ pub enum EventsFileNotEqualError {
     NotChronologicalOrder,
     DifferentNumberOfEvents,
     MissingEvent {
-        event: String, // event type and time, of event in file 1 for which no identical event was found in file 2
+        event: String, // event in source 1 for which no identical event was found in source 2
     },
 }
 
@@ -279,73 +275,40 @@ impl Display for EventsFileNotEqualError {
                 write!(f, "Events in both files are not in chronological order.")
             }
             EventsFileNotEqualError::DifferentNumberOfEvents => {
-                write!(f, "Files have different numbers of events.")
+                write!(f, "Event sources have different numbers of events.")
             }
             EventsFileNotEqualError::MissingEvent { event } => write!(
                 f,
-                "No identical event found in file 2 for an {event} in file 1."
+                "No identical event found in source 2 for {event} in source 1."
             ),
         }
     }
 }
 
-/// Compares two XML event files using parallel reader threads synchronized with a barrier.
-/// Two threads read the files independently. When they reach a new timestep, they wait at a barrier.
-/// A comparator thread then compares the event batches from both threads. If everything is OK,
-/// the threads continue reading.
-pub fn compare_xml_event_files(
+/// Compares two XML, compressed XML, or protobuf event files using parallel reader threads.
+pub fn compare_event_files(
     file1: impl AsRef<Path>,
     file2: impl AsRef<Path>,
 ) -> Result<(), EventsFileNotEqualError> {
-    let file1_path = file1.as_ref().to_path_buf();
-    let file2_path = file2.as_ref().to_path_buf();
+    comparison::compare_event_files(file1.as_ref(), file2.as_ref())
+}
 
-    // Initialize shared states between threads
-    let batch1 = Arc::new(Mutex::new(EventBatch::new()));
-    let batch2 = Arc::new(Mutex::new(EventBatch::new()));
-    let comparison_result = Arc::new(Mutex::new(Ok(())));
-    let should_stop = Arc::new(AtomicBool::new(false));
-
-    // Barrier for 3 threads: 2 readers + 1 comparator
-    let barrier = Arc::new(Barrier::new(3));
-
-    // Spawn reader threads
-    let handle1 = comparison::spawn_event_reader(&file1_path, &batch1, &should_stop, &barrier);
-    let handle2 = comparison::spawn_event_reader(&file2_path, &batch2, &should_stop, &barrier);
-
-    let comparison_result_cmp = Arc::clone(&comparison_result);
-
-    // Comparator thread
-    let handle_cmp = thread::spawn(move || {
-        let _guard = init_std_out_logging_thread_local();
-        comparison::comparator_thread(
-            batch1,
-            batch2,
-            barrier,
-            should_stop,
-            comparison_result_cmp,
-            file1_path.clone(),
-            file2_path.clone(),
-        );
-        drop(_guard);
-    });
-
-    // Wait for all threads
-    handle1.join().unwrap();
-    handle2.join().unwrap();
-    handle_cmp.join().unwrap();
-
-    // Return the comparison result
-    let result = comparison_result.lock().unwrap();
-    result.clone()
+/// Compares two folders containing partitioned `events.<rank>.<format>` files using parallel reader threads.
+pub fn compare_event_folder(
+    folder1: impl AsRef<Path>,
+    folder2: impl AsRef<Path>,
+) -> Result<(), EventsFileNotEqualError> {
+    comparison::compare_event_folder(folder1.as_ref(), folder2.as_ref())
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
     use crate::simulation::events::{EventHandlerRegisterFn, EventTrait};
+    use crate::simulation::logging::init_std_out_logging_thread_local;
     use macros::deterministic_id_test;
     use std::rc::Rc;
+    use std::sync::{Arc, Mutex};
 
     /// event handler that writes any event as a string (corresponding to an entry in an XML file)
     /// into a given vector

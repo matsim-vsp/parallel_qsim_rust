@@ -1,7 +1,9 @@
-use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::deterministic_id_test;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
+use rust_qsim::simulation::events::utils::compare_event_folder;
 use rust_qsim::simulation::events::{EventHandlerRegisterFn, LinkEnterEvent, LinkLeaveEvent};
+use rust_qsim::simulation::scenario::Scenario;
 use rust_qsim::simulation::time::SimTime;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,31 +13,40 @@ use std::sync::{Arc, Mutex};
 fn three_links_single_part_matches_expected_events() {
     let config_args =
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-1.yml");
+    let config = Config::from_args(config_args);
+    let output_dir = config.output().output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(Config::from_args(config_args)))
-        // .expected_events(None)
-        // .additional_subscribers(HashMap::from([(
-        //     0,
-        //     vec![XmlEventsWriter::register("test_output/test.xml".into())],
-        // )]))
-        .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+
+    compare_event_folder(
+        "./tests/resources/3-links/expected_events",
+        output_dir.join("events"),
+    )
+    .unwrap();
 }
 
 #[deterministic_id_test(rust_qsim)]
 fn three_links_two_parts_match_expected_events() {
     let config_args =
         CommandLineArgs::new_with_path("./tests/resources/3-links/3-links-config-2.yml");
+    let config = Config::from_args(config_args);
+    let output_dir = config.output().output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(Config::from_args(config_args)))
-        .expected_events(Some("./tests/resources/3-links/expected_events.xml"))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+
+    compare_event_folder(
+        "./tests/resources/3-links/expected_events",
+        output_dir.join("events"),
+    )
+    .unwrap();
 }
 
 #[derive(Clone, Default)]
@@ -105,12 +116,12 @@ fn run_short_boundary_scenario(config_path: &str, output_dir: &str) -> BoundaryE
         .map(|rank| (rank, vec![event_times.register_fn()]))
         .collect::<HashMap<_, _>>();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .additional_handler(additional_handler)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
+        .event_handler_register_fn(additional_handler)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 
     event_times
 }

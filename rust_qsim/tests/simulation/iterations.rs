@@ -1,11 +1,11 @@
-use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::deterministic_id_test;
 use rust_qsim::simulation::config::{
     CommandLineArgs, CompressionType, Config, StrategySetting, WriteEvents,
 };
-use rust_qsim::simulation::events::utils::compare_xml_event_files;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
+use rust_qsim::simulation::events::utils::compare_event_files;
+use rust_qsim::simulation::scenario::Scenario;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 #[deterministic_id_test(rust_qsim)]
 fn equil_single_part_runs_10_iterations() {
@@ -16,12 +16,11 @@ fn equil_single_part_runs_10_iterations() {
     config.output_mut().output_dir =
         PathBuf::from("./test_output/simulation/equil_single_part_10_iterations");
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 }
 
 #[deterministic_id_test(rust_qsim)]
@@ -37,12 +36,11 @@ fn equil_single_part_writes_events_at_interval_and_last_iteration() {
     config.output_mut().write_events = WriteEvents::File;
     config.output_mut().output_dir = output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 
     let iters_dir = output_dir.join("ITERS");
     assert!(!iters_dir.join("it.0").join("events").exists());
@@ -83,11 +81,11 @@ fn equil_single_part_keep_last_selected_produces_same_events_each_iteration() {
         subpopulation: "person".to_string(),
     }];
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 
     let iteration_1_events = iteration_events_file(&output_dir, 1);
     assert_events_equal(&iteration_1_events, &iteration_events_file(&output_dir, 2));
@@ -107,12 +105,11 @@ fn equil_single_part_writes_events_for_single_last_iteration() {
     config.output_mut().write_events = WriteEvents::File;
     config.output_mut().output_dir = output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 
     assert!(
         output_dir
@@ -133,7 +130,7 @@ fn iteration_events_file(output_dir: &Path, iteration: u32) -> PathBuf {
 }
 
 fn assert_events_equal(left: &Path, right: &Path) {
-    compare_xml_event_files(left, right)
+    compare_event_files(left, right)
         .unwrap_or_else(|error| panic!("Event files differ: {left:?} vs {right:?}: {error}"));
 }
 
@@ -149,12 +146,11 @@ fn equil_single_part_write_events_none_creates_no_iteration_events() {
     config.output_mut().write_events = WriteEvents::None;
     config.output_mut().output_dir = output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 
     for iteration in 0..=3 {
         assert!(
@@ -180,12 +176,11 @@ fn equil_single_part_writes_plans_at_interval_and_last_iteration() {
     config.output_mut().write_events = WriteEvents::None;
     config.output_mut().output_dir = output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 
     let iters_dir = output_dir.join("ITERS");
     assert!(!iters_dir.join("it.0").join("output_plans.xml.gz").exists());
@@ -210,12 +205,11 @@ fn equil_single_part_writes_plans_for_single_last_iteration() {
     config.output_mut().write_events = WriteEvents::None;
     config.output_mut().output_dir = output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(Arc::new(config))
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 
     assert!(
         output_dir

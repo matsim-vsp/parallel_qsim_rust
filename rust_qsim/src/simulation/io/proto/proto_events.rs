@@ -393,47 +393,9 @@ impl ProtoEventsWriter {
             .expect("Failed to write all bytes");
     }
 
-    fn convert_to_proto(&mut self, event: &dyn EventTrait) -> GenericEvent {
-        if let Some(event) = event
-            .as_any()
-            .downcast_ref::<crate::simulation::events::GenericEvent>()
-        {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<ActivityStartEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<ActivityEndEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<LinkEnterEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
-            GenericEvent::from(event)
-        } else if let Some(event) = event.as_any().downcast_ref::<PersonStuckEvent>() {
-            GenericEvent::from(event)
-        } else {
-            // TODO use general event here and log warning
-            panic!("Unknown event type: {:?}", event);
-        }
-    }
-
     pub(crate) fn on_any(&mut self, event: &dyn EventTrait) {
         self.update_time_step(event.time());
-        let event = self.convert_to_proto(event);
+        let event = event_to_proto(event);
 
         event
             .encode_length_delimited(&mut self.encoded_events)
@@ -464,6 +426,44 @@ impl ProtoEventsWriter {
                 proto2.borrow_mut().finish();
             });
         })
+    }
+}
+
+pub(crate) fn event_to_proto(event: &dyn EventTrait) -> GenericEvent {
+    if let Some(event) = event
+        .as_any()
+        .downcast_ref::<crate::simulation::events::GenericEvent>()
+    {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<ActivityStartEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<ActivityEndEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<LinkEnterEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<LinkLeaveEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<PersonEntersVehicleEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<PersonLeavesVehicleEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<PersonDepartureEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<PersonArrivalEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<TeleportationArrivalEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<PtTeleportationArrivalEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<VehicleEntersTrafficEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<VehicleLeavesTrafficEvent>() {
+        GenericEvent::from(event)
+    } else if let Some(event) = event.as_any().downcast_ref::<PersonStuckEvent>() {
+        GenericEvent::from(event)
+    } else {
+        // TODO use general event here and log warning
+        panic!("Unknown event type: {:?}", event);
     }
 }
 
@@ -555,28 +555,32 @@ impl ProtoEventsReader<File> {
     }
 }
 
-#[rustfmt::skip]
 pub fn process_events(time: SimTime, events: &Vec<GenericEvent>, manager: &mut EventsManager) {
     for proto_event in events {
-        let type_ = proto_event.r#type.as_str();
-        let internal_event: Box<dyn EventTrait> = match type_ {
-            crate::simulation::events::GenericEvent::TYPE => Box::new(crate::simulation::events::GenericEvent::from_proto_event(proto_event, time)),
-            ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
-            ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
-            LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
-            LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(proto_event, time)),
-            PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(proto_event, time)),
-            PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(proto_event, time)),
-            PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(proto_event, time)),
-            PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(proto_event, time)),
-            TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(proto_event, time)),
-            PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
-            VehicleEntersTrafficEvent::TYPE => Box::new(VehicleEntersTrafficEvent::from_proto_event(proto_event, time)),
-            VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
-            PersonStuckEvent::TYPE => Box::new(PersonStuckEvent::from_proto_event(proto_event, time)),
-            _ => panic!("Unknown event type: {:?}", type_),
-        };
+        let internal_event = event_from_proto(time, proto_event);
         manager.process_event(internal_event.as_ref());
+    }
+}
+
+#[rustfmt::skip]
+pub(crate) fn event_from_proto(time: SimTime, proto_event: &GenericEvent) -> Box<dyn EventTrait> {
+    let type_ = proto_event.r#type.as_str();
+    match type_ {
+        crate::simulation::events::GenericEvent::TYPE => Box::new(crate::simulation::events::GenericEvent::from_proto_event(proto_event, time)),
+        ActivityStartEvent::TYPE => Box::new(ActivityStartEvent::from_proto_event(proto_event, time)),
+        ActivityEndEvent::TYPE => Box::new(ActivityEndEvent::from_proto_event(proto_event, time)),
+        LinkEnterEvent::TYPE => Box::new(LinkEnterEvent::from_proto_event(proto_event, time)),
+        LinkLeaveEvent::TYPE => Box::new(LinkLeaveEvent::from_proto_event(proto_event, time)),
+        PersonEntersVehicleEvent::TYPE => Box::new(PersonEntersVehicleEvent::from_proto_event(proto_event, time)),
+        PersonLeavesVehicleEvent::TYPE => Box::new(PersonLeavesVehicleEvent::from_proto_event(proto_event, time)),
+        PersonDepartureEvent::TYPE => Box::new(PersonDepartureEvent::from_proto_event(proto_event, time)),
+        PersonArrivalEvent::TYPE => Box::new(PersonArrivalEvent::from_proto_event(proto_event, time)),
+        TeleportationArrivalEvent::TYPE => Box::new(TeleportationArrivalEvent::from_proto_event(proto_event, time)),
+        PtTeleportationArrivalEvent::TYPE => Box::new(PtTeleportationArrivalEvent::from_proto_event(proto_event, time)),
+        VehicleEntersTrafficEvent::TYPE => Box::new(VehicleEntersTrafficEvent::from_proto_event(proto_event, time)),
+        VehicleLeavesTrafficEvent::TYPE => Box::new(VehicleLeavesTrafficEvent::from_proto_event(proto_event, time)),
+        PersonStuckEvent::TYPE => Box::new(PersonStuckEvent::from_proto_event(proto_event, time)),
+        _ => panic!("Unknown event type: {:?}", type_),
     }
 }
 

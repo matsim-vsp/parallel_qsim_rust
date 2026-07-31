@@ -1,30 +1,32 @@
-use crate::support::simulation_executor::TestExecutorBuilder;
 use macros::deterministic_id_test;
 use rust_qsim::external_services::routing::RoutingServiceAdapterFactory;
 use rust_qsim::external_services::{AdapterHandleBuilder, AsyncExecutor, ExternalServiceType};
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::ExternalServices;
-use rust_qsim::simulation::events::EventHandlerRegisterFn;
+use rust_qsim::simulation::controller::controller::ControllerBuilder;
+use rust_qsim::simulation::events::utils::compare_event_folder;
 use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
-use rust_qsim::simulation::pt::TransitSchedule;
-use std::collections::HashMap;
+use rust_qsim::simulation::scenario::Scenario;
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 
 #[deterministic_id_test(rust_qsim)]
 fn pt_tutorial_matches_expected_events() {
-    TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
-
-    let config = Arc::new(Config::from_args(CommandLineArgs::new_with_path(
+    let config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/pt_tutorial/pt_tutorial_config.yml",
-    )));
+    ));
+    let output_dir = config.output().output_dir.clone();
 
-    TestExecutorBuilder::default()
-        .config(config)
-        .expected_events(Some("./tests/resources/pt_tutorial/expected_events.xml"))
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
+    compare_event_folder(
+        "./tests/resources/pt_tutorial/expected_events",
+        output_dir.join("events"),
+    )
+    .unwrap();
 }
 
 #[deterministic_id_test(rust_qsim)]
@@ -44,8 +46,6 @@ fn pt_adaptive_with_dummy() {
 // to be tested with running routing service;
 // --config /Users/paulh/git/parallel_qsim_rust/rust_qsim/assets/pt_tutorial/config.xml --output output/v6.4/test-router
 fn test_pt_adaptive(pop_path: PathBuf) {
-    TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
-
     let mut config_args = CommandLineArgs::new_with_path(
         "./tests/resources/pt_tutorial/pt_tutorial_config_adaptive.yml",
     );
@@ -75,19 +75,11 @@ fn test_pt_adaptive(pop_path: PathBuf) {
     let mut services = ExternalServices::default();
     services.insert(ExternalServiceType::Routing("pt".into()), send.into());
 
-    let handler: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>> = HashMap::new();
-    // subs.insert(
-    //     0,
-    //     vec![Box::new(XmlEventsWriter::register("test.xml".into()))],
-    // );
-
-    TestExecutorBuilder::default()
-        .config(config)
-        .expected_events(None)
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
         .external_services(services)
-        .additional_handler(handler)
         .global_barrier(global_barrier)
-        .agent_source(Arc::new(PreplanningHorizonAgentSource))
+        .agent_source(PreplanningHorizonAgentSource)
         .adapter_handles(vec![
             AdapterHandleBuilder::default()
                 .shutdown_sender(shutdown)
@@ -96,6 +88,6 @@ fn test_pt_adaptive(pop_path: PathBuf) {
                 .unwrap(),
         ])
         .build()
-        .unwrap()
-        .execute();
+        .unwrap();
+    controller.run();
 }
