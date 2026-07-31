@@ -9,9 +9,11 @@ use rust_qsim::simulation::scenario::Scenario;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Barrier};
 use std::thread;
+use zstd::stream::read::Decoder as ZstdDecoder;
 
 // If not set here, import gets optimized away.
 #[allow(unused_imports)]
@@ -203,8 +205,19 @@ impl TestSubscriber {
             }
         } else {
             let file = File::open(events_file)
-                .unwrap_or_else(|e| panic!("Failed to open events file at {}: {}", events_file, e));
-            Box::new(BufReader::new(file))
+                .unwrap_or_else(|_| panic!("Could not open events file: {:?}", events_file));
+            match PathBuf::from(events_file)
+                .as_path()
+                .extension()
+                .unwrap()
+                .to_str()
+            {
+                Some("gz") => Box::new(BufReader::new(flate2::read::GzDecoder::new(file))),
+                Some("zst") => Box::new(BufReader::new(
+                    ZstdDecoder::new(file).expect("Failed to create zstd decoder"),
+                )),
+                _ => Box::new(BufReader::new(file)),
+            }
         };
 
         reader

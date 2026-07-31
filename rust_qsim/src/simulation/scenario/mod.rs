@@ -217,7 +217,7 @@ impl Scenario {
     }
 
     fn load_transit_schedule(config: &Config) -> TransitSchedule {
-        if let Some(path) = &config.transit().schedule_file {
+        if let Some(path) = &config.transit().schedule_path {
             let schedule_in_path = io::resolve_path(config.context(), path);
             TransitSchedule::from_file(&schedule_in_path)
         } else {
@@ -389,7 +389,7 @@ mod tests {
     fn scenario_loads_xml_transit_schedule_and_creates_ids() {
         let mut config = Config::default();
         config.set_transit(Transit {
-            schedule_file: Some("./assets/pt_tutorial/transitschedule.xml".into()),
+            schedule_path: Some("./assets/pt_tutorial/transitschedule.xml".into()),
         });
 
         let scenario = Scenario::load(config);

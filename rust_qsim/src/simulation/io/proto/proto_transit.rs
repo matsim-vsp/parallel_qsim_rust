@@ -142,7 +142,6 @@ impl From<&MinimalTransferTime> for WireMinimalTransferTime {
 
 #[cfg(test)]
 mod tests {
-    use super::write_to_proto;
     use crate::generated::general::Coordinate;
     use crate::generated::transit::{
         MinimalTransferTime as WireMinimalTransferTime, TransitDeparture as WireTransitDeparture,
@@ -242,7 +241,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("schedule.binpb");
 
-        write_to_proto(&schedule, &path);
+        schedule.to_file(&path);
         let loaded = TransitSchedule::from_file(&path);
 
         assert_eq!(schedule, loaded);

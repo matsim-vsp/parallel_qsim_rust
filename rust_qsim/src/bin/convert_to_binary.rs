@@ -7,7 +7,6 @@ use tracing::info;
 
 use rust_qsim::simulation::config::PartitionMethod;
 use rust_qsim::simulation::id::Id;
-use rust_qsim::simulation::io::proto::proto_transit;
 use rust_qsim::simulation::scenario::network::{Link, Network};
 use rust_qsim::simulation::scenario::population::Population;
 use rust_qsim::simulation::scenario::transit::TransitSchedule;
@@ -49,10 +48,7 @@ fn main() {
     veh.to_file(&create_file_path(&args, "vehicles"));
     pop.to_file(&create_file_path(&args, "plans"));
     if let Some(transit_schedule) = transit_schedule.as_ref() {
-        proto_transit::write_to_proto(
-            transit_schedule,
-            &create_file_path(&args, "transit_schedule"),
-        );
+        transit_schedule.to_file(&create_file_path(&args, "transit_schedule"));
     }
     info!("Finished conversion. Exiting.")
 }

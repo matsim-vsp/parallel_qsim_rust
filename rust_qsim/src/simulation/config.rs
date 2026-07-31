@@ -487,7 +487,7 @@ pub struct Vehicles {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Transit {
-    pub schedule_file: Option<PathBuf>,
+    pub schedule_path: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -507,8 +507,8 @@ register_override!("vehicles.path", |config, value| {
     config.vehicles_mut().path = Some(PathBuf::from(value));
 });
 
-register_override!("transit.schedule_file", |config, value| {
-    config.transit_mut().schedule_file = Some(PathBuf::from(value));
+register_override!("transit.schedule_path", |config, value| {
+    config.transit_mut().schedule_path = Some(PathBuf::from(value));
 });
 
 register_override!("ids.path", |config, value| {
@@ -1787,7 +1787,7 @@ modules:
     fn transit_defaults_to_no_schedule() {
         let config = Config::default();
 
-        assert_eq!(None, config.transit().schedule_file);
+        assert_eq!(None, config.transit().schedule_path);
     }
 
     #[test]
@@ -1803,7 +1803,7 @@ modules:
 
         assert_eq!(
             Some(PathBuf::from("schedule.xml.gz")),
-            parsed_config.transit().schedule_file
+            parsed_config.transit().schedule_path
         );
     }
 
@@ -1828,7 +1828,7 @@ modules:
 
         assert_eq!(
             Some(PathBuf::from("schedule.binpb")),
-            config.transit().schedule_file
+            config.transit().schedule_path
         );
     }
 
@@ -1944,7 +1944,7 @@ modules:
             path: Some("veh".into()),
         });
         config.set_transit(Transit {
-            schedule_file: Some("schedule".into()),
+            schedule_path: Some("schedule".into()),
         });
         config.set_ids(Ids {
             path: Some("ids".into()),

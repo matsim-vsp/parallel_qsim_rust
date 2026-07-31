@@ -1,11 +1,12 @@
 use crate::simulation::InternalAttributes;
 use crate::simulation::id::Id;
-use crate::simulation::io::proto::proto_transit::load_from_proto;
+use crate::simulation::io::proto::proto_transit::{load_from_proto, write_to_proto};
 use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
 use crate::simulation::io::xml::transit;
 use crate::simulation::io::xml::transit::{
-    IODeparture, IOMinimalTransferRelation, IORouteStop, IOStopFacility, IOTransitLine,
-    IOTransitRoute, IOTransitSchedule,
+    IODeparture, IODepartures, IOMinimalTransferRelation, IOMinimalTransferTimes, IONetworkRoute,
+    IORouteLink, IORouteProfile, IORouteStop, IOStopFacility, IOTransitLine, IOTransitRoute,
+    IOTransitSchedule, IOTransitStops,
 };
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
@@ -104,6 +105,21 @@ impl TransitSchedule {
         schedule
     }
 
+    pub fn to_file(&self, file_path: &Path) {
+        if file_path.extension().unwrap().eq("binpb") {
+            write_to_proto(self, file_path);
+        } else if file_path.extension().unwrap().eq("xml")
+            || file_path.extension().unwrap().eq("gz")
+            || file_path.extension().unwrap().eq("zst")
+        {
+            transit::write_to_xml(self, file_path);
+        } else {
+            panic!(
+                "file format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
+            );
+        }
+    }
+
     pub fn lines(&self) -> &IntMap<Id<TransitLine>, TransitLine> {
         &self.lines
     }
@@ -166,6 +182,111 @@ impl From<IOTransitSchedule> for TransitSchedule {
             facilities,
             minimal_transfer_times,
             attributes: io.attributes.map(Into::into).unwrap_or_default(),
+        }
+    }
+}
+
+impl From<&TransitSchedule> for IOTransitSchedule {
+    fn from(schedule: &TransitSchedule) -> Self {
+        Self {
+            attributes: IOAttributes::from_internal_none_if_empty(schedule.attributes()),
+            transit_stops: IOTransitStops {
+                stop_facilities: schedule
+                    .facilities()
+                    .values()
+                    .map(IOStopFacility::from)
+                    .collect(),
+            },
+            minimal_transfer_times: (!schedule.minimal_transfer_times().is_empty()).then(|| {
+                IOMinimalTransferTimes {
+                    relations: schedule
+                        .minimal_transfer_times()
+                        .iter()
+                        .map(IOMinimalTransferRelation::from)
+                        .collect(),
+                }
+            }),
+            transit_lines: schedule.lines().values().map(IOTransitLine::from).collect(),
+        }
+    }
+}
+
+impl From<&TransitLine> for IOTransitLine {
+    fn from(line: &TransitLine) -> Self {
+        Self {
+            id: line.id.external().to_string(),
+            name: (!line.name.is_empty()).then(|| line.name.clone()),
+            attributes: IOAttributes::from_internal_none_if_empty(&line.attributes),
+            transit_routes: line.routes.values().map(IOTransitRoute::from).collect(),
+        }
+    }
+}
+
+impl From<&TransitRoute> for IOTransitRoute {
+    fn from(route: &TransitRoute) -> Self {
+        Self {
+            id: route.id.external().to_string(),
+            description: route.description.clone(),
+            transport_mode: route.transport_mode.external().to_string(),
+            route_profile: IORouteProfile {
+                stops: route.stops.iter().map(IORouteStop::from).collect(),
+            },
+            route: IONetworkRoute {
+                links: route
+                    .network_route
+                    .iter()
+                    .map(|id| IORouteLink {
+                        ref_id: id.external().to_string(),
+                    })
+                    .collect(),
+            },
+            departures: IODepartures {
+                departures: route.departures.iter().map(IODeparture::from).collect(),
+            },
+            attributes: IOAttributes::from_internal_none_if_empty(&route.attributes),
+        }
+    }
+}
+
+impl From<&TransitDeparture> for IODeparture {
+    fn from(departure: &TransitDeparture) -> Self {
+        Self {
+            id: departure.id.external().to_string(),
+            departure_time: format_time(departure.departure_time),
+            vehicle_ref_id: departure
+                .vehicle_ref_id
+                .as_ref()
+                .map(|id| id.external().to_string()),
+            attributes: IOAttributes::from_internal_none_if_empty(&departure.attributes),
+        }
+    }
+}
+
+impl From<&MinimalTransferTime> for IOMinimalTransferRelation {
+    fn from(transfer: &MinimalTransferTime) -> Self {
+        Self {
+            from_stop: transfer.from_stop.external().to_string(),
+            to_stop: transfer.to_stop.external().to_string(),
+            transfer_time: transfer.transfer_time,
+        }
+    }
+}
+
+impl From<&TransitStopFacility> for IOStopFacility {
+    fn from(facility: &TransitStopFacility) -> Self {
+        Self {
+            id: facility.id.external().to_string(),
+            x: facility.coord.x,
+            y: facility.coord.y,
+            z: Some(facility.coord.z),
+            link_ref_id: facility
+                .link_ref_id
+                .as_ref()
+                .map(|id| id.external().to_string()),
+            name: facility.name.clone(),
+            stop_area_id: facility.stop_area_id.clone(),
+            is_blocking: facility.is_blocking,
+            attributes: IOAttributes::from_internal_none_if_empty(&facility.attributes),
         }
     }
 }
@@ -512,6 +633,19 @@ mod tests {
         assert_eq!(3, route_1to3.stops.len());
         assert_eq!(4, route_1to3.network_route.len());
         assert_eq!(50, route_1to3.departures.len());
+    }
+
+    #[deterministic_id_test]
+    fn tutorial_schedule_round_trips_through_xml_to_file() {
+        let schedule =
+            TransitSchedule::from_file("./assets/pt_tutorial/transitschedule.xml".as_ref());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("schedule.xml.gz");
+
+        schedule.to_file(&path);
+        let loaded = TransitSchedule::from_file(&path);
+
+        assert_eq!(schedule, loaded);
     }
 
     #[deterministic_id_test]
