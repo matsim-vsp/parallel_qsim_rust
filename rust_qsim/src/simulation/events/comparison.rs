@@ -3,10 +3,14 @@ use crate::simulation::events::EventTrait;
 use crate::simulation::events::utils::EventsFileNotEqualError;
 use crate::simulation::io::proto::proto_events::{ProtoEventsReader, event_to_proto};
 use crate::simulation::io::xml::events::XmlEventsReader;
+use crate::simulation::logging::init_std_out_logging_thread_local;
 use crate::simulation::time::SimTime;
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Barrier, Mutex};
+use std::thread::{self, JoinHandle};
 use tracing::{error, info};
 
 type EventBatch = (SimTime, Vec<GenericEvent>);
@@ -148,13 +152,35 @@ fn event_file_reader(path: &Path) -> Box<dyn EventBatchReader> {
     }
 }
 
+enum EventSource {
+    File(PathBuf),
+    Folder(Vec<PathBuf>),
+}
+
+impl EventSource {
+    fn into_reader(self) -> Box<dyn EventBatchReader> {
+        match self {
+            EventSource::File(path) => event_file_reader(&path),
+            EventSource::Folder(paths) => Box::new(MergedBatchReader::from_paths(&paths)),
+        }
+    }
+}
+
+#[derive(Default)]
+struct PublishedEventBatch {
+    batch: Option<EventBatch>,
+    finished: bool,
+}
+
 pub(super) fn compare_event_files(
     file1: &Path,
     file2: &Path,
 ) -> Result<(), EventsFileNotEqualError> {
-    compare_readers(
-        event_file_reader(file1),
-        event_file_reader(file2),
+    validate_event_file(file1);
+    validate_event_file(file2);
+    compare_sources(
+        EventSource::File(file1.to_path_buf()),
+        EventSource::File(file2.to_path_buf()),
         file1,
         file2,
     )
@@ -166,12 +192,21 @@ pub(super) fn compare_event_folder(
 ) -> Result<(), EventsFileNotEqualError> {
     let files1 = event_files_in_folder(folder1);
     let files2 = event_files_in_folder(folder2);
-    compare_readers(
-        Box::new(MergedBatchReader::from_paths(&files1)),
-        Box::new(MergedBatchReader::from_paths(&files2)),
+    compare_sources(
+        EventSource::Folder(files1),
+        EventSource::Folder(files2),
         folder1,
         folder2,
     )
+}
+
+fn validate_event_file(path: &Path) {
+    assert!(
+        path.is_file(),
+        "Event file does not exist or is not a file: {}",
+        path.display()
+    );
+    event_file_family(path);
 }
 
 fn event_files_in_folder(folder: &Path) -> Vec<PathBuf> {
@@ -239,32 +274,145 @@ fn event_file_rank(path: &Path) -> Option<usize> {
     rank.parse().ok()
 }
 
-fn compare_readers(
-    mut reader1: Box<dyn EventBatchReader>,
-    mut reader2: Box<dyn EventBatchReader>,
-    source1: &Path,
-    source2: &Path,
+fn compare_sources(
+    event_source1: EventSource,
+    event_source2: EventSource,
+    source_label1: &Path,
+    source_label2: &Path,
 ) -> Result<(), EventsFileNotEqualError> {
+    let batch1 = Arc::new(Mutex::new(PublishedEventBatch::default()));
+    let batch2 = Arc::new(Mutex::new(PublishedEventBatch::default()));
+    let comparison_result = Arc::new(Mutex::new(Ok(())));
+    let should_stop = Arc::new(AtomicBool::new(false));
+    let barrier = Arc::new(Barrier::new(3));
+
+    let reader1 = spawn_event_reader(
+        event_source1,
+        Arc::clone(&batch1),
+        Arc::clone(&should_stop),
+        Arc::clone(&barrier),
+    );
+    let reader2 = spawn_event_reader(
+        event_source2,
+        Arc::clone(&batch2),
+        Arc::clone(&should_stop),
+        Arc::clone(&barrier),
+    );
+
+    let comparator_result = Arc::clone(&comparison_result);
+    let source1 = source_label1.to_path_buf();
+    let source2 = source_label2.to_path_buf();
+    let comparator = thread::spawn(move || {
+        let _guard = init_std_out_logging_thread_local();
+        compare_published_batches(
+            batch1,
+            batch2,
+            barrier,
+            should_stop,
+            comparator_result,
+            source1,
+            source2,
+        );
+    });
+
+    reader1.join().unwrap();
+    reader2.join().unwrap();
+    comparator.join().unwrap();
+
+    let result = comparison_result.lock().unwrap().clone();
+    result
+}
+
+fn spawn_event_reader(
+    source: EventSource,
+    published_batch: Arc<Mutex<PublishedEventBatch>>,
+    should_stop: Arc<AtomicBool>,
+    barrier: Arc<Barrier>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let _guard = init_std_out_logging_thread_local();
+        let mut reader = source.into_reader();
+
+        loop {
+            if should_stop.load(Ordering::Relaxed) {
+                break;
+            }
+
+            let batch = reader.next_batch();
+            let finished = batch.is_none();
+            publish_batch(&published_batch, batch, finished);
+
+            barrier.wait();
+            barrier.wait();
+
+            if finished || should_stop.load(Ordering::Relaxed) {
+                break;
+            }
+        }
+    })
+}
+
+fn publish_batch(
+    published_batch: &Arc<Mutex<PublishedEventBatch>>,
+    batch: Option<EventBatch>,
+    finished: bool,
+) {
+    let mut published_batch = published_batch.lock().unwrap();
+    published_batch.batch = batch;
+    published_batch.finished = finished;
+}
+
+fn take_published_batch(
+    published_batch: &Arc<Mutex<PublishedEventBatch>>,
+) -> (Option<EventBatch>, bool) {
+    let mut published_batch = published_batch.lock().unwrap();
+    let batch = published_batch.batch.take();
+    (batch, published_batch.finished)
+}
+
+fn compare_published_batches(
+    batch1: Arc<Mutex<PublishedEventBatch>>,
+    batch2: Arc<Mutex<PublishedEventBatch>>,
+    barrier: Arc<Barrier>,
+    should_stop: Arc<AtomicBool>,
+    comparison_result: Arc<Mutex<Result<(), EventsFileNotEqualError>>>,
+    source1: PathBuf,
+    source2: PathBuf,
+) {
     let mut event_count = 0_u64;
     let mut next_status_event = Some(1_u64);
     let mut last_time1 = None;
     let mut last_time2 = None;
 
     loop {
-        let batch1 = reader1.next_batch();
-        let batch2 = reader2.next_batch();
+        barrier.wait();
+
+        let (batch1, finished1) = take_published_batch(&batch1);
+        let (batch2, finished2) = take_published_batch(&batch2);
+
+        if finished1 && finished2 {
+            barrier.wait();
+            break;
+        }
+
+        if finished1 != finished2 {
+            error!(
+                "Event sources have different numbers of events: {} and {}",
+                source1.display(),
+                source2.display()
+            );
+            stop_with_error(
+                &comparison_result,
+                &should_stop,
+                EventsFileNotEqualError::DifferentNumberOfEvents,
+            );
+            barrier.wait();
+            break;
+        }
 
         let (time1, events1, time2, events2) = match (batch1, batch2) {
-            (None, None) => return Ok(()),
-            (None, Some(_)) | (Some(_), None) => {
-                error!(
-                    "Event sources have different numbers of events: {} and {}",
-                    source1.display(),
-                    source2.display()
-                );
-                return Err(EventsFileNotEqualError::DifferentNumberOfEvents);
-            }
             (Some((time1, events1)), Some((time2, events2))) => (time1, events1, time2, events2),
+            _ => unreachable!("unfinished event reader did not publish a batch"),
         };
 
         if last_time1.is_some_and(|last| time1 < last)
@@ -275,7 +423,13 @@ fn compare_readers(
                 source1.display(),
                 source2.display()
             );
-            return Err(EventsFileNotEqualError::NotChronologicalOrder);
+            stop_with_error(
+                &comparison_result,
+                &should_stop,
+                EventsFileNotEqualError::NotChronologicalOrder,
+            );
+            barrier.wait();
+            break;
         }
         last_time1 = Some(time1);
         last_time2 = Some(time2);
@@ -286,11 +440,23 @@ fn compare_readers(
                 source1.display(),
                 source2.display()
             );
-            return Err(EventsFileNotEqualError::DifferentEventTimes);
+            stop_with_error(
+                &comparison_result,
+                &should_stop,
+                EventsFileNotEqualError::DifferentEventTimes,
+            );
+            barrier.wait();
+            break;
         }
 
         if events1.len() != events2.len() {
-            return Err(EventsFileNotEqualError::DifferentNumberOfEvents);
+            stop_with_error(
+                &comparison_result,
+                &should_stop,
+                EventsFileNotEqualError::DifferentNumberOfEvents,
+            );
+            barrier.wait();
+            break;
         }
         if let Err(id) = compare_batch_of_events(&events1, &events2) {
             error!(
@@ -299,13 +465,29 @@ fn compare_readers(
                 source2.display(),
                 events1[id]
             );
-            return Err(EventsFileNotEqualError::MissingEvent {
-                event: format!("{:?}", events1[id]),
-            });
+            stop_with_error(
+                &comparison_result,
+                &should_stop,
+                EventsFileNotEqualError::MissingEvent {
+                    event: format!("{:?}", events1[id]),
+                },
+            );
+            barrier.wait();
+            break;
         }
 
         record_processed_events(&mut event_count, &mut next_status_event, events1.len());
+        barrier.wait();
     }
+}
+
+fn stop_with_error(
+    comparison_result: &Arc<Mutex<Result<(), EventsFileNotEqualError>>>,
+    should_stop: &Arc<AtomicBool>,
+    error: EventsFileNotEqualError,
+) {
+    *comparison_result.lock().unwrap() = Err(error);
+    should_stop.store(true, Ordering::Relaxed);
 }
 
 fn record_processed_events(

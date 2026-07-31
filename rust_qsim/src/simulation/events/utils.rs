@@ -285,7 +285,7 @@ impl Display for EventsFileNotEqualError {
     }
 }
 
-/// Compares two XML, compressed XML, or protobuf event files.
+/// Compares two XML, compressed XML, or protobuf event files using parallel reader threads.
 pub fn compare_event_files(
     file1: impl AsRef<Path>,
     file2: impl AsRef<Path>,
@@ -293,7 +293,7 @@ pub fn compare_event_files(
     comparison::compare_event_files(file1.as_ref(), file2.as_ref())
 }
 
-/// Compares two folders containing partitioned `events.<rank>.<format>` files.
+/// Compares two folders containing partitioned `events.<rank>.<format>` files using parallel reader threads.
 pub fn compare_event_folder(
     folder1: impl AsRef<Path>,
     folder2: impl AsRef<Path>,
