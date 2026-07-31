@@ -6,15 +6,12 @@ use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::ExternalServices;
 use rust_qsim::simulation::events::EventHandlerRegisterFn;
 use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
-use rust_qsim::simulation::pt::TransitSchedule;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Barrier};
 
 #[deterministic_id_test(rust_qsim)]
 fn pt_tutorial_matches_expected_events() {
-    TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
-
     let config = Arc::new(Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/pt_tutorial/pt_tutorial_config.yml",
     )));
@@ -44,8 +41,6 @@ fn pt_adaptive_with_dummy() {
 // to be tested with running routing service;
 // --config /Users/paulh/git/parallel_qsim_rust/rust_qsim/assets/pt_tutorial/config.xml --output output/v6.4/test-router
 fn test_pt_adaptive(pop_path: PathBuf) {
-    TransitSchedule::from_file(&PathBuf::from("./assets/pt_tutorial/").join("transitschedule.xml"));
-
     let mut config_args = CommandLineArgs::new_with_path(
         "./tests/resources/pt_tutorial/pt_tutorial_config_adaptive.yml",
     );

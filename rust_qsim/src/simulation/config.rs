@@ -159,6 +159,7 @@ impl Config {
         self.network_mut();
         self.population_mut();
         self.vehicles_mut();
+        self.transit_mut();
         self.ids_mut();
     }
 
@@ -233,6 +234,24 @@ impl Config {
     pub fn set_vehicles(&mut self, vehicles: Vehicles) {
         self.modules
             .insert("vehicles".to_string(), Box::new(vehicles));
+    }
+
+    pub fn transit(&self) -> &Transit {
+        self.module::<Transit>("transit")
+            .expect("Transit was not set.")
+    }
+
+    pub fn transit_mut(&mut self) -> &mut Transit {
+        if !self.modules.contains_key("transit") {
+            self.modules
+                .insert("transit".to_string(), Box::new(Transit::default()));
+        }
+        self.module_mut::<Transit>("transit").unwrap()
+    }
+
+    pub fn set_transit(&mut self, transit: Transit) {
+        self.modules
+            .insert("transit".to_string(), Box::new(transit));
     }
 
     pub fn ids(&self) -> &Ids {
@@ -467,6 +486,11 @@ pub struct Vehicles {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct Transit {
+    pub schedule_file: Option<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Ids {
     pub path: Option<PathBuf>,
 }
@@ -481,6 +505,10 @@ register_override!("population.path", |config, value| {
 
 register_override!("vehicles.path", |config, value| {
     config.vehicles_mut().path = Some(PathBuf::from(value));
+});
+
+register_override!("transit.schedule_file", |config, value| {
+    config.transit_mut().schedule_file = Some(PathBuf::from(value));
 });
 
 register_override!("ids.path", |config, value| {
@@ -847,6 +875,16 @@ impl ConfigModule for Population {
 
 #[typetag::serde]
 impl ConfigModule for Vehicles {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Transit {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1235,7 +1273,7 @@ mod tests {
         MetisOptions, PartitionMethod, Partitioning, QSim, Replanning, Routing, StrategySetting,
         TeleportedParams, VertexWeight, parse_key_val,
     };
-    use crate::simulation::config::{Ids, Network, Population, Vehicles};
+    use crate::simulation::config::{Ids, Network, Population, Transit, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
     use crate::simulation::replanning::{
         KEEP_LAST_SELECTED_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME,
@@ -1746,6 +1784,55 @@ modules:
     }
 
     #[test]
+    fn transit_defaults_to_no_schedule() {
+        let config = Config::default();
+
+        assert_eq!(None, config.transit().schedule_file);
+    }
+
+    #[test]
+    fn read_transit_schedule_file_from_yaml() {
+        let yaml = r#"
+modules:
+  transit:
+    type: Transit
+    schedule_file: schedule.xml.gz
+"#;
+
+        let parsed_config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(
+            Some(PathBuf::from("schedule.xml.gz")),
+            parsed_config.transit().schedule_file
+        );
+    }
+
+    #[test]
+    fn test_override_transit_schedule_file() {
+        let yaml = r#"
+modules:
+  transit:
+    type: Transit
+    schedule_file: schedule.xml
+"#;
+        let file = write_temp_config(yaml);
+        let args = CommandLineArgs {
+            config: file.path().to_str().unwrap().to_string(),
+            overrides: vec![(
+                "transit.schedule_file".to_string(),
+                "schedule.binpb".to_string(),
+            )],
+        };
+
+        let config = Config::from_args(args);
+
+        assert_eq!(
+            Some(PathBuf::from("schedule.binpb")),
+            config.transit().schedule_file
+        );
+    }
+
+    #[test]
     fn test_override_output_dir() {
         let yaml = r#"
 modules:
@@ -1855,6 +1942,9 @@ modules:
         });
         config.set_vehicles(Vehicles {
             path: Some("veh".into()),
+        });
+        config.set_transit(Transit {
+            schedule_file: Some("schedule".into()),
         });
         config.set_ids(Ids {
             path: Some("ids".into()),

@@ -801,6 +801,9 @@ mod tests {
         let scenario_core = ScenarioCore {
             network: Arc::new(Network::new()),
             garage: Arc::new(Garage::default()),
+            transit_schedule: Arc::new(
+                crate::simulation::scenario::transit::TransitSchedule::default(),
+            ),
             config: config.clone(),
         };
 

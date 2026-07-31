@@ -51,21 +51,6 @@ pub fn from_file<F: Fn(&InternalPerson) -> bool>(
     }
 }
 
-pub fn to_file(population: &Population, path: &Path) {
-    if path.extension().unwrap().eq("binpb") {
-        write_to_proto(population, path);
-    } else if path.extension().unwrap().eq("xml")
-        || path.extension().unwrap().eq("gz")
-        || path.extension().unwrap().eq("zst")
-    {
-        crate::simulation::io::xml::population::write_to_xml(population, path);
-    } else {
-        panic!(
-            "file format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
-        );
-    }
-}
-
 #[derive(Debug, Default, PartialEq)]
 pub struct Population {
     pub persons: IntMap<Id<InternalPerson>, InternalPerson>,
@@ -176,7 +161,18 @@ impl Population {
     }
 
     pub fn to_file(&self, file_path: &Path) {
-        to_file(self, file_path);
+        if file_path.extension().unwrap().eq("binpb") {
+            write_to_proto(self, file_path);
+        } else if file_path.extension().unwrap().eq("xml")
+            || file_path.extension().unwrap().eq("gz")
+            || file_path.extension().unwrap().eq("zst")
+        {
+            crate::simulation::io::xml::population::write_to_xml(self, file_path);
+        } else {
+            panic!(
+                "file format not supported. Either use `.xml`, `.xml.gz`, `.xml.zst`, or `.binpb` as extension"
+            );
+        }
     }
 }
 

@@ -428,6 +428,7 @@ mod tests {
         InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
         InternalPlan, InternalPlanElement, InternalRoute, Population,
     };
+    use crate::simulation::scenario::transit::TransitSchedule;
     use crate::simulation::scenario::vehicles::{Garage, InternalVehicle, InternalVehicleType};
     use crate::simulation::scenario::{ControllerScenario, Coordinate, Scenario};
     use crate::simulation::time::SimTime;
@@ -788,6 +789,7 @@ mod tests {
             network,
             garage: Garage::default(),
             population,
+            transit_schedule: TransitSchedule::default(),
             config: Arc::new(Config::default()),
         }
         .into()
@@ -803,6 +805,7 @@ mod tests {
             network,
             garage,
             population,
+            transit_schedule: TransitSchedule::default(),
             config: Arc::new(config),
         }
         .into()

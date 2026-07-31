@@ -192,6 +192,9 @@ mod tests {
             scenario: ScenarioCore {
                 network,
                 garage: Arc::new(Garage::default()),
+                transit_schedule: Arc::new(
+                    crate::simulation::scenario::transit::TransitSchedule::default(),
+                ),
                 config,
             },
             network_partition,

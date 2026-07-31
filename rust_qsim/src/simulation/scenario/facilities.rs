@@ -2,9 +2,9 @@ use crate::simulation::id::Id;
 use crate::simulation::io::xml::facilities::{
     IOFacilities, IOFacility, IOFacilityActivity, IOOpenDay, IOOpenTime,
 };
-use crate::simulation::pt::TransitStopFacility;
 use crate::simulation::scenario::Coordinate;
 use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::transit::TransitStopFacility;
 use crate::simulation::time::SimTime;
 use crate::simulation::{Attributable, Identifiable, InternalAttributes};
 use nohash_hasher::IntMap;
@@ -295,13 +295,13 @@ mod tests {
     use crate::simulation::io::xml::facilities::{
         IOCapacity, IOFacilities, IOFacility, IOFacilityActivity, IOOpenDay, IOOpenTime,
     };
-    use crate::simulation::pt::TransitStopFacility;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::facilities::{
         ActivityFacilities, ActivityFacility, ActivityOption, Facility, LinkWrapperFacility,
         OpenDay,
     };
     use crate::simulation::scenario::network::Link;
+    use crate::simulation::scenario::transit::TransitStopFacility;
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use nohash_hasher::IntMap;

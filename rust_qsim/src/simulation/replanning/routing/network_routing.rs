@@ -467,6 +467,9 @@ mod tests {
             ScenarioCore {
                 network,
                 garage: Arc::new(Garage::default()),
+                transit_schedule: Arc::new(
+                    crate::simulation::scenario::transit::TransitSchedule::default(),
+                ),
                 config: Arc::new(Config::default()),
             },
         );

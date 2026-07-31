@@ -2,6 +2,7 @@ pub mod facilities;
 pub mod network;
 pub mod population;
 pub mod prepare_for_sim;
+pub mod transit;
 pub mod trip_structure_utils;
 pub mod vehicles;
 
@@ -13,6 +14,7 @@ use network::Network;
 use population::Population;
 use std::sync::Arc;
 use tracing::info;
+use transit::TransitSchedule;
 use vehicles::Garage;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -156,6 +158,7 @@ pub struct Scenario {
     pub network: Network,
     pub garage: Garage,
     pub population: Population,
+    pub transit_schedule: TransitSchedule,
     pub config: Arc<Config>,
 }
 
@@ -173,12 +176,14 @@ impl Scenario {
         // mandatory content to create a mod
         let network = Self::load_network(&config);
         let mut garage = Self::load_garage(&config);
+        let transit_schedule = Self::load_transit_schedule(&config);
         let population = Self::load_population(&config, &mut garage);
 
         Scenario {
             network,
             garage,
             population,
+            transit_schedule,
             config,
         }
     }
@@ -210,6 +215,15 @@ impl Scenario {
             Population::default()
         }
     }
+
+    fn load_transit_schedule(config: &Config) -> TransitSchedule {
+        if let Some(path) = &config.transit().schedule_file {
+            let schedule_in_path = io::resolve_path(config.context(), path);
+            TransitSchedule::from_file(&schedule_in_path)
+        } else {
+            TransitSchedule::default()
+        }
+    }
 }
 
 /// Immutable scenario data shared by controller, mobsim partitions and replanning phases.
@@ -217,6 +231,7 @@ impl Scenario {
 pub struct ScenarioCore {
     pub network: Arc<Network>,
     pub garage: Arc<Garage>,
+    pub transit_schedule: Arc<TransitSchedule>,
     pub config: Arc<Config>,
 }
 
@@ -254,6 +269,7 @@ impl From<Scenario> for ControllerScenario {
             core: ScenarioCore {
                 network: Arc::new(scenario.network),
                 garage: Arc::new(scenario.garage),
+                transit_schedule: Arc::new(scenario.transit_schedule),
                 config: scenario.config,
             },
             population: scenario.population,
@@ -338,14 +354,57 @@ impl ControllerScenario {
 #[cfg(test)]
 mod tests {
     use super::{ControllerScenario, Scenario};
-    use crate::simulation::config::{Config, PartitionMethod};
+    use crate::simulation::config::{Config, PartitionMethod, Transit};
+    use crate::simulation::id::Id;
     use crate::simulation::network::LinkStorageCapacities;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::Population;
+    use crate::simulation::scenario::transit::{
+        TransitLine, TransitRoute, TransitSchedule, TransitStopFacility,
+    };
     use crate::simulation::scenario::vehicles::Garage;
     use macros::deterministic_id_test;
     use std::path::PathBuf;
     use std::sync::Arc;
+
+    #[deterministic_id_test]
+    fn scenario_without_transit_config_uses_shared_empty_schedule() {
+        let scenario = Scenario::load(Config::default());
+
+        assert!(scenario.transit_schedule.lines().is_empty());
+        assert!(scenario.transit_schedule.facilities().is_empty());
+
+        let controller_scenario: ControllerScenario = scenario.into();
+        assert!(controller_scenario.core.transit_schedule.lines().is_empty());
+        assert!(
+            controller_scenario
+                .core
+                .transit_schedule
+                .facilities()
+                .is_empty()
+        );
+    }
+
+    #[deterministic_id_test]
+    fn scenario_loads_xml_transit_schedule_and_creates_ids() {
+        let mut config = Config::default();
+        config.set_transit(Transit {
+            schedule_file: Some("./assets/pt_tutorial/transitschedule.xml".into()),
+        });
+
+        let scenario = Scenario::load(config);
+
+        assert_eq!(1, scenario.transit_schedule.lines().len());
+        assert_eq!(4, scenario.transit_schedule.facilities().len());
+        assert_eq!(2, scenario.transit_schedule.num_routes());
+        assert_eq!(
+            "Blue Line",
+            Id::<TransitLine>::get_from_ext("Blue Line").external()
+        );
+        assert_eq!("1to3", Id::<TransitRoute>::get_from_ext("1to3").external());
+        assert_eq!("1", Id::<TransitStopFacility>::get_from_ext("1").external());
+        assert_eq!("1to3", Id::<String>::get_from_ext("1to3").external());
+    }
 
     #[deterministic_id_test]
     fn split_and_merge_mobsim_population_keeps_every_person_once() {
@@ -364,6 +423,7 @@ mod tests {
             network,
             garage,
             population,
+            transit_schedule: TransitSchedule::default(),
             config,
         }
         .into();
