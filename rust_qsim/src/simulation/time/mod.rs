@@ -193,22 +193,17 @@ impl SimTime {
         if parts.next().is_some() {
             return Err("too many ':' separators".to_string());
         }
-
-        let (seconds, nanos) = match seconds_part.split_once('.') {
-            Some((seconds, nanos)) => {
-                let seconds = seconds
-                    .parse::<u64>()
-                    .map_err(|_| "invalid seconds".to_string())?;
-                let nanos = normalize_nanos(nanos)?;
-                (seconds, nanos)
-            }
-            None => (
-                seconds_part
-                    .parse::<u64>()
-                    .map_err(|_| "invalid seconds".to_string())?,
-                0,
-            ),
+        let seconds_part_as_decimal = if seconds_part.contains('e') || seconds_part.contains('E') {
+            // If the seconds part is in scientific notation, we need to convert it to a decimal string
+            let seconds_as_f64 = seconds_part
+                .parse::<f64>()
+                .map_err(|_| "invalid seconds".to_string())?;
+            format!("{:}", seconds_as_f64)
+        } else {
+            seconds_part.to_string()
         };
+
+        let (seconds, nanos) = Self::parse_seconds_truncate_nanos(&seconds_part_as_decimal)?;
 
         let total_seconds = hours
             .checked_mul(60)
@@ -221,6 +216,12 @@ impl SimTime {
     }
 
     pub fn parse_decimal_seconds(input: &str) -> Result<Self, String> {
+        let (seconds, nanos) = Self::parse_seconds_truncate_nanos(input)?;
+
+        Ok(Self::from_nanos(checked_total_nanos(seconds, nanos)?))
+    }
+
+    fn parse_seconds_truncate_nanos(input: &str) -> Result<(u64, u64), String> {
         let (seconds, nanos) = match input.split_once('.') {
             Some((seconds, nanos)) => {
                 let seconds = seconds
@@ -236,8 +237,7 @@ impl SimTime {
                 0,
             ),
         };
-
-        Ok(Self::from_nanos(checked_total_nanos(seconds, nanos)?))
+        Ok((seconds, nanos))
     }
 
     pub fn format_decimal_seconds(self) -> String {
@@ -333,21 +333,6 @@ fn simtime_overflow_error(source: &str) -> String {
     format!(
         "SimTime overflow while converting {source}: values above u64::MAX nanoseconds are unsupported"
     )
-}
-
-/// Normalizes a string of 1-9 decimal digits to a nanosecond value by padding with zeros and parsing as u64.
-fn normalize_nanos(input: &str) -> Result<u64, String> {
-    if input.is_empty() || input.len() > 9 || !input.chars().all(|c| c.is_ascii_digit()) {
-        return Err("expected 1-9 decimal digits for nanoseconds".to_string());
-    }
-
-    let mut nanos = input.to_string();
-    while nanos.len() < 9 {
-        nanos.push('0');
-    }
-    nanos
-        .parse::<u64>()
-        .map_err(|_| "invalid nanoseconds".to_string())
 }
 
 fn normalize_nanos_truncate(input: &str) -> Result<u64, String> {

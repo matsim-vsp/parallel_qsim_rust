@@ -188,8 +188,7 @@ fn check_and_adapt_trip(
         .get(trip_index)
         .copied()
         .expect("routing modules must preserve the number of trips");
-    let TripAssessment::NeedsRouting(mode) = assess_trip(context, span, &working_plan.elements)?
-    else {
+    let TripAssessment::NeedsRouting(mode) = assess_trip(context, span, working_plan)? else {
         return Ok(());
     };
 
@@ -243,10 +242,17 @@ fn assign_activity_coordinates(context: &PrepareForSimContext<'_>, plan: &mut In
 fn assess_trip(
     context: &PrepareForSimContext<'_>,
     span: TripSpan,
-    elements: &[InternalPlanElement],
+    working_plan: &mut Cow<'_, InternalPlan>,
 ) -> Result<TripAssessment, TripPreparationError> {
+    let mode = {
+        let legs: Vec<_> = span.legs(&working_plan.elements).collect();
+        resolve_main_mode(&legs)?
+    };
+
+    synchronize_missing_travel_times(span, working_plan);
+
+    let elements = &working_plan.elements;
     let legs: Vec<_> = span.legs(elements).collect();
-    let mode = resolve_main_mode(&legs)?;
 
     if trip_is_valid(context, span, elements, &mode, &legs) {
         Ok(TripAssessment::Valid)
@@ -255,26 +261,34 @@ fn assess_trip(
     }
 }
 
-/// Returns the main mode of a trip. Checks the routing mode as well.
-fn resolve_main_mode(legs: &[&InternalLeg]) -> Result<Id<String>, TripPreparationError> {
-    if legs.is_empty() {
-        return Err(TripPreparationError::NoLegs);
+/// Copies a travel time from a leg to its route or vice versa when exactly one is set.
+/// The plan is cloned only if synchronization is actually necessary.
+fn synchronize_missing_travel_times(span: TripSpan, working_plan: &mut Cow<'_, InternalPlan>) {
+    let needs_synchronization = span.legs(&working_plan.elements).any(|leg| {
+        leg.route.as_ref().is_some_and(|route| {
+            leg.trav_time.is_some() != route.as_generic().trav_time().is_some()
+        })
+    });
+
+    if !needs_synchronization {
+        return;
     }
 
-    let mut routing_modes = Vec::new();
-    for mode in legs.iter().filter_map(|leg| leg.routing_mode.as_ref()) {
-        if !routing_modes.iter().any(|candidate| candidate == mode) {
-            routing_modes.push(mode.clone());
+    for leg in span.legs_mut(&mut working_plan.to_mut().elements) {
+        let leg_travel_time = leg.trav_time;
+        let Some(route) = leg.route.as_mut() else {
+            continue;
+        };
+        let route_travel_time = route.as_generic().trav_time();
+
+        match (leg_travel_time, route_travel_time) {
+            (None, Some(travel_time)) => leg.trav_time = Some(travel_time),
+            (Some(travel_time), None) => {
+                route.as_generic_mut().set_trav_time(Some(travel_time));
+            }
+            _ => {}
         }
     }
-    if routing_modes.len() == 1 {
-        return Ok(routing_modes.pop().unwrap());
-    }
-    if legs.len() == 1 {
-        return Ok(legs[0].mode.clone());
-    }
-
-    Err(TripPreparationError::AmbiguousMainMode)
 }
 
 fn trip_is_valid(
@@ -292,24 +306,27 @@ fn trip_is_valid(
     }
 
     for leg in legs {
-        // Check if travel time is present
-        if leg.trav_time.is_none() {
-            return false;
-        }
-
-        // Check if route is present
         let Some(route) = leg.route.as_ref() else {
             return false;
         };
         let generic = route.as_generic();
+
+        // QSim derives travel times for main-mode legs. All other legs need a travel time,
+        // which is present on both leg and route after synchronization above.
+        if !is_network_mode(context, &leg.mode)
+            && (leg.trav_time.is_none() || generic.trav_time().is_none())
+        {
+            return false;
+        }
+
         if !generic_route_is_valid(generic) {
             return false;
         }
 
-        if let InternalRoute::Network(network_route) = route {
-            if !network_route_is_valid(context.network, network_route.route(), &leg.mode, generic) {
-                return false;
-            }
+        if let InternalRoute::Network(network_route) = route
+            && !network_route_is_valid(context.network, network_route.route(), &leg.mode, generic)
+        {
+            return false;
         }
     }
 
@@ -342,11 +359,34 @@ fn trip_is_valid(
     true
 }
 
+/// Returns the main mode of a trip. Checks the routing mode as well.
+fn resolve_main_mode(legs: &[&InternalLeg]) -> Result<Id<String>, TripPreparationError> {
+    if legs.is_empty() {
+        return Err(TripPreparationError::NoLegs);
+    }
+
+    let mut routing_modes = Vec::new();
+    for mode in legs.iter().filter_map(|leg| leg.routing_mode.as_ref()) {
+        if !routing_modes.iter().any(|candidate| candidate == mode) {
+            routing_modes.push(mode.clone());
+        }
+    }
+    if routing_modes.len() == 1 {
+        return Ok(routing_modes.pop().unwrap());
+    }
+    if legs.len() == 1 {
+        return Ok(legs[0].mode.clone());
+    }
+
+    Err(TripPreparationError::AmbiguousMainMode)
+}
+
 fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
+    // TODO: calculate distance on the fly instead of triggering reroute
     let Some(distance) = route.distance() else {
         return false;
     };
-    route.trav_time().is_some() && distance.is_finite() && distance >= 0.0
+    distance.is_finite() && distance >= 0.0
 }
 
 /// Checks if a given network route is valid. This is the case if the route starts and ends with the correct links,
@@ -553,6 +593,84 @@ mod tests {
         );
     }
 
+    #[deterministic_id_test]
+    fn copies_travel_time_from_route_to_leg() {
+        let travel_time = Duration::from_secs(7);
+        let plan = routed_plan("walk", None, Some(travel_time));
+        let person_id = Id::create("person-1");
+        let mut persons = IntMap::default();
+        persons.insert(
+            person_id.clone(),
+            InternalPerson::new(person_id.clone(), plan),
+        );
+        let mut scenario = scenario_with_parts(
+            sequential_network(2, None),
+            Garage::default(),
+            Population { persons },
+            Config::default(),
+        );
+
+        prepare_for_sim(&mut scenario, &empty_router()).unwrap();
+
+        let plan = scenario.population.persons[&person_id]
+            .selected_plan()
+            .unwrap();
+        let legs = plan.legs();
+        assert_eq!(Some(travel_time), legs[0].trav_time);
+        assert_eq!(
+            Some(travel_time),
+            legs[0].route.as_ref().unwrap().as_generic().trav_time()
+        );
+    }
+
+    #[deterministic_id_test]
+    fn copies_travel_time_from_leg_to_route() {
+        let travel_time = Duration::from_secs(7);
+        let plan = routed_plan("walk", Some(travel_time), None);
+        let person_id = Id::create("person-1");
+        let mut persons = IntMap::default();
+        persons.insert(
+            person_id.clone(),
+            InternalPerson::new(person_id.clone(), plan),
+        );
+        let mut scenario = scenario_with_parts(
+            sequential_network(2, None),
+            Garage::default(),
+            Population { persons },
+            Config::default(),
+        );
+
+        prepare_for_sim(&mut scenario, &empty_router()).unwrap();
+
+        let plan = scenario.population.persons[&person_id]
+            .selected_plan()
+            .unwrap();
+        let legs = plan.legs();
+        assert_eq!(Some(travel_time), legs[0].trav_time);
+        assert_eq!(
+            Some(travel_time),
+            legs[0].route.as_ref().unwrap().as_generic().trav_time()
+        );
+    }
+
+    fn routed_plan(
+        mode: &str,
+        leg_travel_time: Option<Duration>,
+        route_travel_time: Option<Duration>,
+    ) -> InternalPlan {
+        let mut plan = unrouted_plan(mode, "link-1", "link-2", 10);
+        let leg = plan.elements[1].as_leg_mut().unwrap();
+        leg.trav_time = leg_travel_time;
+        leg.route = Some(InternalRoute::Generic(InternalGenericRoute::new(
+            Id::get_from_ext("link-1"),
+            Id::get_from_ext("link-2"),
+            route_travel_time,
+            Some(20.0),
+            None,
+        )));
+        plan
+    }
+
     // Before: act--unrouted walk--act; after: routing fails and the original plan remains unchanged.
     #[deterministic_id_test]
     fn missing_module_returns_issue_and_keeps_original_plan() {
@@ -642,12 +760,43 @@ mod tests {
         );
         assert_eq!(vec![SimTime::from_secs(10)], *departures.lock().unwrap());
 
+        // reset travel times
+        {
+            let person = scenario.population.persons.get_mut(&person_id).unwrap();
+            let main_leg = person
+                .selected_plan_mut()
+                .legs_mut()
+                .into_iter()
+                .find(|leg| leg.mode.external() == "car")
+                .unwrap();
+            main_leg.trav_time = None;
+            main_leg
+                .route
+                .as_mut()
+                .unwrap()
+                .as_generic_mut()
+                .set_trav_time(None);
+        }
+
         prepare_for_sim(&mut scenario, &router).unwrap();
 
         assert_eq!(
             vec![SimTime::from_secs(10)],
             *departures.lock().unwrap(),
-            "the already valid trip must not be routed again"
+            "missing travel times on the main-mode leg must not trigger routing"
+        );
+        let plan = scenario.population.persons[&person_id]
+            .selected_plan()
+            .unwrap();
+        let main_leg = plan
+            .legs()
+            .into_iter()
+            .find(|leg| leg.mode.external() == "car")
+            .unwrap();
+        assert_eq!(None, main_leg.trav_time);
+        assert_eq!(
+            None,
+            main_leg.route.as_ref().unwrap().as_generic().trav_time()
         );
     }
 

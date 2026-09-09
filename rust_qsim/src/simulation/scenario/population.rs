@@ -435,6 +435,14 @@ impl InternalRoute {
         }
     }
 
+    pub fn as_generic_mut(&mut self) -> &mut InternalGenericRoute {
+        match self {
+            InternalRoute::Generic(g) => g,
+            InternalRoute::Network(n) => &mut n.generic_delegate,
+            InternalRoute::Pt(p) => &mut p.generic_delegate,
+        }
+    }
+
     pub fn as_network(&self) -> Option<&InternalNetworkRoute> {
         match self {
             InternalRoute::Network(n) => Some(n),
@@ -618,6 +626,10 @@ impl InternalGenericRoute {
 
     pub fn trav_time(&self) -> Option<Duration> {
         self.trav_time
+    }
+
+    pub fn set_trav_time(&mut self, trav_time: Option<Duration>) {
+        self.trav_time = trav_time;
     }
 
     pub fn distance(&self) -> Option<f64> {
@@ -878,7 +890,23 @@ impl InternalPlanElement {
         }
     }
 
+    pub fn as_activity_mut(&mut self) -> Option<&mut InternalActivity> {
+        if let InternalPlanElement::Activity(act) = self {
+            Some(act)
+        } else {
+            None
+        }
+    }
+
     pub fn as_leg(&self) -> Option<&InternalLeg> {
+        if let InternalPlanElement::Leg(leg) = self {
+            Some(leg)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_leg_mut(&mut self) -> Option<&mut InternalLeg> {
         if let InternalPlanElement::Leg(leg) = self {
             Some(leg)
         } else {
