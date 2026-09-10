@@ -19,6 +19,7 @@ mod network_converter;
 pub mod network_routing;
 pub mod teleportation;
 pub mod travel_time_collector;
+pub mod utils;
 
 #[derive(Debug)]
 pub struct TripRouter {
