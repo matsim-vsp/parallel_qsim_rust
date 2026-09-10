@@ -268,10 +268,13 @@ fn add_travel_distance(
     span: TripSpan,
     working_plan: &mut Cow<'_, InternalPlan>,
 ) {
-    let has_network_route = span
+    // check: if there is a leg that has a network route but no distance, then we need to calculate it.
+    let needs_dist_calc = span
         .legs(&working_plan.elements)
-        .any(|leg| matches!(leg.route, Some(InternalRoute::Network(_))));
-    if !has_network_route {
+        .filter_map(|l| l.route.as_ref())
+        .filter_map(|r| r.as_network())
+        .any(|n| n.generic_delegate().distance().is_none());
+    if !needs_dist_calc {
         return;
     }
 
@@ -339,6 +342,10 @@ fn trip_is_valid(
         };
         let generic = route.as_generic();
 
+        if !generic_route_is_valid(generic) {
+            return false;
+        }
+
         // QSim derives travel times for main-mode legs. All other legs need a travel time,
         // which is present on both leg and route after synchronization above.
         if !is_network_mode(context, &leg.mode)
@@ -381,6 +388,14 @@ fn trip_is_valid(
     }
 
     true
+}
+
+/// Checks whether distance is set.
+fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
+    let Some(distance) = route.distance() else {
+        return false;
+    };
+    route.trav_time().is_some() && distance.is_finite() && distance >= 0.0
 }
 
 /// Returns the main mode of a trip. Checks the routing mode as well.

@@ -198,7 +198,7 @@ impl SimTime {
             let seconds_as_f64 = seconds_part
                 .parse::<f64>()
                 .map_err(|_| "invalid seconds".to_string())?;
-            format!("{:}", seconds_as_f64)
+            format!("{:.9}", seconds_as_f64)
         } else {
             seconds_part.to_string()
         };
@@ -221,6 +221,7 @@ impl SimTime {
         Ok(Self::from_nanos(checked_total_nanos(seconds, nanos)?))
     }
 
+    /// Parses a seconds string with optional fractional part; fractional digits beyond 9 are truncated.
     fn parse_seconds_truncate_nanos(input: &str) -> Result<(u64, u64), String> {
         let (seconds, nanos) = match input.split_once('.') {
             Some((seconds, nanos)) => {
