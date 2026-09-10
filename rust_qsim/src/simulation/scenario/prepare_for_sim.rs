@@ -395,7 +395,7 @@ fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
     let Some(distance) = route.distance() else {
         return false;
     };
-    route.trav_time().is_some() && distance.is_finite() && distance >= 0.0
+    distance.is_finite() && distance >= 0.0
 }
 
 /// Returns the main mode of a trip. Checks the routing mode as well.
