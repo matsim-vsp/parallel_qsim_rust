@@ -6,10 +6,12 @@ use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use rand::RngExt;
 use rayon::prelude::*;
+use selectors::{DefaultSelector, KeepLastSelector, WorstScoreSelector};
 use std::fmt;
 use std::str::FromStr;
 
 pub mod routing;
+mod selectors;
 
 const STRATEGY_RNG_PURPOSE: &str = "replanning.strategy";
 const RANDOM_SELECTOR_RNG_PURPOSE: &str = "replanning.selector.random";
@@ -19,62 +21,22 @@ pub const SELECT_RANDOM_STRATEGY_NAME: &str = "SelectRandom";
 pub const WORST_SCORE_STRATEGY_NAME: &str = "WorstScore";
 pub const RE_ROUTE_STRATEGY_NAME: &str = "ReRoute";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DefaultSelector {
-    KeepLastSelected,
-    BestScore,
-    SelectRandom,
-    WorstScore,
+#[allow(dead_code)]
+/// This is responsible for picking a plan, copying it, and replanning it.
+trait PlanStrategy: Send + Sync {
+    fn name(&self) -> &Id<String>;
+    fn handle(&self, person: &mut InternalPerson, context: &ReplanningContext);
 }
 
-impl DefaultSelector {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::KeepLastSelected => KEEP_LAST_SELECTED_STRATEGY_NAME,
-            Self::BestScore => BEST_SCORE_STRATEGY_NAME,
-            Self::SelectRandom => SELECT_RANDOM_STRATEGY_NAME,
-            Self::WorstScore => WORST_SCORE_STRATEGY_NAME,
-        }
-    }
-
-    fn as_plan_selector(self) -> Box<dyn PlanSelector> {
-        match self {
-            Self::KeepLastSelected => Box::new(KeepLastSelector),
-            Self::BestScore => Box::new(BestScoreSelector),
-            Self::SelectRandom => Box::new(RandomSelector),
-            Self::WorstScore => Box::new(WorstScoreSelector),
-        }
-    }
-
-    fn as_generic_plan_strategy(self) -> Box<dyn PlanStrategy> {
-        let name = Id::create(self.as_str());
-
-        Box::new(GenericPlanStrategy {
-            name,
-            selector: self.as_plan_selector(),
-            modules: Vec::new(),
-        })
-    }
+#[allow(dead_code)]
+/// This is the smallest replanning unit (e.g., routes a plan).
+trait PlanStrategyModule: Send + Sync {
+    fn handle(&self, person: &mut InternalPerson, plan_index: usize);
 }
 
-impl fmt::Display for DefaultSelector {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl FromStr for DefaultSelector {
-    type Err = String;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            KEEP_LAST_SELECTED_STRATEGY_NAME => Ok(Self::KeepLastSelected),
-            BEST_SCORE_STRATEGY_NAME => Ok(Self::BestScore),
-            SELECT_RANDOM_STRATEGY_NAME => Ok(Self::SelectRandom),
-            WORST_SCORE_STRATEGY_NAME => Ok(Self::WorstScore),
-            _ => Err(format!("Unknown DefaultSelector: {value}")),
-        }
-    }
+/// This is responsible for selecting a plan from a person's available plans.
+trait PlanSelector: Send + Sync {
+    fn select(&self, person: &InternalPerson, context: &ReplanningContext) -> usize;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -117,6 +79,7 @@ impl FromStr for DefaultStrategy {
     }
 }
 
+/// Performs multithreaded replanning of the population
 pub(crate) fn replan_population(
     population: Population,
     iteration: u32,
@@ -141,6 +104,7 @@ pub(crate) fn replan_population(
 #[allow(dead_code)]
 #[derive(Builder)]
 #[builder(pattern = "owned")]
+/// Manages replanning. This is the registry for all the replanning strategies.
 pub(crate) struct StrategyManager {
     #[builder(default = "default_weights_per_subpopulation()")]
     weights_per_subpopulation: IntMap<Id<String>, StrategyWeights>,
@@ -153,15 +117,11 @@ pub(crate) struct StrategyManager {
 }
 
 impl StrategyManager {
-    pub(crate) fn builder() -> StrategyManagerBuilder {
-        StrategyManagerBuilder::default()
-    }
-
     pub(crate) fn from_replanning_config(replanning: &config::Replanning) -> Self {
         let weights_per_subpopulation =
             weights_per_subpopulation_from_settings(&replanning.strategy_settings);
 
-        StrategyManager::builder()
+        StrategyManagerBuilder::default()
             .weights_per_subpopulation(weights_per_subpopulation)
             .max_memory_size(replanning.max_agent_plan_memory as usize)
             .plan_remover(plan_selector_from_config_name(
@@ -184,12 +144,14 @@ impl StrategyManager {
             base_seed,
             innovation_disabled,
         };
+
         if let Some(strategy) = self.choose_strategy(&context, person) {
             strategy.handle(person, &context);
         }
         self.remove_plans_if_needed(person, &context);
     }
 
+    /// Chooses a strategy and runs it.
     fn choose_strategy(
         &self,
         context: &ReplanningContext,
@@ -246,7 +208,7 @@ impl StrategyManager {
 
 impl Default for StrategyManager {
     fn default() -> Self {
-        StrategyManager::builder().build().unwrap()
+        StrategyManagerBuilder::default().build().unwrap()
     }
 }
 
@@ -358,13 +320,6 @@ struct GenericPlanStrategy {
     modules: Vec<Box<dyn PlanStrategyModule + Send + Sync>>,
 }
 
-#[allow(dead_code)]
-// This is responsible for picking a plan, copying it and replanning it.
-trait PlanStrategy: Send + Sync {
-    fn name(&self) -> &Id<String>;
-    fn handle(&self, person: &mut InternalPerson, context: &ReplanningContext);
-}
-
 impl PlanStrategy for GenericPlanStrategy {
     fn name(&self) -> &Id<String> {
         &self.name
@@ -394,12 +349,6 @@ impl PlanStrategy for GenericPlanStrategy {
 }
 
 #[allow(dead_code)]
-// This is the smallest replanning unit (e.g., routes a plan).
-trait PlanStrategyModule: Send + Sync {
-    fn handle(&self, person: &mut InternalPerson, plan_index: usize);
-}
-
-#[allow(dead_code)]
 struct ReRouteModule {
     // hold reference to scenario
     // hold reference to router
@@ -417,151 +366,16 @@ struct ReplanningContext {
     innovation_disabled: bool,
 }
 
-trait PlanSelector: Send + Sync {
-    fn select(&self, person: &InternalPerson, context: &ReplanningContext) -> usize;
-}
-
-struct KeepLastSelector;
-
-impl PlanSelector for KeepLastSelector {
-    fn select(&self, person: &InternalPerson, _context: &ReplanningContext) -> usize {
-        let mut selected = person
-            .plans()
-            .iter()
-            .enumerate()
-            .filter(|(_, plan)| plan.selected);
-        let (index, _) = selected
-            .next()
-            .expect("KeepLastSelector could not find a selected plan.");
-        assert!(
-            selected.next().is_none(),
-            "KeepLastSelector found multiple selected plans."
-        );
-        index
-    }
-}
-
-#[allow(dead_code)]
-struct BestScoreSelector;
-
-impl PlanSelector for BestScoreSelector {
-    fn select(&self, person: &InternalPerson, _context: &ReplanningContext) -> usize {
-        person
-            .plans()
-            .iter()
-            .enumerate()
-            .filter_map(|(index, plan)| plan.score.map(|score| (index, score)))
-            .max_by(|(_, left), (_, right)| left.total_cmp(right))
-            .map(|(index, _)| index)
-            .expect("BestScoreSelector could not find a scored plan.")
-    }
-}
-
-#[allow(dead_code)]
-struct RandomSelector;
-
-impl PlanSelector for RandomSelector {
-    fn select(&self, person: &InternalPerson, context: &ReplanningContext) -> usize {
-        let plan_count = person.plans().len();
-        assert!(plan_count > 0, "RandomSelector could not find a plan.");
-        let stream_id = format!("{}:{}", context.iteration, person.id().external());
-        let mut rng = get_rng(context.base_seed, RANDOM_SELECTOR_RNG_PURPOSE, &stream_id);
-        rng.random_range(0..plan_count)
-    }
-}
-
-struct WorstScoreSelector;
-
-impl PlanSelector for WorstScoreSelector {
-    fn select(&self, person: &InternalPerson, _context: &ReplanningContext) -> usize {
-        let plans = person.plans();
-        let prefer_unselected = plans.iter().any(|plan| !plan.selected);
-        let mut worst_index = None;
-
-        for (index, plan) in plans.iter().enumerate() {
-            if prefer_unselected && plan.selected {
-                continue;
-            }
-
-            let Some(current_worst_index) = worst_index else {
-                worst_index = Some(index);
-                continue;
-            };
-
-            if plan_is_worse(plan.score, plans[current_worst_index].score) {
-                worst_index = Some(index);
-            }
-        }
-
-        worst_index.expect("WorstSelector could not find a removable plan.")
-    }
-}
-
-fn plan_is_worse(candidate: Option<f64>, current: Option<f64>) -> bool {
-    match (score_for_ordering(candidate), score_for_ordering(current)) {
-        (None, Some(_)) => true,
-        (Some(_), None) | (None, None) => false,
-        (Some(candidate), Some(current)) => candidate < current,
-    }
-}
-
-fn score_for_ordering(score: Option<f64>) -> Option<f64> {
-    score.filter(|score| !score.is_nan())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        DefaultSelector, GenericPlanStrategy, KeepLastSelector, PlanSelector, PlanStrategy,
-        PlanStrategyModule, RandomSelector, ReplanningContext, StrategyManager, WorstScoreSelector,
+        GenericPlanStrategy, PlanStrategy, PlanStrategyModule, ReplanningContext, StrategyManager,
     };
     use crate::simulation::config::{Replanning, StrategySetting};
     use crate::simulation::id::Id;
+    use crate::simulation::replanning::selectors::{DefaultSelector, KeepLastSelector};
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
     use macros::deterministic_id_test;
-
-    #[deterministic_id_test]
-    fn keep_last_selector_returns_selected_plan_index() {
-        let person = person_with_scores([Some(1.0), Some(2.0)]);
-
-        assert_eq!(0, KeepLastSelector.select(&person, &context()));
-    }
-
-    #[deterministic_id_test]
-    #[should_panic(expected = "KeepLastSelector could not find a selected plan.")]
-    fn keep_last_selector_panics_without_selected_plan() {
-        let mut person = person_with_scores([Some(1.0), Some(2.0)]);
-        for plan in person.plans_mut() {
-            plan.selected = false;
-        }
-
-        KeepLastSelector.select(&person, &context());
-    }
-
-    #[deterministic_id_test]
-    #[should_panic(expected = "KeepLastSelector found multiple selected plans.")]
-    fn keep_last_selector_panics_with_multiple_selected_plans() {
-        let mut person = person_with_scores([Some(1.0), Some(2.0)]);
-        person.plans_mut()[1].selected = true;
-
-        KeepLastSelector.select(&person, &context());
-    }
-
-    #[deterministic_id_test]
-    fn worst_selector_treats_missing_score_as_worst() {
-        let person = person_with_scores([Some(1.0), None, Some(-5.0)]);
-
-        assert_eq!(1, WorstScoreSelector.select(&person, &context()));
-    }
-
-    #[deterministic_id_test]
-    fn worst_selector_prefers_removing_unselected_plans() {
-        let mut person = person_with_scores([Some(-100.0), Some(1.0)]);
-        person.plans_mut()[0].selected = true;
-        person.plans_mut()[1].selected = false;
-
-        assert_eq!(1, WorstScoreSelector.select(&person, &context()));
-    }
 
     #[deterministic_id_test]
     fn default_selectors_create_generic_strategies_with_matching_names() {
@@ -574,18 +388,6 @@ mod tests {
 
             assert_eq!(&Id::create(selector.as_str()), strategy.name());
         }
-    }
-
-    #[deterministic_id_test]
-    fn random_selector_is_deterministic_for_same_context() {
-        let person = person_with_scores([Some(1.0), Some(2.0), Some(3.0)]);
-        let context = context();
-
-        let first = RandomSelector.select(&person, &context);
-        let second = RandomSelector.select(&person, &context);
-
-        assert_eq!(first, second);
-        assert!(first < person.plans().len());
     }
 
     #[deterministic_id_test]
@@ -719,7 +521,7 @@ mod tests {
         assert_eq!(Some(99.0), person.plans()[1].score);
     }
 
-    fn person_with_scores<const N: usize>(scores: [Option<f64>; N]) -> InternalPerson {
+    pub fn person_with_scores<const N: usize>(scores: [Option<f64>; N]) -> InternalPerson {
         let mut person = InternalPerson::new(Id::create("person"), plan(scores[0], true));
         for score in scores.into_iter().skip(1) {
             person.plans_mut().push(plan(score, false));
@@ -735,7 +537,7 @@ mod tests {
         }
     }
 
-    fn context() -> ReplanningContext {
+    pub fn context() -> ReplanningContext {
         ReplanningContext {
             iteration: 7,
             base_seed: 42,
