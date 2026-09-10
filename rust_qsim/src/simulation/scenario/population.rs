@@ -635,6 +635,10 @@ impl InternalGenericRoute {
     pub fn distance(&self) -> Option<f64> {
         self.distance
     }
+
+    pub fn set_distance(&mut self, distance: Option<f64>) {
+        self.distance = distance;
+    }
 }
 
 impl InternalNetworkRoute {

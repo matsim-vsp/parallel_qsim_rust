@@ -1,5 +1,6 @@
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
+use crate::simulation::replanning::routing::utils::calc_distance;
 use crate::simulation::replanning::routing::{RoutingError, RoutingRequestBuilder, TripRouter};
 use crate::simulation::scenario::ControllerScenario;
 use crate::simulation::scenario::Coordinate;
@@ -249,6 +250,7 @@ fn assess_trip(
         resolve_main_mode(&legs)?
     };
 
+    add_travel_distance(context.network, span, working_plan);
     synchronize_missing_travel_times(span, working_plan);
 
     let elements = &working_plan.elements;
@@ -258,6 +260,32 @@ fn assess_trip(
         Ok(TripAssessment::Valid)
     } else {
         Ok(TripAssessment::NeedsRouting(mode))
+    }
+}
+
+fn add_travel_distance(
+    network: &Network,
+    span: TripSpan,
+    working_plan: &mut Cow<'_, InternalPlan>,
+) {
+    let has_network_route = span
+        .legs(&working_plan.elements)
+        .any(|leg| matches!(leg.route, Some(InternalRoute::Network(_))));
+    if !has_network_route {
+        return;
+    }
+
+    for leg in span.legs_mut(&mut working_plan.to_mut().elements) {
+        let Some(route) = leg.route.as_mut() else {
+            continue;
+        };
+        let distance = match route {
+            InternalRoute::Network(network_route) => {
+                calc_distance(network_route, 1.0, 1.0, network)
+            }
+            _ => continue,
+        };
+        route.as_generic_mut().set_distance(Some(distance));
     }
 }
 
@@ -319,10 +347,6 @@ fn trip_is_valid(
             return false;
         }
 
-        if !generic_route_is_valid(generic) {
-            return false;
-        }
-
         if let InternalRoute::Network(network_route) = route
             && !network_route_is_valid(context.network, network_route.route(), &leg.mode, generic)
         {
@@ -379,14 +403,6 @@ fn resolve_main_mode(legs: &[&InternalLeg]) -> Result<Id<String>, TripPreparatio
     }
 
     Err(TripPreparationError::AmbiguousMainMode)
-}
-
-fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
-    // TODO: calculate distance on the fly instead of triggering reroute
-    let Some(distance) = route.distance() else {
-        return false;
-    };
-    distance.is_finite() && distance >= 0.0
 }
 
 /// Checks if a given network route is valid. This is the case if the route starts and ends with the correct links,
@@ -455,7 +471,7 @@ fn is_network_mode(context: &PrepareForSimContext<'_>, mode: &Id<String>) -> boo
 
 #[cfg(test)]
 mod tests {
-    use super::prepare_for_sim;
+    use super::{add_travel_distance, prepare_for_sim};
     use crate::simulation::InternalAttributes;
     use crate::simulation::config::Config;
     use crate::simulation::id::Id;
@@ -469,11 +485,13 @@ mod tests {
         InternalPlan, InternalPlanElement, InternalRoute, Population,
     };
     use crate::simulation::scenario::transit::TransitSchedule;
+    use crate::simulation::scenario::trip_structure_utils::get_trip_spans_default;
     use crate::simulation::scenario::vehicles::{Garage, InternalVehicle, InternalVehicleType};
     use crate::simulation::scenario::{ControllerScenario, Coordinate, Scenario};
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use nohash_hasher::{IntMap, IntSet};
+    use std::borrow::Cow;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -650,6 +668,63 @@ mod tests {
         assert_eq!(
             Some(travel_time),
             legs[0].route.as_ref().unwrap().as_generic().trav_time()
+        );
+    }
+
+    #[deterministic_id_test]
+    fn adds_travel_distance_to_network_routes() {
+        let network = sequential_network(3, Some("car"));
+        let mut plan = unrouted_plan("car", "link-1", "link-3", 10);
+        let generic_route = InternalGenericRoute::new(
+            Id::get_from_ext("link-1"),
+            Id::get_from_ext("link-3"),
+            None,
+            None,
+            None,
+        );
+        plan.elements[1].as_leg_mut().unwrap().route =
+            Some(InternalRoute::Network(InternalNetworkRoute::new(
+                generic_route,
+                vec![
+                    Id::get_from_ext("link-1"),
+                    Id::get_from_ext("link-2"),
+                    Id::get_from_ext("link-3"),
+                ],
+            )));
+        let span = get_trip_spans_default(&plan.elements)[0];
+        let mut working_plan = Cow::Borrowed(&plan);
+
+        add_travel_distance(&network, span, &mut working_plan);
+
+        let route = working_plan.elements[1]
+            .as_leg()
+            .unwrap()
+            .route
+            .as_ref()
+            .unwrap();
+        assert_eq!(Some(20.0), route.as_generic().distance());
+    }
+
+    #[deterministic_id_test]
+    fn leaves_plans_without_network_routes_borrowed() {
+        let network = sequential_network(2, None);
+        let plan = routed_plan("walk", Some(Duration::ZERO), Some(Duration::ZERO));
+        let span = get_trip_spans_default(&plan.elements)[0];
+        let mut working_plan = Cow::Borrowed(&plan);
+
+        add_travel_distance(&network, span, &mut working_plan);
+
+        assert!(matches!(working_plan, Cow::Borrowed(_)));
+        assert_eq!(
+            Some(20.0),
+            working_plan.elements[1]
+                .as_leg()
+                .unwrap()
+                .route
+                .as_ref()
+                .unwrap()
+                .as_generic()
+                .distance()
         );
     }
 
