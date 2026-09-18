@@ -18,7 +18,7 @@ pub mod least_cost_path_calculator;
 mod network_converter;
 pub mod network_routing;
 pub mod teleportation;
-pub mod travel_time_collector;
+pub mod travel_time_calculator;
 pub mod utils;
 
 #[derive(Debug)]

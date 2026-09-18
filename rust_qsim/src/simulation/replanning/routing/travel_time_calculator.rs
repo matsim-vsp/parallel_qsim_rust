@@ -280,7 +280,7 @@ mod test {
         LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
     };
     use crate::simulation::id::Id;
-    use crate::simulation::replanning::routing::travel_time_collector::{
+    use crate::simulation::replanning::routing::travel_time_calculator::{
         TravelTimeCalculator, TravelTimeGetter,
     };
     use crate::simulation::scenario::network::{Link, Node};
