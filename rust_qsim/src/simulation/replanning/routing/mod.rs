@@ -13,6 +13,7 @@ use thiserror::Error;
 pub mod a_star;
 mod a_star_core;
 pub mod alt_landmark_data;
+pub mod cost;
 mod graph;
 pub mod least_cost_path_calculator;
 mod network_converter;
@@ -21,7 +22,7 @@ pub mod teleportation;
 pub mod travel_time_calculator;
 pub mod utils;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct TripRouter {
     modules: IntMap<Id<String>, Arc<dyn RoutingModule>>,
 }

@@ -14,6 +14,7 @@ use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
+use crate::simulation::replanning::routing::TripRouter;
 use crate::simulation::replanning::{StrategyManager, replan_population};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::{MobsimInput, ScenarioCore};
@@ -520,7 +521,7 @@ pub(crate) struct ReplanningPool {
 }
 
 impl ReplanningPool {
-    pub(crate) fn new(config: &Config) -> Self {
+    pub(crate) fn new(config: &Config, trip_router: TripRouter) -> Self {
         let threads = config.computational_setup().replanning_threads;
         let pool = if threads == 0 {
             None
@@ -535,7 +536,10 @@ impl ReplanningPool {
         };
         Self {
             pool,
-            strategy_manager: StrategyManager::from_replanning_config(config.replanning()),
+            strategy_manager: StrategyManager::from_replanning_config(
+                config.replanning(),
+                trip_router,
+            ),
             first_iteration: config.controller().first_iteration,
             last_iteration: config.controller().last_iteration,
             innovation_disable_fraction: config
@@ -783,6 +787,7 @@ mod tests {
     use crate::simulation::id::Id;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::agent_source::PopulationAgentSource;
+    use crate::simulation::replanning::routing::TripRouter;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
     use crate::simulation::scenario::vehicles::Garage;
@@ -828,7 +833,7 @@ mod tests {
     fn replanning_pool_noop_preserves_person_ids() {
         let mut config = Config::default();
         config.computational_setup_mut().replanning_threads = 2;
-        let pool = ReplanningPool::new(&config);
+        let pool = ReplanningPool::new(&config, TripRouter::default());
 
         let population = Population::from_persons(vec![
             person("replanning-pool-person-1"),

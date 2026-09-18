@@ -3,10 +3,10 @@ use crate::simulation::replanning::routing::a_star_core::{
     AStarCoreResult, AStarRequestBuilder, HeuristicMode, RoutingAStarActions, a_star_core,
 };
 use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
+use crate::simulation::replanning::routing::cost::{Disutility, TravelDisutility, TravelTime};
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, LinkIndex};
 use crate::simulation::replanning::routing::least_cost_path_calculator::{
-    Disutility, LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest, TravelDisutility,
-    TravelTime,
+    LeastCostPath, LeastCostPathCalculator, LeastCostPathRequest,
 };
 use crate::simulation::replanning::routing::network_converter::{
     convert_network_for_mode, convert_network_with_modes,
@@ -359,16 +359,14 @@ impl<H: AStarHeuristic> LeastCostPathCalculator for AStar<H> {
 
 #[cfg(test)]
 mod tests {
-    use crate::simulation::replanning::routing::least_cost_path_calculator::TravelDisutility;
-    use crate::simulation::replanning::routing::least_cost_path_calculator::TravelTime;
-    use crate::simulation::replanning::routing::least_cost_path_calculator::{
-        Disutility, FreeSpeedTravelTimeAndDisutility,
+    use crate::simulation::replanning::routing::cost::TravelTime;
+    use crate::simulation::replanning::routing::cost::{
+        Disutility, FreeOrMaxSpeedTravelTimeAndDisutility, FreeSpeedTravelTimeAndDisutility,
+        TravelDisutility,
     };
     use crate::simulation::scenario::population::InternalPerson;
 
-    use crate::simulation::replanning::routing::least_cost_path_calculator::{
-        FreeOrMaxSpeedTravelTimeAndDisutility, LeastCostPathCalculator,
-    };
+    use crate::simulation::replanning::routing::least_cost_path_calculator::LeastCostPathCalculator;
 
     use crate::simulation::config::{MetisOptions, PartitionMethod};
     use crate::simulation::id::Id;
@@ -472,7 +470,7 @@ mod tests {
     fn test_simple_dijkstra_routing() {
         let network = get_triangle_test_network();
 
-        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility);
+        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility {});
         let router =
             Dijkstra::new(Arc::new(network), None, travel_cost.clone(), travel_cost).unwrap();
 
@@ -631,7 +629,7 @@ mod tests {
 
         // Note: in this network, not all links can be used by both car and bike, so the two routers
         // are actually needed. This is is the usual case.
-        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility);
+        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility {});
         let router_by_mode = Alt::new_for_modes(
             Arc::new(network),
             &vec![car_mode_id, bike_mode_id],

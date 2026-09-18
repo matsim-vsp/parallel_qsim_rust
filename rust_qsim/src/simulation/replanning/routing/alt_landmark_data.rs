@@ -2,10 +2,8 @@ use crate::simulation::id::Id;
 use crate::simulation::replanning::routing::a_star_core::{
     AStarCoreResult, AStarRequestBuilder, HeuristicMode, LandmarkCalcAStarActions, a_star_core,
 };
+use crate::simulation::replanning::routing::cost::{Disutility, TravelDisutility};
 use crate::simulation::replanning::routing::graph::{GraphError, IndexableGraph, NodeIndex};
-use crate::simulation::replanning::routing::least_cost_path_calculator::{
-    Disutility, TravelDisutility,
-};
 use crate::simulation::scenario::network::Node;
 use nohash_hasher::IntMap;
 use rand::SeedableRng;
@@ -152,10 +150,10 @@ impl AltLandmarkData {
 #[cfg(test)]
 mod tests {
     use crate::simulation::replanning::routing::alt_landmark_data::AltLandmarkData;
+    use crate::simulation::replanning::routing::cost::FreeOrMaxSpeedTravelTimeAndDisutility;
     use crate::simulation::replanning::routing::graph::tests::{
         get_triangle_test_network, net_to_graph,
     };
-    use crate::simulation::replanning::routing::least_cost_path_calculator::FreeOrMaxSpeedTravelTimeAndDisutility;
 
     #[test]
     fn test_landmark_choice_and_disutility_calculation() {

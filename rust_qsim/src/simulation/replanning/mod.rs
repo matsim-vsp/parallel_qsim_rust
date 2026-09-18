@@ -1,6 +1,8 @@
 use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::random::get_rng;
+use crate::simulation::replanning::routing::TripRouter;
+use crate::simulation::replanning::routing::travel_time_calculator::GlobalTravelTimeCalculator;
 use crate::simulation::scenario::population::{DEFAULT_SUBPOPULATION, InternalPerson, Population};
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
@@ -9,6 +11,7 @@ use rayon::prelude::*;
 use selectors::{DefaultSelector, KeepLastSelector, WorstScoreSelector};
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 
 pub mod routing;
 pub mod selectors;
@@ -52,12 +55,12 @@ impl DefaultStrategy {
         }
     }
 
-    fn as_generic_plan_strategy(self) -> Box<dyn PlanStrategy> {
+    fn as_generic_plan_strategy(self, trip_router: TripRouter) -> Box<dyn PlanStrategy> {
         match self {
             Self::ReRoute => Box::new(GenericPlanStrategy {
                 name: Id::create(self.as_str()),
                 selector: Box::new(KeepLastSelector),
-                modules: vec![Box::new(ReRouteModule {})],
+                modules: vec![Box::new(ReRouteModule::new(trip_router))],
             }),
         }
     }
@@ -113,12 +116,17 @@ pub(crate) struct StrategyManager {
     max_memory_size: usize,
     #[builder(default = "default_plan_remover()")]
     plan_remover: Box<dyn PlanSelector>,
-    #[builder(default = "default_strategies()")]
+    #[builder(default = "default_strategies(TripRouter::default())")]
     strategies: IntMap<Id<String>, Box<dyn PlanStrategy>>,
+    #[builder(default)]
+    global_travel_time_calculator: Option<Arc<GlobalTravelTimeCalculator>>,
 }
 
 impl StrategyManager {
-    pub(crate) fn from_replanning_config(replanning: &config::Replanning) -> Self {
+    pub(crate) fn from_replanning_config(
+        replanning: &config::Replanning,
+        trip_router: TripRouter,
+    ) -> Self {
         let weights_per_subpopulation =
             weights_per_subpopulation_from_settings(&replanning.strategy_settings);
 
@@ -128,7 +136,7 @@ impl StrategyManager {
             .plan_remover(plan_selector_from_config_name(
                 &replanning.plan_selector_for_removal,
             ))
-            .strategies(default_strategies())
+            .strategies(default_strategies(trip_router))
             .build()
             .unwrap()
     }
@@ -233,7 +241,7 @@ fn default_plan_remover() -> Box<dyn PlanSelector> {
     Box::new(WorstScoreSelector)
 }
 
-fn default_strategies() -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
+fn default_strategies(trip_router: TripRouter) -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
     let mut strategies = IntMap::default();
     for selector in [
         DefaultSelector::KeepLastSelected,
@@ -250,7 +258,7 @@ fn default_strategies() -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
     for strategy in [DefaultStrategy::ReRoute] {
         strategies.insert(
             Id::create(strategy.as_str()),
-            strategy.as_generic_plan_strategy(),
+            strategy.as_generic_plan_strategy(trip_router.clone()),
         );
     }
     strategies
@@ -352,12 +360,23 @@ impl PlanStrategy for GenericPlanStrategy {
 
 #[allow(dead_code)]
 struct ReRouteModule {
-    // hold reference to scenario
-    // hold reference to router
+    router: TripRouter,
+}
+
+impl ReRouteModule {
+    pub(crate) fn new(router: TripRouter) -> Self {
+        Self { router }
+    }
 }
 
 impl PlanStrategyModule for ReRouteModule {
-    fn handle(&self, _person: &mut InternalPerson, _plan_index: usize) {
+    fn handle(&self, person: &mut InternalPerson, _plan_index: usize) {
+        for leg in person.selected_plan_mut().legs_mut() {
+            // TODO
+            // depending on leg mode, ask router for new route and replace the old one.
+            // This is a bit similar to what happens in rust_qsim::simulation::scenario::prepare_for_sim::check_and_adapt_trip
+        }
+
         unimplemented!("ReRouteModule is a placeholder and does not implement routing yet.")
     }
 }
@@ -375,6 +394,7 @@ mod tests {
     };
     use crate::simulation::config::{Replanning, StrategySetting};
     use crate::simulation::id::Id;
+    use crate::simulation::replanning::routing::TripRouter;
     use crate::simulation::replanning::selectors::{DefaultSelector, KeepLastSelector};
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
     use macros::deterministic_id_test;
@@ -399,7 +419,7 @@ mod tests {
             plan_selector_for_removal: DefaultSelector::BestScore.as_str().to_string(),
             ..Replanning::default()
         };
-        let manager = StrategyManager::from_replanning_config(&replanning);
+        let manager = StrategyManager::from_replanning_config(&replanning, TripRouter::default());
         let mut person = person_with_scores([Some(1.0), Some(2.0)]);
 
         manager.run(0, 42, false, &mut person);
@@ -425,7 +445,7 @@ mod tests {
             ],
             ..Replanning::default()
         };
-        let manager = StrategyManager::from_replanning_config(&replanning);
+        let manager = StrategyManager::from_replanning_config(&replanning, TripRouter::default());
 
         let person_weights = manager
             .weights_per_subpopulation
@@ -459,7 +479,7 @@ mod tests {
             ],
             ..Replanning::default()
         };
-        let manager = StrategyManager::from_replanning_config(&replanning);
+        let manager = StrategyManager::from_replanning_config(&replanning, TripRouter::default());
         let person = person_with_scores([Some(1.0), Some(2.0)]);
         let context = ReplanningContext {
             innovation_disabled: true,

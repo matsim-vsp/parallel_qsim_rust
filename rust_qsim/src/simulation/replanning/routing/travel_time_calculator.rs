@@ -7,7 +7,9 @@ use crate::simulation::framework_events::{
     VehicleLeavesPartitionEvent,
 };
 use crate::simulation::id::Id;
+use crate::simulation::replanning::routing::cost::TravelTime;
 use crate::simulation::scenario::network::{Link, Network};
+use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use nohash_hasher::{IntMap, IntSet};
@@ -400,77 +402,27 @@ impl PartitionTravelTimeCalculator {
             TravelTimeCalculator::new(IntSet::default(), self.bin_size, self.max_time)
         })
     }
-
-    fn num_bins(&self) -> usize {
-        ((self.max_time.as_nanos() / self.bin_size.as_nanos()) + 1)
-            .try_into()
-            .expect("number of travel time bins does not fit into usize")
-    }
-
-    fn take_measurements(&mut self) -> IntMap<Id<String>, IntMap<Id<Link>, TravelTimeData>> {
-        let mut measurements = IntMap::default();
-        for (mode, calculator) in &mut self.calculators_by_mode {
-            if !calculator.travel_time_data_by_link.is_empty() {
-                measurements.insert(
-                    mode.clone(),
-                    std::mem::take(&mut calculator.travel_time_data_by_link),
-                );
-            }
-        }
-        self.reset();
-        measurements
-    }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GlobalTravelTimeCalculator {
-    bin_size: Duration,
-    num_bins: usize,
-    travel_times_by_mode: IntMap<Id<String>, IntMap<Id<Link>, Vec<Duration>>>,
+    partitions_by_link: IntMap<Id<Link>, u32>,
+    calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
 }
 
 impl GlobalTravelTimeCalculator {
     pub fn from_partitions(
         network: &Network,
-        partitions: &[(u32, Arc<Mutex<PartitionTravelTimeCalculator>>)],
+        calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
     ) -> Self {
-        let mut ordered: Vec<_> = partitions.iter().collect();
-        ordered.sort_by_key(|(rank, _)| *rank);
-
-        // Reference bin size and number of bins from the first partition.
-        let (bin_size, num_bins) = ordered
-            .first()
-            .map(|(_, calculator)| {
-                let calculator = calculator
-                    .lock()
-                    .expect("partition travel-time calculator lock poisoned");
-                let num_bins = calculator.num_bins();
-                (calculator.bin_size, num_bins)
-            })
-            .unwrap();
-
-        // for each partition, for each mode, take the measurements
-        let mut tt_by_mode: IntMap<_, IntMap<_, _>> = IntMap::default();
-        for (_, calculator) in ordered {
-            let mut calculator = calculator
-                .lock()
-                .expect("partition travel-time calculator lock poisoned");
-            assert_eq!(calculator.bin_size, bin_size);
-            assert_eq!(calculator.num_bins(), num_bins);
-            for (mode, links) in calculator.take_measurements() {
-                let tt_by_link = tt_by_mode.entry(mode).or_default();
-                for (link_id, tt) in links {
-                    let link = network.get_link(&link_id);
-                    // Overwrite existing link travel times since we assume every partition to be disjoint.
-                    tt_by_link.insert(link_id, tt.build_consolidated_travel_times(link, bin_size));
-                }
-            }
-        }
-
+        let partitions_by_link = network
+            .links()
+            .iter()
+            .map(|l| (l.id.clone(), l.partition))
+            .collect::<IntMap<Id<Link>, u32>>();
         Self {
-            bin_size,
-            num_bins,
-            travel_times_by_mode: tt_by_mode,
+            partitions_by_link,
+            calculators,
         }
     }
 
@@ -482,31 +434,31 @@ impl GlobalTravelTimeCalculator {
         vehicle: Option<&InternalVehicle>,
         getter: TravelTimeGetter,
     ) -> Duration {
-        let observed = self
-            .travel_times_by_mode
-            .get(mode)
-            .and_then(|links| links.get(&link.id))
-            .map(|data| match getter {
-                TravelTimeGetter::Average => data[self.time_slot(now)],
-                TravelTimeGetter::LinearInterpolation => {
-                    interpolated_travel_time(&data, now, self.bin_size)
-                }
-            })
-            .unwrap_or_else(|| travel_time_from_speed(link.length, link.freespeed));
-
-        if let Some(vehicle) = vehicle {
-            if vehicle.max_v.is_finite() && vehicle.max_v > 0.0 {
-                return observed.max(travel_time_from_speed(link.length, vehicle.max_v));
-            }
-        }
-        observed
+        let partition = self.partitions_by_link.get(&link.id).unwrap();
+        let calculator = &self.calculators[*partition as usize];
+        calculator
+            .lock()
+            .unwrap()
+            .calculator_for_mode(mode.clone())
+            .get_link_travel_time(link, now, vehicle, getter)
     }
+}
 
-    fn time_slot(&self, time: SimTime) -> usize {
-        let slot = time.as_duration().as_nanos() / self.bin_size.as_nanos();
-        usize::try_from(slot)
-            .unwrap_or(usize::MAX)
-            .min(self.num_bins - 1)
+impl TravelTime for GlobalTravelTimeCalculator {
+    fn travel_time(
+        &self,
+        link: &Link,
+        departure_time: SimTime,
+        _person: Option<&InternalPerson>,
+        vehicle: Option<&InternalVehicle>,
+    ) -> Duration {
+        self.get_link_travel_time(
+            &Id::create("car"), // TODO get mode from vehicle
+            link,
+            departure_time,
+            vehicle,
+            TravelTimeGetter::Average,
+        )
     }
 }
 
@@ -1206,7 +1158,7 @@ mod test {
             Duration::from_secs(10),
             Duration::from_secs(100),
         )));
-        let global = GlobalTravelTimeCalculator::from_partitions(&network, &[(0, partition)]);
+        let global = GlobalTravelTimeCalculator::from_partitions(&network, vec![partition]);
         let slow_vehicle = vehicle("slow", 10.0);
 
         // No vehicle => freespeed
@@ -1286,7 +1238,7 @@ mod test {
 
         let global = GlobalTravelTimeCalculator::from_partitions(
             &network,
-            &[(0, first_partition), (1, second_partition)],
+            vec![first_partition, second_partition],
         );
 
         assert_eq!(
@@ -1328,7 +1280,7 @@ mod test {
             0,
             3000,
         );
-        let global = GlobalTravelTimeCalculator::from_partitions(&network, &[(0, partition)]);
+        let global = GlobalTravelTimeCalculator::from_partitions(&network, vec![partition]);
 
         for (time, expected) in [(0, 3000), (900, 2100), (1800, 1200), (2700, 300)] {
             assert_eq!(

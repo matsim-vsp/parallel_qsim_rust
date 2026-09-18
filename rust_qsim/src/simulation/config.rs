@@ -156,6 +156,7 @@ impl Config {
         self.controller_mut();
         self.routing_mut();
         self.replanning_mut();
+        self.scoring_mut();
         self.travel_time_calculator_mut();
         self.computational_setup_mut();
         self.network_mut();
@@ -366,6 +367,24 @@ impl Config {
     pub fn set_replanning(&mut self, replanning: Replanning) {
         self.modules
             .insert("replanning".to_string(), Box::new(replanning));
+    }
+
+    pub fn scoring(&self) -> &Scoring {
+        self.module::<Scoring>("scoring")
+            .expect("Scoring was not set.")
+    }
+
+    pub fn scoring_mut(&mut self) -> &mut Scoring {
+        if !self.modules.contains_key("scoring") {
+            self.modules
+                .insert("scoring".to_string(), Box::new(Scoring::default()));
+        }
+        self.module_mut::<Scoring>("scoring").unwrap()
+    }
+
+    pub fn set_scoring(&mut self, scoring: Scoring) {
+        self.modules
+            .insert("scoring".to_string(), Box::new(scoring));
     }
 
     pub fn travel_time_calculator(&self) -> &TravelTimeCalculator {
@@ -718,6 +737,78 @@ impl Default for Replanning {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
+pub struct Scoring {
+    pub activity_params: Vec<ActivityParameter>,
+    pub mode_params: Vec<ModeParameter>,
+    pub agent_params: Vec<AgentParameter>,
+}
+
+impl Default for Scoring {
+    fn default() -> Self {
+        Self {
+            activity_params: Vec::new(),
+            mode_params: vec![ModeParameter::default()],
+            agent_params: vec![AgentParameter::default()],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ActivityParameter {
+    pub activity_type: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ModeParameter {
+    pub mode: String,
+    pub marginal_utility_of_traveling: f64, // utils/hour
+    pub marginal_utility_of_distance: f64,  // utils/meters
+    pub monetary_distance_cost_rate: f64,   // money/meter
+    pub daily_money_constant: f64,          // money/day
+    pub daily_utility_constant: f64,        // utils/day
+    pub constant: f64,
+}
+
+impl Default for ModeParameter {
+    fn default() -> Self {
+        Self {
+            mode: "walk".to_string(),
+            marginal_utility_of_traveling: 0.0,
+            marginal_utility_of_distance: 0.0,
+            monetary_distance_cost_rate: 0.0,
+            daily_money_constant: 0.0,
+            daily_utility_constant: 0.0,
+            constant: 0.0,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct AgentParameter {
+    pub subpopulation: String,
+    pub late_arrival: f64,              // utils/hour
+    pub early_departure: f64,           // utils/hour
+    pub performing: f64,                // utils/hour
+    pub waiting: f64,                   // utils/hour
+    pub marginal_utility_of_money: f64, // utils/money
+}
+
+impl Default for AgentParameter {
+    fn default() -> Self {
+        Self {
+            subpopulation: "person".to_string(),
+            late_arrival: -18.0,
+            early_departure: -0.0,
+            performing: 6.0,
+            waiting: -0.0,
+            marginal_utility_of_money: 1.0,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
 pub struct QSim {
     pub start_time: u32,
     pub end_time: u32,
@@ -984,6 +1075,16 @@ impl ConfigModule for Routing {
 
 #[typetag::serde]
 impl ConfigModule for Replanning {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for Scoring {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1328,9 +1429,10 @@ mod tests {
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
-        CommandLineArgs, CompressionType, ComputationalSetup, Config, Controller, EdgeWeight,
-        MetisOptions, PartitionMethod, Partitioning, QSim, Replanning, Routing, StrategySetting,
-        TeleportedParams, TravelTimeCalculator, VertexWeight, parse_key_val,
+        ActivityParameter, AgentParameter, CommandLineArgs, CompressionType, ComputationalSetup,
+        Config, Controller, EdgeWeight, MetisOptions, ModeParameter, PartitionMethod, Partitioning,
+        QSim, Replanning, Routing, Scoring, StrategySetting, TeleportedParams,
+        TravelTimeCalculator, VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Transit, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
@@ -1656,6 +1758,105 @@ mod tests {
                     weight: 1.0,
                     subpopulation: "person".to_string(),
                 }],
+            }
+        );
+    }
+
+    #[test]
+    fn scoring_defaults_are_available_on_default_config() {
+        let config = Config::default();
+
+        assert_eq!(config.scoring(), &Scoring::default());
+        assert!(config.scoring().activity_params.is_empty());
+        assert_eq!(config.scoring().mode_params, vec![ModeParameter::default()]);
+        assert_eq!(
+            config.scoring().agent_params,
+            vec![AgentParameter::default()]
+        );
+
+        let agent = AgentParameter::default();
+        assert_eq!(agent.subpopulation, "person".to_string());
+        assert_eq!(agent.late_arrival, -18.0);
+        assert!(agent.early_departure.is_sign_negative());
+        assert_eq!(agent.performing, 6.0);
+        assert!(agent.waiting.is_sign_negative());
+        assert_eq!(agent.marginal_utility_of_money, 1.0);
+    }
+
+    #[test]
+    fn scoring_yaml_roundtrip_preserves_parameters() {
+        let yaml = r#"
+        modules:
+          scoring:
+            type: Scoring
+            activity_params:
+              - activity_type: home
+            mode_params:
+              - mode: car
+                marginal_utility_of_traveling: -0.001
+                marginal_utility_of_distance: -0.002
+                monetary_distance_cost_rate: -0.003
+                constant: 1.5
+                daily_money_constant: -2.5
+                daily_utility_constant: 3.5
+            agent_params:
+              - subpopulation: freight
+                late_arrival: -12.0
+                early_departure: -6.0
+                performing: 4.0
+                waiting: -3.0
+                marginal_utility_of_money: 2.0
+        "#;
+
+        let config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+        let expected = Scoring {
+            activity_params: vec![ActivityParameter {
+                activity_type: "home".to_string(),
+            }],
+            mode_params: vec![ModeParameter {
+                mode: "car".to_string(),
+                marginal_utility_of_traveling: -0.001,
+                marginal_utility_of_distance: -0.002,
+                monetary_distance_cost_rate: -0.003,
+                constant: 1.5,
+                daily_money_constant: -2.5,
+                daily_utility_constant: 3.5,
+            }],
+            agent_params: vec![AgentParameter {
+                subpopulation: "freight".to_string(),
+                late_arrival: -12.0,
+                early_departure: -6.0,
+                performing: 4.0,
+                waiting: -3.0,
+                marginal_utility_of_money: 2.0,
+            }],
+        };
+        assert_eq!(config.scoring(), &expected);
+
+        let serialized = serde_yaml::to_string(&config).expect("failed to serialize config");
+        let roundtrip: Config =
+            serde_yaml::from_str(&serialized).expect("failed to deserialize roundtrip config");
+        assert_eq!(roundtrip.scoring(), &expected);
+    }
+
+    #[test]
+    fn scoring_yaml_uses_defaults_for_missing_lists_and_agent_fields() {
+        let yaml = r#"
+        modules:
+          scoring:
+            type: Scoring
+            agent_params:
+              - {}
+        "#;
+
+        let config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(
+            config.scoring(),
+            &Scoring {
+                activity_params: Vec::new(),
+                mode_params: vec![ModeParameter::default()],
+                agent_params: vec![AgentParameter::default()],
             }
         );
     }
