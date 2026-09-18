@@ -156,6 +156,7 @@ impl Config {
         self.controller_mut();
         self.routing_mut();
         self.replanning_mut();
+        self.travel_time_calculator_mut();
         self.computational_setup_mut();
         self.network_mut();
         self.population_mut();
@@ -365,6 +366,27 @@ impl Config {
     pub fn set_replanning(&mut self, replanning: Replanning) {
         self.modules
             .insert("replanning".to_string(), Box::new(replanning));
+    }
+
+    pub fn travel_time_calculator(&self) -> &TravelTimeCalculator {
+        self.module::<TravelTimeCalculator>("travel_time_calculator")
+            .expect("TravelTimeCalculator was not set.")
+    }
+
+    pub fn travel_time_calculator_mut(&mut self) -> &mut TravelTimeCalculator {
+        if !self.modules.contains_key("travel_time_calculator") {
+            self.modules.insert(
+                "travel_time_calculator".to_string(),
+                Box::new(TravelTimeCalculator::default()),
+            );
+        }
+        self.module_mut::<TravelTimeCalculator>("travel_time_calculator")
+            .unwrap()
+    }
+
+    pub fn set_travel_time_calculator(&mut self, calculator: TravelTimeCalculator) {
+        self.modules
+            .insert("travel_time_calculator".to_string(), Box::new(calculator));
     }
 
     pub fn qsim(&self) -> &QSim {
@@ -707,6 +729,32 @@ pub struct QSim {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
+pub struct TravelTimeCalculator {
+    /// Width of a travel-time interval in seconds.
+    pub bin_size: u32,
+}
+
+impl TravelTimeCalculator {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.bin_size == 0 {
+            return Err("travel_time_calculator.bin_size must be greater than 0".to_string());
+        }
+        Ok(())
+    }
+}
+
+impl Default for TravelTimeCalculator {
+    fn default() -> Self {
+        Self { bin_size: 900 }
+    }
+}
+
+register_override!("travel_time_calculator.bin_size", |config, value| {
+    config.travel_time_calculator_mut().bin_size = value.parse().unwrap();
+});
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
 pub struct Controller {
     pub first_iteration: u32,
     pub last_iteration: u32,
@@ -936,6 +984,16 @@ impl ConfigModule for Routing {
 
 #[typetag::serde]
 impl ConfigModule for Replanning {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for TravelTimeCalculator {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -1272,7 +1330,7 @@ mod tests {
     use crate::simulation::config::{
         CommandLineArgs, CompressionType, ComputationalSetup, Config, Controller, EdgeWeight,
         MetisOptions, PartitionMethod, Partitioning, QSim, Replanning, Routing, StrategySetting,
-        TeleportedParams, VertexWeight, parse_key_val,
+        TeleportedParams, TravelTimeCalculator, VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Transit, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
@@ -2047,5 +2105,52 @@ modules:
     fn override_routing_mode_invalid() {
         let mut config = base_config();
         config.apply_overrides(&[("routing.mode".to_string(), "InvalidMode".to_string())]);
+    }
+
+    #[test]
+    fn travel_time_calculator_yaml_roundtrip_preserves_explicit_horizon() {
+        let yaml = r#"
+modules:
+  qsim:
+    type: QSim
+    end_time: 42
+  travel_time_calculator:
+    type: TravelTimeCalculator
+    bin_size: 300
+"#;
+        let config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+        assert_eq!(300, config.travel_time_calculator().bin_size);
+
+        let serialized = serde_yaml::to_string(&config).expect("failed to serialize config");
+        let roundtrip: Config =
+            serde_yaml::from_str(&serialized).expect("failed to deserialize roundtrip config");
+        assert_eq!(
+            config.travel_time_calculator(),
+            roundtrip.travel_time_calculator()
+        );
+    }
+
+    #[test]
+    fn travel_time_calculator_overrides_are_applied() {
+        let mut config = Config::default();
+        config.apply_overrides(&[(
+            "travel_time_calculator.bin_size".to_string(),
+            "60".to_string(),
+        )]);
+
+        assert_eq!(
+            &TravelTimeCalculator { bin_size: 60 },
+            config.travel_time_calculator()
+        );
+    }
+
+    #[test]
+    fn travel_time_calculator_rejects_zero_bin_size() {
+        let calculator = TravelTimeCalculator { bin_size: 0 };
+
+        assert_eq!(
+            Err("travel_time_calculator.bin_size must be greater than 0".to_string()),
+            calculator.validate()
+        );
     }
 }

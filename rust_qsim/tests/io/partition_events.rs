@@ -40,6 +40,7 @@ fn network_route_emits_partition_events() {
         1,
         PartitionEvent::VehicleEntersPartition(VehicleEntersPartitionEvent {
             vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_car"),
+            network_mode: rust_qsim::simulation::id::Id::get_from_ext("car"),
             from: 0,
             time: SimTime::default(),
         }),

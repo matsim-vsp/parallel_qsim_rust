@@ -30,6 +30,7 @@ pub struct AgentLeavesPartitionEvent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VehicleEntersPartitionEvent {
     pub vehicle_id: Id<InternalVehicle>,
+    pub network_mode: Id<String>,
     pub from: QSimId,
     pub time: SimTime,
 }
@@ -550,6 +551,7 @@ mod tests {
         let first = manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-2"),
+                network_mode: Id::create("car"),
                 from: 6,
                 time: SimTime::from_secs(10),
             },
@@ -583,6 +585,7 @@ mod tests {
         manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-2"),
+                network_mode: Id::create("car"),
                 from: 6,
                 time: SimTime::from_secs(10),
             },
@@ -624,6 +627,7 @@ mod tests {
         manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-3"),
+                network_mode: Id::create("car"),
                 from: 1,
                 time: SimTime::from_secs(5),
             },

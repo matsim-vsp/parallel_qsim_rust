@@ -1,11 +1,17 @@
 use crate::simulation::events::{
-    LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
+    EventHandlerRegisterFn, LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent,
+    VehicleLeavesTrafficEvent,
+};
+use crate::simulation::framework_events::{
+    PartitionEvent, PartitionListenerRegisterFn, VehicleEntersPartitionEvent,
+    VehicleLeavesPartitionEvent,
 };
 use crate::simulation::id::Id;
-use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use nohash_hasher::{IntMap, IntSet};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Clone, Debug)]
@@ -228,6 +234,282 @@ impl TravelTimeData {
     }
 }
 
+#[derive(Debug)]
+pub struct PartitionTravelTimeCalculator {
+    bin_size: Duration,
+    max_time: Duration,
+    vehicle_modes: IntMap<Id<InternalVehicle>, Id<String>>,
+    calculators_by_mode: IntMap<Id<String>, TravelTimeCalculator>,
+}
+
+impl PartitionTravelTimeCalculator {
+    pub fn new(bin_size: Duration, max_time: Duration) -> Self {
+        assert!(
+            bin_size > Duration::ZERO,
+            "travel time bin size must be greater than zero"
+        );
+        Self {
+            bin_size,
+            max_time,
+            vehicle_modes: IntMap::default(),
+            calculators_by_mode: IntMap::default(),
+        }
+    }
+
+    pub fn process_vehicle_enters_traffic_event(&mut self, event: &VehicleEntersTrafficEvent) {
+        self.assign_vehicle_mode(&event.vehicle, &event.network_mode);
+    }
+
+    pub fn process_vehicle_enters_partition_event(&mut self, event: &VehicleEntersPartitionEvent) {
+        self.assign_vehicle_mode(&event.vehicle_id, &event.network_mode);
+    }
+
+    pub fn process_link_enter_event(&mut self, event: &LinkEnterEvent) {
+        let mode = self
+            .vehicle_modes
+            .get(&event.vehicle)
+            .unwrap_or_else(|| {
+                panic!(
+                    "LinkEnter for vehicle {} has no network-mode assignment in the partition travel-time calculator",
+                    event.vehicle.external()
+                )
+            })
+            .clone();
+        self.calculator_for_mode(mode)
+            .process_link_enter_event(event);
+    }
+
+    pub fn process_link_leave_event(&mut self, event: &LinkLeaveEvent) {
+        let Some(mode) = self.vehicle_modes.get(&event.vehicle).cloned() else {
+            // Without a known vehicle there cannot be a locally recorded link entry.
+            return;
+        };
+        self.calculator_for_mode(mode)
+            .process_link_leave_event(event);
+    }
+
+    pub fn process_vehicle_leaves_traffic_event(&mut self, event: &VehicleLeavesTrafficEvent) {
+        self.clear_vehicle_state(&event.vehicle);
+    }
+
+    pub fn process_vehicle_leaves_partition_event(&mut self, event: &VehicleLeavesPartitionEvent) {
+        self.clear_vehicle_state(&event.vehicle_id);
+    }
+
+    /// Clears observations while retaining the current per-vehicle event state, matching the
+    /// existing [`TravelTimeCalculator::flush`] contract.
+    pub fn flush(&mut self) {
+        for calculator in self.calculators_by_mode.values_mut() {
+            calculator.flush();
+        }
+    }
+
+    /// Clears every piece of iteration-local state.
+    pub fn reset(&mut self) {
+        self.vehicle_modes.clear();
+        self.calculators_by_mode.clear();
+    }
+
+    pub fn event_handler_register_fn(calculator: Arc<Mutex<Self>>) -> Box<EventHandlerRegisterFn> {
+        Box::new(move |events| {
+            let enters_traffic = calculator.clone();
+            events.on::<VehicleEntersTrafficEvent, _>(move |event| {
+                enters_traffic
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned")
+                    .process_vehicle_enters_traffic_event(event);
+            });
+
+            let link_enters = calculator.clone();
+            events.on::<LinkEnterEvent, _>(move |event| {
+                link_enters
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned")
+                    .process_link_enter_event(event);
+            });
+
+            let link_leaves = calculator.clone();
+            events.on::<LinkLeaveEvent, _>(move |event| {
+                link_leaves
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned")
+                    .process_link_leave_event(event);
+            });
+
+            let leaves_traffic = calculator.clone();
+            events.on::<VehicleLeavesTrafficEvent, _>(move |event| {
+                leaves_traffic
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned")
+                    .process_vehicle_leaves_traffic_event(event);
+            });
+
+            events.on_reset_iteration(move |_| {
+                calculator
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned")
+                    .reset();
+            });
+        })
+    }
+
+    pub fn partition_listener_register_fn(
+        calculator: Arc<Mutex<Self>>,
+    ) -> Box<PartitionListenerRegisterFn> {
+        Box::new(move |events| {
+            events.on_event(move |event| {
+                let mut calculator = calculator
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned");
+                match &event.payload {
+                    PartitionEvent::VehicleEntersPartition(event) => {
+                        calculator.process_vehicle_enters_partition_event(event);
+                    }
+                    PartitionEvent::VehicleLeavesPartition(event) => {
+                        calculator.process_vehicle_leaves_partition_event(event);
+                    }
+                    PartitionEvent::AgentEntersPartition(_)
+                    | PartitionEvent::AgentLeavesPartition(_) => {}
+                }
+            });
+        })
+    }
+
+    fn assign_vehicle_mode(&mut self, vehicle: &Id<InternalVehicle>, mode: &Id<String>) {
+        if let Some(previous_mode) = self.vehicle_modes.insert(vehicle.clone(), mode.clone()) {
+            if previous_mode != *mode {
+                if let Some(calculator) = self.calculators_by_mode.get_mut(&previous_mode) {
+                    calculator.clear_vehicle_state(vehicle);
+                }
+            }
+        }
+        self.calculator_for_mode(mode.clone());
+    }
+
+    fn clear_vehicle_state(&mut self, vehicle: &Id<InternalVehicle>) {
+        let Some(mode) = self.vehicle_modes.remove(vehicle) else {
+            return;
+        };
+        if let Some(calculator) = self.calculators_by_mode.get_mut(&mode) {
+            calculator.clear_vehicle_state(vehicle);
+        }
+    }
+
+    fn calculator_for_mode(&mut self, mode: Id<String>) -> &mut TravelTimeCalculator {
+        self.calculators_by_mode.entry(mode).or_insert_with(|| {
+            TravelTimeCalculator::new(IntSet::default(), self.bin_size, self.max_time)
+        })
+    }
+
+    fn num_bins(&self) -> usize {
+        ((self.max_time.as_nanos() / self.bin_size.as_nanos()) + 1)
+            .try_into()
+            .expect("number of travel time bins does not fit into usize")
+    }
+
+    fn take_measurements(&mut self) -> IntMap<Id<String>, IntMap<Id<Link>, TravelTimeData>> {
+        let mut measurements = IntMap::default();
+        for (mode, calculator) in &mut self.calculators_by_mode {
+            if !calculator.travel_time_data_by_link.is_empty() {
+                measurements.insert(
+                    mode.clone(),
+                    std::mem::take(&mut calculator.travel_time_data_by_link),
+                );
+            }
+        }
+        self.reset();
+        measurements
+    }
+}
+
+#[derive(Debug)]
+pub struct GlobalTravelTimeCalculator {
+    bin_size: Duration,
+    num_bins: usize,
+    travel_times_by_mode: IntMap<Id<String>, IntMap<Id<Link>, Vec<Duration>>>,
+}
+
+impl GlobalTravelTimeCalculator {
+    pub fn from_partitions(
+        network: &Network,
+        partitions: &[(u32, Arc<Mutex<PartitionTravelTimeCalculator>>)],
+    ) -> Self {
+        let mut ordered: Vec<_> = partitions.iter().collect();
+        ordered.sort_by_key(|(rank, _)| *rank);
+
+        // Reference bin size and number of bins from the first partition.
+        let (bin_size, num_bins) = ordered
+            .first()
+            .map(|(_, calculator)| {
+                let calculator = calculator
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned");
+                let num_bins = calculator.num_bins();
+                (calculator.bin_size, num_bins)
+            })
+            .unwrap();
+
+        // for each partition, for each mode, take the measurements
+        let mut tt_by_mode: IntMap<_, IntMap<_, _>> = IntMap::default();
+        for (_, calculator) in ordered {
+            let mut calculator = calculator
+                .lock()
+                .expect("partition travel-time calculator lock poisoned");
+            assert_eq!(calculator.bin_size, bin_size);
+            assert_eq!(calculator.num_bins(), num_bins);
+            for (mode, links) in calculator.take_measurements() {
+                let tt_by_link = tt_by_mode.entry(mode).or_default();
+                for (link_id, tt) in links {
+                    let link = network.get_link(&link_id);
+                    // Overwrite existing link travel times since we assume every partition to be disjoint.
+                    tt_by_link.insert(link_id, tt.build_consolidated_travel_times(link, bin_size));
+                }
+            }
+        }
+
+        Self {
+            bin_size,
+            num_bins,
+            travel_times_by_mode: tt_by_mode,
+        }
+    }
+
+    pub fn get_link_travel_time(
+        &self,
+        mode: &Id<String>,
+        link: &Link,
+        now: SimTime,
+        vehicle: Option<&InternalVehicle>,
+        getter: TravelTimeGetter,
+    ) -> Duration {
+        let observed = self
+            .travel_times_by_mode
+            .get(mode)
+            .and_then(|links| links.get(&link.id))
+            .map(|data| match getter {
+                TravelTimeGetter::Average => data[self.time_slot(now)],
+                TravelTimeGetter::LinearInterpolation => {
+                    interpolated_travel_time(&data, now, self.bin_size)
+                }
+            })
+            .unwrap_or_else(|| travel_time_from_speed(link.length, link.freespeed));
+
+        if let Some(vehicle) = vehicle {
+            if vehicle.max_v.is_finite() && vehicle.max_v > 0.0 {
+                return observed.max(travel_time_from_speed(link.length, vehicle.max_v));
+            }
+        }
+        observed
+    }
+
+    fn time_slot(&self, time: SimTime) -> usize {
+        let slot = time.as_duration().as_nanos() / self.bin_size.as_nanos();
+        usize::try_from(slot)
+            .unwrap_or(usize::MAX)
+            .min(self.num_bins - 1)
+    }
+}
+
 fn duration_to_nanos_f64(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000_000_000.0
 }
@@ -279,16 +561,22 @@ mod test {
     use crate::simulation::events::{
         LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
     };
+    use crate::simulation::framework_events::{
+        VehicleEntersPartitionEvent, VehicleLeavesPartitionEvent,
+    };
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::travel_time_calculator::{
-        TravelTimeCalculator, TravelTimeGetter,
+        GlobalTravelTimeCalculator, PartitionTravelTimeCalculator, TravelTimeCalculator,
+        TravelTimeGetter,
     };
-    use crate::simulation::scenario::network::{Link, Node};
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::scenario::population::InternalPerson;
     use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use super::TravelTimeData;
@@ -328,6 +616,55 @@ mod test {
             vehicle_type: Id::create("default"),
             attributes: InternalAttributes::default(),
         }
+    }
+
+    fn network_with_link(link: Link) -> Network {
+        let mut network = Network::new();
+        network.add_node(Node {
+            coord: Coordinate::default(),
+            id: link.from.clone(),
+            in_links: Vec::new(),
+            out_links: Vec::new(),
+            partition: 0,
+            cmp_weight: 1,
+        });
+        network.add_node(Node {
+            coord: Coordinate::default(),
+            id: link.to.clone(),
+            in_links: Vec::new(),
+            out_links: Vec::new(),
+            partition: 0,
+            cmp_weight: 1,
+        });
+        network.add_link(link);
+        network
+    }
+
+    fn observe(
+        calculator: &mut PartitionTravelTimeCalculator,
+        mode: &Id<String>,
+        link: &Id<Link>,
+        vehicle: &Id<InternalVehicle>,
+        enter: u64,
+        leave: u64,
+    ) {
+        calculator.process_vehicle_enters_traffic_event(&vehicle_enters_traffic_event(
+            SimTime::from_secs(enter),
+            link,
+            &Id::create(format!("person-{}", vehicle.external()).as_str()),
+            vehicle,
+            mode,
+        ));
+        calculator.process_link_enter_event(&link_enter_event(
+            SimTime::from_secs(enter),
+            link,
+            vehicle,
+        ));
+        calculator.process_link_leave_event(&link_leave_event(
+            SimTime::from_secs(leave),
+            link,
+            vehicle,
+        ));
     }
 
     fn link_enter_event(
@@ -862,5 +1199,87 @@ mod test {
                 TravelTimeGetter::Average,
             )
         );
+    }
+
+    #[deterministic_id_test]
+    fn global_empty_data_uses_freespeed_and_vehicle_limit() {
+        let link = link("empty", 100.0, 20.0);
+        let network = network_with_link(link.clone());
+        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        let global = GlobalTravelTimeCalculator::from_partitions(&network, &[(0, partition)]);
+        let slow_vehicle = vehicle("slow", 10.0);
+
+        // No vehicle => freespeed
+        assert_eq!(
+            Duration::from_secs(5),
+            global.get_link_travel_time(
+                &Id::create("missing-mode"),
+                &link,
+                SimTime::from_secs(0),
+                None,
+                TravelTimeGetter::Average,
+            )
+        );
+
+        // Slow vehicle => max speed travel time
+        assert_eq!(
+            Duration::from_secs(10),
+            global.get_link_travel_time(
+                &Id::create("missing-mode"),
+                &link,
+                SimTime::from_secs(0),
+                Some(&slow_vehicle),
+                TravelTimeGetter::Average,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn global_merge_preserves_consolidation_rules() {
+        let link = link("slow", 100.0, 100.0);
+        let network = network_with_link(link.clone());
+        let car = Id::create("car");
+        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(900),
+            Duration::from_secs(3600),
+        )));
+        observe(
+            &mut partition.lock().unwrap(),
+            &car,
+            &link.id,
+            &Id::create("v1"),
+            0,
+            3000,
+        );
+        let global = GlobalTravelTimeCalculator::from_partitions(&network, &[(0, partition)]);
+
+        for (time, expected) in [(0, 3000), (900, 2100), (1800, 1200), (2700, 300)] {
+            assert_eq!(
+                Duration::from_secs(expected),
+                global.get_link_travel_time(
+                    &car,
+                    &link,
+                    SimTime::from_secs(time),
+                    None,
+                    TravelTimeGetter::Average,
+                )
+            );
+        }
+    }
+
+    #[deterministic_id_test]
+    #[should_panic(expected = "has no network-mode assignment")]
+    fn link_enter_without_mode_reports_clear_error() {
+        let link = link("unknown", 100.0, 100.0);
+        let mut calculator =
+            PartitionTravelTimeCalculator::new(Duration::from_secs(10), Duration::from_secs(100));
+        calculator.process_link_enter_event(&link_enter_event(
+            SimTime::from_secs(0),
+            &link.id,
+            &Id::create("unknown-vehicle"),
+        ));
     }
 }

@@ -18,6 +18,9 @@ use crate::simulation::replanning::routing::a_star::{AStar, AltHeuristic};
 use crate::simulation::replanning::routing::least_cost_path_calculator::FreeSpeedTravelTimeAndDisutility;
 use crate::simulation::replanning::routing::network_routing::NetworkRoutingModule;
 use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
+use crate::simulation::replanning::routing::travel_time_calculator::{
+    GlobalTravelTimeCalculator, PartitionTravelTimeCalculator,
+};
 use crate::simulation::replanning::routing::{RoutingModule, TripRouter};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
@@ -28,7 +31,8 @@ use fs_extra::dir::CopyOptions;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
+use std::time::Duration;
 use std::{fs, mem};
 use tracing::info;
 
@@ -50,6 +54,8 @@ pub struct Controller {
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
     trip_router: TripRouter,
+    partition_travel_time_calculators: Vec<(u32, Arc<Mutex<PartitionTravelTimeCalculator>>)>,
+    global_travel_time_calculator: Option<Arc<GlobalTravelTimeCalculator>>,
 }
 
 pub struct ControllerBuilder {
@@ -81,6 +87,8 @@ impl ControllerBuilder {
 
     // Implementing a custom build function in order to set the barrier if not set by the user.
     pub fn build(mut self) -> Result<Controller, String> {
+        self.scenario.config.travel_time_calculator().validate()?;
+
         // create a barrier for the number of partitions, if not provided
         let barrier = self.global_barrier.take().unwrap_or_else(|| {
             Arc::new(Barrier::new(
@@ -115,6 +123,8 @@ impl ControllerBuilder {
             global_barrier: barrier,
             adapter_handles: self.adapter_handles,
             trip_router: router,
+            partition_travel_time_calculators: Vec::new(),
+            global_travel_time_calculator: None,
         })
     }
 
@@ -355,6 +365,12 @@ impl Controller {
             .split_for_mobsim(&self.link_storage_capacities);
         let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, inputs);
 
+        self.global_travel_time_calculator =
+            Some(Arc::new(GlobalTravelTimeCalculator::from_partitions(
+                &self.scenario.core.network,
+                &self.partition_travel_time_calculators,
+            )));
+
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(is_last_iteration));
 
@@ -401,6 +417,33 @@ impl Controller {
     }
 
     fn start_mobsim_workers(&mut self) -> MobsimWorkerPool {
+        let travel_time_config = self.config.travel_time_calculator();
+        let bin_size = Duration::from_secs(u64::from(travel_time_config.bin_size));
+        let max_time = Duration::from_secs(u64::from(self.config.qsim().end_time));
+
+        // Register travel time collectors for each partition (event handler & partition event handler) and store reference in the controller.
+        for rank in 0..self.config.partitioning().num_parts {
+            let calculator = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+                bin_size, max_time,
+            )));
+            self.event_handler_per_partition
+                .entry(rank)
+                .or_default()
+                .push(PartitionTravelTimeCalculator::event_handler_register_fn(
+                    calculator.clone(),
+                ));
+            self.partition_event_listener_per_partition
+                .entry(rank)
+                .or_default()
+                .push(
+                    PartitionTravelTimeCalculator::partition_listener_register_fn(
+                        calculator.clone(),
+                    ),
+                );
+            self.partition_travel_time_calculators
+                .push((rank, calculator));
+        }
+
         let args = MobsimWorkerPoolArgumentsBuilder::default()
             .scenario_core(self.scenario.core.clone())
             .agent_source(self.agent_source.clone())

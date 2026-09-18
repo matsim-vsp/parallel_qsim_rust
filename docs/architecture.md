@@ -23,6 +23,14 @@ For mobsim, the controller splits the population into `MobsimInput`s. Each input
 shared scenario data and a fresh partition network runtime, plus a `PopulationShard`. Persistent QSim workers receive
 these inputs per iteration and return agents, which the controller materializes back into the next full population.
 
+Each worker also owns a partition-local travel-time collector behind its own lock. Event handlers associate vehicles
+with the network mode of their current leg and record link observations separately per mode. After every Mobsim, once
+all workers have returned, the controller takes these measurements in ascending partition order, combines matching
+bins by observation count, and builds an immutable `GlobalTravelTimeCalculator` before firing `AfterMobsim`. Taking
+the measurements resets the local collectors, and the worker iteration-reset hook provides an additional clean-start
+guarantee. The controller retains only the global calculator for the completed iteration; no event-file output is
+required.
+
 ### External Services
 
 As a next step, we integrated the ability to communicate to external services. They are intended to be used during the
