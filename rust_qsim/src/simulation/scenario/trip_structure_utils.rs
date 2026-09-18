@@ -118,6 +118,16 @@ impl TripSpan {
             .iter()
             .filter_map(InternalPlanElement::as_leg)
     }
+
+    /// Returns all legs mutable between origin and destination.
+    pub fn legs_mut<'a>(
+        &self,
+        plan_elements: &'a mut [InternalPlanElement],
+    ) -> impl Iterator<Item = &'a mut InternalLeg> {
+        self.trip_elements_mut(plan_elements)
+            .iter_mut()
+            .filter_map(InternalPlanElement::as_leg_mut)
+    }
 }
 
 fn activity_at(plan_elements: &[InternalPlanElement], index: usize) -> &InternalActivity {

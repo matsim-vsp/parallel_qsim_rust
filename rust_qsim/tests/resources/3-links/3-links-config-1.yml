@@ -26,3 +26,7 @@ modules:
   routing:
     type: Routing
     mode: UsePlans
+  controller:
+    type: Controller
+    compression_type: Zst
+    last_iteration: 0

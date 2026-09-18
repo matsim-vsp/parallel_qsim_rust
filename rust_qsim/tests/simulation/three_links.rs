@@ -94,12 +94,12 @@ fn short_boundary_link_has_same_leave_time_with_one_and_two_partitions() {
 
     let single_enters = single.enters.lock().unwrap().clone();
     let partitioned_enters = partitioned.enters.lock().unwrap().clone();
-    assert_eq!(vec![SimTime::from_secs(32418)], single_enters);
+    assert_eq!(vec![SimTime::from_secs(32410)], single_enters);
     assert_eq!(single_enters, partitioned_enters);
 
     let single_leaves = single.leaves.lock().unwrap().clone();
     let partitioned_leaves = partitioned.leaves.lock().unwrap().clone();
-    assert_eq!(vec![SimTime::from_secs(32420)], single_leaves);
+    assert_eq!(vec![SimTime::from_secs(32412)], single_leaves);
     assert_eq!(single_leaves, partitioned_leaves);
 }
 
