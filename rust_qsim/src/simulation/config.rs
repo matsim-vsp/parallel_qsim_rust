@@ -3,6 +3,7 @@ use crate::simulation::io::is_url;
 use crate::simulation::replanning::{KEEP_LAST_SELECTED_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME};
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
+use derive_builder::Builder;
 use dyn_clone::DynClone;
 #[cfg(feature = "http")]
 use reqwest::Url;
@@ -654,7 +655,7 @@ pub struct Replanning {
     pub strategy_settings: Vec<StrategySetting>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Builder)]
 pub struct StrategySetting {
     pub name: String,
     pub weight: f64,

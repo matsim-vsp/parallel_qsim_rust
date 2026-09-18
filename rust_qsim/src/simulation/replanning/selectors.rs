@@ -2,8 +2,8 @@ use crate::simulation::id::Id;
 use crate::simulation::random::get_rng;
 use crate::simulation::replanning::{
     BEST_SCORE_STRATEGY_NAME, GenericPlanStrategy, KEEP_LAST_SELECTED_STRATEGY_NAME, PlanSelector,
-    PlanStrategy, RANDOM_SELECTOR_RNG_PURPOSE, ReplanningContext, SELECT_RANDOM_STRATEGY_NAME,
-    WORST_SCORE_STRATEGY_NAME,
+    PlanStrategy, RANDOM_SELECTOR_RNG_PURPOSE, ReplanningContext, SELECT_EXP_BETA_STRATEGY_NAME,
+    SELECT_RANDOM_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME,
 };
 use crate::simulation::scenario::population::InternalPerson;
 use rand::RngExt;
@@ -179,6 +179,7 @@ pub enum DefaultSelector {
     BestScore,
     SelectRandom,
     WorstScore,
+    SelectExpBeta,
 }
 
 impl DefaultSelector {
@@ -188,6 +189,7 @@ impl DefaultSelector {
             Self::BestScore => BEST_SCORE_STRATEGY_NAME,
             Self::SelectRandom => SELECT_RANDOM_STRATEGY_NAME,
             Self::WorstScore => WORST_SCORE_STRATEGY_NAME,
+            Self::SelectExpBeta => SELECT_EXP_BETA_STRATEGY_NAME,
         }
     }
 
@@ -197,6 +199,7 @@ impl DefaultSelector {
             Self::BestScore => Box::new(BestScoreSelector),
             Self::SelectRandom => Box::new(RandomSelector),
             Self::WorstScore => Box::new(WorstScoreSelector),
+            Self::SelectExpBeta => Box::new(SelectExpBetaSelector::default()),
         }
     }
 
@@ -226,6 +229,7 @@ impl FromStr for DefaultSelector {
             BEST_SCORE_STRATEGY_NAME => Ok(Self::BestScore),
             SELECT_RANDOM_STRATEGY_NAME => Ok(Self::SelectRandom),
             WORST_SCORE_STRATEGY_NAME => Ok(Self::WorstScore),
+            SELECT_EXP_BETA_STRATEGY_NAME => Ok(Self::SelectExpBeta),
             _ => Err(format!("Unknown DefaultSelector: {value}")),
         }
     }

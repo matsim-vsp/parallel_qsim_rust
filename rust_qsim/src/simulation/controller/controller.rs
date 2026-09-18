@@ -365,12 +365,19 @@ impl Controller {
         &mut self,
         iteration: u32,
         is_last_iteration: bool,
-        population: Population,
+        mut population: Population,
     ) -> Population {
         info!("Starting scoring phase for iteration {iteration}");
 
         self.controller_events_manager
             .process_event(ControllerEvent::scoring(is_last_iteration));
+
+        // Dummy impl: set scores to 1.0 for all persons.
+        population
+            .persons
+            .values_mut()
+            .flat_map(|p| p.plans_mut())
+            .for_each(|p| p.score = Some(1.0));
 
         population
     }

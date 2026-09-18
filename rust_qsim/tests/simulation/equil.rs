@@ -6,12 +6,14 @@ use rust_qsim::external_services::{
     AdapterHandle, AdapterHandleBuilder, AsyncExecutor, ExternalServiceType, RequestAdapter,
     RequestAdapterFactory,
 };
-use rust_qsim::simulation::config::{CommandLineArgs, Config};
+use rust_qsim::simulation::config::{CommandLineArgs, Config, StrategySettingBuilder};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::controller::{ExternalServices, RequestSender};
 use rust_qsim::simulation::events::utils::compare_event_folder;
 use rust_qsim::simulation::id::{Id, store_to_file};
 use rust_qsim::simulation::population::agent_source::PreplanningHorizonAgentSource;
+use rust_qsim::simulation::replanning::DefaultStrategy;
+use rust_qsim::simulation::replanning::selectors::DefaultSelector;
 use rust_qsim::simulation::scenario::network::Network;
 use rust_qsim::simulation::scenario::population::{
     InternalPlanElement, PREPLANNING_HORIZON, Population,
@@ -22,6 +24,7 @@ use rust_qsim::simulation::time::SimTime;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Barrier};
+use tracing::info;
 
 // in the adaptive mod we are still using the binpb files
 fn create_resources<F>(out_dir: &Path, pop_adaption: F)
@@ -100,11 +103,39 @@ fn equil_two_parts_matches_expected_events() {
 
 #[deterministic_id_test(rust_qsim)]
 fn equil_full_population_single_part_runs() {
-    execute_equil_with_population(
+    let mut config = Config::from_args(CommandLineArgs::new_with_path(
         "./tests/resources/equil/equil-config-1.yml",
-        "./assets/equil/equil-plans.xml.gz",
-        "./test_output/simulation/equil_full_population_single_part",
-    );
+    ));
+    config.population_mut().path = Some("./assets/equil/equil-plans.xml.gz".into());
+    config.output_mut().output_dir =
+        "./test_output/simulation/equil_full_population_single_part".into();
+
+    config.controller_mut().last_iteration = 10;
+
+    info!("Scoring");
+    info!("{:?}", config.replanning().strategy_settings);
+
+    config.replanning_mut().strategy_settings.clear();
+    let select = StrategySettingBuilder::default()
+        .name(DefaultSelector::SelectExpBeta.as_str().to_string())
+        .weight(0.8)
+        .subpopulation("person".to_string())
+        .build()
+        .unwrap();
+    let reroute = StrategySettingBuilder::default()
+        .name(DefaultStrategy::ReRoute.as_str().to_string())
+        .weight(0.2)
+        .subpopulation("person".to_string())
+        .build()
+        .unwrap();
+    config.replanning_mut().strategy_settings.push(select);
+    config.replanning_mut().strategy_settings.push(reroute);
+
+    let scenario = Scenario::load(config);
+    let controller = ControllerBuilder::default_with_scenario(scenario)
+        .build()
+        .unwrap();
+    controller.run();
 }
 
 #[deterministic_id_test(rust_qsim)]

@@ -11,7 +11,7 @@ use std::fmt;
 use std::str::FromStr;
 
 pub mod routing;
-mod selectors;
+pub mod selectors;
 
 const STRATEGY_RNG_PURPOSE: &str = "replanning.strategy";
 const RANDOM_SELECTOR_RNG_PURPOSE: &str = "replanning.selector.random";
@@ -20,6 +20,7 @@ pub const BEST_SCORE_STRATEGY_NAME: &str = "BestScore";
 pub const SELECT_RANDOM_STRATEGY_NAME: &str = "SelectRandom";
 pub const WORST_SCORE_STRATEGY_NAME: &str = "WorstScore";
 pub const RE_ROUTE_STRATEGY_NAME: &str = "ReRoute";
+pub const SELECT_EXP_BETA_STRATEGY_NAME: &str = "SelectExpBeta";
 
 #[allow(dead_code)]
 /// This is responsible for picking a plan, copying it, and replanning it.
@@ -79,7 +80,7 @@ impl FromStr for DefaultStrategy {
     }
 }
 
-/// Performs multithreaded replanning of the population
+/// Performs multithreaded replanning of the population. Rayon pool is started in the controller.
 pub(crate) fn replan_population(
     population: Population,
     iteration: u32,
@@ -239,6 +240,7 @@ fn default_strategies() -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
         DefaultSelector::BestScore,
         DefaultSelector::SelectRandom,
         DefaultSelector::WorstScore,
+        DefaultSelector::SelectExpBeta,
     ] {
         strategies.insert(
             Id::create(selector.as_str()),
