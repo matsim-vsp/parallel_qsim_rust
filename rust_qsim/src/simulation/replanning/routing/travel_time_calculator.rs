@@ -561,9 +561,6 @@ mod test {
     use crate::simulation::events::{
         LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
     };
-    use crate::simulation::framework_events::{
-        VehicleEntersPartitionEvent, VehicleLeavesPartitionEvent,
-    };
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::travel_time_calculator::{
         GlobalTravelTimeCalculator, PartitionTravelTimeCalculator, TravelTimeCalculator,
@@ -1232,6 +1229,83 @@ mod test {
                 &link,
                 SimTime::from_secs(0),
                 Some(&slow_vehicle),
+                TravelTimeGetter::Average,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn global_merge_preserves_disjoint_links_from_two_partitions() {
+        let first_link = link("partition-0-link", 100.0, 100.0);
+        let mut second_link = link("partition-1-link", 100.0, 100.0);
+        second_link.partition = 1;
+        let mut network = network_with_link(first_link.clone());
+        network.add_node(Node {
+            coord: Coordinate::default(),
+            id: second_link.from.clone(),
+            in_links: Vec::new(),
+            out_links: Vec::new(),
+            partition: 1,
+            cmp_weight: 1,
+        });
+        network.add_node(Node {
+            coord: Coordinate::default(),
+            id: second_link.to.clone(),
+            in_links: Vec::new(),
+            out_links: Vec::new(),
+            partition: 1,
+            cmp_weight: 1,
+        });
+        network.add_link(second_link.clone());
+
+        let car = Id::create("car");
+        let first_partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        let second_partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        observe(
+            &mut first_partition.lock().unwrap(),
+            &car,
+            &first_link.id,
+            &Id::create("partition-0-vehicle"),
+            0,
+            4,
+        );
+        observe(
+            &mut second_partition.lock().unwrap(),
+            &car,
+            &second_link.id,
+            &Id::create("partition-1-vehicle"),
+            0,
+            7,
+        );
+
+        let global = GlobalTravelTimeCalculator::from_partitions(
+            &network,
+            &[(0, first_partition), (1, second_partition)],
+        );
+
+        assert_eq!(
+            Duration::from_secs(4),
+            global.get_link_travel_time(
+                &car,
+                &first_link,
+                SimTime::from_secs(0),
+                None,
+                TravelTimeGetter::Average,
+            )
+        );
+        assert_eq!(
+            Duration::from_secs(7),
+            global.get_link_travel_time(
+                &car,
+                &second_link,
+                SimTime::from_secs(0),
+                None,
                 TravelTimeGetter::Average,
             )
         );
