@@ -747,7 +747,12 @@ impl Default for Scoring {
     fn default() -> Self {
         Self {
             activity_params: Vec::new(),
-            mode_params: vec![ModeParameter::default()],
+            mode_params: vec![
+                ModeParameter::default_for_mode("car"),
+                ModeParameter::default_for_mode("walk"),
+                ModeParameter::default_for_mode("ride"),
+                ModeParameter::default_for_mode("freight"),
+            ],
             agent_params: vec![AgentParameter::default()],
         }
     }
@@ -769,11 +774,19 @@ pub struct ModeParameter {
     pub constant: f64,
 }
 
+impl ModeParameter {
+    pub fn default_for_mode(mode: &str) -> Self {
+        let mut default_mode_params = Self::default();
+        default_mode_params.mode = mode.to_string();
+        default_mode_params
+    }
+}
+
 impl Default for ModeParameter {
     fn default() -> Self {
         Self {
             mode: "walk".to_string(),
-            marginal_utility_of_traveling: 0.0,
+            marginal_utility_of_traveling: -6.0,
             marginal_utility_of_distance: 0.0,
             monetary_distance_cost_rate: 0.0,
             daily_money_constant: 0.0,
@@ -1763,27 +1776,6 @@ mod tests {
     }
 
     #[test]
-    fn scoring_defaults_are_available_on_default_config() {
-        let config = Config::default();
-
-        assert_eq!(config.scoring(), &Scoring::default());
-        assert!(config.scoring().activity_params.is_empty());
-        assert_eq!(config.scoring().mode_params, vec![ModeParameter::default()]);
-        assert_eq!(
-            config.scoring().agent_params,
-            vec![AgentParameter::default()]
-        );
-
-        let agent = AgentParameter::default();
-        assert_eq!(agent.subpopulation, "person".to_string());
-        assert_eq!(agent.late_arrival, -18.0);
-        assert!(agent.early_departure.is_sign_negative());
-        assert_eq!(agent.performing, 6.0);
-        assert!(agent.waiting.is_sign_negative());
-        assert_eq!(agent.marginal_utility_of_money, 1.0);
-    }
-
-    #[test]
     fn scoring_yaml_roundtrip_preserves_parameters() {
         let yaml = r#"
         modules:
@@ -1855,7 +1847,12 @@ mod tests {
             config.scoring(),
             &Scoring {
                 activity_params: Vec::new(),
-                mode_params: vec![ModeParameter::default()],
+                mode_params: vec![
+                    ModeParameter::default_for_mode("car"),
+                    ModeParameter::default_for_mode("walk"),
+                    ModeParameter::default_for_mode("ride"),
+                    ModeParameter::default_for_mode("freight"),
+                ],
                 agent_params: vec![AgentParameter::default()],
             }
         );

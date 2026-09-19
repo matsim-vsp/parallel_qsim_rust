@@ -1,9 +1,11 @@
 use crate::simulation::config::Config;
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::travel_time_calculator::GlobalTravelTimeCalculator;
+use crate::simulation::replanning::routing::travel_time_calculator::{
+    GlobalTravelTimeCalculator, TravelTimeGetter,
+};
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
-use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
+use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use nohash_hasher::IntMap;
 use std::fmt::Debug;
@@ -57,47 +59,67 @@ pub trait TravelDisutility: Debug + Send + Sync {
 
 #[derive(Clone, Debug)]
 pub struct ScoringBasedTravelTimeAndDisutility {
+    mode: Id<String>,
     marginal_utility_performing_per_subpopulation: IntMap<Id<String>, f64>,
-    marginal_utility_traveling_per_mode: IntMap<Id<String>, f64>,
-    marginal_utility_distance_per_mode: IntMap<Id<String>, f64>,
-    travel_time: GlobalTravelTimeCalculator,
-    garage: Arc<Garage>,
+    min_performing: f64,
+    marginal_utility_traveling: f64,
+    marginal_utility_distance: f64,
+    travel_time: Arc<GlobalTravelTimeCalculator>,
 }
 
 impl ScoringBasedTravelTimeAndDisutility {
     pub fn new(
         config: &Config,
-        garage: Arc<Garage>,
-        travel_time: GlobalTravelTimeCalculator,
+        mode: Id<String>,
+        travel_time: Arc<GlobalTravelTimeCalculator>,
     ) -> Self {
         let marginal_utility_performing_per_subpopulation = config
             .scoring()
             .agent_params
             .iter()
             .map(|p| (Id::create(&p.subpopulation), p.performing))
-            .collect();
+            .collect::<IntMap<_, _>>();
 
-        let marginal_utility_traveling_per_mode = config
+        let min_performing = marginal_utility_performing_per_subpopulation
+            .values()
+            .copied()
+            .reduce(f64::min)
+            .unwrap();
+
+        let mode_params = config
             .scoring()
             .mode_params
             .iter()
-            .map(|p| (Id::create(&p.mode), p.marginal_utility_of_traveling))
-            .collect();
-
-        let marginal_utility_distance_per_mode = config
-            .scoring()
-            .mode_params
-            .iter()
-            .map(|p| (Id::create(&p.mode), p.marginal_utility_of_distance))
-            .collect();
+            .find(|params| params.mode == mode.external())
+            .unwrap_or_else(|| {
+                panic!(
+                    "No scoring parameters configured for network mode {}",
+                    mode.external()
+                )
+            });
 
         ScoringBasedTravelTimeAndDisutility {
+            mode,
             marginal_utility_performing_per_subpopulation,
-            marginal_utility_traveling_per_mode,
-            marginal_utility_distance_per_mode,
-            garage,
+            min_performing,
+            marginal_utility_traveling: mode_params.marginal_utility_of_traveling,
+            marginal_utility_distance: mode_params.marginal_utility_of_distance,
             travel_time,
         }
+    }
+
+    fn disutility(&self, link: &Link, travel_time: Duration, performing: f64) -> Disutility {
+        // traveling is normally negative, so convert it into positive disutility by negating it
+        let travel_cost_factor = (-self.marginal_utility_traveling + performing) / 3600.;
+
+        let distance_term = if self.marginal_utility_distance == 0. {
+            0.
+        } else {
+            // distance is normally negative, so convert it into positive disutility by negating it
+            -self.marginal_utility_distance * link.length
+        };
+
+        travel_time.as_secs_f64() * travel_cost_factor + distance_term
     }
 }
 
@@ -106,11 +128,16 @@ impl TravelTime for ScoringBasedTravelTimeAndDisutility {
         &self,
         link: &Link,
         departure_time: SimTime,
-        person: Option<&InternalPerson>,
+        _person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Duration {
-        self.travel_time
-            .travel_time(link, departure_time, person, vehicle)
+        self.travel_time.get_link_travel_time(
+            &self.mode,
+            link,
+            departure_time,
+            vehicle,
+            TravelTimeGetter::Average,
+        )
     }
 }
 
@@ -122,74 +149,34 @@ impl TravelDisutility for ScoringBasedTravelTimeAndDisutility {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility {
-        let max_performing_factor = self
-            .marginal_utility_performing_per_subpopulation
-            .values()
-            .map(|x| *x)
-            .reduce(f64::max)
-            .unwrap();
-
-        let min_traveling_factor = self
-            .marginal_utility_traveling_per_mode
-            .values()
-            .map(|x| *x)
-            .reduce(f64::min)
-            .unwrap();
-
-        let min_distance_factor = self
-            .marginal_utility_distance_per_mode
-            .values()
-            .map(|x| *x)
-            .reduce(f64::min)
-            .unwrap();
-
-        let performing_factor = if let Some(person) = person {
+        let performing = if let Some(person) = person {
             self.marginal_utility_performing_per_subpopulation
-                .get(&person.subpopulation())
-                .unwrap_or(&max_performing_factor)
+                .get(person.subpopulation())
+                .copied()
+                .unwrap_or_else(|| {
+                    panic!(
+                        "No scoring parameters configured for subpopulation {}",
+                        person.subpopulation().external()
+                    )
+                })
         } else {
-            &max_performing_factor
+            // Person-less routing uses the same conservative coefficient as the global lower bound.
+            self.min_performing
         };
 
-        let mut traveling_factor = &min_traveling_factor;
-        let mut distance = &min_distance_factor;
-
-        if let Some(vehicle) = vehicle {
-            let mode = &self
-                .garage
-                .vehicle_types
-                .get(&vehicle.vehicle_type)
-                .as_ref()
-                .unwrap()
-                .net_mode;
-            traveling_factor = self
-                .marginal_utility_traveling_per_mode
-                .get(mode)
-                .unwrap_or(&min_traveling_factor);
-            distance = self
-                .marginal_utility_distance_per_mode
-                .get(mode)
-                .unwrap_or(&min_distance_factor);
-        };
-
-        // traveling is normally negative, so convert it into positive disutility by negating it
-        let travel_cost_factor = (-traveling_factor + performing_factor) / 3600.;
-
-        let distance_term = if distance == &0. {
-            0.
-        } else {
-            // distance is normally negative, so convert it into positive disutility by negating it
-            -distance * link.length
-        };
-
-        self.travel_time(link, departure_time, person, vehicle)
-            .as_secs_f64()
-            * travel_cost_factor
-            + distance_term
+        self.disutility(
+            link,
+            self.travel_time(link, departure_time, person, vehicle),
+            performing,
+        )
     }
 
     fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility {
-        self.travel_disutility(link, SimTime::from_secs(0), None, None)
+        self.disutility(
+            link,
+            travel_time(link.length, link.freespeed),
+            self.min_performing,
+        )
     }
 }
 
@@ -291,18 +278,137 @@ fn travel_time(length: f64, speed: f64) -> Duration {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::InternalAttributes;
+    use crate::simulation::config::{AgentParameter, Config, ModeParameter, Scoring};
+    use crate::simulation::events::{LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent};
     use crate::simulation::id::Id;
-    use crate::simulation::replanning::routing::cost::FreeOrMaxSpeedTravelTimeAndDisutility;
-    use crate::simulation::replanning::routing::cost::TravelDisutility;
-    use crate::simulation::replanning::routing::cost::TravelTime;
+    use crate::simulation::io::xml::attributes::{IOAttribute, IOAttributes};
+    use crate::simulation::io::xml::population::IOPerson;
+    use crate::simulation::replanning::routing::cost::{
+        FreeOrMaxSpeedTravelTimeAndDisutility, ScoringBasedTravelTimeAndDisutility,
+        TravelDisutility, TravelTime,
+    };
     use crate::simulation::replanning::routing::graph::Graph;
     use crate::simulation::replanning::routing::graph::tests::{
         get_triangle_test_network, net_to_graph,
     };
+    use crate::simulation::replanning::routing::travel_time_calculator::{
+        GlobalTravelTimeCalculator, PartitionTravelTimeCalculator,
+    };
+    use crate::simulation::scenario::network::{Link, Node};
+    use crate::simulation::scenario::population::{InternalPerson, SUBPOPULATION};
     use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
+    use nohash_hasher::IntSet;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
+
+    fn mode_params(mode: &str, traveling: f64, distance: f64) -> ModeParameter {
+        ModeParameter {
+            mode: mode.to_string(),
+            marginal_utility_of_traveling: traveling,
+            marginal_utility_of_distance: distance,
+            monetary_distance_cost_rate: 0.0,
+            daily_money_constant: 0.0,
+            daily_utility_constant: 0.0,
+            constant: 0.0,
+        }
+    }
+
+    fn scoring_config() -> Config {
+        let mut config = Config::default();
+        config.set_scoring(Scoring {
+            activity_params: Vec::new(),
+            mode_params: vec![
+                mode_params("car", -6.0, -0.01),
+                mode_params("walk", -3.0, 0.0),
+            ],
+            agent_params: vec![
+                AgentParameter::default(),
+                AgentParameter {
+                    subpopulation: "freight".to_string(),
+                    performing: 2.0,
+                    ..AgentParameter::default()
+                },
+            ],
+        });
+        config
+    }
+
+    fn link(id: &str, length: f64, freespeed: f64) -> Link {
+        Link {
+            id: Id::create(id),
+            from: Id::<Node>::create(&format!("{id}_from")),
+            to: Id::<Node>::create(&format!("{id}_to")),
+            length,
+            capacity: 3600.0,
+            freespeed,
+            permlanes: 1.0,
+            modes: IntSet::default(),
+            partition: 0,
+            attributes: InternalAttributes::default(),
+        }
+    }
+
+    fn global_travel_time(
+        partitions: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
+    ) -> Arc<GlobalTravelTimeCalculator> {
+        Arc::new(GlobalTravelTimeCalculator::from_partitions(partitions))
+    }
+
+    fn person(id: &str, subpopulation: &str) -> InternalPerson {
+        IOPerson {
+            id: id.to_string(),
+            plans: Vec::new(),
+            attributes: Some(IOAttributes {
+                attributes: vec![IOAttribute::new_with_class(
+                    SUBPOPULATION.to_string(),
+                    "java.lang.String".to_string(),
+                    subpopulation.to_string(),
+                )],
+            }),
+        }
+        .into()
+    }
+
+    fn assert_close(expected: f64, actual: f64) {
+        assert!(
+            (expected - actual).abs() < 1e-12,
+            "expected {expected}, got {actual}"
+        );
+    }
+
+    fn observe_travel_time(
+        partition: &mut PartitionTravelTimeCalculator,
+        mode: &str,
+        link: &Id<Link>,
+        vehicle: &str,
+        travel_time: u64,
+    ) {
+        let vehicle = Id::create(vehicle);
+        partition.process_vehicle_enters_traffic_event(&VehicleEntersTrafficEvent {
+            time: SimTime::from_secs(0),
+            vehicle: vehicle.clone(),
+            link: link.clone(),
+            person: Id::create(format!("{mode}-person").as_str()),
+            network_mode: Id::create(mode),
+            relative_position: 1.0,
+            attributes: InternalAttributes::default(),
+        });
+        partition.process_link_enter_event(&LinkEnterEvent {
+            time: SimTime::from_secs(0),
+            link: link.clone(),
+            vehicle: vehicle.clone(),
+            attributes: InternalAttributes::default(),
+        });
+        partition.process_link_leave_event(&LinkLeaveEvent {
+            time: SimTime::from_secs(travel_time),
+            link: link.clone(),
+            vehicle,
+            attributes: InternalAttributes::default(),
+        });
+    }
 
     /// Test the FreeOrMaxSpeedTravelTimeAndDisutility implementation of TravelTime and TravelDisutility
     #[deterministic_id_test]
@@ -336,5 +442,74 @@ mod tests {
             fomsttad.travel_disutility(link, SimTime::from_secs(0), None, Some(&vehicle)),
             10.0
         );
+    }
+
+    // checks if the correct travel times and disutilities are used for different modes, even when no vehicle is provided
+    #[deterministic_id_test]
+    fn scoring_costs_use_router_mode_without_vehicle() {
+        let config = scoring_config();
+        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        let link = link("mode-specific", 100.0, 10.0);
+        {
+            let mut partition = partition.lock().unwrap();
+            observe_travel_time(&mut partition, "car", &link.id, "car-vehicle", 20);
+            observe_travel_time(&mut partition, "walk", &link.id, "walk-vehicle", 30);
+        }
+        let travel_time = global_travel_time(vec![partition]);
+
+        let car = ScoringBasedTravelTimeAndDisutility::new(
+            &config,
+            Id::create("car"),
+            travel_time.clone(),
+        );
+        let walk =
+            ScoringBasedTravelTimeAndDisutility::new(&config, Id::create("walk"), travel_time);
+        let person = person("default-person", "person");
+
+        assert_eq!(
+            Duration::from_secs(20),
+            car.travel_time(&link, SimTime::from_secs(0), None, None)
+        );
+        assert_eq!(
+            Duration::from_secs(30),
+            walk.travel_time(&link, SimTime::from_secs(0), None, None)
+        );
+        assert_close(
+            1.0 + 20.0 * 12.0 / 3600.0,
+            car.travel_disutility(&link, SimTime::from_secs(0), Some(&person), None),
+        );
+        assert_close(
+            30.0 * 9.0 / 3600.0,
+            walk.travel_disutility(&link, SimTime::from_secs(0), Some(&person), None),
+        );
+    }
+
+    #[deterministic_id_test]
+    #[should_panic(expected = "No scoring parameters configured for network mode freight")]
+    fn scoring_costs_require_parameters_for_router_mode() {
+        let config = scoring_config();
+        ScoringBasedTravelTimeAndDisutility::new(
+            &config,
+            Id::create("freight"),
+            global_travel_time(Vec::new()),
+        );
+    }
+
+    #[deterministic_id_test]
+    #[should_panic(expected = "No scoring parameters configured for subpopulation missing")]
+    fn scoring_costs_require_parameters_for_person_subpopulation() {
+        let config = scoring_config();
+        let costs = ScoringBasedTravelTimeAndDisutility::new(
+            &config,
+            Id::create("car"),
+            global_travel_time(Vec::new()),
+        );
+        let link = link("missing-subpopulation", 100.0, 10.0);
+        let person = person("missing-person", "missing");
+
+        costs.travel_disutility(&link, SimTime::from_secs(0), Some(&person), None);
     }
 }

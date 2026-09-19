@@ -7,9 +7,7 @@ use crate::simulation::framework_events::{
     VehicleLeavesPartitionEvent,
 };
 use crate::simulation::id::Id;
-use crate::simulation::replanning::routing::cost::TravelTime;
-use crate::simulation::scenario::network::{Link, Network};
-use crate::simulation::scenario::population::InternalPerson;
+use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 use nohash_hasher::{IntMap, IntSet};
@@ -406,23 +404,13 @@ impl PartitionTravelTimeCalculator {
 
 #[derive(Debug, Clone)]
 pub struct GlobalTravelTimeCalculator {
-    partitions_by_link: IntMap<Id<Link>, u32>,
-    calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
+    calculators: Arc<Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>>,
 }
 
 impl GlobalTravelTimeCalculator {
-    pub fn from_partitions(
-        network: &Network,
-        calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
-    ) -> Self {
-        let partitions_by_link = network
-            .links()
-            .iter()
-            .map(|l| (l.id.clone(), l.partition))
-            .collect::<IntMap<Id<Link>, u32>>();
+    pub fn from_partitions(calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>) -> Self {
         Self {
-            partitions_by_link,
-            calculators,
+            calculators: Arc::new(calculators),
         }
     }
 
@@ -434,31 +422,12 @@ impl GlobalTravelTimeCalculator {
         vehicle: Option<&InternalVehicle>,
         getter: TravelTimeGetter,
     ) -> Duration {
-        let partition = self.partitions_by_link.get(&link.id).unwrap();
-        let calculator = &self.calculators[*partition as usize];
+        let calculator = &self.calculators[link.partition as usize];
         calculator
             .lock()
             .unwrap()
             .calculator_for_mode(mode.clone())
             .get_link_travel_time(link, now, vehicle, getter)
-    }
-}
-
-impl TravelTime for GlobalTravelTimeCalculator {
-    fn travel_time(
-        &self,
-        link: &Link,
-        departure_time: SimTime,
-        _person: Option<&InternalPerson>,
-        vehicle: Option<&InternalVehicle>,
-    ) -> Duration {
-        self.get_link_travel_time(
-            &Id::create("car"), // TODO get mode from vehicle
-            link,
-            departure_time,
-            vehicle,
-            TravelTimeGetter::Average,
-        )
     }
 }
 
@@ -518,8 +487,7 @@ mod test {
         GlobalTravelTimeCalculator, PartitionTravelTimeCalculator, TravelTimeCalculator,
         TravelTimeGetter,
     };
-    use crate::simulation::scenario::Coordinate;
-    use crate::simulation::scenario::network::{Link, Network, Node};
+    use crate::simulation::scenario::network::{Link, Node};
     use crate::simulation::scenario::population::InternalPerson;
     use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::simulation::time::SimTime;
@@ -565,28 +533,6 @@ mod test {
             vehicle_type: Id::create("default"),
             attributes: InternalAttributes::default(),
         }
-    }
-
-    fn network_with_link(link: Link) -> Network {
-        let mut network = Network::new();
-        network.add_node(Node {
-            coord: Coordinate::default(),
-            id: link.from.clone(),
-            in_links: Vec::new(),
-            out_links: Vec::new(),
-            partition: 0,
-            cmp_weight: 1,
-        });
-        network.add_node(Node {
-            coord: Coordinate::default(),
-            id: link.to.clone(),
-            in_links: Vec::new(),
-            out_links: Vec::new(),
-            partition: 0,
-            cmp_weight: 1,
-        });
-        network.add_link(link);
-        network
     }
 
     fn observe(
@@ -1153,12 +1099,11 @@ mod test {
     #[deterministic_id_test]
     fn global_empty_data_uses_freespeed_and_vehicle_limit() {
         let link = link("empty", 100.0, 20.0);
-        let network = network_with_link(link.clone());
         let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
             Duration::from_secs(10),
             Duration::from_secs(100),
         )));
-        let global = GlobalTravelTimeCalculator::from_partitions(&network, vec![partition]);
+        let global = GlobalTravelTimeCalculator::from_partitions(vec![partition]);
         let slow_vehicle = vehicle("slow", 10.0);
 
         // No vehicle => freespeed
@@ -1187,28 +1132,22 @@ mod test {
     }
 
     #[deterministic_id_test]
+    fn global_clone_shares_partition_calculators() {
+        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        let global = GlobalTravelTimeCalculator::from_partitions(vec![partition]);
+        let clone = global.clone();
+
+        assert!(Arc::ptr_eq(&global.calculators, &clone.calculators));
+    }
+
+    #[deterministic_id_test]
     fn global_merge_preserves_disjoint_links_from_two_partitions() {
         let first_link = link("partition-0-link", 100.0, 100.0);
         let mut second_link = link("partition-1-link", 100.0, 100.0);
         second_link.partition = 1;
-        let mut network = network_with_link(first_link.clone());
-        network.add_node(Node {
-            coord: Coordinate::default(),
-            id: second_link.from.clone(),
-            in_links: Vec::new(),
-            out_links: Vec::new(),
-            partition: 1,
-            cmp_weight: 1,
-        });
-        network.add_node(Node {
-            coord: Coordinate::default(),
-            id: second_link.to.clone(),
-            in_links: Vec::new(),
-            out_links: Vec::new(),
-            partition: 1,
-            cmp_weight: 1,
-        });
-        network.add_link(second_link.clone());
 
         let car = Id::create("car");
         let first_partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
@@ -1236,10 +1175,8 @@ mod test {
             7,
         );
 
-        let global = GlobalTravelTimeCalculator::from_partitions(
-            &network,
-            vec![first_partition, second_partition],
-        );
+        let global =
+            GlobalTravelTimeCalculator::from_partitions(vec![first_partition, second_partition]);
 
         assert_eq!(
             Duration::from_secs(4),
@@ -1266,7 +1203,6 @@ mod test {
     #[deterministic_id_test]
     fn global_merge_preserves_consolidation_rules() {
         let link = link("slow", 100.0, 100.0);
-        let network = network_with_link(link.clone());
         let car = Id::create("car");
         let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
             Duration::from_secs(900),
@@ -1280,7 +1216,7 @@ mod test {
             0,
             3000,
         );
-        let global = GlobalTravelTimeCalculator::from_partitions(&network, vec![partition]);
+        let global = GlobalTravelTimeCalculator::from_partitions(vec![partition]);
 
         for (time, expected) in [(0, 3000), (900, 2100), (1800, 1200), (2700, 300)] {
             assert_eq!(

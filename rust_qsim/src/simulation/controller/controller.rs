@@ -202,16 +202,7 @@ impl ControllerBuilder {
 
         let access_egress_mode = Id::create(&config.routing().access_egress_mode);
 
-        let global_ttc = GlobalTravelTimeCalculator::from_partitions(
-            controller_scenario.core.network.as_ref(),
-            ttc,
-        );
-
-        let travel_disutility = Arc::new(ScoringBasedTravelTimeAndDisutility::new(
-            config,
-            controller_scenario.core.garage.clone(),
-            global_ttc.clone(),
-        ));
+        let global_ttc = Arc::new(GlobalTravelTimeCalculator::from_partitions(ttc));
 
         // for every main mode, create the corresponding router.
         for mode in &config.qsim().main_modes {
@@ -223,12 +214,16 @@ impl ControllerBuilder {
                     id.external(),
                 ));
             };
-            let time_utility = Arc::new(global_ttc.clone());
+            let time_utility = Arc::new(ScoringBasedTravelTimeAndDisutility::new(
+                config,
+                id.clone(),
+                global_ttc.clone(),
+            ));
             let astar = AStar::<AltHeuristic>::new(
                 controller_scenario.core.network.clone(),
                 Some(id.clone()),
                 time_utility.clone(),
-                travel_disutility.clone(),
+                time_utility,
             )
             .map_err(|error| {
                 format!(
