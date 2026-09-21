@@ -54,8 +54,7 @@ pub struct Controller {
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
     trip_router: TripRouter,
-    // TODO is Arc Mutex the best here? Assume that we have a phase where we only write, but with one thread and a phase where multiple threads read a lot and write a little.
-    partition_travel_time_calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
+    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
 }
 
 pub struct ControllerBuilder {
@@ -88,13 +87,13 @@ impl ControllerBuilder {
     // Implementing a custom build function in order to set the barrier if not set by the user.
     pub fn build(mut self) -> Result<Controller, String> {
         self.scenario.config.travel_time_calculator().validate()?;
+        let num_parts = self.scenario.config.partitioning().num_parts;
 
         // create a barrier for the number of partitions, if not provided
-        let barrier = self.global_barrier.take().unwrap_or_else(|| {
-            Arc::new(Barrier::new(
-                self.scenario.config.partitioning().num_parts as usize,
-            ))
-        });
+        let barrier = self
+            .global_barrier
+            .take()
+            .unwrap_or_else(|| Arc::new(Barrier::new(num_parts as usize)));
 
         let mut controller_event_manager = ControllerEventsManager::default();
         for register_fn in self.controller_event_register_fn {
@@ -108,8 +107,31 @@ impl ControllerBuilder {
         let scenario: ControllerScenario = self.scenario.into();
         let config = scenario.core.config.clone();
 
+        // Register travel time collectors for each partition (event handler & partition event handler)
         let ttc = Self::create_travel_time_calculators(config.as_ref());
-        let router = Self::create_trip_router(config.as_ref(), &scenario, ttc.clone())?;
+        for rank in 0..num_parts {
+            let calculator = ttc.get(rank as usize).unwrap();
+            self.event_handler_register_fn
+                .entry(rank)
+                .or_default()
+                .push(PartitionTravelTimeCalculator::event_handler_register_fn(
+                    calculator.clone(),
+                ));
+            self.partition_event_register_fn
+                .entry(rank)
+                .or_default()
+                .push(
+                    PartitionTravelTimeCalculator::partition_listener_register_fn(
+                        calculator.clone(),
+                    ),
+                );
+        }
+
+        let global_ttc = Arc::new(GlobalTravelTimeCalculator::from_partitions(
+            ttc.clone(),
+            scenario.core.network.clone(),
+        ));
+        let router = Self::create_trip_router(config.as_ref(), &scenario, global_ttc.clone())?;
 
         Ok(Controller {
             scenario,
@@ -124,7 +146,7 @@ impl ControllerBuilder {
             global_barrier: barrier,
             adapter_handles: self.adapter_handles,
             trip_router: router,
-            partition_travel_time_calculators: ttc,
+            global_travel_time_calculator: global_ttc,
         })
     }
 
@@ -183,7 +205,7 @@ impl ControllerBuilder {
     fn create_trip_router(
         config: &Config,
         controller_scenario: &ControllerScenario,
-        ttc: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
+        global_ttc: Arc<GlobalTravelTimeCalculator>,
     ) -> Result<TripRouter, String> {
         let mut routers: IntMap<Id<String>, Arc<dyn RoutingModule>> = IntMap::default();
 
@@ -201,8 +223,6 @@ impl ControllerBuilder {
         }
 
         let access_egress_mode = Id::create(&config.routing().access_egress_mode);
-
-        let global_ttc = Arc::new(GlobalTravelTimeCalculator::from_partitions(ttc));
 
         // for every main mode, create the corresponding router.
         for mode in &config.qsim().main_modes {
@@ -386,6 +406,7 @@ impl Controller {
             .scenario
             .split_for_mobsim(&self.link_storage_capacities);
         let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, inputs);
+        self.global_travel_time_calculator.publish_snapshot();
 
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(is_last_iteration));
@@ -433,28 +454,6 @@ impl Controller {
     }
 
     fn start_mobsim_workers(&mut self) -> MobsimWorkerPool {
-        // Register travel time collectors for each partition (event handler & partition event handler)
-        for rank in 0..self.config.partitioning().num_parts {
-            let calculator = self
-                .partition_travel_time_calculators
-                .get(rank as usize)
-                .unwrap();
-            self.event_handler_per_partition
-                .entry(rank)
-                .or_default()
-                .push(PartitionTravelTimeCalculator::event_handler_register_fn(
-                    calculator.clone(),
-                ));
-            self.partition_event_listener_per_partition
-                .entry(rank)
-                .or_default()
-                .push(
-                    PartitionTravelTimeCalculator::partition_listener_register_fn(
-                        calculator.clone(),
-                    ),
-                );
-        }
-
         let args = MobsimWorkerPoolArgumentsBuilder::default()
             .scenario_core(self.scenario.core.clone())
             .agent_source(self.agent_source.clone())

@@ -292,10 +292,11 @@ mod tests {
     use crate::simulation::replanning::routing::graph::tests::{
         get_triangle_test_network, net_to_graph,
     };
+    use crate::simulation::replanning::routing::travel_time_calculator::test::{link, network};
     use crate::simulation::replanning::routing::travel_time_calculator::{
         GlobalTravelTimeCalculator, PartitionTravelTimeCalculator,
     };
-    use crate::simulation::scenario::network::{Link, Node};
+    use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::population::{InternalPerson, SUBPOPULATION};
     use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::simulation::time::SimTime;
@@ -336,25 +337,14 @@ mod tests {
         config
     }
 
-    fn link(id: &str, length: f64, freespeed: f64) -> Link {
-        Link {
-            id: Id::create(id),
-            from: Id::<Node>::create(&format!("{id}_from")),
-            to: Id::<Node>::create(&format!("{id}_to")),
-            length,
-            capacity: 3600.0,
-            freespeed,
-            permlanes: 1.0,
-            modes: IntSet::default(),
-            partition: 0,
-            attributes: InternalAttributes::default(),
-        }
-    }
-
     fn global_travel_time(
         partitions: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
+        links: &[Link],
     ) -> Arc<GlobalTravelTimeCalculator> {
-        Arc::new(GlobalTravelTimeCalculator::from_partitions(partitions))
+        let net = network(links);
+        let global = Arc::new(GlobalTravelTimeCalculator::from_partitions(partitions, net));
+        global.publish_snapshot();
+        global
     }
 
     fn person(id: &str, subpopulation: &str) -> InternalPerson {
@@ -458,7 +448,7 @@ mod tests {
             observe_travel_time(&mut partition, "car", &link.id, "car-vehicle", 20);
             observe_travel_time(&mut partition, "walk", &link.id, "walk-vehicle", 30);
         }
-        let travel_time = global_travel_time(vec![partition]);
+        let travel_time = global_travel_time(vec![partition], &[link.clone()]);
 
         let car = ScoringBasedTravelTimeAndDisutility::new(
             &config,
@@ -494,7 +484,7 @@ mod tests {
         ScoringBasedTravelTimeAndDisutility::new(
             &config,
             Id::create("freight"),
-            global_travel_time(Vec::new()),
+            global_travel_time(Vec::new(), &[]),
         );
     }
 
@@ -505,7 +495,7 @@ mod tests {
         let costs = ScoringBasedTravelTimeAndDisutility::new(
             &config,
             Id::create("car"),
-            global_travel_time(Vec::new()),
+            global_travel_time(Vec::new(), &[]),
         );
         let link = link("missing-subpopulation", 100.0, 10.0);
         let person = person("missing-person", "missing");

@@ -7,9 +7,10 @@ use crate::simulation::framework_events::{
     VehicleLeavesPartitionEvent,
 };
 use crate::simulation::id::Id;
-use crate::simulation::scenario::network::Link;
+use crate::simulation::scenario::network::{Link, Network};
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
+use arc_swap::ArcSwap;
 use nohash_hasher::{IntMap, IntSet};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -57,9 +58,7 @@ impl TravelTimeCalculator {
             "travel time bin size must be greater than zero"
         );
 
-        let num_bins = ((max_time.as_nanos() / bin_size.as_nanos()) + 1)
-            .try_into()
-            .expect("number of travel time bins does not fit into usize");
+        let num_bins = number_of_bins(bin_size, max_time);
 
         TravelTimeCalculator {
             modes,
@@ -150,9 +149,7 @@ impl TravelTimeCalculator {
 
     /// Returns the index of the bin corresponding to the time.
     fn time_slot(&self, time: SimTime) -> usize {
-        let slot = time.as_duration().as_nanos() / self.bin_size.as_nanos();
-        let slot = usize::try_from(slot).unwrap_or(usize::MAX);
-        slot.min(self.num_bins - 1)
+        time_slot(time, self.bin_size, self.num_bins)
     }
 }
 
@@ -402,16 +399,89 @@ impl PartitionTravelTimeCalculator {
     }
 }
 
+#[derive(Debug)]
+struct TravelTimeSnapshot {
+    bin_size: Duration,
+    num_bins: usize,
+    // Only links with observations need consolidated bins. Others use freespeed at lookup.
+    times_by_partition: Vec<IntMap<Id<String>, IntMap<Id<Link>, Vec<Duration>>>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct GlobalTravelTimeCalculator {
     calculators: Arc<Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>>,
+    network: Arc<Network>,
+    snapshot: Arc<ArcSwap<TravelTimeSnapshot>>,
 }
 
 impl GlobalTravelTimeCalculator {
-    pub fn from_partitions(calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>) -> Self {
+    pub fn from_partitions(
+        calculators: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
+        network: Arc<Network>,
+    ) -> Self {
+        let (bin_size, num_bins) = calculators
+            .first()
+            .map(|calculator| {
+                let calculator = calculator
+                    .lock()
+                    .expect("partition travel-time calculator lock poisoned");
+                (
+                    calculator.bin_size,
+                    number_of_bins(calculator.bin_size, calculator.max_time),
+                )
+            })
+            .unwrap();
+        let empty = TravelTimeSnapshot {
+            bin_size,
+            num_bins,
+            times_by_partition: vec![IntMap::default(); calculators.len()],
+        };
         Self {
             calculators: Arc::new(calculators),
+            network,
+            snapshot: Arc::new(ArcSwap::from_pointee(empty)),
         }
+    }
+
+    /// Publish the completed Mobsim's observations before any routing for the next phase.
+    /// Workers must have finished writing to their partition collectors before this call.
+    pub fn publish_snapshot(&self) {
+        let previous = self.snapshot.load();
+        let mut times_by_partition = Vec::with_capacity(self.calculators.len());
+        for calculator in self.calculators.iter() {
+            let calculator = calculator
+                .lock()
+                .expect("partition travel-time calculator lock poisoned");
+            assert_eq!(calculator.bin_size, previous.bin_size);
+            assert_eq!(
+                number_of_bins(calculator.bin_size, calculator.max_time),
+                previous.num_bins
+            );
+            let mut modes = IntMap::default();
+            for (mode, travel_time_calculator) in &calculator.calculators_by_mode {
+                let mut links = IntMap::default();
+                for (link_id, data) in &travel_time_calculator.travel_time_data_by_link {
+                    if data.travel_time_bins.iter().all(|bin| bin.count == 0) {
+                        continue;
+                    }
+                    let link = self.network.get_link(link_id);
+                    links.insert(
+                        link_id.clone(),
+                        data.build_consolidated_travel_times(link, calculator.bin_size),
+                    );
+                }
+                if !links.is_empty() {
+                    modes.insert(mode.clone(), links);
+                }
+            }
+            times_by_partition.push(modes);
+        }
+
+        self.snapshot.store(Arc::new(TravelTimeSnapshot {
+            bin_size: previous.bin_size,
+            num_bins: previous.num_bins,
+            times_by_partition,
+        }));
     }
 
     pub fn get_link_travel_time(
@@ -422,13 +492,42 @@ impl GlobalTravelTimeCalculator {
         vehicle: Option<&InternalVehicle>,
         getter: TravelTimeGetter,
     ) -> Duration {
-        let calculator = &self.calculators[link.partition as usize];
-        calculator
-            .lock()
-            .unwrap()
-            .calculator_for_mode(mode.clone())
-            .get_link_travel_time(link, now, vehicle, getter)
+        let snapshot = self.snapshot.load();
+        let observed = match snapshot.times_by_partition[link.partition as usize]
+            .get(mode)
+            .and_then(|links| links.get(&link.id))
+        {
+            Some(times) => {
+                let slot = time_slot(now, snapshot.bin_size, snapshot.num_bins);
+                match getter {
+                    TravelTimeGetter::Average => times[slot],
+                    TravelTimeGetter::LinearInterpolation => {
+                        interpolated_travel_time(times, now, snapshot.bin_size)
+                    }
+                }
+            }
+            None => travel_time_from_speed(link.length, link.freespeed),
+        };
+
+        if let Some(vehicle) = vehicle {
+            if vehicle.max_v.is_finite() && vehicle.max_v > 0.0 {
+                return observed.max(travel_time_from_speed(link.length, vehicle.max_v));
+            }
+        }
+        observed
     }
+}
+
+fn number_of_bins(bin_size: Duration, max_time: Duration) -> usize {
+    ((max_time.as_nanos() / bin_size.as_nanos()) + 1)
+        .try_into()
+        .expect("number of travel time bins does not fit into usize")
+}
+
+fn time_slot(time: SimTime, bin_size: Duration, num_bins: usize) -> usize {
+    let slot = time.as_duration().as_nanos() / bin_size.as_nanos();
+    let slot = usize::try_from(slot).unwrap_or(usize::MAX);
+    slot.min(num_bins - 1)
 }
 
 fn duration_to_nanos_f64(duration: Duration) -> f64 {
@@ -477,7 +576,7 @@ fn interpolated_travel_time(
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
         LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
@@ -487,13 +586,16 @@ mod test {
         GlobalTravelTimeCalculator, PartitionTravelTimeCalculator, TravelTimeCalculator,
         TravelTimeGetter,
     };
-    use crate::simulation::scenario::network::{Link, Node};
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::network::{Link, Network, Node};
     use crate::simulation::scenario::population::InternalPerson;
     use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
+    use std::sync::mpsc;
     use std::sync::{Arc, Mutex};
+    use std::thread;
     use std::time::Duration;
 
     use super::TravelTimeData;
@@ -510,7 +612,7 @@ mod test {
         )
     }
 
-    fn link(id: &str, length: f64, freespeed: f64) -> Link {
+    pub(crate) fn link(id: &str, length: f64, freespeed: f64) -> Link {
         Link {
             id: Id::create(id),
             from: Id::<Node>::create(&format!("{id}_from")),
@@ -523,6 +625,26 @@ mod test {
             partition: 0,
             attributes: InternalAttributes::default(),
         }
+    }
+
+    pub(crate) fn network(links: &[Link]) -> Arc<Network> {
+        let mut network = Network::new();
+        for link in links {
+            network.add_node(Node::new(
+                link.from.clone(),
+                Coordinate::new_2d(0.0, 0.0),
+                link.partition,
+                1,
+            ));
+            network.add_node(Node::new(
+                link.to.clone(),
+                Coordinate::new_2d(1.0, 0.0),
+                link.partition,
+                1,
+            ));
+            network.add_link(link.clone());
+        }
+        Arc::new(network)
     }
 
     fn vehicle(id: &str, max_v: f64) -> InternalVehicle {
@@ -1103,7 +1225,8 @@ mod test {
             Duration::from_secs(10),
             Duration::from_secs(100),
         )));
-        let global = GlobalTravelTimeCalculator::from_partitions(vec![partition]);
+        let global =
+            GlobalTravelTimeCalculator::from_partitions(vec![partition], network(&[link.clone()]));
         let slow_vehicle = vehicle("slow", 10.0);
 
         // No vehicle => freespeed
@@ -1137,10 +1260,11 @@ mod test {
             Duration::from_secs(10),
             Duration::from_secs(100),
         )));
-        let global = GlobalTravelTimeCalculator::from_partitions(vec![partition]);
+        let global = GlobalTravelTimeCalculator::from_partitions(vec![partition], network(&[]));
         let clone = global.clone();
 
         assert!(Arc::ptr_eq(&global.calculators, &clone.calculators));
+        assert!(Arc::ptr_eq(&global.snapshot, &clone.snapshot));
     }
 
     #[deterministic_id_test]
@@ -1175,8 +1299,11 @@ mod test {
             7,
         );
 
-        let global =
-            GlobalTravelTimeCalculator::from_partitions(vec![first_partition, second_partition]);
+        let global = GlobalTravelTimeCalculator::from_partitions(
+            vec![first_partition, second_partition],
+            network(&[first_link.clone(), second_link.clone()]),
+        );
+        global.publish_snapshot();
 
         assert_eq!(
             Duration::from_secs(4),
@@ -1216,7 +1343,9 @@ mod test {
             0,
             3000,
         );
-        let global = GlobalTravelTimeCalculator::from_partitions(vec![partition]);
+        let global =
+            GlobalTravelTimeCalculator::from_partitions(vec![partition], network(&[link.clone()]));
+        global.publish_snapshot();
 
         for (time, expected) in [(0, 3000), (900, 2100), (1800, 1200), (2700, 300)] {
             assert_eq!(
@@ -1230,6 +1359,173 @@ mod test {
                 )
             );
         }
+    }
+
+    #[deterministic_id_test]
+    fn global_snapshot_changes_only_when_published() {
+        let link = link("iterated", 100.0, 10.0);
+        let car = Id::create("car");
+        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        let global = GlobalTravelTimeCalculator::from_partitions(
+            vec![partition.clone()],
+            network(&[link.clone()]),
+        );
+        let reader = global.clone();
+        let get = || {
+            reader.get_link_travel_time(
+                &car,
+                &link,
+                SimTime::from_secs(0),
+                None,
+                TravelTimeGetter::Average,
+            )
+        };
+
+        assert_eq!(Duration::from_secs(10), get());
+        observe(
+            &mut partition.lock().unwrap(),
+            &car,
+            &link.id,
+            &Id::create("first"),
+            0,
+            20,
+        );
+        assert_eq!(Duration::from_secs(10), get());
+        global.publish_snapshot();
+        assert_eq!(Duration::from_secs(20), get());
+
+        partition.lock().unwrap().reset();
+        observe(
+            &mut partition.lock().unwrap(),
+            &car,
+            &link.id,
+            &Id::create("second"),
+            0,
+            30,
+        );
+        assert_eq!(Duration::from_secs(20), get());
+        global.publish_snapshot();
+        assert_eq!(Duration::from_secs(30), get());
+
+        partition.lock().unwrap().reset();
+        global.publish_snapshot();
+        assert_eq!(Duration::from_secs(10), get());
+    }
+
+    #[deterministic_id_test]
+    fn global_snapshot_supports_interpolation_and_vehicle_limit() {
+        let link = link("interpolated", 100.0, 100.0);
+        let car = Id::create("car");
+        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        {
+            let mut calculator = partition.lock().unwrap();
+            observe(&mut calculator, &car, &link.id, &Id::create("first"), 0, 10);
+            observe(
+                &mut calculator,
+                &car,
+                &link.id,
+                &Id::create("second"),
+                10,
+                30,
+            );
+        }
+        let global =
+            GlobalTravelTimeCalculator::from_partitions(vec![partition], network(&[link.clone()]));
+        global.publish_snapshot();
+
+        assert_eq!(
+            Duration::from_secs(15),
+            global.get_link_travel_time(
+                &car,
+                &link,
+                SimTime::from_secs(10),
+                None,
+                TravelTimeGetter::LinearInterpolation,
+            )
+        );
+        assert_eq!(
+            Duration::from_secs(25),
+            global.get_link_travel_time(
+                &car,
+                &link,
+                SimTime::from_secs(10),
+                Some(&vehicle("slow", 4.0)),
+                TravelTimeGetter::LinearInterpolation,
+            )
+        );
+    }
+
+    #[deterministic_id_test]
+    fn parallel_snapshot_reads_do_not_lock_partition_collector() {
+        let unobserved = link("unobserved", 100.0, 10.0);
+        let link = link("parallel", 100.0, 100.0);
+        let car = Id::create("car");
+        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        )));
+        observe(
+            &mut partition.lock().unwrap(),
+            &car,
+            &link.id,
+            &Id::create("vehicle"),
+            0,
+            7,
+        );
+        let global = GlobalTravelTimeCalculator::from_partitions(
+            vec![partition.clone()],
+            network(&[link.clone(), unobserved.clone()]),
+        );
+        global.publish_snapshot();
+
+        thread::scope(|scope| {
+            let collector_guard = partition.lock().unwrap();
+            let (sender, receiver) = mpsc::channel();
+            for _ in 0..8 {
+                let sender = sender.clone();
+                let global = global.clone();
+                let link = &link;
+                let unobserved = &unobserved;
+                let car = &car;
+                scope.spawn(move || {
+                    for _ in 0..100 {
+                        assert_eq!(
+                            Duration::from_secs(7),
+                            global.get_link_travel_time(
+                                car,
+                                link,
+                                SimTime::from_secs(0),
+                                None,
+                                TravelTimeGetter::Average,
+                            )
+                        );
+                        assert_eq!(
+                            Duration::from_secs(10),
+                            global.get_link_travel_time(
+                                car,
+                                unobserved,
+                                SimTime::from_secs(0),
+                                None,
+                                TravelTimeGetter::Average,
+                            )
+                        );
+                    }
+                    sender.send(()).unwrap();
+                });
+            }
+            for _ in 0..8 {
+                receiver
+                    .recv_timeout(Duration::from_secs(10))
+                    .expect("routing read waited for the partition collector lock");
+            }
+            drop(collector_guard);
+        });
     }
 
     #[deterministic_id_test]
