@@ -102,7 +102,9 @@ impl TripSpan {
     ) -> TripSpan {
         let new_elements: Vec<_> = new_elements.into_iter().collect();
         let new_destination_index = self.origin_index + new_elements.len() + 1;
-        plan_elements.splice(self.origin_index + 1..self.destination_index, new_elements);
+        let splice_range_begin = self.origin_index + 1; // including
+        let splice_range_end = self.destination_index; // excluding
+        plan_elements.splice(splice_range_begin..splice_range_end, new_elements);
         TripSpan {
             origin_index: self.origin_index,
             destination_index: new_destination_index,
@@ -473,6 +475,44 @@ mod tests {
         );
         assert_eq!(plan[3].as_leg().unwrap().mode.external(), "pt");
         assert_eq!(plan[4].as_activity().unwrap().act_type.external(), "work");
+    }
+
+    #[deterministic_id_test]
+    fn test_trip_span_replace_middle_5_elements() {
+        let mut plan = vec![
+            make_activity("home", "1"),
+            make_leg("car"),
+            make_activity("work", "2"),
+            make_leg("walk"),
+            make_activity("shop", "3"),
+        ];
+
+        let span = find_trip_span_starting_at_activity_default(&plan, 2).unwrap();
+        span.replace_trip_elements(
+            &mut plan,
+            vec![
+                make_leg("walk"),
+                make_activity("pt interaction", "99"),
+                make_leg("pt"),
+                make_activity("pt interaction", "99"),
+                make_leg("walk"),
+            ],
+        );
+
+        assert_eq!(plan.len(), 9);
+        assert_eq!(plan[2].as_activity().unwrap().act_type.external(), "work");
+        assert_eq!(plan[3].as_leg().unwrap().mode.external(), "walk");
+        assert_eq!(
+            plan[4].as_activity().unwrap().act_type.external(),
+            "pt interaction"
+        );
+        assert_eq!(plan[5].as_leg().unwrap().mode.external(), "pt");
+        assert_eq!(
+            plan[6].as_activity().unwrap().act_type.external(),
+            "pt interaction"
+        );
+        assert_eq!(plan[7].as_leg().unwrap().mode.external(), "walk");
+        assert_eq!(plan[8].as_activity().unwrap().act_type.external(), "shop");
     }
 
     #[deterministic_id_test]

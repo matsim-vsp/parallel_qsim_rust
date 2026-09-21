@@ -1251,9 +1251,9 @@ pub enum Logging {
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
 pub enum WriteEvents {
-    #[default]
     None,
     // for backward compatability, we still allow "Proto" and "XmlGz"
+    #[default]
     #[serde(alias = "Proto", alias = "XmlGz")]
     File,
 }
