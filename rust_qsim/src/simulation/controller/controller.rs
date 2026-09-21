@@ -283,7 +283,7 @@ impl Controller {
         }
 
         let mut mobsim_workers = self.start_mobsim_workers();
-        let replanning_pool = ReplanningPool::new(&self.config, self.trip_router.clone());
+        let replanning_pool = ReplanningPool::new(&self.scenario.core, self.trip_router.clone());
 
         for iteration in first_iteration..=last_iteration {
             self.run_iteration(

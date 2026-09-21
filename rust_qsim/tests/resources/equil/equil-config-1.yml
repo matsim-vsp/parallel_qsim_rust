@@ -26,6 +26,8 @@ modules:
     type: Controller
     last_iteration: 0
     compression_type: Zst
+    write_events_interval: 1
+    write_plans_interval: 1
   qsim:
     type: QSim
     main_modes: [ "car" ]

@@ -86,7 +86,7 @@ struct IndexedTripFailure {
 }
 
 #[derive(Debug, Error)]
-enum TripPreparationError {
+pub(crate) enum TripPreparationError {
     #[error("Trip contains no legs")]
     NoLegs,
     #[error("Trip has no unambiguous routing mode")]
@@ -193,14 +193,28 @@ fn check_and_adapt_trip(
         return Ok(());
     };
 
+    let new_elements = route_trip(context, person, &working_plan, span, &mode, trip_router)?;
+
+    span.replace_trip_elements(&mut working_plan.to_mut().elements, new_elements);
+    Ok(())
+}
+
+pub(crate) fn route_trip(
+    context: &PrepareForSimContext<'_>,
+    person: &InternalPerson,
+    plan: &InternalPlan,
+    span: TripSpan,
+    mode: &Id<String>,
+    trip_router: &TripRouter,
+) -> Result<Vec<InternalPlanElement>, TripPreparationError> {
     let departure_time = TimeInterpretation::decide_on_elements_end_time(
-        &working_plan.elements[..=span.origin_index()],
+        &plan.elements[..=span.origin_index()],
         &SimTime::default(),
     )
     .ok_or(TripPreparationError::MissingDepartureTime)?;
 
-    let origin = span.origin(&working_plan.elements);
-    let dest = span.destination(&working_plan.elements);
+    let origin = span.origin(&plan.elements);
+    let dest = span.destination(&plan.elements);
     let from_facility = Facility::new_link_wrapper(
         origin.coord.clone().expect("coordinates were assigned"),
         origin.link_id.clone(),
@@ -209,7 +223,7 @@ fn check_and_adapt_trip(
         dest.coord.clone().expect("coordinates were assigned"),
         dest.link_id.clone(),
     );
-    let vehicle = vehicle_for_trip(context, person, span, &working_plan.elements, &mode)?;
+    let vehicle = vehicle_for_trip(context, person, span, &plan.elements, mode)?;
 
     let request = RoutingRequestBuilder::default()
         .from(&from_facility)
@@ -219,10 +233,7 @@ fn check_and_adapt_trip(
         .vehicle(vehicle)
         .build()
         .expect("all required routing request fields are set");
-    let new_elements = trip_router.calc_route(&mode, request)?;
-
-    span.replace_trip_elements(&mut working_plan.to_mut().elements, new_elements);
-    Ok(())
+    Ok(trip_router.calc_route(mode, request)?)
 }
 
 fn assign_activity_coordinates(context: &PrepareForSimContext<'_>, plan: &mut InternalPlan) {
@@ -399,7 +410,7 @@ fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
 }
 
 /// Returns the main mode of a trip. Checks the routing mode as well.
-fn resolve_main_mode(legs: &[&InternalLeg]) -> Result<Id<String>, TripPreparationError> {
+pub(crate) fn resolve_main_mode(legs: &[&InternalLeg]) -> Result<Id<String>, TripPreparationError> {
     if legs.is_empty() {
         return Err(TripPreparationError::NoLegs);
     }

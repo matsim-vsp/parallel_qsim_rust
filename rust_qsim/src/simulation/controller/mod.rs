@@ -553,7 +553,8 @@ pub(crate) struct ReplanningPool {
 }
 
 impl ReplanningPool {
-    pub(crate) fn new(config: &Config, trip_router: TripRouter) -> Self {
+    pub(crate) fn new(scenario_core: &ScenarioCore, trip_router: TripRouter) -> Self {
+        let config = scenario_core.config.as_ref();
         let threads = config.computational_setup().replanning_threads;
         let pool = if threads == 0 {
             None
@@ -571,6 +572,7 @@ impl ReplanningPool {
             strategy_manager: StrategyManager::from_replanning_config(
                 config.replanning(),
                 trip_router,
+                scenario_core,
             ),
             first_iteration: config.controller().first_iteration,
             last_iteration: config.controller().last_iteration,
@@ -871,7 +873,15 @@ mod tests {
     fn replanning_pool_noop_preserves_person_ids() {
         let mut config = Config::default();
         config.computational_setup_mut().replanning_threads = 2;
-        let pool = ReplanningPool::new(&config, TripRouter::default());
+        let scenario_core = ScenarioCore {
+            network: Arc::new(Network::new()),
+            garage: Arc::new(Garage::default()),
+            transit_schedule: Arc::new(
+                crate::simulation::scenario::transit::TransitSchedule::default(),
+            ),
+            config: Arc::new(config),
+        };
+        let pool = ReplanningPool::new(&scenario_core, TripRouter::default());
 
         let population = Population::from_persons(vec![
             person("replanning-pool-person-1"),
@@ -879,7 +889,11 @@ mod tests {
         ]);
         let expected_ids: IntSet<_> = population.persons.keys().cloned().collect();
 
-        let replanned = pool.replan(population, 0, config.computational_setup().random_seed);
+        let replanned = pool.replan(
+            population,
+            0,
+            scenario_core.config.computational_setup().random_seed,
+        );
         let actual_ids: IntSet<_> = replanned.persons.keys().cloned().collect();
 
         assert_eq!(expected_ids, actual_ids);
