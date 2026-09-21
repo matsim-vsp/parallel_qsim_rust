@@ -15,6 +15,9 @@ use crate::simulation::messaging::sim_communication::local_communicator::Channel
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::replanning::routing::TripRouter;
+use crate::simulation::replanning::routing::travel_time_calculator::{
+    GlobalTravelTimeCalculator, PartitionTravelTimeCollector,
+};
 use crate::simulation::replanning::{StrategyManager, replan_population};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::{MobsimInput, ScenarioCore};
@@ -33,6 +36,7 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver as StdReceiver, Sender as StdSender};
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
+use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
@@ -189,6 +193,7 @@ pub(crate) struct MobsimWorkerRun {
 pub(crate) struct MobsimWorkerPoolArguments {
     scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
+    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
@@ -207,6 +212,7 @@ struct MobsimWorkerArguments {
     communicator: ChannelSimCommunicator,
     scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
+    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
@@ -224,6 +230,8 @@ struct MobsimWorker {
     communicator: Rc<ChannelSimCommunicator>,
     scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
+    travel_time_collector: Rc<RefCell<PartitionTravelTimeCollector>>,
+    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
     comp_env: ThreadLocalComputationalEnvironment,
     global_barrier: Arc<Barrier>,
     reached_initial_barrier: bool,
@@ -248,6 +256,7 @@ impl MobsimWorkerPool {
                 .communicator(comm)
                 .scenario_core(args.scenario_core.clone())
                 .agent_source(args.agent_source.clone())
+                .global_travel_time_calculator(args.global_travel_time_calculator.clone())
                 .external_services(args.external_services.clone())
                 .event_handler(
                     args.event_handler_per_partition
@@ -384,6 +393,7 @@ impl MobsimWorker {
             communicator,
             scenario_core,
             agent_source,
+            global_travel_time_calculator,
             external_services,
             mut event_handler,
             mut mobsim_event_listener,
@@ -392,6 +402,16 @@ impl MobsimWorker {
         } = args;
 
         let events = create_events(&scenario_core.config, rank, mem::take(&mut event_handler));
+        let travel_time_collector = Rc::new(RefCell::new(PartitionTravelTimeCollector::new(
+            Duration::from_secs(u64::from(
+                scenario_core.config.travel_time_calculator().bin_size,
+            )),
+            Duration::from_secs(u64::from(scenario_core.config.qsim().end_time)),
+        )));
+        PartitionTravelTimeCollector::register_events(
+            &travel_time_collector,
+            &mut events.borrow_mut(),
+        );
         let mobsim_events = Rc::new(RefCell::new(MobsimEventsManager::for_partition(rank, 0)));
         let partition_events =
             Rc::new(RefCell::new(PartitionEventsManager::for_partition(rank, 0)));
@@ -408,6 +428,10 @@ impl MobsimWorker {
             for subscriber in mem::take(&mut partition_event_listener) {
                 subscriber(&mut bus);
             }
+            PartitionTravelTimeCollector::register_partition_events(
+                &travel_time_collector,
+                &mut bus,
+            );
         }
 
         let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
@@ -423,6 +447,8 @@ impl MobsimWorker {
             communicator: Rc::new(communicator),
             scenario_core,
             agent_source,
+            travel_time_collector,
+            global_travel_time_calculator,
             comp_env,
             global_barrier,
             reached_initial_barrier: false,
@@ -446,6 +472,12 @@ impl MobsimWorker {
                         self.rank, iteration, is_last_iteration
                     );
                     let agents = self.run_iteration(iteration, input);
+                    let times = self
+                        .travel_time_collector
+                        .borrow_mut()
+                        .finish(&self.scenario_core.network);
+                    self.global_travel_time_calculator
+                        .submit(iteration, self.rank, times);
                     result_sender
                         .send(MobsimWorkerResult {
                             rank: self.rank,
@@ -788,6 +820,7 @@ mod tests {
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::agent_source::PopulationAgentSource;
     use crate::simulation::replanning::routing::TripRouter;
+    use crate::simulation::replanning::routing::travel_time_calculator::GlobalTravelTimeCalculator;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
     use crate::simulation::scenario::vehicles::Garage;
@@ -815,6 +848,11 @@ mod tests {
         let args = MobsimWorkerPoolArgumentsBuilder::default()
             .scenario_core(scenario_core.clone())
             .agent_source(Arc::new(PopulationAgentSource))
+            .global_travel_time_calculator(Arc::new(GlobalTravelTimeCalculator::new(
+                1,
+                std::time::Duration::from_secs(u64::from(config.travel_time_calculator().bin_size)),
+                std::time::Duration::ZERO,
+            )))
             .global_barrier(Arc::new(Barrier::new(1)))
             .build()
             .unwrap();

@@ -2,7 +2,6 @@ use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::random::get_rng;
 use crate::simulation::replanning::routing::TripRouter;
-use crate::simulation::replanning::routing::travel_time_calculator::GlobalTravelTimeCalculator;
 use crate::simulation::scenario::population::{DEFAULT_SUBPOPULATION, InternalPerson, Population};
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
@@ -11,7 +10,6 @@ use rayon::prelude::*;
 use selectors::{DefaultSelector, KeepLastSelector, WorstScoreSelector};
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
 
 pub mod routing;
 pub mod selectors;
@@ -118,8 +116,6 @@ pub(crate) struct StrategyManager {
     plan_remover: Box<dyn PlanSelector>,
     #[builder(default = "default_strategies(TripRouter::default())")]
     strategies: IntMap<Id<String>, Box<dyn PlanStrategy>>,
-    #[builder(default)]
-    global_travel_time_calculator: Option<Arc<GlobalTravelTimeCalculator>>,
 }
 
 impl StrategyManager {

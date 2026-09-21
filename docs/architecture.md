@@ -23,13 +23,15 @@ For mobsim, the controller splits the population into `MobsimInput`s. Each input
 shared scenario data and a fresh partition network runtime, plus a `PopulationShard`. Persistent QSim workers receive
 these inputs per iteration and return agents, which the controller materializes back into the next full population.
 
-Each worker also has a partition-local travel-time collector behind its own lock. Event handlers associate vehicles
-with the network mode of their current leg and record link observations separately per mode. Once all workers return
-from Mobsim, the controller consolidates the observed links into an immutable snapshot and atomically publishes it
-before firing `AfterMobsim`. The shared router reads only this snapshot, without locking a partition collector for
-each link lookup; unobserved links use freespeed. `prepare_for_sim` uses the previous iteration's snapshot, or an
-empty snapshot for the first iteration. The workers' iteration-reset hooks clear the collectors before the next
-Mobsim. No event-file output is required for travel-time collection.
+Each worker owns a thread-local travel-time collector shared between its event buses without a cross-thread lock.
+The collector associates vehicles with the network mode of their current leg and records link observations separately
+per mode. When Mobsim ends, the worker consolidates its observed links and submits them directly to the shared
+travel-time calculator before sending its normal worker result. The last submission atomically publishes the complete,
+immutable snapshot. The controller only waits for worker results, so publication has finished before `AfterMobsim`.
+The shared router reads the snapshot without taking the submission lock; unobserved links use freespeed.
+`prepare_for_sim` uses the previous iteration's snapshot, or an empty snapshot for the first iteration. The workers'
+iteration-reset hooks clear the collectors before the next Mobsim. No event-file output is required for travel-time
+collection.
 
 ### External Services
 

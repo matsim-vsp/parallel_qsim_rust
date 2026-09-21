@@ -18,9 +18,7 @@ use crate::simulation::replanning::routing::a_star::{AStar, AltHeuristic};
 use crate::simulation::replanning::routing::cost::ScoringBasedTravelTimeAndDisutility;
 use crate::simulation::replanning::routing::network_routing::NetworkRoutingModule;
 use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
-use crate::simulation::replanning::routing::travel_time_calculator::{
-    GlobalTravelTimeCalculator, PartitionTravelTimeCalculator,
-};
+use crate::simulation::replanning::routing::travel_time_calculator::GlobalTravelTimeCalculator;
 use crate::simulation::replanning::routing::{RoutingModule, TripRouter};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
@@ -31,7 +29,7 @@ use fs_extra::dir::CopyOptions;
 use nohash_hasher::IntMap;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 use std::{fs, mem};
 use tracing::info;
@@ -54,6 +52,7 @@ pub struct Controller {
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
     trip_router: TripRouter,
+    // Shared with the router and workers; workers publish their own travel-time data.
     global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
 }
 
@@ -107,29 +106,10 @@ impl ControllerBuilder {
         let scenario: ControllerScenario = self.scenario.into();
         let config = scenario.core.config.clone();
 
-        // Register travel time collectors for each partition (event handler & partition event handler)
-        let ttc = Self::create_travel_time_calculators(config.as_ref());
-        for rank in 0..num_parts {
-            let calculator = ttc.get(rank as usize).unwrap();
-            self.event_handler_register_fn
-                .entry(rank)
-                .or_default()
-                .push(PartitionTravelTimeCalculator::event_handler_register_fn(
-                    calculator.clone(),
-                ));
-            self.partition_event_register_fn
-                .entry(rank)
-                .or_default()
-                .push(
-                    PartitionTravelTimeCalculator::partition_listener_register_fn(
-                        calculator.clone(),
-                    ),
-                );
-        }
-
-        let global_ttc = Arc::new(GlobalTravelTimeCalculator::from_partitions(
-            ttc.clone(),
-            scenario.core.network.clone(),
+        let global_ttc = Arc::new(GlobalTravelTimeCalculator::new(
+            num_parts as usize,
+            Duration::from_secs(u64::from(config.travel_time_calculator().bin_size)),
+            Duration::from_secs(u64::from(config.qsim().end_time)),
         ));
         let router = Self::create_trip_router(config.as_ref(), &scenario, global_ttc.clone())?;
 
@@ -264,21 +244,6 @@ impl ControllerBuilder {
 
         Ok(TripRouter::new(routers))
     }
-
-    fn create_travel_time_calculators(
-        config: &Config,
-    ) -> Vec<Arc<Mutex<PartitionTravelTimeCalculator>>> {
-        let bin_size = Duration::from_secs(u64::from(config.travel_time_calculator().bin_size));
-        let max_time = Duration::from_secs(u64::from(config.qsim().end_time));
-
-        let mut ttc = Vec::with_capacity(config.partitioning().num_parts as usize);
-        for _ in 0..config.partitioning().num_parts {
-            ttc.push(Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
-                bin_size, max_time,
-            ))));
-        }
-        ttc
-    }
 }
 
 impl Controller {
@@ -406,7 +371,6 @@ impl Controller {
             .scenario
             .split_for_mobsim(&self.link_storage_capacities);
         let agents = mobsim_workers.run_mobsim(iteration, is_last_iteration, inputs);
-        self.global_travel_time_calculator.publish_snapshot();
 
         self.controller_events_manager
             .process_event(ControllerEvent::after_mobsim(is_last_iteration));
@@ -465,6 +429,7 @@ impl Controller {
             .partition_event_listener_per_partition(mem::take(
                 &mut self.partition_event_listener_per_partition,
             ))
+            .global_travel_time_calculator(self.global_travel_time_calculator.clone())
             .global_barrier(self.global_barrier.clone())
             .build()
             .unwrap();

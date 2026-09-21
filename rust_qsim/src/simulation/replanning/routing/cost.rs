@@ -294,15 +294,14 @@ mod tests {
     };
     use crate::simulation::replanning::routing::travel_time_calculator::test::{link, network};
     use crate::simulation::replanning::routing::travel_time_calculator::{
-        GlobalTravelTimeCalculator, PartitionTravelTimeCalculator,
+        GlobalTravelTimeCalculator, PartitionTravelTimeCollector,
     };
     use crate::simulation::scenario::network::Link;
     use crate::simulation::scenario::population::{InternalPerson, SUBPOPULATION};
     use crate::simulation::scenario::vehicles::InternalVehicle;
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
-    use nohash_hasher::IntSet;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
     use std::time::Duration;
 
     fn mode_params(mode: &str, traveling: f64, distance: f64) -> ModeParameter {
@@ -338,12 +337,18 @@ mod tests {
     }
 
     fn global_travel_time(
-        partitions: Vec<Arc<Mutex<PartitionTravelTimeCalculator>>>,
+        mut partitions: Vec<PartitionTravelTimeCollector>,
         links: &[Link],
     ) -> Arc<GlobalTravelTimeCalculator> {
         let net = network(links);
-        let global = Arc::new(GlobalTravelTimeCalculator::from_partitions(partitions, net));
-        global.publish_snapshot();
+        let global = Arc::new(GlobalTravelTimeCalculator::new(
+            partitions.len().max(1),
+            Duration::from_secs(10),
+            Duration::from_secs(100),
+        ));
+        for (rank, partition) in partitions.iter_mut().enumerate() {
+            global.submit(0, rank as u32, partition.finish(&net));
+        }
         global
     }
 
@@ -370,7 +375,7 @@ mod tests {
     }
 
     fn observe_travel_time(
-        partition: &mut PartitionTravelTimeCalculator,
+        partition: &mut PartitionTravelTimeCollector,
         mode: &str,
         link: &Id<Link>,
         vehicle: &str,
@@ -438,16 +443,11 @@ mod tests {
     #[deterministic_id_test]
     fn scoring_costs_use_router_mode_without_vehicle() {
         let config = scoring_config();
-        let partition = Arc::new(Mutex::new(PartitionTravelTimeCalculator::new(
-            Duration::from_secs(10),
-            Duration::from_secs(100),
-        )));
+        let mut partition =
+            PartitionTravelTimeCollector::new(Duration::from_secs(10), Duration::from_secs(100));
         let link = link("mode-specific", 100.0, 10.0);
-        {
-            let mut partition = partition.lock().unwrap();
-            observe_travel_time(&mut partition, "car", &link.id, "car-vehicle", 20);
-            observe_travel_time(&mut partition, "walk", &link.id, "walk-vehicle", 30);
-        }
+        observe_travel_time(&mut partition, "car", &link.id, "car-vehicle", 20);
+        observe_travel_time(&mut partition, "walk", &link.id, "walk-vehicle", 30);
         let travel_time = global_travel_time(vec![partition], &[link.clone()]);
 
         let car = ScoringBasedTravelTimeAndDisutility::new(
