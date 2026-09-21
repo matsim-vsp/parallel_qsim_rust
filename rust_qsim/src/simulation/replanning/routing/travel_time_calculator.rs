@@ -265,10 +265,9 @@ struct PendingTravelTimes {
 
 #[derive(Debug)]
 pub struct GlobalTravelTimeCalculator {
-    // Keeps track of pending travel time data across all partitions.
-    // TODO check if mutex is really necessary here
+    // Serializes concurrent submissions, once per partition and iteration.
     pending: Mutex<PendingTravelTimes>,
-    // we need ArcSwap here to swap the TravelTimeSnapshots without needing a Mutex
+    // Routing reads the published snapshot without taking the staging lock.
     snapshot: ArcSwap<TravelTimeSnapshot>,
 }
 
@@ -642,19 +641,19 @@ pub(crate) mod test {
 
         // No local link enter: the leave must be ignored.
         link_leave(&mut collector, &Id::create("unknown"), &link.id, 5);
-        observe(&mut collector, &car, &link.id, &Id::create("v1"), 2, 4);
-        observe(&mut collector, &car, &link.id, &Id::create("v2"), 3, 7);
-        observe(&mut collector, &car, &link.id, &Id::create("v3"), 99, 104);
+        observe(&mut collector, &car, &link.id, &Id::create("v1"), 2, 4); // bin 0, 2s
+        observe(&mut collector, &car, &link.id, &Id::create("v2"), 3, 7); // bin 0, 4s
+        observe(&mut collector, &car, &link.id, &Id::create("v3"), 99, 104); // las bin, 5s
         submit_collector(&global, 0, 0, &mut collector, &net);
 
-        // TODO add explanation of these travel times
+        // Bin 0 averages 2s and 4s; bin 1 uses freespeed; late times use the last bin's 5s.
         assert_eq!(Duration::from_secs(3), lookup(&global, &car, &link, 0));
         assert_eq!(Duration::from_secs(1), lookup(&global, &car, &link, 10));
         assert_eq!(Duration::from_secs(5), lookup(&global, &car, &link, 20));
         assert_eq!(Duration::from_secs(5), lookup(&global, &car, &link, 999));
     }
 
-    // TODO add explanation what is tested here
+    // Partitions and modes stay separate; missing observations use freespeed.
     #[deterministic_id_test]
     fn modes_partitions_and_unobserved_links_stay_separate() {
         let first = link("first", 100.0, 100.0);
