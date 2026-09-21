@@ -449,12 +449,7 @@ pub(crate) mod test {
     };
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
-        EventsManager, LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent,
-        VehicleLeavesTrafficEvent,
-    };
-    use crate::simulation::framework_events::{
-        PartitionEvent, PartitionEventsManager, VehicleEntersPartitionEvent,
-        VehicleLeavesPartitionEvent,
+        LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
     };
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
@@ -463,11 +458,7 @@ pub(crate) mod test {
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
-    use std::cell::RefCell;
-    use std::rc::Rc;
     use std::sync::Arc;
-    use std::sync::mpsc;
-    use std::thread;
     use std::time::Duration;
 
     pub(crate) fn link(id: &str, length: f64, freespeed: f64) -> Link {
