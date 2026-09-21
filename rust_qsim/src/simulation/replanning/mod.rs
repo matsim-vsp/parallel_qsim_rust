@@ -2,13 +2,14 @@ use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::random::get_rng;
 use crate::simulation::replanning::routing::TripRouter;
+use crate::simulation::scenario::ScenarioCore;
 use crate::simulation::scenario::population::{DEFAULT_SUBPOPULATION, InternalPerson, Population};
 use crate::simulation::scenario::prepare_for_sim::{
-    PrepareForSimContext, resolve_main_mode, route_trip,
+    PrepareForSimContext, TripPreparationError, route_trip,
 };
-use crate::simulation::scenario::trip_structure_utils::get_trip_spans_default;
-use crate::simulation::scenario::vehicles::Garage;
-use crate::simulation::scenario::{ScenarioCore, network::Network};
+use crate::simulation::scenario::trip_structure_utils::{
+    get_trip_spans_default, identify_main_mode,
+};
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use rand::RngExt;
@@ -16,7 +17,6 @@ use rayon::prelude::*;
 use selectors::{DefaultSelector, KeepLastSelector, WorstScoreSelector};
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
 
 pub mod routing;
 pub mod selectors;
@@ -63,13 +63,13 @@ impl DefaultStrategy {
     fn as_generic_plan_strategy(
         self,
         trip_router: TripRouter,
-        routing_context: ReRouteContext,
+        scenario_core: ScenarioCore,
     ) -> Box<dyn PlanStrategy> {
         match self {
             Self::ReRoute => Box::new(GenericPlanStrategy {
                 name: Id::create(self.as_str()),
                 selector: Box::new(KeepLastSelector),
-                modules: vec![Box::new(ReRouteModule::new(trip_router, routing_context))],
+                modules: vec![Box::new(ReRouteModule::new(trip_router, scenario_core))],
             }),
         }
     }
@@ -125,7 +125,7 @@ pub(crate) struct StrategyManager {
     max_memory_size: usize,
     #[builder(default = "default_plan_remover()")]
     plan_remover: Box<dyn PlanSelector>,
-    #[builder(default = "default_strategies(TripRouter::default(), ReRouteContext::default())")]
+    #[builder(default = "default_strategies(TripRouter::default(), ScenarioCore::default())")]
     strategies: IntMap<Id<String>, Box<dyn PlanStrategy>>,
 }
 
@@ -144,10 +144,7 @@ impl StrategyManager {
             .plan_remover(plan_selector_from_config_name(
                 &replanning.plan_selector_for_removal,
             ))
-            .strategies(default_strategies(
-                trip_router,
-                ReRouteContext::from(scenario_core),
-            ))
+            .strategies(default_strategies(trip_router, scenario_core.clone()))
             .build()
             .unwrap()
     }
@@ -254,7 +251,7 @@ fn default_plan_remover() -> Box<dyn PlanSelector> {
 
 fn default_strategies(
     trip_router: TripRouter,
-    routing_context: ReRouteContext,
+    scenario_core: ScenarioCore,
 ) -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
     let mut strategies = IntMap::default();
     for selector in [
@@ -272,7 +269,7 @@ fn default_strategies(
     for strategy in [DefaultStrategy::ReRoute] {
         strategies.insert(
             Id::create(strategy.as_str()),
-            strategy.as_generic_plan_strategy(trip_router.clone(), routing_context.clone()),
+            strategy.as_generic_plan_strategy(trip_router.clone(), scenario_core.clone()),
         );
     }
     strategies
@@ -375,38 +372,24 @@ impl PlanStrategy for GenericPlanStrategy {
 #[allow(dead_code)]
 struct ReRouteModule {
     router: TripRouter,
-    context: ReRouteContext,
-}
-
-#[derive(Clone, Default)]
-struct ReRouteContext {
-    network: Arc<Network>,
-    garage: Arc<Garage>,
-    config: Arc<config::Config>,
-}
-
-impl From<&ScenarioCore> for ReRouteContext {
-    fn from(core: &ScenarioCore) -> Self {
-        Self {
-            network: core.network.clone(),
-            garage: core.garage.clone(),
-            config: core.config.clone(),
-        }
-    }
+    scenario_core: ScenarioCore,
 }
 
 impl ReRouteModule {
-    fn new(router: TripRouter, context: ReRouteContext) -> Self {
-        Self { router, context }
+    fn new(router: TripRouter, scenario_core: ScenarioCore) -> Self {
+        Self {
+            router,
+            scenario_core,
+        }
     }
 }
 
 impl PlanStrategyModule for ReRouteModule {
     fn handle(&self, person: &mut InternalPerson, plan_index: usize) {
         let context = PrepareForSimContext {
-            network: &self.context.network,
-            garage: &self.context.garage,
-            config: &self.context.config,
+            network: &self.scenario_core.network,
+            garage: &self.scenario_core.garage,
+            config: &self.scenario_core.config,
         };
         let trip_count = get_trip_spans_default(&person.plans()[plan_index].elements).len();
 
@@ -416,9 +399,20 @@ impl PlanStrategyModule for ReRouteModule {
             let (span, new_elements) = {
                 let plan = &person.plans()[plan_index];
                 let span = get_trip_spans_default(&plan.elements)[trip_index];
-                let legs: Vec<_> = span.legs(&plan.elements).collect();
-                let result = resolve_main_mode(&legs)
-                    .and_then(|mode| route_trip(&context, person, plan, span, &mode, &self.router));
+                let trip_elements = span.trip_elements(&plan.elements);
+                let result = if !trip_elements
+                    .iter()
+                    .any(|element| element.as_leg().is_some())
+                {
+                    Err(TripPreparationError::NoLegs)
+                } else {
+                    identify_main_mode(trip_elements)
+                        .map(|mode| Id::get_from_ext(&mode))
+                        .ok_or(TripPreparationError::AmbiguousMainMode)
+                        .and_then(|mode| {
+                            route_trip(&context, person, plan, span, &mode, &self.router)
+                        })
+                };
                 let new_elements = result.unwrap_or_else(|error| {
                     panic!(
                         "ReRoute failed for person {}, plan {plan_index}, trip {trip_index}: {error}",
@@ -443,8 +437,8 @@ struct ReplanningContext {
 #[cfg(test)]
 mod tests {
     use super::{
-        DefaultStrategy, GenericPlanStrategy, PlanStrategy, PlanStrategyModule, ReRouteContext,
-        ReplanningContext, StrategyManager,
+        DefaultStrategy, GenericPlanStrategy, PlanStrategy, PlanStrategyModule, ReplanningContext,
+        StrategyManager,
     };
     use crate::simulation::config::{Config, Replanning, StrategySetting};
     use crate::simulation::id::Id;
@@ -802,7 +796,7 @@ mod tests {
     }
 
     fn reroute_strategy(core: &ScenarioCore, router: TripRouter) -> Box<dyn PlanStrategy> {
-        DefaultStrategy::ReRoute.as_generic_plan_strategy(router, ReRouteContext::from(core))
+        DefaultStrategy::ReRoute.as_generic_plan_strategy(router, core.clone())
     }
 
     fn routed_plan(mode: &str, activities: &[&str], links: &[&str]) -> InternalPlan {

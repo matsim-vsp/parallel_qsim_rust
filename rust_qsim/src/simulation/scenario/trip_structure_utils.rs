@@ -3,24 +3,26 @@ use tracing::error;
 
 /// Returns the main mode for a trip based on its leg sequence.
 pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<String> {
-    // Try to get the routing mode from the first leg
-    let mut mode: Option<String> =
-        trip_elements
-            .first()
-            .and_then(|el| el.as_leg())
-            .and_then(|leg| {
-                leg.routing_mode
-                    .as_ref()
-                    .map(|id| id.external().to_string())
-            });
-
-    // If not found and only one element, use the mode of that leg
-    if mode.is_none() && trip_elements.len() == 1 {
-        mode = trip_elements
-            .first()
-            .and_then(|el| el.as_leg())
-            .map(|leg| leg.mode.external().to_string());
+    let legs: Vec<_> = trip_elements
+        .iter()
+        .filter_map(InternalPlanElement::as_leg)
+        .collect();
+    // Use the common routing mode even when access legs or stage activities come first.
+    let mut routing_modes = Vec::new();
+    for mode in legs.iter().filter_map(|leg| leg.routing_mode.as_ref()) {
+        if !routing_modes.contains(&mode) {
+            routing_modes.push(mode);
+        }
     }
+
+    // For a single leg without an unambiguous routing mode, use its leg mode.
+    let mode = if routing_modes.len() == 1 {
+        Some(routing_modes[0].external().to_string())
+    } else if legs.len() == 1 {
+        Some(legs[0].mode.external().to_string())
+    } else {
+        None
+    };
 
     if mode.is_none() {
         error!("Could not find routing mode for trip {:?}", trip_elements);
@@ -268,6 +270,26 @@ mod tests {
         let trip = vec![];
         let mode = identify_main_mode(&trip);
         assert_eq!(mode, None);
+    }
+
+    #[deterministic_id_test]
+    fn identify_main_mode_uses_unique_routing_mode_after_access_leg() {
+        let mut access = make_leg("walk");
+        access.as_leg_mut().unwrap().routing_mode = None;
+        let trip = vec![
+            access,
+            make_activity("car interaction", "1"),
+            make_leg("car"),
+        ];
+
+        assert_eq!(Some("car".to_string()), identify_main_mode(&trip));
+    }
+
+    #[deterministic_id_test]
+    fn identify_main_mode_rejects_conflicting_routing_modes() {
+        let trip = vec![make_leg("walk"), make_leg("car")];
+
+        assert_eq!(None, identify_main_mode(&trip));
     }
 
     fn make_activity(act_type: &str, link: &str) -> InternalPlanElement {

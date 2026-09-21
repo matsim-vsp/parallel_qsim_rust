@@ -10,7 +10,9 @@ use crate::simulation::scenario::population::{
     InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement,
     InternalRoute,
 };
-use crate::simulation::scenario::trip_structure_utils::{TripSpan, get_trip_spans_default};
+use crate::simulation::scenario::trip_structure_utils::{
+    TripSpan, get_trip_spans_default, identify_main_mode,
+};
 use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
 use crate::simulation::time::SimTime;
 use crate::simulation::time::time_interpretation::TimeInterpretation;
@@ -256,10 +258,16 @@ fn assess_trip(
     span: TripSpan,
     working_plan: &mut Cow<'_, InternalPlan>,
 ) -> Result<TripAssessment, TripPreparationError> {
-    let mode = {
-        let legs: Vec<_> = span.legs(&working_plan.elements).collect();
-        resolve_main_mode(&legs)?
-    };
+    let trip_elements = span.trip_elements(&working_plan.elements);
+    if !trip_elements
+        .iter()
+        .any(|element| element.as_leg().is_some())
+    {
+        return Err(TripPreparationError::NoLegs);
+    }
+    let mode = identify_main_mode(trip_elements)
+        .map(|mode| Id::get_from_ext(&mode))
+        .ok_or(TripPreparationError::AmbiguousMainMode)?;
 
     add_travel_distance(context.network, span, working_plan);
     synchronize_missing_travel_times(span, working_plan);
@@ -407,28 +415,6 @@ fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
         return false;
     };
     distance.is_finite() && distance >= 0.0
-}
-
-/// Returns the main mode of a trip. Checks the routing mode as well.
-pub(crate) fn resolve_main_mode(legs: &[&InternalLeg]) -> Result<Id<String>, TripPreparationError> {
-    if legs.is_empty() {
-        return Err(TripPreparationError::NoLegs);
-    }
-
-    let mut routing_modes = Vec::new();
-    for mode in legs.iter().filter_map(|leg| leg.routing_mode.as_ref()) {
-        if !routing_modes.iter().any(|candidate| candidate == mode) {
-            routing_modes.push(mode.clone());
-        }
-    }
-    if routing_modes.len() == 1 {
-        return Ok(routing_modes.pop().unwrap());
-    }
-    if legs.len() == 1 {
-        return Ok(legs[0].mode.clone());
-    }
-
-    Err(TripPreparationError::AmbiguousMainMode)
 }
 
 /// Checks if a given network route is valid. This is the case if the route starts and ends with the correct links,
