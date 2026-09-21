@@ -343,14 +343,6 @@ impl GlobalTravelTimeCalculator {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn published_iteration(&self) -> Option<u32> {
-        self.pending
-            .lock()
-            .expect("travel-time submission lock poisoned")
-            .last_published_iteration
-    }
-
     pub fn get_link_travel_time(
         &self,
         mode: &Id<String>,
@@ -744,22 +736,23 @@ pub(crate) mod test {
         // Observe 20s travel time
         observe(&mut first, &car, &link.id, &Id::create("v1"), 0, 20);
         submit_collector(&global, 0, 0, &mut first, &net);
-        global.submit(0, 1, PartitionTravelTimes::default());
-        // this partition has default
+        // Until the second partition submits, the initial freespeed snapshot remains visible.
         assert_eq!(Duration::from_secs(10), lookup(&reader, &car, &link, 0));
-        // this partition has observed
+        global.submit(0, 1, PartitionTravelTimes::default());
+        // Both partitions have submitted, thus the new travel time snapshot is available.
         assert_eq!(Duration::from_secs(20), lookup(&reader, &car, &link, 0));
         first.reset();
 
         // Observe 30s travel time
         observe(&mut first, &car, &link.id, &Id::create("v2"), 0, 30);
         global.submit(1, 1, PartitionTravelTimes::default());
-        submit_collector(&global, 1, 0, &mut first, &net);
         assert_eq!(Duration::from_secs(20), lookup(&reader, &car, &link, 0));
+        submit_collector(&global, 1, 0, &mut first, &net);
         assert_eq!(Duration::from_secs(30), lookup(&reader, &car, &link, 0));
 
         // Don't observe any travel time
         global.submit(2, 0, PartitionTravelTimes::default());
+        assert_eq!(Duration::from_secs(30), lookup(&reader, &car, &link, 0));
         global.submit(2, 1, PartitionTravelTimes::default());
         assert_eq!(Duration::from_secs(10), lookup(&reader, &car, &link, 0));
     }
@@ -790,7 +783,6 @@ pub(crate) mod test {
     #[should_panic]
     fn changing_mode_discards_active_link_enter() {
         let link = link("mode-change", 100.0, 100.0);
-        let net = network(&[link.clone()]);
         let car = Id::create("car");
         let walk = Id::create("walk");
         let vehicle = Id::create("vehicle");
