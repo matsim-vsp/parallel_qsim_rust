@@ -3,8 +3,8 @@ use rust_qsim::simulation::config::{CommandLineArgs, Config, PartitionMethod};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::framework_events::{
     AgentEntersPartitionEvent, AgentLeavesPartitionEvent, EventOrigin, PartitionEvent,
-    PartitionListenerRegisterFn, PartitionRuntimeEvent, VehicleEntersPartitionEvent,
-    VehicleLeavesPartitionEvent,
+    PartitionRuntimeEvent, VehicleEntersPartitionEvent, VehicleLeavesPartitionEvent,
+    WorkerListenerRegisterFunction,
 };
 use rust_qsim::simulation::scenario::Scenario;
 use rust_qsim::simulation::time::SimTime;
@@ -40,6 +40,7 @@ fn network_route_emits_partition_events() {
         1,
         PartitionEvent::VehicleEntersPartition(VehicleEntersPartitionEvent {
             vehicle_id: rust_qsim::simulation::id::Id::get_from_ext("100_car"),
+            network_mode: rust_qsim::simulation::id::Id::get_from_ext("car"),
             from: 0,
             time: SimTime::default(),
         }),
@@ -89,14 +90,14 @@ fn collect_partition_events(config_path: &str) -> Vec<PartitionRuntimeEvent> {
     let scenario = Scenario::load(config.clone());
     let (sender, receiver) = channel::<PartitionRuntimeEvent>();
 
-    let mut listeners: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>> = HashMap::new();
+    let mut listeners: HashMap<u32, Vec<Box<WorkerListenerRegisterFunction>>> = HashMap::new();
     for rank in 0..config.partitioning().num_parts {
         listeners.insert(rank, vec![create_partition_listener(sender.clone())]);
     }
     drop(sender);
 
     let controller = ControllerBuilder::default_with_scenario(scenario)
-        .partition_event_register_fn(listeners)
+        .worker_listener_register_fn(listeners)
         .build()
         .unwrap();
 
@@ -107,9 +108,9 @@ fn collect_partition_events(config_path: &str) -> Vec<PartitionRuntimeEvent> {
 
 fn create_partition_listener(
     sender: Sender<PartitionRuntimeEvent>,
-) -> Box<PartitionListenerRegisterFn> {
-    Box::new(move |events| {
-        events.on_event(move |event| {
+) -> Box<WorkerListenerRegisterFunction> {
+    Box::new(move |_, _, partition_events| {
+        partition_events.on_event(move |event| {
             sender
                 .send(event.clone())
                 .expect("failed to collect partition event in test");

@@ -10,7 +10,9 @@ use crate::simulation::scenario::population::{
     InternalGenericRoute, InternalLeg, InternalPerson, InternalPlan, InternalPlanElement,
     InternalRoute,
 };
-use crate::simulation::scenario::trip_structure_utils::{TripSpan, get_trip_spans_default};
+use crate::simulation::scenario::trip_structure_utils::{
+    TripSpan, get_trip_spans_default, identify_main_mode,
+};
 use crate::simulation::scenario::vehicles::{Garage, InternalVehicle};
 use crate::simulation::time::SimTime;
 use crate::simulation::time::time_interpretation::TimeInterpretation;
@@ -86,7 +88,7 @@ struct IndexedTripFailure {
 }
 
 #[derive(Debug, Error)]
-enum TripPreparationError {
+pub(crate) enum TripPreparationError {
     #[error("Trip contains no legs")]
     NoLegs,
     #[error("Trip has no unambiguous routing mode")]
@@ -193,14 +195,28 @@ fn check_and_adapt_trip(
         return Ok(());
     };
 
+    let new_elements = route_trip(context, person, &working_plan, span, &mode, trip_router)?;
+
+    span.replace_trip_elements(&mut working_plan.to_mut().elements, new_elements);
+    Ok(())
+}
+
+pub(crate) fn route_trip(
+    context: &PrepareForSimContext<'_>,
+    person: &InternalPerson,
+    plan: &InternalPlan,
+    span: TripSpan,
+    mode: &Id<String>,
+    trip_router: &TripRouter,
+) -> Result<Vec<InternalPlanElement>, TripPreparationError> {
     let departure_time = TimeInterpretation::decide_on_elements_end_time(
-        &working_plan.elements[..=span.origin_index()],
+        &plan.elements[..=span.origin_index()],
         &SimTime::default(),
     )
     .ok_or(TripPreparationError::MissingDepartureTime)?;
 
-    let origin = span.origin(&working_plan.elements);
-    let dest = span.destination(&working_plan.elements);
+    let origin = span.origin(&plan.elements);
+    let dest = span.destination(&plan.elements);
     let from_facility = Facility::new_link_wrapper(
         origin.coord.clone().expect("coordinates were assigned"),
         origin.link_id.clone(),
@@ -209,7 +225,7 @@ fn check_and_adapt_trip(
         dest.coord.clone().expect("coordinates were assigned"),
         dest.link_id.clone(),
     );
-    let vehicle = vehicle_for_trip(context, person, span, &working_plan.elements, &mode)?;
+    let vehicle = vehicle_for_trip(context, person, span, &plan.elements, mode)?;
 
     let request = RoutingRequestBuilder::default()
         .from(&from_facility)
@@ -219,10 +235,7 @@ fn check_and_adapt_trip(
         .vehicle(vehicle)
         .build()
         .expect("all required routing request fields are set");
-    let new_elements = trip_router.calc_route(&mode, request)?;
-
-    span.replace_trip_elements(&mut working_plan.to_mut().elements, new_elements);
-    Ok(())
+    Ok(trip_router.calc_route(mode, request)?)
 }
 
 fn assign_activity_coordinates(context: &PrepareForSimContext<'_>, plan: &mut InternalPlan) {
@@ -245,10 +258,16 @@ fn assess_trip(
     span: TripSpan,
     working_plan: &mut Cow<'_, InternalPlan>,
 ) -> Result<TripAssessment, TripPreparationError> {
-    let mode = {
-        let legs: Vec<_> = span.legs(&working_plan.elements).collect();
-        resolve_main_mode(&legs)?
-    };
+    let trip_elements = span.trip_elements(&working_plan.elements);
+    if !trip_elements
+        .iter()
+        .any(|element| element.as_leg().is_some())
+    {
+        return Err(TripPreparationError::NoLegs);
+    }
+    let mode = identify_main_mode(trip_elements)
+        .map(|mode| Id::get_from_ext(&mode))
+        .ok_or(TripPreparationError::AmbiguousMainMode)?;
 
     add_travel_distance(context.network, span, working_plan);
     synchronize_missing_travel_times(span, working_plan);
@@ -396,28 +415,6 @@ fn generic_route_is_valid(route: &InternalGenericRoute) -> bool {
         return false;
     };
     distance.is_finite() && distance >= 0.0
-}
-
-/// Returns the main mode of a trip. Checks the routing mode as well.
-fn resolve_main_mode(legs: &[&InternalLeg]) -> Result<Id<String>, TripPreparationError> {
-    if legs.is_empty() {
-        return Err(TripPreparationError::NoLegs);
-    }
-
-    let mut routing_modes = Vec::new();
-    for mode in legs.iter().filter_map(|leg| leg.routing_mode.as_ref()) {
-        if !routing_modes.iter().any(|candidate| candidate == mode) {
-            routing_modes.push(mode.clone());
-        }
-    }
-    if routing_modes.len() == 1 {
-        return Ok(routing_modes.pop().unwrap());
-    }
-    if legs.len() == 1 {
-        return Ok(legs[0].mode.clone());
-    }
-
-    Err(TripPreparationError::AmbiguousMainMode)
 }
 
 /// Checks if a given network route is valid. This is the case if the route starts and ends with the correct links,

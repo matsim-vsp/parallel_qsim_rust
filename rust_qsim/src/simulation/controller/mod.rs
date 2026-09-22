@@ -3,17 +3,17 @@ pub mod controller;
 
 use crate::external_services::{ExternalServiceType, RequestToAdapter};
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::config::{CompressionType, Config, WriteEvents};
+use crate::simulation::config::{CompressionType, WriteEvents};
 use crate::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
 use crate::simulation::framework_events::{
-    MobsimEventsManager, MobsimListenerRegisterFn, PartitionEventsManager,
-    PartitionListenerRegisterFn,
+    MobsimEvent, MobsimEventsManager, PartitionEventsManager, WorkerListenerRegisterFunction,
 };
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::xml::events::XmlEventsWriter;
 use crate::simulation::messaging::sim_communication::local_communicator::ChannelSimCommunicator;
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
+use crate::simulation::replanning::routing::TripRouter;
 use crate::simulation::replanning::{StrategyManager, replan_population};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::{MobsimInput, ScenarioCore};
@@ -191,11 +191,7 @@ pub(crate) struct MobsimWorkerPoolArguments {
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
-    event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
-    #[builder(default)]
-    mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
-    #[builder(default)]
-    partition_event_listener_per_partition: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
+    worker_listener: HashMap<u32, Vec<Box<WorkerListenerRegisterFunction>>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -209,11 +205,7 @@ struct MobsimWorkerArguments {
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
-    event_handler: Vec<Box<EventHandlerRegisterFn>>,
-    #[builder(default)]
-    mobsim_event_listener: Vec<Box<MobsimListenerRegisterFn>>,
-    #[builder(default)]
-    partition_event_listener: Vec<Box<PartitionListenerRegisterFn>>,
+    worker_listener: Vec<Box<WorkerListenerRegisterFunction>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -248,21 +240,7 @@ impl MobsimWorkerPool {
                 .scenario_core(args.scenario_core.clone())
                 .agent_source(args.agent_source.clone())
                 .external_services(args.external_services.clone())
-                .event_handler(
-                    args.event_handler_per_partition
-                        .remove(&rank)
-                        .unwrap_or_default(),
-                )
-                .mobsim_event_listener(
-                    args.mobsim_event_listener_per_partition
-                        .remove(&rank)
-                        .unwrap_or_default(),
-                )
-                .partition_event_listener(
-                    args.partition_event_listener_per_partition
-                        .remove(&rank)
-                        .unwrap_or_default(),
-                )
+                .worker_listener(args.worker_listener.remove(&rank).unwrap_or_default())
                 .global_barrier(args.global_barrier.clone())
                 .build()
                 .unwrap();
@@ -384,36 +362,42 @@ impl MobsimWorker {
             scenario_core,
             agent_source,
             external_services,
-            mut event_handler,
-            mut mobsim_event_listener,
-            mut partition_event_listener,
+            mut worker_listener,
             global_barrier,
         } = args;
 
-        let events = create_events(&scenario_core.config, rank, mem::take(&mut event_handler));
-        let mobsim_events = Rc::new(RefCell::new(MobsimEventsManager::for_partition(rank, 0)));
-        let partition_events =
-            Rc::new(RefCell::new(PartitionEventsManager::for_partition(rank, 0)));
+        let config = &scenario_core.config;
+        let additional_subscribers = mem::take(&mut worker_listener);
+        let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
-        {
-            let mut bus = mobsim_events.borrow_mut();
-            for subscriber in mem::take(&mut mobsim_event_listener) {
-                subscriber(&mut bus);
-            }
+        let mut events = EventsManager::new();
+        let mut mobsim_events = MobsimEventsManager::for_partition(rank, 0);
+        let mut partition_events = PartitionEventsManager::for_partition(rank, 0);
+
+        if config.output().write_events != WriteEvents::None {
+            assert!(
+                config.controller().write_events_interval > 0,
+                "Invalid controller config: write_events_interval must be greater than 0 when event writing is enabled."
+            );
+            IterationEventsWriter::register(
+                output_path,
+                rank,
+                config.output().write_events.clone(),
+                config.controller().compression_type,
+                config.controller().write_events_interval,
+                config.controller().last_iteration,
+            )(&mut events);
         }
 
-        {
-            let mut bus = partition_events.borrow_mut();
-            for subscriber in mem::take(&mut partition_event_listener) {
-                subscriber(&mut bus);
-            }
+        for subscriber in additional_subscribers {
+            subscriber(&mut events, &mut mobsim_events, &mut partition_events);
         }
 
         let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
             .services(external_services)
-            .events_manager(events)
-            .mobsim_events_manager(mobsim_events)
-            .partition_events_manager(partition_events)
+            .events_manager(Rc::new(RefCell::new(events)))
+            .mobsim_events_manager(Rc::new(RefCell::new(mobsim_events)))
+            .partition_events_manager(Rc::new(RefCell::new(partition_events)))
             .build()
             .unwrap();
 
@@ -445,6 +429,9 @@ impl MobsimWorker {
                         self.rank, iteration, is_last_iteration
                     );
                     let agents = self.run_iteration(iteration, input);
+                    self.comp_env
+                        .mobsim_events_manager_borrow_mut()
+                        .process_event(MobsimEvent::BeforeCleanup);
                     result_sender
                         .send(MobsimWorkerResult {
                             rank: self.rank,
@@ -520,7 +507,8 @@ pub(crate) struct ReplanningPool {
 }
 
 impl ReplanningPool {
-    pub(crate) fn new(config: &Config) -> Self {
+    pub(crate) fn new(scenario_core: &ScenarioCore, trip_router: TripRouter) -> Self {
+        let config = scenario_core.config.as_ref();
         let threads = config.computational_setup().replanning_threads;
         let pool = if threads == 0 {
             None
@@ -535,7 +523,11 @@ impl ReplanningPool {
         };
         Self {
             pool,
-            strategy_manager: StrategyManager::from_replanning_config(config.replanning()),
+            strategy_manager: StrategyManager::from_replanning_config(
+                config.replanning(),
+                trip_router,
+                scenario_core,
+            ),
             first_iteration: config.controller().first_iteration,
             last_iteration: config.controller().last_iteration,
             innovation_disable_fraction: config
@@ -580,37 +572,6 @@ impl ReplanningPool {
         };
         progress >= self.innovation_disable_fraction
     }
-}
-
-fn create_events(
-    config: &Config,
-    rank: u32,
-    additional_subscribers: Vec<Box<EventHandlerRegisterFn>>,
-) -> Rc<RefCell<EventsManager>> {
-    let output_path = io::resolve_path(config.context(), &config.output().output_dir);
-
-    let mut events = EventsManager::new();
-
-    if config.output().write_events != WriteEvents::None {
-        assert!(
-            config.controller().write_events_interval > 0,
-            "Invalid controller config: write_events_interval must be greater than 0 when event writing is enabled."
-        );
-        IterationEventsWriter::register(
-            output_path,
-            rank,
-            config.output().write_events.clone(),
-            config.controller().compression_type,
-            config.controller().write_events_interval,
-            config.controller().last_iteration,
-        )(&mut events);
-    }
-
-    for subscriber in additional_subscribers {
-        subscriber(&mut events);
-    }
-
-    Rc::new(RefCell::new(events))
 }
 
 enum ActiveIterationEventsWriter {
@@ -780,9 +741,11 @@ pub(crate) fn insert_number_in_proto_filename(path: impl AsRef<Path>, part: u32)
 mod tests {
     use super::{MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool};
     use crate::simulation::config::Config;
+    use crate::simulation::framework_events::{MobsimEvent, WorkerListenerRegisterFunction};
     use crate::simulation::id::Id;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::agent_source::PopulationAgentSource;
+    use crate::simulation::replanning::routing::TripRouter;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
     use crate::simulation::scenario::vehicles::Garage;
@@ -791,7 +754,8 @@ mod tests {
     };
     use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
-    use std::sync::{Arc, Barrier};
+    use std::collections::HashMap;
+    use std::sync::{Arc, Barrier, Mutex};
 
     #[deterministic_id_test]
     fn mobsim_worker_pool_runs_empty_population_and_shuts_down() {
@@ -807,9 +771,23 @@ mod tests {
             config: config.clone(),
         };
 
+        let completed_iterations = Arc::new(Mutex::new(Vec::new()));
+        let completed_for_registration = completed_iterations.clone();
+        let completion_listener: Box<WorkerListenerRegisterFunction> =
+            Box::new(move |_, mobsim, _| {
+                mobsim.on_event(move |event| {
+                    if matches!(&event.payload, MobsimEvent::BeforeCleanup) {
+                        completed_for_registration
+                            .lock()
+                            .unwrap()
+                            .push(event.meta.iteration);
+                    }
+                });
+            });
         let args = MobsimWorkerPoolArgumentsBuilder::default()
             .scenario_core(scenario_core.clone())
             .agent_source(Arc::new(PopulationAgentSource))
+            .worker_listener(HashMap::from([(0, vec![completion_listener])]))
             .global_barrier(Arc::new(Barrier::new(1)))
             .build()
             .unwrap();
@@ -817,9 +795,11 @@ mod tests {
 
         let agents = pool.run_mobsim(0, false, vec![empty_mobsim_input(&scenario_core)]);
         assert!(agents.is_empty());
+        assert_eq!(&[0], completed_iterations.lock().unwrap().as_slice());
 
         let agents = pool.run_mobsim(1, true, vec![empty_mobsim_input(&scenario_core)]);
         assert!(agents.is_empty());
+        assert_eq!(&[0, 1], completed_iterations.lock().unwrap().as_slice());
 
         pool.shutdown();
     }
@@ -828,7 +808,15 @@ mod tests {
     fn replanning_pool_noop_preserves_person_ids() {
         let mut config = Config::default();
         config.computational_setup_mut().replanning_threads = 2;
-        let pool = ReplanningPool::new(&config);
+        let scenario_core = ScenarioCore {
+            network: Arc::new(Network::new()),
+            garage: Arc::new(Garage::default()),
+            transit_schedule: Arc::new(
+                crate::simulation::scenario::transit::TransitSchedule::default(),
+            ),
+            config: Arc::new(config),
+        };
+        let pool = ReplanningPool::new(&scenario_core, TripRouter::default());
 
         let population = Population::from_persons(vec![
             person("replanning-pool-person-1"),
@@ -836,7 +824,11 @@ mod tests {
         ]);
         let expected_ids: IntSet<_> = population.persons.keys().cloned().collect();
 
-        let replanned = pool.replan(population, 0, config.computational_setup().random_seed);
+        let replanned = pool.replan(
+            population,
+            0,
+            scenario_core.config.computational_setup().random_seed,
+        );
         let actual_ids: IntSet<_> = replanned.persons.keys().cloned().collect();
 
         assert_eq!(expected_ids, actual_ids);

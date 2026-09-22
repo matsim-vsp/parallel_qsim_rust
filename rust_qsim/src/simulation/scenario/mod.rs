@@ -227,7 +227,7 @@ impl Scenario {
 }
 
 /// Immutable scenario data shared by controller, mobsim partitions and replanning phases.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ScenarioCore {
     pub network: Arc<Network>,
     pub garage: Arc<Garage>,

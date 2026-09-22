@@ -23,6 +23,17 @@ For mobsim, the controller splits the population into `MobsimInput`s. Each input
 shared scenario data and a fresh partition network runtime, plus a `PopulationShard`. Persistent QSim workers receive
 these inputs per iteration and return agents, which the controller materializes back into the next full population.
 
+Each worker owns a thread-local travel-time collector shared between its event buses without a cross-thread lock.
+The collector associates vehicles with the network mode of their current leg and records link observations separately
+per mode. After a worker's Mobsim run (including agent draining), it emits `BeforeCleanup` before sending its normal
+worker result. A thread-local completion listener consolidates the collector's observed links and submits them to the
+shared travel-time calculator. The last submission atomically publishes the complete, immutable snapshot. The controller
+only waits for worker results, so publication has finished before `AfterMobsim`.
+The shared router reads the snapshot without taking the submission lock; unobserved links use freespeed.
+`prepare_for_sim` uses the previous iteration's snapshot, or an empty snapshot for the first iteration. The workers'
+iteration-reset hooks clear the collectors before the next Mobsim. No event-file output is required for travel-time
+collection.
+
 ### External Services
 
 As a next step, we integrated the ability to communicate to external services. They are intended to be used during the

@@ -1,9 +1,23 @@
+use crate::simulation::events::EventsManager;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 
 pub type QSimId = u32;
+
+pub type MobsimRuntimeEvent = RuntimeEvent<MobsimEvent>;
+pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
+pub type PartitionRuntimeEvent = RuntimeEvent<PartitionEvent>;
+
+pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
+pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;
+pub type PartitionEventsManager = FrameworkEventsManager<PartitionEvent>;
+
+pub type ControllerListenerRegisterFn = dyn FnOnce(&mut ControllerEventsManager) + Send;
+
+pub type WorkerListenerRegisterFunction =
+    dyn FnOnce(&mut EventsManager, &mut MobsimEventsManager, &mut PartitionEventsManager) + Send;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PartitionEvent {
@@ -30,6 +44,7 @@ pub struct AgentLeavesPartitionEvent {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VehicleEntersPartitionEvent {
     pub vehicle_id: Id<InternalVehicle>,
+    pub network_mode: Id<String>,
     pub from: QSimId,
     pub time: SimTime,
 }
@@ -139,18 +154,6 @@ pub struct EventMeta {
     pub iteration: u32,
     pub seq_no: u64,
 }
-
-pub type MobsimRuntimeEvent = RuntimeEvent<MobsimEvent>;
-pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
-pub type PartitionRuntimeEvent = RuntimeEvent<PartitionEvent>;
-
-pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
-pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;
-pub type PartitionEventsManager = FrameworkEventsManager<PartitionEvent>;
-
-pub type MobsimListenerRegisterFn = dyn FnOnce(&mut MobsimEventsManager) + Send;
-pub type ControllerListenerRegisterFn = dyn FnOnce(&mut ControllerEventsManager) + Send;
-pub type PartitionListenerRegisterFn = dyn FnOnce(&mut PartitionEventsManager) + Send;
 
 #[derive(Debug, Clone, Copy)]
 struct EventRuntimeState {
@@ -550,6 +553,7 @@ mod tests {
         let first = manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-2"),
+                network_mode: Id::create("car"),
                 from: 6,
                 time: SimTime::from_secs(10),
             },
@@ -583,6 +587,7 @@ mod tests {
         manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-2"),
+                network_mode: Id::create("car"),
                 from: 6,
                 time: SimTime::from_secs(10),
             },
@@ -624,6 +629,7 @@ mod tests {
         manager.process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: Id::create("veh-3"),
+                network_mode: Id::create("car"),
                 from: 1,
                 time: SimTime::from_secs(5),
             },

@@ -16,7 +16,6 @@ modules:
     type: Output
     overwrite_files: DeleteDirectoryIfExists
     output_dir: ./test_output/simulation/output-simulate-network-route
-    write_events: XmlGz
   routing:
     type: Routing
     mode: UsePlans
@@ -28,3 +27,7 @@ modules:
     sample_size: 1.0
     stuck_threshold: 1000
     main_modes: [ "car" ]
+  controller:
+    type: Controller
+    compression_type: Zst
+    last_iteration: 0

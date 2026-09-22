@@ -1,10 +1,9 @@
 use crate::simulation::replanning::routing::a_star::{AStarHeuristic, ZeroHeuristic};
+use crate::simulation::replanning::routing::cost::{Disutility, TravelDisutility, TravelTime};
 use crate::simulation::replanning::routing::graph::{
     GraphError, IndexableGraph, LinkIndex, NodeIndex,
 };
 use crate::simulation::replanning::routing::least_cost_path_calculator::LeastCostPathRequest;
-use crate::simulation::replanning::routing::least_cost_path_calculator::TravelDisutility;
-use crate::simulation::replanning::routing::least_cost_path_calculator::{Disutility, TravelTime};
 use crate::simulation::scenario::network::Link;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;

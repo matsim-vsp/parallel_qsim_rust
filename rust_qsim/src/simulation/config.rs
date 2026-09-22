@@ -3,6 +3,7 @@ use crate::simulation::io::is_url;
 use crate::simulation::replanning::{KEEP_LAST_SELECTED_STRATEGY_NAME, WORST_SCORE_STRATEGY_NAME};
 use ahash::HashMap;
 use clap::{Parser, ValueEnum};
+use derive_builder::Builder;
 use dyn_clone::DynClone;
 #[cfg(feature = "http")]
 use reqwest::Url;
@@ -155,6 +156,8 @@ impl Config {
         self.controller_mut();
         self.routing_mut();
         self.replanning_mut();
+        self.scoring_mut();
+        self.travel_time_calculator_mut();
         self.computational_setup_mut();
         self.network_mut();
         self.population_mut();
@@ -366,6 +369,45 @@ impl Config {
             .insert("replanning".to_string(), Box::new(replanning));
     }
 
+    pub fn scoring(&self) -> &Scoring {
+        self.module::<Scoring>("scoring")
+            .expect("Scoring was not set.")
+    }
+
+    pub fn scoring_mut(&mut self) -> &mut Scoring {
+        if !self.modules.contains_key("scoring") {
+            self.modules
+                .insert("scoring".to_string(), Box::new(Scoring::default()));
+        }
+        self.module_mut::<Scoring>("scoring").unwrap()
+    }
+
+    pub fn set_scoring(&mut self, scoring: Scoring) {
+        self.modules
+            .insert("scoring".to_string(), Box::new(scoring));
+    }
+
+    pub fn travel_time_calculator(&self) -> &TravelTimeCalculator {
+        self.module::<TravelTimeCalculator>("travel_time_calculator")
+            .expect("TravelTimeCalculator was not set.")
+    }
+
+    pub fn travel_time_calculator_mut(&mut self) -> &mut TravelTimeCalculator {
+        if !self.modules.contains_key("travel_time_calculator") {
+            self.modules.insert(
+                "travel_time_calculator".to_string(),
+                Box::new(TravelTimeCalculator::default()),
+            );
+        }
+        self.module_mut::<TravelTimeCalculator>("travel_time_calculator")
+            .unwrap()
+    }
+
+    pub fn set_travel_time_calculator(&mut self, calculator: TravelTimeCalculator) {
+        self.modules
+            .insert("travel_time_calculator".to_string(), Box::new(calculator));
+    }
+
     pub fn qsim(&self) -> &QSim {
         self.module::<QSim>("qsim").expect("QSim was not set.")
     }
@@ -551,8 +593,8 @@ impl Default for Output {
             output_dir: "./output".parse().unwrap(),
             overwrite_files: OverwriteFiles::FailIfDirectoryExists,
             profiling: Profiling::None,
-            logging: Logging::None,
-            write_events: WriteEvents::None,
+            logging: Logging::Info,
+            write_events: WriteEvents::File,
         }
     }
 }
@@ -654,7 +696,7 @@ pub struct Replanning {
     pub strategy_settings: Vec<StrategySetting>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Builder)]
 pub struct StrategySetting {
     pub name: String,
     pub weight: f64,
@@ -695,6 +737,91 @@ impl Default for Replanning {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
+pub struct Scoring {
+    pub activity_params: Vec<ActivityParameter>,
+    pub mode_params: Vec<ModeParameter>,
+    pub agent_params: Vec<AgentParameter>,
+}
+
+impl Default for Scoring {
+    fn default() -> Self {
+        Self {
+            activity_params: Vec::new(),
+            mode_params: vec![
+                ModeParameter::default_for_mode("car"),
+                ModeParameter::default_for_mode("walk"),
+                ModeParameter::default_for_mode("ride"),
+                ModeParameter::default_for_mode("freight"),
+            ],
+            agent_params: vec![AgentParameter::default()],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ActivityParameter {
+    pub activity_type: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ModeParameter {
+    pub mode: String,
+    pub marginal_utility_of_traveling: f64, // utils/hour
+    pub marginal_utility_of_distance: f64,  // utils/meters
+    pub monetary_distance_cost_rate: f64,   // money/meter
+    pub daily_money_constant: f64,          // money/day
+    pub daily_utility_constant: f64,        // utils/day
+    pub constant: f64,
+}
+
+impl ModeParameter {
+    pub fn default_for_mode(mode: &str) -> Self {
+        let mut default_mode_params = Self::default();
+        default_mode_params.mode = mode.to_string();
+        default_mode_params
+    }
+}
+
+impl Default for ModeParameter {
+    fn default() -> Self {
+        Self {
+            mode: "walk".to_string(),
+            marginal_utility_of_traveling: -6.0,
+            marginal_utility_of_distance: 0.0,
+            monetary_distance_cost_rate: 0.0,
+            daily_money_constant: 0.0,
+            daily_utility_constant: 0.0,
+            constant: 0.0,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct AgentParameter {
+    pub subpopulation: String,
+    pub late_arrival: f64,              // utils/hour
+    pub early_departure: f64,           // utils/hour
+    pub performing: f64,                // utils/hour
+    pub waiting: f64,                   // utils/hour
+    pub marginal_utility_of_money: f64, // utils/money
+}
+
+impl Default for AgentParameter {
+    fn default() -> Self {
+        Self {
+            subpopulation: "person".to_string(),
+            late_arrival: -18.0,
+            early_departure: -0.0,
+            performing: 6.0,
+            waiting: -0.0,
+            marginal_utility_of_money: 1.0,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
 pub struct QSim {
     pub start_time: u32,
     pub end_time: u32,
@@ -703,6 +830,32 @@ pub struct QSim {
     pub stuck_threshold: u32,
     pub main_modes: Vec<String>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct TravelTimeCalculator {
+    /// Width of a travel-time interval in seconds.
+    pub bin_size: u32,
+}
+
+impl TravelTimeCalculator {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.bin_size == 0 {
+            return Err("travel_time_calculator.bin_size must be greater than 0".to_string());
+        }
+        Ok(())
+    }
+}
+
+impl Default for TravelTimeCalculator {
+    fn default() -> Self {
+        Self { bin_size: 900 }
+    }
+}
+
+register_override!("travel_time_calculator.bin_size", |config, value| {
+    config.travel_time_calculator_mut().bin_size = value.parse().unwrap();
+});
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
@@ -944,6 +1097,26 @@ impl ConfigModule for Replanning {
 }
 
 #[typetag::serde]
+impl ConfigModule for Scoring {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
+impl ConfigModule for TravelTimeCalculator {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+#[typetag::serde]
 impl ConfigModule for QSim {
     fn as_any(&self) -> &dyn Any {
         self
@@ -1078,9 +1251,9 @@ pub enum Logging {
 
 #[derive(PartialEq, Debug, Clone, Serialize, Deserialize, Default)]
 pub enum WriteEvents {
-    #[default]
     None,
     // for backward compatability, we still allow "Proto" and "XmlGz"
+    #[default]
     #[serde(alias = "Proto", alias = "XmlGz")]
     File,
 }
@@ -1269,9 +1442,10 @@ mod tests {
     use crate::simulation::config::Profiling;
     use crate::simulation::config::WriteEvents;
     use crate::simulation::config::{
-        CommandLineArgs, CompressionType, ComputationalSetup, Config, Controller, EdgeWeight,
-        MetisOptions, PartitionMethod, Partitioning, QSim, Replanning, Routing, StrategySetting,
-        TeleportedParams, VertexWeight, parse_key_val,
+        ActivityParameter, AgentParameter, CommandLineArgs, CompressionType, ComputationalSetup,
+        Config, Controller, EdgeWeight, MetisOptions, ModeParameter, PartitionMethod, Partitioning,
+        QSim, Replanning, Routing, Scoring, StrategySetting, TeleportedParams,
+        TravelTimeCalculator, VertexWeight, parse_key_val,
     };
     use crate::simulation::config::{Ids, Network, Population, Transit, Vehicles};
     use crate::simulation::config::{Logging, RoutingMode};
@@ -1597,6 +1771,89 @@ mod tests {
                     weight: 1.0,
                     subpopulation: "person".to_string(),
                 }],
+            }
+        );
+    }
+
+    #[test]
+    fn scoring_yaml_roundtrip_preserves_parameters() {
+        let yaml = r#"
+        modules:
+          scoring:
+            type: Scoring
+            activity_params:
+              - activity_type: home
+            mode_params:
+              - mode: car
+                marginal_utility_of_traveling: -0.001
+                marginal_utility_of_distance: -0.002
+                monetary_distance_cost_rate: -0.003
+                constant: 1.5
+                daily_money_constant: -2.5
+                daily_utility_constant: 3.5
+            agent_params:
+              - subpopulation: freight
+                late_arrival: -12.0
+                early_departure: -6.0
+                performing: 4.0
+                waiting: -3.0
+                marginal_utility_of_money: 2.0
+        "#;
+
+        let config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+        let expected = Scoring {
+            activity_params: vec![ActivityParameter {
+                activity_type: "home".to_string(),
+            }],
+            mode_params: vec![ModeParameter {
+                mode: "car".to_string(),
+                marginal_utility_of_traveling: -0.001,
+                marginal_utility_of_distance: -0.002,
+                monetary_distance_cost_rate: -0.003,
+                constant: 1.5,
+                daily_money_constant: -2.5,
+                daily_utility_constant: 3.5,
+            }],
+            agent_params: vec![AgentParameter {
+                subpopulation: "freight".to_string(),
+                late_arrival: -12.0,
+                early_departure: -6.0,
+                performing: 4.0,
+                waiting: -3.0,
+                marginal_utility_of_money: 2.0,
+            }],
+        };
+        assert_eq!(config.scoring(), &expected);
+
+        let serialized = serde_yaml::to_string(&config).expect("failed to serialize config");
+        let roundtrip: Config =
+            serde_yaml::from_str(&serialized).expect("failed to deserialize roundtrip config");
+        assert_eq!(roundtrip.scoring(), &expected);
+    }
+
+    #[test]
+    fn scoring_yaml_uses_defaults_for_missing_lists_and_agent_fields() {
+        let yaml = r#"
+        modules:
+          scoring:
+            type: Scoring
+            agent_params:
+              - {}
+        "#;
+
+        let config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+
+        assert_eq!(
+            config.scoring(),
+            &Scoring {
+                activity_params: Vec::new(),
+                mode_params: vec![
+                    ModeParameter::default_for_mode("car"),
+                    ModeParameter::default_for_mode("walk"),
+                    ModeParameter::default_for_mode("ride"),
+                    ModeParameter::default_for_mode("freight"),
+                ],
+                agent_params: vec![AgentParameter::default()],
             }
         );
     }
@@ -2046,5 +2303,52 @@ modules:
     fn override_routing_mode_invalid() {
         let mut config = base_config();
         config.apply_overrides(&[("routing.mode".to_string(), "InvalidMode".to_string())]);
+    }
+
+    #[test]
+    fn travel_time_calculator_yaml_roundtrip_preserves_explicit_horizon() {
+        let yaml = r#"
+modules:
+  qsim:
+    type: QSim
+    end_time: 42
+  travel_time_calculator:
+    type: TravelTimeCalculator
+    bin_size: 300
+"#;
+        let config: Config = serde_yaml::from_str(yaml).expect("failed to parse config");
+        assert_eq!(300, config.travel_time_calculator().bin_size);
+
+        let serialized = serde_yaml::to_string(&config).expect("failed to serialize config");
+        let roundtrip: Config =
+            serde_yaml::from_str(&serialized).expect("failed to deserialize roundtrip config");
+        assert_eq!(
+            config.travel_time_calculator(),
+            roundtrip.travel_time_calculator()
+        );
+    }
+
+    #[test]
+    fn travel_time_calculator_overrides_are_applied() {
+        let mut config = Config::default();
+        config.apply_overrides(&[(
+            "travel_time_calculator.bin_size".to_string(),
+            "60".to_string(),
+        )]);
+
+        assert_eq!(
+            &TravelTimeCalculator { bin_size: 60 },
+            config.travel_time_calculator()
+        );
+    }
+
+    #[test]
+    fn travel_time_calculator_rejects_zero_bin_size() {
+        let calculator = TravelTimeCalculator { bin_size: 0 };
+
+        assert_eq!(
+            Err("travel_time_calculator.bin_size must be greater than 0".to_string()),
+            calculator.validate()
+        );
     }
 }

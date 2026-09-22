@@ -2,7 +2,8 @@ use macros::deterministic_id_test;
 use rust_qsim::simulation::config::{CommandLineArgs, Config};
 use rust_qsim::simulation::controller::controller::ControllerBuilder;
 use rust_qsim::simulation::events::utils::compare_event_folder;
-use rust_qsim::simulation::events::{EventHandlerRegisterFn, LinkEnterEvent, LinkLeaveEvent};
+use rust_qsim::simulation::events::{LinkEnterEvent, LinkLeaveEvent};
+use rust_qsim::simulation::framework_events::WorkerListenerRegisterFunction;
 use rust_qsim::simulation::scenario::Scenario;
 use rust_qsim::simulation::time::SimTime;
 use std::collections::HashMap;
@@ -56,11 +57,11 @@ struct BoundaryEventTimes {
 }
 
 impl BoundaryEventTimes {
-    fn register_fn(&self) -> Box<EventHandlerRegisterFn> {
+    fn register_fn(&self) -> Box<WorkerListenerRegisterFunction> {
         let enters = self.enters.clone();
         let leaves = self.leaves.clone();
 
-        Box::new(move |events| {
+        Box::new(move |events, _, _| {
             events.on::<LinkEnterEvent, _>(move |event| {
                 if event.link.external() == "link2" {
                     enters.lock().unwrap().push(event.time);
@@ -118,7 +119,7 @@ fn run_short_boundary_scenario(config_path: &str, output_dir: &str) -> BoundaryE
 
     let scenario = Scenario::load(config);
     let controller = ControllerBuilder::default_with_scenario(scenario)
-        .event_handler_register_fn(additional_handler)
+        .worker_listener_register_fn(additional_handler)
         .build()
         .unwrap();
     controller.run();

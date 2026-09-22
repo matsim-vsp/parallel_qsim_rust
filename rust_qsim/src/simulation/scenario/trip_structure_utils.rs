@@ -3,24 +3,26 @@ use tracing::error;
 
 /// Returns the main mode for a trip based on its leg sequence.
 pub fn identify_main_mode(trip_elements: &[InternalPlanElement]) -> Option<String> {
-    // Try to get the routing mode from the first leg
-    let mut mode: Option<String> =
-        trip_elements
-            .first()
-            .and_then(|el| el.as_leg())
-            .and_then(|leg| {
-                leg.routing_mode
-                    .as_ref()
-                    .map(|id| id.external().to_string())
-            });
-
-    // If not found and only one element, use the mode of that leg
-    if mode.is_none() && trip_elements.len() == 1 {
-        mode = trip_elements
-            .first()
-            .and_then(|el| el.as_leg())
-            .map(|leg| leg.mode.external().to_string());
+    let legs: Vec<_> = trip_elements
+        .iter()
+        .filter_map(InternalPlanElement::as_leg)
+        .collect();
+    // Use the common routing mode even when access legs or stage activities come first.
+    let mut routing_modes = Vec::new();
+    for mode in legs.iter().filter_map(|leg| leg.routing_mode.as_ref()) {
+        if !routing_modes.contains(&mode) {
+            routing_modes.push(mode);
+        }
     }
+
+    // For a single leg without an unambiguous routing mode, use its leg mode.
+    let mode = if routing_modes.len() == 1 {
+        Some(routing_modes[0].external().to_string())
+    } else if legs.len() == 1 {
+        Some(legs[0].mode.external().to_string())
+    } else {
+        None
+    };
 
     if mode.is_none() {
         error!("Could not find routing mode for trip {:?}", trip_elements);
@@ -102,7 +104,9 @@ impl TripSpan {
     ) -> TripSpan {
         let new_elements: Vec<_> = new_elements.into_iter().collect();
         let new_destination_index = self.origin_index + new_elements.len() + 1;
-        plan_elements.splice(self.origin_index + 1..self.destination_index, new_elements);
+        let splice_range_begin = self.origin_index + 1; // including
+        let splice_range_end = self.destination_index; // excluding
+        plan_elements.splice(splice_range_begin..splice_range_end, new_elements);
         TripSpan {
             origin_index: self.origin_index,
             destination_index: new_destination_index,
@@ -266,6 +270,26 @@ mod tests {
         let trip = vec![];
         let mode = identify_main_mode(&trip);
         assert_eq!(mode, None);
+    }
+
+    #[deterministic_id_test]
+    fn identify_main_mode_uses_unique_routing_mode_after_access_leg() {
+        let mut access = make_leg("walk");
+        access.as_leg_mut().unwrap().routing_mode = None;
+        let trip = vec![
+            access,
+            make_activity("car interaction", "1"),
+            make_leg("car"),
+        ];
+
+        assert_eq!(Some("car".to_string()), identify_main_mode(&trip));
+    }
+
+    #[deterministic_id_test]
+    fn identify_main_mode_rejects_conflicting_routing_modes() {
+        let trip = vec![make_leg("walk"), make_leg("car")];
+
+        assert_eq!(None, identify_main_mode(&trip));
     }
 
     fn make_activity(act_type: &str, link: &str) -> InternalPlanElement {
@@ -473,6 +497,44 @@ mod tests {
         );
         assert_eq!(plan[3].as_leg().unwrap().mode.external(), "pt");
         assert_eq!(plan[4].as_activity().unwrap().act_type.external(), "work");
+    }
+
+    #[deterministic_id_test]
+    fn test_trip_span_replace_middle_5_elements() {
+        let mut plan = vec![
+            make_activity("home", "1"),
+            make_leg("car"),
+            make_activity("work", "2"),
+            make_leg("walk"),
+            make_activity("shop", "3"),
+        ];
+
+        let span = find_trip_span_starting_at_activity_default(&plan, 2).unwrap();
+        span.replace_trip_elements(
+            &mut plan,
+            vec![
+                make_leg("walk"),
+                make_activity("pt interaction", "99"),
+                make_leg("pt"),
+                make_activity("pt interaction", "99"),
+                make_leg("walk"),
+            ],
+        );
+
+        assert_eq!(plan.len(), 9);
+        assert_eq!(plan[2].as_activity().unwrap().act_type.external(), "work");
+        assert_eq!(plan[3].as_leg().unwrap().mode.external(), "walk");
+        assert_eq!(
+            plan[4].as_activity().unwrap().act_type.external(),
+            "pt interaction"
+        );
+        assert_eq!(plan[5].as_leg().unwrap().mode.external(), "pt");
+        assert_eq!(
+            plan[6].as_activity().unwrap().act_type.external(),
+            "pt interaction"
+        );
+        assert_eq!(plan[7].as_leg().unwrap().mode.external(), "walk");
+        assert_eq!(plan[8].as_activity().unwrap().act_type.external(), "shop");
     }
 
     #[deterministic_id_test]

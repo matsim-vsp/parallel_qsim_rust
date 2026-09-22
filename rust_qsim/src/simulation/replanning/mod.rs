@@ -1,7 +1,15 @@
 use crate::simulation::config;
 use crate::simulation::id::Id;
 use crate::simulation::random::get_rng;
+use crate::simulation::replanning::routing::TripRouter;
+use crate::simulation::scenario::ScenarioCore;
 use crate::simulation::scenario::population::{DEFAULT_SUBPOPULATION, InternalPerson, Population};
+use crate::simulation::scenario::prepare_for_sim::{
+    PrepareForSimContext, TripPreparationError, route_trip,
+};
+use crate::simulation::scenario::trip_structure_utils::{
+    get_trip_spans_default, identify_main_mode,
+};
 use derive_builder::Builder;
 use nohash_hasher::IntMap;
 use rand::RngExt;
@@ -11,7 +19,7 @@ use std::fmt;
 use std::str::FromStr;
 
 pub mod routing;
-mod selectors;
+pub mod selectors;
 
 const STRATEGY_RNG_PURPOSE: &str = "replanning.strategy";
 const RANDOM_SELECTOR_RNG_PURPOSE: &str = "replanning.selector.random";
@@ -20,6 +28,7 @@ pub const BEST_SCORE_STRATEGY_NAME: &str = "BestScore";
 pub const SELECT_RANDOM_STRATEGY_NAME: &str = "SelectRandom";
 pub const WORST_SCORE_STRATEGY_NAME: &str = "WorstScore";
 pub const RE_ROUTE_STRATEGY_NAME: &str = "ReRoute";
+pub const SELECT_EXP_BETA_STRATEGY_NAME: &str = "SelectExpBeta";
 
 #[allow(dead_code)]
 /// This is responsible for picking a plan, copying it, and replanning it.
@@ -51,12 +60,16 @@ impl DefaultStrategy {
         }
     }
 
-    fn as_generic_plan_strategy(self) -> Box<dyn PlanStrategy> {
+    fn as_generic_plan_strategy(
+        self,
+        trip_router: TripRouter,
+        scenario_core: ScenarioCore,
+    ) -> Box<dyn PlanStrategy> {
         match self {
             Self::ReRoute => Box::new(GenericPlanStrategy {
                 name: Id::create(self.as_str()),
                 selector: Box::new(KeepLastSelector),
-                modules: vec![Box::new(ReRouteModule {})],
+                modules: vec![Box::new(ReRouteModule::new(trip_router, scenario_core))],
             }),
         }
     }
@@ -79,7 +92,7 @@ impl FromStr for DefaultStrategy {
     }
 }
 
-/// Performs multithreaded replanning of the population
+/// Performs multithreaded replanning of the population. Rayon pool is started in the controller.
 pub(crate) fn replan_population(
     population: Population,
     iteration: u32,
@@ -112,12 +125,16 @@ pub(crate) struct StrategyManager {
     max_memory_size: usize,
     #[builder(default = "default_plan_remover()")]
     plan_remover: Box<dyn PlanSelector>,
-    #[builder(default = "default_strategies()")]
+    #[builder(default = "default_strategies(TripRouter::default(), ScenarioCore::default())")]
     strategies: IntMap<Id<String>, Box<dyn PlanStrategy>>,
 }
 
 impl StrategyManager {
-    pub(crate) fn from_replanning_config(replanning: &config::Replanning) -> Self {
+    pub(crate) fn from_replanning_config(
+        replanning: &config::Replanning,
+        trip_router: TripRouter,
+        scenario_core: &ScenarioCore,
+    ) -> Self {
         let weights_per_subpopulation =
             weights_per_subpopulation_from_settings(&replanning.strategy_settings);
 
@@ -127,7 +144,7 @@ impl StrategyManager {
             .plan_remover(plan_selector_from_config_name(
                 &replanning.plan_selector_for_removal,
             ))
-            .strategies(default_strategies())
+            .strategies(default_strategies(trip_router, scenario_core.clone()))
             .build()
             .unwrap()
     }
@@ -232,13 +249,17 @@ fn default_plan_remover() -> Box<dyn PlanSelector> {
     Box::new(WorstScoreSelector)
 }
 
-fn default_strategies() -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
+fn default_strategies(
+    trip_router: TripRouter,
+    scenario_core: ScenarioCore,
+) -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
     let mut strategies = IntMap::default();
     for selector in [
         DefaultSelector::KeepLastSelected,
         DefaultSelector::BestScore,
         DefaultSelector::SelectRandom,
         DefaultSelector::WorstScore,
+        DefaultSelector::SelectExpBeta,
     ] {
         strategies.insert(
             Id::create(selector.as_str()),
@@ -248,7 +269,7 @@ fn default_strategies() -> IntMap<Id<String>, Box<dyn PlanStrategy>> {
     for strategy in [DefaultStrategy::ReRoute] {
         strategies.insert(
             Id::create(strategy.as_str()),
-            strategy.as_generic_plan_strategy(),
+            strategy.as_generic_plan_strategy(trip_router.clone(), scenario_core.clone()),
         );
     }
     strategies
@@ -350,13 +371,60 @@ impl PlanStrategy for GenericPlanStrategy {
 
 #[allow(dead_code)]
 struct ReRouteModule {
-    // hold reference to scenario
-    // hold reference to router
+    router: TripRouter,
+    scenario_core: ScenarioCore,
+}
+
+impl ReRouteModule {
+    fn new(router: TripRouter, scenario_core: ScenarioCore) -> Self {
+        Self {
+            router,
+            scenario_core,
+        }
+    }
 }
 
 impl PlanStrategyModule for ReRouteModule {
-    fn handle(&self, _person: &mut InternalPerson, _plan_index: usize) {
-        unimplemented!("ReRouteModule is a placeholder and does not implement routing yet.")
+    fn handle(&self, person: &mut InternalPerson, plan_index: usize) {
+        let context = PrepareForSimContext {
+            network: &self.scenario_core.network,
+            garage: &self.scenario_core.garage,
+            config: &self.scenario_core.config,
+        };
+        let trip_count = get_trip_spans_default(&person.plans()[plan_index].elements).len();
+
+        // Route complete trips so access/egress legs and stage activities change together.
+        // Recompute spans after each replacement because routing can change their lengths.
+        for trip_index in 0..trip_count {
+            let (span, new_elements) = {
+                let plan = &person.plans()[plan_index];
+                let span = get_trip_spans_default(&plan.elements)[trip_index];
+                let trip_elements = span.trip_elements(&plan.elements);
+                let result = if !trip_elements
+                    .iter()
+                    .any(|element| element.as_leg().is_some())
+                {
+                    Err(TripPreparationError::NoLegs)
+                } else {
+                    identify_main_mode(trip_elements)
+                        .map(|mode| Id::get_from_ext(&mode))
+                        .ok_or(TripPreparationError::AmbiguousMainMode)
+                        .and_then(|mode| {
+                            route_trip(&context, person, plan, span, &mode, &self.router)
+                        })
+                };
+                let new_elements = result.unwrap_or_else(|error| {
+                    panic!(
+                        "ReRoute failed for person {}, plan {plan_index}, trip {trip_index}: {error}",
+                        person.id().external()
+                    )
+                });
+                (span, new_elements)
+            };
+            span.replace_trip_elements(&mut person.plans_mut()[plan_index].elements, new_elements);
+        }
+
+        person.plans_mut()[plan_index].score = None;
     }
 }
 
@@ -369,13 +437,28 @@ struct ReplanningContext {
 #[cfg(test)]
 mod tests {
     use super::{
-        GenericPlanStrategy, PlanStrategy, PlanStrategyModule, ReplanningContext, StrategyManager,
+        DefaultStrategy, GenericPlanStrategy, PlanStrategy, PlanStrategyModule, ReplanningContext,
+        StrategyManager,
     };
-    use crate::simulation::config::{Replanning, StrategySetting};
+    use crate::simulation::config::{Config, Replanning, StrategySetting};
     use crate::simulation::id::Id;
+    use crate::simulation::replanning::routing::TripRouter;
+    use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
+    use crate::simulation::replanning::routing::{RoutingError, RoutingModule, RoutingRequest};
     use crate::simulation::replanning::selectors::{DefaultSelector, KeepLastSelector};
-    use crate::simulation::scenario::population::{InternalPerson, InternalPlan};
+    use crate::simulation::scenario::Coordinate;
+    use crate::simulation::scenario::ScenarioCore;
+    use crate::simulation::scenario::population::{
+        InternalActivity, InternalGenericRoute, InternalLeg, InternalNetworkRoute, InternalPerson,
+        InternalPlan, InternalPlanElement, InternalRoute,
+    };
+    use crate::simulation::scenario::trip_structure_utils::get_trip_spans_default;
+    use crate::simulation::scenario::vehicles::{Garage, InternalVehicle, InternalVehicleType};
+    use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
+    use nohash_hasher::IntMap;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
 
     #[deterministic_id_test]
     fn default_selectors_create_generic_strategies_with_matching_names() {
@@ -397,7 +480,11 @@ mod tests {
             plan_selector_for_removal: DefaultSelector::BestScore.as_str().to_string(),
             ..Replanning::default()
         };
-        let manager = StrategyManager::from_replanning_config(&replanning);
+        let manager = StrategyManager::from_replanning_config(
+            &replanning,
+            TripRouter::default(),
+            &ScenarioCore::default(),
+        );
         let mut person = person_with_scores([Some(1.0), Some(2.0)]);
 
         manager.run(0, 42, false, &mut person);
@@ -423,7 +510,11 @@ mod tests {
             ],
             ..Replanning::default()
         };
-        let manager = StrategyManager::from_replanning_config(&replanning);
+        let manager = StrategyManager::from_replanning_config(
+            &replanning,
+            TripRouter::default(),
+            &ScenarioCore::default(),
+        );
 
         let person_weights = manager
             .weights_per_subpopulation
@@ -457,7 +548,11 @@ mod tests {
             ],
             ..Replanning::default()
         };
-        let manager = StrategyManager::from_replanning_config(&replanning);
+        let manager = StrategyManager::from_replanning_config(
+            &replanning,
+            TripRouter::default(),
+            &ScenarioCore::default(),
+        );
         let person = person_with_scores([Some(1.0), Some(2.0)]);
         let context = ReplanningContext {
             innovation_disabled: true,
@@ -519,6 +614,313 @@ mod tests {
         assert_eq!(Some(1.0), person.plans()[0].score);
         assert!(person.plans()[1].selected);
         assert_eq!(Some(99.0), person.plans()[1].score);
+    }
+
+    #[deterministic_id_test]
+    fn reroute_copies_and_replaces_single_teleported_trip() {
+        let mut person = InternalPerson::new(
+            Id::create("person-1"),
+            routed_plan("walk", &["home", "work"], &["a", "b"]),
+        );
+        let original = person.plans()[0].clone();
+        let mut modules: IntMap<_, Arc<dyn RoutingModule>> = IntMap::default();
+        let mode = Id::create("walk");
+        modules.insert(
+            mode.clone(),
+            Arc::new(TeleportationRoutingModule::new(mode, 1.0, 1.0)),
+        );
+        let strategy = reroute_strategy(&ScenarioCore::default(), TripRouter::new(modules));
+
+        assert_eq!(1, person.plans().len());
+
+        strategy.handle(&mut person, &context());
+
+        assert_eq!(2, person.plans().len());
+        assert_eq!(&original.elements, &person.plans()[0].elements);
+        assert!(!person.plans()[0].selected);
+        assert_eq!(Some(9.0), person.plans()[0].score);
+
+        let replanned = &person.plans()[1];
+        assert!(replanned.selected);
+        assert_eq!(None, replanned.score);
+        assert_eq!(1, get_trip_spans_default(&replanned.elements).len());
+        let leg = replanned.legs()[0];
+        assert_eq!(Some(Id::create("walk")), leg.routing_mode);
+        assert_eq!(Some(SimTime::from_secs(10)), leg.dep_time);
+        assert_ne!(original.legs()[0].route, leg.route);
+    }
+
+    #[deterministic_id_test]
+    fn reroute_replaces_multistage_trips_and_uses_updated_departure_time_and_vehicle() {
+        let mut core = ScenarioCore::default();
+        let mut config = Config::default();
+        config.qsim_mut().main_modes = vec!["car".to_string()];
+        core.config = Arc::new(config);
+
+        let vehicle_id = Id::create("person-1_car");
+        let mut garage = Garage::default();
+        garage.add_veh(InternalVehicle {
+            id: vehicle_id.clone(),
+            max_v: 10.0,
+            pce: 1.0,
+            vehicle_type: Id::<InternalVehicleType>::create("car-type"),
+            attributes: Default::default(),
+        });
+        core.garage = Arc::new(garage);
+
+        let departures = Arc::new(Mutex::new(Vec::new()));
+        let mut modules: IntMap<_, Arc<dyn RoutingModule>> = IntMap::default();
+        modules.insert(
+            Id::create("car"),
+            Arc::new(TestNetworkRoutingModule {
+                mode: Id::create("car"),
+                departures: departures.clone(),
+            }),
+        );
+        let strategy = reroute_strategy(&core, TripRouter::new(modules));
+        let mut person = InternalPerson::new(
+            Id::create("person-1"),
+            routed_plan("car", &["home", "work", "shop"], &["a", "b", "c"]),
+        );
+        let original = person.plans()[0].clone();
+
+        strategy.handle(&mut person, &context());
+
+        assert_eq!(&original.elements, &person.plans()[0].elements);
+        assert!(!person.plans()[0].selected);
+        let replanned = &person.plans()[1];
+        assert!(replanned.selected);
+        assert_eq!(None, replanned.score);
+        let spans = get_trip_spans_default(&replanned.elements);
+        assert_eq!(2, spans.len());
+        assert_eq!(
+            vec![5, 5],
+            spans
+                .iter()
+                .map(|s| s.trip_elements(&replanned.elements).len())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![SimTime::from_secs(10), SimTime::from_secs(19)],
+            *departures.lock().unwrap()
+        );
+        for span in spans {
+            let legs: Vec<_> = span.legs(&replanned.elements).collect();
+            assert_eq!(
+                vec!["walk", "car", "walk"],
+                legs.iter()
+                    .map(|leg| leg.mode.external())
+                    .collect::<Vec<_>>()
+            );
+            assert!(
+                legs.iter()
+                    .all(|leg| leg.routing_mode == Some(Id::create("car")))
+            );
+            assert_eq!(
+                Some(&vehicle_id),
+                legs[1]
+                    .route
+                    .as_ref()
+                    .unwrap()
+                    .as_generic()
+                    .vehicle()
+                    .as_ref()
+            );
+            assert_eq!(
+                2,
+                span.trip_elements(&replanned.elements)
+                    .iter()
+                    .filter_map(InternalPlanElement::as_activity)
+                    .count()
+            );
+        }
+    }
+
+    #[deterministic_id_test]
+    fn reroute_reports_missing_routing_module_with_person_and_trip() {
+        let strategy = reroute_strategy(&ScenarioCore::default(), TripRouter::default());
+        let mut person = InternalPerson::new(
+            Id::create("person-1"),
+            routed_plan("walk", &["home", "work"], &["a", "b"]),
+        );
+
+        let message = panic_message(|| strategy.handle(&mut person, &context()));
+
+        assert!(message.contains("person person-1, plan 1, trip 0"));
+        assert!(message.contains("No routing module found for mode walk"));
+    }
+
+    #[deterministic_id_test]
+    fn reroute_reports_missing_vehicle_before_routing() {
+        let mut core = ScenarioCore::default();
+        let mut config = Config::default();
+        config.qsim_mut().main_modes = vec!["car".to_string()];
+        core.config = Arc::new(config);
+        let strategy = reroute_strategy(&core, TripRouter::default());
+        let mut person = InternalPerson::new(
+            Id::create("person-1"),
+            routed_plan("car", &["home", "work"], &["a", "b"]),
+        );
+
+        let message = panic_message(|| strategy.handle(&mut person, &context()));
+
+        assert!(message.contains("person person-1, plan 1, trip 0"));
+        assert!(message.contains("person-1_car"));
+    }
+
+    #[deterministic_id_test]
+    fn reroute_reports_missing_departure_time() {
+        let strategy = reroute_strategy(&ScenarioCore::default(), TripRouter::default());
+        let mut plan = routed_plan("walk", &["home", "work"], &["a", "b"]);
+        plan.acts_mut()[0].end_time = None;
+        let mut person = InternalPerson::new(Id::create("person-1"), plan);
+
+        let message = panic_message(|| strategy.handle(&mut person, &context()));
+
+        assert!(message.contains("person person-1, plan 1, trip 0"));
+        assert!(message.contains("departure time"));
+    }
+
+    #[deterministic_id_test]
+    fn reroute_handles_plan_without_trips() {
+        let strategy = reroute_strategy(&ScenarioCore::default(), TripRouter::default());
+        let mut person = person_with_scores([Some(9.0)]);
+
+        strategy.handle(&mut person, &context());
+
+        assert_eq!(2, person.plans().len());
+        assert_eq!(Some(9.0), person.plans()[0].score);
+        assert!(!person.plans()[0].selected);
+        assert_eq!(None, person.plans()[1].score);
+        assert!(person.plans()[1].selected);
+    }
+
+    fn reroute_strategy(core: &ScenarioCore, router: TripRouter) -> Box<dyn PlanStrategy> {
+        DefaultStrategy::ReRoute.as_generic_plan_strategy(router, core.clone())
+    }
+
+    fn routed_plan(mode: &str, activities: &[&str], links: &[&str]) -> InternalPlan {
+        let mut plan = InternalPlan {
+            score: Some(9.0),
+            ..InternalPlan::default()
+        };
+        for index in 0..activities.len() {
+            plan.add_act(InternalActivity::new(
+                Some(Coordinate::new_2d(index as f64 * 10.0, 0.0)),
+                activities[index],
+                Id::create(links[index]),
+                None,
+                (index == 0).then_some(SimTime::from_secs(10)),
+                (index == 1).then_some(Duration::from_secs(5)),
+            ));
+            if index + 1 < activities.len() {
+                let route = InternalRoute::Generic(InternalGenericRoute::new(
+                    Id::create(links[index]),
+                    Id::create(links[index + 1]),
+                    Some(Duration::from_secs(10)),
+                    Some(17.0),
+                    None,
+                ));
+                plan.add_leg(InternalLeg::new(route, mode, Duration::from_secs(10), None));
+            }
+        }
+        plan
+    }
+
+    fn panic_message(action: impl FnOnce()) -> String {
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(action)).unwrap_err();
+        if let Some(message) = panic.downcast_ref::<String>() {
+            message.clone()
+        } else {
+            panic.downcast_ref::<&str>().unwrap().to_string()
+        }
+    }
+
+    struct TestNetworkRoutingModule {
+        mode: Id<String>,
+        departures: Arc<Mutex<Vec<SimTime>>>,
+    }
+
+    impl RoutingModule for TestNetworkRoutingModule {
+        fn calc_route(
+            &self,
+            request: RoutingRequest,
+        ) -> Result<Vec<InternalPlanElement>, RoutingError> {
+            self.departures
+                .lock()
+                .unwrap()
+                .push(request.departure_time());
+            let from = request.from().link().clone();
+            let to = request.to().link().clone();
+            let one_second = Duration::from_secs(1);
+            let two_seconds = Duration::from_secs(2);
+            let access = InternalPlanElement::Leg(InternalLeg::new(
+                InternalRoute::Generic(InternalGenericRoute::new(
+                    from.clone(),
+                    from.clone(),
+                    Some(one_second),
+                    Some(0.0),
+                    None,
+                )),
+                "walk",
+                one_second,
+                Some(request.departure_time()),
+            ));
+            let access_interaction = InternalPlanElement::Activity(InternalActivity::new(
+                Some(request.from().coord().clone()),
+                "car interaction",
+                from.clone(),
+                None,
+                None,
+                Some(Duration::ZERO),
+            ));
+            let network_leg = InternalPlanElement::Leg(InternalLeg::new(
+                InternalRoute::Network(InternalNetworkRoute::new(
+                    InternalGenericRoute::new(
+                        from.clone(),
+                        to.clone(),
+                        Some(two_seconds),
+                        Some(10.0),
+                        request.vehicle().map(|vehicle| vehicle.id().clone()),
+                    ),
+                    vec![from.clone(), to.clone()],
+                )),
+                "car",
+                two_seconds,
+                None,
+            ));
+            let egress_interaction = InternalPlanElement::Activity(InternalActivity::new(
+                Some(request.to().coord().clone()),
+                "car interaction",
+                to.clone(),
+                None,
+                None,
+                Some(Duration::ZERO),
+            ));
+            let egress = InternalPlanElement::Leg(InternalLeg::new(
+                InternalRoute::Generic(InternalGenericRoute::new(
+                    to.clone(),
+                    to,
+                    Some(one_second),
+                    Some(0.0),
+                    None,
+                )),
+                "walk",
+                one_second,
+                None,
+            ));
+            Ok(vec![
+                access,
+                access_interaction,
+                network_leg,
+                egress_interaction,
+                egress,
+            ])
+        }
+
+        fn mode(&self) -> &Id<String> {
+            &self.mode
+        }
     }
 
     pub fn person_with_scores<const N: usize>(scores: [Option<f64>; N]) -> InternalPerson {

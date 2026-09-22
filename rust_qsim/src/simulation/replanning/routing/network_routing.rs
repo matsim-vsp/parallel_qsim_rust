@@ -279,7 +279,7 @@ mod tests {
     use crate::simulation::config::Config;
     use crate::simulation::id::Id;
     use crate::simulation::replanning::routing::a_star::Alt;
-    use crate::simulation::replanning::routing::least_cost_path_calculator::FreeSpeedTravelTimeAndDisutility;
+    use crate::simulation::replanning::routing::cost::FreeSpeedTravelTimeAndDisutility;
     use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
     use crate::simulation::replanning::routing::{RoutingModule, RoutingRequestBuilder};
     use crate::simulation::scenario::facilities::{ActivityFacility, Facility};
@@ -456,7 +456,7 @@ mod tests {
         let network = Arc::new(Network::from_file_as_is(&PathBuf::from(
             "./assets/equil/equil-network.xml",
         )));
-        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility);
+        let travel_cost = Arc::new(FreeSpeedTravelTimeAndDisutility {});
         let router = Alt::new(network.clone(), None, travel_cost.clone(), travel_cost).unwrap();
 
         let least_cost_path_calculator = Box::new(router);

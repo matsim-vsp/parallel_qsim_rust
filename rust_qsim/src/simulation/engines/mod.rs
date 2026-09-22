@@ -1,4 +1,5 @@
 use crate::simulation::Identifiable;
+use crate::simulation::agents::SimulationAgentLogic;
 use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::controller::ThreadLocalComputationalEnvironment;
 use crate::simulation::framework_events::{
@@ -62,6 +63,7 @@ fn emit_partition_enter_events_for_vehicle(
         .process_event(PartitionEvent::VehicleEntersPartition(
             VehicleEntersPartitionEvent {
                 vehicle_id: vehicle.id().clone(),
+                network_mode: vehicle.driver().curr_leg().mode.clone(),
                 from,
                 time: now,
             },
