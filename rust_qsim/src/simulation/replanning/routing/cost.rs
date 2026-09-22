@@ -58,10 +58,17 @@ pub trait TravelDisutility: Debug + Send + Sync {
 }
 
 #[derive(Clone, Debug)]
+struct SubpopulationParams {
+    performing: f64,
+    marginal_utility_of_money: f64,
+}
+
+#[derive(Clone, Debug)]
 pub struct ScoringBasedTravelTimeAndDisutility {
     mode: Id<String>,
-    marginal_utility_performing_per_subpopulation: IntMap<Id<String>, f64>,
-    min_performing: f64,
+    params_per_subpopulation: IntMap<Id<String>, SubpopulationParams>,
+    min_params: SubpopulationParams,
+    monetary_distance_rate: f64,
     marginal_utility_traveling: f64,
     marginal_utility_distance: f64,
     travel_time: Arc<GlobalTravelTimeCalculator>,
@@ -73,16 +80,30 @@ impl ScoringBasedTravelTimeAndDisutility {
         mode: Id<String>,
         travel_time: Arc<GlobalTravelTimeCalculator>,
     ) -> Self {
-        let marginal_utility_performing_per_subpopulation = config
+        let params_per_subpopulation = config
             .scoring()
             .agent_params
             .iter()
-            .map(|p| (Id::create(&p.subpopulation), p.performing))
+            .map(|p| {
+                (
+                    Id::create(&p.subpopulation),
+                    SubpopulationParams {
+                        performing: p.performing,
+                        marginal_utility_of_money: p.marginal_utility_of_money,
+                    },
+                )
+            })
             .collect::<IntMap<_, _>>();
 
-        let min_performing = marginal_utility_performing_per_subpopulation
-            .values()
-            .copied()
+        let min_performing = params_per_subpopulation
+            .iter()
+            .map(|(_, params)| params.performing)
+            .reduce(f64::min)
+            .unwrap();
+
+        let min_marginal_utility_of_money = params_per_subpopulation
+            .iter()
+            .map(|(_, params)| params.marginal_utility_of_money)
             .reduce(f64::min)
             .unwrap();
 
@@ -100,24 +121,45 @@ impl ScoringBasedTravelTimeAndDisutility {
 
         ScoringBasedTravelTimeAndDisutility {
             mode,
-            marginal_utility_performing_per_subpopulation,
-            min_performing,
+            params_per_subpopulation,
+            min_params: SubpopulationParams {
+                performing: min_performing,
+                marginal_utility_of_money: min_marginal_utility_of_money,
+            },
+            monetary_distance_rate: mode_params.monetary_distance_cost_rate,
             marginal_utility_traveling: mode_params.marginal_utility_of_traveling,
             marginal_utility_distance: mode_params.marginal_utility_of_distance,
             travel_time,
         }
     }
 
-    fn disutility(&self, link: &Link, travel_time: Duration, performing: f64) -> Disutility {
-        // traveling is normally negative, so convert it into positive disutility by negating it
-        let travel_cost_factor = (-self.marginal_utility_traveling + performing) / 3600.;
-
-        let distance_term = if self.marginal_utility_distance == 0. {
-            0.
+    fn disutility(
+        &self,
+        link: &Link,
+        travel_time: Duration,
+        person: Option<&InternalPerson>,
+    ) -> Disutility {
+        let person_params = if let Some(person) = person {
+            self.params_per_subpopulation
+                .get(person.subpopulation())
+                .unwrap_or_else(|| {
+                    panic!(
+                        "No scoring parameters configured for subpopulation {}",
+                        person.subpopulation().external()
+                    )
+                })
         } else {
-            // distance is normally negative, so convert it into positive disutility by negating it
-            -self.marginal_utility_distance * link.length
+            // Person-less routing uses the same conservative coefficient as the global lower bound.
+            &self.min_params
         };
+
+        // traveling is normally negative, so convert it into positive disutility by negating it
+        let travel_cost_factor =
+            (-self.marginal_utility_traveling + person_params.performing) / 3600.;
+
+        let distance_term = (-self.marginal_utility_distance
+            - self.monetary_distance_rate * person_params.marginal_utility_of_money)
+            * link.length;
 
         travel_time.as_secs_f64() * travel_cost_factor + distance_term
     }
@@ -149,34 +191,15 @@ impl TravelDisutility for ScoringBasedTravelTimeAndDisutility {
         person: Option<&InternalPerson>,
         vehicle: Option<&InternalVehicle>,
     ) -> Disutility {
-        let performing = if let Some(person) = person {
-            self.marginal_utility_performing_per_subpopulation
-                .get(person.subpopulation())
-                .copied()
-                .unwrap_or_else(|| {
-                    panic!(
-                        "No scoring parameters configured for subpopulation {}",
-                        person.subpopulation().external()
-                    )
-                })
-        } else {
-            // Person-less routing uses the same conservative coefficient as the global lower bound.
-            self.min_performing
-        };
-
         self.disutility(
             link,
             self.travel_time(link, departure_time, person, vehicle),
-            performing,
+            person,
         )
     }
 
     fn get_link_min_travel_disutility(&self, link: &Link) -> Disutility {
-        self.disutility(
-            link,
-            travel_time(link.length, link.freespeed),
-            self.min_performing,
-        )
+        self.disutility(link, travel_time(link.length, link.freespeed), None)
     }
 }
 
