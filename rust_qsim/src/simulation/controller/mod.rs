@@ -3,11 +3,10 @@ pub mod controller;
 
 use crate::external_services::{ExternalServiceType, RequestToAdapter};
 use crate::simulation::agents::agent::SimulationAgent;
-use crate::simulation::config::{CompressionType, Config, WriteEvents};
+use crate::simulation::config::{CompressionType, WriteEvents};
 use crate::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
 use crate::simulation::framework_events::{
-    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, PartitionEventsManager,
-    PartitionListenerRegisterFn,
+    MobsimEvent, MobsimEventsManager, PartitionEventsManager, WorkerListenerRegisterFunction,
 };
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
 use crate::simulation::io::xml::events::XmlEventsWriter;
@@ -15,9 +14,6 @@ use crate::simulation::messaging::sim_communication::local_communicator::Channel
 use crate::simulation::messaging::sim_communication::message_broker::NetMessageBroker;
 use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::replanning::routing::TripRouter;
-use crate::simulation::replanning::routing::travel_time_calculator::{
-    GlobalTravelTimeCalculator, PartitionTravelTimeCollector, register_travel_time_publication,
-};
 use crate::simulation::replanning::{StrategyManager, replan_population};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::{MobsimInput, ScenarioCore};
@@ -36,7 +32,6 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver as StdReceiver, Sender as StdSender};
 use std::sync::{Arc, Barrier};
 use std::thread::JoinHandle;
-use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
@@ -193,15 +188,10 @@ pub(crate) struct MobsimWorkerRun {
 pub(crate) struct MobsimWorkerPoolArguments {
     scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
-    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
-    event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
-    #[builder(default)]
-    mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
-    #[builder(default)]
-    partition_event_listener_per_partition: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
+    worker_listener: HashMap<u32, Vec<Box<WorkerListenerRegisterFunction>>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -212,15 +202,10 @@ struct MobsimWorkerArguments {
     communicator: ChannelSimCommunicator,
     scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
-    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
     #[builder(default)]
     external_services: ExternalServices,
     #[builder(default)]
-    event_handler: Vec<Box<EventHandlerRegisterFn>>,
-    #[builder(default)]
-    mobsim_event_listener: Vec<Box<MobsimListenerRegisterFn>>,
-    #[builder(default)]
-    partition_event_listener: Vec<Box<PartitionListenerRegisterFn>>,
+    worker_listener: Vec<Box<WorkerListenerRegisterFunction>>,
     global_barrier: Arc<Barrier>,
 }
 
@@ -254,23 +239,8 @@ impl MobsimWorkerPool {
                 .communicator(comm)
                 .scenario_core(args.scenario_core.clone())
                 .agent_source(args.agent_source.clone())
-                .global_travel_time_calculator(args.global_travel_time_calculator.clone())
                 .external_services(args.external_services.clone())
-                .event_handler(
-                    args.event_handler_per_partition
-                        .remove(&rank)
-                        .unwrap_or_default(),
-                )
-                .mobsim_event_listener(
-                    args.mobsim_event_listener_per_partition
-                        .remove(&rank)
-                        .unwrap_or_default(),
-                )
-                .partition_event_listener(
-                    args.partition_event_listener_per_partition
-                        .remove(&rank)
-                        .unwrap_or_default(),
-                )
+                .worker_listener(args.worker_listener.remove(&rank).unwrap_or_default())
                 .global_barrier(args.global_barrier.clone())
                 .build()
                 .unwrap();
@@ -391,59 +361,43 @@ impl MobsimWorker {
             communicator,
             scenario_core,
             agent_source,
-            global_travel_time_calculator,
             external_services,
-            mut event_handler,
-            mut mobsim_event_listener,
-            mut partition_event_listener,
+            mut worker_listener,
             global_barrier,
         } = args;
 
-        let events = create_events(&scenario_core.config, rank, mem::take(&mut event_handler));
-        let travel_time_collector = Rc::new(RefCell::new(PartitionTravelTimeCollector::new(
-            Duration::from_secs(u64::from(
-                scenario_core.config.travel_time_calculator().bin_size,
-            )),
-            Duration::from_secs(u64::from(scenario_core.config.qsim().end_time)),
-        )));
-        PartitionTravelTimeCollector::register_events(
-            &travel_time_collector,
-            &mut events.borrow_mut(),
-        );
-        let mobsim_events = Rc::new(RefCell::new(MobsimEventsManager::for_partition(rank, 0)));
-        let partition_events =
-            Rc::new(RefCell::new(PartitionEventsManager::for_partition(rank, 0)));
+        let config = &scenario_core.config;
+        let additional_subscribers = mem::take(&mut worker_listener);
+        let output_path = io::resolve_path(config.context(), &config.output().output_dir);
 
-        {
-            let mut bus = mobsim_events.borrow_mut();
-            for subscriber in mem::take(&mut mobsim_event_listener) {
-                subscriber(&mut bus);
-            }
-            register_travel_time_publication(
-                &travel_time_collector,
-                global_travel_time_calculator,
-                scenario_core.network.clone(),
-                rank,
-                &mut bus,
+        let mut events = EventsManager::new();
+        let mut mobsim_events = MobsimEventsManager::for_partition(rank, 0);
+        let mut partition_events = PartitionEventsManager::for_partition(rank, 0);
+
+        if config.output().write_events != WriteEvents::None {
+            assert!(
+                config.controller().write_events_interval > 0,
+                "Invalid controller config: write_events_interval must be greater than 0 when event writing is enabled."
             );
+            IterationEventsWriter::register(
+                output_path,
+                rank,
+                config.output().write_events.clone(),
+                config.controller().compression_type,
+                config.controller().write_events_interval,
+                config.controller().last_iteration,
+            )(&mut events);
         }
 
-        {
-            let mut bus = partition_events.borrow_mut();
-            for subscriber in mem::take(&mut partition_event_listener) {
-                subscriber(&mut bus);
-            }
-            PartitionTravelTimeCollector::register_partition_events(
-                &travel_time_collector,
-                &mut bus,
-            );
+        for subscriber in additional_subscribers {
+            subscriber(&mut events, &mut mobsim_events, &mut partition_events);
         }
 
         let comp_env = ThreadLocalComputationalEnvironmentBuilder::default()
             .services(external_services)
-            .events_manager(events)
-            .mobsim_events_manager(mobsim_events)
-            .partition_events_manager(partition_events)
+            .events_manager(Rc::new(RefCell::new(events)))
+            .mobsim_events_manager(Rc::new(RefCell::new(mobsim_events)))
+            .partition_events_manager(Rc::new(RefCell::new(partition_events)))
             .build()
             .unwrap();
 
@@ -620,37 +574,6 @@ impl ReplanningPool {
     }
 }
 
-fn create_events(
-    config: &Config,
-    rank: u32,
-    additional_subscribers: Vec<Box<EventHandlerRegisterFn>>,
-) -> Rc<RefCell<EventsManager>> {
-    let output_path = io::resolve_path(config.context(), &config.output().output_dir);
-
-    let mut events = EventsManager::new();
-
-    if config.output().write_events != WriteEvents::None {
-        assert!(
-            config.controller().write_events_interval > 0,
-            "Invalid controller config: write_events_interval must be greater than 0 when event writing is enabled."
-        );
-        IterationEventsWriter::register(
-            output_path,
-            rank,
-            config.output().write_events.clone(),
-            config.controller().compression_type,
-            config.controller().write_events_interval,
-            config.controller().last_iteration,
-        )(&mut events);
-    }
-
-    for subscriber in additional_subscribers {
-        subscriber(&mut events);
-    }
-
-    Rc::new(RefCell::new(events))
-}
-
 enum ActiveIterationEventsWriter {
     Proto(ProtoEventsWriter),
     Xml(XmlEventsWriter),
@@ -818,12 +741,11 @@ pub(crate) fn insert_number_in_proto_filename(path: impl AsRef<Path>, part: u32)
 mod tests {
     use super::{MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool};
     use crate::simulation::config::Config;
-    use crate::simulation::framework_events::{MobsimEvent, MobsimListenerRegisterFn};
+    use crate::simulation::framework_events::{MobsimEvent, WorkerListenerRegisterFunction};
     use crate::simulation::id::Id;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::agent_source::PopulationAgentSource;
     use crate::simulation::replanning::routing::TripRouter;
-    use crate::simulation::replanning::routing::travel_time_calculator::GlobalTravelTimeCalculator;
     use crate::simulation::scenario::network::Network;
     use crate::simulation::scenario::population::{InternalPerson, InternalPlan, Population};
     use crate::simulation::scenario::vehicles::Garage;
@@ -851,25 +773,21 @@ mod tests {
 
         let completed_iterations = Arc::new(Mutex::new(Vec::new()));
         let completed_for_registration = completed_iterations.clone();
-        let completion_listener: Box<MobsimListenerRegisterFn> = Box::new(move |bus| {
-            bus.on_event(move |event| {
-                if matches!(&event.payload, MobsimEvent::BeforeCleanup) {
-                    completed_for_registration
-                        .lock()
-                        .unwrap()
-                        .push(event.meta.iteration);
-                }
+        let completion_listener: Box<WorkerListenerRegisterFunction> =
+            Box::new(move |_, mobsim, _| {
+                mobsim.on_event(move |event| {
+                    if matches!(&event.payload, MobsimEvent::BeforeCleanup) {
+                        completed_for_registration
+                            .lock()
+                            .unwrap()
+                            .push(event.meta.iteration);
+                    }
+                });
             });
-        });
         let args = MobsimWorkerPoolArgumentsBuilder::default()
             .scenario_core(scenario_core.clone())
             .agent_source(Arc::new(PopulationAgentSource))
-            .mobsim_event_listener_per_partition(HashMap::from([(0, vec![completion_listener])]))
-            .global_travel_time_calculator(Arc::new(GlobalTravelTimeCalculator::new(
-                1,
-                std::time::Duration::from_secs(u64::from(config.travel_time_calculator().bin_size)),
-                std::time::Duration::ZERO,
-            )))
+            .worker_listener(HashMap::from([(0, vec![completion_listener])]))
             .global_barrier(Arc::new(Barrier::new(1)))
             .build()
             .unwrap();

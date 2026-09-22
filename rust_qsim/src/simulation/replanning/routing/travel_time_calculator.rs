@@ -230,6 +230,22 @@ impl PartitionTravelTimeCollector {
         });
     }
 
+    pub(crate) fn register_travel_time_publication(
+        collector: &Rc<RefCell<PartitionTravelTimeCollector>>,
+        global: Arc<GlobalTravelTimeCalculator>,
+        network: Arc<Network>,
+        rank: u32,
+        events: &mut MobsimEventsManager,
+    ) {
+        let collector = collector.clone();
+        events.on_event(move |event| {
+            if matches!(&event.payload, MobsimEvent::BeforeCleanup) {
+                let times = collector.borrow_mut().finish(&network);
+                global.submit(event.meta.iteration, rank, times);
+            }
+        });
+    }
+
     fn assign_vehicle_mode(&mut self, vehicle: &Id<InternalVehicle>, mode: &Id<String>) {
         if let Some(previous_mode) = self.vehicle_modes.insert(vehicle.clone(), mode.clone()) {
             if previous_mode != *mode {
@@ -377,22 +393,6 @@ impl GlobalTravelTimeCalculator {
     }
 }
 
-pub(crate) fn register_travel_time_publication(
-    collector: &Rc<RefCell<PartitionTravelTimeCollector>>,
-    global: Arc<GlobalTravelTimeCalculator>,
-    network: Arc<Network>,
-    rank: u32,
-    events: &mut MobsimEventsManager,
-) {
-    let collector = collector.clone();
-    events.on_event(move |event| {
-        if matches!(&event.payload, MobsimEvent::BeforeCleanup) {
-            let times = collector.borrow_mut().finish(&network);
-            global.submit(event.meta.iteration, rank, times);
-        }
-    });
-}
-
 fn number_of_bins(bin_size: Duration, max_time: Duration) -> usize {
     ((max_time.as_nanos() / bin_size.as_nanos()) + 1)
         .try_into()
@@ -454,7 +454,7 @@ fn interpolated_travel_time(
 pub(crate) mod test {
     use super::{
         GlobalTravelTimeCalculator, PartitionTravelTimeCollector, PartitionTravelTimes,
-        TravelTimeData, TravelTimeGetter, register_travel_time_publication,
+        TravelTimeData, TravelTimeGetter,
     };
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
@@ -789,14 +789,14 @@ pub(crate) mod test {
         let second_collector = Rc::new(RefCell::new(collector(10, 100)));
         let mut first_events = MobsimEventsManager::for_partition(0, 7);
         let mut second_events = MobsimEventsManager::for_partition(1, 7);
-        register_travel_time_publication(
+        PartitionTravelTimeCollector::register_travel_time_publication(
             &first_collector,
             global.clone(),
             net.clone(),
             0,
             &mut first_events,
         );
-        register_travel_time_publication(
+        PartitionTravelTimeCollector::register_travel_time_publication(
             &second_collector,
             global.clone(),
             net.clone(),

@@ -1,9 +1,23 @@
+use crate::simulation::events::EventsManager;
 use crate::simulation::id::Id;
 use crate::simulation::scenario::population::InternalPerson;
 use crate::simulation::scenario::vehicles::InternalVehicle;
 use crate::simulation::time::SimTime;
 
 pub type QSimId = u32;
+
+pub type MobsimRuntimeEvent = RuntimeEvent<MobsimEvent>;
+pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
+pub type PartitionRuntimeEvent = RuntimeEvent<PartitionEvent>;
+
+pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
+pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;
+pub type PartitionEventsManager = FrameworkEventsManager<PartitionEvent>;
+
+pub type ControllerListenerRegisterFn = dyn FnOnce(&mut ControllerEventsManager) + Send;
+
+pub type WorkerListenerRegisterFunction =
+    dyn FnOnce(&mut EventsManager, &mut MobsimEventsManager, &mut PartitionEventsManager) + Send;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PartitionEvent {
@@ -140,18 +154,6 @@ pub struct EventMeta {
     pub iteration: u32,
     pub seq_no: u64,
 }
-
-pub type MobsimRuntimeEvent = RuntimeEvent<MobsimEvent>;
-pub type ControllerRuntimeEvent = RuntimeEvent<ControllerEvent>;
-pub type PartitionRuntimeEvent = RuntimeEvent<PartitionEvent>;
-
-pub type MobsimEventsManager = FrameworkEventsManager<MobsimEvent>;
-pub type ControllerEventsManager = FrameworkEventsManager<ControllerEvent>;
-pub type PartitionEventsManager = FrameworkEventsManager<PartitionEvent>;
-
-pub type MobsimListenerRegisterFn = dyn FnOnce(&mut MobsimEventsManager) + Send;
-pub type ControllerListenerRegisterFn = dyn FnOnce(&mut ControllerEventsManager) + Send;
-pub type PartitionListenerRegisterFn = dyn FnOnce(&mut PartitionEventsManager) + Send;
 
 #[derive(Debug, Clone, Copy)]
 struct EventRuntimeState {

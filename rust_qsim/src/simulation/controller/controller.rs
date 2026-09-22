@@ -4,10 +4,9 @@ use crate::simulation::controller::{
     ExternalServices, MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool,
     create_output_filename,
 };
-use crate::simulation::events::EventHandlerRegisterFn;
 use crate::simulation::framework_events::{
     ControllerEvent, ControllerEventsManager, ControllerListenerRegisterFn,
-    MobsimListenerRegisterFn, PartitionListenerRegisterFn,
+    WorkerListenerRegisterFunction,
 };
 use crate::simulation::id::Id;
 use crate::simulation::network::LinkStorageCapacities;
@@ -18,7 +17,9 @@ use crate::simulation::replanning::routing::a_star::{AStar, AltHeuristic};
 use crate::simulation::replanning::routing::cost::ScoringBasedTravelTimeAndDisutility;
 use crate::simulation::replanning::routing::network_routing::NetworkRoutingModule;
 use crate::simulation::replanning::routing::teleportation::TeleportationRoutingModule;
-use crate::simulation::replanning::routing::travel_time_calculator::GlobalTravelTimeCalculator;
+use crate::simulation::replanning::routing::travel_time_calculator::{
+    GlobalTravelTimeCalculator, PartitionTravelTimeCollector,
+};
 use crate::simulation::replanning::routing::{RoutingModule, TripRouter};
 use crate::simulation::scenario::population::Population;
 use crate::simulation::scenario::prepare_for_sim::prepare_for_sim;
@@ -27,8 +28,10 @@ use crate::simulation::{id, io};
 use derive_more::Debug;
 use fs_extra::dir::CopyOptions;
 use nohash_hasher::IntMap;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 use std::{fs, mem};
@@ -43,26 +46,18 @@ pub struct Controller {
     agent_source: DynAgentSource,
     controller_events_manager: ControllerEventsManager,
     #[debug(skip)]
-    event_handler_per_partition: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
-    #[debug(skip)]
-    mobsim_event_listener_per_partition: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
-    #[debug(skip)]
-    partition_event_listener_per_partition: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
+    worker_listener: HashMap<u32, Vec<Box<WorkerListenerRegisterFunction>>>,
     external_services: ExternalServices,
     global_barrier: Arc<Barrier>,
     adapter_handles: Vec<AdapterHandle>,
     trip_router: TripRouter,
-    // Shared with the router and workers; workers publish their own travel-time data.
-    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
 }
 
 pub struct ControllerBuilder {
     scenario: Scenario,
     agent_source: DynAgentSource,
     controller_event_register_fn: Vec<Box<ControllerListenerRegisterFn>>,
-    event_handler_register_fn: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
-    mobsim_event_register_fn: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
-    partition_event_register_fn: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
+    worker_listener_register_fn: HashMap<u32, Vec<Box<WorkerListenerRegisterFunction>>>,
     external_services: ExternalServices,
     global_barrier: Option<Arc<Barrier>>,
     adapter_handles: Vec<AdapterHandle>,
@@ -74,9 +69,7 @@ impl ControllerBuilder {
             scenario,
             agent_source: Arc::new(PopulationAgentSource),
             controller_event_register_fn: Vec::new(),
-            event_handler_register_fn: HashMap::new(),
-            mobsim_event_register_fn: HashMap::new(),
-            partition_event_register_fn: HashMap::new(),
+            worker_listener_register_fn: HashMap::new(),
             external_services: ExternalServices::default(),
             global_barrier: None,
             adapter_handles: Vec::new(),
@@ -87,6 +80,8 @@ impl ControllerBuilder {
     pub fn build(mut self) -> Result<Controller, String> {
         self.scenario.config.travel_time_calculator().validate()?;
         let num_parts = self.scenario.config.partitioning().num_parts;
+        let bin_size = self.scenario.config.travel_time_calculator().bin_size;
+        let end_time = self.scenario.config.qsim().end_time;
 
         // create a barrier for the number of partitions, if not provided
         let barrier = self
@@ -113,20 +108,39 @@ impl ControllerBuilder {
         ));
         let router = Self::create_trip_router(config.as_ref(), &scenario, global_ttc.clone())?;
 
+        for i in 0..num_parts {
+            let net = scenario.core.network.clone();
+            let global_ttc = global_ttc.clone();
+            let travel_time_collector = move || {
+                Rc::new(RefCell::new(PartitionTravelTimeCollector::new(
+                    Duration::from_secs(u64::from(bin_size)),
+                    Duration::from_secs(u64::from(end_time)),
+                )))
+            };
+            self.worker_listener_register_fn
+                .entry(i)
+                .or_default()
+                .push(Box::new(move |events, mobsim, partition| {
+                    let ttc = travel_time_collector();
+                    PartitionTravelTimeCollector::register_events(&ttc, events);
+                    PartitionTravelTimeCollector::register_travel_time_publication(
+                        &ttc, global_ttc, net, i, mobsim,
+                    );
+                    PartitionTravelTimeCollector::register_partition_events(&ttc, partition);
+                }));
+        }
+
         Ok(Controller {
             scenario,
             link_storage_capacities,
             config,
             agent_source: self.agent_source,
             controller_events_manager: controller_event_manager,
-            event_handler_per_partition: self.event_handler_register_fn,
-            mobsim_event_listener_per_partition: self.mobsim_event_register_fn,
-            partition_event_listener_per_partition: self.partition_event_register_fn,
+            worker_listener: self.worker_listener_register_fn,
             external_services: self.external_services,
             global_barrier: barrier,
             adapter_handles: self.adapter_handles,
             trip_router: router,
-            global_travel_time_calculator: global_ttc,
         })
     }
 
@@ -135,30 +149,6 @@ impl ControllerBuilder {
         v: Vec<Box<ControllerListenerRegisterFn>>,
     ) -> Self {
         self.controller_event_register_fn = v;
-        self
-    }
-
-    pub fn event_handler_register_fn(
-        mut self,
-        v: HashMap<u32, Vec<Box<EventHandlerRegisterFn>>>,
-    ) -> Self {
-        self.event_handler_register_fn = v;
-        self
-    }
-
-    pub fn mobsim_event_register_fn(
-        mut self,
-        v: HashMap<u32, Vec<Box<MobsimListenerRegisterFn>>>,
-    ) -> Self {
-        self.mobsim_event_register_fn = v;
-        self
-    }
-
-    pub fn partition_event_register_fn(
-        mut self,
-        v: HashMap<u32, Vec<Box<PartitionListenerRegisterFn>>>,
-    ) -> Self {
-        self.partition_event_register_fn = v;
         self
     }
 
@@ -179,6 +169,14 @@ impl ControllerBuilder {
 
     pub fn adapter_handles(mut self, v: Vec<AdapterHandle>) -> Self {
         self.adapter_handles = v;
+        self
+    }
+
+    pub fn worker_listener_register_fn(
+        mut self,
+        worker_listener_register_fn: HashMap<u32, Vec<Box<WorkerListenerRegisterFunction>>>,
+    ) -> Self {
+        self.worker_listener_register_fn = worker_listener_register_fn;
         self
     }
 
@@ -422,14 +420,7 @@ impl Controller {
             .scenario_core(self.scenario.core.clone())
             .agent_source(self.agent_source.clone())
             .external_services(self.external_services.clone())
-            .event_handler_per_partition(mem::take(&mut self.event_handler_per_partition))
-            .mobsim_event_listener_per_partition(mem::take(
-                &mut self.mobsim_event_listener_per_partition,
-            ))
-            .partition_event_listener_per_partition(mem::take(
-                &mut self.partition_event_listener_per_partition,
-            ))
-            .global_travel_time_calculator(self.global_travel_time_calculator.clone())
+            .worker_listener(mem::take(&mut self.worker_listener))
             .global_barrier(self.global_barrier.clone())
             .build()
             .unwrap();
