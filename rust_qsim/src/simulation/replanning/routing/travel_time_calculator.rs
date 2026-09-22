@@ -247,7 +247,7 @@ impl PartitionTravelTimeCollector {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct TravelTimeSnapshot {
     bin_size: Duration,
     num_bins: usize,
@@ -255,7 +255,7 @@ struct TravelTimeSnapshot {
     times_by_partition: Vec<PartitionTravelTimes>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct PendingTravelTimes {
     iteration: Option<u32>,
     last_published_iteration: Option<u32>,

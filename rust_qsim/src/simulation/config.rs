@@ -593,8 +593,8 @@ impl Default for Output {
             output_dir: "./output".parse().unwrap(),
             overwrite_files: OverwriteFiles::FailIfDirectoryExists,
             profiling: Profiling::None,
-            logging: Logging::None,
-            write_events: WriteEvents::None,
+            logging: Logging::Info,
+            write_events: WriteEvents::File,
         }
     }
 }
