@@ -3,8 +3,8 @@ use crate::simulation::events::{
     VehicleLeavesTrafficEvent,
 };
 use crate::simulation::framework_events::{
-    PartitionEvent, PartitionEventsManager, VehicleEntersPartitionEvent,
-    VehicleLeavesPartitionEvent,
+    MobsimEvent, MobsimEventsManager, PartitionEvent, PartitionEventsManager,
+    VehicleEntersPartitionEvent, VehicleLeavesPartitionEvent,
 };
 use crate::simulation::id::Id;
 use crate::simulation::scenario::network::{Link, Network};
@@ -376,6 +376,23 @@ impl GlobalTravelTimeCalculator {
         observed
     }
 }
+
+pub(crate) fn register_travel_time_publication(
+    collector: &Rc<RefCell<PartitionTravelTimeCollector>>,
+    global: Arc<GlobalTravelTimeCalculator>,
+    network: Arc<Network>,
+    rank: u32,
+    events: &mut MobsimEventsManager,
+) {
+    let collector = collector.clone();
+    events.on_event(move |event| {
+        if matches!(&event.payload, MobsimEvent::BeforeCleanup) {
+            let times = collector.borrow_mut().finish(&network);
+            global.submit(event.meta.iteration, rank, times);
+        }
+    });
+}
+
 fn number_of_bins(bin_size: Duration, max_time: Duration) -> usize {
     ((max_time.as_nanos() / bin_size.as_nanos()) + 1)
         .try_into()
@@ -437,12 +454,13 @@ fn interpolated_travel_time(
 pub(crate) mod test {
     use super::{
         GlobalTravelTimeCalculator, PartitionTravelTimeCollector, PartitionTravelTimes,
-        TravelTimeData, TravelTimeGetter,
+        TravelTimeData, TravelTimeGetter, register_travel_time_publication,
     };
     use crate::simulation::InternalAttributes;
     use crate::simulation::events::{
         LinkEnterEvent, LinkLeaveEvent, VehicleEntersTrafficEvent, VehicleLeavesTrafficEvent,
     };
+    use crate::simulation::framework_events::{MobsimEvent, MobsimEventsManager};
     use crate::simulation::id::Id;
     use crate::simulation::scenario::Coordinate;
     use crate::simulation::scenario::network::{Link, Network, Node};
@@ -450,6 +468,8 @@ pub(crate) mod test {
     use crate::simulation::time::SimTime;
     use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
+    use std::cell::RefCell;
+    use std::rc::Rc;
     use std::sync::Arc;
     use std::time::Duration;
 
@@ -755,6 +775,74 @@ pub(crate) mod test {
         assert_eq!(Duration::from_secs(30), lookup(&reader, &car, &link, 0));
         global.submit(2, 1, PartitionTravelTimes::default());
         assert_eq!(Duration::from_secs(10), lookup(&reader, &car, &link, 0));
+    }
+
+    #[deterministic_id_test]
+    fn before_cleanup_publishes_each_iteration_after_all_partitions_finish() {
+        let first = link("first-finished", 100.0, 100.0);
+        let mut second = link("second-finished", 100.0, 100.0);
+        second.partition = 1;
+        let net = network(&[first.clone(), second.clone()]);
+        let car = Id::create("car");
+        let global = Arc::new(global(2, 10, 100));
+        let first_collector = Rc::new(RefCell::new(collector(10, 100)));
+        let second_collector = Rc::new(RefCell::new(collector(10, 100)));
+        let mut first_events = MobsimEventsManager::for_partition(0, 7);
+        let mut second_events = MobsimEventsManager::for_partition(1, 7);
+        register_travel_time_publication(
+            &first_collector,
+            global.clone(),
+            net.clone(),
+            0,
+            &mut first_events,
+        );
+        register_travel_time_publication(
+            &second_collector,
+            global.clone(),
+            net.clone(),
+            1,
+            &mut second_events,
+        );
+
+        observe(
+            &mut first_collector.borrow_mut(),
+            &car,
+            &first.id,
+            &Id::create("first-vehicle"),
+            0,
+            5,
+        );
+        observe(
+            &mut second_collector.borrow_mut(),
+            &car,
+            &second.id,
+            &Id::create("second-vehicle"),
+            0,
+            7,
+        );
+        first_events.process_event(MobsimEvent::BeforeCleanup);
+        assert_eq!(Duration::from_secs(1), lookup(&global, &car, &first, 0));
+        second_events.process_event(MobsimEvent::BeforeCleanup);
+        assert_eq!(Duration::from_secs(5), lookup(&global, &car, &first, 0));
+        assert_eq!(Duration::from_secs(7), lookup(&global, &car, &second, 0));
+
+        first_collector.borrow_mut().reset();
+        second_collector.borrow_mut().reset();
+        first_events.reset_iteration(8);
+        second_events.reset_iteration(8);
+        observe(
+            &mut first_collector.borrow_mut(),
+            &car,
+            &first.id,
+            &Id::create("next-vehicle"),
+            0,
+            9,
+        );
+        second_events.process_event(MobsimEvent::BeforeCleanup);
+        assert_eq!(Duration::from_secs(5), lookup(&global, &car, &first, 0));
+        first_events.process_event(MobsimEvent::BeforeCleanup);
+        assert_eq!(Duration::from_secs(9), lookup(&global, &car, &first, 0));
+        assert_eq!(Duration::from_secs(1), lookup(&global, &car, &second, 0));
     }
 
     #[deterministic_id_test]

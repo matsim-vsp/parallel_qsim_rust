@@ -6,7 +6,7 @@ use crate::simulation::agents::agent::SimulationAgent;
 use crate::simulation::config::{CompressionType, Config, WriteEvents};
 use crate::simulation::events::{EventHandlerRegisterFn, EventTrait, EventsManager};
 use crate::simulation::framework_events::{
-    MobsimEventsManager, MobsimListenerRegisterFn, PartitionEventsManager,
+    MobsimEvent, MobsimEventsManager, MobsimListenerRegisterFn, PartitionEventsManager,
     PartitionListenerRegisterFn,
 };
 use crate::simulation::io::proto::proto_events::ProtoEventsWriter;
@@ -16,7 +16,7 @@ use crate::simulation::messaging::sim_communication::message_broker::NetMessageB
 use crate::simulation::population::agent_source::DynAgentSource;
 use crate::simulation::replanning::routing::TripRouter;
 use crate::simulation::replanning::routing::travel_time_calculator::{
-    GlobalTravelTimeCalculator, PartitionTravelTimeCollector,
+    GlobalTravelTimeCalculator, PartitionTravelTimeCollector, register_travel_time_publication,
 };
 use crate::simulation::replanning::{StrategyManager, replan_population};
 use crate::simulation::scenario::population::Population;
@@ -230,8 +230,6 @@ struct MobsimWorker {
     communicator: Rc<ChannelSimCommunicator>,
     scenario_core: ScenarioCore,
     agent_source: DynAgentSource,
-    travel_time_collector: Rc<RefCell<PartitionTravelTimeCollector>>,
-    global_travel_time_calculator: Arc<GlobalTravelTimeCalculator>,
     comp_env: ThreadLocalComputationalEnvironment,
     global_barrier: Arc<Barrier>,
     reached_initial_barrier: bool,
@@ -421,6 +419,13 @@ impl MobsimWorker {
             for subscriber in mem::take(&mut mobsim_event_listener) {
                 subscriber(&mut bus);
             }
+            register_travel_time_publication(
+                &travel_time_collector,
+                global_travel_time_calculator,
+                scenario_core.network.clone(),
+                rank,
+                &mut bus,
+            );
         }
 
         {
@@ -447,8 +452,6 @@ impl MobsimWorker {
             communicator: Rc::new(communicator),
             scenario_core,
             agent_source,
-            travel_time_collector,
-            global_travel_time_calculator,
             comp_env,
             global_barrier,
             reached_initial_barrier: false,
@@ -472,12 +475,9 @@ impl MobsimWorker {
                         self.rank, iteration, is_last_iteration
                     );
                     let agents = self.run_iteration(iteration, input);
-                    let times = self
-                        .travel_time_collector
-                        .borrow_mut()
-                        .finish(&self.scenario_core.network);
-                    self.global_travel_time_calculator
-                        .submit(iteration, self.rank, times);
+                    self.comp_env
+                        .mobsim_events_manager_borrow_mut()
+                        .process_event(MobsimEvent::BeforeCleanup);
                     result_sender
                         .send(MobsimWorkerResult {
                             rank: self.rank,
@@ -818,6 +818,7 @@ pub(crate) fn insert_number_in_proto_filename(path: impl AsRef<Path>, part: u32)
 mod tests {
     use super::{MobsimWorkerPool, MobsimWorkerPoolArgumentsBuilder, ReplanningPool};
     use crate::simulation::config::Config;
+    use crate::simulation::framework_events::{MobsimEvent, MobsimListenerRegisterFn};
     use crate::simulation::id::Id;
     use crate::simulation::network::sim_network::SimNetworkPartition;
     use crate::simulation::population::agent_source::PopulationAgentSource;
@@ -831,7 +832,8 @@ mod tests {
     };
     use macros::deterministic_id_test;
     use nohash_hasher::IntSet;
-    use std::sync::{Arc, Barrier};
+    use std::collections::HashMap;
+    use std::sync::{Arc, Barrier, Mutex};
 
     #[deterministic_id_test]
     fn mobsim_worker_pool_runs_empty_population_and_shuts_down() {
@@ -847,9 +849,22 @@ mod tests {
             config: config.clone(),
         };
 
+        let completed_iterations = Arc::new(Mutex::new(Vec::new()));
+        let completed_for_registration = completed_iterations.clone();
+        let completion_listener: Box<MobsimListenerRegisterFn> = Box::new(move |bus| {
+            bus.on_event(move |event| {
+                if matches!(&event.payload, MobsimEvent::BeforeCleanup) {
+                    completed_for_registration
+                        .lock()
+                        .unwrap()
+                        .push(event.meta.iteration);
+                }
+            });
+        });
         let args = MobsimWorkerPoolArgumentsBuilder::default()
             .scenario_core(scenario_core.clone())
             .agent_source(Arc::new(PopulationAgentSource))
+            .mobsim_event_listener_per_partition(HashMap::from([(0, vec![completion_listener])]))
             .global_travel_time_calculator(Arc::new(GlobalTravelTimeCalculator::new(
                 1,
                 std::time::Duration::from_secs(u64::from(config.travel_time_calculator().bin_size)),
@@ -862,9 +877,11 @@ mod tests {
 
         let agents = pool.run_mobsim(0, false, vec![empty_mobsim_input(&scenario_core)]);
         assert!(agents.is_empty());
+        assert_eq!(&[0], completed_iterations.lock().unwrap().as_slice());
 
         let agents = pool.run_mobsim(1, true, vec![empty_mobsim_input(&scenario_core)]);
         assert!(agents.is_empty());
+        assert_eq!(&[0, 1], completed_iterations.lock().unwrap().as_slice());
 
         pool.shutdown();
     }
